@@ -52,8 +52,15 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
 
 - (NSData *)previewPixelsForStyle:(NSString *)style theme:(WaveformTheme *)theme
                       barDensity:(CGFloat)density barWidth:(CGFloat)width normalize:(BOOL)normalize gainDB:(float)gainDB {
+    return [self previewPixelsForStyle:style theme:theme barDensity:density barWidth:width centered:YES
+                             normalize:normalize gainDB:gainDB];
+}
+
+- (NSData *)previewPixelsForStyle:(NSString *)style theme:(WaveformTheme *)theme
+                      barDensity:(CGFloat)density barWidth:(CGFloat)width centered:(BOOL)centered
+                       normalize:(BOOL)normalize gainDB:(float)gainDB {
     CGImageRef image = [WaveformRendererRegistry newPreviewForIdentifier:style dark:YES
-            theme:theme barDensity:density barWidth:width normalize:normalize gainDB:gainDB];
+            theme:theme barDensity:density barWidth:width centered:centered normalize:normalize gainDB:gainDB];
     XCTAssertTrue(image != NULL);
     if (!image) return NSData.data;
     XCTAssertEqual(CGImageGetWidth(image), 720u);
@@ -139,6 +146,92 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     }
 }
 
+- (void)testCenteringChangesPreviewOnlyForSupportedStyles {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
+        NSData *centered = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 normalize:NO gainDB:0];
+        NSData *grounded = [self previewPixelsForStyle:style theme:theme barDensity:1 barWidth:1 centered:NO
+                                             normalize:NO gainDB:0];
+        XCTAssertEqual([centered isEqualToData:grounded],
+                       ![WaveformRendererRegistry supportsCenteringForIdentifier:style], @"%@", style);
+    }
+    XCTAssertFalse([WaveformRendererRegistry supportsCenteringForIdentifier:@"sonic_cirrus"]);
+    XCTAssertFalse([WaveformRendererRegistry supportsCenteringForIdentifier:@"cupertino_basic"]);
+}
+
+// Grounded, each bar keeps its height and stands on the band's foot.
+- (void)testGroundedBarsStandOnTheBaselineAtTheirCenteredHeight {
+    // Quiet, so no style's centered bar reaches the band's foot already.
+    AudioWaveformCacheChunk chunk;
+    chunk.set(-0.3f, 0.5f, 0.01f, 1);
+    AudioWaveform waveform(1, &chunk);
+    for (NSString *style in @[@"detailed", @"oversampling_detailed_x4", @"basic", @"cupertino"]) {
+        CGRect boxes[2];
+        for (BOOL centered : {YES, NO}) {
+            AudioWaveformRenderer *renderer = [self rendererForStyle:style];
+            renderer.centered = centered;
+            CALayer *host = renderer.parentLayer;
+            [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+            [renderer settleMorphImmediately];
+            boxes[centered] = CGPathGetPathBoundingBox(((CAShapeLayer *)host.sublayers.firstObject.mask).path);
+        }
+        // A pixel apart at most: centered rounds both edges, grounded only its top.
+        XCTAssertEqualWithAccuracy(boxes[NO].size.height, boxes[YES].size.height, 1, @"%@", style);
+        XCTAssertEqualWithAccuracy(CGRectGetMinY(boxes[NO]), VibeBarBaseline(80), 0.5, @"%@", style);
+        XCTAssertGreaterThan(CGRectGetMinY(boxes[YES]), CGRectGetMinY(boxes[NO]) + 5, @"%@", style);
+    }
+}
+
+static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
+    if ([layer isKindOfClass:CAGradientLayer.class]) {
+        return (CAGradientLayer *)layer;
+    }
+    NSMutableArray<CALayer *> *children = [NSMutableArray arrayWithArray:layer.sublayers ?: @[]];
+    if (layer.mask) {
+        [children addObject:layer.mask];
+    }
+    for (CALayer *child in children) {
+        CAGradientLayer *found = VibeFirstGradient(child);
+        if (found) {
+            return found;
+        }
+    }
+    return nil;
+}
+
+// Grounded, a bar's foot on the baseline reads the ramp where the midline did
+// centered, so quiet passages keep their brightness: the band's ramp, 3-Band's
+// side masks and Basic's full-view axis alike, re-aimed on each toggle.
+- (void)testGroundedRampKeepsTheMidlinesBrightnessAtTheBaseline {
+    CGFloat baseline = VibeBarBaseline(1);
+    for (NSString *style in @[@"detailed", @"basic", @"three_band"]) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
+        CAGradientLayer *ramp = VibeFirstGradient(renderer.parentLayer);
+        XCTAssertNotNil(ramp, @"%@", style);
+        CGFloat (^at)(CGFloat) = ^CGFloat(CGFloat y) {
+            return (y - ramp.startPoint.y) / (ramp.endPoint.y - ramp.startPoint.y);
+        };
+        CGFloat midline = at(0.5);
+        renderer.centered = NO;
+        XCTAssertEqualWithAccuracy(at(baseline), midline, 1e-6, @"%@", style);
+        renderer.centered = YES;
+        XCTAssertEqualWithAccuracy(at(0.5), midline, 1e-6, @"%@", style);
+    }
+}
+
+// Grounded, Cupertino's bars stand as Basic's, so they take Basic's ramp
+// rather than the fade mirrored about the midline.
+- (void)testGroundedCupertinoTakesBasicsRamp {
+    VibeColor *color = [VibeColor colorWithWhite:1 alpha:0.8];
+    DetailedAudioWaveformRenderer *cupertino = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"cupertino"];
+    DetailedAudioWaveformRenderer *basic = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"basic"];
+    NSArray *mirrored = [cupertino gradientColorsForColor:color isDark:YES];
+    cupertino.centered = NO;
+    XCTAssertEqualObjects([cupertino gradientColorsForColor:color isDark:YES],
+                          [basic gradientColorsForColor:color isDark:YES]);
+    XCTAssertNotEqualObjects(mirrored, [basic gradientColorsForColor:color isDark:YES]);
+}
+
 - (void)testBarWidthChangesPreviewOnlyForSupportedStyles {
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
@@ -185,7 +278,7 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     AudioWaveformCacheChunk chunk;
     chunk.set(-0.5f, 0.5f, 0.25f, 1);
     AudioWaveform waveform(1, &chunk);
-    for (NSString *style in @[@"basic", @"cupertino", @"sonic_cirrus", @"wiggle", @"wiggle_centered"]) {
+    for (NSString *style in @[@"basic", @"cupertino", @"sonic_cirrus", @"wiggle_centered"]) {
         AudioWaveformRenderer *renderer = [self rendererForStyle:style];
         CALayer *host = renderer.parentLayer;
         BOOL sonic = [style isEqualToString:@"sonic_cirrus"];
@@ -357,15 +450,16 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     }
 }
 
+// Wiggle MC is Wiggle with Centered off: its identifier is gone, and only the
+// migrations read it (AppThemeTests).
 - (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
     NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
-    XCTAssertTrue([identifiers containsObject:@"wiggle"]);
-    XCTAssertTrue([identifiers containsObject:@"wiggle_centered"]);
-    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle"], STR_WAVEFORM_STYLE_WIGGLE);
-    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE_CENTERED);
+    XCTAssertFalse([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]);
+    XCTAssertTrue([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE]);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
-    for (NSString *identifier in @[@"detailed", @"wiggle", @"wiggle_centered"]) {
+    for (NSString *identifier in @[@"detailed", @"wiggle_centered"]) {
         DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
         BOOL wiggle = ![identifier isEqualToString:@"detailed"];
         XCTAssertEqual(renderer.class, DetailedAudioWaveformRenderer.class);
@@ -379,26 +473,25 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
 }
 
 - (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
-    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
-        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:identifier];
-        CALayer *host = renderer.parentLayer;
-        CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
-        CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
-        CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
-        XCTAssertTrue(CGRectEqualToRect(leftStem, crest));
-        XCTAssertTrue(CGRectEqualToRect(leftStem, rightStem));
-        XCTAssertGreaterThanOrEqual(leftStem.size.width, 8);
-        XCTAssertGreaterThan([renderer hoverColumnRectForX:10 bounds:host.bounds scale:2].origin.x, leftStem.origin.x);
-        XCTAssertEqualWithAccuracy([renderer playedClipWidthForProgress:0.137 width:512], 0.137 * 512, 1e-6);
-    }
+    DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)[self rendererForStyle:@"wiggle_centered"];
+    CALayer *host = renderer.parentLayer;
+    CGRect leftStem = [renderer hoverColumnRectForX:2 bounds:host.bounds scale:2];
+    CGRect crest = [renderer hoverColumnRectForX:4 bounds:host.bounds scale:2];
+    CGRect rightStem = [renderer hoverColumnRectForX:6 bounds:host.bounds scale:2];
+    XCTAssertTrue(CGRectEqualToRect(leftStem, crest));
+    XCTAssertTrue(CGRectEqualToRect(leftStem, rightStem));
+    XCTAssertGreaterThanOrEqual(leftStem.size.width, 8);
+    XCTAssertGreaterThan([renderer hoverColumnRectForX:10 bounds:host.bounds scale:2].origin.x, leftStem.origin.x);
+    XCTAssertEqualWithAccuracy([renderer playedClipWidthForProgress:0.137 width:512], 0.137 * 512, 1e-6);
 }
 
 - (void)testWiggleCollapseFadesTheBaselineButKeepsLoadedQuietAudioVisible {
     AudioWaveformCacheChunk quiet;
     quiet.set(-0.014f, 0.014f, 0.000196f, 1);
     AudioWaveform waveform(1, &quiet);
-    for (NSString *identifier in @[@"wiggle", @"wiggle_centered"]) {
-        AudioWaveformRenderer *renderer = [self rendererForStyle:identifier];
+    for (BOOL centered : {YES, NO}) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:@"wiggle_centered"];
+        renderer.centered = centered;
         CALayer *host = renderer.parentLayer;
         [renderer updateWaveform:host.bounds progress:0 waveform:&waveform];
         [renderer settleMorphImmediately];
@@ -524,46 +617,6 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     XCTAssertEqual(loading.getDecodedFraction(), 1);
 }
 
-// The mac's streaming reveal grows a stretch up from this band's middle, so
-// it must hold the line an unfilled waveform draws, or the bars grow from
-// mid-air.
-- (void)testRestingBandHoldsEverythingAnUnfilledWaveformDraws {
-    CGSize size = CGSizeMake(512, 80);
-    CGFloat scale = 2;
-    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
-    CodableAudioWaveform *unfilled = [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform()];
-    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
-        if (![WaveformRendererRegistry supportsLevelsForIdentifier:style]) {
-            continue;
-        }
-        for (CGFloat barWidth : {1.0, 2.0}) {
-            AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-            renderer.barWidthScale = barWidth;
-            CGRect band = [renderer restingBandForBounds:CGRectMake(0, 0, size.width, size.height)];
-            CGImageRef image = [WaveformRendererRegistry newImageForCodableWaveform:unfilled identifier:style
-                    pointSize:size scale:scale progress:0.5 dark:YES theme:theme
-                    barDensity:1 barWidth:barWidth normalize:NO gainDB:0];
-            XCTAssertTrue(image != NULL, @"%@", style);
-            if (!image) continue;
-            NSData *pixels = CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image)));
-            size_t rows = CGImageGetHeight(image), rowBytes = CGImageGetBytesPerRow(image);
-            CGImageRelease(image);
-            const uint8_t *bytes = (const uint8_t *)pixels.bytes;
-            for (size_t row = 0; row < rows; row++) {
-                BOOL drawn = NO;
-                for (size_t x = 0; x < (size_t)(size.width * scale) && !drawn; x++) {
-                    drawn = bytes[row * rowBytes + x * 4 + 3] != 0;
-                }
-                // Row 0 is the top; the layers are y-up.
-                CGFloat bottom = (CGFloat)(rows - row - 1) / scale, top = (CGFloat)(rows - row) / scale;
-                XCTAssertTrue(!drawn || (bottom >= CGRectGetMinY(band) && top <= CGRectGetMaxY(band)),
-                              @"%@ width %.0f draws [%.1f, %.1f] outside its resting band [%.1f, %.1f]",
-                              style, barWidth, bottom, top, CGRectGetMinY(band), CGRectGetMaxY(band));
-            }
-        }
-    }
-}
-
 #pragma mark - 3-Band
 
 // The painter's layers, in order: low, mid, high, low+mid, low+high, mid+high,
@@ -649,6 +702,26 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
         above = MAX(above, drawn);
     }
     return visible;
+}
+
+// Grounded, every band set stands on the baseline at its centered height, so
+// the rings still nest.
+- (void)testGroundedThreeBandStandsOnTheBaseline {
+    AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+    std::vector<CGRect> boxes[2];
+    for (BOOL centered : {YES, NO}) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+        renderer.centered = centered;
+        [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
+        [renderer settleMorphImmediately];
+        for (CAShapeLayer *layer in VibeThreeBandLayers(renderer)) {
+            boxes[centered].push_back(CGPathGetPathBoundingBox(layer.path));
+        }
+    }
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        XCTAssertEqualWithAccuracy(boxes[NO][layer].size.height, boxes[YES][layer].size.height, 1e-3, @"layer %lu", layer);
+        XCTAssertEqualWithAccuracy(CGRectGetMinY(boxes[NO][layer]), VibeBarBaseline(80), 1e-3, @"layer %lu", layer);
+    }
 }
 
 // Which layers show: each band alone in its own color, and every ring
@@ -758,16 +831,26 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
 }
 
-// The bake fills the same rings in the palette's colors: the core, the
-// low+mid ring and the low band's own, read at the bitmap's center column.
-- (void)testThreeBandBakePaintsEachRingInItsBandsColor {
-    std::array<float, 3> bands = {1, 0.01f, 0.0001f};
-    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
+// The band fills are the theme's, live and baked alike: the bake's core,
+// low+mid ring and low band's own, read at the bitmap's center column.
+- (void)testThreeBandPaintsEachRingInTheThemesBandColor {
+    std::array<float, 3> levels = {1, 0.01f, 0.0001f};
+    AudioWaveform waveform = VibeThreeBandTestWaveform(levels);
     AudioWaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
-    WaveformTheme *flat = [WaveformTheme monochromeThemeIsDark:YES];
-    flat.flatFill = YES;
-    renderer.theme = flat;
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    NSMutableArray<VibeColor *> *bands = [NSMutableArray array];
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        [bands addObject:[NSColor colorWithSRGBRed:0 green:(layer + 1) * 30 / 255.0 blue:0 alpha:1]];
+    }
+    theme.bandColors = bands;
+    renderer.theme = theme;
     [renderer updateColors:YES];
+    NSArray<CAShapeLayer *> *stack = VibeThreeBandLayers(renderer);
+    for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
+        XCTAssertTrue(CGColorEqualToColor(stack[layer].fillColor, bands[layer].CGColor), @"layer %lu",
+                      (unsigned long)layer);
+    }
     XCTAssertTrue(renderer.supportsEnvelopeBake);
     CGSize size = renderer.parentLayer.bounds.size;
     CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
@@ -777,20 +860,13 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
                   @"the unplayed side is the one bitmap, dimmed");
     XCTAssertLessThan([renderer unplayedOverPlayedOpacity], 1);
     size_t center = CGImageGetHeight(image) / 2;
-    std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:bands];
-    size_t brownRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
-    size_t blueRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
-    XCTAssertEqual(VibeRGBAt(image, center, 256), 0xf5ebd7u, @"the core: all three bands");
-    XCTAssertEqual(VibeRGBAt(image, brownRow, 256), 0xb4690au, @"low and mid");
-    XCTAssertEqual(VibeRGBAt(image, blueRow, 256), 0x0055e1u, @"low alone");
+    std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:levels];
+    size_t lowMidRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
+    size_t lowRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
+    XCTAssertEqual(VibeRGBAt(image, center, 256), (uint32_t)(7 * 30) << 8, @"the core: all three bands");
+    XCTAssertEqual(VibeRGBAt(image, lowMidRow, 256), (uint32_t)(4 * 30) << 8, @"low and mid");
+    XCTAssertEqual(VibeRGBAt(image, lowRow, 256), (uint32_t)(1 * 30) << 8, @"low alone");
     CGImageRelease(image);
-
-    // Light turns the luminance over, so the white-led core goes dark.
-    [renderer updateColors:NO];
-    CGImageRef light = [renderer newEnvelopeImageForSize:size scale:1
-                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
-    XCTAssertEqual(VibeRGBAt(light, center, 256), 0x33302cu);
-    CGImageRelease(light);
 }
 
 // The theme's gradient is Detailed's ramp, live and baked alike: full at the

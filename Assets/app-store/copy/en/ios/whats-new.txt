@@ -4,6 +4,7 @@
 * New: Ogg Opus, CAF, W64, M4B, M4R, and ADTS playback
 * New: a crossfade slider, from off up to 3 seconds in tenths of a second
 * New: the 3-Band waveform style
+* New: option to center (or not) waveforms
 * New: a playhead line option, with the whole waveform in full color
 * New: compact now-playing layouts for short iPad windows
 * Improved: FLAC seeking is near-instant even in long files, using less CPU and memory, with better compatibility

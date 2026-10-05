@@ -196,14 +196,6 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
-// The bars stand on a line below the center: the 1pt top bar over it, the
-// mirror's sliver under the gap.
-- (CGRect)restingBandForBounds:(CGRect)bounds {
-    CGFloat bottomLineY = round(bounds.size.height * (1 - kTopLineRatio)) - kBottomBarSpacing;
-    return CGRectMake(bounds.origin.x, bounds.origin.y + bottomLineY - 1,
-                      bounds.size.width, kBottomBarSpacing + 2);
-}
-
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform*)waveform {
     NSInteger count = (NSInteger)(_layers.count / 2);
     NSInteger newBoundary = VibeBlockBoundaryForProgress(progress, count);

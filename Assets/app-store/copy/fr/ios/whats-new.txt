@@ -4,6 +4,7 @@
 * Nouveau : lecture d’Ogg Opus, CAF, W64, M4B, M4R et ADTS
 * Nouveau : un curseur de crossfade, de désactivé jusqu’à 3 secondes par dixièmes de seconde
 * Nouveau : le style de forme d’onde 3 bandes
+* Nouveau : option pour centrer (ou non) les formes d’onde
 * Nouveau : une option de ligne de la tête de lecture, avec toute la forme d’onde en pleine couleur
 * Nouveau : des dispositions compactes de l’écran À l’écoute pour les fenêtres d’iPad peu hautes
 * Amélioré : la navigation dans un FLAC est quasi instantanée, même dans les longs fichiers, avec moins de CPU et de mémoire, et une meilleure compatibilité

@@ -163,7 +163,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     VibeBenchComponentsAdd("ui-waveform", "detailed-resize", "frame", [detailed]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(detailed.get(), 800, 11);
         detailed->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:detailed->parent bounds:bounds
-                                                                           isDark:YES wiggle:NO centered:NO];
+                                                                           isDark:YES];
         detailed->renderer.normalizesLevels = YES;
         [detailed->renderer updateWaveform:bounds progress:0 waveform:detailed->waveform.get()];
         [detailed->renderer settleMorphImmediately];
@@ -197,7 +197,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     VibeBenchComponentsAdd("ui-waveform", "detailed-plain-resize", "frame", [plain]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(plain.get(), 800, 11);
         plain->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:plain->parent bounds:bounds
-                                                                        isDark:YES wiggle:NO centered:NO];
+                                                                        isDark:YES];
         [plain->renderer updateWaveform:bounds progress:0 waveform:plain->waveform.get()];
         [plain->renderer settleMorphImmediately];
         return 60;

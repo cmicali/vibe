@@ -3,7 +3,8 @@
 * Nové: prehrávanie Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R a ADTS
 * Nové: panel Klávesové skratky v Nastaveniach na zmenu ľubovoľnej skratky
 * Nové: posuvník crossfade od vypnutého až do 3 sekúnd po desatinách sekundy
-* Nové: štýl vlnového priebehu 3 pásma a téma Rekord Bin, ktorá ho používa
+* Nové: prispôsobiteľný štýl vlnového priebehu 3 pásma a dve témy, ktoré ho používajú
+* Nové: voľba, či vlnový priebeh vycentrovať (alebo nie)
 * Nové: možnosť Čiara prehrávacej hlavy s celým vlnovým priebehom v plnej farbe
 * Zmena: okno Nastavenia je usporiadané nanovo a má vyhľadávanie
 * Vylepšenie: posun vo FLAC je takmer okamžitý aj v dlhých súboroch, s nižšou záťažou CPU a pamäte a lepšou kompatibilitou

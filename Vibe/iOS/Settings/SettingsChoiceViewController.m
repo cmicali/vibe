@@ -31,6 +31,8 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     [toggle removeTarget:nil action:NULL forControlEvents:UIControlEventValueChanged];
     [toggle addTarget:target action:action forControlEvents:UIControlEventValueChanged];
     toggle.on = on;
+    // Reused cells: a caller that disables one disables it after this.
+    toggle.enabled = YES;
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
     content.text = title;
     cell.contentConfiguration = content;

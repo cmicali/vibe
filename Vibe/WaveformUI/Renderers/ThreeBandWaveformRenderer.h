@@ -6,9 +6,9 @@
 #import <Foundation/Foundation.h>
 #import "AudioWaveformRenderer.h"
 
-// A DJ player's 3-band display: the low, mid and high bands' levels on one
-// mirrored axis, each band set an antialiased envelope in fixed colors with
-// their overlaps tinted.
+// A DJ player's 3-band display: the low, mid and high bands' levels, each
+// band set an antialiased envelope in the theme's bandColors, about the
+// midline or grounded.
 @interface ThreeBandWaveformRenderer : AudioWaveformRenderer
 
 @end

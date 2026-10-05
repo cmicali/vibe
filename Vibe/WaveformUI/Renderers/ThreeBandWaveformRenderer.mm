@@ -23,32 +23,6 @@ static const float kUnplayedOpacity = 0.5f;
 static const NSUInteger kLayerCount = 7;
 static const NSUInteger kLayerForBands[8] = {0, 0, 1, 3, 2, 4, 5, 6};
 
-// In the layer order. Dark is the 3-band palette of
-// hdelplan/three-band-waveform: blue lows, amber mids, white highs, brown
-// where low and mid overlap, pale tints wherever high joins. Light keeps the
-// hues and turns the luminance over, since white highs vanish on a light
-// window: the highs and their tints go dark, and the amber deepens to hold
-// its edge against the background. Fixed rather than themed, because the hue
-// is which band.
-static CGColorRef VibeThreeBandColor(NSUInteger layer, BOOL isDark) {
-    static const uint32_t kRGB[2][kLayerCount] = {
-        {0x0055e1, 0xd97706, 0x262626, 0xa35a0c, 0x17306b, 0x5c3a0e, 0x33302c},
-        {0x0055e1, 0xffa600, 0xffffff, 0xb4690a, 0xd2dcfa, 0xfff0d7, 0xf5ebd7},
-    };
-    static CGColorRef colors[2][kLayerCount];
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        for (NSUInteger dark = 0; dark < 2; dark++) {
-            for (NSUInteger i = 0; i < kLayerCount; i++) {
-                uint32_t rgb = kRGB[dark][i];
-                colors[dark][i] = CGColorCreateSRGB((rgb >> 16 & 0xff) / 255.0, (rgb >> 8 & 0xff) / 255.0,
-                                                    (rgb & 0xff) / 255.0, 1);
-            }
-        }
-    });
-    return colors[isDark ? 1 : 0][layer];
-}
-
 // One bar's three bands as half-heights in points; answers the tallest.
 // Silence keeps every bar style's hairline, in the all-bands color its tie
 // gives it.
@@ -70,16 +44,19 @@ static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat min
 // slice's outline (the tallest band) when one is given. The envelopes nest as
 // their sets do, since a set's lowest band is never above a subset's, so the
 // painter's order alone colors each height by the bands reaching it, and the
-// fill's antialiasing smooths the steps between bars. The live layers and the
-// bake both draw from here, which keeps them pixel-identical; points is the
-// caller's scratch.
+// fill's antialiasing smooths the steps between bars. Grounded, each stands on
+// the baseline at its whole height, and they nest the same way. The live
+// layers and the bake both draw from here, which keeps them pixel-identical;
+// points is the caller's scratch.
 static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outline, std::vector<CGPoint> *points,
-                                  CGSize size, const float *samples, NSUInteger count, CGFloat minimumHeight) {
+                                  CGSize size, const float *samples, NSUInteger count, CGFloat minimumHeight,
+                                  BOOL centered) {
     if (count == 0) {
         return;
     }
     CGFloat midY = size.height / 2;
     CGFloat vscale = VibeBarVScale(size.height);
+    CGFloat baseline = VibeBarBaseline(size.height);
     CGFloat pitch = size.width / (CGFloat)count;
     // Per band set (by mask; 0 is the outline), one polygon: the left edge,
     // the top through the bars' centers, the right edge, the bottom back.
@@ -94,8 +71,9 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
                                     MIN(half[1], half[2]), MIN(lowMid, half[2])};
         for (NSUInteger mask = outline ? 0 : 1; mask < 8; mask++) {
             CGPoint *polygon = points->data() + mask * stride;
-            polygon[1 + i] = CGPointMake(x, midY + heights[mask]);
-            polygon[stride - 2 - i] = CGPointMake(x, midY - heights[mask]);
+            CGFloat bottom = centered ? midY - heights[mask] : baseline;
+            polygon[1 + i] = CGPointMake(x, bottom + 2 * heights[mask]);
+            polygon[stride - 2 - i] = CGPointMake(x, bottom);
         }
     }
     for (NSUInteger mask = 0; mask < 8; mask++) {
@@ -190,7 +168,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     _playedSide = VibePinned([CAGradientLayer layer], scale);
     _unplayedSide = VibePinned([CAGradientLayer layer], scale);
     for (CAGradientLayer *side in @[_playedSide, _unplayedSide]) {
-        VibeAimBarGradient(side);
+        VibeAimBarGradient(side, self.centered);
         [_sides addSublayer:side];
     }
     _bands.mask = _sides;
@@ -205,14 +183,25 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [_container addSublayer:_hoverHost];
 }
 
-// The palette follows only the appearance; the theme gives the ramp, or none,
-// and the hover slice, an affordance rather than a band.
+// The ramp's aim follows the anchoring.
+- (void)setCentered:(BOOL)centered {
+    if (self.centered == centered) return;
+    [super setCentered:centered];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    VibeAimBarGradient(_playedSide, centered);
+    VibeAimBarGradient(_unplayedSide, centered);
+    [CATransaction commit];
+}
+
+// The theme gives the band fills in this layer order, the ramp, or none, and
+// the hover slice, an affordance rather than a band.
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _bandLayers[layer].fillColor = VibeThreeBandColor(layer, isDark);
+        _bandLayers[layer].fillColor = self.theme.bandColors[layer].CGColor;
     }
     _playedSide.colors = VibeThreeBandSideColors(1, self.theme.flatFill);
     _unplayedSide.colors = VibeThreeBandSideColors(kUnplayedOpacity, self.theme.flatFill);
@@ -357,7 +346,8 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     }
     // setHoverHighlightX: rebuilds as the slice appears.
     CGMutablePathRef outline = _hoverHost.hidden ? NULL : CGPathCreateMutable();
-    VibeAddThreeBandPaths(paths, outline, &_points, _morph.size, samples.data(), count, _morph.barMinHeight);
+    VibeAddThreeBandPaths(paths, outline, &_points, _morph.size, samples.data(), count, _morph.barMinHeight,
+                          self.centered);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
@@ -411,11 +401,11 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
         paths[layer] = CGPathCreateMutable();
     }
     std::vector<CGPoint> points;
-    VibeAddThreeBandPaths(paths, NULL, &points, size, (const float *)samples.bytes, count, 1);
+    VibeAddThreeBandPaths(paths, NULL, &points, size, (const float *)samples.bytes, count, 1, self.centered);
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
         if (!CGPathIsEmpty(paths[layer])) {
             CGContextAddPath(ctx, paths[layer]);
-            CGContextSetFillColorWithColor(ctx, VibeThreeBandColor(layer, self.isDark));
+            CGContextSetFillColorWithColor(ctx, self.theme.bandColors[layer].CGColor);
             CGContextFillPath(ctx);
         }
         CGPathRelease(paths[layer]);
@@ -423,7 +413,7 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     if (!self.theme.flatFill) {
         // The played side's mask, so the bake matches the live layers.
         CGContextSetBlendMode(ctx, kCGBlendModeDestinationIn);
-        VibeFillBarGradient(ctx, size, VibeThreeBandSideColors(1, NO));
+        VibeFillBarGradient(ctx, size, VibeThreeBandSideColors(1, NO), self.centered);
     }
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);

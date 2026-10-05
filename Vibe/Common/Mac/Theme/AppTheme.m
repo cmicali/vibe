@@ -26,7 +26,9 @@ NSString *const kVibeThemeRecordIdentifierKey = @"id";
 static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
+static NSString *const kFieldWaveformShadeOverlaps = @"waveformShadeOverlaps";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
+static NSString *const kFieldWaveformCentered = @"waveformCentered";
 static NSString *const kFieldWaveformPlayheadLine = @"waveformPlayheadLine";
 static NSString *const kFieldWaveformBarDensity = @"waveformBarDensity";
 static NSString *const kFieldWaveformBarWidth = @"waveformBarWidth";
@@ -73,6 +75,9 @@ NSString *const kVibeThemeImageNextButtonLight = @"nextButtonImageLight";
 NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
 NSString *const kVibeThemeColorWaveformUnplayed = @"waveformUnplayedColor";
 NSString *const kVibeThemeColorWaveformPlayhead = @"waveformPlayheadColor";
+NSString *const kVibeThemeColorWaveformLow = @"waveformLowColor";
+NSString *const kVibeThemeColorWaveformMid = @"waveformMidColor";
+NSString *const kVibeThemeColorWaveformHigh = @"waveformHighColor";
 NSString *const kVibeThemeColorWindowTint = @"windowTintColor";
 NSString *const kVibeThemeColorPlaylistTint = @"playlistTintColor";
 NSString *const kVibeThemeColorWindowBackground = @"windowBackgroundColor";
@@ -148,6 +153,7 @@ static NSString *const kSpecColorBase = @"colorBase";
 static NSString *const kSpecInheritsBase = @"inheritsBase";
 static NSString *const kSpecArchiveEntry = @"archiveEntry";
 static NSString *const kSpecSanitize = @"sanitize";
+static NSString *const kSpecOpaque = @"opaque";
 
 // The gate's kinds: a raw value comes out normalized and typed, or nil
 // (dropped, so the default takes over).
@@ -246,6 +252,20 @@ static void AddColorPair(NSMutableArray *rows, NSString *base, NSString *group, 
                                           ColorField());
         spec[kSpecColorBase] = base;
         [rows addObject:spec];
+    }
+}
+
+// 3-Band's bands stack, so an alpha would never draw: they store opaque, and
+// a well shows what draws.
+static void AddOpaqueColorPair(NSMutableArray *rows, NSString *base, NSString *group, NSString *jsonBase) {
+    AddColorPair(rows, base, group, jsonBase);
+    FieldSanitizer color = ColorField();
+    FieldSanitizer opaque = ^id(id raw) {
+        return VibeHexStringFromColor([VibeColorFromHexString(color(raw)) colorWithAlphaComponent:1]);
+    };
+    for (NSUInteger i = rows.count - 2; i < rows.count; i++) {
+        rows[i][kSpecSanitize] = [opaque copy];
+        rows[i][kSpecOpaque] = @YES;
     }
 }
 
@@ -351,6 +371,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldWaveformTheme, waveform, @"theme", SETTINGS_VALUE_WAVEFORM_THEME_MONO,
                               LadderField(VibeNormalizedWaveformTheme))];
         [rows addObject:Field(kFieldWaveformGradient, waveform, @"gradient", @YES, BoolField())];
+        [rows addObject:Field(kFieldWaveformCentered, waveform, @"centered", @YES, BoolField())];
         [rows addObject:Field(kFieldWaveformBarDensity, waveform, @"barDensity",
                               @(kVibeThemeWaveformBarScaleDefault),
                               NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
@@ -359,6 +380,10 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
+        [rows addObject:Field(kFieldWaveformShadeOverlaps, waveform, @"shadeOverlaps", @YES, BoolField())];
+        AddOpaqueColorPair(rows, kVibeThemeColorWaveformLow, waveform, @"lowColor");
+        AddOpaqueColorPair(rows, kVibeThemeColorWaveformMid, waveform, @"midColor");
+        AddOpaqueColorPair(rows, kVibeThemeColorWaveformHigh, waveform, @"highColor");
         [rows addObject:Field(kFieldWaveformPlayheadLine, waveform, @"playheadLine", @NO, BoolField())];
         AddColorPair(rows, kVibeThemeColorWaveformPlayhead, waveform, @"playheadColor");
 
@@ -555,6 +580,16 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
         return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:1]
                       : [NSColor colorWithRed:0 green:0 blue:0 alpha:1];
     }
+    // Rekord Bin's bands (WaveformTheme).
+    if ([base isEqualToString:kVibeThemeColorWaveformLow]) {
+        return VibeColorFromHexString(@"#0055E1");
+    }
+    if ([base isEqualToString:kVibeThemeColorWaveformMid]) {
+        return VibeColorFromHexString(isDark ? @"#FFA600" : @"#D97706");
+    }
+    if ([base isEqualToString:kVibeThemeColorWaveformHigh]) {
+        return VibeColorFromHexString(isDark ? @"#FFFFFF" : @"#262626");
+    }
     NSCAssert([base isEqualToString:kVibeThemeColorWaveformUnplayed], @"no color pair %@", base);
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
 }
@@ -603,6 +638,10 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     NSString *inherited = PlaylistColorFallbackBases()[base];
     return inherited ? [self displayColorForBase:inherited dark:isDark]
                      : DefaultColorForBase(base, isDark);
+}
+
++ (BOOL)storesOpaqueColorBase:(NSString *)base {
+    return [FieldSpecsByKey()[[base stringByAppendingString:@"Dark"]][kSpecOpaque] boolValue];
 }
 
 - (BOOL)playlistColorEnabledForBase:(NSString *)base {
@@ -1151,6 +1190,12 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
             && !SanitizedFieldValue(kFieldCustomCornerRadius, record[kFieldCustomCornerRadius])) {
         _fields[kFieldCustomCornerRadius] = @YES;
     }
+    // Wiggle MC is Wiggle grounded, whatever version a record claims: a 1.15
+    // beta stored and exported it at version 2.
+    if ([record[kFieldWaveformStyle] isEqual:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
+        _fields[kFieldWaveformStyle] = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
+        _fields[kFieldWaveformCentered] = @NO;
+    }
 }
 
 + (NSDictionary<NSString *, id> *)sanitizedRecord:(NSDictionary<NSString *, id> *)record {
@@ -1200,6 +1245,12 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (BOOL)waveformGradient { return [self boolForKey:kFieldWaveformGradient]; }
 - (void)setWaveformGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformGradient]; }
+
+- (BOOL)waveformCentered { return [self boolForKey:kFieldWaveformCentered]; }
+- (void)setWaveformCentered:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformCentered]; }
+
+- (BOOL)waveformShadeOverlaps { return [self boolForKey:kFieldWaveformShadeOverlaps]; }
+- (void)setWaveformShadeOverlaps:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformShadeOverlaps]; }
 
 - (BOOL)waveformPlayheadLine { return [self boolForKey:kFieldWaveformPlayheadLine]; }
 - (void)setWaveformPlayheadLine:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformPlayheadLine]; }
@@ -1378,7 +1429,9 @@ static id RandomPick(NSArray *choices) {
     }
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
+    self.waveformShadeOverlaps = RandomChance(50);
     self.waveformGradient = RandomChance(50);
+    self.waveformCentered = RandomChance(75);
     self.buttonGradient = RandomPick(VibeButtonGradientModes());
     self.playlistButtonGlyph = RandomPick(VibePlaylistButtonGlyphs());
     NSArray<NSString *> *pair = RandomPick(VibePlayPauseGlyphPairs());

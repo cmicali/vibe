@@ -105,11 +105,13 @@ static const CGFloat kVibeBarAmplitudeOfHalfHeight = 0.75;
 static inline CGFloat VibeBarVScale(CGFloat height) {
     return (height / 2) * kVibeBarAmplitudeOfHalfHeight;
 }
+// The band's foot, where Centered off grounds the bars.
+static inline CGFloat VibeBarBaseline(CGFloat height) {
+    return height / 2 - VibeBarVScale(height);
+}
 static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
-    CGFloat midY = bounds.size.height / 2;
-    CGFloat vscale = VibeBarVScale(bounds.size.height);
-    CGFloat bottomY = round(midY - vscale);
-    CGFloat topY = round(midY + vscale);
+    CGFloat bottomY = round(VibeBarBaseline(bounds.size.height));
+    CGFloat topY = round(bounds.size.height - VibeBarBaseline(bounds.size.height));
     return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
@@ -120,17 +122,25 @@ static const CGFloat kVibeBarGradientBottomAlpha = 0.45;
 static inline NSArray<VibeColor *> *VibeBarRampColors(VibeColor *color, BOOL flat) {
     return @[color, flat ? color : VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha)];
 }
-static inline void VibeAimBarGradient(CAGradientLayer *gradient) {
-    // y = 1 is the top.
-    gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
-    gradient.endPoint = CGPointMake(0.5, (1 - kVibeBarAmplitudeOfHalfHeight) / 2);
+// Grounded, every ramp's axis drops by half the band, as a share of the
+// height: a bar's foot on the baseline reads the level its midline did, so
+// quiet passages keep the brightness they had centered.
+static inline CGFloat VibeBarRampDrop(BOOL centered) {
+    return centered ? 0 : VibeBarVScale(1);
 }
-static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *stops) {
+// y = 1 is the top.
+static inline void VibeAimBarGradient(CAGradientLayer *gradient, BOOL centered) {
+    CGFloat drop = VibeBarRampDrop(centered);
+    gradient.startPoint = CGPointMake(0.5, 1 - VibeBarBaseline(1) - drop);
+    gradient.endPoint = CGPointMake(0.5, VibeBarBaseline(1) - drop);
+}
+static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *stops, BOOL centered) {
     CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
                                                         (__bridge CFArrayRef)stops, NULL);
+    CGFloat drop = VibeBarRampDrop(centered);
     CGContextDrawLinearGradient(ctx, gradient,
-            CGPointMake(0, size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2),
-            CGPointMake(0, size.height * (1 - kVibeBarAmplitudeOfHalfHeight) / 2),
+            CGPointMake(0, size.height * (1 - VibeBarBaseline(1) - drop)),
+            CGPointMake(0, size.height * (VibeBarBaseline(1) - drop)),
             kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     CGGradientRelease(gradient);
 }
@@ -206,6 +216,10 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 @property (nonatomic) CGFloat barDensity;
 // Multiplier of bar/stroke thickness, independent of count; defaults to 1.
 @property (nonatomic) CGFloat barWidthScale;
+// YES, the default, draws about the midline; NO grounds every bar on a baseline
+// at the foot of the band, the height it had about the midline. Sonic Cirrus
+// and the pill ignore it (WaveformRendererRegistry.supportsCenteringForIdentifier:).
+@property (nonatomic) BOOL centered;
 
 // Basic, Cupertino and Sonic Cirrus share a 4pt pitch and a 1,024-bar cap.
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width;
@@ -246,11 +260,6 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // The vertical band a click must land in to seek, from the bounds alone. Every
 // renderer must override it; the base only asserts.
 - (CGRect)seekHitBandForBounds:(CGRect)bounds;
-
-// The band silence draws in, whose middle the mac's streaming reveal grows a
-// newly decoded stretch up from: off the resting line, the bars grow from
-// mid-air. A point either side of the vertical center here.
-- (CGRect)restingBandForBounds:(CGRect)bounds;
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;

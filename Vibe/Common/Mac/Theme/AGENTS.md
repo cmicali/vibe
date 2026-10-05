@@ -10,6 +10,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 `waveformBarDensity` and `waveformBarWidth` travel as `waveform.barDensity` and `waveform.barWidth`, default to 1, and clamp to 0.5–2. Density scales a supported style's count relative to its designed pitch, so window resizing still adds bars; width scales its thickness without changing that count. The renderer registry owns style eligibility; the record keeps the value across style changes.
 
+3-Band takes its colors from the `kVibeThemeColorWaveformLow`/`Mid`/`High` pairs (`waveform.lowColor`, `midColor`, `highColor`) in place of `waveformTheme`, whose unset slots are Rekord Bin's bands, and `waveformShadeOverlaps` (`waveform.shadeOverlaps`, default on), which picks the CDJ's shaded overlaps or Engine DJ's plain ones. A named 3-Band look is a theme: `rekord_bin` leaves the bands unset, `dengine` sets Engine's and turns the shading off. The dice roll the switch; `randomizeColors` clears the bands with every other pair.
+
 `waveformPlayheadLine` (`waveform.playheadLine`, default off) draws the whole waveform as played under a line at the playhead, in the `kVibeThemeColorWaveformPlayhead` pair (`waveform.playheadColor`), whose unset side is the appearance's contrast pole. Off is the default so every record that predates the field keeps the dimmed unplayed side; the pair is held while the switch is off. What the line is, and who draws it, is `WaveformUI/AGENTS.md`'s.
 
 ## What a theme is not
@@ -35,6 +37,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 **Two fields, one accessor.** `windowCornerRadius` is what the slider holds; `customCornerRadius` (default off) says whether the window draws it; `resolvedWindowCornerRadius`, the only accessor consumers read, answers the slider under custom and `kVibeThemeCornerRadiusDefault` (16pt — the window is borderless and draws its own shape, so macOS 26's radius is a constant of ours) otherwise.
 
 **A record naming a radius with no word on the switch reads as custom**, decided in `replaceWithRecord:` — the one place a record is read, so the setters stay plain — because the switch postdates the radius and every older theme keeps the shape it chose. The sparse rule has one exception for the same reason: the switch's *off* beside a stored radius is kept (`storeSanitized:`, and why its spec row follows the radius's), since dropped as the default it would read back as custom.
+
+**A record's Wiggle MC (`wiggle`) reads as Wiggle with `waveformCentered` off**, in `replaceWithRecord:` too, whatever version the record claims: 1.14 stored it at version 1, and a 1.15 beta stored and exported it at version 2, past `recordUpgradedFromVersion1:`.
 
 ## The transport buttons
 

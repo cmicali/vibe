@@ -342,12 +342,13 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     // No artwork, so album_art resolves to Mono's answer.
     WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
     NSArray *key = @[style, @(dark), palette.playedColor, palette.unplayedColor,
-            @(palette.flatFill), palette.playheadColor ?: NSNull.null,
-            @(theme.waveformBarDensity), @(theme.waveformBarWidth),
+            palette.bandColors, @(palette.flatFill), palette.playheadColor ?: NSNull.null,
+            @(theme.waveformBarDensity), @(theme.waveformBarWidth), @(theme.waveformCentered),
             @(settings.waveformNormalize), @(settings.waveformGainDB)];
     if ([_waveformPreviewKey isEqualToArray:key]) return;
     CGImageRef bitmap = [WaveformRendererRegistry newPreviewForIdentifier:style dark:dark theme:palette
             barDensity:theme.waveformBarDensity barWidth:theme.waveformBarWidth
+            centered:theme.waveformCentered
             normalize:settings.waveformNormalize gainDB:settings.waveformGainDB];
     NSImage *image = bitmap ? [[NSImage alloc] initWithCGImage:bitmap size:NSMakeSize(360, 64)] : nil;
     if (bitmap) CGImageRelease(bitmap);
@@ -457,7 +458,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
             : [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]
             ? [theme displayColorForBase:kVibeThemeColorWindowTint dark:dark]
             : [NSColor colorWithWhite:dark ? 0.2 : 0.92 alpha:1];
-    NSColor *bars = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil].playedColor;
+    WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
+    // 3-Band's bars are its low, mid and high bands.
+    NSArray<NSColor *> *bars = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle]
+            ? [palette.bandColors subarrayWithRange:NSMakeRange(0, 3)]
+            : @[palette.playedColor, palette.playedColor, palette.playedColor];
     NSColor *edge = [NSColor colorWithWhite:dark ? 1 : 0 alpha:0.2];
     NSImage *swatch = [NSImage imageWithSize:NSMakeSize(16, 16) flipped:NO drawingHandler:^BOOL(NSRect rect) {
         NSBezierPath *tile = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(rect, 0.5, 0.5)
@@ -466,9 +471,9 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
         [tile fill];
         [edge setStroke];
         [tile stroke];
-        [bars setFill];
         const CGFloat heights[] = {0.45, 0.8, 0.55};
         for (int i = 0; i < 3; i++) {
+            [bars[i] setFill];
             CGFloat height = heights[i] * 11;
             NSRectFill(NSMakeRect(4 + i * 3.25, NSMidY(rect) - height / 2, 2, height));
         }

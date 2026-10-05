@@ -28,6 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier;
 + (BOOL)supportsLevelsForIdentifier:(NSString *)identifier;
+// Whether the style draws AudioWaveformRenderer.centered: every style but Sonic
+// Cirrus and the pill.
++ (BOOL)supportsCenteringForIdentifier:(NSString *)identifier;
 // AudioWaveformRenderer.readsBands, for a persisted style; NO for nil or an
 // unregistered one.
 + (BOOL)readsBandsForIdentifier:(nullable NSString *)identifier;
@@ -39,7 +42,7 @@ NS_ASSUME_NONNULL_BEGIN
 // A static sample rendered by the actual style and current display settings.
 + (nullable CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
                                         theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
-                                     barWidth:(CGFloat)barWidth
+                                     barWidth:(CGFloat)barWidth centered:(BOOL)centered
                                     normalize:(BOOL)normalize gainDB:(float)gainDB CF_RETURNS_RETAINED;
 
 // A real track's envelope for a consumer that cannot host a renderer (the
@@ -51,6 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
                                          progress:(CGFloat)progress dark:(BOOL)dark
                                             theme:(WaveformTheme *)theme
                                        barDensity:(CGFloat)barDensity barWidth:(CGFloat)barWidth
+                                         centered:(BOOL)centered
                                         normalize:(BOOL)normalize
                                            gainDB:(float)gainDB CF_RETURNS_RETAINED;
 

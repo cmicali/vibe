@@ -4,6 +4,7 @@
 * Új: Ogg Opus, CAF, W64, M4B, M4R és ADTS lejátszása
 * Új: crossfade-csúszka, kikapcsolttól akár 3 másodpercig, tizedmásodperces lépésekben
 * Új: a 3 sávos hullámformastílus
+* Új: lehetőség a hullámformák középre igazítására (vagy sem)
 * Új: lejátszófej-vonal opció, a teljes hullámforma teljes színben
 * Új: kompakt lejátszási képernyő-elrendezések alacsony iPad-ablakokhoz
 * Fejlesztés: a FLAC-fájlokban a tekerés szinte azonnali még hosszú fájloknál is, kevesebb CPU- és memóriahasználattal, jobb kompatibilitással

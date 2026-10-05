@@ -4,6 +4,7 @@
 * Mới: phát Ogg Opus, CAF, W64, M4B, M4R và ADTS
 * Mới: thanh trượt Crossfade, từ tắt đến tối đa 3 giây, mỗi bước một phần mười giây
 * Mới: kiểu dạng sóng 3 dải
+* Mới: tùy chọn căn giữa (hoặc không) dạng sóng
 * Mới: tùy chọn Đường đầu phát, với toàn bộ dạng sóng hiển thị đủ màu
 * Mới: bố cục Đang phát gọn cho các cửa sổ iPad thấp
 * Cải thiện: tua FLAC gần như tức thì dù tệp dài, dùng ít CPU và bộ nhớ hơn, tương thích tốt hơn

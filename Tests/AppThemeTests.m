@@ -13,6 +13,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppSettingsInternal.h"
+#import "TestFilesystemGuard.h"
 #import "PlatformColor.h"
 #import "SettingsAppearanceViewController+Editor.h"
 
@@ -51,6 +52,7 @@
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     XCTAssertEqualObjects(theme.waveformStyle, @"oversampling_detailed_x4");
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
+    XCTAssertTrue(theme.waveformShadeOverlaps);
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
@@ -73,6 +75,7 @@
     }
     XCTAssertTrue(theme.showTransportButtons);
     XCTAssertTrue(theme.waveformGradient);
+    XCTAssertTrue(theme.waveformCentered);
     XCTAssertFalse(theme.waveformPlayheadLine);
     XCTAssertEqual(theme.waveformBarDensity, 1);
     XCTAssertEqual(theme.waveformBarWidth, 1);
@@ -809,7 +812,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"rekord_bin", @"snake",
+                          (@[@"vibe", @"cupertino", @"dengine", @"field", @"glassy", @"rekord_bin", @"snake",
                               @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 
@@ -2160,6 +2163,49 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSDictionary *trip = [AppTheme recordFromJSONData:
             [AppTheme JSONDataForRecord:current name:@"Trip"] name:NULL error:NULL];
     XCTAssertEqualObjects(trip[@"windowBackgroundStyle"], @"solid", @"an export keeps its own meaning");
+}
+
+// Wiggle MC is Wiggle grounded on its baseline at any record version: 1.14
+// stored it at 1, a 1.15 beta at 2. A grounded theme keeps the choice
+// through an export.
+- (void)testWiggleMCReadsAsWiggleWithCenteredOffAtAnyVersion {
+    NSData *(^json)(NSNumber *) = ^NSData *(NSNumber *version) {
+        return [NSJSONSerialization dataWithJSONObject:@{@"version": version, @"name": @"Old",
+                @"waveform": @{@"style": @"wiggle"}} options:0 error:NULL];
+    };
+    NSDictionary *old = [AppTheme recordFromJSONData:json(@1) name:NULL error:NULL];
+    XCTAssertEqualObjects(old[@"waveformStyle"], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects(old[@"waveformCentered"], @NO);
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:json(@2) name:NULL error:NULL], old);
+    AppTheme *stored = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"wiggle"}];
+    XCTAssertEqualObjects(stored.waveformStyle, SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertFalse(stored.waveformCentered);
+    NSDictionary *trip = [AppTheme recordFromJSONData:
+            [AppTheme JSONDataForRecord:old name:@"Trip"] name:NULL error:NULL];
+    XCTAssertEqualObjects(trip[@"waveformCentered"], @NO);
+    XCTAssertFalse([[AppTheme alloc] initWithRecord:trip].waveformCentered);
+}
+
+// iOS's half: each Wiggle MC, the card's or the widget's, is Wiggle with its
+// own Centered off, so the other's style keeps the look it had.
+- (void)testIOSWiggleMCMigratesEachCenteredOnItsOwn {
+    VibeTestUserDefaults *defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:NSUUID.UUID.UUIDString];
+    [defaults setObject:@"wiggle" forKey:SETTING_WAVEFORM_STYLE];
+    [defaults setObject:@"detailed" forKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    [AppSettings migrateLegacyWiggleMCInDefaults:defaults];
+    XCTAssertEqualObjects([defaults stringForKey:SETTING_WAVEFORM_STYLE], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects([defaults objectForKey:SETTING_WAVEFORM_CENTERED], @NO);
+    XCTAssertEqualObjects([defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE], @"detailed");
+    XCTAssertNil([defaults objectForKey:SETTING_WIDGET_WAVEFORM_CENTERED]);
+
+    defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:NSUUID.UUID.UUIDString];
+    [defaults setObject:@"detailed" forKey:SETTING_WAVEFORM_STYLE];
+    [defaults setObject:@"wiggle" forKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    [AppSettings migrateLegacyWiggleMCInDefaults:defaults];
+    XCTAssertEqualObjects([defaults stringForKey:SETTING_WAVEFORM_STYLE], @"detailed");
+    XCTAssertNil([defaults objectForKey:SETTING_WAVEFORM_CENTERED]);
+    XCTAssertEqualObjects([defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects([defaults objectForKey:SETTING_WIDGET_WAVEFORM_CENTERED], @NO);
 }
 
 - (void)testStoredThemesFrom114KeepTheirGlassOnce {

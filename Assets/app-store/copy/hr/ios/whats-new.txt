@@ -4,6 +4,7 @@
 * Novo: reprodukcija formata Ogg Opus, CAF, W64, M4B, M4R i ADTS
 * Novo: klizač za crossfade, od isključenog do 3 sekunde u desetinkama sekunde
 * Novo: stil valnog oblika 3 pojasa
+* Novo: opcija za centriranje (ili ne) valnih oblika
 * Novo: opcija linije glave reprodukcije, uz cijeli valni oblik u punoj boji
 * Novo: kompaktni rasporedi zaslona reprodukcije za niske iPad prozore
 * Poboljšano: premotavanje u FLAC datotekama gotovo je trenutačno čak i u dugima, uz manje opterećenje CPU-a i memorije te bolju kompatibilnost

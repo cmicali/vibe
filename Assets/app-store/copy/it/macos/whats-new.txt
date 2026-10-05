@@ -3,7 +3,8 @@
 * Novità: riproduzione di Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R e ADTS
 * Novità: un pannello Abbreviazioni da tastiera in Impostazioni per cambiare qualsiasi abbreviazione
 * Novità: un cursore del crossfade, da disattivato fino a 3 secondi a passi di un decimo di secondo
-* Novità: lo stile di forma d’onda 3 bande e il tema Rekord Bin che lo usa
+* Novità: stile di forma d’onda 3 bande personalizzabile e due temi che lo usano
+* Novità: opzione per centrare (o no) le forme d’onda
 * Novità: un’opzione per la linea della testina, con l’intera forma d’onda a colori pieni
 * Modifica: la finestra Impostazioni è riorganizzata, con la ricerca
 * Miglioramento: lo spostamento nei FLAC è quasi istantaneo anche nei file lunghi, con meno CPU e memoria e una migliore compatibilità

@@ -13,8 +13,7 @@
 #import "ThreeBandWaveformRenderer.h"
 #import "VibeStrings.h"
 
-static NSString *const kWiggleMCIdentifier = @"wiggle";
-static NSString *const kWiggleIdentifier = @"wiggle_centered";
+static NSString *const kWiggleIdentifier = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
 
 // Fine transients, so the Detailed family's sampling differences survive a
@@ -74,7 +73,6 @@ static AudioWaveform *VibePreviewWaveform(void) {
             }
             registry[identifier] = renderer;
         }
-        registry[kWiggleMCIdentifier] = DetailedAudioWaveformRenderer.class;
         registry[kWiggleIdentifier] = DetailedAudioWaveformRenderer.class;
         renderers = registry;
     });
@@ -87,8 +85,11 @@ static AudioWaveform *VibePreviewWaveform(void) {
 
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier {
     return [identifier isEqualToString:@"basic"] || [identifier isEqualToString:@"cupertino"] ||
-           [identifier isEqualToString:@"sonic_cirrus"] ||
-           [identifier isEqualToString:kWiggleIdentifier] || [identifier isEqualToString:kWiggleMCIdentifier];
+           [identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:kWiggleIdentifier];
+}
+
++ (BOOL)supportsCenteringForIdentifier:(NSString *)identifier {
+    return ![identifier isEqualToString:@"sonic_cirrus"] && ![identifier isEqualToString:kCupertinoBasicIdentifier];
 }
 
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier {
@@ -116,6 +117,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
                               progress:(CGFloat)progress dark:(BOOL)dark
                                  theme:(WaveformTheme *)theme
                             barDensity:(CGFloat)barDensity barWidth:(CGFloat)barWidth
+                              centered:(BOOL)centered
                              normalize:(BOOL)normalize gainDB:(float)gainDB {
     if (size.width <= 0 || size.height <= 0 || scale <= 0) {
         return NULL;
@@ -129,6 +131,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
     renderer.theme = theme;
     renderer.barDensity = barDensity;
     renderer.barWidthScale = barWidth;
+    renderer.centered = centered;
     renderer.normalizesLevels = normalize;
     renderer.gainDB = gainDB;
     [renderer updateColors:dark];
@@ -162,12 +165,12 @@ static AudioWaveform *VibePreviewWaveform(void) {
 
 + (CGImageRef)newPreviewForIdentifier:(NSString *)identifier dark:(BOOL)dark
                               theme:(WaveformTheme *)theme barDensity:(CGFloat)barDensity
-                           barWidth:(CGFloat)barWidth
+                           barWidth:(CGFloat)barWidth centered:(BOOL)centered
                           normalize:(BOOL)normalize gainDB:(float)gainDB {
     return [self newBakedImageForWaveform:VibePreviewWaveform() identifier:identifier
                                 pointSize:CGSizeMake(360, 64) scale:2 progress:0.4
                                      dark:dark theme:theme barDensity:barDensity
-                                 barWidth:barWidth normalize:normalize gainDB:gainDB];
+                                 barWidth:barWidth centered:centered normalize:normalize gainDB:gainDB];
 }
 
 // The ObjC-safe door onto the bake: a plain .m caller cannot name the C++
@@ -178,11 +181,12 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                 progress:(CGFloat)progress dark:(BOOL)dark
                                    theme:(WaveformTheme *)theme
                               barDensity:(CGFloat)barDensity barWidth:(CGFloat)barWidth
+                                centered:(BOOL)centered
                                normalize:(BOOL)normalize gainDB:(float)gainDB {
     AudioWaveform *raw = waveform.waveform;
     return raw ? [self newBakedImageForWaveform:raw identifier:identifier pointSize:size
                                           scale:scale progress:progress dark:dark theme:theme
-                                     barDensity:barDensity barWidth:barWidth
+                                     barDensity:barDensity barWidth:barWidth centered:centered
                                       normalize:normalize gainDB:gainDB]
                : NULL;
 }
@@ -191,16 +195,14 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     Class renderer = [self renderersByIdentifier][identifier];
     NSAssert(renderer, @"Resolve the waveform style before constructing its renderer");
-    BOOL centered = [identifier isEqualToString:kWiggleIdentifier];
-    if (centered || [identifier isEqualToString:kWiggleMCIdentifier]) {
-        return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES centered:centered];
+    if ([identifier isEqualToString:kWiggleIdentifier]) {
+        return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES];
     }
     return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
 }
 
 + (NSString *)displayNameForIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:kWiggleMCIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE;
-    if ([identifier isEqualToString:kWiggleIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE_CENTERED;
+    if ([identifier isEqualToString:kWiggleIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE;
     return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 

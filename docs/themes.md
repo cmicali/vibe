@@ -56,7 +56,8 @@ Two things worth knowing:
   the window's toolbar previews either side.
 - **Every color swatch includes opacity.** A tint's strength, a solid
   background's coverage, and each waveform side's intensity are all set with
-  the color panel's opacity slider.
+  the color panel's opacity slider. The 3-Band style's Low, Mid, and High
+  colors are the exception: its bands stack, so they always draw opaque.
 
 ## Custom artwork
 

@@ -4,6 +4,7 @@
 * Nou: redare Ogg Opus, CAF, W64, M4B, M4R și ADTS
 * Nou: un glisor de crossfade, de la dezactivat până la 3 secunde, în zecimi de secundă
 * Nou: stilul de formă de undă 3 benzi
+* Nou: opțiune de a centra (sau nu) formele de undă
 * Nou: o opțiune de linie a capului de redare, cu întreaga formă de undă în culori complete
 * Nou: aspecte compacte pentru ecranul de redare în ferestre scurte de iPad
 * Îmbunătățit: derularea în FLAC este aproape instantanee chiar și în fișiere lungi, cu mai puțin CPU și memorie și compatibilitate mai bună

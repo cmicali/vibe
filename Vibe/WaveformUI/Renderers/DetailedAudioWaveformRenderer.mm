@@ -34,8 +34,7 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     CGFloat stroke = VibeWiggleStrokeForSize(size, count, widthScale);
     CGFloat amplitude = VibeWiggleVScale(size.height, centered, widthScale);
     if (count == 0 || size.width <= stroke || amplitude == 0) return line;
-    CGFloat baseline = centered ? size.height / 2
-            : size.height / 2 - VibeBarVScale(size.height) + stroke / 2;
+    CGFloat baseline = centered ? size.height / 2 : VibeBarBaseline(size.height) + stroke / 2;
     CGFloat pitch = (size.width - stroke) / count;
     CGFloat radiusX = pitch / 4;
     const CGFloat kCircleControl = 0.5522847498;
@@ -116,7 +115,6 @@ static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count, std::
 
 @implementation DetailedAudioWaveformRenderer {
     BOOL _wiggle;
-    BOOL _wiggleCentered;
     // One mask for the whole stack: masking each gradient would rasterize and
     // ship the same bar path twice per morph frame.
     CALayer *_waveformContainer;      // mask: _barMask; holds both gradients
@@ -163,36 +161,22 @@ static const CGFloat kDetailedBarPitch = 0.5;
     return VibeBarSeekHitBand(bounds);
 }
 
-// Wiggle MC's line rests at the foot of the band, and either Wiggle's stroke
-// can outgrow the base's hairline. Half a point over for the antialiasing.
-- (CGRect)restingBandForBounds:(CGRect)bounds {
-    if (!_wiggle) {
-        return [super restingBandForBounds:bounds];
-    }
-    CGFloat stroke = VibeWiggleStrokeForSize(bounds.size, [self numBarsForWidth:bounds.size.width],
-                                             self.barWidthScale);
-    CGFloat height = bounds.size.height;
-    CGFloat baseline = _wiggleCentered ? height / 2 : height / 2 - VibeBarVScale(height) + stroke / 2;
-    CGFloat reach = stroke / 2 + 0.5;
-    return CGRectMake(bounds.origin.x, bounds.origin.y + baseline - reach, bounds.size.width, reach * 2);
-}
-
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
-    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO centered:NO];
+    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO];
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
-                       wiggle:(BOOL)wiggle centered:(BOOL)centered {
+                       wiggle:(BOOL)wiggle {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
         NSAssert(!wiggle || self.class == DetailedAudioWaveformRenderer.class,
                  @"Wiggle variants require DetailedAudioWaveformRenderer's geometry hooks");
         _wiggle = wiggle;
-        _wiggleCentered = centered;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) {
-                    return wiggle ? VibeWiggleVScale(height, centered, weakSelf.barWidthScale) : VibeBarVScale(height);
+                    return wiggle ? VibeWiggleVScale(height, weakSelf.centered, weakSelf.barWidthScale)
+                                  : VibeBarVScale(height);
                 }
                        rebuild:^{ [weakSelf rebuildMaskPaths]; }];
         _morph.samplesPerBar = 2;
@@ -253,7 +237,19 @@ static const CGFloat kDetailedBarPitch = 0.5;
 // Pinned to the bars' band rather than the full view, so the whole ramp lands
 // across the visible bars.
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    VibeAimBarGradient(gradient);
+    VibeAimBarGradient(gradient, self.centered);
+}
+
+// The ramp's aim follows the anchoring, and so do Cupertino's colors.
+- (void)setCentered:(BOOL)centered {
+    if (self.centered == centered) return;
+    [super setCentered:centered];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [self configureGradient:_playedGradient];
+    [self configureGradient:_unplayedGradient];
+    [self updateColors:self.isDark];
+    [CATransaction commit];
 }
 
 - (void)dealloc {
@@ -403,12 +399,15 @@ static const CGFloat kDetailedBarPitch = 0.5;
     NSUInteger count = rects.size();
     CGFloat midY = size.height / 2;
     CGFloat vscale = VibeBarVScale(size.height);
+    CGFloat baseline = VibeBarBaseline(size.height);
+    BOOL centered = self.centered;
     CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
     CGFloat barPitch = size.width / (CGFloat)count;
     for (NSUInteger i = 0; i < count; i++) {
         // y-up: adding the negative min preserves DC-offset asymmetry.
-        CGFloat top = midY + samples[i * 2 + 1] * vscale;
-        CGFloat bottom = midY + samples[i * 2] * vscale;
+        // Grounded, the bar keeps its height and stands on the baseline.
+        CGFloat bottom = centered ? midY + samples[i * 2] * vscale : baseline;
+        CGFloat top = bottom + (samples[i * 2 + 1] - samples[i * 2]) * vscale;
         if (scale > 0) {
             top = round(top * scale) / scale;
             bottom = round(bottom * scale) / scale;
@@ -435,9 +434,9 @@ static const CGFloat kDetailedBarPitch = 0.5;
             for (NSUInteger i = 0; i < count; i++) peak = MAX(peak, samples[i * 2 + 1]);
             // Fade as the last loops flatten below their pitch; otherwise
             // their connected baseline stays solid until the final snap.
-            opacity = MIN(1, peak * VibeWiggleVScale(_morph.size.height, _wiggleCentered, self.barWidthScale) / kWigglePitch);
+            opacity = MIN(1, peak * VibeWiggleVScale(_morph.size.height, self.centered, self.barWidthScale) / kWigglePitch);
         }
-        path = opacity > 0 ? VibeNewWigglePath(_morph.size, samples.data(), count, _wiggleCentered, self.barWidthScale)
+        path = opacity > 0 ? VibeNewWigglePath(_morph.size, samples.data(), count, self.centered, self.barWidthScale)
                            : CGPathCreateMutable();
     } else {
         _barRects.resize(count);
@@ -492,7 +491,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
     }
 
     if (_wiggle) {
-        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, _wiggleCentered, self.barWidthScale);
+        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, self.centered, self.barWidthScale);
         CGContextAddPath(ctx, path);
         CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
         CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count, self.barWidthScale));
@@ -514,7 +513,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
 
     // The live layers' stops over configureGradient:'s band. Basic re-aims its
     // gradient, so it cannot bake.
-    VibeFillBarGradient(ctx, size, stops);
+    VibeFillBarGradient(ctx, size, stops, self.centered);
 
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);

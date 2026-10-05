@@ -19,6 +19,7 @@
         _hoverHighlightX = -1;
         _barDensity = 1;
         _barWidthScale = 1;
+        _centered = YES;
     }
     return self;
 }
@@ -42,6 +43,12 @@
 - (void)setBarWidthScale:(CGFloat)scale {
     if (_barWidthScale == scale) return;
     _barWidthScale = scale;
+    [_morph rebuildNow];
+}
+
+- (void)setCentered:(BOOL)centered {
+    if (_centered == centered) return;
+    _centered = centered;
     [_morph rebuildNow];
 }
 
@@ -115,11 +122,6 @@
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
     NSAssert(NO, @"%@ must override seekHitBandForBounds:", NSStringFromClass(self.class));
     return bounds;
-}
-
-// Covers the Detailed family's 1pt minimum bar, pixel-rounded, at the midline.
-- (CGRect)restingBandForBounds:(CGRect)bounds {
-    return CGRectMake(bounds.origin.x, CGRectGetMidY(bounds) - 1, bounds.size.width, 2);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
