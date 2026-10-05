@@ -185,7 +185,9 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     return self;
 }
 
-- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable
+          probedLocal:(BOOL)probedLocal
+                error:(NSError *__autoreleasing *)error {
     VibeMetadataLoaderOperationController *controller = _controller;
     // TRAP: recordStart fulfills the test's synchronization edge, after which
     // the test may clear the hold. Read the hold first, or a clear landing in

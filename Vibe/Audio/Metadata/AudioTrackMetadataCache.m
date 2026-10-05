@@ -69,7 +69,7 @@
         // workers. A loader can run before this lands; it re-reads the
         // property at each use.
         dispatch_async(_cacheQueue, ^{
-            self.metadataCache = [PINCache audioCacheWithName:AudioTrackMetadataCache.cacheName rootPath:nil];
+            self.metadataCache = [PINCache audioCacheWithName:AudioTrackMetadataCache.cacheName rootPath:nil memoryByteLimit:0];
         });
     }
     return self;

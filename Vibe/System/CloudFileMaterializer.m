@@ -371,13 +371,16 @@ static NSError *VibeMaterializationCancelledError(void) {
 }
 
 // A cancel that wins this lock fails the call; a later one finds no work.
-- (BOOL)consumeLocalToken:(CloudFileMaterializationToken *)token {
+- (BOOL)settleLocalToken:(CloudFileMaterializationToken *)token error:(NSError *__autoreleasing *)error {
     os_unfair_lock_lock(&_lock);
     BOOL current = (_token == token && !token.isCancelled);
     if (current) {
         _token = nil;
     }
     os_unfair_lock_unlock(&_lock);
+    if (!current && error) {
+        *error = VibeMaterializationCancelledError();
+    }
     return current;
 }
 
@@ -481,11 +484,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 
     // Inside the prepared call, so no caller bypasses it and strands its token.
     if (![NSURLUtil isDatalessFile:url]) {
-        BOOL current = [self consumeLocalToken:token];
-        if (!current && error) {
-            *error = VibeMaterializationCancelledError();
-        }
-        return current;
+        return [self settleLocalToken:token error:error];
     }
 
     if ([NSURLUtil isRemotePlaceholderFile:url]) {

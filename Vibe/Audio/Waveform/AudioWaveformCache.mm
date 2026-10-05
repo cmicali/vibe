@@ -59,6 +59,14 @@ static const NSUInteger kMaxRunningWaveformLookups = 2;
 // Long enough that a slow provider still lands, short enough to be an answer.
 static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 
+// Recent waveforms held in memory, so a replay or a swipe back costs no disk
+// read: about fifty at 128 KB, or forty with 3-Band's bands.
+static const NSUInteger kWaveformMemoryByteLimit = 8 * 1024 * 1024;
+
+static NSUInteger VibeWaveformMemoryCost(CodableAudioWaveform *waveform) {
+    return waveform.waveform->getNumBytes() + waveform.waveform->getNumBandBytes();
+}
+
 @implementation AudioWaveformCache {
     dispatch_queue_t                _loaderQueue;
     // Stat and open cannot be interrupted; fixed slots bound blocked workers.
@@ -136,9 +144,9 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         // so it exists before first use; decode-side writes go through a
         // pointer snapshotted here.
         dispatch_async(_loaderQueue, ^{
-            // No memory cache (PINCache+VibeAudioCache): the view retains the
-            // one live waveform, and a replay re-reads from disk in a few ms.
-            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName rootPath:rootPath];
+            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName
+                                                       rootPath:rootPath
+                                                memoryByteLimit:kWaveformMemoryByteLimit];
         });
     }
     return self;
@@ -271,15 +279,17 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 // Called on the serial loader queue by both cache readers.
 - (CodableAudioWaveform *)waveformForCacheKey:(NSString *)cacheKey
                                   analysis:(VibeWaveformAnalysis)analysis {
-    CodableAudioWaveform *cachedWaveform =
-            (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
+    CodableAudioWaveform *cachedWaveform = (CodableAudioWaveform *)
+            [self->_waveformCache audioObjectForKey:cacheKey cost:^NSUInteger(id object) {
+        return [object isKindOfClass:[CodableAudioWaveform class]] ? VibeWaveformMemoryCost(object) : 0;
+    }];
     // PINCache unarchives without secure coding, so a corrupt or tampered
     // entry with a different root class decodes cleanly and would crash with
     // an unrecognized selector at first use — on every play of this track,
     // since nothing would ever evict it. The metadata cache uses the same
     // guard.
     if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
-        [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+        [self->_waveformCache removeObjectForKey:cacheKey];
         cachedWaveform = nil;
     }
     // An entry decoded without the bands, or without an analyzer this
@@ -516,9 +526,9 @@ awaitPersist:(BOOL)awaitPersist
         // The compensating remove is what makes the header's
         // cannot-repopulate guarantee hold.
         if (generation == self->_cacheGeneration.load(std::memory_order_relaxed)) {
-            [cache.diskCache setObject:waveform forKey:cacheKey];
+            [cache setObject:waveform forKey:cacheKey withCost:VibeWaveformMemoryCost(waveform)];
             if (generation != self->_cacheGeneration.load(std::memory_order_relaxed)) {
-                [cache.diskCache removeObjectForKey:cacheKey];
+                [cache removeObjectForKey:cacheKey];
             }
         }
         if (awaitPersist) {
@@ -661,8 +671,8 @@ static std::atomic<double> sDebugDecodeSeconds{0};
             return;
         }
         dispatch_sync(self->_loaderQueue, ^{
-            BOOL present = [self->_waveformCache.diskCache containsObjectForKey:cacheKey];
-            [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+            BOOL present = [self->_waveformCache containsObjectForKey:cacheKey];
+            [self->_waveformCache removeObjectForKey:cacheKey];
             run_on_main_thread({ if (completion) completion(present); });
         });
     } failureQueue:dispatch_get_main_queue()
