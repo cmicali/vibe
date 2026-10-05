@@ -263,6 +263,14 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     return _isPinching;
 }
 
+- (NSUInteger)bakeRequestCount {
+    return _bakeRequest;
+}
+
+- (BOOL)seekPending {
+    return _seekPending;
+}
+
 - (BOOL)isShowingLoadingIndicator {
     return _loadingIndicator != nil;
 }
