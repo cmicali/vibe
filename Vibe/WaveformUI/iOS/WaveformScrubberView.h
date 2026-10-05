@@ -83,21 +83,14 @@ NS_ASSUME_NONNULL_BEGIN
 // palette.
 @property (nonatomic, strong, nullable) UIColor *artworkThemeColor;
 
-// The waveform last handed over, drawn or still baking; nil after a reset.
-@property (nonatomic, readonly, nullable) CodableAudioWaveform *waveform;
-
-// Fresh deliveries use showWaveform:; prepared pages pass animated:NO. The
-// view otherwise decides the entrance from its own state: the
+// Fresh deliveries use showWaveform:; prepared pages pass animated:NO, and
+// install synchronously when a bake of the same picture is stored. The view
+// otherwise decides the entrance from its own state: the
 // first bitmap grows from the midline, the complete one grows from a partial
 // one's heights to its own, and a streaming load's partials swap at a steady pace.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
-
-// Copies the prepared bitmap only when waveform, geometry and appearance
-// still match. The receiver keeps its own layers and gestures.
-- (BOOL)showPreparedWaveform:(CodableAudioWaveform *)waveform
-                  fromView:(nullable WaveformScrubberView *)view;
 
 // Ends a track's gesture without discarding its cached pixels or seeking.
 - (void)cancelInteraction;

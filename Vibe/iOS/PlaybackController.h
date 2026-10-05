@@ -140,6 +140,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL seekInFlight;
 @property (nonatomic, readonly) float pendingSeekProgress;
 
+// The current row's open passed the slow-open threshold and has not settled.
+// Set before playbackDidBeginLoading:; cleared by every cursor change,
+// replacement and play.
+@property (nonatomic, readonly) BOOL currentOpenSlow;
+
 // None before the first activation: nothing has claimed the output yet.
 @property (nonatomic, readonly) VibeOutputRouteKind outputRouteKind;
 @property (nonatomic, readonly, nullable) NSString *outputRouteName;

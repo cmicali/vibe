@@ -69,10 +69,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // The pager's own, not the model's: nothing else draws a waveform.
     AudioWaveformCache      *_waveformCache;
     PageWaveformCoordinator *_waveformCoordinator;
+    // Hidden bakers; the pixels live in the scrubber's store.
     NSMutableDictionary<NSNumber *, WaveformScrubberView *> *_preparedWaveforms;
-    // A slow playback open outlives any one cell's visibility. Cleared on
-    // every cursor change, so it always means the current page.
-    BOOL                    _playbackOpenLoading;
 
     // Pages whose full-size art is held, the only record of what there is to
     // release: art outlives the window that asked for it. Owned by +Pager.

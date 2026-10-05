@@ -25,9 +25,9 @@
     NSMutableIndexSet *_heldUpdates;
     // Owed after the hold; the target clears at once so the settle can retry.
     NSMutableIndexSet *_heldFailures;
+    // The track of each pending read, kept and dropped with its token.
     NSMutableDictionary<NSNumber *, AudioTrack *> *_prefetchTracks;
     NSMutableDictionary<NSNumber *, AudioWorkToken *> *_prefetchTokens;
-    NSUInteger _prefetchCursor;
 }
 
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
@@ -44,7 +44,6 @@
         _heldFailures = [NSMutableIndexSet indexSet];
         _prefetchTracks = [NSMutableDictionary dictionary];
         _prefetchTokens = [NSMutableDictionary dictionary];
-        _prefetchCursor = NSNotFound;
     }
     return self;
 }
@@ -104,6 +103,7 @@
             return;
         }
         [self->_prefetchTokens removeObjectForKey:@(index)];
+        [self->_prefetchTracks removeObjectForKey:@(index)];
         if (!waveform || [self isCompleteAtIndex:index]) {
             return;
         }
@@ -115,17 +115,8 @@
 
 - (void)pruneAroundIndex:(NSUInteger)index {
     static const NSUInteger kKeepRadius = 2;
-    if (_prefetchCursor != index) {
-        _prefetchCursor = index;
-        // Retry misses only when the cursor moves, never on repeated refreshes.
-        for (NSNumber *key in _prefetchTracks.allKeys) {
-            if (!_prefetchTokens[key] && ![self isCompleteAtIndex:key.unsignedIntegerValue]) {
-                [_prefetchTracks removeObjectForKey:key];
-            }
-        }
-    }
     NSMutableSet *pages = [NSMutableSet setWithArray:_snapshots.allKeys];
-    [pages addObjectsFromArray:_prefetchTracks.allKeys];
+    [pages addObjectsFromArray:_prefetchTokens.allKeys];
     for (NSNumber *key in pages) {
         NSUInteger page = key.unsignedIntegerValue;
         if (page != _targetIndex
@@ -146,7 +137,6 @@
         [token cancelIfPending];
     }
     [_prefetchTokens removeAllObjects];
-    _prefetchCursor = NSNotFound;
     [_prefetchTracks removeAllObjects];
     _targetIndex = NSNotFound;
     _targetKey = nil;

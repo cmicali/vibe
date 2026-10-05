@@ -125,10 +125,11 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
         return;
     }
     _waveformZoom = fraction;
+    // Hidden bakers keep their bitmaps until the next cursor move's refresh;
+    // an arriving page shows its stored one stretched and re-bakes once.
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         [self applyWaveformZoomToCell:cell];
     }
-    [self refreshWaveformWindow];
     // The REQUEST: what a view drew would let a rotation permanently shallow
     // the zoom.
     [NSUserDefaults.standardUserDefaults setDouble:fraction forKey:kWaveformZoomKey];

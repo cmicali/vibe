@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSDictionary *)debugArtDictionary;
 
 // Live regressions for neighbor preparation: refresh, transition, artwork,
-// widget, interaction, loading, work and work_inputs (ios-verbs.md).
+// interaction and color (ios-verbs.md).
 - (void)debugCheckWaveformPreparation:(NSString *)scenario
                           completion:(void (^)(NSDictionary *result))completion;
 

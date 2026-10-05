@@ -73,7 +73,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     return [NSURLUtil isDatalessFile:url] && ![NSURLUtil isRemotePlaceholderFile:url];
 }
 
-- (void)requestWaveformForIndex:(NSUInteger)index {
+- (void)requestCurrentWaveform {
+    NSUInteger index = _playlist.currentIndex;
     AudioTrack *track = [_playlist trackAtIndex:index];
     if (!track || WaveformWaitsForOpen(track.url)) {
         return;
@@ -89,24 +90,18 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
 }
 
-// A neighbor whose file is dataless shows nothing: requestWaveformForIndex:
-// skips it and only the current page's open would ever take an indicator
+// A neighbor whose file is dataless shows nothing: requestCurrentWaveform
+// would skip it, and only the current page's open would ever take an indicator
 // down. Its open, once current, shows one.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
-        WaveformScrubberView *prepared = _preparedWaveforms[@(index)];
-        if (prepared) {
-            // The geometry compare needs the cell's own.
-            [cell layoutIfNeeded];
-        }
-        if (![cell.waveformView showPreparedWaveform:snapshot fromView:prepared]) {
-            [cell.waveformView showWaveform:snapshot
-                                  animated:![_waveformCoordinator isCompleteAtIndex:index]];
-        }
-        if (cell && index == _playlist.currentIndex) {
-            [self releasePreparedWaveformAtIndex:index];
-        }
+        // A bake already stored for this page installs synchronously, keyed
+        // by the view's own geometry: a fresh cell's is unset until it lays
+        // out, and the lookup then missed and baked what the store held.
+        [cell layoutIfNeeded];
+        [cell.waveformView showWaveform:snapshot
+                              animated:![_waveformCoordinator isCompleteAtIndex:index]];
         return;
     }
     NSURL *url = [_playlist trackAtIndex:index].url;
@@ -138,24 +133,20 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         return;
     }
     NSUInteger current = _playlist.currentIndex;
-    [_waveformCoordinator pruneAroundIndex:current];
     NSRange window = [self pageWindowWithRadius:1];
+    // Releasing a baker releases no pixels: its bake is in the scrubber's store.
     for (NSNumber *key in _preparedWaveforms.allKeys) {
         NSUInteger index = key.unsignedIntegerValue;
-        // Next moves the cursor before the arriving cell can adopt its image,
-        // so the current page's is kept until its live cell shows the snapshot.
-        BOOL adopted = index == current && [self cellAtIndex:index].waveformView.waveform
-                == [_waveformCoordinator snapshotAtIndex:index];
-        if (!NSLocationInRange(index, window) || adopted) {
+        if (index == current || !NSLocationInRange(index, window)) {
             [self releasePreparedWaveformAtIndex:index];
         }
     }
     for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
-        AudioTrack *track = [_playlist trackAtIndex:index];
-        if (index != current) {
-            [_waveformCoordinator prefetchIndex:index track:track];
-        }
-        if (index == current || ![_waveformCoordinator isCompleteAtIndex:index]) {
+        // A page with a live cell gets no baker: the cell is handed every
+        // delivery and bakes into the store itself, and a baker beside it
+        // would bake the same picture a second time before the cell's lands.
+        if (index == current || [self cellAtIndex:index]
+                || ![_waveformCoordinator isCompleteAtIndex:index]) {
             continue;
         }
         WaveformScrubberView *view = _preparedWaveforms[@(index)];
@@ -172,12 +163,18 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         view.artworkThemeColor = [self artworkForPageAtIndex:index].vibeDominantColor;
         [view syncWaveformStyle];
         [view layoutIfNeeded];
-        CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
-        // A view already holding the snapshot re-bakes itself on any change;
-        // asking again would queue a duplicate behind a bake in flight.
-        if (![view showPreparedWaveform:snapshot fromView:[self cellAtIndex:index].waveformView]
-                && view.waveform != snapshot) {
-            [view showWaveform:snapshot animated:NO];
+        // A page already baked, by its live cell or before its cell was
+        // recycled, is a store hit and bakes nothing.
+        [view showWaveform:[_waveformCoordinator snapshotAtIndex:index] animated:NO];
+    }
+}
+
+- (void)fetchNeighborWaveforms {
+    NSUInteger current = _playlist.currentIndex;
+    NSRange window = [self pageWindowWithRadius:1];
+    for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
+        if (index != current) {
+            [_waveformCoordinator prefetchIndex:index track:[_playlist trackAtIndex:index]];
         }
     }
 }
@@ -241,7 +238,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [self applyPlaybackLoadingToCell:page atIndex:index];
     [self hydrateWaveformInCell:page atIndex:index];
     if (index == _playlist.currentIndex && ![_waveformCoordinator isCompleteAtIndex:index]) {
-        [self requestWaveformForIndex:index];
+        [self requestCurrentWaveform];
     }
 
     if (index == _playlist.currentIndex) {
@@ -258,7 +255,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 }
 
 - (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    BOOL loading = _playbackOpenLoading && index == _playlist.currentIndex;
+    BOOL loading = _playback.currentOpenSlow && index == _playlist.currentIndex;
     if (cell.waveformView.playbackLoading != loading) {
         cell.waveformView.playbackLoading = loading;
     }
@@ -367,7 +364,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         // A request the hold DROPPED is never replayed, so ask again; a no-op
         // when this page is already the target.
         [self applyFrameBudgetHold];
-        [self requestWaveformForIndex:self->_playlist.currentIndex];
+        [self requestCurrentWaveform];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
             VibeWorkTallyEnd();
@@ -555,7 +552,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
     else if (_waveformCoordinator.targetIndex != page) {
         // Retry a request dropped during the hold.
-        [self requestWaveformForIndex:page];
+        [self requestCurrentWaveform];
     }
 }
 
@@ -570,6 +567,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [self updateScrollLinkState];
     if (!held) {
         [self refreshWaveformWindow];
+        [self fetchNeighborWaveforms];
     }
 }
 
@@ -605,7 +603,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
             [strongSelf holdForProgrammaticPagerScrolling:NO];
             // The end callback's reissue, since the hold dropped requests.
             if (strongSelf.isPresented) {
-                [strongSelf requestWaveformForIndex:strongSelf->_playlist.currentIndex];
+                [strongSelf requestCurrentWaveform];
             }
         }
     });
@@ -639,7 +637,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
     [self holdForProgrammaticPagerScrolling:NO];
     if (self.isPresented) {
-        [self requestWaveformForIndex:_playlist.currentIndex];
+        [self requestCurrentWaveform];
     }
 }
 
