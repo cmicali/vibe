@@ -35900,186 +35900,186 @@
       "extractionState": "manual"
     },
     "settings.advanced.cache.caption": {
-      "comment": "Settings, Advanced pane: caption under Cache size: what the cache holds, and that clearing it only costs rebuilding.",
+      "comment": "Settings, Advanced pane: caption under Cache size, naming what the cache holds.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вълнови форми и данни за песните, създават се отново при възпроизвеждане"
+            "value": "Вълнови форми и метаданни за песните"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Průběhy vln a informace o skladbách, znovu vytvořené při přehrávání"
+            "value": "Průběhy vln a metadata skladeb"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bølgeformer og oplysninger om numre, genopbygges, når numrene afspilles"
+            "value": "Bølgeformer og metadata for numre"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wellenformen und Titeldetails, die beim Abspielen neu erstellt werden"
+            "value": "Wellenformen und Metadaten der Titel"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Κυματομορφές και στοιχεία κομματιών, δημιουργούνται ξανά κατά την αναπαραγωγή"
+            "value": "Κυματομορφές και μεταδεδομένα κομματιών"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Waveforms and track details, rebuilt as tracks play"
+            "value": "Waveforms and track metadata"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Formas de onda y detalles de las pistas, que se regeneran al reproducirlas"
+            "value": "Formas de onda y metadatos de las pistas"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aaltomuodot ja kappaleiden tiedot, luodaan uudelleen toiston aikana"
+            "value": "Aaltomuodot ja kappaleiden metatiedot"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Formes d’onde et détails des morceaux, recréés à la lecture"
+            "value": "Formes d’onde et métadonnées des morceaux"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Valni oblici i podaci o pjesmama, ponovno se izrađuju tijekom reprodukcije"
+            "value": "Valni oblici i metapodaci o pjesmama"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hullámformák és száminformációk, lejátszáskor újra elkészülnek"
+            "value": "Hullámformák és a számok metaadatai"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bentuk gelombang dan detail trek, dibuat ulang saat trek diputar"
+            "value": "Bentuk gelombang dan metadata trek"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Forme d’onda e dettagli dei brani, ricreati durante la riproduzione"
+            "value": "Forme d’onda e metadati dei brani"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "波形とトラック情報。トラックの再生時に再作成されます"
+            "value": "波形とトラックのメタデータ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파형 및 트랙 정보. 트랙을 재생하면 다시 생성됩니다"
+            "value": "파형 및 트랙 메타데이터"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bølgeformer og sporinformasjon, bygges opp igjen når sporene spilles av"
+            "value": "Bølgeformer og spormetadata"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Golfvormen en nummergegevens, opnieuw opgebouwd tijdens het afspelen"
+            "value": "Golfvormen en metadata van nummers"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przebiegi fali i informacje o utworach, tworzone ponownie podczas odtwarzania"
+            "value": "Przebiegi fali i metadane utworów"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Formas de onda e detalhes das faixas, recriados durante a reprodução"
+            "value": "Formas de onda e metadados das faixas"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Formas de onda e detalhes das faixas, recriados durante a reprodução"
+            "value": "Formas de onda e metadados das faixas"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Forme de undă și detalii despre piese, refăcute pe măsură ce piesele sunt redate"
+            "value": "Forme de undă și metadatele pieselor"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Волновые формы и сведения о треках, создаются заново при воспроизведении"
+            "value": "Формы волн и метаданные треков"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vlnové priebehy a informácie o skladbách, znovu vytvorené pri prehrávaní"
+            "value": "Priebehy vĺn a metadáta skladieb"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vågformer och spårinformation, återskapas när spåren spelas upp"
+            "value": "Vågformer och spårmetadata"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "รูปคลื่นและรายละเอียดแทร็ก ซึ่งจะสร้างใหม่เมื่อเล่นแทร็ก"
+            "value": "รูปคลื่นและข้อมูลเมตาของแทร็ก"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dalga biçimleri ve parça ayrıntıları; parçalar çalındıkça yeniden oluşturulur"
+            "value": "Dalga biçimleri ve parça meta verileri"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Хвильові форми й відомості про треки, створюються знову під час відтворення"
+            "value": "Форми хвиль і метадані треків"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dạng sóng và thông tin bài hát, được tạo lại khi phát"
+            "value": "Dạng sóng và siêu dữ liệu bài hát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "波形和曲目信息，会在播放曲目时重建"
+            "value": "波形和曲目元数据"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "波形和曲目資訊，會在播放曲目時重建"
+            "value": "波形和曲目中繼資料"
           }
         }
       },
@@ -39800,192 +39800,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "MP3 解碼器："
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.advanced.refresh_rate.caption": {
-      "comment": "Settings, Advanced pane: caption under Playhead refresh.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Колко плавно се движи маркерът. По-ниската пести енергия"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jak plynule se přehrávací hlava pohybuje. Nižší šetří energii"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hvor jævnt afspilningshovedet bevæger sig. Lavere bruger mindre energi"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wie flüssig sich die Abspielposition bewegt. Niedriger spart Energie"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Πόσο ομαλά κινείται η κεφαλή αναπαραγωγής. Η χαμηλότερη καταναλώνει λιγότερη ενέργεια"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "How smoothly the playhead moves. Lower uses less energy"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fluidez del movimiento del cabezal. Un valor bajo ahorra energía"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kuinka sulavasti toistopää liikkuu. Matalampi kuluttaa vähemmän energiaa"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fluidité de la tête de lecture. Une valeur basse économise l’énergie"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koliko se glatko pomiče glava reprodukcije. Niža troši manje energije"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Milyen simán mozog a lejátszófej. Az alacsonyabb kevesebb energiát fogyaszt"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seberapa mulus kepala pemutar bergerak. Lebih rendah menghemat energi"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fluidità del movimento della testina. Un valore basso consuma meno energia"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再生ヘッドの動きの滑らかさ。低いほど消費電力が少なくなります"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "재생 헤드 움직임의 부드러움. 낮을수록 에너지를 덜 사용합니다"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hvor jevnt avspillingshodet beveger seg. Lavere bruker mindre energi"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hoe vloeiend de afspeelkop beweegt. Lager verbruikt minder energie"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jak płynnie porusza się głowica. Niższa zużywa mniej energii"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suavidade do movimento do cabeçote. Um valor menor gasta menos energia"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suavidade do cursor de reprodução. Um valor menor gasta menos energia"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cât de lin se mișcă capul de redare. O valoare mai scăzută consumă mai puțină energie"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Плавность движения указателя. Чем ниже, тем меньше расход энергии"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ako plynulo sa prehrávacia hlava pohybuje. Nižšia šetrí energiu"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hur jämnt uppspelningshuvudet rör sig. Lägre drar mindre energi"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ความลื่นไหลในการเคลื่อนที่ของหัวเล่น ค่าต่ำจะใช้พลังงานน้อยกว่า"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oynatma kafasının ne kadar akıcı hareket ettiği. Düşük değer daha az enerji kullanır"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Плавність руху вказівника. Чим нижча, тим менше витрата енергії"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Độ mượt khi đầu phát di chuyển. Mức thấp hơn tốn ít năng lượng hơn"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "播放头移动的流畅程度。越低越节能"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "播放磁頭移動的流暢程度。越低越節能"
           }
         }
       },
@@ -69199,181 +69013,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройване на височината на вълновата форма във всички теми, без промяна на силата на звука при възпроизвеждане"
+            "value": "Оразмеряване на вълновата форма по наличната височина"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Upravit výšku průběhu vlny ve všech motivech beze změny hlasitosti přehrávání"
+            "value": "Přizpůsobit průběh vlny dostupné výšce"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Juster bølgeformens højde i alle temaer uden at ændre afspilningslydstyrken"
+            "value": "Tilpas bølgeformen til den tilgængelige højde"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Höhe der Wellenform in allen Designs anpassen, ohne die Wiedergabelautstärke zu ändern"
+            "value": "Wellenform an die verfügbare Höhe anpassen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Προσαρμογή του ύψους της κυματομορφής σε όλα τα θέματα χωρίς αλλαγή της έντασης αναπαραγωγής"
+            "value": "Προσαρμογή της κυματομορφής στο διαθέσιμο ύψος"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adjust the waveform's height in every theme without changing playback volume"
+            "value": "Size waveform to fit vertically"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustar la altura de la forma de onda en todos los temas sin cambiar el volumen de reproducción"
+            "value": "Ajustar la forma de onda a la altura disponible"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Säädä aaltomuodon korkeutta kaikissa teemoissa muuttamatta toiston äänenvoimakkuutta"
+            "value": "Sovita aaltomuoto käytettävissä olevaan korkeuteen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajuster la hauteur de la forme d’onde dans tous les thèmes sans modifier le volume de lecture"
+            "value": "Adapter la forme d’onde à la hauteur disponible"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prilagodi visinu valnog oblika u svim temama bez promjene glasnoće reprodukcije"
+            "value": "Prilagodi valni oblik dostupnoj visini"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Állítsd a hullámforma magasságát minden témában a lejátszás hangerejének módosítása nélkül"
+            "value": "Igazítsd a hullámformát a rendelkezésre álló magassághoz"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sesuaikan tinggi bentuk gelombang di semua tema tanpa mengubah volume pemutaran"
+            "value": "Sesuaikan bentuk gelombang dengan tinggi yang tersedia"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Regolare l’altezza della forma d’onda in tutti i temi senza cambiare il volume di riproduzione"
+            "value": "Adatta la forma d’onda all’altezza disponibile"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべてのテーマで波形の高さを調整する（再生音量は変わりません）"
+            "value": "波形を表示領域の高さに合わせる"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "재생 음량을 바꾸지 않고 모든 테마에서 파형 높이 조절하기"
+            "value": "사용 가능한 높이에 맞게 파형 크기 조절"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Juster bølgeformens høyde i alle temaer uten å endre avspillingsvolumet"
+            "value": "Tilpass bølgeformen til den tilgjengelige høyden"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoogte van de golfvorm in alle thema’s aanpassen zonder het afspeelvolume te wijzigen"
+            "value": "Golfvorm aan de beschikbare hoogte aanpassen"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dostosuj wysokość przebiegu fali we wszystkich motywach bez zmiany głośności odtwarzania"
+            "value": "Dopasuj przebieg fali do dostępnej wysokości"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustar a altura da forma de onda em todos os temas sem alterar o volume de reprodução"
+            "value": "Ajustar a forma de onda à altura disponível"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustar a altura da forma de onda em todos os temas sem alterar o volume de reprodução"
+            "value": "Ajustar a forma de onda à altura disponível"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustați înălțimea formei de undă în toate temele fără a modifica volumul redării"
+            "value": "Ajustați forma de undă la înălțimea disponibilă"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настраивать высоту формы волны во всех темах, не меняя громкость воспроизведения"
+            "value": "Масштабировать форму волны по доступной высоте"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Upraviť výšku priebehu vlny vo všetkých motívoch bez zmeny hlasitosti prehrávania"
+            "value": "Prispôsobiť priebeh vlny dostupnej výške"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Justera vågformens höjd i alla teman utan att ändra uppspelningsvolymen"
+            "value": "Anpassa vågformen till den tillgängliga höjden"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ปรับความสูงของรูปคลื่นในทุกธีมโดยไม่เปลี่ยนระดับเสียงการเล่น"
+            "value": "ปรับขนาดรูปคลื่นให้พอดีกับความสูงที่มี"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalma ses düzeyini değiştirmeden tüm temalarda dalga biçiminin yüksekliğini ayarla"
+            "value": "Dalga biçimini kullanılabilir yüksekliğe sığdır"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Налаштовувати висоту форми хвилі в усіх темах, не змінюючи гучність відтворення"
+            "value": "Масштабувати форму хвилі за доступною висотою"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Điều chỉnh chiều cao dạng sóng trong mọi chủ đề mà không thay đổi âm lượng phát lại"
+            "value": "Điều chỉnh dạng sóng cho vừa chiều cao hiển thị"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在所有主题中调整波形高度，不改变播放音量"
+            "value": "调整波形以适应可用高度"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在所有主題中調整波形高度，不改變播放音量"
+            "value": "調整波形以符合可用高度"
           }
         }
       },
@@ -78121,192 +77935,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.files.folder_sort.caption": {
-      "comment": "Settings, Files pane: caption under Sort folders by.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Редът, в който се добавят песните от папка"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pořadí, v jakém se přidávají skladby ze složky"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rækkefølgen, numrene i en mappe tilføjes i"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Reihenfolge, in der die Titel eines Ordners hinzugefügt werden"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Η σειρά με την οποία προστίθενται τα κομμάτια ενός φακέλου"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The order a folder's tracks are added in"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El orden en que se añaden las pistas de una carpeta"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Järjestys, jossa kansion kappaleet lisätään"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’ordre dans lequel les morceaux d’un dossier sont ajoutés"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redoslijed kojim se dodaju pjesme iz mape"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A mappa számainak hozzáadási sorrendje"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Urutan penambahan trek dari folder"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’ordine in cui vengono aggiunti i brani di una cartella"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "フォルダのトラックを追加する順序"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "폴더의 트랙이 추가되는 순서"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rekkefølgen sporene i en mappe legges til i"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "De volgorde waarin de nummers van een map worden toegevoegd"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kolejność dodawania utworów z folderu"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A ordem em que as faixas de uma pasta são adicionadas"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A ordem em que as faixas de uma pasta são adicionadas"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ordinea în care se adaugă piesele dintr-un dosar"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Порядок, в котором добавляются треки из папки"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poradie, v akom sa pridávajú skladby z priečinka"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ordningen som spåren i en mapp läggs till i"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ลำดับการเพิ่มแทร็กจากโฟลเดอร์"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bir klasördeki parçaların eklenme sırası"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Порядок, у якому додаються треки з папки"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thứ tự thêm các bài hát trong thư mục"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加文件夹中曲目的顺序"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "加入檔案夾中曲目的順序"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.files.folder_sort.name": {
       "comment": "Folder sort choice, in Settings and in the iOS Files tab's sort menu, after 'Sort folders by': order the songs by filename, counting numbers in a filename as numbers. The default.",
       "localizations": {
@@ -79604,192 +79232,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "永遠顯示在最上層"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.general.always_on_top.caption": {
-      "comment": "Settings, General pane: caption under Keep window on top.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показване на плейъра над прозорците на други приложения"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Udržovat přehrávač nad okny ostatních aplikací"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold afspilleren over andre apps' vinduer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Den Player über den Fenstern anderer Apps halten"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Διατήρηση του προγράμματος αναπαραγωγής πάνω από παράθυρα άλλων εφαρμογών"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Float the player above other apps' windows"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mantener el reproductor sobre las ventanas de otras apps"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pidä soitin muiden appien ikkunoiden päällä"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Garder le lecteur au-dessus des fenêtres des autres apps"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zadrži player iznad prozora drugih aplikacija"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tartsd a lejátszót a többi app ablakai fölött"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apungkan pemutar di atas jendela app lain"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mantenere il player sopra le finestre delle altre app"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プレーヤーをほかのアプリのウインドウより手前に表示する"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "플레이어를 다른 앱의 윈도우 위에 띄우기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hold spilleren over vinduene til andre apper"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "De speler boven de vensters van andere apps houden"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utrzymuj odtwarzacz nad oknami innych aplikacji"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manter o reprodutor acima das janelas de outros apps"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manter o leitor acima das janelas de outras aplicações"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mențineți playerul deasupra ferestrelor altor aplicații"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывать плеер поверх окон других приложений"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Udržiavať prehrávač nad oknami ostatných aplikácií"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Håll spelaren ovanför andra appars fönster"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ให้เครื่องเล่นลอยอยู่เหนือหน้าต่างของแอปอื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oynatıcıyı diğer uygulamaların pencerelerinin üstünde tut"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показувати плеєр поверх вікон інших програм"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Giữ trình phát nổi trên cửa sổ của các ứng dụng khác"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "让播放器浮于其他 App 的窗口之上"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讓播放器浮於其他 App 的視窗之上"
           }
         }
       },
@@ -92443,192 +91885,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.playback.detect_key.caption": {
-      "comment": "Settings, Playback pane: caption under Detect key automatically. Mirrors the Detect BPM caption.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Анализиране на тоналността на всяка песен, докато се зарежда вълновата ѝ форма, освен ако файлът вече има етикет за тоналност."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyzovat tóninu každé skladby při načítání jejího průběhu vlny, pokud už soubor nemá značku tóniny."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyser hvert nummers toneart, mens bølgeformen indlæses, medmindre filen allerede har et toneartsmærke."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tonart jedes Titels analysieren, während seine Wellenform geladen wird, sofern die Datei nicht bereits eine Tonart enthält."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ανάλυση της τονικότητας κάθε κομματιού ενώ φορτώνεται η κυματομορφή του, εκτός αν το αρχείο έχει ήδη ετικέτα τονικότητας."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyze each track's key while its waveform loads, unless the file already has a key tag."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analizar la tonalidad de cada pista mientras se carga su forma de onda, salvo que el archivo ya tenga una etiqueta de tonalidad."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analysoi kunkin kappaleen sävellaji aaltomuodon latautuessa, ellei tiedostossa ole jo sävellajimerkintää."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyser la tonalité de chaque morceau pendant le chargement de sa forme d’onde, sauf si le fichier contient déjà une tonalité."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analiziraj tonalitet svake pjesme dok se učitava njezin valni oblik, osim ako datoteka već ima oznaku tonaliteta."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elemezd minden szám hangnemét, miközben a hullámformája betöltődik, kivéve ha a fájlban már van hangnemcímke."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analisis nada dasar setiap lagu saat bentuk gelombangnya dimuat, kecuali file sudah memiliki tag nada dasar."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analizzare la tonalità di ogni brano mentre viene caricata la forma d’onda, a meno che il file non contenga già un tag di tonalità."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形の読み込み中に各トラックのキーを解析する（ファイルにキータグがある場合を除く）。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파형을 불러오는 동안 각 트랙의 키 분석하기(파일에 키 태그가 이미 있는 경우 제외)."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyser tonearten til hvert spor mens bølgeformen lastes inn, med mindre filen allerede har en tonearttagg."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "De toonsoort van elk nummer analyseren terwijl de golfvorm wordt geladen, tenzij het bestand al een toonsoorttag heeft."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analizuj tonację każdego utworu podczas wczytywania jego kształtu fali, chyba że plik ma już znacznik tonacji."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analisar o tom de cada faixa enquanto a forma de onda é carregada, a menos que o arquivo já tenha uma etiqueta de tom."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analisar a tonalidade de cada faixa enquanto a forma de onda é carregada, a menos que o ficheiro já tenha uma etiqueta de tonalidade."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analizați tonalitatea fiecărei piese în timp ce se încarcă forma de undă, cu excepția cazului în care fișierul are deja o etichetă de tonalitate."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Анализировать тональность каждого трека во время загрузки его волновой формы, если в файле еще не указана тональность."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyzovať tóninu každej skladby počas načítavania jej vlnového priebehu, ak už súbor nemá značku tóniny."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analysera varje spårs tonart medan vågformen läses in, om inte filen redan har en tonartstagg."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "วิเคราะห์คีย์ของแต่ละแทร็กขณะโหลดรูปคลื่น เว้นแต่ไฟล์จะมีแท็กคีย์อยู่แล้ว"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dosyada zaten bir ton etiketi yoksa, dalga biçimi yüklenirken her parçanın tonunu analiz et."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Аналізувати тональність кожного треку під час завантаження його хвильової форми, якщо у файлі ще не вказано тональність."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phân tích tông của từng bài hát trong khi tải dạng sóng, trừ khi tệp đã có thẻ tông."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在加载波形时分析每首曲目的调性，除非文件中已有调性标签。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在載入波形時分析每首曲目的調性，除非檔案中已有調性標籤。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.playback.enable_fx": {
       "comment": "Settings, Playback, on both platforms: checkbox (macOS) or switch (iOS) choosing whether the DJ performance effects (low kill, reverb, delay) are available. 'FX' is the DJ term for effects, left untranslated.",
       "localizations": {
@@ -92810,192 +92066,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "音效"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.playback.enable_fx.caption": {
-      "comment": "Settings, Playback pane: caption under the Audio effects switch. Off hides the FX menu and turns off the effects' keys; 'FX' is the DJ loanword the menu uses.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показване на менюто FX и клавишите за DJ ефектите"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zobrazit nabídku FX a klávesy pro efekty DJ"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vis FX-menuen og tasterne til DJ-effekterne"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "FX-Menü und Tasten für die DJ-Effekte anzeigen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Εμφάνιση του μενού FX και των πλήκτρων για τα εφέ DJ"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show the FX menu and keys for the DJ effects"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar el menú FX y las teclas de los efectos de DJ"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Näytä FX-valikko ja DJ-tehosteiden näppäimet"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afficher le menu FX et les touches des effets DJ"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prikaži izbornik FX i tipke za DJ efekte"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jelenítsd meg az FX menüt és a DJ-effektusok billentyűit"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tampilkan menu FX dan tombol untuk efek DJ"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrare il menu FX e i tasti degli effetti DJ"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DJエフェクトのFXメニューとキーを表示する"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "DJ 효과용 FX 메뉴 및 키 표시하기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vis FX-menyen og tastene for DJ-effektene"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Het FX-menu en de toetsen voor de DJ-effecten tonen"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pokaż menu FX i klawisze efektów DJ"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar o menu FX e as teclas dos efeitos de DJ"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar o menu FX e as teclas dos efeitos de DJ"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afișați meniul FX și tastele pentru efectele DJ"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывать меню FX и клавиши для DJ-эффектов"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zobraziť ponuku FX a klávesy pre efekty DJ"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visa FX-menyn och tangenterna för DJ-effekterna"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แสดงเมนู FX และปุ่มสำหรับเอฟเฟ็กต์ DJ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "FX menüsünü ve DJ efektlerinin tuşlarını göster"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показувати меню FX і клавіші для DJ-ефектів"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hiện menu FX và phím cho các hiệu ứng DJ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示 DJ 效果的 FX 菜单和按键"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示 DJ 效果的 FX 選單和按鍵"
           }
         }
       },
@@ -94117,192 +93187,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.playback.pitch_range.caption": {
-      "comment": "Settings, Playback pane: caption under Pitch range, whose choices are 8% and 16%: the fader's speed change at either end.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Докъде стига регулаторът за питч във всяка посока"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jak daleko posuvník pitche sahá na každou stranu"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hvor langt pitchkontrollen rækker i hver retning"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wie weit der Temporegler in jede Richtung reicht"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Πόσο φτάνει το ρυθμιστικό pitch προς κάθε κατεύθυνση"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "How far the pitch fader reaches each way"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hasta dónde llega el control de pitch en cada sentido"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kuinka pitkälle pitch-säädin ulottuu kumpaankin suuntaan"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jusqu’où va le contrôle de pitch dans chaque sens"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koliko daleko seže kontrola pitcha u svakom smjeru"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meddig ér a pitch-csúszka mindkét irányban"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seberapa jauh fader pitch menjangkau ke tiap arah"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fin dove arriva il controllo pitch in ogni direzione"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ピッチフェーダーの片側の可変幅"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "피치 페이더가 양쪽으로 움직이는 범위"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hvor langt pitchkontrollen når i hver retning"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hoe ver de pitchregelaar in elke richting reikt"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jak daleko sięga suwak pitcha w każdą stronę"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Até onde o controle de pitch vai em cada direção"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Até onde o controlo de pitch vai em cada sentido"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cât de departe ajunge controlul de pitch în fiecare sens"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Диапазон регулятора питча в каждую сторону"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ako ďaleko siaha posuvník pitchu na každú stranu"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hur långt pitchreglaget når åt varje håll"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ระยะที่เฟดเดอร์ Pitch ปรับได้ในแต่ละทิศทาง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pitch denetiminin her iki yöne ne kadar uzandığı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Діапазон регулятора пітчу в кожен бік"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mức điều chỉnh tối đa của fader pitch theo mỗi hướng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音高推子向每个方向的调节范围"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音高推桿向每個方向的調節範圍"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.playback.pitch_range_label": {
       "comment": "Settings, Playback pane: label beside the pitch fader range choice (8% or 16%).",
       "localizations": {
@@ -94484,192 +93368,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "音高範圍"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.playback.skip_steps.caption": {
-      "comment": "Settings, Playback pane: caption under Skip steps. The three skip commands jump a number of musical bars, timed from the track's BPM.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Колко далеч прескачат трите стъпки, в тактове по темпото на песента"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jak daleko tři skoky přeskočí, v taktech podle tempa skladby"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hvor langt de tre hop springer, i takter i nummerets tempo"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wie weit die drei Sprünge reichen, in Takten beim Tempo des Titels"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Πόσο μακριά πηγαίνουν οι τρεις μεταπηδήσεις, σε μέτρα με βάση το τέμπο του κομματιού"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "How far the three skips jump, in bars at the track's tempo"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Distancia de los tres saltos, en compases al tempo de la pista"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kuinka pitkälle kolme hyppyä siirtyvät, tahteina kappaleen tempossa"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Longueur des trois sauts, en mesures au tempo du morceau"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koliko daleko skaču tri preskoka, u taktovima prema tempu pjesme"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Milyen messzire ugrik a három ugrás, ütemekben a szám tempója szerint"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seberapa jauh tiga lompatan melompat, dalam birama sesuai tempo trek"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ampiezza dei tre salti, in battute al tempo del brano"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "3種類のスキップで移動する幅（トラックのテンポでの小節数）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "세 가지 건너뛰기의 이동 거리(트랙 템포 기준 마디 수)"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hvor langt de tre hoppene går, i takter i sporets tempo"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hoe ver de drie sprongen gaan, in maten op het tempo van het nummer"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Jak daleko sięgają trzy przeskoki, w taktach w tempie utworu"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Distância dos três saltos, em compassos no andamento da faixa"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Distância dos três saltos, em compassos no andamento da faixa"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cât de departe sar cele trei salturi, în măsuri la tempoul piesei"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Длина трех перемоток в тактах при темпе трека"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ako ďaleko tri skoky preskočia, v taktoch podľa tempa skladby"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hur långt de tre hoppen går, i takter i spårets tempo"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ระยะที่การข้ามทั้งสามแบบกระโดดไป เป็นจำนวนห้องตามเทมโปของแทร็ก"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Üç atlamanın uzunluğu, parçanın temposunda ölçü cinsinden"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Довжина трьох перемотувань у тактах за темпом треку"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Khoảng nhảy của ba lệnh tua, tính bằng ô nhịp theo nhịp độ bài hát"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "三种跳跃的距离，以曲目速度下的小节计"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "三種跳過的距離，以曲目速度下的小節計"
           }
         }
       },

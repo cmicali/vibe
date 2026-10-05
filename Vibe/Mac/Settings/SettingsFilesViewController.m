@@ -93,8 +93,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OPENING_FILES_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL
-                                  caption:STR_SETTINGS_FOLDER_SORT_CAPTION control:_folderSortPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL control:_folderSortPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL
                                   caption:STR_SETTINGS_ALBUM_ART_CAPTION control:_albumArtPopUp],
         ]],

@@ -215,6 +215,8 @@ static const CGFloat kSidebarSpacerHeight = 12;
     [table addTableColumn:[[NSTableColumn alloc] initWithIdentifier:@"pane"]];
     table.dataSource = self;
     table.delegate = self;
+    table.target = self;
+    table.action = @selector(sidebarClicked:);
     _tableView = table;
 
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
@@ -386,6 +388,17 @@ static const CGFloat kSidebarSpacerHeight = 12;
     if (item != self.tabs.tabView.selectedTabViewItem) {
         [self.tabs.tabView selectTabViewItem:item];
     }
+}
+
+- (void)sidebarClicked:(NSTableView *)sender {
+    NSInteger row = sender.clickedRow;
+    if (row < 0 || _rows[(NSUInteger)row] != self.tabs.tabView.selectedTabViewItem) {
+        return;
+    }
+    // Clicking the selected row does not post a selection change.
+    SettingsWindowController *controller =
+            (SettingsWindowController *)self.view.window.windowController;
+    [controller paneWillBecomeSelected:_rows[(NSUInteger)row]];
 }
 
 @end
