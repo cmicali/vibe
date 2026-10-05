@@ -725,7 +725,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)number];
     _playing = playing;
     [self resolveGutter];
-    _artView.image = thumbnail ?: [UIImage imageNamed:@"record-bg"];
+    _artView.image = thumbnail ?: VibeFileTileImage(NO);
     _durationLabel.text = duration;
     _titleLabel.text = track.displayTitle ?: @"";
     // Hidden rather than blank, so the title centres on its own.

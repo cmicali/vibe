@@ -169,11 +169,10 @@ static const NSInteger kArtRowMargin = 20;
 static const CGFloat kFileTileSide = 40;
 static const CGFloat kFileTileCornerRadius = 8;
 
-// A file row's icon where it has no art to draw: a rounded tile holding a
-// waveform, or a note list for a CUE sheet or an M3U. Drawn once, in both appearances:
-// an image asset holding the light and the dark tile follows the trait
-// collection by itself, which a single rendered image would not.
-static UIImage *VibeFileTileImage(BOOL playlist) {
+// Drawn once, in both appearances: an image asset holding the light and the
+// dark tile follows the trait collection by itself, which a single rendered
+// image would not.
+UIImage *VibeFileTileImage(BOOL playlist) {
     static UIImage *tiles[2];
     static dispatch_once_t once;
     dispatch_once(&once, ^{
