@@ -676,7 +676,7 @@ class TraceHelperTests(unittest.TestCase):
 
 
 class ScriptLineTests(unittest.TestCase):
-    """stress.script_line against the app's tokenizer: quotes group, no escapes."""
+    """Command parsing, simulator oracles and client cancellation."""
 
     @staticmethod
     def tokenize(line):
@@ -704,6 +704,182 @@ class ScriptLineTests(unittest.TestCase):
     def test_inexpressible_arguments_are_refused(self):
         for bad in ("", "it's", 'say "hi"', "a\tb", "two\nlines"):
             self.assertIsNone(stress.script_line(["open", bad]), repr(bad))
+
+
+    def test_ios_bad_recipe_is_rejected_before_contacting_simulator(self):
+        with tempfile.TemporaryDirectory() as root:
+            recipe = Path(root) / "replay.ndjson"
+            recipe.write_text('{"command": ["play_pause"]}\n{"command": ["click", "1", "2"]}\n')
+            with mock.patch.object(stress.subprocess, "check_output") as launch, self.assertRaises(ValueError):
+                stress.run_ios(stress.argparse.Namespace(replay=str(recipe)))
+            launch.assert_not_called()
+
+    def test_ios_replay_refuses_input_paths_wrappers_and_unbounded_commands(self):
+        for argv in (["click", "1", "2"], ["script", "-"], ["quit"],
+                     ["open", "/tmp/music"], ["block_main", "99", "play_pause"],
+                     ["burst", "9999999", "1"], ["set_fx_pad", "nan", "1"]):
+            with self.subTest(argv=argv), self.assertRaises(ValueError):
+                stress.ios_validate_step({"command": argv})
+        for step in ({"check": "unknown"}, {"check": "idle", "command": ["quit"]}, [], None):
+            with self.assertRaises(ValueError):
+                stress.ios_validate_step(step)
+        for step in stress.ios_lifecycle_steps(2):
+            stress.ios_validate_step(step)
+
+    def test_ios_playing_without_progress_fails(self):
+        state = {"player": {"state": "playing", "position": 2},
+                 "currentTrack": {"url": "a.wav"}, "playlist": {"currentIndex": 0}}
+        path = {"stages": [{"stage": "output", "running": True}]}
+        def cmd(argv):
+            return state if argv == ["dump_state"] else path
+        with mock.patch.object(stress.time, "monotonic", side_effect=[0, 0, 0, 0, 2]), \
+             mock.patch.object(stress.time, "sleep"), self.assertRaises(stress.Failure):
+            stress.ios_wait(cmd, "progress", 1)
+
+    def test_ios_progress_requires_same_track_and_advancing_position(self):
+        state = {"player": {"state": "playing", "position": 2},
+                 "currentTrack": {"url": "a.wav"}, "playlist": {"currentIndex": 0}}
+        path = {"stages": [{"stage": "output"}]}
+        reads = 0
+        def cmd(argv):
+            nonlocal reads
+            if argv == ["dump_state"]:
+                reads += 1
+                state["player"]["position"] = 2 + reads / 5
+                return state
+            return path
+        with mock.patch.object(stress.time, "sleep"):
+            self.assertEqual(stress.ios_wait(cmd, "progress", 1), state)
+        self.assertEqual(reads, 2)
+
+    def test_ios_new_track_cannot_satisfy_previous_progress_check(self):
+        replies = iter([
+            {"player": {"state": "playing", "position": 2}, "currentTrack": {"url": "a"}, "playlist": {"currentIndex": 0}},
+            {"player": {"state": "playing", "position": 9}, "currentTrack": {"url": "b"}, "playlist": {"currentIndex": 1}}])
+        def cmd(argv):
+            return next(replies) if argv == ["dump_state"] else {"stages": [{"stage": "output"}]}
+        with mock.patch.object(stress.time, "sleep"), self.assertRaisesRegex(stress.Failure, "track changed"):
+            stress.ios_wait(cmd, "progress", 1)
+
+    def test_ios_idle_wait_accepts_long_fx_tail_but_requires_unit_stopped(self):
+        outputs = iter([
+            {"idle": False, "running": True, "unitRunning": True},
+            {"idle": True, "running": False, "unitRunning": True},
+            {"idle": True, "running": False, "unitRunning": False}])
+        reads = 0
+        def cmd(argv):
+            nonlocal reads
+            if argv == ["dump_state"]:
+                return {"player": {"state": "paused"}}
+            reads += 1
+            return {"stages": [{"stage": "output", **next(outputs)}]}
+        # Tail continues past the old incorrect eight-second assertion.
+        with mock.patch.object(stress.time, "monotonic", side_effect=[0, 9, 9, 19, 19]), \
+             mock.patch.object(stress.time, "sleep"):
+            stress.ios_wait(cmd, "idle", 30)
+        self.assertEqual(reads, 3)
+
+    def test_ios_cancelled_idle_stop_requires_progress_past_its_old_deadline(self):
+        for freeze_at in (None, 5):
+            with self.subTest(freeze_at=freeze_at):
+                clock = [0.0]
+                def cmd(argv):
+                    if argv == ["dump_state"]:
+                        position = clock[0] if freeze_at is None else min(clock[0], freeze_at)
+                        return {"player": {"state": "playing", "position": position},
+                                "currentTrack": {"url": "a"}, "playlist": {"currentIndex": 0}}
+                    return {"stages": [{"stage": "output"}]}
+                def sleep(delay):
+                    clock[0] += delay
+                with mock.patch.object(stress.time, "monotonic", side_effect=lambda: clock[0]), \
+                     mock.patch.object(stress.time, "sleep", side_effect=sleep):
+                    if freeze_at is None:
+                        stress.ios_wait(cmd, "sustained", 10)
+                        self.assertGreaterEqual(clock[0], 7)
+                    else:
+                        with self.assertRaises(stress.Failure):
+                            stress.ios_wait(cmd, "sustained", 10)
+                        self.assertGreaterEqual(clock[0], 10)
+
+    def test_ios_idle_wait_has_a_deadline(self):
+        def cmd(argv):
+            if argv == ["dump_state"]:
+                return {"player": {"state": "paused"}}
+            return {"stages": [{"stage": "output", "idle": False, "running": True}]}
+        with mock.patch.object(stress.time, "monotonic", side_effect=[0, 31]), \
+             self.assertRaisesRegex(stress.Failure, "30s"):
+            stress.ios_wait(cmd, "idle", 30)
+
+    def test_ios_cleanup_continues_after_idle_and_setting_failure(self):
+        settings = {"repeatMode": "all", "shuffleEnabled": True, "pauseAtTrackEnd": True}
+        calls = []
+        def cmd(argv):
+            calls.append(argv)
+            if argv[0] == "set_repeat":
+                raise stress.Failure("command", "injected write failure")
+            return {"settings": settings, "player": {"state": "paused"}}
+        with mock.patch.object(stress, "ios_wait", side_effect=stress.Failure("idle", "injected timeout")):
+            errors = stress.ios_restore(cmd, {"settings": settings}, 30)
+        self.assertEqual(len(errors), 2)
+        self.assertIn(["set_shuffle", "on"], calls)
+        self.assertIn(["set_pause_at_track_end", "on"], calls)
+
+    def test_ios_terminal_timeout_is_journaled_and_client_cancelled(self):
+        proc = mock.Mock(pid=1234)
+        proc.communicate.side_effect = [subprocess.TimeoutExpired("client", 13), ("", "cancelled")]
+        journal = io.StringIO()
+        with mock.patch.object(stress.subprocess, "Popen", return_value=proc), \
+             mock.patch.object(stress.os, "killpg") as kill, self.assertRaises(stress.Failure):
+            stress.ios_command({}, journal, ["dump_audio_path"])
+        records = [json.loads(line) for line in journal.getvalue().splitlines()]
+        self.assertEqual([r["event"] for r in records], ["begin", "reply"])
+        self.assertEqual(records[-1]["code"], 124)
+        self.assertEqual(records[-1]["command"], ["dump_audio_path"])
+        kill.assert_called_once_with(1234, stress.signal.SIGTERM)
+
+    def test_ios_interruption_is_journaled_before_cleanup(self):
+        proc = mock.Mock(pid=1234)
+        proc.communicate.side_effect = [KeyboardInterrupt(), ("", "cancelled")]
+        journal = io.StringIO()
+        with mock.patch.object(stress.subprocess, "Popen", return_value=proc), \
+             mock.patch.object(stress.os, "killpg"), self.assertRaises(KeyboardInterrupt):
+            stress.ios_command({}, journal, ["play_index", "0"])
+        self.assertEqual(json.loads(journal.getvalue().splitlines()[-1])["code"], 130)
+
+
+    def test_ios_client_cancellation_retracts_only_its_own_requests(self):
+        import os
+        import time
+        if not shutil.which("jq"):
+            self.skipTest("debug-ios.sh needs jq")
+        with tempfile.TemporaryDirectory() as root:
+            unrelated = Path(root) / "vibe-command-other.json"
+            unrelated.write_text("{}")
+            proc = subprocess.Popen([str(stress.LAUNCH_SH.with_name("debug-ios.sh")), "dump_state"],
+                                    env={**os.environ, "VIBE_APP_TMP": root, "VIBE_DEBUG_TIMEOUT": "10"},
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                deadline = time.monotonic() + 5
+                while len(list(Path(root).glob("vibe-command-*.json"))) < 2 and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertEqual(len(list(Path(root).glob("vibe-command-*.json"))), 2)
+                proc.terminate()
+                proc.communicate(timeout=3)
+                self.assertEqual(proc.returncode, 143)
+                self.assertEqual(list(Path(root).iterdir()), [unrelated])
+            finally:
+                if proc.poll() is None:
+                    proc.kill()
+                    proc.communicate()
+
+    def test_ios_wrong_target_cannot_satisfy_progress_check(self):
+        state = {"player": {"state": "playing", "position": 9},
+                 "currentTrack": {"url": "old"}, "playlist": {"currentIndex": 0}}
+        def cmd(argv):
+            return state if argv == ["dump_state"] else {"stages": [{"stage": "output"}]}
+        with mock.patch.object(stress.time, "monotonic", side_effect=[0, 2]), \
+             self.assertRaises(stress.Failure):
+            stress.ios_wait(cmd, "progress", 1, expected_index=1)
 
 
 class SettingsTeardownTests(unittest.TestCase):

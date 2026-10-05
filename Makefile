@@ -132,6 +132,7 @@ analyze:
 # oracles between batches and an NDJSON journal a failure can be shrunk from.
 # See the vibe-stress skill.
 #   make stress CORPUS=~/Music/big
+#   make stress CORPUS=<simulator-app-Documents/Music> ARGS="--ios <uuid>"
 #   make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600"
 stress:
 	@test -n "$(CORPUS)" || { echo "usage: make stress CORPUS=<folder of audio files>"; exit 64; }

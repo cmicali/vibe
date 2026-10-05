@@ -66,6 +66,14 @@ done
 TIMEOUT="${VIBE_DEBUG_TIMEOUT:-$VERB_TIMEOUT}"
 
 IDS=()
+cleanup() {
+    for id in ${IDS[@]+"${IDS[@]}"}; do
+        rm -f "$TMP/vibe-command-$id.json" "$TMP/vibe-command-$id.json.part" "$TMP/vibe-response-$id.txt"
+    done
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [ -n "$ALL" ]; then
     for verb in "${VERBS[@]}"; do ID="$(uuidgen)"; IDS+=("$ID"); send "$ID" "$verb"; done
 else
@@ -82,11 +90,9 @@ for ID in "${IDS[@]}"; do
     done
     if [ -f "$RESPONSE" ]; then
         REPLIES+=("$(cat "$RESPONSE")")
-        rm -f "$RESPONSE"
         printf '%s' "${REPLIES[${#REPLIES[@]}-1]}" | jq -e 'has("error") | not' >/dev/null 2>&1 || STATUS=2
     else
-        # Take the command back so a later drain cannot run it out of nowhere.
-        rm -f "$TMP/vibe-command-$ID.json"
+        # EXIT takes commands back so a later drain cannot run them.
         REPLIES+=('{"error": "no response — is a Debug build of VibeiOS running?"}')
         STATUS=1
     fi
