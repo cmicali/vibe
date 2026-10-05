@@ -368,6 +368,9 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     _renderer.theme = theme;
     _bakeTheme = resolve();
     [_renderer updateColors:isDark];
+    // Geometry, not color, but it changes as these settings do, and the
+    // signature that re-bakes and keys the bake store has to carry it.
+    _renderer.centered = settings.waveformCentered;
     [self layoutPlayheadLine];
     _themeSignature = [self themeSignature];
 }
@@ -380,12 +383,12 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
 // Everything the resolution reads, in both appearances — including this page's
 // artwork color under album_art, or a swipe onto a track with different art
 // compares equal and keeps the previous track's palette. Under any other theme
-// it is left out, so late art re-bakes nothing.
+// it is left out, so late art re-bakes nothing. Centered rides along.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL readsArtwork = [settings.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART];
-    return [NSString stringWithFormat:@"%@|%d|%@|%@|%@|%@|%@", settings.waveformTheme,
-            [self drawsPlayheadLine],
+    return [NSString stringWithFormat:@"%@|%d|%d|%@|%@|%@|%@|%@", settings.waveformTheme,
+            [self drawsPlayheadLine], settings.waveformCentered,
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",
@@ -784,6 +787,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     NSString *style = _styleIdentifier;
     WaveformTheme *theme = _bakeTheme;
     BOOL dark = self.isDark;
+    BOOL centered = renderer.centered;
     if (renderer.supportsEnvelopeBake) {
         renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
         VibeSignpostBegin(waveform_samples);
@@ -806,10 +810,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         else {
             image = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
                     pointSize:size scale:scale progress:1 dark:dark theme:theme
-                    barDensity:1 barWidth:1 normalize:YES gainDB:0];
+                    barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
             unplayedImage = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
                     pointSize:size scale:scale progress:0 dark:dark theme:theme
-                    barDensity:1 barWidth:1 normalize:YES gainDB:0];
+                    barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
         }
         VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{

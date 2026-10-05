@@ -26,7 +26,9 @@ NSString *const kVibeThemeRecordIdentifierKey = @"id";
 static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
+static NSString *const kFieldWaveformBandTheme = @"waveformBandTheme";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
+static NSString *const kFieldWaveformCentered = @"waveformCentered";
 static NSString *const kFieldWaveformPlayheadLine = @"waveformPlayheadLine";
 static NSString *const kFieldWaveformBarDensity = @"waveformBarDensity";
 static NSString *const kFieldWaveformBarWidth = @"waveformBarWidth";
@@ -73,6 +75,9 @@ NSString *const kVibeThemeImageNextButtonLight = @"nextButtonImageLight";
 NSString *const kVibeThemeColorWaveformPlayed = @"waveformPlayedColor";
 NSString *const kVibeThemeColorWaveformUnplayed = @"waveformUnplayedColor";
 NSString *const kVibeThemeColorWaveformPlayhead = @"waveformPlayheadColor";
+NSString *const kVibeThemeColorWaveformLow = @"waveformLowColor";
+NSString *const kVibeThemeColorWaveformMid = @"waveformMidColor";
+NSString *const kVibeThemeColorWaveformHigh = @"waveformHighColor";
 NSString *const kVibeThemeColorWindowTint = @"windowTintColor";
 NSString *const kVibeThemeColorPlaylistTint = @"playlistTintColor";
 NSString *const kVibeThemeColorWindowBackground = @"windowBackgroundColor";
@@ -351,6 +356,7 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
         [rows addObject:Field(kFieldWaveformTheme, waveform, @"theme", SETTINGS_VALUE_WAVEFORM_THEME_MONO,
                               LadderField(VibeNormalizedWaveformTheme))];
         [rows addObject:Field(kFieldWaveformGradient, waveform, @"gradient", @YES, BoolField())];
+        [rows addObject:Field(kFieldWaveformCentered, waveform, @"centered", @YES, BoolField())];
         [rows addObject:Field(kFieldWaveformBarDensity, waveform, @"barDensity",
                               @(kVibeThemeWaveformBarScaleDefault),
                               NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
@@ -359,6 +365,12 @@ static NSArray<NSDictionary *> *FieldSpecs(void) {
                               NumberField(kVibeThemeWaveformBarScaleMin, kVibeThemeWaveformBarScaleMax, NO))];
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
+        [rows addObject:Field(kFieldWaveformBandTheme, waveform, @"bandTheme",
+                              SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN,
+                              LadderField(VibeNormalizedWaveformBandTheme))];
+        AddColorPair(rows, kVibeThemeColorWaveformLow, waveform, @"lowColor");
+        AddColorPair(rows, kVibeThemeColorWaveformMid, waveform, @"midColor");
+        AddColorPair(rows, kVibeThemeColorWaveformHigh, waveform, @"highColor");
         [rows addObject:Field(kFieldWaveformPlayheadLine, waveform, @"playheadLine", @NO, BoolField())];
         AddColorPair(rows, kVibeThemeColorWaveformPlayhead, waveform, @"playheadColor");
 
@@ -554,6 +566,16 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     if ([base isEqualToString:kVibeThemeColorWaveformPlayhead]) {
         return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:1]
                       : [NSColor colorWithRed:0 green:0 blue:0 alpha:1];
+    }
+    // Rekord Bin's bands (WaveformTheme), so Custom starts from the default.
+    if ([base isEqualToString:kVibeThemeColorWaveformLow]) {
+        return VibeColorFromHexString(@"#0055E1");
+    }
+    if ([base isEqualToString:kVibeThemeColorWaveformMid]) {
+        return VibeColorFromHexString(isDark ? @"#FFA600" : @"#D97706");
+    }
+    if ([base isEqualToString:kVibeThemeColorWaveformHigh]) {
+        return VibeColorFromHexString(isDark ? @"#FFFFFF" : @"#262626");
     }
     NSCAssert([base isEqualToString:kVibeThemeColorWaveformUnplayed], @"no color pair %@", base);
     return [NSColor colorWithRed:0.5 green:0.5 blue:0.5 alpha:0.75];
@@ -1012,11 +1034,19 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 + (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record {
-    if (![record[kFieldWindowBackgroundStyle] isEqual:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
+    BOOL solid = [record[kFieldWindowBackgroundStyle] isEqual:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    BOOL wiggleMC = [record[kFieldWaveformStyle] isEqual:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC];
+    if (!solid && !wiggleMC) {
         return record;
     }
     NSMutableDictionary *upgraded = [record mutableCopy];
-    upgraded[kFieldWindowBackgroundStyle] = SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED;
+    if (solid) {
+        upgraded[kFieldWindowBackgroundStyle] = SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED;
+    }
+    if (wiggleMC) {
+        upgraded[kFieldWaveformStyle] = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
+        upgraded[kFieldWaveformCentered] = @NO;
+    }
     return upgraded;
 }
 
@@ -1197,9 +1227,14 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 - (NSString *)waveformTheme { return [self stringForKey:kFieldWaveformTheme]; }
 - (void)setWaveformTheme:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformTheme]; }
+- (NSString *)waveformBandTheme { return [self stringForKey:kFieldWaveformBandTheme]; }
+- (void)setWaveformBandTheme:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformBandTheme]; }
 
 - (BOOL)waveformGradient { return [self boolForKey:kFieldWaveformGradient]; }
 - (void)setWaveformGradient:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformGradient]; }
+
+- (BOOL)waveformCentered { return [self boolForKey:kFieldWaveformCentered]; }
+- (void)setWaveformCentered:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformCentered]; }
 
 - (BOOL)waveformPlayheadLine { return [self boolForKey:kFieldWaveformPlayheadLine]; }
 - (void)setWaveformPlayheadLine:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformPlayheadLine]; }
@@ -1378,7 +1413,10 @@ static id RandomPick(NSArray *choices) {
     }
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
+    self.waveformBandTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN,
+                                          SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE]);
     self.waveformGradient = RandomChance(50);
+    self.waveformCentered = RandomChance(75);
     self.buttonGradient = RandomPick(VibeButtonGradientModes());
     self.playlistButtonGlyph = RandomPick(VibePlaylistButtonGlyphs());
     NSArray<NSString *> *pair = RandomPick(VibePlayPauseGlyphPairs());
@@ -1432,6 +1470,9 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     }
     if ([self.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
         self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+    }
+    if ([self.waveformBandTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
+        self.waveformBandTheme = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
     }
     if ([self.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
         self.windowTint = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;

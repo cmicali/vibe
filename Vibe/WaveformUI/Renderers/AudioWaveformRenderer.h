@@ -112,6 +112,15 @@ static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
     CGFloat topY = round(midY + vscale);
     return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
+// The band's foot, where Centered off grounds the bars.
+static inline CGFloat VibeBarBaseline(CGFloat height) {
+    return height / 2 - VibeBarVScale(height);
+}
+// A point either side of where silence rests: the midline, or the baseline.
+static inline CGRect VibeBarRestingBand(CGRect bounds, BOOL centered) {
+    CGFloat rest = centered ? bounds.size.height / 2 : VibeBarBaseline(bounds.size.height);
+    return CGRectMake(bounds.origin.x, bounds.origin.y + rest - 1, bounds.size.width, 2);
+}
 
 // Both styles' gradient: a ramp down the band, the resting level at the top
 // and this share of it at the bottom. The live layer and the bake aim it
@@ -206,6 +215,10 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 @property (nonatomic) CGFloat barDensity;
 // Multiplier of bar/stroke thickness, independent of count; defaults to 1.
 @property (nonatomic) CGFloat barWidthScale;
+// YES, the default, draws about the midline; NO grounds every bar on a baseline
+// at the foot of the band, the height it had about the midline. Sonic Cirrus
+// and the pill ignore it (WaveformRendererRegistry.supportsCenteringForIdentifier:).
+@property (nonatomic) BOOL centered;
 
 // Basic, Cupertino and Sonic Cirrus share a 4pt pitch and a 1,024-bar cap.
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width;

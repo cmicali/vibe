@@ -83,6 +83,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
     }
     _currentWaveformRenderer.barDensity = AppSettings.sharedInstance.currentTheme.waveformBarDensity;
     _currentWaveformRenderer.barWidthScale = AppSettings.sharedInstance.currentTheme.waveformBarWidth;
+    _currentWaveformRenderer.centered = AppSettings.sharedInstance.currentTheme.waveformCentered;
     [self drawWaveform];
     [self updateRendererProgress];
 }

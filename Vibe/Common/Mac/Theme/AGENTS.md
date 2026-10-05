@@ -10,6 +10,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 `waveformBarDensity` and `waveformBarWidth` travel as `waveform.barDensity` and `waveform.barWidth`, default to 1, and clamp to 0.5–2. Density scales a supported style's count relative to its designed pitch, so window resizing still adds bars; width scales its thickness without changing that count. The renderer registry owns style eligibility; the record keeps the value across style changes.
 
+`waveformBandTheme` (`waveform.bandTheme`) is 3-Band's own ladder — `rekord_bin` (the default), `dengine`, `custom` — beside `waveformTheme` rather than in it, so a style switch keeps both choices; `custom` reads the `kVibeThemeColorWaveformLow`/`Mid`/`High` pairs (`waveform.lowColor`, `midColor`, `highColor`), whose unset slots are Rekord Bin's bands. The dice roll the two named palettes; `randomizeColors` snaps `custom` back to Rekord Bin.
+
 `waveformPlayheadLine` (`waveform.playheadLine`, default off) draws the whole waveform as played under a line at the playhead, in the `kVibeThemeColorWaveformPlayhead` pair (`waveform.playheadColor`), whose unset side is the appearance's contrast pole. Off is the default so every record that predates the field keeps the dimmed unplayed side; the pair is held while the switch is off. What the line is, and who draws it, is `WaveformUI/AGENTS.md`'s.
 
 ## What a theme is not

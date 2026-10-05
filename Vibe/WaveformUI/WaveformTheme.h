@@ -45,6 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
 // No vertical ramp: every stop is the side's color as-is. macOS only.
 @property (nonatomic) BOOL flatFill;
 
+// 3-Band's seven opaque fills in its painter's order: low, mid, high, then
+// low+mid, low+high, mid+high, and all three. Rekord Bin's unless the mac
+// theme picks another palette.
+@property (nonatomic, copy) NSArray<VibeColor *> *bandColors;
+
 // Non-nil, the playhead is a line in this color over a waveform drawn wholly
 // as played; nil, the played/unplayed boundary is the playhead. Each view
 // draws the line and hands its renderer a progress of 1, so no renderer

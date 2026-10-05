@@ -315,8 +315,9 @@ static const CGFloat kWidgetWaveformScale = 3;
     // that ignores it bakes nothing. The waveform, not its track: the
     // signature clears on a track change, and a new waveform for the same
     // track, the bands' decode, must bake.
-    NSString *signature = [NSString stringWithFormat:@"%@|%@|%@|%p",
-                           style, VibeHexStringFromColor(theme.playedColor) ?: @"",
+    BOOL centered = settings.waveformCentered;
+    NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%@|%p",
+                           style, centered, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",
                            (void *)waveform];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
@@ -331,9 +332,9 @@ static const CGFloat kWidgetWaveformScale = 3;
     _pendingBake = dispatch_block_create(0, ^{
         // The whole envelope in each side's colours; the widget reveals the
         // played one up to the playhead without a re-render.
-        [self writeWaveformImage:waveform progress:1 style:style theme:theme
+        [self writeWaveformImage:waveform progress:1 style:style centered:centered theme:theme
                            toURL:state.waveformPlayedURL];
-        [self writeWaveformImage:waveform progress:0 style:style theme:theme
+        [self writeWaveformImage:waveform progress:0 style:style centered:centered theme:theme
                            toURL:state.waveformUnplayedURL];
         // The widget re-renders only on a reload.
         [self scheduleReload];
@@ -342,7 +343,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 - (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress
-                     style:(NSString *)style theme:(WaveformTheme *)theme
+                     style:(NSString *)style centered:(BOOL)centered theme:(WaveformTheme *)theme
                      toURL:(NSURL *)url {
     if (!url) {
         return;
@@ -351,7 +352,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     CGImageRef baked = [WaveformRendererRegistry newImageForCodableWaveform:waveform
             identifier:style pointSize:kWidgetWaveformSize scale:kWidgetWaveformScale
               progress:progress dark:YES theme:theme
-            barDensity:1 barWidth:1 normalize:YES gainDB:0];
+            barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
     if (!baked) {
         return;
     }

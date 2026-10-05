@@ -215,6 +215,7 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
         @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
         // The stored choice; null draws the style's default.
         @"waveformPlayheadLine": AppSettings.sharedInstance.waveformPlayheadLine ?: (id)NSNull.null,
+        @"waveformCentered": @(AppSettings.sharedInstance.waveformCentered),
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
         @"repeatMode": VibeRepeatModeIdentifier(AppSettings.sharedInstance.repeatMode),

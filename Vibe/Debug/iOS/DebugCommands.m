@@ -220,9 +220,8 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // refuses an unknown one, since the renderer's fallback would make
             // a typo look like a style.
             //
-            // TRAP: the wiggle identifiers read backwards: `wiggle` is displayed
-            // "Wiggle MC" and `wiggle_centered` "Wiggle". Both draw wiggles, so
-            // asking for the wrong one looks like it worked.
+            // TRAP: Wiggle is `wiggle_centered`, centered or not; the retired
+            // `wiggle` (Wiggle MC) is refused like any unknown style.
             VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSArray<NSString *> *available = [WaveformRendererRegistry availableIdentifiers];
                 if (tokens.count < 2) {

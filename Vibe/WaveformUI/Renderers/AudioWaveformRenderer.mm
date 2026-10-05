@@ -19,6 +19,7 @@
         _hoverHighlightX = -1;
         _barDensity = 1;
         _barWidthScale = 1;
+        _centered = YES;
     }
     return self;
 }
@@ -42,6 +43,14 @@
 - (void)setBarWidthScale:(CGFloat)scale {
     if (_barWidthScale == scale) return;
     _barWidthScale = scale;
+    [_morph rebuildNow];
+}
+
+// The colors too: Cupertino's fade follows the anchoring.
+- (void)setCentered:(BOOL)centered {
+    if (_centered == centered) return;
+    _centered = centered;
+    [self updateColors:self.isDark];
     [_morph rebuildNow];
 }
 
@@ -119,7 +128,7 @@
 
 // Covers the Detailed family's 1pt minimum bar, pixel-rounded, at the midline.
 - (CGRect)restingBandForBounds:(CGRect)bounds {
-    return CGRectMake(bounds.origin.x, CGRectGetMidY(bounds) - 1, bounds.size.width, 2);
+    return VibeBarRestingBand(bounds, YES);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {

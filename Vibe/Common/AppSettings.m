@@ -42,6 +42,8 @@ void VibeNotifyDisplaySettingsChanged(void) {
         [self migrateLooseAppearanceSettingsToTheme];
         [self migrateThemeRecordsToVersion2];
         [self migrateThemeDisplaySettings];
+#else
+        [AppSettings migrateLegacyWiggleMCInDefaults:NSUserDefaults.standardUserDefaults];
 #endif
         [self registerDefaults];
     }
@@ -67,8 +69,23 @@ void VibeNotifyDisplaySettingsChanged(void) {
     appDefaults[SETTING_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
     appDefaults[SETTING_WAVEFORM_THEME] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
+    appDefaults[SETTING_WAVEFORM_CENTERED] = @(YES);
 #endif
     return appDefaults;
+}
+
+// A stored Wiggle MC can only mean it, so the value itself makes this run
+// once. The card's becomes Wiggle with Centered off; the widget's becomes
+// Wiggle and follows the one Centered, which only the card's may turn off.
++ (void)migrateLegacyWiggleMCInDefaults:(NSUserDefaults *)defaults {
+    if ([[defaults stringForKey:SETTING_WAVEFORM_STYLE] isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
+        [defaults setObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE forKey:SETTING_WAVEFORM_STYLE];
+        [defaults setBool:NO forKey:SETTING_WAVEFORM_CENTERED];
+    }
+    if ([[defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE]
+            isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
+        [defaults setObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE forKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    }
 }
 
 - (void)registerDefaults {
@@ -134,6 +151,14 @@ void VibeNotifyDisplaySettingsChanged(void) {
 
 - (void)setWaveformPlayheadLine:(BOOL)line {
     [[NSUserDefaults standardUserDefaults] setBool:line forKey:SETTING_WAVEFORM_PLAYHEAD_LINE];
+}
+
+- (BOOL)waveformCentered {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WAVEFORM_CENTERED];
+}
+
+- (void)setWaveformCentered:(BOOL)centered {
+    [[NSUserDefaults standardUserDefaults] setBool:centered forKey:SETTING_WAVEFORM_CENTERED];
 }
 #endif  // !TARGET_OS_OSX
 

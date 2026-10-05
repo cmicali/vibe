@@ -30,6 +30,7 @@ typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowWidgetStyle,
     VibeWaveformRowTheme,
     VibeWaveformRowPlayheadLine,
+    VibeWaveformRowCentered,
     VibeWaveformRowCount,
 };
 
@@ -132,6 +133,11 @@ static NSString *const kValueCellIdentifier  = @"value";
                                                                 on:line
                                                             target:self action:@selector(playheadLineToggled:)];
     }
+    if (!nowPlaying && indexPath.row == VibeWaveformRowCentered) {
+        return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_WAVEFORM_CENTERED
+                                                                on:AppSettings.sharedInstance.waveformCentered
+                                                            target:self action:@selector(centeredToggled:)];
+    }
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
     if (!cell) {
@@ -170,7 +176,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
     if (nowPlaying ? indexPath.row != VibeNowPlayingRowTimeDisplay
-                   : indexPath.row == VibeWaveformRowPlayheadLine) {
+                   : indexPath.row >= VibeWaveformRowPlayheadLine) {
         return;     // the switch rows
     }
     UIViewController *next = nil;
@@ -257,6 +263,11 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)playheadLineToggled:(UISwitch *)toggle {
     AppSettings.sharedInstance.waveformPlayheadLine = toggle.isOn;
+    VibeNotifyDisplaySettingsChanged();
+}
+
+- (void)centeredToggled:(UISwitch *)toggle {
+    AppSettings.sharedInstance.waveformCentered = toggle.isOn;
     VibeNotifyDisplaySettingsChanged();
 }
 

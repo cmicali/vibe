@@ -78,24 +78,23 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return well;
 }
 
-// [well caption] [well caption] — one row per themed color pair, Dark/Light
-// or the waveform's Played/Unplayed.
-- (NSStackView *)wellPair:(NSView *)first caption:(NSString *)firstCaption
-                     well:(NSView *)second caption:(NSString *)secondCaption {
-    NSTextField *firstLabel = [NSTextField labelWithString:firstCaption];
-    NSTextField *secondLabel = [NSTextField labelWithString:secondCaption];
-    firstLabel.textColor = NSColor.secondaryLabelColor;
-    secondLabel.textColor = NSColor.secondaryLabelColor;
-    NSStackView *pair = [NSStackView stackViewWithViews:
-            @[first, firstLabel, second, secondLabel]];
-    pair.spacing = 6;
-    [pair setCustomSpacing:16 afterView:firstLabel];
-    return pair;
+// [well caption] [well caption] … — one row per themed color set: Dark/Light,
+// the waveform's Played/Unplayed, or 3-Band's Low/Mid/High.
+- (NSStackView *)wells:(NSArray<NSView *> *)wells captions:(NSArray<NSString *> *)captions {
+    NSStackView *row = [NSStackView stackViewWithViews:@[]];
+    row.spacing = 6;
+    for (NSUInteger i = 0; i < wells.count; i++) {
+        NSTextField *label = [NSTextField labelWithString:captions[i]];
+        label.textColor = NSColor.secondaryLabelColor;
+        [row addArrangedSubview:wells[i]];
+        [row addArrangedSubview:label];
+        [row setCustomSpacing:16 afterView:label];
+    }
+    return row;
 }
 
 - (NSStackView *)captionedPairWithDark:(NSView *)dark light:(NSView *)light {
-    return [self wellPair:dark caption:STR_SETTINGS_THEME_DARK
-                     well:light caption:STR_SETTINGS_THEME_LIGHT];
+    return [self wells:@[dark, light] captions:@[STR_SETTINGS_THEME_DARK, STR_SETTINGS_THEME_LIGHT]];
 }
 
 // An appearance-keyed pair: registered with the single-mode collapse.
@@ -116,15 +115,14 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
 // A transport button's pairs are art-keyed (kVibeThemeColorPlaylistButton),
 // so they never join the single-mode collapse.
 - (NSStackView *)artKeyedImagePairForDarkKey:(NSString *)darkKey lightKey:(NSString *)lightKey {
-    return [self wellPair:[self imageClusterForKey:darkKey] caption:STR_SETTINGS_THEME_ON_DARK_ART
-                    well:[self imageClusterForKey:lightKey] caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
+    return [self wells:@[[self imageClusterForKey:darkKey], [self imageClusterForKey:lightKey]]
+              captions:@[STR_SETTINGS_THEME_ON_DARK_ART, STR_SETTINGS_THEME_ON_LIGHT_ART]];
 }
 
 - (NSStackView *)artKeyedColorPairForBase:(NSString *)base {
-    return [self wellPair:[self wellForDark:YES base:base effect:VibeSettingsLiveEffectTransportButtons]
-                 caption:STR_SETTINGS_THEME_ON_DARK_ART
-                    well:[self wellForDark:NO base:base effect:VibeSettingsLiveEffectTransportButtons]
-                 caption:STR_SETTINGS_THEME_ON_LIGHT_ART];
+    return [self wells:@[[self wellForDark:YES base:base effect:VibeSettingsLiveEffectTransportButtons],
+                         [self wellForDark:NO base:base effect:VibeSettingsLiveEffectTransportButtons]]
+              captions:@[STR_SETTINGS_THEME_ON_DARK_ART, STR_SETTINGS_THEME_ON_LIGHT_ART]];
 }
 
 // The other choice is SETTINGS_VALUE_WINDOW_TINT_CUSTOM, every Custom item's.
@@ -466,23 +464,47 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
 
     _waveformGradientSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformGradient = on; }];
+    _waveformCenteredSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformStyle
+            write:^(AppTheme *theme, BOOL on) { theme.waveformCentered = on; }];
     _waveformPlayheadSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformPlayheadLine = on; }];
     _playheadColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_PLAYHEAD_COLOR
             control:[self darkLightPairForBase:kVibeThemeColorWaveformPlayhead
                                         effect:VibeSettingsLiveEffectWaveformTheme]];
-    NSStackView *(^customWells)(BOOL) = ^(BOOL dark) {
-        return [self wellPair:[self wellForDark:dark base:kVibeThemeColorWaveformPlayed
-                                         effect:VibeSettingsLiveEffectWaveformTheme]
-                      caption:STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED
-                         well:[self wellForDark:dark base:kVibeThemeColorWaveformUnplayed
-                                         effect:VibeSettingsLiveEffectWaveformTheme]
-                      caption:STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
+    NSStackView *(^customWells)(NSArray<NSString *> *, NSArray<NSString *> *, BOOL) =
+            ^(NSArray<NSString *> *bases, NSArray<NSString *> *captions, BOOL dark) {
+        NSMutableArray<NSColorWell *> *wells = [NSMutableArray array];
+        for (NSString *base in bases) {
+            [wells addObject:[self wellForDark:dark base:base effect:VibeSettingsLiveEffectWaveformTheme]];
+        }
+        return [self wells:wells captions:captions];
     };
+    NSArray<NSString *> *sides = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed];
+    NSArray<NSString *> *sideCaptions = @[STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED, STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
     _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
-                                           control:customWells(YES)];
+                                           control:customWells(sides, sideCaptions, YES)];
     _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
-                                            control:customWells(NO)];
+                                            control:customWells(sides, sideCaptions, NO)];
+    _waveformThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp];
+
+    _waveformBandThemePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                                  action:@selector(waveformBandThemeChanged:)];
+    [self addItem:STR_SETTINGS_WAVEFORM_BAND_THEME_REKORD_BIN value:SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN
+               to:_waveformBandThemePopUp];
+    [self addItem:STR_SETTINGS_WAVEFORM_BAND_THEME_DENGINE value:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE
+               to:_waveformBandThemePopUp];
+    [self addItem:STR_SETTINGS_WAVEFORM_THEME_CUSTOM value:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
+               to:_waveformBandThemePopUp];
+    _waveformBandThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR
+                                                  control:_waveformBandThemePopUp];
+    NSArray<NSString *> *bands = @[kVibeThemeColorWaveformLow, kVibeThemeColorWaveformMid,
+                                   kVibeThemeColorWaveformHigh];
+    NSArray<NSString *> *bandCaptions = @[STR_SETTINGS_WAVEFORM_BAND_LOW, STR_SETTINGS_WAVEFORM_BAND_MID,
+                                          STR_SETTINGS_WAVEFORM_BAND_HIGH];
+    _bandsDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
+                                          control:customWells(bands, bandCaptions, YES)];
+    _bandsLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
+                                           control:customWells(bands, bandCaptions, NO)];
 
     // The background is one layer color and the row fills are read per draw,
     // so their drags take lighter effects than PlaylistAppearance.
@@ -621,9 +643,13 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithContentView:[self waveformPreviewView]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_WIDTH control:widthCluster],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CENTERED control:_waveformCenteredSwitch],
+            _waveformThemeRow,
             _customDarkRow,
             _customLightRow,
+            _waveformBandThemeRow,
+            _bandsDarkRow,
+            _bandsLightRow,
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_PLAYHEAD_LINE control:_waveformPlayheadSwitch],
             _playheadColorsRow,
@@ -723,15 +749,26 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                                            : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_customDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLORS_LABEL
                                        : STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL];
+    [_bandsDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLORS_LABEL
+                                      : STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL];
     for (NSStackView *pair in _darkLightPairs) {
         NSArray<NSView *> *views = pair.arrangedSubviews; // well, caption, well, caption
         views[1].hidden = single;
         views[2].hidden = single;
         views[3].hidden = single;
     }
-    BOOL customTheme = [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    // 3-Band's hues name its bands, so it takes its own palette in place of
+    // the waveform color.
+    BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:
+            [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle]];
+    BOOL customTheme = !bands && [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    _waveformThemeRow.hidden = bands;
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme || single;
+    BOOL customBands = bands && [theme.waveformBandTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    _waveformBandThemeRow.hidden = !bands;
+    _bandsDarkRow.hidden = !customBands;
+    _bandsLightRow.hidden = !customBands || single;
     _playheadColorsRow.hidden = !theme.waveformPlayheadLine;
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
@@ -806,7 +843,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectWaveformStyle:theme.waveformStyle in:_waveformPopUp];
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
+    [self selectValue:theme.waveformBandTheme in:_waveformBandThemePopUp];
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
+    _waveformCenteredSwitch.state = StateForBOOL(theme.waveformCentered);
     _waveformPlayheadSwitch.state = StateForBOOL(theme.waveformPlayheadLine);
     for (NSString *key in AppTheme.imageFieldKeys) {
         _imagePreviews[key].image = [self previewImageForKey:key];
@@ -834,6 +873,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
             enabled:[WaveformRendererRegistry supportsBarDensityForIdentifier:style]];
     [SettingsRowView setControl:_waveformBarWidthSlider
             enabled:[WaveformRendererRegistry supportsBarWidthForIdentifier:style]];
+    [SettingsRowView setControl:_waveformCenteredSwitch
+            enabled:[WaveformRendererRegistry supportsCenteringForIdentifier:style]];
 }
 
 - (void)refreshFontValueLabels {
@@ -1087,6 +1128,12 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self chooseFromPopUp:_waveformThemePopUp revealing:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
                     wells:@[_customDarkRow, _customLightRow] effect:VibeSettingsLiveEffectWaveformTheme
                     write:^(AppTheme *theme, NSString *identifier) { theme.waveformTheme = identifier; }];
+}
+
+- (void)waveformBandThemeChanged:(id)sender {
+    [self chooseFromPopUp:_waveformBandThemePopUp revealing:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
+                    wells:@[_bandsDarkRow, _bandsLightRow] effect:VibeSettingsLiveEffectWaveformTheme
+                    write:^(AppTheme *theme, NSString *identifier) { theme.waveformBandTheme = identifier; }];
 }
 
 #pragma mark - Editor: playlist

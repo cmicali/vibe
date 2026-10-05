@@ -40,7 +40,11 @@ static const CGFloat kCupertinoBarWidth = 1;
 // A bar mirrored about the midline gets a fade mirrored the same way —
 // Basic's grounded ramp would dim one half of every bar — full at the
 // midline, Detailed's bottom level at both ends, over Basic's full-view axis.
+// Grounded, the bars stand as Basic's do, so they take its ramp.
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {
+    if (!self.centered) {
+        return [super gradientColorsForColor:color isDark:isDark];
+    }
     if (self.theme.flatFill) {
         return @[color, color];
     }
