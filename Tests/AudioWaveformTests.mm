@@ -203,7 +203,7 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
 // centered, so quiet passages keep their brightness: the band's ramp, 3-Band's
 // side masks and Basic's full-view axis alike, re-aimed on each toggle.
 - (void)testGroundedRampKeepsTheMidlinesBrightnessAtTheBaseline {
-    CGFloat baseline = (1 - kVibeBarAmplitudeOfHalfHeight) / 2;
+    CGFloat baseline = VibeBarBaseline(1);
     for (NSString *style in @[@"detailed", @"basic", @"three_band"]) {
         AudioWaveformRenderer *renderer = [self rendererForStyle:style];
         CAGradientLayer *ramp = VibeFirstGradient(renderer.parentLayer);

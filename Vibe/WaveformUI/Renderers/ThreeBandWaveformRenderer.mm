@@ -185,6 +185,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 // The ramp's aim follows the anchoring.
 - (void)setCentered:(BOOL)centered {
+    if (self.centered == centered) return;
     [super setCentered:centered];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];

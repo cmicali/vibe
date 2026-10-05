@@ -37,13 +37,6 @@ static const CGFloat kCupertinoBarWidth = 1;
     }
 }
 
-// Its fade follows the anchoring.
-- (void)setCentered:(BOOL)centered {
-    if (self.centered == centered) return;
-    [super setCentered:centered];
-    [self updateColors:self.isDark];
-}
-
 // A bar mirrored about the midline gets a fade mirrored the same way —
 // Basic's grounded ramp would dim one half of every bar — full at the
 // midline, Detailed's bottom level at both ends, over Basic's full-view axis.

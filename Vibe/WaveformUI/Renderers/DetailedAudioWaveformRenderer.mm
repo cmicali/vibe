@@ -240,13 +240,15 @@ static const CGFloat kDetailedBarPitch = 0.5;
     VibeAimBarGradient(gradient, self.centered);
 }
 
-// The ramp's aim follows the anchoring.
+// The ramp's aim follows the anchoring, and so do Cupertino's colors.
 - (void)setCentered:(BOOL)centered {
+    if (self.centered == centered) return;
     [super setCentered:centered];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [self configureGradient:_playedGradient];
     [self configureGradient:_unplayedGradient];
+    [self updateColors:self.isDark];
     [CATransaction commit];
 }
 

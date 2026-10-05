@@ -627,7 +627,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_SECTION_WAVEFORM_THEME NSLS(@"settings.section.waveform_theme", @"Waveform theme", @"iOS settings screen: heading above the list of waveform color themes.")
 #define STR_SETTINGS_SECTION_WIDGET_WAVEFORM NSLS(@"settings.section.widget_waveform", @"Widget waveform", @"iOS settings screen: row title for the drawing style the home-screen widget uses for its waveform, which can differ from the one the app itself draws. 'Widget' is the iOS home-screen widget.")
 #define STR_SETTINGS_WIDGET_WAVEFORM_MATCH NSLS(@"settings.widget_waveform.match_app", @"Match app", @"iOS settings screen, widget waveform style list: the first row, meaning the widget draws in whatever style the app is set to rather than one of its own. Keep it short — it sits in a narrow value column.")
-#define STR_SETTINGS_WIDGET_WAVEFORM_CENTERED NSLS(@"settings.widget_waveform.centered", @"Widget centered", @"iOS settings screen, Waveform group: switch that draws the home-screen widget's waveform about its midline (on) or rising from a baseline at the bottom (off), for the widget's own waveform style; under Match app it follows the app's Centered switch. Pairs with the Centered switch just above it.")
+#define STR_SETTINGS_WIDGET_SECTION NSLS(@"settings.appearance.widget_section", @"Widget", @"iOS settings screen, Appearance: title of the group for the home-screen widget's waveform, below the app's Waveform group. Use the system's word for a home-screen widget.")
 
 #pragma mark - Home-screen widget
 

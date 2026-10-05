@@ -15,6 +15,7 @@
 typedef NS_ENUM(NSInteger, VibeAppearanceSection) {
     VibeAppearanceSectionNowPlaying = 0,
     VibeAppearanceSectionWaveform,
+    VibeAppearanceSectionWidget,
     VibeAppearanceSectionCount,
 };
 
@@ -27,12 +28,16 @@ typedef NS_ENUM(NSInteger, VibeNowPlayingRow) {
 
 typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowStyle = 0,
-    VibeWaveformRowWidgetStyle,
     VibeWaveformRowTheme,
     VibeWaveformRowPlayheadLine,
     VibeWaveformRowCentered,
-    VibeWaveformRowWidgetCentered,
     VibeWaveformRowCount,
+};
+
+typedef NS_ENUM(NSInteger, VibeWidgetRow) {
+    VibeWidgetRowStyle = 0,
+    VibeWidgetRowCentered,
+    VibeWidgetRowCount,
 };
 
 // Not a cast of the BOOL: a row index is a screen position.
@@ -102,18 +107,26 @@ static NSString *const kValueCellIdentifier  = @"value";
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return section == VibeAppearanceSectionNowPlaying ? (NSInteger)VibeNowPlayingRowCount
-                                                       : (NSInteger)VibeWaveformRowCount;
+    switch ((VibeAppearanceSection)section) {
+        case VibeAppearanceSectionNowPlaying: return VibeNowPlayingRowCount;
+        case VibeAppearanceSectionWidget:     return VibeWidgetRowCount;
+        default:                              return VibeWaveformRowCount;
+    }
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return section == VibeAppearanceSectionNowPlaying ? STR_SETTINGS_NOW_PLAYING_SECTION
-                                                       : STR_SETTINGS_WAVEFORM_SECTION;
+    switch ((VibeAppearanceSection)section) {
+        case VibeAppearanceSectionNowPlaying: return STR_SETTINGS_NOW_PLAYING_SECTION;
+        case VibeAppearanceSectionWidget:     return STR_SETTINGS_WIDGET_SECTION;
+        default:                              return STR_SETTINGS_WAVEFORM_SECTION;
+    }
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
+    BOOL widget = indexPath.section == VibeAppearanceSectionWidget;
+    BOOL waveform = !nowPlaying && !widget;
     if (nowPlaying && indexPath.row == VibeNowPlayingRowFileInfo) {
         return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_FILE_INFO
                                                                 on:AppSettings.sharedInstance.showFileInfo
@@ -124,7 +137,7 @@ static NSString *const kValueCellIdentifier  = @"value";
                                                                 on:AppSettings.sharedInstance.showShuffleRepeat
                                                             target:self action:@selector(shuffleRepeatToggled:)];
     }
-    if (!nowPlaying && indexPath.row == VibeWaveformRowPlayheadLine) {
+    if (waveform && indexPath.row == VibeWaveformRowPlayheadLine) {
         // The style's default until chosen, so it follows a style pick.
         BOOL line = [WaveformRendererRegistry
                 drawsPlayheadLineForIdentifier:[self currentWaveformStyle]
@@ -134,7 +147,7 @@ static NSString *const kValueCellIdentifier  = @"value";
                                                                 on:line
                                                             target:self action:@selector(playheadLineToggled:)];
     }
-    if (!nowPlaying && indexPath.row == VibeWaveformRowCentered) {
+    if (waveform && indexPath.row == VibeWaveformRowCentered) {
         UITableViewCell *cell = [SettingsChoiceViewController switchCellInTableView:tableView
                 title:STR_SETTINGS_WAVEFORM_CENTERED on:AppSettings.sharedInstance.waveformCentered
                 target:self action:@selector(centeredToggled:)];
@@ -142,14 +155,14 @@ static NSString *const kValueCellIdentifier  = @"value";
                 [WaveformRendererRegistry supportsCenteringForIdentifier:[self currentWaveformStyle]];
         return cell;
     }
-    if (!nowPlaying && indexPath.row == VibeWaveformRowWidgetCentered) {
+    if (widget && indexPath.row == VibeWidgetRowCentered) {
         // Under Match app the widget reads the card's, shown here, not its own.
         NSString *widgetStyle = AppSettings.sharedInstance.widgetWaveformStyle;
         UITableViewCell *cell = [SettingsChoiceViewController switchCellInTableView:tableView
-                title:STR_SETTINGS_WIDGET_WAVEFORM_CENTERED on:AppSettings.sharedInstance.widgetWaveformCentered
+                title:STR_SETTINGS_WAVEFORM_CENTERED on:AppSettings.sharedInstance.widgetWaveformCentered
                 target:self action:@selector(widgetCenteredToggled:)];
-        ((UISwitch *)cell.accessoryView).enabled = widgetStyle && [WaveformRendererRegistry
-                supportsCenteringForIdentifier:[WaveformRendererRegistry resolveStyleIdentifier:widgetStyle]];
+        ((UISwitch *)cell.accessoryView).enabled =
+                widgetStyle && [WaveformRendererRegistry supportsCenteringForIdentifier:widgetStyle];
         return cell;
     }
 
@@ -164,21 +177,17 @@ static NSString *const kValueCellIdentifier  = @"value";
         content.text = STR_SETTINGS_SECTION_TIME;
         content.secondaryText = [self timeDisplayValueText];
     }
+    else if (widget) {
+        content.text = STR_SETTINGS_THEME_WAVEFORM_STYLE;
+        content.secondaryText = [self widgetWaveformStyleValueText];
+    }
+    else if (indexPath.row == VibeWaveformRowStyle) {
+        content.text = STR_SETTINGS_THEME_WAVEFORM_STYLE;
+        content.secondaryText = [self waveformStyleValueText];
+    }
     else {
-        switch ((VibeWaveformRow)indexPath.row) {
-            case VibeWaveformRowStyle:
-                content.text = STR_SETTINGS_THEME_WAVEFORM_STYLE;
-                content.secondaryText = [self waveformStyleValueText];
-                break;
-            case VibeWaveformRowWidgetStyle:
-                content.text = STR_SETTINGS_SECTION_WIDGET_WAVEFORM;
-                content.secondaryText = [self widgetWaveformStyleValueText];
-                break;
-            default:
-                content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
-                content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayName];
-                break;
-        }
+        content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
+        content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayName];
     }
     cell.contentConfiguration = content;
     return cell;
@@ -188,29 +197,24 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
-    if (nowPlaying ? indexPath.row != VibeNowPlayingRowTimeDisplay
-                   : indexPath.row >= VibeWaveformRowPlayheadLine) {
-        return;     // the switch rows
-    }
     UIViewController *next = nil;
-    if (nowPlaying) {
-        next = [self timeDisplayPicker];
+    switch ((VibeAppearanceSection)indexPath.section) {
+        case VibeAppearanceSectionNowPlaying:
+            next = indexPath.row == VibeNowPlayingRowTimeDisplay ? [self timeDisplayPicker] : nil;
+            break;
+        case VibeAppearanceSectionWidget:
+            next = indexPath.row == VibeWidgetRowStyle ? [self widgetWaveformStylePicker] : nil;
+            break;
+        default:
+            next = indexPath.row == VibeWaveformRowStyle ? [self waveformStylePicker]
+                 : indexPath.row == VibeWaveformRowTheme ? [[WaveformThemeSettingsViewController alloc] init]
+                 : nil;
+            break;
     }
-    else {
-        switch ((VibeWaveformRow)indexPath.row) {
-            case VibeWaveformRowStyle:
-                next = [self waveformStylePicker];
-                break;
-            case VibeWaveformRowWidgetStyle:
-                next = [self widgetWaveformStylePicker];
-                break;
-            default:
-                next = [[WaveformThemeSettingsViewController alloc] init];
-                break;
-        }
+    // nil for the switch rows.
+    if (next) {
+        [self.navigationController pushViewController:next animated:YES];
     }
-    [self.navigationController pushViewController:next animated:YES];
 }
 
 // In _waveformStyles' order, so a picker's row index maps back to it.
@@ -284,8 +288,8 @@ static NSString *const kValueCellIdentifier  = @"value";
     AppSettings.sharedInstance.waveformCentered = toggle.isOn;
     VibeNotifyDisplaySettingsChanged();
     // Under Match app the widget's row shows this one.
-    [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:VibeWaveformRowWidgetCentered
-                                                                 inSection:VibeAppearanceSectionWaveform]]
+    [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:VibeWidgetRowCentered
+                                                                 inSection:VibeAppearanceSectionWidget]]
                           withRowAnimation:UITableViewRowAnimationNone];
 }
 

@@ -312,6 +312,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // an unset slot draws as, resolved under that side's appearance rather than
 // the pane's.
 - (VibeColor *)displayColorForBase:(NSString *)base dark:(BOOL)isDark;
+// Whether the pair stores its colors opaque, so a well offers no alpha.
++ (BOOL)storesOpaqueColorBase:(NSString *)base;
 
 // Dark for a single-mode theme, else nil. Unset defaults then draw their
 // dark values, so a light background needs its label colors set too.

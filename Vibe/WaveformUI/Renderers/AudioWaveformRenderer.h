@@ -122,23 +122,25 @@ static const CGFloat kVibeBarGradientBottomAlpha = 0.45;
 static inline NSArray<VibeColor *> *VibeBarRampColors(VibeColor *color, BOOL flat) {
     return @[color, flat ? color : VibeColorWithScaledAlpha(color, kVibeBarGradientBottomAlpha)];
 }
-// The ramp's dim end as a share of the height, y = 1 the top. Grounded, it
-// reaches below the band by the band's height, so a bar's foot on the
-// baseline is as bright as the midline it left and quiet passages keep the
-// brightness they had centered.
-static inline CGFloat VibeBarGradientBottom(BOOL centered) {
-    return (1 - kVibeBarAmplitudeOfHalfHeight) / 2 - (centered ? 0 : kVibeBarAmplitudeOfHalfHeight);
+// Grounded, every ramp's axis drops by half the band, as a share of the
+// height: a bar's foot on the baseline reads the level its midline did, so
+// quiet passages keep the brightness they had centered.
+static inline CGFloat VibeBarRampDrop(BOOL centered) {
+    return centered ? 0 : VibeBarVScale(1);
 }
+// y = 1 is the top.
 static inline void VibeAimBarGradient(CAGradientLayer *gradient, BOOL centered) {
-    gradient.startPoint = CGPointMake(0.5, (1 + kVibeBarAmplitudeOfHalfHeight) / 2);
-    gradient.endPoint = CGPointMake(0.5, VibeBarGradientBottom(centered));
+    CGFloat drop = VibeBarRampDrop(centered);
+    gradient.startPoint = CGPointMake(0.5, 1 - VibeBarBaseline(1) - drop);
+    gradient.endPoint = CGPointMake(0.5, VibeBarBaseline(1) - drop);
 }
 static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *stops, BOOL centered) {
     CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
                                                         (__bridge CFArrayRef)stops, NULL);
+    CGFloat drop = VibeBarRampDrop(centered);
     CGContextDrawLinearGradient(ctx, gradient,
-            CGPointMake(0, size.height * (1 + kVibeBarAmplitudeOfHalfHeight) / 2),
-            CGPointMake(0, size.height * VibeBarGradientBottom(centered)),
+            CGPointMake(0, size.height * (1 - VibeBarBaseline(1) - drop)),
+            CGPointMake(0, size.height * (VibeBarBaseline(1) - drop)),
             kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     CGGradientRelease(gradient);
 }

@@ -153,6 +153,7 @@ static NSString *const kSpecColorBase = @"colorBase";
 static NSString *const kSpecInheritsBase = @"inheritsBase";
 static NSString *const kSpecArchiveEntry = @"archiveEntry";
 static NSString *const kSpecSanitize = @"sanitize";
+static NSString *const kSpecOpaque = @"opaque";
 
 // The gate's kinds: a raw value comes out normalized and typed, or nil
 // (dropped, so the default takes over).
@@ -262,8 +263,10 @@ static void AddOpaqueColorPair(NSMutableArray *rows, NSString *base, NSString *g
     FieldSanitizer opaque = ^id(id raw) {
         return VibeHexStringFromColor([VibeColorFromHexString(color(raw)) colorWithAlphaComponent:1]);
     };
-    rows[rows.count - 2][kSpecSanitize] = [opaque copy];
-    rows[rows.count - 1][kSpecSanitize] = [opaque copy];
+    for (NSUInteger i = rows.count - 2; i < rows.count; i++) {
+        rows[i][kSpecSanitize] = [opaque copy];
+        rows[i][kSpecOpaque] = @YES;
+    }
 }
 
 // A playlist column's switch, then its pair, whose rows carry the label pair
@@ -635,6 +638,10 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     NSString *inherited = PlaylistColorFallbackBases()[base];
     return inherited ? [self displayColorForBase:inherited dark:isDark]
                      : DefaultColorForBase(base, isDark);
+}
+
++ (BOOL)storesOpaqueColorBase:(NSString *)base {
+    return [FieldSpecsByKey()[[base stringByAppendingString:@"Dark"]][kSpecOpaque] boolValue];
 }
 
 - (BOOL)playlistColorEnabledForBase:(NSString *)base {

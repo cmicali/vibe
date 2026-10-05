@@ -244,6 +244,8 @@ static AppTheme *ThreeBandRecord(NSDictionary *fields) {
     AppTheme *record = ThreeBandRecord(@{});
     [record setColor:[NSColor colorWithSRGBRed:1 green:0 blue:0 alpha:0.5] forBase:kVibeThemeColorWaveformLow dark:YES];
     XCTAssertEqualObjects(record.dictionaryRepresentation[@"waveformLowColorDark"], @"#FF0000");
+    XCTAssertTrue([AppTheme storesOpaqueColorBase:kVibeThemeColorWaveformLow]);
+    XCTAssertFalse([AppTheme storesOpaqueColorBase:kVibeThemeColorWaveformPlayed]);
     [record setColor:[NSColor colorWithSRGBRed:0 green:200 / 255.0 blue:0 alpha:1] forBase:kVibeThemeColorWaveformMid dark:YES];
     [record setColor:[NSColor colorWithSRGBRed:0 green:0 blue:1 alpha:1] forBase:kVibeThemeColorWaveformHigh dark:YES];
     NSArray<VibeColor *> *bands = [WaveformTheme themeForAppTheme:record isDark:YES artworkColor:nil].bandColors;
