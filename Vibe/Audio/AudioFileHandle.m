@@ -818,7 +818,6 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
     SInt64 estimate = _availability ? VibeUncountedMPEGPackets(self, description) : 0;
     if (estimate > 0) {
         packets = kVibeMPEGPacketsUncounted;
-        length = estimate * description.mFramesPerPacket;
         _mpegEstimate = estimate;
         atomic_store(&_lengthEstimated, true);
         LogInfo(@"MP3 stream: %@ has no VBR header; opens on %lld packets estimated from its head's frames",
@@ -832,6 +831,11 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
     AudioFilePacketTableInfo table = {0};
     UInt32 size = sizeof(table);
     AudioFileGetProperty(_parser, kAudioFilePropertyPacketTableInfo, &size, &table);
+    if (estimate > 0) {
+        // Priming excluded, as settleMPEGPacketCount: excludes it, or a right
+        // packet estimate still settles to a different length.
+        length = estimate * description.mFramesPerPacket - MAX(0, table.mPrimingFrames);
+    }
     ExtAudioFileDispose(_codec);
     _codec = NULL;
     // At least 4096 bytes, more than any MPEG audio frame, so the parser can

@@ -866,6 +866,54 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     }
 }
 
+// An estimate within one chunk of the exact length keeps its first pass: the
+// estimate moved no chunk's boundary but the last one's. Here four tail frames
+// at a higher rate, past the head the estimate walks, make it one packet over
+// on a file long enough that a chunk outspans a packet, and the pass sized by
+// it is delivered complete and persisted under the file's key; eight make it
+// two packets over, past a chunk, and the file is decoded again on the exact
+// length as before.
+- (void)testAnEstimateWithinOneChunkKeepsItsFirstDecode {
+    const uint32_t frames = 12000, packet = 1152;
+    for (NSNumber *tail in @[@4, @8]) {
+        uint32_t fast = tail.unsignedIntValue;
+        NSString *name = [NSString stringWithFormat:@"over-%u.mp3", fast];
+        NSURL *source = [_tempDirectory URLByAppendingPathComponent:[@"whole-" stringByAppendingString:name]];
+        // 128 kbps frames are 384 bytes at 48 kHz, 160 kbps ones 480: four of
+        // the latter add one 128 kbps packet to the byte count, eight add two.
+        NSData *bytes = VibeMP3WithoutVBRHeader(frames, 48000, ^uint8_t(uint32_t frame) {
+            return frame >= frames - fast ? 10 : 9;
+        });
+        XCTAssertTrue([bytes writeToURL:source atomically:YES]);
+        AVAudioFramePosition length = [[AudioFileHandle alloc] initForReading:source error:NULL].length;
+        XCTAssertEqual(length, (AVAudioFramePosition)frames * packet);
+        NSURL *url = [_tempDirectory URLByAppendingPathComponent:name];
+        WaveformStreamAvailability *stream = [self stream:source as:url prefix:64 * 1024];
+        NSUInteger window = 80 * 1024, at = bytes.length - window;
+        [stream installWindow:[bytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
+        WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
+        AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
+        [AudioLoadTiming reset];
+        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        XCTAssertTrue([self eventually:^BOOL { return recorder.progressions > 0; }], @"%@", name);
+        XCTAssertEqual(recorder.completions, 0u, @"%@: nothing complete before the length is exact", name);
+        [self complete:stream from:source as:url];
+        XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }], @"%@", name);
+        XCTAssertEqual(recorder.failures, 0u, @"%@", name);
+        // One packet over keeps the pass sized by the estimate; two decode again.
+        AVAudioFramePosition sizedBy = fast == 4 ? length + packet : length;
+        XCTAssertEqualWithAccuracy([[AudioLoadTiming newestJSONForPath:url.path][@"audioSeconds"] doubleValue],
+                                   (double)sizedBy / 48000, 1e-9, @"%@", name);
+        NSData *zeros = [NSMutableData dataWithLength:bytes.length];
+        XCTAssertTrue([zeros writeToURL:url atomically:NO]);
+        struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
+        XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
+        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
+        XCTAssertEqual(recorder.failures, 0u, @"%@: persisted under the file's key: a miss would have failed on the zeros", name);
+    }
+}
+
 // A file replaced by another version under its URL: the memoized key keeps
 // answering the old version's entry until the memos are retired, after which
 // the cache misses and decodes what the file now holds.
