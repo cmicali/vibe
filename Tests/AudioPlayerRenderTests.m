@@ -1256,7 +1256,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 - (NSRange)chunk:(const char *)name of:(NSData *)file bigEndian:(BOOL)bigEndian {
     const uint8_t *b = file.bytes;
     for (NSUInteger at = 12; at + 8 <= file.length;) {
-        uint32_t size = *(const uint32_t *)(b + at + 4);
+        uint32_t size;
+        memcpy(&size, b + at + 4, sizeof(size));
         size = bigEndian ? CFSwapInt32BigToHost(size) : CFSwapInt32LittleToHost(size);
         if (memcmp(b + at, name, 4) == 0) return NSMakeRange(at + 8, size);
         at += 8 + size + (size & 1);

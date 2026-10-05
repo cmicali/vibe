@@ -971,13 +971,19 @@ if acceptance || blackholeCheck {
                     let facts = live["bitPerfect"] as? [String: Any] ?? [:]
                     let failedOpen = live["state"] as? String == "stopped"
                         && (state["ui"] as? [String: Any])?["displayState"] as? String == "error"
+                    // Device loss can retain the track paused, with its error on the info line.
+                    let parkedOutput = live["state"] as? String == "paused"
+                        && facts["boundOutputDeviceId"] as? Int == Int(kAudioObjectUnknown)
+                        && facts["outputRunning"] as? Bool == false
+                        && facts["outputUnitRunning"] as? Bool == false
+                        && facts["status"] as? String == "idle"
                     // HAL can replace a malformed scalar reply with zero before
                     // Vibe reads it. That is scaled output, never Active.
                     let sanitizedScalar = fault == 4 && facts["status"] as? String == "volumeScaled"
                         && (readVolume(device, (kAudioDevicePropertyVolumeScalar, kAudioObjectPropertyElementMain))
                             .map { $0.isFinite && $0 >= 0 && $0 < 1 } ?? false)
                     return (driverNumber(box, 0x76627468) ?? 0) > 0
-                        && (facts["status"] as? String == "switchFailed" || sanitizedScalar || failedOpen
+                        && (facts["status"] as? String == "switchFailed" || sanitizedScalar || failedOpen || parkedOutput
                             || (fault == 128 && live["requestedOutputDeviceId"] as? Int == -1 && facts["enabled"] as? Bool == false))
                 }
                 report(["case": "blackhole-\(label)", "injectedOperations": driverNumber(box, 0x76627468) ?? 0,
@@ -1008,7 +1014,8 @@ if acceptance || blackholeCheck {
                 guard setDriverFault(box, fault) else { fail("cannot refuse restoration") }
                 pause(0.25)
                 _ = debug(binary, ["set_bit_perfect", "off"])
-                waitFor("failed restoration retains obligation") {
+                // HAL can take 30 seconds to return a rejected format write.
+                waitFor("failed restoration retains obligation", seconds: 45) {
                     let facts = bitPerfect(binary)
                     return facts["enabled"] as? Bool == false && facts["status"] as? String == "off"
                         && (facts["restoreOwedToDeviceId"] as? Int ?? -1) >= 0
@@ -1049,8 +1056,13 @@ if acceptance || blackholeCheck {
             guard writeUInt32(box, kAudioBoxPropertyAcquired, 1) else { fail("BlackHole replug write failed") }
             waitFor("BlackHole replugged") { reconnectedDevice() != nil }
             device = reconnectedDevice()!
-            pause(0.3)
-            guard player(binary)["requestedOutputDeviceId"] as? Int == -1 else { fail("replug unexpectedly undid persisted System Output fallback") }
+            waitFor("remembered device restored after \(state) removal") {
+                let live = player(binary), facts = live["bitPerfect"] as? [String: Any] ?? [:]
+                return live["requestedOutputDeviceId"] as? Int == Int(device)
+                    && facts["pendingDeviceUID"] as? String == ""
+                    && facts["bitPerfectWanted"] as? Bool == true
+            }
+            report(["case": "blackhole-readopt-\(state)", "player": player(binary)])
             selectLoopback()
             _ = debug(binary, ["set_bit_perfect", "on"])
             captureCase("blackhole-replug-\(state)", "noise-48000-24-2.wav")
@@ -1082,13 +1094,15 @@ if acceptance || blackholeCheck {
             return debug(binary, ["click_menu", aggregateName], required: false)["ok"] as? Bool == true
         }
         waitFor("aggregate bound") { player(binary)["outputDeviceUID"] as? String == aggregateName }
+        let allowAnyDevice = (debug(binary, ["dump_state"])["settings"] as? [String: Any])?["allowBitPerfectOnAnyDevice"] as? Bool ?? false
         _ = debug(binary, ["set_bit_perfect", "on"], required: false)
-        _ = debug(binary, ["open", fixture("silence.wav")]); started(fixture("silence.wav"), active: false)
+        _ = debug(binary, ["open", fixture("silence.wav")]); started(fixture("silence.wav"), active: allowAnyDevice)
         let aggregateReport = bitPerfect(binary)
-        guard aggregateReport["eligibleDevice"] as? Bool == false, aggregateReport["status"] as? String == "off" else {
-            report(aggregateReport); fail("aggregate incorrectly claims bit-perfect eligibility")
+        guard aggregateReport["eligibleDevice"] as? Bool == allowAnyDevice,
+              aggregateReport["status"] as? String == (allowAnyDevice ? "active" : "off") else {
+            report(aggregateReport); fail("aggregate eligibility disagrees with the transport override")
         }
-        report(["case": "blackhole-aggregate-ineligible", "report": aggregateReport])
+        report(["case": "blackhole-aggregate-eligibility", "allowAnyDevice": allowAnyDevice, "report": aggregateReport])
         _ = debug(binary, ["quiesce"])
         // Removal retains per-device preferences; retire this test-only UID
         // while it is still selected and its mode can be edited.
