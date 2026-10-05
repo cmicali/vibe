@@ -116,8 +116,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
                                   caption:STR_SETTINGS_DEBUG_INFO_CAPTION control:_debugInfoButton],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ENGINE_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL
-                                  caption:STR_SETTINGS_REFRESH_RATE_CAPTION control:_refreshRatePopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_REFRESH_RATE_LABEL control:_refreshRatePopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE
                                   caption:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE_CAPTION
                                   control:_allowBitPerfectAnyDeviceSwitch],
