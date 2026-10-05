@@ -102,6 +102,37 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
 
 #pragma mark - The unit
 
+static OSStatus VibeCreateOutputUnit(VibeOutputUnitState *state, AudioUnit *unit) {
+    AudioComponentDescription description = {
+        .componentType = kAudioUnitType_Output,
+#if TARGET_OS_OSX
+        .componentSubType = kAudioUnitSubType_HALOutput,
+#else
+        .componentSubType = kAudioUnitSubType_RemoteIO,
+#endif
+        .componentManufacturer = kAudioUnitManufacturer_Apple,
+    };
+    AudioComponent component = AudioComponentFindNext(NULL, &description);
+    if (!component) return kAudioUnitErr_FailedInitialization;
+    OSStatus status = AudioComponentInstanceNew(component, unit);
+    UInt32 on = 1, off = 0;
+    if (status == noErr) {
+        status = AudioUnitSetProperty(*unit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output, 0, &on, sizeof(on));
+    }
+    if (status == noErr) {
+        status = AudioUnitSetProperty(*unit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &off, sizeof(off));
+    }
+    if (status == noErr) {
+        AURenderCallbackStruct callback = { .inputProc = VibeOutputUnitRender, .inputProcRefCon = state };
+        status = AudioUnitSetProperty(*unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
+    }
+    if (status != noErr && *unit) {
+        AudioComponentInstanceDispose(*unit);
+        *unit = NULL;
+    }
+    return status;
+}
+
 @interface AudioOutputUnit ()
 @property (atomic, copy, readwrite, nullable) NSArray<NSNumber *> *channelMap;
 #if TARGET_OS_OSX
@@ -176,25 +207,10 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
     if (!self) {
         return nil;
     }
-    AudioComponentDescription description = {
-        .componentType = kAudioUnitType_Output,
-#if TARGET_OS_OSX
-        .componentSubType = kAudioUnitSubType_HALOutput,
-#else
-        .componentSubType = kAudioUnitSubType_RemoteIO,
-#endif
-        .componentManufacturer = kAudioUnitManufacturer_Apple,
-    };
-    AudioComponent component = AudioComponentFindNext(NULL, &description);
-    if (!component || AudioComponentInstanceNew(component, &_unit) != noErr || !_unit) {
+    _state = calloc(1, sizeof(VibeOutputUnitState));
+    if (!_state || VibeCreateOutputUnit(_state, &_unit) != noErr || !_unit) {
         return nil;
     }
-    UInt32 on = 1, off = 0;
-    AudioUnitSetProperty(_unit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output, 0, &on, sizeof(on));
-    AudioUnitSetProperty(_unit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &off, sizeof(off));
-    _state = calloc(1, sizeof(VibeOutputUnitState));
-    AURenderCallbackStruct callback = { .inputProc = VibeOutputUnitRender, .inputProcRefCon = _state };
-    AudioUnitSetProperty(_unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback, sizeof(callback));
 #if TARGET_OS_OSX
     _deviceID = kAudioObjectUnknown;
 #endif
@@ -419,9 +435,28 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     }
     AudioUnitUninitialize(_unit);
     _initialized = NO;
+    OSStatus status = noErr;
+#if TARGET_OS_OSX
+    // TRAP: AUHAL can reinitialize before its device-format notification and
+    // keep the old converter. A fresh component binds the current format.
+    AudioUnit replacement = NULL;
+    status = VibeCreateOutputUnit(_state, &replacement);
+    if (status == noErr) {
+        status = AudioUnitSetProperty(replacement, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+                                      &_boundDeviceID, sizeof(_boundDeviceID));
+    }
+    if (status == noErr) {
+        AudioComponentInstanceDispose(_unit);
+        _unit = replacement;
+    } else if (replacement) {
+        AudioComponentInstanceDispose(replacement);
+    }
+#endif
     AudioStreamBasicDescription description = *format.streamDescription;
-    OSStatus status = AudioUnitSetProperty(_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
-                                           &description, sizeof(description));
+    if (status == noErr) {
+        status = AudioUnitSetProperty(_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
+                                      &description, sizeof(description));
+    }
     if (status == noErr) {
         VibeOutputUnitStateInitialize(_state, format.channelCount, renderProc, refCon);
         status = AudioUnitInitialize(_unit);
