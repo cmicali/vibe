@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "name": "Record Bin",
-  "description": "A single-mode charcoal window with no glass: the 3-Band waveform drawn flat and a soft white volume bar.",
+  "name": "Rekord Bin",
+  "description": "A single-mode charcoal window with no glass: the 3-Band waveform drawn flat, a soft white volume bar, and a slate record on the art cell's ground as the placeholder.",
   "window": {
     "backgroundColorDark": "#1C1C1C",
     "backgroundColorLight": "#EDEDEDF2",
@@ -11,6 +11,10 @@
     "mode": "single",
     "tint": "mono",
     "tintColorDark": "#24242466"
+  },
+  "player": {
+    "buttonGradient": "artwork",
+    "defaultArtworkDark": "bundled:rekord_bin.jpg"
   },
   "waveform": {
     "gradient": false,

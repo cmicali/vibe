@@ -3,7 +3,7 @@
 * Novo: reprodução de Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R e ADTS
 * Novo: um painel Atalhos de Teclado em Ajustes para alterar qualquer atalho
 * Novo: um controle deslizante de crossfade, de desligado até 3 segundos em décimos de segundo
-* Novo: o estilo de forma de onda 3 bandas e o tema Record Bin que o utiliza
+* Novo: o estilo de forma de onda 3 bandas e o tema Rekord Bin que o utiliza
 * Novo: uma opção de linha do cabeçote, com toda a forma de onda em cores completas
 * Alterado: a janela Ajustes foi reorganizada e agora tem busca
 * Melhorado: o avanço e retrocesso em FLAC são quase instantâneos, mesmo em arquivos longos, usando menos CPU e memória, com melhor compatibilidade

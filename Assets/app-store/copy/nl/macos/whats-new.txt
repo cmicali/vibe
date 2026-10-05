@@ -3,7 +3,7 @@
 * Nieuw: afspelen van Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R en ADTS
 * Nieuw: een paneel Toetscombinaties in Instellingen om elke toetscombinatie te wijzigen
 * Nieuw: een crossfade-schuifregelaar, van uit tot 3 seconden in tienden van een seconde
-* Nieuw: de golfvormstijl 3-bands en het thema Record Bin dat die gebruikt
+* Nieuw: de golfvormstijl 3-bands en het thema Rekord Bin dat die gebruikt
 * Nieuw: een optie voor een afspeelkoplijn, met de hele golfvorm in volle kleur
 * Gewijzigd: het venster Instellingen is opnieuw ingedeeld en heeft zoeken
 * Verbeterd: spoelen in FLAC gaat bijna direct, ook in lange bestanden, met minder CPU- en geheugengebruik en betere compatibiliteit

@@ -3,7 +3,7 @@
 * Nou: redare Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R și ADTS
 * Nou: un panou Scurtături din tastatură în Configurări pentru a schimba orice scurtătură
 * Nou: un glisor de crossfade, de la dezactivat până la 3 secunde, în zecimi de secundă
-* Nou: stilul de formă de undă 3 benzi și tema Record Bin care îl folosește
+* Nou: stilul de formă de undă 3 benzi și tema Rekord Bin care îl folosește
 * Nou: o opțiune de linie a capului de redare, cu întreaga formă de undă în culori complete
 * Modificat: fereastra Configurări a fost reorganizată, cu căutare
 * Îmbunătățit: derularea în FLAC este aproape instantanee chiar și în fișiere lungi, cu mai puțin CPU și memorie și compatibilitate mai bună

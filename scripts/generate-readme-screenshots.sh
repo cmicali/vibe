@@ -45,7 +45,7 @@ THEME_BASIC="${THEME_BASIC:-vibe}"
 THEME_PLAYLIST="${THEME_PLAYLIST:-snake}"
 THEME_THEMES="${THEME_THEMES:-sonic_cirrus}"
 THEME_PLAYLIST_PITCH="${THEME_PLAYLIST_PITCH:-technical}"
-THEME_PITCH="${THEME_PITCH:-record_bin}"
+THEME_PITCH="${THEME_PITCH:-rekord_bin}"
 
 # Every capture is sized explicitly: the autosaved frame differs between a
 # single-file and a folder launch. These are the published sizes; changing one

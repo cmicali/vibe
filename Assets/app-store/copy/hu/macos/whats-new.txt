@@ -3,7 +3,7 @@
 * Új: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R és ADTS lejátszása
 * Új: Billentyűparancsok panel a Beállításokban bármelyik billentyűparancs módosításához
 * Új: crossfade-csúszka, kikapcsolttól akár 3 másodpercig, tizedmásodperces lépésekben
-* Új: a 3 sávos hullámformastílus és az ezt használó Record Bin téma
+* Új: a 3 sávos hullámformastílus és az ezt használó Rekord Bin téma
 * Új: lejátszófej-vonal opció, a teljes hullámforma teljes színben
 * Változás: a Beállítások ablak átszervezve, kereséssel
 * Fejlesztés: a FLAC-fájlokban a tekerés szinte azonnali még hosszú fájloknál is, kevesebb CPU- és memóriahasználattal, jobb kompatibilitással

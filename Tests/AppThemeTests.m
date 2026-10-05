@@ -809,7 +809,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"record_bin", @"snake",
+                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"rekord_bin", @"snake",
                               @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 

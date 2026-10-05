@@ -3,7 +3,7 @@
 * Uutta: Ogg Opus-, Ogg Vorbis-, CAF-, W64-, M4B-, M4R- ja ADTS-toisto
 * Uutta: Näppäinoikotiet-osio Asetuksissa, jossa minkä tahansa oikotien voi vaihtaa
 * Uutta: Crossfade-liukusäädin, pois päältä aina 3 sekuntiin asti kymmenesosasekunnin askelin
-* Uutta: 3 kaistaa -aaltomuototyyli ja sitä käyttävä Record Bin -teema
+* Uutta: 3 kaistaa -aaltomuototyyli ja sitä käyttävä Rekord Bin -teema
 * Uutta: Toistopään viiva -asetus, jossa koko aaltomuoto näkyy täysvärisenä
 * Muutettu: Asetukset-ikkuna on järjestetty uudelleen, ja siinä on haku
 * Parannettu: FLAC-tiedostoissa siirtyminen on lähes välitöntä myös pitkissä tiedostoissa, kuluttaa vähemmän CPU:ta ja muistia ja toimii paremmin eri tiedostojen kanssa

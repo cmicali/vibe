@@ -3,7 +3,7 @@
 * Nyt: afspilning af Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R og ADTS
 * Nyt: en rude med Tastaturgenveje i Indstillinger, hvor du kan ændre enhver genvej
 * Nyt: en crossfade-skyder fra slukket op til 3 sekunder i tiendedele af et sekund
-* Nyt: bølgeformstilen 3-bånd og temaet Record Bin, der bruger den
+* Nyt: bølgeformstilen 3-bånd og temaet Rekord Bin, der bruger den
 * Nyt: en indstilling for en afspilningshovedlinje, med hele bølgeformen i fuld farve
 * Ændret: vinduet Indstillinger er omorganiseret og har søgning
 * Forbedret: FLAC-spoling er næsten øjeblikkelig selv i lange filer, bruger mindre CPU og hukommelse og har bedre kompatibilitet

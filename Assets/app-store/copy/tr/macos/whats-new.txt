@@ -3,7 +3,7 @@
 * Yeni: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R ve ADTS çalma
 * Yeni: Ayarlar’da, her kestirmeyi değiştirmenizi sağlayan Klavye Kestirmeleri bölümü
 * Yeni: kapalıdan 3 saniyeye kadar, saniyenin onda biri adımlarla ayarlanan crossfade kaydırıcısı
-* Yeni: 3 Bant dalga biçimi stili ve onu kullanan Record Bin teması
+* Yeni: 3 Bant dalga biçimi stili ve onu kullanan Rekord Bin teması
 * Yeni: oynatma kafası çizgisi seçeneği, dalga biçiminin tamamı renkli olarak
 * Değişiklik: Ayarlar penceresi yeniden düzenlendi ve arama eklendi
 * İyileştirme: FLAC’te konum atlama uzun dosyalarda bile neredeyse anında, daha az CPU ve bellek kullanarak ve daha iyi uyumlulukla

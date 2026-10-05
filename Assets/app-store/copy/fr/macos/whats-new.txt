@@ -3,7 +3,7 @@
 * Nouveau : lecture d’Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R et ADTS
 * Nouveau : un volet Raccourcis clavier dans Réglages pour modifier n’importe quel raccourci
 * Nouveau : un curseur de crossfade, de désactivé jusqu’à 3 secondes par dixièmes de seconde
-* Nouveau : le style de forme d’onde 3 bandes, et le thème Record Bin qui l’utilise
+* Nouveau : le style de forme d’onde 3 bandes, et le thème Rekord Bin qui l’utilise
 * Nouveau : une option de ligne de la tête de lecture, avec toute la forme d’onde en pleine couleur
 * Modifié : la fenêtre Réglages est réorganisée, avec une recherche
 * Amélioré : la navigation dans un FLAC est quasi instantanée, même dans les longs fichiers, avec moins de CPU et de mémoire, et une meilleure compatibilité
