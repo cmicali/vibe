@@ -2117,26 +2117,24 @@ materializationCoordinator:coordinator
             @"yielded priority record spun while the foreground was active");
     XCTAssertEqual(controller.startedURLs.count, 1u);
 
-    controller.allStartsExpectation =
-            [self expectationWithDescription:@"local priority retried"];
     [self markLocal:priority.url];
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
     [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader recheckForegroundGate];
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     for (NSUInteger tick = 0; tick < 8; tick++) {
         [loader recheckForegroundGate];
     }
     [self waitForDelay:0.02];
 
+    // The retry found the file local, which settles with no operation.
     XCTAssertEqualObjects(controller.startedURLs, (@[
-        [self URLNamed:@"foreground-local.wav"], priority.url
+        [self URLNamed:@"foreground-local.wav"]
     ]));
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRolePlayback),
-        @(VibeAudioFileMaterializationRoleMetadataPriority),
     ]));
     XCTAssertEqual([coordinator stateSnapshotForTesting].requestsYielded, 1u);
 }

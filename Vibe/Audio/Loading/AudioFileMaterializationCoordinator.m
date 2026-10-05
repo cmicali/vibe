@@ -976,6 +976,18 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
     claim.runGeneration++;
     claim.runWasCancelled = NO;
     uint64_t runGeneration = claim.runGeneration;
+    __weak AudioFileMaterializationCoordinator *weakSelf = self;
+    if (!claim.dataless && classificationFresh) {
+        // A fresh local answer is the run's answer: no operation, no lane, no
+        // worker. It settles in a later turn, as a run would, so no admission
+        // or drain has its claim finished underneath it.
+        claim.state = VibeMaterializationClaimStateRunning;
+        claim.holdsLane = NO;
+        dispatch_async(_stateQueue, ^{
+            [weakSelf finishClaim:claim runGeneration:runGeneration ready:YES error:nil];
+        });
+        return;
+    }
     id<AudioFileMaterializationOperation> operation =
             _operationFactory(claim.url, claim.effectiveRole);
     if (!operation) {
@@ -998,7 +1010,6 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
 
     dispatch_queue_t workerQueue = claim.lane == VibeMaterializationLaneInteractive
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
-    __weak AudioFileMaterializationCoordinator *weakSelf = self;
     dispatch_block_t onReadable = ^{
         // TRAP: called on the remote client's delivery queue, which every
         // download shares, and it can race a cancel: hop, never block, and let
@@ -1033,8 +1044,9 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
             if (!shouldRun) {
                 return;
             }
+            // Found local just now: as fresh an answer as the initial probe's.
             NSError *error = nil;
-            BOOL ready = VibeRunMaterialization(operation, url, dataless, onReadable, &error);
+            BOOL ready = !dataless || VibeRunMaterialization(operation, url, YES, onReadable, &error);
             AudioFileMaterializationCoordinator *completionSelf = weakSelf;
             if (completionSelf) {
                 dispatch_async(completionSelf->_stateQueue, ^{
