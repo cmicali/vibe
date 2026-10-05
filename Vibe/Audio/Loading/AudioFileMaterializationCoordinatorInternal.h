@@ -12,10 +12,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Background only. cancel returns at once, before or during the run.
 // onReadable, called at most once from any thread and returning at once, says
 // the file can be opened before the run completes (CloudFileRemoteFetch);
-// an operation that cannot stream never calls it. probedLocal says the probe
-// found the contents local just before this run, so it need not look again.
+// an operation that cannot stream never calls it.
 - (BOOL)runOnReadable:(dispatch_block_t)onReadable
-          probedLocal:(BOOL)probedLocal
                 error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 - (void)cancel;
 

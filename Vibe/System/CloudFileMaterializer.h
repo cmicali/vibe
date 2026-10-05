@@ -164,12 +164,6 @@ typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *u
             onReadable:(nullable dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
-// materializeURL:'s answer for a file its caller has just probed as local,
-// without probing it again: settles token, NO with NSUserCancelledError when
-// it was cancelled or superseded.
-- (BOOL)settleLocalToken:(CloudFileMaterializationToken *)token
-                   error:(NSError *__autoreleasing _Nullable *_Nullable)error;
-
 // Any thread, returns at once; the call returns NO with NSUserCancelledError.
 // Per-token, not a latch: the next preparation is independent work.
 - (void)cancel;

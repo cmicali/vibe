@@ -219,9 +219,7 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     return self;
 }
 
-- (BOOL)runOnReadable:(dispatch_block_t)onReadable
-          probedLocal:(BOOL)probedLocal
-                error:(NSError *__autoreleasing *)error {
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
     [_condition lock];
     _started = YES;
     [_condition broadcast];
@@ -646,13 +644,14 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     XCTAssertEqual([_probeController callCountForName:@"probe-overflow.wav"], 0u);
 
     [_probeController releaseAll];
-    XCTAssertTrue([_controller waitForStartedCount:24]);
-    XCTAssertTrue([_probeController waitForIdle]);
-    XCTAssertEqual(_probeController.totalCallCount, 24u);
-    [_controller completeAll];
+    // Settled, every claim was probed; idle alone can fall between batches.
     XCTAssertTrue([self waitForCondition:^BOOL{
         return [self->_coordinator stateSnapshotForTesting].claimCount == 0;
     }]);
+    XCTAssertTrue([_probeController waitForIdle]);
+    XCTAssertEqual(_probeController.totalCallCount, 24u);
+    XCTAssertEqual(_controller.startedOperations.count, 0u,
+                   @"a fresh local answer settles without an operation");
     [self waitForExpectations:@[cancelledSilent] timeout:0.1];
     (void)tokens;
 }
@@ -807,15 +806,11 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [localReady fulfill];
     }];
-    XCTAssertTrue([_controller waitForStartedCount:2]);
-    [self drainMainQueue];
-    XCTAssertFalse([CloudTransferRegistry.sharedRegistry isTransferringURL:localURL]);
-
-    [[_controller operationForLastPathComponent:localURL.lastPathComponent]
-            completeReady:YES];
     [self waitForExpectations:@[localReady] timeout:VIBE_TEST_HANG_TIMEOUT];
     [self drainMainQueue];
     XCTAssertFalse([CloudTransferRegistry.sharedRegistry isTransferringURL:localURL]);
+    XCTAssertEqual(_controller.startedOperations.count, 1u,
+                   @"a fresh local answer settles without an operation");
 }
 
 - (void)testForegroundDepartureDuringInitialProbePassesLocalPassengersAndYieldsDatalessOnes {
@@ -845,9 +840,6 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         return ![self->_coordinator isForegroundTransferActive];
     }]);
     [_probeController releaseCall:1 forName:@"depart-initial-local.wav"];
-    XCTAssertTrue([_controller waitForStartedCount:1]);
-    [[_controller operationForLastPathComponent:@"depart-initial-local.wav"]
-            completeReady:YES];
     [self waitForExpectations:@[localReady] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     AudioFileMaterializationRequestToken *cloudForeground =
@@ -873,7 +865,7 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     }]);
     [_probeController releaseCall:1 forName:@"depart-initial-cloud.wav"];
     [self waitForExpectations:@[cloudYielded] timeout:VIBE_TEST_HANG_TIMEOUT];
-    XCTAssertEqual(_controller.startedOperations.count, 1u);
+    XCTAssertEqual(_controller.startedOperations.count, 0u);
     XCTAssertEqual([_probeController callCountForName:@"depart-initial-local.wav"], 1u);
     XCTAssertEqual([_probeController callCountForName:@"depart-initial-cloud.wav"], 1u);
 }
@@ -926,10 +918,9 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         return ![self->_coordinator isForegroundTransferActive];
     }]);
     [_probeController releaseCall:2 forName:@"depart-refresh-local.wav"];
-    XCTAssertTrue([_controller waitForStartedCount:2]);
-    [[_controller operationForLastPathComponent:@"depart-refresh-local.wav"]
-            completeReady:YES];
     [self waitForExpectations:@[metadataReady] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertFalse([_controller operationForLastPathComponent:@"depart-refresh-local.wav"].started,
+                   @"a refresh that finds the file local settles without its operation");
     XCTAssertEqual([_probeController callCountForName:@"depart-refresh-local.wav"], 2u);
 }
 
@@ -1179,21 +1170,19 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     XCTAssertTrue([_coordinator isForegroundTransferActive]);
 
     [_probeController releaseCall:2 forName:@"rise-refresh-local.wav"];
-    XCTAssertTrue([_controller waitForStartedCount:2]);
+    [self waitForExpectations:@[metadataReady] timeout:VIBE_TEST_HANG_TIMEOUT];
     VibeTestMaterializationOperation *localOperation =
             [_controller operationForLastPathComponent:@"rise-refresh-local.wav"];
-    XCTAssertTrue(localOperation.started);
+    XCTAssertFalse(localOperation.started);
     XCTAssertEqual(localOperation.cancellationCount, 0u);
     [self drainMainQueue];
     XCTAssertFalse([CloudTransferRegistry.sharedRegistry
             isTransferringURL:[self URLNamed:@"rise-refresh-local.wav"]]);
-    [localOperation completeReady:YES];
-    [self waitForExpectations:@[metadataReady] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([_probeController callCountForName:@"rise-refresh-local.wav"], 2u);
     XCTAssertTrue([_coordinator isForegroundTransferActive]);
 
     [_probeController releaseCall:1 forName:@"rise-refresh-local-pick.wav"];
-    XCTAssertTrue([_controller waitForStartedCount:3]);
+    XCTAssertTrue([_controller waitForStartedCount:2]);
     [[_controller operationForLastPathComponent:@"rise-refresh-local-pick.wav"]
             completeReady:YES];
     [self waitForExpectations:@[playbackReady] timeout:VIBE_TEST_HANG_TIMEOUT];
@@ -1434,14 +1423,12 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         [replacementReady fulfill];
     }];
     XCTAssertTrue([_probeController waitForCallCount:2 forName:@"stale-probe.wav"]);
-    XCTAssertTrue([_controller waitForStartedCount:1]);
+    [self waitForExpectations:@[replacementReady] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     [_probeController releaseCall:1 forName:@"stale-probe.wav"];
     XCTAssertTrue([_probeController waitForIdle]);
-    XCTAssertEqual(_controller.startedOperations.count, 1u,
-                   @"the old dataless answer must not start the replacement twice");
-    [[_controller operationForLastPathComponent:@"stale-probe.wav"] completeReady:YES];
-    [self waitForExpectations:@[replacementReady] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(_controller.startedOperations.count, 0u,
+                   @"the old dataless answer must not start a run for the replacement");
     [self waitForExpectations:@[oldSilent] timeout:0.1];
 }
 
@@ -1657,8 +1644,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     }];
     XCTAssertTrue([_controller waitForStartedCount:1]);
 
-    // The lane is at capacity with a transfer, but the local file's run is a
-    // no-op and must start immediately rather than park out its grace.
+    // The lane is at capacity with a transfer, but the local file needs no
+    // run and must settle at once rather than park out its grace.
     XCTestExpectation *localReady = [self expectationWithDescription:@"local ready"];
     __unused AudioFileMaterializationRequestToken *local = [self requestName:@"local.wav"
             role:VibeAudioFileMaterializationRoleMetadataPriority
@@ -1666,12 +1653,12 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [localReady fulfill];
     }];
-    XCTAssertTrue([_controller waitForStartedCount:2]);
+    [self waitForExpectations:@[localReady] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundPendingCount, 0u);
     XCTAssertEqual([_probeController callCountForName:@"local.wav"], 1u,
                    @"the fresh local answer must not get a start refresh");
-    [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
-    [self waitForExpectations:@[localReady] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(_controller.startedOperations.count, 1u,
+                   @"the fresh local answer settles without an operation");
 }
 
 // A local read that never returns — a hung network share, a sleeping disk —
@@ -1681,14 +1668,24 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
     values.maximumBackgroundMaterializations = 1;
-    [_probeController setResults:@[@NO] forName:@"stalled-local.wav"];
     [self makeCoordinatorWithValues:values];
 
-    __unused AudioFileMaterializationRequestToken *stalled = [self requestName:@"stalled-local.wav"
+    // A cancelled run that lands Ready is readmitted local but not fresh, so
+    // the readmission runs an operation, which can stall.
+    AudioFileMaterializationRequestToken *cancelled = [self requestName:@"stalled-local.wav"
             role:VibeAudioFileMaterializationRoleMetadataScan
             completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
     }];
     XCTAssertTrue([_controller waitForStartedCount:1]);
+    VibeTestMaterializationOperation *first = _controller.startedOperations.firstObject;
+    [first deferCancellationCompletion];
+    [cancelled cancel];
+    __unused AudioFileMaterializationRequestToken *stalled = [self requestName:@"stalled-local.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+    }];
+    [first completeReady:YES];
+    XCTAssertTrue([_controller waitForStartedCount:2]);
     XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundRunningCount, 0u,
                    @"a local run must not count against the lane");
 
@@ -1699,7 +1696,7 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [downloadReady fulfill];
     }];
-    XCTAssertTrue([_controller waitForStartedCount:2],
+    XCTAssertTrue([_controller waitForStartedCount:3],
                   @"the transfer waited behind a local read that never returned");
     VibeAudioFileMaterializationCoordinatorSnapshot snapshot = [_coordinator stateSnapshotForTesting];
     XCTAssertEqual(snapshot.backgroundPendingCount, 0u);
@@ -1784,15 +1781,15 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         [_probeController releaseCall:2 forName:@"delayed-local.wav"];
     }
 
-    XCTAssertTrue([_controller waitForStartedCount:2]);
+    [self waitForExpectations:@[targetReady] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual([_probeController callCountForName:@"delayed-local.wav"], 2u);
     XCTAssertEqual([_coordinator stateSnapshotForTesting].backgroundRunningCount, 0u,
                    @"a refresh that finds the file local hands its slot back");
+    XCTAssertFalse([_controller operationForLastPathComponent:@"delayed-local.wav"].started,
+                   @"a refresh that finds the file local settles without its operation");
     [self drainMainQueue];
     XCTAssertFalse([CloudTransferRegistry.sharedRegistry
             isTransferringURL:[self URLNamed:@"delayed-local.wav"]]);
-    [[_controller operationForLastPathComponent:@"delayed-local.wav"] completeReady:YES];
-    [self waitForExpectations:@[targetReady] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testForegroundActivityPassesLocalFilesThrough {
@@ -1811,7 +1808,7 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [localReady fulfill];
     }];
-    XCTAssertTrue([_controller waitForStartedCount:2]);
+    [self waitForExpectations:@[localReady] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     XCTestExpectation *datalessYield = [self expectationWithDescription:@"dataless yielded"];
     __unused AudioFileMaterializationRequestToken *dataless = [self requestName:@"cloud.wav"
@@ -1821,18 +1818,24 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         [datalessYield fulfill];
     }];
     [self waitForExpectations:@[datalessYield] timeout:VIBE_TEST_HANG_TIMEOUT];
-    XCTAssertEqual(_controller.startedOperations.count, 2u);
+    XCTAssertEqual(_controller.startedOperations.count, 1u);
     XCTAssertEqual([_probeController callCountForName:@"local.wav"], 1u);
     XCTAssertEqual([_probeController callCountForName:@"cloud.wav"], 1u);
-
-    [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
-    [self waitForExpectations:@[localReady] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 - (void)testAForegroundRiseDoesNotYieldARunningLocalClaim {
-    [_probeController setResults:@[@NO] forName:@"local.wav"];
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
 
+    // Readmitted local after a cancelled run landed Ready: the one local claim
+    // that runs an operation, and so can be running when the foreground rises.
+    AudioFileMaterializationRequestToken *cancelled = [self requestName:@"local.wav"
+            role:VibeAudioFileMaterializationRoleMetadataScan
+            completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
+    }];
+    XCTAssertTrue([_controller waitForStartedCount:1]);
+    VibeTestMaterializationOperation *first = _controller.startedOperations.firstObject;
+    [first deferCancellationCompletion];
+    [cancelled cancel];
     XCTestExpectation *ready = [self expectationWithDescription:@"local ready"];
     __unused AudioFileMaterializationRequestToken *local = [self requestName:@"local.wav"
             role:VibeAudioFileMaterializationRoleMetadataScan
@@ -1840,16 +1843,19 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
         XCTAssertEqual(result, VibeAudioFileMaterializationResultReady);
         [ready fulfill];
     }];
-    XCTAssertTrue([_controller waitForStartedCount:1]);
+    [first completeReady:YES];
+    XCTAssertTrue([_controller waitForStartedCount:2]);
+    VibeTestMaterializationOperation *localRun = _controller.startedOperations.lastObject;
+
     __unused AudioFileMaterializationRequestToken *playback = [self requestName:@"user-pick.wav"
             role:VibeAudioFileMaterializationRolePlayback
             completion:^(VibeAudioFileMaterializationResult result, NSError *error, NSTimeInterval elapsed) {
     }];
-    XCTAssertTrue([_controller waitForStartedCount:2]);
-    XCTAssertEqual(_controller.totalCancellationCount, 0u);
+    XCTAssertTrue([_controller waitForStartedCount:3]);
+    XCTAssertEqual(localRun.cancellationCount, 0u);
     XCTAssertEqual([_probeController callCountForName:@"local.wav"], 1u);
 
-    [[_controller operationForLastPathComponent:@"local.wav"] completeReady:YES];
+    [localRun completeReady:YES];
     [self waitForExpectations:@[ready] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 

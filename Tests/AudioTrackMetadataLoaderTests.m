@@ -185,9 +185,7 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     return self;
 }
 
-- (BOOL)runOnReadable:(dispatch_block_t)onReadable
-          probedLocal:(BOOL)probedLocal
-                error:(NSError *__autoreleasing *)error {
+- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
     VibeMetadataLoaderOperationController *controller = _controller;
     // TRAP: recordStart fulfills the test's synchronization edge, after which
     // the test may clear the hold. Read the hold first, or a clear landing in
@@ -2119,26 +2117,24 @@ materializationCoordinator:coordinator
             @"yielded priority record spun while the foreground was active");
     XCTAssertEqual(controller.startedURLs.count, 1u);
 
-    controller.allStartsExpectation =
-            [self expectationWithDescription:@"local priority retried"];
     [self markLocal:priority.url];
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
     [self waitForExpectations:@[foregroundCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];
     [loader recheckForegroundGate];
-    [self waitForExpectations:@[controller.allStartsExpectation, parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForExpectations:@[parsed] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     for (NSUInteger tick = 0; tick < 8; tick++) {
         [loader recheckForegroundGate];
     }
     [self waitForDelay:0.02];
 
+    // The retry found the file local, which settles with no operation.
     XCTAssertEqualObjects(controller.startedURLs, (@[
-        [self URLNamed:@"foreground-local.wav"], priority.url
+        [self URLNamed:@"foreground-local.wav"]
     ]));
     XCTAssertEqualObjects(controller.startedRoles, (@[
         @(VibeAudioFileMaterializationRolePlayback),
-        @(VibeAudioFileMaterializationRoleMetadataPriority),
     ]));
     XCTAssertEqual([coordinator stateSnapshotForTesting].requestsYielded, 1u);
 }
