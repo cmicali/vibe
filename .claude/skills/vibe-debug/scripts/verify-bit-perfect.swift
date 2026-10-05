@@ -998,6 +998,7 @@ if acceptance || blackholeCheck {
                 }
                 report(["case": "blackhole-\(label)", "injectedOperations": driverNumber(box, 0x76627468) ?? 0,
                         "state": debug(binary, ["dump_state"])])
+                let recoveryBegan = ProcessInfo.processInfo.systemUptime
                 if fault != 128 {
                     _ = debug(binary, ["quiesce"])
                     waitFor("idle test driver before clearing injection") { readUInt32(device, kAudioDevicePropertyDeviceIsRunning) == 0 }
@@ -1005,6 +1006,12 @@ if acceptance || blackholeCheck {
                 guard setDriverFault(box, 0) else { fail("cannot clear driver fault \(label)") }
                 pause(0.25)
                 selectLoopback()
+                if fault & 7 != 0 {
+                    // The 45-second command timeout must not hide a HAL stop deadlock.
+                    let seconds = ProcessInfo.processInfo.systemUptime - recoveryBegan
+                    report(["case": "blackhole-recovery-\(label)", "seconds": seconds, "limitSeconds": 5])
+                    guard seconds <= 5 else { fail("volume-fault recovery \(label) took \(seconds)s (limit 5s)") }
+                }
                 _ = debug(binary, ["set_bit_perfect", "on"])
                 captureCase("blackhole-recovered-\(label)", "noise-48000-24-2.wav")
             }

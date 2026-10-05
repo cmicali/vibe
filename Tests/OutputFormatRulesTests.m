@@ -614,6 +614,48 @@ static VibeBitPerfectReport Perfect(void) {
 
 #pragma mark - Device discovery and snapshot lifecycle
 
+- (void)testDeviceEventCallbacksReturnWhilePropertyReadsAreBlockedAndCopyTheirAddresses {
+    dispatch_queue_t queue = dispatch_queue_create("test.device-event-log", DISPATCH_QUEUE_SERIAL);
+    dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
+    dispatch_semaphore_t returned = dispatch_semaphore_create(0), drained = dispatch_semaphore_create(0);
+    NSMutableArray<NSNumber *> *selectors = [NSMutableArray array];
+    Method formatter = class_getClassMethod(CoreAudioUtil.class, @selector(eventDescriptionOfProperty:object:));
+    IMP replacement = imp_implementationWithBlock(^NSString *(id receiver, AudioObjectPropertyAddress address, AudioObjectID object) {
+        XCTAssertEqual(object, 42u);
+        XCTAssertEqual(address.mScope, kAudioObjectPropertyScopeGlobal);
+        XCTAssertEqual(address.mElement, kAudioObjectPropertyElementMain);
+        [selectors addObject:@(address.mSelector)];
+        if (selectors.count == 1) {
+            dispatch_semaphore_signal(entered);
+            dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
+        }
+        return @"controlled property read";
+    });
+    IMP original = method_setImplementation(formatter, replacement);
+    @try {
+        AudioObjectPropertyListenerBlock listener = [CoreAudioUtil eventLogListenerForObject:42 name:@"test device" queue:queue];
+        for (NSNumber *selector in @[@(kAudioDevicePropertyDeviceIsRunning), @(kAudioDeviceProcessorOverload)]) {
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+                AudioObjectPropertyAddress address = {selector.unsignedIntValue, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+                listener(1, &address);
+                memset(&address, 0, sizeof(address));
+                dispatch_semaphore_signal(returned);
+            });
+            XCTAssertEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
+            if (selector.unsignedIntValue == kAudioDevicePropertyDeviceIsRunning) {
+                XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
+            }
+        }
+    } @finally {
+        dispatch_semaphore_signal(release);
+        dispatch_async(queue, ^{ dispatch_semaphore_signal(drained); });
+        XCTAssertEqual(dispatch_semaphore_wait(drained, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0);
+        method_setImplementation(formatter, original);
+        imp_removeBlock(replacement);
+    }
+    XCTAssertEqualObjects(selectors, (@[@(kAudioDevicePropertyDeviceIsRunning), @(kAudioDeviceProcessorOverload)]));
+}
+
 - (AudioDevice *)device:(NSInteger)identifier uid:(NSString *)uid name:(NSString *)name {
     return [[AudioDevice alloc] initWithName:name uid:uid deviceId:identifier isSystemDefault:NO transportType:kAudioDeviceTransportTypeUSB];
 }
