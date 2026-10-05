@@ -113,6 +113,26 @@ static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count, std::
     return path;
 }
 
+// Templated on the two per-call choices so the per-bar loop, a tenth of a
+// resize frame, carries no branch. y-up: adding the negative min preserves
+// DC-offset asymmetry; grounded, the bar keeps its height on the baseline.
+template <bool Centered, bool Snap>
+static void VibeFillBars(CGRect *rects, NSUInteger count, const float *samples, CGSize size, CGFloat scale,
+                         CGFloat barWidth, CGFloat minimumHeight) {
+    CGFloat midY = size.height / 2, baseline = VibeBarBaseline(size.height), vscale = VibeBarVScale(size.height);
+    CGFloat barPitch = size.width / (CGFloat)count;
+    for (NSUInteger i = 0; i < count; i++) {
+        CGFloat top = Centered ? midY + samples[i * 2 + 1] * vscale
+                               : baseline + (samples[i * 2 + 1] - samples[i * 2]) * vscale;
+        CGFloat bottom = Centered ? midY + samples[i * 2] * vscale : baseline;
+        if (Snap) {
+            top = round(top * scale) / scale;
+            bottom = round(bottom * scale) / scale;
+        }
+        rects[i] = CGRectMake(barPitch * (CGFloat)i, bottom, barWidth, MAX(top - bottom, minimumHeight));
+    }
+}
+
 @implementation DetailedAudioWaveformRenderer {
     BOOL _wiggle;
     // One mask for the whole stack: masking each gradient would rasterize and
@@ -396,25 +416,14 @@ static const CGFloat kDetailedBarPitch = 0.5;
 // scale keeps morph frames between pixels instead of rounding their motion.
 - (void)fillBarRects:(std::vector<CGRect> &)rects size:(CGSize)size samples:(const float *)samples
       minimumHeight:(CGFloat)minimumHeight scale:(CGFloat)scale {
+    CGRect *bars = rects.data();
     NSUInteger count = rects.size();
-    CGFloat midY = size.height / 2;
-    CGFloat vscale = VibeBarVScale(size.height);
-    CGFloat baseline = VibeBarBaseline(size.height);
-    BOOL centered = self.centered;
     CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
-    CGFloat barPitch = size.width / (CGFloat)count;
-    for (NSUInteger i = 0; i < count; i++) {
-        // y-up: adding the negative min preserves DC-offset asymmetry.
-        // Grounded, the bar keeps its height and stands on the baseline.
-        CGFloat bottom = centered ? midY + samples[i * 2] * vscale : baseline;
-        CGFloat top = bottom + (samples[i * 2 + 1] - samples[i * 2]) * vscale;
-        if (scale > 0) {
-            top = round(top * scale) / scale;
-            bottom = round(bottom * scale) / scale;
-        }
-        CGFloat x = barPitch * (CGFloat)i;
-        rects[i] = CGRectMake(x, bottom, barWidth, MAX(top - bottom, minimumHeight));
-    }
+    BOOL centered = self.centered;
+    if (centered && scale > 0) VibeFillBars<true, true>(bars, count, samples, size, scale, barWidth, minimumHeight);
+    else if (centered) VibeFillBars<true, false>(bars, count, samples, size, scale, barWidth, minimumHeight);
+    else if (scale > 0) VibeFillBars<false, true>(bars, count, samples, size, scale, barWidth, minimumHeight);
+    else VibeFillBars<false, false>(bars, count, samples, size, scale, barWidth, minimumHeight);
 }
 
 // The morph's rebuild callback. Pixel-rounds only when settled: mid-morph it
