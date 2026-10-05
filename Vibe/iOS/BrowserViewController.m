@@ -164,16 +164,11 @@ BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView) {
 
 // Rows past each end of the screen whose art is asked for with the visible ones.
 static const NSInteger kArtRowMargin = 20;
-// The side of a file row's icon — its art or its tile — and what every such
-// row reserves, so the names line up.
-static const CGFloat kFileTileSide = 40;
-static const CGFloat kFileTileCornerRadius = 8;
 
-// A file row's icon where it has no art to draw: a rounded tile holding a
-// waveform, or a note list for a CUE sheet or an M3U. Drawn once, in both appearances:
-// an image asset holding the light and the dark tile follows the trait
-// collection by itself, which a single rendered image would not.
-static UIImage *VibeFileTileImage(BOOL playlist) {
+// Drawn once, in both appearances: an image asset holding the light and the
+// dark tile follows the trait collection by itself, which a single rendered
+// image would not.
+UIImage *VibeFileTileImage(BOOL playlist) {
     static UIImage *tiles[2];
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -203,6 +198,18 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
         }
     });
     return tiles[playlist ? 1 : 0];
+}
+
+void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL folder, UIImage *art) {
+    content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
+    content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
+    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    if (folder) {
+        content.image = [UIImage systemImageNamed:@"folder"];
+        return;
+    }
+    content.image = art ?: VibeFileTileImage([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]);
+    content.imageProperties.cornerRadius = kFileTileCornerRadius;
 }
 
 @implementation BrowserViewController {
@@ -1228,24 +1235,16 @@ static UIImage *VibeFileTileImage(BOOL playlist) {
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = url.lastPathComponent;
     VibeApplyFileNameStyle(content);
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    // Art and the tiles are one size, and every row reserves it, so the
-    // names line up down a listing of folders, files and the playing row.
-    content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
+    BOOL isFolder = indexPath.section == VibeBrowserSectionFolders;
+    VibeApplyFileIcon(content, url.lastPathComponent, isFolder, [_artTracks[url] cachedThumbnail]);
     NSString *path = [_standardizedPath stringByAppendingPathComponent:url.lastPathComponent];
     EqualizerIndicatorView *equalizer = [cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]
             ? (EqualizerIndicatorView *)cell.accessoryView : nil;
     UIView *accessory = nil;
-    if (indexPath.section == VibeBrowserSectionFolders) {
-        content.image = [UIImage systemImageNamed:@"folder"];
+    if (isFolder) {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     else {
-        // Its art when the file is here and has some; else the tile.
-        BOOL playlist = [PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString];
-        content.image = [_artTracks[url] cachedThumbnail] ?: VibeFileTileImage(playlist);
-        content.imageProperties.cornerRadius = kFileTileCornerRadius;
         // From the stat alone: what the file takes, or would download.
         content.secondaryText = _fileSizes[url];
         if (_playingPath && [path isEqualToString:_playingPath]) {
@@ -1699,16 +1698,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     // container it names, and then says nothing a user would recognize.
     content.secondaryText = item[@"location"];
     VibeApplyFileNameStyle(content);
-    content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    if ([item[@"folder"] boolValue]) {
-        content.image = [UIImage systemImageNamed:@"folder"];
-    }
-    else {
-        content.image = VibeFileTileImage(
-                [PlaylistFile isPlaylistExtension:[item[@"path"] pathExtension].lowercaseString]);
-    }
+    VibeApplyFileIcon(content, path, [item[@"folder"] boolValue], nil);
     VibeApplyRowContent(cell, content, [VibeComparablePath(path) isEqualToString:_playback.openingPath]);
     return cell;
 }

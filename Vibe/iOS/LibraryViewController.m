@@ -23,7 +23,6 @@
 static NSString *const kTrackCellIdentifier = @"track";
 // Apple Music's proportions.
 static const CGFloat kEstimatedRowHeight = 64;
-static const CGFloat kArtSide = 44;
 static const CGFloat kNumberColumnWidth = 26;
 static const CGFloat kArtTextGap = 14;
 
@@ -118,7 +117,7 @@ static const CGFloat kArtTextGap = 14;
     self.tableView.estimatedRowHeight = kEstimatedRowHeight;
     // The rule starts at the title.
     self.tableView.separatorInset =
-            UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kArtSide + kArtTextGap, 0, 0);
+            UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kFileTileSide + kArtTextGap, 0, 0);
     [self.tableView registerClass:LibraryTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
@@ -580,7 +579,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _artView = [[UIImageView alloc] init];
     _artView.contentMode = UIViewContentModeScaleAspectFill;
     _artView.clipsToBounds = YES;
-    _artView.layer.cornerRadius = 4;
+    _artView.layer.cornerRadius = kFileTileCornerRadius;
     _artView.layer.cornerCurve = kCACornerCurveContinuous;
     _artView.translatesAutoresizingMaskIntoConstraints = NO;
     [content addSubview:_artView];
@@ -639,8 +638,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
 
         [_artView.leadingAnchor constraintEqualToAnchor:_numberLabel.trailingAnchor constant:8],
         [_artView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
-        [_artView.widthAnchor constraintEqualToConstant:kArtSide],
-        [_artView.heightAnchor constraintEqualToConstant:kArtSide],
+        [_artView.widthAnchor constraintEqualToConstant:kFileTileSide],
+        [_artView.heightAnchor constraintEqualToConstant:kFileTileSide],
         [_artView.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:10],
         [_artView.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-10],
 
@@ -725,7 +724,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)number];
     _playing = playing;
     [self resolveGutter];
-    _artView.image = thumbnail ?: [UIImage imageNamed:@"record-bg"];
+    _artView.image = thumbnail ?: VibeFileTileImage(NO);
     _durationLabel.text = duration;
     _titleLabel.text = track.displayTitle ?: @"";
     // Hidden rather than blank, so the title centres on its own.

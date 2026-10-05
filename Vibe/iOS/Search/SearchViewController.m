@@ -635,9 +635,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
     AudioTrack *track = [_playlist trackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
-    content.imageProperties.maximumSize = CGSizeMake(40, 40);
-    content.imageProperties.cornerRadius = 4;
+    VibeApplyFileIcon(content, track.url.lastPathComponent, NO, track.cachedThumbnail);
     content.text = track.displayTitle;
     content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
@@ -646,11 +644,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 // A file or Dropbox hit: no tags (each would be a download), the name over
-// its folder, a glyph, no art.
+// its folder, the browser's folder glyph or file tile, no art.
 - (UITableViewCell *)hitCellForTableView:(UITableView *)tableView
                                     name:(NSString *)name
                                   folder:(NSString *)folder
-                                   glyph:(NSString *)glyph
+                                isFolder:(BOOL)isFolder
                            notDownloaded:(BOOL)notDownloaded
                                  opening:(BOOL)opening {
     static NSString *const identifier = @"hit";
@@ -660,9 +658,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                       reuseIdentifier:identifier];
     }
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.image = [UIImage systemImageNamed:glyph];
-    content.imageProperties.maximumSize = CGSizeMake(40, 40);
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    VibeApplyFileIcon(content, name, isFolder, nil);
     content.text = name;
     content.secondaryText = folder;
     VibeApplyFileNameStyle(content);
@@ -673,7 +669,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 
 - (UITableViewCell *)fileCellForTableView:(UITableView *)tableView row:(NSUInteger)row {
     FileSearchHit *hit = _fileHits[row];
-    return [self hitCellForTableView:tableView name:hit.fileName folder:hit.folderName glyph:@"music.note"
+    return [self hitCellForTableView:tableView name:hit.fileName folder:hit.folderName isFolder:NO
                        notDownloaded:NO opening:[self hitIsOpening:hit]];
 }
 
@@ -691,7 +687,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return [self hitCellForTableView:tableView
                                 name:entry[@"name"]
                               folder:[parent isEqualToString:@"/"] ? VibeNotLocalized(@"Dropbox") : parent
-                               glyph:folder ? @"folder" : @"music.note"
+                            isFolder:folder
                        notDownloaded:!folder && ![_dropboxDownloaded containsObject:entry[@"path_lower"]]
                              opening:NO];
 }

@@ -98,8 +98,8 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     content.text = favorite.name;
     // Nil, not empty, so the row draws one line.
     content.secondaryText = favorite.location.length > 0 ? favorite.location : nil;
-    content.image = [UIImage systemImageNamed:@"folder"];
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    VibeApplyFileNameStyle(content);
+    VibeApplyFileIcon(content, nil, YES, nil);
     VibeApplyRowContent(cell, content, [self favoriteIsOpening:favorite]);
     return cell;
 }

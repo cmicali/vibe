@@ -6,6 +6,7 @@
 #import "MiniPlayerView.h"
 
 #import "AudioTrack.h"
+#import "BrowserViewController.h"
 #import "VibeStrings.h"
 
 // TRAP: the strip is 48pt, not negotiable. UITabAccessory frames its content
@@ -53,7 +54,7 @@ static const CGFloat kGlyphPointSize = 19;
     _artView.contentMode = UIViewContentModeScaleAspectFill;
     _artView.clipsToBounds = YES;
     _artView.isAccessibilityElement = NO;
-    _artView.layer.cornerRadius = 6;
+    _artView.layer.cornerRadius = kFileTileCornerRadius;
     _artView.layer.cornerCurve = kCACornerCurveContinuous;
     _artView.translatesAutoresizingMaskIntoConstraints = NO;
     [self addSubview:_artView];
@@ -170,7 +171,7 @@ static const CGFloat kGlyphPointSize = 19;
     _titleLabel.text = track.displayTitle ?: @"";
     NSString *artist = track.displayArtist;
     _artistLabel.text = artist ?: @"";
-    _artView.image = track.cachedThumbnail ?: [UIImage imageNamed:@"record-bg"];
+    _artView.image = track.cachedThumbnail ?: VibeFileTileImage(NO);
     _expandButton.accessibilityValue = track.displayTitle;
     [self applyAccessoryEnvironment];
 }
