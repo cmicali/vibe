@@ -144,9 +144,8 @@ static NSUInteger VibeWaveformMemoryCost(CodableAudioWaveform *waveform) {
         // so it exists before first use; decode-side writes go through a
         // pointer snapshotted here.
         dispatch_async(_loaderQueue, ^{
-            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName
-                                                       rootPath:rootPath
-                                                memoryByteLimit:kWaveformMemoryByteLimit];
+            self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName rootPath:rootPath];
+            self->_waveformCache.memoryCache.costLimit = kWaveformMemoryByteLimit;
         });
     }
     return self;
@@ -279,18 +278,23 @@ static NSUInteger VibeWaveformMemoryCost(CodableAudioWaveform *waveform) {
 // Called on the serial loader queue by both cache readers.
 - (CodableAudioWaveform *)waveformForCacheKey:(NSString *)cacheKey
                                   analysis:(VibeWaveformAnalysis)analysis {
-    CodableAudioWaveform *cachedWaveform = (CodableAudioWaveform *)
-            [self->_waveformCache audioObjectForKey:cacheKey cost:^NSUInteger(id object) {
-        return [object isKindOfClass:[CodableAudioWaveform class]] ? VibeWaveformMemoryCost(object) : 0;
-    }];
-    // PINCache unarchives without secure coding, so a corrupt or tampered
-    // entry with a different root class decodes cleanly and would crash with
-    // an unrecognized selector at first use — on every play of this track,
-    // since nothing would ever evict it. The metadata cache uses the same
-    // guard.
-    if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
-        [self->_waveformCache removeObjectForKey:cacheKey];
-        cachedWaveform = nil;
+    // PINCache's objectForKey:, but costed; see PINCache+VibeAudioCache.h.
+    CodableAudioWaveform *cachedWaveform = [self->_waveformCache.memoryCache objectForKey:cacheKey];
+    if (!cachedWaveform) {
+        cachedWaveform = (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
+        // PINCache unarchives without secure coding, so a corrupt or tampered
+        // entry with a different root class decodes cleanly and would crash
+        // with an unrecognized selector at first use — on every play of this
+        // track, since nothing would ever evict it. The metadata cache uses
+        // the same guard.
+        if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
+            [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+            cachedWaveform = nil;
+        }
+        if (cachedWaveform) {
+            [self->_waveformCache.memoryCache setObject:cachedWaveform forKey:cacheKey
+                                               withCost:VibeWaveformMemoryCost(cachedWaveform)];
+        }
     }
     // An entry decoded without the bands, or without an analyzer this
     // request runs, is a miss for it, and that decode replaces it with one

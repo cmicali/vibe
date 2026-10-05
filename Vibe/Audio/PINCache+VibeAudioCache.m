@@ -16,28 +16,11 @@ static const NSTimeInterval kAudioCacheAgeLimit = 6 * (30 * (24 * 60 * 60)); // 
 
 @implementation PINCache (VibeAudioCache)
 
-+ (PINCache *)audioCacheWithName:(NSString *)name
-                        rootPath:(NSString *)rootPath
-                 memoryByteLimit:(NSUInteger)memoryByteLimit {
++ (PINCache *)audioCacheWithName:(NSString *)name rootPath:(NSString *)rootPath {
     PINCache *cache = rootPath ? [[PINCache alloc] initWithName:name rootPath:rootPath] : [[PINCache alloc] initWithName:name];
     cache.diskCache.byteLimit = kAudioCacheByteLimit;
     cache.diskCache.ageLimit = kAudioCacheAgeLimit;
-    cache.memoryCache.costLimit = memoryByteLimit;
     return cache;
-}
-
-- (id)audioObjectForKey:(NSString *)key cost:(NSUInteger (^)(id object))cost {
-    id object = [self.memoryCache objectForKey:key];
-    if (object) {
-        // Bumps the file's date, which the disk's LRU and age limit read.
-        [self.diskCache fileURLForKeyAsync:key completion:^(NSString *k, NSURL *fileURL) {}];
-        return object;
-    }
-    object = [self.diskCache objectForKey:key];
-    if (object) {
-        [self.memoryCache setObject:object forKey:key withCost:cost(object)];
-    }
-    return object;
 }
 
 - (void)audioDiskUsageWithCompletion:(void (^)(NSUInteger fileCount,

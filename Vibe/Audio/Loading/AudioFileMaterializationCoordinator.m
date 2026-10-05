@@ -963,13 +963,11 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 // key is retired when the file's own key moved: its waveform and metadata
 // must not be filed under, or served from, the old version's entries. Only a
 // dataless file downloads, so only its key is taken, each a stat and a hash.
-// fresh says dataless is the answer of a probe made for this run; a local
-// verdict carried from an earlier one is checked again by the operation.
 static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operation, NSURL *url,
-                                   BOOL dataless, BOOL fresh,
+                                   BOOL dataless, BOOL probedLocal,
                                    dispatch_block_t onReadable, NSError *__autoreleasing *error) {
     NSString *placeholderKey = dataless ? [url cacheKey] : nil;
-    BOOL ready = [operation runOnReadable:onReadable probedLocal:fresh && !dataless error:error];
+    BOOL ready = [operation runOnReadable:onReadable probedLocal:probedLocal error:error];
     if (ready && placeholderKey && ![placeholderKey isEqualToString:[url cacheKey]]) {
         LogInfo(@"%@ downloaded as another version than its placeholder's; re-keying", url.lastPathComponent);
         [AudioTrack invalidateMemoizedCacheKeys];
@@ -1042,7 +1040,7 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
                 return;
             }
             NSError *error = nil;
-            BOOL ready = VibeRunMaterialization(operation, url, dataless, YES, onReadable, &error);
+            BOOL ready = VibeRunMaterialization(operation, url, dataless, !dataless, onReadable, &error);
             AudioFileMaterializationCoordinator *completionSelf = weakSelf;
             if (completionSelf) {
                 dispatch_async(completionSelf->_stateQueue, ^{
@@ -1061,7 +1059,10 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
     BOOL dataless = claim.dataless;
     dispatch_async(workerQueue, ^{
         NSError *error = nil;
-        BOOL ready = VibeRunMaterialization(operation, url, dataless, classificationFresh, onReadable, &error);
+        // A local verdict carried from an earlier run is probed again: the
+        // file may have been evicted since.
+        BOOL ready = VibeRunMaterialization(operation, url, dataless, classificationFresh && !dataless,
+                                            onReadable, &error);
         AudioFileMaterializationCoordinator *strongSelf = weakSelf;
         if (!strongSelf) {
             return;

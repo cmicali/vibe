@@ -155,8 +155,7 @@ typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *u
 // Registers one call before dispatch, cancelling any earlier one.
 - (CloudFileMaterializationToken *)prepareMaterialization;
 
-// Blocks until url's data is on disk; a local file costs only the probe,
-// and nothing with settleLocalToken:error: when its caller has just probed it.
+// Blocks until url's data is on disk; a local file costs only the probe.
 // Background only: it blocks for a download, and coordinating on main is how
 // an app deadlocks against its own presenters. onReadable is handed to the
 // remote fetch as it is (CloudFileRemoteFetch); no other backend calls it.
