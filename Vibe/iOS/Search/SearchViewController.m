@@ -635,10 +635,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
     AudioTrack *track = [_playlist trackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.image = track.cachedThumbnail ?: VibeFileTileImage(NO);
-    content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.cornerRadius = kFileTileCornerRadius;
+    VibeApplyFileIcon(content, track.url.lastPathComponent, NO, track.cachedThumbnail);
     content.text = track.displayTitle;
     content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
@@ -661,10 +658,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                       reuseIdentifier:identifier];
     }
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    content.image = isFolder ? [UIImage systemImageNamed:@"folder"] : VibeFileTileImage(NO);
-    content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
+    VibeApplyFileIcon(content, name, isFolder, nil);
     content.text = name;
     content.secondaryText = folder;
     VibeApplyFileNameStyle(content);

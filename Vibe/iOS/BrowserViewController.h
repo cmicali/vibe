@@ -76,6 +76,10 @@ static const CGFloat kFileTileCornerRadius = 8;
 // A row's icon where it has no art: a waveform tile, or a note list for a
 // CUE sheet or an M3U.
 UIImage *VibeFileTileImage(BOOL playlist);
+// A list row's icon slot: the folder glyph, else the art, else the tile the
+// name's extension asks for, at the tile's size and reserved in every row.
+void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *_Nullable name, BOOL folder,
+                       UIImage *_Nullable art);
 // Installs content, with a spinner in the icon slot while the open the row
 // asked for runs. Every configuration of such a row goes through here, so a
 // reused cell loses the spinner.
