@@ -35904,32 +35904,32 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Вълнови форми и данни за песните, създават се отново при възпроизвеждане"
+            "state": "translated",
+            "value": "Вълнови форми и метаданни за песните"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Průběhy vln a informace o skladbách, znovu vytvořené při přehrávání"
+            "state": "translated",
+            "value": "Průběhy vln a metadata skladeb"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bølgeformer og oplysninger om numre, genopbygges, når numrene afspilles"
+            "state": "translated",
+            "value": "Bølgeformer og metadata for numre"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Wellenformen und Titeldetails, die beim Abspielen neu erstellt werden"
+            "state": "translated",
+            "value": "Wellenformen und Metadaten der Titel"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Κυματομορφές και στοιχεία κομματιών, δημιουργούνται ξανά κατά την αναπαραγωγή"
+            "state": "translated",
+            "value": "Κυματομορφές και μεταδεδομένα κομματιών"
           }
         },
         "en": {
@@ -35940,146 +35940,146 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Formas de onda y detalles de las pistas, que se regeneran al reproducirlas"
+            "state": "translated",
+            "value": "Formas de onda y metadatos de las pistas"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Aaltomuodot ja kappaleiden tiedot, luodaan uudelleen toiston aikana"
+            "state": "translated",
+            "value": "Aaltomuodot ja kappaleiden metatiedot"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Formes d’onde et détails des morceaux, recréés à la lecture"
+            "state": "translated",
+            "value": "Formes d’onde et métadonnées des morceaux"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Valni oblici i podaci o pjesmama, ponovno se izrađuju tijekom reprodukcije"
+            "state": "translated",
+            "value": "Valni oblici i metapodaci o pjesmama"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Hullámformák és száminformációk, lejátszáskor újra elkészülnek"
+            "state": "translated",
+            "value": "Hullámformák és a számok metaadatai"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bentuk gelombang dan detail trek, dibuat ulang saat trek diputar"
+            "state": "translated",
+            "value": "Bentuk gelombang dan metadata trek"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Forme d’onda e dettagli dei brani, ricreati durante la riproduzione"
+            "state": "translated",
+            "value": "Forme d’onda e metadati dei brani"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形とトラック情報。トラックの再生時に再作成されます"
+            "state": "translated",
+            "value": "波形とトラックのメタデータ"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "파형 및 트랙 정보. 트랙을 재생하면 다시 생성됩니다"
+            "state": "translated",
+            "value": "파형 및 트랙 메타데이터"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Bølgeformer og sporinformasjon, bygges opp igjen når sporene spilles av"
+            "state": "translated",
+            "value": "Bølgeformer og spormetadata"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Golfvormen en nummergegevens, opnieuw opgebouwd tijdens het afspelen"
+            "state": "translated",
+            "value": "Golfvormen en metadata van nummers"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Przebiegi fali i informacje o utworach, tworzone ponownie podczas odtwarzania"
+            "state": "translated",
+            "value": "Przebiegi fali i metadane utworów"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Formas de onda e detalhes das faixas, recriados durante a reprodução"
+            "state": "translated",
+            "value": "Formas de onda e metadados das faixas"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Formas de onda e detalhes das faixas, recriados durante a reprodução"
+            "state": "translated",
+            "value": "Formas de onda e metadados das faixas"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Forme de undă și detalii despre piese, refăcute pe măsură ce piesele sunt redate"
+            "state": "translated",
+            "value": "Forme de undă și metadatele pieselor"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Волновые формы и сведения о треках, создаются заново при воспроизведении"
+            "state": "translated",
+            "value": "Формы волн и метаданные треков"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Vlnové priebehy a informácie o skladbách, znovu vytvorené pri prehrávaní"
+            "state": "translated",
+            "value": "Priebehy vĺn a metadáta skladieb"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Vågformer och spårinformation, återskapas när spåren spelas upp"
+            "state": "translated",
+            "value": "Vågformer och spårmetadata"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "รูปคลื่นและรายละเอียดแทร็ก ซึ่งจะสร้างใหม่เมื่อเล่นแทร็ก"
+            "state": "translated",
+            "value": "รูปคลื่นและข้อมูลเมตาของแทร็ก"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Dalga biçimleri ve parça ayrıntıları; parçalar çalındıkça yeniden oluşturulur"
+            "state": "translated",
+            "value": "Dalga biçimleri ve parça meta verileri"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Хвильові форми й відомості про треки, створюються знову під час відтворення"
+            "state": "translated",
+            "value": "Форми хвиль і метадані треків"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Dạng sóng và thông tin bài hát, được tạo lại khi phát"
+            "state": "translated",
+            "value": "Dạng sóng và siêu dữ liệu bài hát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形和曲目信息，会在播放曲目时重建"
+            "state": "translated",
+            "value": "波形和曲目元数据"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "波形和曲目資訊，會在播放曲目時重建"
+            "state": "translated",
+            "value": "波形和曲目中繼資料"
           }
         }
       },
@@ -69012,32 +69012,32 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Настройване на височината на вълновата форма във всички теми, без промяна на силата на звука при възпроизвеждане"
+            "state": "translated",
+            "value": "Оразмеряване на вълновата форма по наличната височина"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Upravit výšku průběhu vlny ve všech motivech beze změny hlasitosti přehrávání"
+            "state": "translated",
+            "value": "Přizpůsobit průběh vlny dostupné výšce"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Juster bølgeformens højde i alle temaer uden at ændre afspilningslydstyrken"
+            "state": "translated",
+            "value": "Tilpas bølgeformen til den tilgængelige højde"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Höhe der Wellenform in allen Designs anpassen, ohne die Wiedergabelautstärke zu ändern"
+            "state": "translated",
+            "value": "Wellenform an die verfügbare Höhe anpassen"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Προσαρμογή του ύψους της κυματομορφής σε όλα τα θέματα χωρίς αλλαγή της έντασης αναπαραγωγής"
+            "state": "translated",
+            "value": "Προσαρμογή της κυματομορφής στο διαθέσιμο ύψος"
           }
         },
         "en": {
@@ -69048,146 +69048,146 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Ajustar la altura de la forma de onda en todos los temas sin cambiar el volumen de reproducción"
+            "state": "translated",
+            "value": "Ajustar la forma de onda a la altura disponible"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Säädä aaltomuodon korkeutta kaikissa teemoissa muuttamatta toiston äänenvoimakkuutta"
+            "state": "translated",
+            "value": "Sovita aaltomuoto käytettävissä olevaan korkeuteen"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Ajuster la hauteur de la forme d’onde dans tous les thèmes sans modifier le volume de lecture"
+            "state": "translated",
+            "value": "Adapter la forme d’onde à la hauteur disponible"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Prilagodi visinu valnog oblika u svim temama bez promjene glasnoće reprodukcije"
+            "state": "translated",
+            "value": "Prilagodi valni oblik dostupnoj visini"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Állítsd a hullámforma magasságát minden témában a lejátszás hangerejének módosítása nélkül"
+            "state": "translated",
+            "value": "Igazítsd a hullámformát a rendelkezésre álló magassághoz"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sesuaikan tinggi bentuk gelombang di semua tema tanpa mengubah volume pemutaran"
+            "state": "translated",
+            "value": "Sesuaikan bentuk gelombang dengan tinggi yang tersedia"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Regolare l’altezza della forma d’onda in tutti i temi senza cambiare il volume di riproduzione"
+            "state": "translated",
+            "value": "Adatta la forma d’onda all’altezza disponibile"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "すべてのテーマで波形の高さを調整する（再生音量は変わりません）"
+            "state": "translated",
+            "value": "波形を表示領域の高さに合わせる"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "재생 음량을 바꾸지 않고 모든 테마에서 파형 높이 조절하기"
+            "state": "translated",
+            "value": "사용 가능한 높이에 맞게 파형 크기 조절"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Juster bølgeformens høyde i alle temaer uten å endre avspillingsvolumet"
+            "state": "translated",
+            "value": "Tilpass bølgeformen til den tilgjengelige høyden"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Hoogte van de golfvorm in alle thema’s aanpassen zonder het afspeelvolume te wijzigen"
+            "state": "translated",
+            "value": "Golfvorm aan de beschikbare hoogte aanpassen"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Dostosuj wysokość przebiegu fali we wszystkich motywach bez zmiany głośności odtwarzania"
+            "state": "translated",
+            "value": "Dopasuj przebieg fali do dostępnej wysokości"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Ajustar a altura da forma de onda em todos os temas sem alterar o volume de reprodução"
+            "state": "translated",
+            "value": "Ajustar a forma de onda à altura disponível"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Ajustar a altura da forma de onda em todos os temas sem alterar o volume de reprodução"
+            "state": "translated",
+            "value": "Ajustar a forma de onda à altura disponível"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Ajustați înălțimea formei de undă în toate temele fără a modifica volumul redării"
+            "state": "translated",
+            "value": "Ajustați forma de undă la înălțimea disponibilă"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Настраивать высоту формы волны во всех темах, не меняя громкость воспроизведения"
+            "state": "translated",
+            "value": "Масштабировать форму волны по доступной высоте"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Upraviť výšku priebehu vlny vo všetkých motívoch bez zmeny hlasitosti prehrávania"
+            "state": "translated",
+            "value": "Prispôsobiť priebeh vlny dostupnej výške"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Justera vågformens höjd i alla teman utan att ändra uppspelningsvolymen"
+            "state": "translated",
+            "value": "Anpassa vågformen till den tillgängliga höjden"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "ปรับความสูงของรูปคลื่นในทุกธีมโดยไม่เปลี่ยนระดับเสียงการเล่น"
+            "state": "translated",
+            "value": "ปรับขนาดรูปคลื่นให้พอดีกับความสูงที่มี"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Çalma ses düzeyini değiştirmeden tüm temalarda dalga biçiminin yüksekliğini ayarla"
+            "state": "translated",
+            "value": "Dalga biçimini kullanılabilir yüksekliğe sığdır"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Налаштовувати висоту форми хвилі в усіх темах, не змінюючи гучність відтворення"
+            "state": "translated",
+            "value": "Масштабувати форму хвилі за доступною висотою"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Điều chỉnh chiều cao dạng sóng trong mọi chủ đề mà không thay đổi âm lượng phát lại"
+            "state": "translated",
+            "value": "Điều chỉnh dạng sóng cho vừa chiều cao hiển thị"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "在所有主题中调整波形高度，不改变播放音量"
+            "state": "translated",
+            "value": "调整波形以适应可用高度"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "在所有主題中調整波形高度，不改變播放音量"
+            "state": "translated",
+            "value": "調整波形以符合可用高度"
           }
         }
       },
