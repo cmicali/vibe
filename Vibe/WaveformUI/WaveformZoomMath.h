@@ -22,8 +22,9 @@ static const CGFloat kVibeWaveformMinimumZoomFraction = 0.01;
 // stops here.
 static const CGFloat kVibeMaxBakeImagePixels = 16384;
 
-// What one baked envelope may occupy; up to three pager cells hold one each.
-// The texture ceiling alone would allow 35MB a cell (16384 x 540px x 4 for a
+// What one baked envelope may occupy; up to three pager cells hold one each,
+// plus the iOS scrubber's bake store's three entries, which are usually the
+// same bitmaps the cells and bakers hold. The texture ceiling alone would allow 35MB a cell (16384 x 540px x 4 for a
 // 180pt waveform at 3x), over 100MB across the pager.
 static const CGFloat kVibeMaxBakeImageBytes = 24 * 1024 * 1024;
 

@@ -96,18 +96,9 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
-        WaveformScrubberView *prepared = _preparedWaveforms[@(index)];
-        if (prepared) {
-            // The geometry compare needs the cell's own.
-            [cell layoutIfNeeded];
-        }
-        if (![cell.waveformView showPreparedWaveform:snapshot fromView:prepared]) {
-            [cell.waveformView showWaveform:snapshot
-                                  animated:![_waveformCoordinator isCompleteAtIndex:index]];
-        }
-        if (cell && index == _playlist.currentIndex) {
-            [self releasePreparedWaveformAtIndex:index];
-        }
+        // A bake already stored for this page installs synchronously.
+        [cell.waveformView showWaveform:snapshot
+                              animated:![_waveformCoordinator isCompleteAtIndex:index]];
         return;
     }
     NSURL *url = [_playlist trackAtIndex:index].url;
@@ -140,13 +131,10 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
     NSUInteger current = _playlist.currentIndex;
     NSRange window = [self pageWindowWithRadius:1];
+    // Releasing a baker releases no pixels: its bake is in the scrubber's store.
     for (NSNumber *key in _preparedWaveforms.allKeys) {
         NSUInteger index = key.unsignedIntegerValue;
-        // Next moves the cursor before the arriving cell can adopt its image,
-        // so the current page's is kept until its live cell shows the snapshot.
-        BOOL adopted = index == current && [self cellAtIndex:index].waveformView.waveform
-                == [_waveformCoordinator snapshotAtIndex:index];
-        if (!NSLocationInRange(index, window) || adopted) {
+        if (index == current || !NSLocationInRange(index, window)) {
             [self releasePreparedWaveformAtIndex:index];
         }
     }
@@ -168,13 +156,9 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         view.artworkThemeColor = [self artworkForPageAtIndex:index].vibeDominantColor;
         [view syncWaveformStyle];
         [view layoutIfNeeded];
-        CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
-        // A view already holding the snapshot re-bakes itself on any change;
-        // asking again would queue a duplicate behind a bake in flight.
-        if (![view showPreparedWaveform:snapshot fromView:[self cellAtIndex:index].waveformView]
-                && view.waveform != snapshot) {
-            [view showWaveform:snapshot animated:NO];
-        }
+        // A page already baked, by its live cell or before its cell was
+        // recycled, is a store hit and bakes nothing.
+        [view showWaveform:[_waveformCoordinator snapshotAtIndex:index] animated:NO];
     }
 }
 

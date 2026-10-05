@@ -56,6 +56,22 @@ static const CFTimeInterval kArrivalGrowDuration = 0.3;
 static const CFTimeInterval kChunkGrowDuration = 0.2;
 static const CFTimeInterval kCompletionGrowDuration = 0.35;
 
+// Every complete bake, keyed by what it shows, so a page arriving with its
+// pixels already baked — by a hidden neighbor baker or by its own earlier
+// cell — installs them on the turn it appears. Main thread only. Each entry
+// holds its waveform, so the address its key names cannot be reused by
+// another while the entry lives.
+static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
+    static NSCache *store;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        store = [[NSCache alloc] init];
+        store.countLimit = 3;
+        store.totalCostLimit = (NSUInteger)(3 * kVibeMaxBakeImageBytes);
+    });
+    return store;
+}
+
 @interface WaveformScrubberView () <UIScrollViewDelegate, UIGestureRecognizerDelegate>
 @property (nonatomic, strong, nullable) CodableAudioWaveform *waveform;
 @end
@@ -96,7 +112,6 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
     float                   _bakedUnplayedOpacity;
     // Whether the standing bake drew a complete waveform.
     BOOL                    _bakedComplete;
-    NSUInteger              _bakedEpoch;
     BOOL                    _animatesArrival;
     // How far the standing bitmap's decode reached, and the segment of the
     // newest stretch while it grows in.
@@ -245,11 +260,6 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
 
 - (BOOL)isPinching {
     return _isPinching;
-}
-
-// The standing bitmap matches the current geometry, traits and theme.
-- (BOOL)isBakeCurrent {
-    return _bakedHost && _bakedEpoch == _bakeEpoch;
 }
 
 - (BOOL)isShowingLoadingIndicator {
@@ -618,30 +628,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self installRendererIfNeeded];
 }
 
-// A neighbor's prepared pixels can be installed before the page appears.
-- (BOOL)showPreparedWaveform:(CodableAudioWaveform *)waveform
-                  fromView:(WaveformScrubberView *)view {
-    [self installRendererIfNeeded];
-    if (![view isShowingCompleteWaveform:waveform] || ![view isBakeCurrent]
-            || !CGRectEqualToRect([self virtualBounds], [view virtualBounds])
-            || [self displayScale] != [view displayScale] || self.isDark != view.isDark
-            || ![_styleIdentifier isEqualToString:view->_styleIdentifier]
-            || ![_themeSignature isEqualToString:view->_themeSignature]) {
-        return NO;
-    }
-    if ([self isShowingCompleteWaveform:waveform]) {
-        return YES;
-    }
-    self.waveform = waveform;
-    _animatesArrival = NO;
-    [self invalidatePendingBake];
-    [self installEnvelopeImage:(__bridge CGImageRef)view->_bakedPlayedImage
-                unplayedImage:view->_bakedUnplayedOpacity == 1
-                        ? (__bridge CGImageRef)view->_bakedUnplayedImage : nil
-                        epoch:_bakeEpoch complete:YES normalizationGain:1 decodedFraction:1];
-    return YES;
-}
-
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
     [self showWaveform:waveform animated:YES];
 }
@@ -653,6 +639,24 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     // Per-page cells can hydrate without prepareForWaveformLoad.
     [self installRendererIfNeeded];
+    NSArray *stored = [VibeBakeStore() objectForKey:[self bakeKeyForWaveform:waveform
+            size:[self virtualBounds].size scale:[self displayScale] dark:self.isDark
+            style:_styleIdentifier signature:_themeSignature]];
+    if (stored) {
+        self.waveform = waveform;
+        _animatesArrival = animated;
+        [self invalidatePendingBake];
+        [self installEnvelopeImage:(__bridge CGImageRef)stored[0]
+                    unplayedImage:stored[1] == NSNull.null ? nil : (__bridge CGImageRef)stored[1]
+                            epoch:_bakeEpoch complete:YES normalizationGain:1 decodedFraction:1];
+        return;
+    }
+    // Snapshots are immutable, so a complete one already held has its bake
+    // pending, and the view re-bakes itself on any change: asking again would
+    // queue a duplicate behind a bake in flight.
+    if (waveform == self.waveform && waveform.waveform->isComplete()) {
+        return;
+    }
     VibeSignpostBegin(waveform_delivery);
     self.waveform = waveform;
     _animatesArrival = animated;
@@ -670,6 +674,14 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     [self scheduleEnvelopeBakeAfter:delay];
     VibeSignpostEnd(waveform_delivery);
+}
+
+// Every input of a bake, the shape themeSignature uses.
+- (NSString *)bakeKeyForWaveform:(CodableAudioWaveform *)waveform size:(CGSize)size
+                           scale:(CGFloat)scale dark:(BOOL)dark style:(NSString *)style
+                       signature:(NSString *)signature {
+    return [NSString stringWithFormat:@"%p|%gx%g|%g|%d|%@|%@", waveform, size.width, size.height,
+            scale, dark, style, signature];
 }
 
 // 0, or the rest of the window, so a burst collapses to one bake.
@@ -763,6 +775,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         samples = [renderer envelopeSamplesForWaveform:waveform.waveform];
         VibeSignpostEnd(waveform_samples);
     }
+    NSString *storeKey = complete ? [self bakeKeyForWaveform:waveform size:size
+            scale:[self displayScale] dark:dark style:style signature:_themeSignature] : nil;
     NSUInteger epoch = _bakeEpoch;
     _bakeInFlight = YES;
     _bakeWanted = NO;
@@ -790,6 +804,15 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
                 [strongSelf installEnvelopeImage:image unplayedImage:unplayedImage epoch:epoch
                                         complete:complete normalizationGain:normalizationGain
                                  decodedFraction:decodedFraction];
+                if (storeKey && image && strongSelf->_bakedPlayedImage == (__bridge id)image) {
+                    size_t cost = CGImageGetBytesPerRow(image) * CGImageGetHeight(image);
+                    if (unplayedImage) {
+                        cost += CGImageGetBytesPerRow(unplayedImage) * CGImageGetHeight(unplayedImage);
+                    }
+                    [VibeBakeStore() setObject:@[(__bridge id)image,
+                                                 (__bridge id)unplayedImage ?: NSNull.null, waveform]
+                                        forKey:storeKey cost:cost];
+                }
                 if (strongSelf->_bakeWanted) {
                     strongSelf->_bakeWanted = NO;
                     [strongSelf scheduleEnvelopeBakeAfter:[strongSelf throttledBakeDelay]];
@@ -899,7 +922,6 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // the played side blinked at every swap.
     [self applyPlayedClip];
     _bakedComplete = complete;
-    _bakedEpoch = epoch;
     if (arrival) {
         // The picture ends the shimmer, not the data: until it lands the
         // strip would be empty. The fill stays; see hideLoadingShimmer.
@@ -1352,8 +1374,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     // The bucket is per pixel of the virtual width, which just moved; without
     // this every playback write during a pinch passes setProgress:'s gate.
     _progressTracker = [self progressBucket];
+    // No epoch bump: a bake landing for the old size is right for that size,
+    // stays up stretched, and the one asked for here follows it.
     if (sizeChanged) {
-        _bakeEpoch++;
         // A pinch re-bakes once, on release (endZoomGesture).
         if (!_isPinching) {
             [self scheduleEnvelopeBakeAfter:0];

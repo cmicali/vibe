@@ -37,8 +37,6 @@
 - (void)endZoomGesture;
 @property (nonatomic, readonly) BOOL isAnimatingWaveformArrival;
 @property (nonatomic, readonly) BOOL isPinching;
-// The standing bitmap matches the current geometry, traits and theme.
-@property (nonatomic, readonly) BOOL isBakeCurrent;
 @property (nonatomic, readonly) BOOL isShowingLoadingIndicator;
 // Points past either end: positive past the start, negative past the end.
 @property (nonatomic, readonly) CGFloat overscroll;
@@ -115,7 +113,6 @@
             @"waveformComplete": @([_waveformCoordinator isCompleteAtIndex:index]),
             @"waveformPrepared": @(_preparedWaveforms[@(index)].isShowingBakedWaveform),
             @"waveformBaked": @(cell.waveformView.isShowingBakedWaveform),
-            @"waveformBakeCurrent": @(cell.waveformView.isBakeCurrent),
             @"waveformArriving": @(cell.waveformView.isAnimatingWaveformArrival),
         }];
     }
@@ -259,19 +256,19 @@
             return;
         }
         // Next renders the new header before scrolling to its cell. Keep
-        // this on one main turn, so an async bake cannot hide a lost handoff.
+        // this on one main turn, so an async bake cannot hide a missed store
+        // hit.
         Playlist *livePlaylist = _playlist;
         NSArray *order = [[livePlaylist valueForKey:@"playOrder"] copy] ?: @[];
         NSNumber *cursor = [livePlaylist valueForKey:@"playOrderCursor"];
         NSDictionary *effects = _playback.debugPlayer.fx.intentSnapshot[@"stages"];
         Playlist *previewPlaylist = [[Playlist alloc] init];
         [previewPlaylist replaceAllWithTracks:livePlaylist.tracks startingAtIndex:neighbor];
-        BOOL retained = NO, immediate = NO, paletteMatched = NO;
+        BOOL immediate = NO, paletteMatched = NO;
         @try {
             // An unobserved cursor leaves playback, FX and shuffle history alone.
             _playlist = previewPlaylist;
             [self renderHeaderForTrack:_playlist.currentTrack];
-            retained = _preparedWaveforms[@(neighbor)] == prepared;
             [self scrollToCurrentPageAnimated:NO];
             [_pagesView layoutIfNeeded];
             WaveformScrubberView *arriving = [self cellAtIndex:neighbor].waveformView;
@@ -289,7 +286,7 @@
                 && [cursor isEqual:[livePlaylist valueForKey:@"playOrderCursor"]]
                 && [effects isEqual:_playback.debugPlayer.fx.intentSnapshot[@"stages"]]
                 && livePlaylist.currentIndex == current;
-        completion(@{@"ok": @(retained && immediate && paletteMatched && stateKept), @"retainedUntilDisplay": @(retained),
+        completion(@{@"ok": @(immediate && paletteMatched && stateKept),
                      @"immediateWaveform": @(immediate), @"paletteMatched": @(paletteMatched),
                      @"playbackStateKept": @(stateKept)});
         return;
