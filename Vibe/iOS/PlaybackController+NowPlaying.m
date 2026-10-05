@@ -27,6 +27,11 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
 @implementation PlaybackController (NowPlaying)
 
 - (void)offerWaveformToWidget:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
+    // A neighbor page's preview would replace the current track's offer
+    // before the widget publishes that track.
+    if (![_playlist isCurrentTrack:track]) {
+        return;
+    }
     [_widgetPublisher offerWaveform:waveform forTrack:track];
 }
 

@@ -82,8 +82,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     // TRAP: a page whose waveform is complete starts no load and DELIVERS
     // NOTHING, and a track change clears the widget's strip, so returning to a
     // played track would leave the widget blank. Offer the cached envelope; the
-    // offer must be for the current track, including before its widget publish.
-    if (index == _playlist.currentIndex && [_waveformCoordinator isCompleteAtIndex:index]) {
+    // model drops an offer for any track but the current one.
+    if ([_waveformCoordinator isCompleteAtIndex:index]) {
         [_playback offerWaveformToWidget:[_waveformCoordinator snapshotAtIndex:index]
                                 forTrack:track];
     }
@@ -95,14 +95,17 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
-        [cell layoutIfNeeded];
-        if (![cell.waveformView showPreparedWaveform:snapshot fromView:_preparedWaveforms[@(index)]]) {
+        WaveformScrubberView *prepared = _preparedWaveforms[@(index)];
+        if (prepared) {
+            // The geometry compare needs the cell's own.
+            [cell layoutIfNeeded];
+        }
+        if (![cell.waveformView showPreparedWaveform:snapshot fromView:prepared]) {
             [cell.waveformView showWaveform:snapshot
                                   animated:![_waveformCoordinator isCompleteAtIndex:index]];
         }
         if (cell && index == _playlist.currentIndex) {
-            [_preparedWaveforms[@(index)] removeFromSuperview];
-            [_preparedWaveforms removeObjectForKey:@(index)];
+            [self releasePreparedWaveformAtIndex:index];
         }
         return;
     }
@@ -114,11 +117,15 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [cell.waveformView showLoadingIndicator];
 }
 
+- (void)releasePreparedWaveformAtIndex:(NSUInteger)index {
+    [_preparedWaveforms[@(index)] removeFromSuperview];
+    [_preparedWaveforms removeObjectForKey:@(index)];
+}
+
 - (void)clearPreparedWaveforms {
-    for (WaveformScrubberView *view in _preparedWaveforms.allValues) {
-        [view removeFromSuperview];
+    for (NSNumber *key in _preparedWaveforms.allKeys) {
+        [self releasePreparedWaveformAtIndex:key.unsignedIntegerValue];
     }
-    [_preparedWaveforms removeAllObjects];
 }
 
 - (void)refreshWaveformWindow {
@@ -132,16 +139,18 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
     NSUInteger current = _playlist.currentIndex;
     [_waveformCoordinator pruneAroundIndex:current];
-    NSUInteger first = current > 0 ? current - 1 : 0;
-    NSUInteger last = MIN(current + 1, _playlist.count - 1);
+    NSRange window = [self pageWindowWithRadius:1];
     for (NSNumber *key in _preparedWaveforms.allKeys) {
-        // Next updates the cursor before the arriving cell can adopt its image.
-        if (key.unsignedIntegerValue < first || key.unsignedIntegerValue > last) {
-            [_preparedWaveforms[key] removeFromSuperview];
-            [_preparedWaveforms removeObjectForKey:key];
+        NSUInteger index = key.unsignedIntegerValue;
+        // Next moves the cursor before the arriving cell can adopt its image,
+        // so the current page's is kept until its live cell shows the snapshot.
+        BOOL adopted = index == current && [self cellAtIndex:index].waveformView.waveform
+                == [_waveformCoordinator snapshotAtIndex:index];
+        if (!NSLocationInRange(index, window) || adopted) {
+            [self releasePreparedWaveformAtIndex:index];
         }
     }
-    for (NSUInteger index = first; index <= last; index++) {
+    for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
         AudioTrack *track = [_playlist trackAtIndex:index];
         if (index != current) {
             [_waveformCoordinator prefetchIndex:index track:track];
@@ -159,12 +168,15 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         }
         view.frame = (CGRect){CGPointZero, size};
         view.visibleFraction = _waveformZoom;
+        // The setter resyncs the theme.
         view.artworkThemeColor = [self artworkForPageAtIndex:index].vibeDominantColor;
         [view syncWaveformStyle];
-        [view syncWaveformTheme];
         [view layoutIfNeeded];
         CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
-        if (![view showPreparedWaveform:snapshot fromView:[self cellAtIndex:index].waveformView]) {
+        // A view already holding the snapshot re-bakes itself on any change;
+        // asking again would queue a duplicate behind a bake in flight.
+        if (![view showPreparedWaveform:snapshot fromView:[self cellAtIndex:index].waveformView]
+                && view.waveform != snapshot) {
             [view showWaveform:snapshot animated:NO];
         }
     }
@@ -246,10 +258,18 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 }
 
 - (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    BOOL loading = _playbackLoadingTrack && index == _playlist.currentIndex
-            && [_playlist trackAtIndex:index] == _playbackLoadingTrack;
+    BOOL loading = _playbackOpenLoading && index == _playlist.currentIndex;
     if (cell.waveformView.playbackLoading != loading) {
         cell.waveformView.playbackLoading = loading;
+    }
+}
+
+- (void)applyPlaybackLoadingToVisiblePages {
+    for (TrackPageCell *cell in _pagesView.visibleCells) {
+        NSIndexPath *path = [_pagesView indexPathForCell:cell];
+        if (path) {
+            [self applyPlaybackLoadingToCell:cell atIndex:(NSUInteger)path.item];
+        }
     }
 }
 
@@ -407,15 +427,19 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 
 #pragma mark - The art window
 
-- (NSRange)artWindow {
+- (NSRange)pageWindowWithRadius:(NSUInteger)radius {
     NSUInteger count = _playlist.count;
     if (count == 0) {
         return NSMakeRange(0, 0);
     }
     NSUInteger current = MIN(_playlist.currentIndex, count - 1);
-    NSUInteger first = current > kArtPrefetchRadius ? current - kArtPrefetchRadius : 0;
-    NSUInteger last = MIN(current + kArtPrefetchRadius, count - 1);
+    NSUInteger first = current > radius ? current - radius : 0;
+    NSUInteger last = MIN(current + radius, count - 1);
     return NSMakeRange(first, last - first + 1);
+}
+
+- (NSRange)artWindow {
+    return [self pageWindowWithRadius:kArtPrefetchRadius];
 }
 
 // A commit or a replacement can land mid-decode: the page must still be in the
@@ -459,7 +483,6 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         [self prefetchPageAtIndex:index];
     }
     [self releaseArtBeyondBudget];
-    [self refreshWaveformWindow];
 }
 
 // Zero for a stale entry, which then drops out of the set.

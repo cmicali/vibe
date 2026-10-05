@@ -32,11 +32,9 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
                     forIndex:(NSUInteger)index {
     BOOL complete = [pipeline isCompleteAtIndex:index];
     [[self cellAtIndex:index].waveformView showWaveform:waveform];
+    // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
         [self refreshWaveformWindow];
-    }
-    // Only a complete one: a widget bake is two renders and two file writes.
-    if (complete && index == _playlist.currentIndex) {
         [_playback offerWaveformToWidget:waveform
                                 forTrack:[_playback.playlist trackAtIndex:index]];
     }

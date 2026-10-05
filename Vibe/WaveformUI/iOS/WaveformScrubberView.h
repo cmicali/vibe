@@ -83,6 +83,9 @@ NS_ASSUME_NONNULL_BEGIN
 // palette.
 @property (nonatomic, strong, nullable) UIColor *artworkThemeColor;
 
+// The waveform last handed over, drawn or still baking; nil after a reset.
+@property (nonatomic, readonly, nullable) CodableAudioWaveform *waveform;
+
 // Fresh deliveries use showWaveform:; prepared pages pass animated:NO. The
 // view otherwise decides the entrance from its own state: the
 // first bitmap grows from the midline, the complete one grows from a partial

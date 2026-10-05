@@ -26,7 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 // yet" and "no art" are both the placeholder.
 - (NSDictionary *)debugArtDictionary;
 
-// Live regressions for idle refreshes, a Next transition and late artwork.
+// Live regressions for neighbor preparation: refresh, transition, artwork,
+// widget, interaction, loading, work and work_inputs (ios-verbs.md).
 - (void)debugCheckWaveformPreparation:(NSString *)scenario
                           completion:(void (^)(NSDictionary *result))completion;
 

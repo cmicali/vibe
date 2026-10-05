@@ -70,8 +70,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     AudioWaveformCache      *_waveformCache;
     PageWaveformCoordinator *_waveformCoordinator;
     NSMutableDictionary<NSNumber *, WaveformScrubberView *> *_preparedWaveforms;
-    // A slow playback open outlives any one cell's visibility.
-    AudioTrack              *_playbackLoadingTrack;
+    // A slow playback open outlives any one cell's visibility. Cleared on
+    // every cursor change, so it always means the current page.
+    BOOL                    _playbackOpenLoading;
 
     // Pages whose full-size art is held, the only record of what there is to
     // release: art outlives the window that asked for it. Owned by +Pager.

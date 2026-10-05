@@ -107,14 +107,7 @@
         if (!waveform || [self isCompleteAtIndex:index]) {
             return;
         }
-        self->_snapshots[@(index)] = waveform;
-        self->_percentLoaded[@(index)] = @1;
-        if (self->_held) {
-            [self->_heldUpdates addIndex:index];
-        }
-        else {
-            [self->_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:index];
-        }
+        [self storeWaveform:waveform fraction:1 atIndex:index];
     }];
     requestToken = token;
     _prefetchTokens[@(index)] = token;
@@ -183,13 +176,20 @@
     if (_targetIndex == NSNotFound || ![track.sourceKey isEqualToString:_targetKey]) {
         return;
     }
-    _snapshots[@(_targetIndex)] = waveform;
-    _percentLoaded[@(_targetIndex)] = @(percentLoaded);
+    [self storeWaveform:waveform fraction:percentLoaded atIndex:_targetIndex];
+}
+
+// Recorded before it is forwarded; held, it is owed after the hold.
+- (void)storeWaveform:(CodableAudioWaveform *)waveform
+             fraction:(float)fraction
+              atIndex:(NSUInteger)index {
+    _snapshots[@(index)] = waveform;
+    _percentLoaded[@(index)] = @(fraction);
     if (_held) {
-        [_heldUpdates addIndex:_targetIndex];
+        [_heldUpdates addIndex:index];
         return;
     }
-    [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:_targetIndex];
+    [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:index];
 }
 
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {

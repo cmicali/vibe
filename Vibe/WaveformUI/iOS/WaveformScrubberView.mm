@@ -243,6 +243,23 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
     return _bakedHost != nil;
 }
 
+- (BOOL)isPinching {
+    return _isPinching;
+}
+
+// The standing bitmap matches the current geometry, traits and theme.
+- (BOOL)isBakeCurrent {
+    return _bakedHost && _bakedEpoch == _bakeEpoch;
+}
+
+- (BOOL)isShowingLoadingIndicator {
+    return _loadingIndicator != nil;
+}
+
+- (BOOL)isShowingCompleteWaveform:(CodableAudioWaveform *)waveform {
+    return waveform == self.waveform && _bakedHost && _bakedComplete;
+}
+
 #pragma mark - Zoom
 
 - (CGFloat)displayScale {
@@ -603,22 +620,19 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 - (BOOL)showPreparedWaveform:(CodableAudioWaveform *)waveform
                   fromView:(WaveformScrubberView *)view {
     [self installRendererIfNeeded];
-    if (!view || view.waveform != waveform || !view->_bakedHost || !view->_bakedComplete
-            || view->_bakedEpoch != view->_bakeEpoch
+    if (![view isShowingCompleteWaveform:waveform] || ![view isBakeCurrent]
             || !CGRectEqualToRect([self virtualBounds], [view virtualBounds])
             || [self displayScale] != [view displayScale] || self.isDark != view.isDark
             || ![_styleIdentifier isEqualToString:view->_styleIdentifier]
             || ![_themeSignature isEqualToString:view->_themeSignature]) {
         return NO;
     }
-    if (self.waveform == waveform && _bakedHost && _bakedComplete) {
+    if ([self isShowingCompleteWaveform:waveform]) {
         return YES;
     }
     self.waveform = waveform;
     _animatesArrival = NO;
-    _bakeRequest++;
-    _bakeEpoch++;
-    _bakeWanted = NO;
+    [self invalidatePendingBake];
     [self installEnvelopeImage:(__bridge CGImageRef)view->_bakedPlayedImage
                 unplayedImage:view->_bakedUnplayedOpacity == 1
                         ? (__bridge CGImageRef)view->_bakedUnplayedImage : nil
@@ -632,7 +646,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated {
     // A page brought back by a swipe is handed what it already shows.
-    if (waveform == self.waveform && _bakedHost && _bakedComplete) {
+    if ([self isShowingCompleteWaveform:waveform]) {
         return;
     }
     // Per-page cells can hydrate without prepareForWaveformLoad.
@@ -672,10 +686,15 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 // which the render server scan-converts on the CPU each frame it moves: a
 // scrub over it ran at 30 Hz or less on a phone.
 
-- (void)removeBakedWaveform {
+// A bake scheduled or in flight can no longer install.
+- (void)invalidatePendingBake {
     _bakeEpoch++;
     _bakeRequest++;
     _bakeWanted = NO;
+}
+
+- (void)removeBakedWaveform {
+    [self invalidatePendingBake];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     [_bakedHost removeFromSuperlayer];

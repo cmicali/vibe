@@ -577,7 +577,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the playlist
 
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
-    _playbackLoadingTrack = nil;
+    _playbackOpenLoading = NO;
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
     [self clearPreparedWaveforms];
@@ -621,16 +621,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // A track change ends every held interaction, including one on an outgoing
 // page. Each view releases its own pager hold without committing a seek.
 - (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
-    _playbackLoadingTrack = nil;
-    [self cellAtIndex:previousIndex].waveformView.playbackLoading = NO;
-    for (UIView *view in _pagerHoldViews.allObjects) {
-        if ([view isKindOfClass:[FXPadView class]]) {
-            [(FXPadView *)view cancelInteraction];
-        }
-        else if ([view isKindOfClass:[WaveformScrubberView class]]) {
-            [(WaveformScrubberView *)view cancelInteraction];
-        }
-    }
+    _playbackOpenLoading = NO;
+    [self applyPlaybackLoadingToVisiblePages];
+    // Every holder is an FXPadView or a WaveformScrubberView.
+    [_pagerHoldViews.allObjects makeObjectsPerformSelector:@selector(cancelInteraction)];
     // Only the current page reads Next from the play order.
     [self applyPlayOrderToVisiblePages];
 }
@@ -655,10 +649,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the current track's open
 
 - (void)playbackDidBeginLoading:(PlaybackController *)playback {
-    _playbackLoadingTrack = playback.currentTrack;
-    TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
-    [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
-    cell.waveformView.playbackLoading = YES;
+    _playbackOpenLoading = YES;
+    [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
+    [self applyPlaybackLoadingToVisiblePages];
 }
 
 - (void)playback:(PlaybackController *)playback didUpdateLoadingProgress:(float)fraction {
@@ -673,16 +666,15 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // moved: the cursor's request skipped it (requestWaveformForIndex:). A page
 // still loading or complete ignores this one.
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
-    _playbackLoadingTrack = nil;
-    TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
-    cell.waveformView.playbackLoading = NO;
-    [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
+    _playbackOpenLoading = NO;
+    [self applyPlaybackLoadingToVisiblePages];
+    [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
     [self requestWaveformForIndex:playback.currentIndex];
 }
 
 - (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {
-    _playbackLoadingTrack = nil;
-    _waveformView.playbackLoading = NO;
+    _playbackOpenLoading = NO;
+    [self applyPlaybackLoadingToVisiblePages];
     [_waveformView hideLoadingIndicator];
 }
 

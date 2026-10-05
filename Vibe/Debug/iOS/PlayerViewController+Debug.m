@@ -36,6 +36,10 @@
 - (void)beginZoomGesture;
 - (void)endZoomGesture;
 @property (nonatomic, readonly) BOOL isAnimatingWaveformArrival;
+@property (nonatomic, readonly) BOOL isPinching;
+// The standing bitmap matches the current geometry, traits and theme.
+@property (nonatomic, readonly) BOOL isBakeCurrent;
+@property (nonatomic, readonly) BOOL isShowingLoadingIndicator;
 // Points past either end: positive past the start, negative past the end.
 @property (nonatomic, readonly) CGFloat overscroll;
 // {offset, min, max, contentWidth}: tells "resting at an end" from "pinned
@@ -73,7 +77,7 @@
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
         @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
         @"isScrubbing": @(_waveformView.isScrubbing),
-        @"isPinching": @([[_waveformView valueForKey:@"isPinching"] boolValue]),
+        @"isPinching": @(_waveformView.isPinching),
         // The request is persisted and survives rotation; the effective one
         // is drawn. Differing means this geometry could not afford the depth.
         @"waveformZoomRequested": @(_waveformZoom),
@@ -110,9 +114,7 @@
             @"waveformComplete": @([_waveformCoordinator isCompleteAtIndex:index]),
             @"waveformPrepared": @(_preparedWaveforms[@(index)].isShowingBakedWaveform),
             @"waveformBaked": @(cell.waveformView.isShowingBakedWaveform),
-            @"waveformBakeCurrent": @(cell.waveformView.isShowingBakedWaveform
-                    && [[cell.waveformView valueForKey:@"bakedEpoch"]
-                            isEqual:[cell.waveformView valueForKey:@"bakeEpoch"]]),
+            @"waveformBakeCurrent": @(cell.waveformView.isBakeCurrent),
             @"waveformArriving": @(cell.waveformView.isAnimatingWaveformArrival),
         }];
     }
@@ -167,7 +169,7 @@
         NSUInteger bakeRequest = [[view valueForKey:@"bakeRequest"] unsignedIntegerValue];
         [view setValue:@YES forKey:@"seekPending"];
         [self playback:_playback didChangeCurrentIndexFromIndex:current];
-        BOOL cancelled = ![[view valueForKey:@"isPinching"] boolValue]
+        BOOL cancelled = !view.isPinching
                 && ![[view valueForKey:@"seekPending"] boolValue] && _pagesView.scrollEnabled;
         BOOL kept = view.isShowingBakedWaveform;
         BOOL zoomSettled = _waveformZoom == cancelledZoom;
@@ -182,21 +184,21 @@
     }
     if ([scenario isEqualToString:@"loading"]) {
         [self playbackDidBeginLoading:_playback];
-        BOOL visible = [_waveformView valueForKey:@"loadingIndicator"] != nil;
+        BOOL visible = _waveformView.isShowingLoadingIndicator;
         BOOL kept = _waveformView.isShowingBakedWaveform;
         [_waveformView setLoadingProgress:-1];
-        BOOL held = [_waveformView valueForKey:@"loadingIndicator"] != nil;
+        BOOL held = _waveformView.isShowingLoadingIndicator;
         TrackPageCell *returning = [[TrackPageCell alloc] initWithFrame:_boundPage.frame];
         [self applyPlaybackLoadingToCell:returning atIndex:current];
         BOOL lateAppearanceLoading = returning.waveformView.playbackLoading;
         [self playbackDidFinishLoading:_playback];
         [self applyPlaybackLoadingToCell:returning atIndex:current];
         BOOL reappearanceCleared = !returning.waveformView.playbackLoading;
-        BOOL ended = [_waveformView valueForKey:@"loadingIndicator"] == nil;
+        BOOL ended = !_waveformView.isShowingLoadingIndicator;
         [self playbackDidBeginLoading:_playback];
         [self playback:_playback didChangeCurrentIndexFromIndex:current];
         BOOL cancelled = !_waveformView.playbackLoading
-                && [_waveformView valueForKey:@"loadingIndicator"] == nil;
+                && !_waveformView.isShowingLoadingIndicator;
         completion(@{@"ok": @(visible && kept && held && ended && cancelled && lateAppearanceLoading && reappearanceCleared), @"loadingVisible": @(visible),
                      @"waveformKept": @(kept), @"loadingHeldUntilSettlement": @(held),
                      @"loadingEnded": @(ended), @"trackChangeClearedLoading": @(cancelled),

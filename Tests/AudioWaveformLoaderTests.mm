@@ -869,10 +869,7 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
         }
         XCTAssertTrue([self await:started]);
         [cache loadWaveformForTrack:[AudioTrack withURL:url]];
-        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:2];
-        while (!recorder.completions && !recorder.failures && deadline.timeIntervalSinceNow > 0) {
-            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
-        }
+        XCTAssertTrue([self eventually:^BOOL { return recorder.completions || recorder.failures; }]);
         XCTAssertEqual(recorder.completions, 1u, @"preview stats must not occupy the playing lookup lane");
         XCTAssertEqual(recorder.failures, 0u);
     }

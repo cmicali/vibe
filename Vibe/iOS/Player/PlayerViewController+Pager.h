@@ -23,7 +23,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Header, art and the end-of-playlist state, from the page's own track.
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+// The slow-open shimmer, from the card's one flag: on the current page only.
 - (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+- (void)applyPlaybackLoadingToVisiblePages;
 
 - (void)requestWaveformForIndex:(NSUInteger)index;
 - (void)refreshWaveformWindow;
