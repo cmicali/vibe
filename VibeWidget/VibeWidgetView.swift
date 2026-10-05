@@ -173,7 +173,7 @@ struct VibeWidgetView: View {
             } else {
                 ZStack {
                     Color.white.opacity(0.08)
-                    Image(systemName: "music.note")
+                    Image(systemName: "waveform")
                         .font(.system(size: side * 0.32))
                         .foregroundStyle(.white.opacity(0.35))
                 }
