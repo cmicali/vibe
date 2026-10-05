@@ -15,14 +15,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PINCache (VibeAudioCache)
 
-// A store with the shared byte and age limits applied, under rootPath, nil for
-// the user's caches.
-// TRAP: never PINCache's own objectForKey: or setObject:forKey:. Both enter
-// memoryCache at cost 0, which a costLimit never evicts, and on macOS
-// PINMemoryCache has no memory-pressure hook either, so every entry ever read
-// would stay for the app's lifetime. The metadata store reads and writes
-// diskCache alone; the waveform store gives memoryCache a costLimit and costs
-// every entry it puts there.
+// A store with the shared byte and age limits applied. Both stores then read
+// and write diskCache directly, because on macOS PINMemoryCache never evicts —
+// costLimit needs per-entry costs, disk hits repopulate at cost 0, and its
+// memory-pressure hooks are iOS-only — so it would pin every entry ever loaded
+// for the app's lifetime. Under rootPath, nil for the user's caches.
 + (PINCache *)audioCacheWithName:(NSString *)name rootPath:(nullable NSString *)rootPath;
 
 // Entry count and total bytes on disk. The enumeration blocks, so call it on
