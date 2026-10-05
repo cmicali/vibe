@@ -924,7 +924,8 @@ static UIImage *TransportGradientImage(void) {
 - (void)applyShuffleRepeatShown {
     CGFloat row = 3 * kTransportButtonSide
             + 2 * (kTransportFlankButtonSide + kTransportFlankMinGap + kTransportMinGap);
-    UIEdgeInsets safe = self.contentView.safeAreaInsets;
+    // TRAP: contentView's safe area can still belong to the previous orientation.
+    UIEdgeInsets safe = self.safeAreaInsets;
     CGFloat width = self.bounds.size.width;
     // Landscape: the column edges, then the pad and the route pill at its
     // narrowest, the pad's circle, each a gap from the row.
