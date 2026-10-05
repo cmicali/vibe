@@ -151,13 +151,13 @@
         return;
     }
     if ([scenario isEqualToString:@"widget"]) {
-        [self requestWaveformForIndex:current];
+        [self requestCurrentWaveform];
         id publisher = [_playback valueForKey:@"widgetPublisher"];
         id offered = [publisher valueForKey:@"waveformTrack"];
         [self pageWaveformCoordinator:_waveformCoordinator
                    didUpdateWaveform:[_waveformCoordinator snapshotAtIndex:neighbor] forIndex:neighbor];
         BOOL kept = offered == _playlist.currentTrack && [publisher valueForKey:@"waveformTrack"] == offered;
-        [self requestWaveformForIndex:current];
+        [self requestCurrentWaveform];
         completion(@{@"ok": @(kept), @"currentWidgetWaveformKept": @(kept)});
         return;
     }
@@ -242,6 +242,7 @@
         BOOL wasEnabled = [[NSURLUtil datalessDiagnostics][@"enabled"] boolValue];
         [NSURLUtil setDatalessDiagnosticsEnabled:YES];
         [self refreshWaveformWindow];
+        [self fetchNeighborWaveforms];
         NSUInteger probes = 0;
         for (NSDictionary *counts in [[NSURLUtil datalessDiagnostics][@"directories"] allValues]) {
             probes += [counts[@"local"] unsignedIntegerValue]

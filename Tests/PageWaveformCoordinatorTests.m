@@ -152,17 +152,19 @@
     XCTAssertEqual(_cache.loadedURLs.count, 1u);
 }
 
-- (void)testPrefetchMissRetriesAfterCursorMovesButNotRefresh {
-    [_coordinator pruneAroundIndex:3];
+- (void)testPrefetchMissIsAskedAgainOnTheNextPrefetch {
     [_coordinator prefetchIndex:4 track:_tracks[4]];
     void (^complete)(CodableAudioWaveform *) = _cache.cacheReads[0];
     complete(nil);
-    [_coordinator pruneAroundIndex:3];
-    [_coordinator prefetchIndex:4 track:_tracks[4]];
-    XCTAssertEqual(_cache.cacheReads.count, 1u);
-    [_coordinator pruneAroundIndex:5];
     [_coordinator prefetchIndex:4 track:_tracks[4]];
     XCTAssertEqual(_cache.cacheReads.count, 2u);
+}
+
+- (void)testPrefetchForThePendingTrackIsNotRepeated {
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    [_coordinator prefetchIndex:4 track:_tracks[4]];
+    XCTAssertEqual(_cache.cacheReads.count, 1u);
+    XCTAssertEqual(_cache.readTokens[0].cancelCount, 0u);
 }
 
 - (void)testPrefetchCancellationOnReplacementPruneAndReset {

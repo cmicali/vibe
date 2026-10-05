@@ -73,7 +73,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     return [NSURLUtil isDatalessFile:url] && ![NSURLUtil isRemotePlaceholderFile:url];
 }
 
-- (void)requestWaveformForIndex:(NSUInteger)index {
+- (void)requestCurrentWaveform {
+    NSUInteger index = _playlist.currentIndex;
     AudioTrack *track = [_playlist trackAtIndex:index];
     if (!track || WaveformWaitsForOpen(track.url)) {
         return;
@@ -89,8 +90,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
 }
 
-// A neighbor whose file is dataless shows nothing: requestWaveformForIndex:
-// skips it and only the current page's open would ever take an indicator
+// A neighbor whose file is dataless shows nothing: requestCurrentWaveform
+// would skip it, and only the current page's open would ever take an indicator
 // down. Its open, once current, shows one.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
@@ -138,7 +139,6 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         return;
     }
     NSUInteger current = _playlist.currentIndex;
-    [_waveformCoordinator pruneAroundIndex:current];
     NSRange window = [self pageWindowWithRadius:1];
     for (NSNumber *key in _preparedWaveforms.allKeys) {
         NSUInteger index = key.unsignedIntegerValue;
@@ -151,10 +151,6 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         }
     }
     for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
-        AudioTrack *track = [_playlist trackAtIndex:index];
-        if (index != current) {
-            [_waveformCoordinator prefetchIndex:index track:track];
-        }
         if (index == current || ![_waveformCoordinator isCompleteAtIndex:index]) {
             continue;
         }
@@ -178,6 +174,16 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         if (![view showPreparedWaveform:snapshot fromView:[self cellAtIndex:index].waveformView]
                 && view.waveform != snapshot) {
             [view showWaveform:snapshot animated:NO];
+        }
+    }
+}
+
+- (void)fetchNeighborWaveforms {
+    NSUInteger current = _playlist.currentIndex;
+    NSRange window = [self pageWindowWithRadius:1];
+    for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
+        if (index != current) {
+            [_waveformCoordinator prefetchIndex:index track:[_playlist trackAtIndex:index]];
         }
     }
 }
@@ -241,7 +247,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [self applyPlaybackLoadingToCell:page atIndex:index];
     [self hydrateWaveformInCell:page atIndex:index];
     if (index == _playlist.currentIndex && ![_waveformCoordinator isCompleteAtIndex:index]) {
-        [self requestWaveformForIndex:index];
+        [self requestCurrentWaveform];
     }
 
     if (index == _playlist.currentIndex) {
@@ -367,7 +373,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         // A request the hold DROPPED is never replayed, so ask again; a no-op
         // when this page is already the target.
         [self applyFrameBudgetHold];
-        [self requestWaveformForIndex:self->_playlist.currentIndex];
+        [self requestCurrentWaveform];
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
             VibeWorkTallyEnd();
@@ -555,7 +561,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
     else if (_waveformCoordinator.targetIndex != page) {
         // Retry a request dropped during the hold.
-        [self requestWaveformForIndex:page];
+        [self requestCurrentWaveform];
     }
 }
 
@@ -570,6 +576,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     [self updateScrollLinkState];
     if (!held) {
         [self refreshWaveformWindow];
+        [self fetchNeighborWaveforms];
     }
 }
 
@@ -605,7 +612,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
             [strongSelf holdForProgrammaticPagerScrolling:NO];
             // The end callback's reissue, since the hold dropped requests.
             if (strongSelf.isPresented) {
-                [strongSelf requestWaveformForIndex:strongSelf->_playlist.currentIndex];
+                [strongSelf requestCurrentWaveform];
             }
         }
     });
@@ -639,7 +646,7 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
     }
     [self holdForProgrammaticPagerScrolling:NO];
     if (self.isPresented) {
-        [self requestWaveformForIndex:_playlist.currentIndex];
+        [self requestCurrentWaveform];
     }
 }
 

@@ -63,7 +63,9 @@ NS_ASSUME_NONNULL_BEGIN
 // reloaded.
 - (void)requestIndex:(NSUInteger)index track:(nullable AudioTrack *)track;
 
-// Cache-only neighbor preparation; never retargets the active decode.
+// Cache-only neighbor preparation; never retargets the active decode. A read
+// already pending for the same track is not repeated; a miss is remembered by
+// nothing, so the next prefetch asks again.
 - (void)prefetchIndex:(NSUInteger)index track:(AudioTrack *)track;
 
 // Distant pages reload from the disk cache in milliseconds, so the window
