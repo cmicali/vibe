@@ -3,7 +3,8 @@
 * Nytt: uppspelning av Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R och ADTS
 * Nytt: en panel Kortkommandon i Inställningar där du kan ändra vilket kortkommando som helst
 * Nytt: ett crossfade-reglage, från av upp till 3 sekunder i tiondels sekunder
-* Nytt: vågformsstilen 3-band och temat Rekord Bin som använder den
+* Nytt: anpassningsbar vågformsstil 3-band och två teman som använder den
+* Nytt: alternativ för att centrera vågformer (eller inte)
 * Nytt: ett alternativ för Linje för uppspelningshuvud, med hela vågformen i full färg
 * Ändrat: fönstret Inställningar har fått en ny ordning, med sökning
 * Förbättrat: spolning i FLAC går nästan direkt även i långa filer, med lägre CPU- och minnesanvändning och bättre kompatibilitet

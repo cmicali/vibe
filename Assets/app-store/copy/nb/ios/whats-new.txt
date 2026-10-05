@@ -4,6 +4,7 @@
 * Nytt: avspilling av Ogg Opus, CAF, W64, M4B, M4R og ADTS
 * Nytt: en crossfade-glidebryter, fra av og opptil 3 sekunder i tideler av et sekund
 * Nytt: bølgeformstilen 3-bånd
+* Nytt: valg for å sentrere bølgeformer (eller ikke)
 * Nytt: et valg for linje for avspillingshode, med hele bølgeformen i full farge
 * Nytt: kompakte Spilles nå-oppsett for lave iPad-vinduer
 * Forbedret: FLAC-spoling er nesten umiddelbar selv i lange filer, med lavere CPU- og minnebruk og bedre kompatibilitet

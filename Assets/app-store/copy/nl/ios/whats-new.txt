@@ -4,6 +4,7 @@
 * Nieuw: afspelen van Ogg Opus, CAF, W64, M4B, M4R en ADTS
 * Nieuw: een crossfade-schuifregelaar, van uit tot 3 seconden in tienden van een seconde
 * Nieuw: de golfvormstijl 3-bands
+* Nieuw: optie om golfvormen te centreren (of niet)
 * Nieuw: een optie voor een afspeelkoplijn, met de hele golfvorm in volle kleur
 * Nieuw: compacte weergaven van Huidig nummer voor lage iPad-vensters
 * Verbeterd: spoelen in FLAC gaat bijna direct, ook in lange bestanden, met minder CPU- en geheugengebruik en betere compatibiliteit

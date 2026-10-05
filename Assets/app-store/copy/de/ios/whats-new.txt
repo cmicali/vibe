@@ -4,6 +4,7 @@
 * Neu: Wiedergabe von Ogg Opus, CAF, W64, M4B, M4R und ADTS
 * Neu: ein Crossfade-Regler von Aus bis 3 Sekunden in Zehntelsekunden
 * Neu: der Wellenform-Stil 3-Band
+* Neu: Option, Wellenformen zu zentrieren (oder nicht)
 * Neu: eine Option für eine Linie an der Abspielposition, bei der die ganze Wellenform in voller Farbe erscheint
 * Neu: kompakte Layouts für „Aktueller Titel“ in niedrigen iPad-Fenstern
 * Verbessert: Spulen in FLAC-Dateien ist auch in langen Dateien fast verzögerungsfrei, mit weniger CPU- und Speicherbedarf und besserer Kompatibilität

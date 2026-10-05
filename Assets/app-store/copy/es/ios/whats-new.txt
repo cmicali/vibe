@@ -4,6 +4,7 @@
 * Novedad: reproducción de Ogg Opus, CAF, W64, M4B, M4R y ADTS
 * Novedad: un control deslizante de crossfade, desde desactivado hasta 3 segundos en décimas de segundo
 * Novedad: el estilo de forma de onda 3 bandas
+* Novedad: opción para centrar (o no) las formas de onda
 * Novedad: una opción de línea del cabezal, con toda la forma de onda a todo color
 * Novedad: diseños compactos de la pantalla Ahora suena para ventanas bajas del iPad
 * Mejora: el desplazamiento en FLAC es casi instantáneo incluso en archivos largos, con menos uso de CPU y memoria y mejor compatibilidad

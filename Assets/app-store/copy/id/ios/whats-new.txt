@@ -4,6 +4,7 @@
 * Baru: pemutaran Ogg Opus, CAF, W64, M4B, M4R, dan ADTS
 * Baru: penggeser crossfade, dari mati hingga 3 detik dalam kelipatan sepersepuluh detik
 * Baru: gaya bentuk gelombang 3 Pita
+* Baru: opsi untuk menengahkan (atau tidak) bentuk gelombang
 * Baru: opsi garis kepala pemutar, dengan seluruh bentuk gelombang berwarna penuh
 * Baru: tata letak Sedang Diputar yang ringkas untuk jendela iPad yang pendek
 * Peningkatan: pencarian posisi di FLAC hampir instan bahkan di file panjang, dengan CPU dan memori lebih hemat serta kompatibilitas lebih baik

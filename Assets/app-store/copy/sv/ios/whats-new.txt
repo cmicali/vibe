@@ -4,6 +4,7 @@
 * Nytt: uppspelning av Ogg Opus, CAF, W64, M4B, M4R och ADTS
 * Nytt: ett crossfade-reglage, från av upp till 3 sekunder i tiondels sekunder
 * Nytt: vågformsstilen 3-band
+* Nytt: alternativ för att centrera vågformer (eller inte)
 * Nytt: ett alternativ för Linje för uppspelningshuvud, med hela vågformen i full färg
 * Nytt: kompakta layouter för skärmen Spelas nu i låga iPad-fönster
 * Förbättrat: spolning i FLAC går nästan direkt även i långa filer, med lägre CPU- och minnesanvändning och bättre kompatibilitet

@@ -4,6 +4,7 @@
 * Nowość: odtwarzanie Ogg Opus, CAF, W64, M4B, M4R i ADTS
 * Nowość: suwak crossfade, od wyłączenia do 3 sekund co jedną dziesiątą sekundy
 * Nowość: styl kształtu fali 3 pasma
+* Nowość: opcja wyśrodkowania (lub nie) kształtów fali
 * Nowość: opcja linii głowicy, z całym kształtem fali w pełnym kolorze
 * Nowość: kompaktowe układy ekranu Teraz odtwarzane dla niskich okien iPada
 * Ulepszenie: przewijanie w FLAC jest niemal natychmiastowe nawet w długich plikach, przy mniejszym użyciu CPU i pamięci oraz lepszej zgodności

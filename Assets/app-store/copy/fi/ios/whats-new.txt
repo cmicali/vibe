@@ -4,6 +4,7 @@
 * Uutta: Ogg Opus-, CAF-, W64-, M4B-, M4R- ja ADTS-toisto
 * Uutta: Crossfade-liukusäädin, pois päältä aina 3 sekuntiin asti kymmenesosasekunnin askelin
 * Uutta: 3 kaistaa -aaltomuototyyli
+* Uutta: valinta aaltomuotojen keskittämiseen (tai ei)
 * Uutta: Toistopään viiva -asetus, jossa koko aaltomuoto näkyy täysvärisenä
 * Uutta: tiiviit Toistossa-näkymän asettelut matalille iPad-ikkunoille
 * Parannettu: FLAC-tiedostoissa siirtyminen on lähes välitöntä myös pitkissä tiedostoissa, kuluttaa vähemmän CPU:ta ja muistia ja toimii paremmin eri tiedostojen kanssa

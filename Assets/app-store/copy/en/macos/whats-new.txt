@@ -3,7 +3,8 @@
 * New: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R, and ADTS playback
 * New: a Keyboard Shortcuts pane in Settings to change any shortcut
 * New: a crossfade slider, from off up to 3 seconds in tenths of a second
-* New: the 3-Band waveform style, and the Rekord Bin theme that uses it
+* New: customizable 3-Band waveform style and two themes that use it
+* New: option to center (or not) waveforms
 * New: a playhead line option, with the whole waveform in full color
 * Changed: the Settings window is reorganized, with search
 * Improved: FLAC seeking is near-instant even in long files, using less CPU and memory, with better compatibility

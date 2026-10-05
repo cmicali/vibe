@@ -4,6 +4,7 @@
 * Nové: přehrávání Ogg Opus, CAF, W64, M4B, M4R a ADTS
 * Nové: posuvník crossfade od vypnuto až po 3 sekundy po desetinách sekundy
 * Nové: styl tvaru vlny 3 pásma
+* Nové: volba, zda tvar vlny vycentrovat (nebo ne)
 * Nové: volba čáry přehrávací hlavy, s celým tvarem vlny v plné barvě
 * Nové: kompaktní rozvržení obrazovky Právě hraje pro nízká okna na iPadu
 * Vylepšení: posun ve FLAC je téměř okamžitý i v dlouhých souborech, s menší zátěží CPU a paměti a lepší kompatibilitou
