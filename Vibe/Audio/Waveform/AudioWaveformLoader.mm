@@ -144,9 +144,13 @@
         // TRAP: a pass sized by an estimated length (a streaming MP3's with
         // no VBR header) sized every chunk by it, and its result would be
         // filed under the file's key, so it is complete only once the length
-        // is exact and is the one it was sized by — the common case, a head
-        // whose rate holds. Otherwise the file is decoded again, from disk,
-        // on the exact length.
+        // is exact and within one chunk of the one it was sized by — the
+        // common case, a head whose rate holds. Chunk i starts at i·T/N, so
+        // an estimate off by under a chunk moves every boundary by less than
+        // one: each chunk's audio is off by less than the chunk, within what a
+        // decode ending short already tolerates. A two-hour mix was decoded
+        // twice over 528 frames.
+        // Otherwise the file is decoded again, from disk, on the exact length.
         NSError *error = nil;
         if (![file awaitExactLength:&error]) {
             if (![AudioFileHandle isInterruption:error]) {
@@ -157,7 +161,8 @@
         }
         sizedByEstimate = NO;
         AVAudioFramePosition sized = pass.totalFrames;
-        if ((AVAudioFramePosition)[self windowOfFile:file].length == sized) {
+        AVAudioFramePosition exact = (AVAudioFramePosition)[self windowOfFile:file].length;
+        if (llabs(exact - sized) < MAX(1, sized / (AVAudioFramePosition)numChunks)) {
             break;
         }
         pass = {};
