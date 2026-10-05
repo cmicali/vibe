@@ -164,11 +164,6 @@ BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView) {
 
 // Rows past each end of the screen whose art is asked for with the visible ones.
 static const NSInteger kArtRowMargin = 20;
-// The side of a file row's icon — its art or its tile — and what every such
-// row reserves, so the names line up.
-static const CGFloat kFileTileSide = 40;
-static const CGFloat kFileTileCornerRadius = 8;
-
 // Drawn once, in both appearances: an image asset holding the light and the
 // dark tile follows the trait collection by itself, which a single rendered
 // image would not.

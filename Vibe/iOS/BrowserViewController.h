@@ -69,8 +69,12 @@ UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void
 void VibeApplyFileNameStyle(UIListContentConfiguration *content);
 // The accessory of a row whose file is not downloaded.
 UIView *VibeNotDownloadedMark(void);
-// A file row's icon where it has no art: a waveform tile, or a note list for
-// a CUE sheet or an M3U.
+// The side of a file or track row's icon — its art or its tile — and what
+// every such row reserves, so the names line up.
+static const CGFloat kFileTileSide = 40;
+static const CGFloat kFileTileCornerRadius = 8;
+// A row's icon where it has no art: a waveform tile, or a note list for a
+// CUE sheet or an M3U.
 UIImage *VibeFileTileImage(BOOL playlist);
 // Installs content, with a spinner in the icon slot while the open the row
 // asked for runs. Every configuration of such a row goes through here, so a
