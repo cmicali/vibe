@@ -24,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 // TRAP: Wiggle's, centered or not. Persisted, so it keeps its name though
 // Centered is a setting now: renaming it orphans every saved Wiggle.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE                @"wiggle_centered"
-// Wiggle MC's through 1.14, Wiggle with Centered off since: the theme upgrade
+// Wiggle MC's through 1.14, Wiggle with Centered off since: AppTheme's gate
 // and the iOS migration map it, and nothing else may read it.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC      @"wiggle"
 #define SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT        SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE
@@ -76,10 +76,13 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (nullable NSNumber *)waveformPlayheadLine;
 - (void)setWaveformPlayheadLine:(BOOL)line;
 
-// The mac theme's waveformCentered: NO grounds the bars on a baseline. One for
-// the card and the widget.
+// The mac theme's waveformCentered: NO grounds the bars on a baseline. The
+// card's, and the widget's own beside its own style; under Match app the
+// widget reads the card's.
 - (BOOL)waveformCentered;
 - (void)setWaveformCentered:(BOOL)centered;
+- (BOOL)widgetWaveformCentered;
+- (void)setWidgetWaveformCentered:(BOOL)centered;
 
 // Posted on main after a settings screen writes any display setting, the
 // waveform style included; the keep-alive card is the receiver. Every writer

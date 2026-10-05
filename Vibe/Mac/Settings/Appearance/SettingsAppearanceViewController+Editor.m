@@ -471,29 +471,35 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _playheadColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_PLAYHEAD_COLOR
             control:[self darkLightPairForBase:kVibeThemeColorWaveformPlayhead
                                         effect:VibeSettingsLiveEffectWaveformTheme]];
-    NSStackView *(^wellRow)(NSArray<NSString *> *, NSArray<NSString *> *, BOOL) =
-            ^(NSArray<NSString *> *bases, NSArray<NSString *> *captions, BOOL dark) {
+    NSStackView *(^wellRow)(NSArray<NSString *> *, NSArray<NSString *> *, BOOL, BOOL) =
+            ^(NSArray<NSString *> *bases, NSArray<NSString *> *captions, BOOL dark, BOOL opaque) {
         NSMutableArray<NSColorWell *> *wells = [NSMutableArray array];
         for (NSString *base in bases) {
-            [wells addObject:[self wellForDark:dark base:base effect:VibeSettingsLiveEffectWaveformTheme]];
+            NSColorWell *well = [self wellForDark:dark base:base effect:VibeSettingsLiveEffectWaveformTheme];
+            // 3-Band's bands store opaque (AppTheme), so their wells offer no
+            // alpha; before 14 the shared panel's is stored opaque.
+            if (@available(macOS 14.0, *)) {
+                well.supportsAlpha = !opaque;
+            }
+            [wells addObject:well];
         }
         return [self wells:wells captions:captions];
     };
     NSArray<NSString *> *sides = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed];
     NSArray<NSString *> *sideCaptions = @[STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED, STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];
     _customDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
-                                           control:wellRow(sides, sideCaptions, YES)];
+                                           control:wellRow(sides, sideCaptions, YES, NO)];
     _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
-                                            control:wellRow(sides, sideCaptions, NO)];
+                                            control:wellRow(sides, sideCaptions, NO, NO)];
     _waveformThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp];
     NSArray<NSString *> *bands = @[kVibeThemeColorWaveformLow, kVibeThemeColorWaveformMid,
                                    kVibeThemeColorWaveformHigh];
     NSArray<NSString *> *bandCaptions = @[STR_SETTINGS_WAVEFORM_BAND_LOW, STR_SETTINGS_WAVEFORM_BAND_MID,
                                           STR_SETTINGS_WAVEFORM_BAND_HIGH];
     _bandsDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
-                                          control:wellRow(bands, bandCaptions, YES)];
+                                          control:wellRow(bands, bandCaptions, YES, YES)];
     _bandsLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
-                                           control:wellRow(bands, bandCaptions, NO)];
+                                           control:wellRow(bands, bandCaptions, NO, YES)];
     _waveformShadeOverlapsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformShadeOverlaps = on; }];
     _shadeOverlapsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SHADE_OVERLAPS

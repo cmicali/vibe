@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT      @"Settings.waveformCustomUnplayedColorLight"
 #define SETTING_WAVEFORM_PLAYHEAD_LINE              @"Settings.waveformPlayheadLine"
 #define SETTING_WAVEFORM_CENTERED                   @"Settings.waveformCentered"
+#define SETTING_WIDGET_WAVEFORM_CENTERED            @"Settings.widgetWaveformCentered"
 #define SETTING_FOLDER_OPEN_SORT                    @"Files.folderOpenSort"
 #define SETTING_CROSSFADE_MILLISECONDS              @"AudioPlayer.crossfadeMilliseconds"
 #define SETTING_PAUSE_AT_TRACK_END                  @"Transport.pauseAtTrackEnd"
@@ -74,7 +75,7 @@ NS_ASSUME_NONNULL_BEGIN
 #endif  // TARGET_OS_OSX
 
 // iOS's half of retiring Wiggle MC, against any defaults so the mac's tests can
-// run it; the mac's half is its theme upgrade (AppTheme.recordUpgradedFromVersion1:).
+// run it; the mac's half is AppTheme's gate (replaceWithRecord:).
 @interface AppSettings (WiggleMCMigration)
 + (void)migrateLegacyWiggleMCInDefaults:(NSUserDefaults *)defaults;
 @end

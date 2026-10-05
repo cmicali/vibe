@@ -31,6 +31,7 @@ typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowTheme,
     VibeWaveformRowPlayheadLine,
     VibeWaveformRowCentered,
+    VibeWaveformRowWidgetCentered,
     VibeWaveformRowCount,
 };
 
@@ -134,9 +135,22 @@ static NSString *const kValueCellIdentifier  = @"value";
                                                             target:self action:@selector(playheadLineToggled:)];
     }
     if (!nowPlaying && indexPath.row == VibeWaveformRowCentered) {
-        return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_WAVEFORM_CENTERED
-                                                                on:AppSettings.sharedInstance.waveformCentered
-                                                            target:self action:@selector(centeredToggled:)];
+        UITableViewCell *cell = [SettingsChoiceViewController switchCellInTableView:tableView
+                title:STR_SETTINGS_WAVEFORM_CENTERED on:AppSettings.sharedInstance.waveformCentered
+                target:self action:@selector(centeredToggled:)];
+        ((UISwitch *)cell.accessoryView).enabled =
+                [WaveformRendererRegistry supportsCenteringForIdentifier:[self currentWaveformStyle]];
+        return cell;
+    }
+    if (!nowPlaying && indexPath.row == VibeWaveformRowWidgetCentered) {
+        // Under Match app the widget reads the card's, shown here, not its own.
+        NSString *widgetStyle = AppSettings.sharedInstance.widgetWaveformStyle;
+        UITableViewCell *cell = [SettingsChoiceViewController switchCellInTableView:tableView
+                title:STR_SETTINGS_WIDGET_WAVEFORM_CENTERED on:AppSettings.sharedInstance.widgetWaveformCentered
+                target:self action:@selector(widgetCenteredToggled:)];
+        ((UISwitch *)cell.accessoryView).enabled = widgetStyle && [WaveformRendererRegistry
+                supportsCenteringForIdentifier:[WaveformRendererRegistry resolveStyleIdentifier:widgetStyle]];
+        return cell;
     }
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
@@ -268,6 +282,15 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (void)centeredToggled:(UISwitch *)toggle {
     AppSettings.sharedInstance.waveformCentered = toggle.isOn;
+    VibeNotifyDisplaySettingsChanged();
+    // Under Match app the widget's row shows this one.
+    [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:VibeWaveformRowWidgetCentered
+                                                                 inSection:VibeAppearanceSectionWaveform]]
+                          withRowAnimation:UITableViewRowAnimationNone];
+}
+
+- (void)widgetCenteredToggled:(UISwitch *)toggle {
+    AppSettings.sharedInstance.widgetWaveformCentered = toggle.isOn;
     VibeNotifyDisplaySettingsChanged();
 }
 

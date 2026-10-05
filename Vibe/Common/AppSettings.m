@@ -70,21 +70,24 @@ void VibeNotifyDisplaySettingsChanged(void) {
     appDefaults[SETTING_WAVEFORM_THEME] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
     appDefaults[SETTING_WAVEFORM_CENTERED] = @(YES);
+    appDefaults[SETTING_WIDGET_WAVEFORM_CENTERED] = @(YES);
 #endif
     return appDefaults;
 }
 
 // A stored Wiggle MC can only mean it, so the value itself makes this run
-// once. The card's becomes Wiggle with Centered off; the widget's becomes
-// Wiggle and follows the one Centered, which only the card's may turn off.
+// once. Each becomes Wiggle with its own Centered off, so the card's and the
+// widget's other styles keep the look they had.
 + (void)migrateLegacyWiggleMCInDefaults:(NSUserDefaults *)defaults {
-    if ([[defaults stringForKey:SETTING_WAVEFORM_STYLE] isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
-        [defaults setObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE forKey:SETTING_WAVEFORM_STYLE];
-        [defaults setBool:NO forKey:SETTING_WAVEFORM_CENTERED];
-    }
-    if ([[defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE]
-            isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
-        [defaults setObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE forKey:SETTING_WIDGET_WAVEFORM_STYLE];
+    NSDictionary<NSString *, NSString *> *centeredForStyle = @{
+        SETTING_WAVEFORM_STYLE: SETTING_WAVEFORM_CENTERED,
+        SETTING_WIDGET_WAVEFORM_STYLE: SETTING_WIDGET_WAVEFORM_CENTERED,
+    };
+    for (NSString *style in centeredForStyle) {
+        if ([[defaults stringForKey:style] isEqualToString:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
+            [defaults setObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE forKey:style];
+            [defaults setBool:NO forKey:centeredForStyle[style]];
+        }
     }
 }
 
@@ -159,6 +162,15 @@ void VibeNotifyDisplaySettingsChanged(void) {
 
 - (void)setWaveformCentered:(BOOL)centered {
     [[NSUserDefaults standardUserDefaults] setBool:centered forKey:SETTING_WAVEFORM_CENTERED];
+}
+
+- (BOOL)widgetWaveformCentered {
+    return self.widgetWaveformStyle ? [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WIDGET_WAVEFORM_CENTERED]
+                                    : self.waveformCentered;
+}
+
+- (void)setWidgetWaveformCentered:(BOOL)centered {
+    [[NSUserDefaults standardUserDefaults] setBool:centered forKey:SETTING_WIDGET_WAVEFORM_CENTERED];
 }
 #endif  // !TARGET_OS_OSX
 

@@ -92,8 +92,7 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
 // strips it, import mints a fresh one.
 // The record format: theme JSON's "version", and the stored records' too. 2
 // from 1.15, when the window's "solid" stopped meaning a color under the glass
-// panes (now "frosted") and began meaning no panes at all, and Wiggle MC
-// became Wiggle with Centered off.
+// panes (now "frosted") and began meaning no panes at all.
 FOUNDATION_EXPORT const NSInteger kVibeThemeRecordVersion;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordNameKey;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
@@ -216,8 +215,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
                                   name:(NSString *)name;
 
 // A record stored or exported before 1.15 (JSON version 1), in today's terms:
-// its window "solid" is today's "frosted", and its Wiggle MC is Wiggle with
-// Centered off. Raw in, raw out; other keys kept.
+// its window "solid" is today's "frosted". Raw in, raw out; other keys kept.
 + (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record;
 
 // Sanitized: unknown keys and malformed values drop, identifiers snap,

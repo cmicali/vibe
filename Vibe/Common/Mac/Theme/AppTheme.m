@@ -1044,19 +1044,11 @@ static NSDictionary<NSString *, NSArray<NSString *> *> *ThemeJSONFieldLocations(
 static const NSUInteger kThemeJSONByteCap = 64 * 1024;
 
 + (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record {
-    BOOL solid = [record[kFieldWindowBackgroundStyle] isEqual:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
-    BOOL wiggleMC = [record[kFieldWaveformStyle] isEqual:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC];
-    if (!solid && !wiggleMC) {
+    if (![record[kFieldWindowBackgroundStyle] isEqual:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID]) {
         return record;
     }
     NSMutableDictionary *upgraded = [record mutableCopy];
-    if (solid) {
-        upgraded[kFieldWindowBackgroundStyle] = SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED;
-    }
-    if (wiggleMC) {
-        upgraded[kFieldWaveformStyle] = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
-        upgraded[kFieldWaveformCentered] = @NO;
-    }
+    upgraded[kFieldWindowBackgroundStyle] = SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED;
     return upgraded;
 }
 
@@ -1190,6 +1182,12 @@ static const NSUInteger kThemeJSONByteCap = 64 * 1024;
     if (_fields[kFieldWindowCornerRadius]
             && !SanitizedFieldValue(kFieldCustomCornerRadius, record[kFieldCustomCornerRadius])) {
         _fields[kFieldCustomCornerRadius] = @YES;
+    }
+    // Wiggle MC is Wiggle grounded, whatever version a record claims: a 1.15
+    // beta stored and exported it at version 2.
+    if ([record[kFieldWaveformStyle] isEqual:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]) {
+        _fields[kFieldWaveformStyle] = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
+        _fields[kFieldWaveformCentered] = @NO;
     }
 }
 

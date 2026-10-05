@@ -38,6 +38,8 @@ One theme, the type the theme system is written in terms of: a **sparse record**
 
 **A record naming a radius with no word on the switch reads as custom**, decided in `replaceWithRecord:` — the one place a record is read, so the setters stay plain — because the switch postdates the radius and every older theme keeps the shape it chose. The sparse rule has one exception for the same reason: the switch's *off* beside a stored radius is kept (`storeSanitized:`, and why its spec row follows the radius's), since dropped as the default it would read back as custom.
 
+**A record's Wiggle MC (`wiggle`) reads as Wiggle with `waveformCentered` off**, in `replaceWithRecord:` too, whatever version the record claims: 1.14 stored it at version 1, and a 1.15 beta stored and exported it at version 2, past `recordUpgradedFromVersion1:`.
+
 ## The transport buttons
 
 `showTransportButtons` (`player`) defaults on, including for old sparse records. It only governs presentation: dependent glyphs, images and colors stay stored while hidden.

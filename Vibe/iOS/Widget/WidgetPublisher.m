@@ -315,7 +315,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     // that ignores it bakes nothing. The waveform, not its track: the
     // signature clears on a track change, and a new waveform for the same
     // track, the bands' decode, must bake.
-    BOOL centered = settings.waveformCentered;
+    // A style that ignores Centered signs it as on, so a toggle bakes nothing.
+    BOOL centered = settings.widgetWaveformCentered || ![WaveformRendererRegistry supportsCenteringForIdentifier:style];
     NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%@|%p",
                            style, centered, VibeHexStringFromColor(theme.playedColor) ?: @"",
                            VibeHexStringFromColor(theme.unplayedColor) ?: @"",

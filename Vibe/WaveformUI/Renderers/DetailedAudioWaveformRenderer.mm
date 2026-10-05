@@ -237,7 +237,17 @@ static const CGFloat kDetailedBarPitch = 0.5;
 // Pinned to the bars' band rather than the full view, so the whole ramp lands
 // across the visible bars.
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    VibeAimBarGradient(gradient);
+    VibeAimBarGradient(gradient, self.centered);
+}
+
+// The ramp's aim follows the anchoring.
+- (void)setCentered:(BOOL)centered {
+    [super setCentered:centered];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [self configureGradient:_playedGradient];
+    [self configureGradient:_unplayedGradient];
+    [CATransaction commit];
 }
 
 - (void)dealloc {
@@ -501,7 +511,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
 
     // The live layers' stops over configureGradient:'s band. Basic re-aims its
     // gradient, so it cannot bake.
-    VibeFillBarGradient(ctx, size, stops);
+    VibeFillBarGradient(ctx, size, stops, self.centered);
 
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);

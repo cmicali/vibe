@@ -57,8 +57,13 @@
     return CGRectMake(left, 0, right - left, bounds.size.height);
 }
 
+// The full-view axis, which the four stops below are designed for. Grounded,
+// lowered by the band's half, so a bar's foot on the baseline is as bright as
+// the midline it left.
 - (void)configureGradient:(CAGradientLayer *)gradient {
-    // The default full-view axis, which the four stops below are designed for.
+    CGFloat drop = self.centered ? 0 : kVibeBarAmplitudeOfHalfHeight / 2;
+    gradient.startPoint = CGPointMake(0.5, -drop);
+    gradient.endPoint = CGPointMake(0.5, 1 - drop);
 }
 
 - (NSArray<VibeColor *> *)gradientColorsForColor:(VibeColor *)color isDark:(BOOL)isDark {

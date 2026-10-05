@@ -182,6 +182,43 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     }
 }
 
+static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
+    if ([layer isKindOfClass:CAGradientLayer.class]) {
+        return (CAGradientLayer *)layer;
+    }
+    NSMutableArray<CALayer *> *children = [NSMutableArray arrayWithArray:layer.sublayers ?: @[]];
+    if (layer.mask) {
+        [children addObject:layer.mask];
+    }
+    for (CALayer *child in children) {
+        CAGradientLayer *found = VibeFirstGradient(child);
+        if (found) {
+            return found;
+        }
+    }
+    return nil;
+}
+
+// Grounded, a bar's foot on the baseline reads the ramp where the midline did
+// centered, so quiet passages keep their brightness: the band's ramp, 3-Band's
+// side masks and Basic's full-view axis alike, re-aimed on each toggle.
+- (void)testGroundedRampKeepsTheMidlinesBrightnessAtTheBaseline {
+    CGFloat baseline = (1 - kVibeBarAmplitudeOfHalfHeight) / 2;
+    for (NSString *style in @[@"detailed", @"basic", @"three_band"]) {
+        AudioWaveformRenderer *renderer = [self rendererForStyle:style];
+        CAGradientLayer *ramp = VibeFirstGradient(renderer.parentLayer);
+        XCTAssertNotNil(ramp, @"%@", style);
+        CGFloat (^at)(CGFloat) = ^CGFloat(CGFloat y) {
+            return (y - ramp.startPoint.y) / (ramp.endPoint.y - ramp.startPoint.y);
+        };
+        CGFloat midline = at(0.5);
+        renderer.centered = NO;
+        XCTAssertEqualWithAccuracy(at(baseline), midline, 1e-6, @"%@", style);
+        renderer.centered = YES;
+        XCTAssertEqualWithAccuracy(at(0.5), midline, 1e-6, @"%@", style);
+    }
+}
+
 // Grounded, Cupertino's bars stand as Basic's, so they take Basic's ramp
 // rather than the fade mirrored about the midline.
 - (void)testGroundedCupertinoTakesBasicsRamp {

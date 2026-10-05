@@ -168,7 +168,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     _playedSide = VibePinned([CAGradientLayer layer], scale);
     _unplayedSide = VibePinned([CAGradientLayer layer], scale);
     for (CAGradientLayer *side in @[_playedSide, _unplayedSide]) {
-        VibeAimBarGradient(side);
+        VibeAimBarGradient(side, self.centered);
         [_sides addSublayer:side];
     }
     _bands.mask = _sides;
@@ -181,6 +181,16 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     _hoverColumn = VibePinned([CALayer layer], scale);
     [_hoverHost addSublayer:_hoverColumn];
     [_container addSublayer:_hoverHost];
+}
+
+// The ramp's aim follows the anchoring.
+- (void)setCentered:(BOOL)centered {
+    [super setCentered:centered];
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    VibeAimBarGradient(_playedSide, centered);
+    VibeAimBarGradient(_unplayedSide, centered);
+    [CATransaction commit];
 }
 
 // The theme gives the band fills in this layer order, the ramp, or none, and
@@ -402,7 +412,7 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     if (!self.theme.flatFill) {
         // The played side's mask, so the bake matches the live layers.
         CGContextSetBlendMode(ctx, kCGBlendModeDestinationIn);
-        VibeFillBarGradient(ctx, size, VibeThreeBandSideColors(1, NO));
+        VibeFillBarGradient(ctx, size, VibeThreeBandSideColors(1, NO), self.centered);
     }
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);

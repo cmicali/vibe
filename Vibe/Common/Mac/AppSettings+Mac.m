@@ -237,8 +237,9 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     }
 }
 
-// A record stored before 1.15 is version 1 (recordUpgradedFromVersion1:). The
-// stored version makes this run once, so a Solid picked since stays Solid. Raw records, so the display migration after
+// A record stored before 1.15 meant today's "frosted" by a window "solid"
+// (recordUpgradedFromVersion1:). The stored version makes this run once, so a
+// Solid picked since stays Solid. Raw records, so the display migration after
 // it still finds their 1.14 fields.
 - (void)migrateThemeRecordsToVersion2 {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];

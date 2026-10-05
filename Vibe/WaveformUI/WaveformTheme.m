@@ -124,7 +124,11 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                                           customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
                                         customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
     resolved.flatFill = !theme.waveformGradient;
-    if (bands) {
+    // Unset and shaded keeps the init's cached default, which a well drag
+    // resolves several times a tick.
+    if (bands && (!theme.waveformShadeOverlaps || [theme colorForBase:kVibeThemeColorWaveformLow dark:isDark]
+                  || [theme colorForBase:kVibeThemeColorWaveformMid dark:isDark]
+                  || [theme colorForBase:kVibeThemeColorWaveformHigh dark:isDark])) {
         resolved.bandColors = VibeBandColors([theme displayColorForBase:kVibeThemeColorWaveformLow dark:isDark],
                                              [theme displayColorForBase:kVibeThemeColorWaveformMid dark:isDark],
                                              [theme displayColorForBase:kVibeThemeColorWaveformHigh dark:isDark],

@@ -383,12 +383,14 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
 // Everything the resolution reads, in both appearances — including this page's
 // artwork color under album_art, or a swipe onto a track with different art
 // compares equal and keeps the previous track's palette. Under any other theme
-// it is left out, so late art re-bakes nothing. Centered rides along.
+// it is left out, so late art re-bakes nothing. Centered rides along, as on
+// for a style that ignores it, so its toggle re-bakes nothing.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL readsArtwork = [settings.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART];
     return [NSString stringWithFormat:@"%@|%d|%d|%@|%@|%@|%@|%@", settings.waveformTheme,
-            [self drawsPlayheadLine], settings.waveformCentered,
+            [self drawsPlayheadLine],
+            settings.waveformCentered || ![WaveformRendererRegistry supportsCenteringForIdentifier:_styleIdentifier],
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",

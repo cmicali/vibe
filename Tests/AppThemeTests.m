@@ -2165,9 +2165,10 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     XCTAssertEqualObjects(trip[@"windowBackgroundStyle"], @"solid", @"an export keeps its own meaning");
 }
 
-// 1.14's Wiggle MC is Wiggle grounded on its baseline, and a grounded theme
-// keeps the choice through an export.
-- (void)testAVersion1WiggleMCImportsAsWiggleWithCenteredOff {
+// Wiggle MC is Wiggle grounded on its baseline at any record version: 1.14
+// stored it at 1, a 1.15 beta at 2. A grounded theme keeps the choice
+// through an export.
+- (void)testWiggleMCReadsAsWiggleWithCenteredOffAtAnyVersion {
     NSData *(^json)(NSNumber *) = ^NSData *(NSNumber *version) {
         return [NSJSONSerialization dataWithJSONObject:@{@"version": version, @"name": @"Old",
                 @"waveform": @{@"style": @"wiggle"}} options:0 error:NULL];
@@ -2175,30 +2176,36 @@ static NSData *MakeStoredZip(NSArray<NSArray *> *entries) { // [ [name, NSData],
     NSDictionary *old = [AppTheme recordFromJSONData:json(@1) name:NULL error:NULL];
     XCTAssertEqualObjects(old[@"waveformStyle"], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
     XCTAssertEqualObjects(old[@"waveformCentered"], @NO);
-    NSDictionary *untouched = [AppTheme recordFromJSONData:json(@2) name:NULL error:NULL];
-    XCTAssertNil(untouched[@"waveformCentered"], @"a current record says what it means");
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:json(@2) name:NULL error:NULL], old);
+    AppTheme *stored = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"wiggle"}];
+    XCTAssertEqualObjects(stored.waveformStyle, SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertFalse(stored.waveformCentered);
     NSDictionary *trip = [AppTheme recordFromJSONData:
             [AppTheme JSONDataForRecord:old name:@"Trip"] name:NULL error:NULL];
     XCTAssertEqualObjects(trip[@"waveformCentered"], @NO);
     XCTAssertFalse([[AppTheme alloc] initWithRecord:trip].waveformCentered);
 }
 
-// iOS's half: the card's Wiggle MC is Wiggle with Centered off; the widget's
-// is Wiggle, leaving the card's Centered alone.
-- (void)testIOSWiggleMCMigratesTheCardsCenteredOnly {
+// iOS's half: each Wiggle MC, the card's or the widget's, is Wiggle with its
+// own Centered off, so the other's style keeps the look it had.
+- (void)testIOSWiggleMCMigratesEachCenteredOnItsOwn {
     VibeTestUserDefaults *defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:NSUUID.UUID.UUIDString];
     [defaults setObject:@"wiggle" forKey:SETTING_WAVEFORM_STYLE];
+    [defaults setObject:@"detailed" forKey:SETTING_WIDGET_WAVEFORM_STYLE];
     [AppSettings migrateLegacyWiggleMCInDefaults:defaults];
     XCTAssertEqualObjects([defaults stringForKey:SETTING_WAVEFORM_STYLE], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
     XCTAssertEqualObjects([defaults objectForKey:SETTING_WAVEFORM_CENTERED], @NO);
+    XCTAssertEqualObjects([defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE], @"detailed");
+    XCTAssertNil([defaults objectForKey:SETTING_WIDGET_WAVEFORM_CENTERED]);
 
     defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:NSUUID.UUID.UUIDString];
     [defaults setObject:@"detailed" forKey:SETTING_WAVEFORM_STYLE];
     [defaults setObject:@"wiggle" forKey:SETTING_WIDGET_WAVEFORM_STYLE];
     [AppSettings migrateLegacyWiggleMCInDefaults:defaults];
     XCTAssertEqualObjects([defaults stringForKey:SETTING_WAVEFORM_STYLE], @"detailed");
-    XCTAssertEqualObjects([defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
     XCTAssertNil([defaults objectForKey:SETTING_WAVEFORM_CENTERED]);
+    XCTAssertEqualObjects([defaults stringForKey:SETTING_WIDGET_WAVEFORM_STYLE], SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects([defaults objectForKey:SETTING_WIDGET_WAVEFORM_CENTERED], @NO);
 }
 
 - (void)testStoredThemesFrom114KeepTheirGlassOnce {
