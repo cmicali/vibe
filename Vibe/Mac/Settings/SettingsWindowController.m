@@ -600,7 +600,13 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     }];
 }
 
+// Back from the editor is the theme list however it was reached: from the
+// menu the list was never shown, so it is recorded on the way in.
 - (void)showThemeEditor {
+    if ([[self currentLocation] isEqualToString:kEditorLocation]) {
+        return;
+    }
+    [self goToLocation:[self themesTabItem].identifier];
     [self goToLocation:kEditorLocation];
 }
 
