@@ -14,6 +14,8 @@ Both classes are Foundation-only and compiled into the macOS `VibeTests`, which 
 
 **The app key is `VibeDropboxAppKey` in the generated Info.plist** (`project.yml`), and it is not a secret: PKCE needs none, and the `db-<key>://2/token` redirect is a scheme Dropbox grants every app without registration, so neither the App Console nor Info.plist names it. Scopes: `account_info.read files.metadata.read files.content.read`. The account must be a **Full Dropbox** app; an App folder one sees nothing.
 
+**The App Console app is in development status, not production** (as of October 2026). Dropbox takes a production request only once an app has 50 linked users, so production approval is a Dropbox-side gate and never a release blocker; development status links users up to that count. When linked users approach 50, apply in the App Console.
+
 **The refresh token is one Keychain item, `AfterFirstUnlockThisDeviceOnly`**: a refresh must work under the lock screen while background playback downloads the next track, and a restored backup on another phone signs in again. Before first unlock the item reads as no account — which is why nothing is deleted at launch, only on a real account change.
 
 **TRAP: before first unlock the item reads as locked (`errSecInteractionNotAllowed`), not absent.** The client remembers that and reads again at the next use — `isLinked`, `accountID`, any call — at most once every five seconds, posting the account change when it lands, so a launch before unlock does not run the session signed out.

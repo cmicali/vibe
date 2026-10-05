@@ -12,6 +12,14 @@ The metadata lane once asked an advisory is-materializing query, then dispatched
 - **Doing nothing.** Defensible on cost — one duplicate whole-file download, bounded, with the `cloud.metadata_lane_stands_aside` detector permanent — but the protection was emergent from hold ordering, with nothing in the code stating the dependency, so a later change to that ordering would have removed it silently.
 - **The objection that a path-keyed claim would have to rebuild the prefetch/open race as a special case** was wrong, and is why the full design was first passed over. The race is over which open consumes the play request; a claim that owns only bytes does not touch it.
 
+## A smaller iOS now-playing window: Picture in Picture
+
+Rejected 2026-10-01, as the card's compact and strip layouts landed (cmicali/vibe#127). iPadOS 26 holds every window at least about 486pt tall on every iPad tested, so a shorter window is not on offer, and `AVPictureInPictureController` with custom frames was proposed as the way under that floor. Turned down outright: Picture in Picture is a video affordance and the wrong tool for a music player's interface. The answer stays inside the window: the mac-like strip is reached by width, not height (`Vibe/iOS/Player/AGENTS.md`), with the window's aspect and `sizeRestrictions` as the levers.
+
+## Chapters in M4A and M4B as rows
+
+Skipped 2026-09-30, when embedded FLAC cue sheets were built (cmicali/vibe#104). A header-only scan of the libraries at hand found no chaptered M4A and no `.m4b`, so there was nothing to play. Not proposed again unless audiobooks or chaptered mixes come up; if they do, the shape is the FLAC one: AVFoundation's chapter metadata becomes window rows through `rowsForFile:`'s large-file gate (`Vibe/Playlist/AGENTS.md`).
+
 ## A wedged background handle open: widening the background lane
 
 Record: `git show fabbc5da:docs/done/background-lane-wedged-open-starvation.md`; the decision is file-loading spec J8.
