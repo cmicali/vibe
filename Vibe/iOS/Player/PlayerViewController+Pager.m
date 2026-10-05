@@ -139,7 +139,11 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         }
     }
     for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
-        if (index == current || ![_waveformCoordinator isCompleteAtIndex:index]) {
+        // A page with a live cell gets no baker: the cell is handed every
+        // delivery and bakes into the store itself, and a baker beside it
+        // would bake the same picture a second time before the cell's lands.
+        if (index == current || [self cellAtIndex:index]
+                || ![_waveformCoordinator isCompleteAtIndex:index]) {
             continue;
         }
         WaveformScrubberView *view = _preparedWaveforms[@(index)];
