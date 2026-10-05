@@ -13,7 +13,7 @@
     "tintColorDark": "#24242466"
   },
   "player": {
-    "buttonGradient": "artwork",
+    "buttonGradient": "hover",
     "defaultArtworkDark": "bundled:rekord_bin.jpg"
   },
   "waveform": {

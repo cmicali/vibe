@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "Dengine",
-  "description": "Engine DJ's deck in a single-mode near-black window: the 3-Band waveform in blue, green and white, each band painted plainly over the ones below, under a playhead line, with green accents and a blue-violet selection.",
+  "description": "Engine DJ's deck in a single-mode near-black window: the 3-Band waveform in blue, green and white, each band painted plainly over the ones below, under a playhead line, with green accents, a blue-violet selection, and Engine's grey placeholder with its black disc.",
   "window": {
     "backgroundColorDark": "#141414",
     "backgroundStyle": "solid",
@@ -13,6 +13,8 @@
   "player": {
     "artistColorDark": "#9A9A9A",
     "artistFontFace": "HelveticaNeue",
+    "buttonGradient": "hover",
+    "defaultArtworkDark": "bundled:dengine.jpg",
     "playButtonColorDark": "#4CDF80",
     "titleColorDark": "#FFFFFF",
     "titleFontFace": "HelveticaNeue-Medium"
