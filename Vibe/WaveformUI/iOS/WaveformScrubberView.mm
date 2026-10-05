@@ -60,7 +60,8 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
 // pixels already baked — by a hidden neighbor baker or by its own earlier
 // cell — installs them on the turn it appears. Main thread only. Each entry
 // holds its waveform, so the address its key names cannot be reused by
-// another while the entry lives.
+// another while the entry lives. The width is left out of the key: a bake of
+// another zoom installs stretched, as a pinch frame shows, and re-bakes once.
 static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     static NSCache *store;
     static dispatch_once_t once;
@@ -639,8 +640,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     }
     // Per-page cells can hydrate without prepareForWaveformLoad.
     [self installRendererIfNeeded];
+    CGSize size = [self virtualBounds].size;
     NSArray *stored = [VibeBakeStore() objectForKey:[self bakeKeyForWaveform:waveform
-            size:[self virtualBounds].size scale:[self displayScale] dark:self.isDark
+            height:size.height scale:[self displayScale] dark:self.isDark
             style:_styleIdentifier signature:_themeSignature]];
     if (stored) {
         self.waveform = waveform;
@@ -649,6 +651,9 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         [self installEnvelopeImage:(__bridge CGImageRef)stored[0]
                     unplayedImage:stored[1] == NSNull.null ? nil : (__bridge CGImageRef)stored[1]
                             epoch:_bakeEpoch complete:YES normalizationGain:1 decodedFraction:1];
+        if ([stored[3] doubleValue] != size.width) {
+            [self scheduleEnvelopeBakeAfter:0];
+        }
         return;
     }
     // Snapshots are immutable, so a complete one already held has its bake
@@ -676,12 +681,13 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     VibeSignpostEnd(waveform_delivery);
 }
 
-// Every input of a bake, the shape themeSignature uses.
-- (NSString *)bakeKeyForWaveform:(CodableAudioWaveform *)waveform size:(CGSize)size
+// Every input of a bake but its width (the zoom), the shape themeSignature
+// uses.
+- (NSString *)bakeKeyForWaveform:(CodableAudioWaveform *)waveform height:(CGFloat)height
                            scale:(CGFloat)scale dark:(BOOL)dark style:(NSString *)style
                        signature:(NSString *)signature {
-    return [NSString stringWithFormat:@"%p|%gx%g|%g|%d|%@|%@", waveform, size.width, size.height,
-            scale, dark, style, signature];
+    return [NSString stringWithFormat:@"%p|%g|%g|%d|%@|%@", waveform, height, scale, dark, style,
+            signature];
 }
 
 // 0, or the rest of the window, so a burst collapses to one bake.
@@ -775,7 +781,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         samples = [renderer envelopeSamplesForWaveform:waveform.waveform];
         VibeSignpostEnd(waveform_samples);
     }
-    NSString *storeKey = complete ? [self bakeKeyForWaveform:waveform size:size
+    NSString *storeKey = complete ? [self bakeKeyForWaveform:waveform height:size.height
             scale:[self displayScale] dark:dark style:style signature:_themeSignature] : nil;
     NSUInteger epoch = _bakeEpoch;
     _bakeInFlight = YES;
@@ -810,7 +816,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
                         cost += CGImageGetBytesPerRow(unplayedImage) * CGImageGetHeight(unplayedImage);
                     }
                     [VibeBakeStore() setObject:@[(__bridge id)image,
-                                                 (__bridge id)unplayedImage ?: NSNull.null, waveform]
+                                                 (__bridge id)unplayedImage ?: NSNull.null, waveform,
+                                                 @(size.width)]
                                         forKey:storeKey cost:cost];
                 }
                 if (strongSelf->_bakeWanted) {
