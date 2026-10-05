@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 // yet" and "no art" are both the placeholder.
 - (NSDictionary *)debugArtDictionary;
 
+// Live regressions for neighbor preparation: refresh, transition, artwork,
+// interaction and color (ios-verbs.md).
+- (void)debugCheckWaveformPreparation:(NSString *)scenario
+                          completion:(void (^)(NSDictionary *result))completion;
+
 // Through the scrubber's didSeek path, so the seek-in-flight guard behaves as
 // on a real drag's release.
 - (void)debugSeekToProgress:(float)progress;

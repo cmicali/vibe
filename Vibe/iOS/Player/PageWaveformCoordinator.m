@@ -6,6 +6,7 @@
 #import "PageWaveformCoordinator.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
+#import "AudioWorkScheduler.h"
 
 @interface PageWaveformCoordinator () <AudioWaveformCacheDelegate>
 @end
@@ -24,6 +25,9 @@
     NSMutableIndexSet *_heldUpdates;
     // Owed after the hold; the target clears at once so the settle can retry.
     NSMutableIndexSet *_heldFailures;
+    // The track of each pending read, kept and dropped with its token.
+    NSMutableDictionary<NSNumber *, AudioTrack *> *_prefetchTracks;
+    NSMutableDictionary<NSNumber *, AudioWorkToken *> *_prefetchTokens;
 }
 
 - (instancetype)initWithCache:(AudioWaveformCache *)cache
@@ -38,6 +42,8 @@
         _percentLoaded = [NSMutableDictionary dictionary];
         _heldUpdates = [NSMutableIndexSet indexSet];
         _heldFailures = [NSMutableIndexSet indexSet];
+        _prefetchTracks = [NSMutableDictionary dictionary];
+        _prefetchTokens = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -83,12 +89,43 @@
     [_cache loadWaveformForTrack:track];
 }
 
+- (void)prefetchIndex:(NSUInteger)index track:(AudioTrack *)track {
+    if (_held || [self isCompleteAtIndex:index] || _prefetchTracks[@(index)] == track) {
+        return;
+    }
+    [_prefetchTokens[@(index)] cancelIfPending];
+    _prefetchTracks[@(index)] = track;
+    __block __weak AudioWorkToken *requestToken;
+    __weak PageWaveformCoordinator *weakSelf = self;
+    AudioWorkToken *token = [_cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
+        PageWaveformCoordinator *self = weakSelf;
+        if (!self || !requestToken || self->_prefetchTokens[@(index)] != requestToken) {
+            return;
+        }
+        [self->_prefetchTokens removeObjectForKey:@(index)];
+        [self->_prefetchTracks removeObjectForKey:@(index)];
+        if (!waveform || [self isCompleteAtIndex:index]) {
+            return;
+        }
+        [self storeWaveform:waveform fraction:1 atIndex:index];
+    }];
+    requestToken = token;
+    _prefetchTokens[@(index)] = token;
+}
+
 - (void)pruneAroundIndex:(NSUInteger)index {
     static const NSUInteger kKeepRadius = 2;
-    for (NSNumber *key in _snapshots.allKeys) {
+    NSMutableSet *pages = [NSMutableSet setWithArray:_snapshots.allKeys];
+    [pages addObjectsFromArray:_prefetchTokens.allKeys];
+    for (NSNumber *key in pages) {
         NSUInteger page = key.unsignedIntegerValue;
         if (page != _targetIndex
                 && (page > index + kKeepRadius || index > page + kKeepRadius)) {
+            [_prefetchTokens[key] cancelIfPending];
+            [_prefetchTokens removeObjectForKey:key];
+            [_prefetchTracks removeObjectForKey:key];
+            [_heldUpdates removeIndex:page];
+            [_heldFailures removeIndex:page];
             [_snapshots removeObjectForKey:key];
             [_percentLoaded removeObjectForKey:key];
         }
@@ -96,6 +133,11 @@
 }
 
 - (void)reset {
+    for (AudioWorkToken *token in _prefetchTokens.allValues) {
+        [token cancelIfPending];
+    }
+    [_prefetchTokens removeAllObjects];
+    [_prefetchTracks removeAllObjects];
     _targetIndex = NSNotFound;
     _targetKey = nil;
     [_snapshots removeAllObjects];
@@ -124,13 +166,20 @@
     if (_targetIndex == NSNotFound || ![track.sourceKey isEqualToString:_targetKey]) {
         return;
     }
-    _snapshots[@(_targetIndex)] = waveform;
-    _percentLoaded[@(_targetIndex)] = @(percentLoaded);
+    [self storeWaveform:waveform fraction:percentLoaded atIndex:_targetIndex];
+}
+
+// Recorded before it is forwarded; held, it is owed after the hold.
+- (void)storeWaveform:(CodableAudioWaveform *)waveform
+             fraction:(float)fraction
+              atIndex:(NSUInteger)index {
+    _snapshots[@(index)] = waveform;
+    _percentLoaded[@(index)] = @(fraction);
     if (_held) {
-        [_heldUpdates addIndex:_targetIndex];
+        [_heldUpdates addIndex:index];
         return;
     }
-    [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:_targetIndex];
+    [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:index];
 }
 
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {

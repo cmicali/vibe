@@ -61,12 +61,10 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 
 @implementation AudioWaveformCache {
     dispatch_queue_t                _loaderQueue;
-    // Two lanes, because the two stages block on different things and must not
-    // be able to starve each other. stat and AudioFileHandle open have no
-    // cancellation point on a wedged mount, so fixed admission slots are the
-    // resource bound in both. Playback opens use neither.
-    AudioWorkScheduler              *_lookupScheduler;   // cache-key stat + cache lookup
-    AudioWorkScheduler              *_decodeScheduler;   // AudioFileHandle open + decode
+    // Stat and open cannot be interrupted; fixed slots bound blocked workers.
+    AudioWorkScheduler              *_lookupScheduler;
+    AudioWorkScheduler              *_previewScheduler;
+    AudioWorkScheduler              *_decodeScheduler;
     PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
     // The track _currentLoader is decoding for, so the progressive deliveries
@@ -114,6 +112,13 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
                 qualityOfService:QOS_CLASS_UTILITY
                 maximumRunningCount:kMaxRunningWaveformLookups
                 maximumPendingCount:kMaxPendingWaveformWork
+                pendingGrace:kWaveformAdmissionGraceSeconds];
+        // A neighbor's wedged stat must never hold the playing lookup's slots.
+        _previewScheduler = [[AudioWorkScheduler alloc]
+                initWithLabel:@"com.vibe.waveform.preview"
+                qualityOfService:QOS_CLASS_UTILITY
+                maximumRunningCount:1
+                maximumPendingCount:2
                 pendingGrace:kWaveformAdmissionGraceSeconds];
         _decodeScheduler = [[AudioWorkScheduler alloc]
                 initWithLabel:@"com.vibe.waveform.decode"
@@ -263,6 +268,57 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     }];
 }
 
+// Called on the serial loader queue by both cache readers.
+- (CodableAudioWaveform *)waveformForCacheKey:(NSString *)cacheKey
+                                  analysis:(VibeWaveformAnalysis)analysis {
+    CodableAudioWaveform *cachedWaveform =
+            (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
+    // PINCache unarchives without secure coding, so a corrupt or tampered
+    // entry with a different root class decodes cleanly and would crash with
+    // an unrecognized selector at first use — on every play of this track,
+    // since nothing would ever evict it. The metadata cache uses the same
+    // guard.
+    if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
+        [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
+        cachedWaveform = nil;
+    }
+    // An entry decoded without the bands, or without an analyzer this
+    // request runs, is a miss for it, and that decode replaces it with one
+    // that has them. Every other request takes it, so no entry is ever
+    // invalidated for what it lacks.
+    if (cachedWaveform && !VibeWaveformAnalysisCovers((VibeWaveformAnalysis){
+                .bpm = cachedWaveform.bpmAnalyzed, .key = cachedWaveform.keyAnalyzed,
+                .bands = cachedWaveform.waveform->hasBands()}, analysis)) {
+        cachedWaveform = nil;
+    }
+    return cachedWaveform;
+}
+
+- (AudioWorkToken *)cachedWaveformForTrack:(AudioTrack *)track
+                   completion:(void (^)(CodableAudioWaveform *))completion {
+    VibeWaveformAnalysis analysis = self.analysisProvider ? self.analysisProvider() : (VibeWaveformAnalysis){};
+    uint64_t generation = _cacheGeneration.load(std::memory_order_relaxed);
+    return [_previewScheduler submitWork:^{
+        NSString *cacheKey = [track keyByAppendingWindowTo:track.cacheKey];
+        __block CodableAudioWaveform *waveform = nil;
+        if (cacheKey) {
+            dispatch_sync(self->_loaderQueue, ^{
+                waveform = [self waveformForCacheKey:cacheKey analysis:analysis];
+            });
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            BOOL current = generation == self->_cacheGeneration.load(std::memory_order_relaxed);
+            completion(current ? waveform : nil);
+            if (current && waveform) {
+                [self deliverAnalysis:waveform forTrack:track];
+            }
+        });
+    } failureQueue:dispatch_get_main_queue()
+      admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
+        completion(nil);
+    }];
+}
+
 - (void)cancelLoad {
     [self detachCurrentLoader];
 }
@@ -409,26 +465,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 awaitPersist:(BOOL)awaitPersist
   completion:(void (^)(CodableAudioWaveform *waveform, BOOL wasCached))completion
      settled:(dispatch_block_t)settled {
-    CodableAudioWaveform *cachedWaveform =
-            (CodableAudioWaveform *)[self->_waveformCache.diskCache objectForKey:cacheKey];
-    // PINCache unarchives without secure coding, so a corrupt or tampered
-    // entry with a different root class decodes cleanly and would crash with
-    // an unrecognized selector at first use — on every play of this track,
-    // since nothing would ever evict it. The metadata cache uses the same
-    // guard.
-    if (cachedWaveform && ![cachedWaveform isKindOfClass:[CodableAudioWaveform class]]) {
-        [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
-        cachedWaveform = nil;
-    }
-    // An entry decoded without the bands, or without an analyzer this
-    // request runs, is a miss for it, and that decode replaces it with one
-    // that has them. Every other request takes it, so no entry is ever
-    // invalidated for what it lacks.
-    if (cachedWaveform && !VibeWaveformAnalysisCovers((VibeWaveformAnalysis){
-                .bpm = cachedWaveform.bpmAnalyzed, .key = cachedWaveform.keyAnalyzed,
-                .bands = cachedWaveform.waveform->hasBands()}, loader.analysis)) {
-        cachedWaveform = nil;
-    }
+    CodableAudioWaveform *cachedWaveform = [self waveformForCacheKey:cacheKey analysis:loader.analysis];
     if (cachedWaveform) {
         // A hit finishes this loader as surely as a decode does; without the
         // mark, a detach pools it and a same-file re-request reattaches a
@@ -535,14 +572,7 @@ awaitPersist:(BOOL)awaitPersist
         // rather than the current track. Dropping them here would leave the
         // analyzed track without them until its next play, purely because the
         // cancel won a race.
-        if (waveform.bpm > 0 &&
-            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forTrack:)]) {
-            [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forTrack:track];
-        }
-        if (waveform.key >= 0 &&
-            [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectKey:forTrack:)]) {
-            [self.delegate audioWaveformCache:self didDetectKey:waveform.key forTrack:track];
-        }
+        [self deliverAnalysis:waveform forTrack:track];
     });
 }
 
@@ -553,6 +583,17 @@ awaitPersist:(BOOL)awaitPersist
 - (void)audioWaveformLoader:(AudioWaveformLoader*)loader waveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded {
     if (!loader.isCancelled && !loader.isDetached && _currentLoadTrack) {
         [self.delegate audioWaveform:waveform didLoadData:percentLoaded forTrack:_currentLoadTrack];
+    }
+}
+
+- (void)deliverAnalysis:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
+    if (waveform.bpm > 0 &&
+        [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forTrack:)]) {
+        [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forTrack:track];
+    }
+    if (waveform.key >= 0 &&
+        [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectKey:forTrack:)]) {
+        [self.delegate audioWaveformCache:self didDetectKey:waveform.key forTrack:track];
     }
 }
 

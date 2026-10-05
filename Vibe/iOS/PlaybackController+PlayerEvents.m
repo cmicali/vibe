@@ -42,23 +42,22 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    [self notifyDidBeginLoading];
+    // Before the notify: observers read currentOpenSlow.
     if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
         _loadingURL = track.url;
         _loadingPath = VibeStandardizedAudioOpenPath(track.url);
         _loadingOpenRequestIdentifier = openRequestIdentifier;
         _loadingProgress = -1;
     }
+    [self notifyDidBeginLoading];
     // The transfer may be well under way by the slow-open threshold.
     [self cloudTransferRegistryDidChange:CloudTransferRegistry.sharedRegistry];
     [self publishNowPlaying];
 }
 
 // A stream holding for its download stops Now Playing's clock
-// (publishNowPlaying) and leaves the card's waveform alone: a slow open's
-// begin-loading resets the scrubber, which wiped the drawn waveform and left
-// nothing to scrub back into the downloaded part. Its end still asks again for
-// a waveform the open skipped.
+// (publishNowPlaying) and leaves the card's waveform scrubbable. Its end
+// still asks again for a waveform the open skipped.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
@@ -84,7 +83,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 #pragma mark - CloudTransferRegistryObserver: the loading open's transfer
 
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
-    if (!_loadingURL || ![_playlist.currentTrack.url isEqual:_loadingURL]) {
+    if (!_loadingURL) {
         return;
     }
     float fraction = [registry progressForURL:_loadingURL];

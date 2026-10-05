@@ -196,6 +196,7 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     // shows.
     ui[@"seekInFlight"] = @(playback.seekInFlight);
     ui[@"pendingSeekProgress"] = @(playback.pendingSeekProgress);
+    ui[@"openSlow"] = @(playback.currentOpenSlow);
     ui[@"error"] = playback.errorText ?: @"";
     // Beside the indicator's drawn route, so the publish path is checkable end
     // to end.

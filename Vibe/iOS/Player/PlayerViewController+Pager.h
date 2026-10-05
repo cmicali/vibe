@@ -23,8 +23,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Header, art and the end-of-playlist state, from the page's own track.
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+// The slow-open shimmer, from the model's currentOpenSlow: on the current page only.
+- (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+- (void)applyPlaybackLoadingToVisiblePages;
 
-- (void)requestWaveformForIndex:(NSUInteger)index;
+- (void)requestCurrentWaveform;
+// Bakes the complete neighbors in hidden scrubbers; reads nothing.
+- (void)refreshWaveformWindow;
+// Cache-only reads of the adjacent pages, which follow the cursor: on a move,
+// after the current page's request, and when the frame-budget hold releases.
+- (void)fetchNeighborWaveforms;
+- (void)clearPreparedWaveforms;
 
 // Repaints a cell from the latest snapshot, or starts the loading line when
 // there is none yet.

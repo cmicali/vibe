@@ -112,6 +112,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     _waveformBandsWanted = _waveformCache.analysisProvider().bands;
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
+    _preparedWaveforms = [NSMutableDictionary dictionary];
     _pagerHoldViews = [NSHashTable weakObjectsHashTable];
 
     _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
@@ -136,7 +137,9 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     BOOL bandsWanted = _waveformCache.analysisProvider().bands;
     if (bandsWanted && !_waveformBandsWanted) {
         [_waveformCoordinator reset];
-        [self requestWaveformForIndex:_playlist.currentIndex];
+        [self clearPreparedWaveforms];
+        [self requestCurrentWaveform];
+        [self fetchNeighborWaveforms];
     }
     _waveformBandsWanted = bandsWanted;
     for (TrackPageCell *cell in _pagesView.visibleCells) {
@@ -148,6 +151,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         [cell.waveformView syncWaveformTheme];
     }
     [self repaintTimesOnVisiblePages];
+    [self refreshWaveformWindow];
 }
 
 // Reachable because the display link holds a weak proxy.
@@ -367,6 +371,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         [self renderHeaderForTrack:_playlist.currentTrack];
         [self scrollToCurrentPageAnimated:NO];
     }
+    else {
+        [self clearPreparedWaveforms];
+    }
 }
 
 - (void)setSceneActive:(BOOL)sceneActive {
@@ -573,6 +580,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
+    [self clearPreparedWaveforms];
     [_pagesView reloadData];
     [self scrollToCurrentPageAnimated:NO];
 }
@@ -593,6 +601,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }];
     [_pagesView insertItemsAtIndexPaths:paths];
     [self applyPlayOrderToVisiblePages];
+    // An append onto the last page makes a neighbor with no cursor move.
+    [self fetchNeighborWaveforms];
 }
 
 // No cursor-move handler, and no art discarded on a move: the departing page
@@ -602,24 +612,23 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
     [self scrollToCurrentPageAnimated:animated];
-    [self requestWaveformForIndex:playback.currentIndex];
+    // In this order: the current page's disk read goes ahead of the
+    // neighbors' on the cache's serial queue.
+    [self requestCurrentWaveform];
     [_waveformCoordinator pruneAroundIndex:playback.currentIndex];
+    [self fetchNeighborWaveforms];
 }
 
 - (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback {
     [self renderHeaderForTrack:playback.currentTrack];
 }
 
-// A track change ends an FX hold and dismisses its pad; the model has cut
-// the effects already. The pad may be on any page, the bound one or not, so
-// it is found among the pager's holders, and its release frees the pager
-// through the pad's delegate call.
+// A track change ends every held interaction, including one on an outgoing
+// page. Each view releases its own pager hold without committing a seek.
 - (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
-    for (UIView *view in _pagerHoldViews.allObjects) {
-        if ([view isKindOfClass:[FXPadView class]]) {
-            [(FXPadView *)view cancelInteraction];
-        }
-    }
+    [self applyPlaybackLoadingToVisiblePages];
+    // Every holder is an FXPadView or a WaveformScrubberView.
+    [_pagerHoldViews.allObjects makeObjectsPerformSelector:@selector(cancelInteraction)];
     // Only the current page reads Next from the play order.
     [self applyPlayOrderToVisiblePages];
 }
@@ -644,7 +653,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 #pragma mark - PlaybackObserver: the current track's open
 
 - (void)playbackDidBeginLoading:(PlaybackController *)playback {
-    [_waveformView showLoadingIndicator];
+    [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
+    [self applyPlaybackLoadingToVisiblePages];
 }
 
 - (void)playback:(PlaybackController *)playback didUpdateLoadingProgress:(float)fraction {
@@ -652,20 +662,20 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 }
 
 // Not hideLoadingIndicator: the waveform decode may still be streaming. The
-// download fill is cleared here because showWaveform: leaves it alone (a
-// cached waveform can arrive mid-download).
+// open state and download fill end here; a cached waveform can arrive
+// mid-download and must leave them alone.
 //
 // The waveform request for a track that was not on disk when the cursor
-// moved: the cursor's request skipped it (requestWaveformForIndex:). A page
+// moved: the cursor's request skipped it (requestCurrentWaveform). A page
 // still loading or complete ignores this one.
 - (void)playbackDidFinishLoading:(PlaybackController *)playback {
-    TrackPageCell *cell = [self cellAtIndex:playback.currentIndex];
-    [cell.waveformView setLoadingProgress:-1];
-    [self hydrateWaveformInCell:cell atIndex:playback.currentIndex];
-    [self requestWaveformForIndex:playback.currentIndex];
+    [self applyPlaybackLoadingToVisiblePages];
+    [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
+    [self requestCurrentWaveform];
 }
 
 - (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {
+    [self applyPlaybackLoadingToVisiblePages];
     [_waveformView hideLoadingIndicator];
 }
 

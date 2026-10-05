@@ -69,6 +69,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
     // The pager's own, not the model's: nothing else draws a waveform.
     AudioWaveformCache      *_waveformCache;
     PageWaveformCoordinator *_waveformCoordinator;
+    // Hidden bakers; the pixels live in the scrubber's store.
+    NSMutableDictionary<NSNumber *, WaveformScrubberView *> *_preparedWaveforms;
 
     // Pages whose full-size art is held, the only record of what there is to
     // release: art outlives the window that asked for it. Owned by +Pager.
