@@ -48,6 +48,8 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 
 The search screen's index lives in its view controller, so what a query matched is read from `dump_view_tree`: the playlist section's rows draw `displayTitle` (no extension), the files section's the filename over the containing folder.
 
+TRAP: **`dump_view_tree` frames are each view's frame in its superview and carry no scroll offset**, so summing frames from the root puts a table's rows tens of points too high (a large-title table's first row computes at y≈26 against ≈195 on screen). Read the tree for what is on screen; aim taps from `xcrun simctl io "$UDID" screenshot` instead: points = screenshot px × (device point height ÷ image height). On an iPhone 17-class device an inset-grouped table's first rows sit near 195, 247, and 300pt with no header, a section header adds ≈37pt, and the nav back button is at ≈(39, 85).
+
 ## What the simulator cannot show
 
 Interruptions (calls, Siri), route changes (headphone unplug), background audio past lock, and the lock-screen card need a real device; the `AVAudioSession` code runs but is not exercised faithfully. The card's route indicator draws and its picker opens on a tap — `dump_state`'s `ui.routePickerUp` flips — but the simulator offers no second route, so the sheet shows nothing and AVKit never sends the did-end edge; only `set_output_route` shows the off-device renderings there. Per `SKILL.md`'s simulator-only rule, report these as unverified rather than driving a phone.

@@ -39,6 +39,8 @@ Both preflight `asc_require_translations` before the archive: a key missing any 
 
 A release commit bumps `project.yml`'s `vibe-version` lines and rewrites `whats-new.txt`. **A stable release also sets `VIBE_VERBOSE_LOGGING: 0` in that same commit; a beta keeps 1.** The flag compiles in the beta instrumentation — every log level persisted at Default, the `Timeline:`, `Callback:`, `Signal:` and `Stall:` lines, the stall watchers and the signal probe (`Vibe/Audio/AGENTS.md`) — and those lines put the user's file paths in the unified log as public text. Cost is not the reason: on 1.14, turning it off moved playback CPU and power only within noise. **No script flips it**, which is how 1.13 and 1.14 shipped with it on. The commit that opens the next version on `main` sets it back to 1, so betas and everyday builds keep the instrumentation.
 
+The commit is `release: <ver>`, on an up-to-date `main` in the main checkout (`.release-env`, below), bumping both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. **The build number never restarts with a new marketing version**, even when a request reads like "1.14 (114)": confirm rather than go backwards. When the notes are still under review, push the version bump alone and build from it, commit the notes as `release: <ver> notes`, wait for CI on that commit, and publish from it. TRAP: **`github-release.sh` tags the main checkout's HEAD at publish time, not the commit `make release` built.** Another session committing in that checkout between the two put `v1.14-beta2` one commit past its release commit; check `git log -1` there just before publishing.
+
 Before publishing a stable release, `strings -a build/release/export/Vibe.app/Contents/MacOS/Vibe | grep -c 'Timeline: play'` must print 0 (a verbose build prints about 20). The flag is a compile-time setting, so it governs the App Store builds too.
 
 ## The marketing page
@@ -123,6 +125,10 @@ Each was learned the hard way, and each is now guarded by a preflight or an erro
 - **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with different guidance per certificate type.
 
 `make appstore-build[-ios]` stops after validation; only `make appstore-upload-signed-build[-ios]` submits. Every signing identity is applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.
+
+## A Debug build for someone else's Mac
+
+`make release` is Release-only. To put a diagnosable build (the debug channel, `--log-stderr`) on a tester's Mac: build Debug, copy the app, dump its entitlements (`codesign -d --entitlements - --xml`), delete `com.apple.security.get-task-allow` (notarization rejects it), re-sign with `--options runtime --timestamp --entitlements <edited plist> -s "Developer ID Application: …"`, then `notarytool submit --wait` and `stapler staple`, resolving the key through `asc-auth-lib.sh`'s `asc_resolve_credentials`. TRAP: **`asc-auth-lib.sh` finds the repo root through `BASH_SOURCE`**, so sourced from zsh it answers "credentials not configured" against a valid `.release-env`; run that step under `bash -c`.
 
 ## What "upload succeeded" does not mean
 
