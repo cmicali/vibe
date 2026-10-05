@@ -441,7 +441,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     // keep the old converter. A fresh component binds the current format.
     AudioUnit replacement = NULL;
     status = VibeCreateOutputUnit(_state, &replacement);
-    if (status == noErr) {
+    // No landed bind leaves the fresh unit on the system default, as the first
+    // one was; written, device 0 initializes and starts but never renders.
+    if (status == noErr && _boundDeviceID != kAudioObjectUnknown) {
         status = AudioUnitSetProperty(replacement, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
                                       &_boundDeviceID, sizeof(_boundDeviceID));
     }
