@@ -52,7 +52,7 @@
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     XCTAssertEqualObjects(theme.waveformStyle, @"oversampling_detailed_x4");
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
-    XCTAssertEqualObjects(theme.waveformBandTheme, @"rekord_bin");
+    XCTAssertTrue(theme.waveformShadeOverlaps);
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
@@ -278,8 +278,6 @@
 - (void)testIdentifiersSnapToTheirLadders {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"waveformTheme": @"purple",
-        // Orange is the other ladder's, not 3-Band's.
-        @"waveformBandTheme": @"orange",
         @"windowTint": @"plaid",
         @"playlistTint": @"plaid",
         @"windowBackgroundStyle": @"translucent",
@@ -289,7 +287,6 @@
     // Every snap lands on the default, so nothing is stored.
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
-    XCTAssertEqualObjects(theme.waveformBandTheme, @"rekord_bin");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
@@ -532,11 +529,8 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     theme.playlistButtonGlyph = @"list.dash";
     [theme setFontFace:@"Georgia" size:23 forSlot:VibeFontSlotTitle];
     [theme setColor:VibeColorFromHexString(@"#101010F0") forBase:kVibeThemeColorPlaylistBackground dark:YES];
-    theme.waveformBandTheme = @"custom";
     for (int roll = 0; roll < 40; roll++) {
         [theme randomizeColors];
-        // Its custom bands were cleared with every other pair.
-        XCTAssertEqualObjects(theme.waveformBandTheme, @"rekord_bin");
         XCTAssertEqualObjects(theme.waveformStyle, @"detailed");
         XCTAssertEqual(theme.windowCornerRadius, 8);
         XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.dash");
@@ -818,7 +812,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"field", @"glassy", @"rekord_bin", @"snake",
+                          (@[@"vibe", @"cupertino", @"dengine", @"field", @"glassy", @"rekord_bin", @"snake",
                               @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 

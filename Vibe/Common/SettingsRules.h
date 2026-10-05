@@ -162,14 +162,6 @@ static inline NSString *VibeNormalizedVolumeLocation(NSString *_Nullable identif
             : SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT;
 }
 
-static inline NSString *VibeNormalizedWaveformBandTheme(NSString *_Nullable identifier) {
-    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE] ||
-        [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
-        return identifier;
-    }
-    return SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
-}
-
 // Each snaps an unknown value to its factory choice.
 static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
     return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]

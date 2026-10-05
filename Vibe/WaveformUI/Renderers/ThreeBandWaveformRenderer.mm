@@ -71,8 +71,9 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
                                     MIN(half[1], half[2]), MIN(lowMid, half[2])};
         for (NSUInteger mask = outline ? 0 : 1; mask < 8; mask++) {
             CGPoint *polygon = points->data() + mask * stride;
-            polygon[1 + i] = CGPointMake(x, centered ? midY + heights[mask] : baseline + 2 * heights[mask]);
-            polygon[stride - 2 - i] = CGPointMake(x, centered ? midY - heights[mask] : baseline);
+            CGFloat bottom = centered ? midY - heights[mask] : baseline;
+            polygon[1 + i] = CGPointMake(x, bottom + 2 * heights[mask]);
+            polygon[stride - 2 - i] = CGPointMake(x, bottom);
         }
     }
     for (NSUInteger mask = 0; mask < 8; mask++) {
@@ -211,10 +212,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
     return VibeBarSeekHitBand(bounds);
-}
-
-- (CGRect)restingBandForBounds:(CGRect)bounds {
-    return VibeBarRestingBand(bounds, self.centered);
 }
 
 - (void)setHoverHighlightX:(CGFloat)x {

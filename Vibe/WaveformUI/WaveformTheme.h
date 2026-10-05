@@ -46,8 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL flatFill;
 
 // 3-Band's seven opaque fills in its painter's order: low, mid, high, then
-// low+mid, low+high, mid+high, and all three. Rekord Bin's unless the mac
-// theme picks another palette.
+// low+mid, low+high, mid+high, and all three. Rekord Bin's unless a mac theme
+// sets its bands.
 @property (nonatomic, copy) NSArray<VibeColor *> *bandColors;
 
 // Non-nil, the playhead is a line in this color over a waveform drawn wholly

@@ -46,11 +46,9 @@
     [_morph rebuildNow];
 }
 
-// The colors too: Cupertino's fade follows the anchoring.
 - (void)setCentered:(BOOL)centered {
     if (_centered == centered) return;
     _centered = centered;
-    [self updateColors:self.isDark];
     [_morph rebuildNow];
 }
 
@@ -124,11 +122,6 @@
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
     NSAssert(NO, @"%@ must override seekHitBandForBounds:", NSStringFromClass(self.class));
     return bounds;
-}
-
-// Covers the Detailed family's 1pt minimum bar, pixel-rounded, at the midline.
-- (CGRect)restingBandForBounds:(CGRect)bounds {
-    return VibeBarRestingBand(bounds, YES);
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {

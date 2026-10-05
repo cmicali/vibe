@@ -161,20 +161,6 @@ static const CGFloat kDetailedBarPitch = 0.5;
     return VibeBarSeekHitBand(bounds);
 }
 
-// Grounded, silence rests at the foot of the band, and Wiggle's stroke can
-// outgrow the base's hairline. Half a point over for the antialiasing.
-- (CGRect)restingBandForBounds:(CGRect)bounds {
-    if (!_wiggle) {
-        return VibeBarRestingBand(bounds, self.centered);
-    }
-    CGFloat stroke = VibeWiggleStrokeForSize(bounds.size, [self numBarsForWidth:bounds.size.width],
-                                             self.barWidthScale);
-    CGFloat height = bounds.size.height;
-    CGFloat baseline = self.centered ? height / 2 : VibeBarBaseline(height) + stroke / 2;
-    CGFloat reach = stroke / 2 + 0.5;
-    return CGRectMake(bounds.origin.x, bounds.origin.y + baseline - reach, bounds.size.width, reach * 2);
-}
-
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     return [self initWithLayer:parentLayer bounds:bounds isDark:isDark wiggle:NO];
 }
@@ -408,9 +394,8 @@ static const CGFloat kDetailedBarPitch = 0.5;
     for (NSUInteger i = 0; i < count; i++) {
         // y-up: adding the negative min preserves DC-offset asymmetry.
         // Grounded, the bar keeps its height and stands on the baseline.
-        CGFloat top = centered ? midY + samples[i * 2 + 1] * vscale
-                               : baseline + (samples[i * 2 + 1] - samples[i * 2]) * vscale;
         CGFloat bottom = centered ? midY + samples[i * 2] * vscale : baseline;
+        CGFloat top = bottom + (samples[i * 2 + 1] - samples[i * 2]) * vscale;
         if (scale > 0) {
             top = round(top * scale) / scale;
             bottom = round(bottom * scale) / scale;

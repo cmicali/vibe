@@ -585,48 +585,6 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     XCTAssertEqual(loading.getDecodedFraction(), 1);
 }
 
-// The mac's streaming reveal grows a stretch up from this band's middle, so
-// it must hold the line an unfilled waveform draws, or the bars grow from
-// mid-air.
-- (void)testRestingBandHoldsEverythingAnUnfilledWaveformDraws {
-    CGSize size = CGSizeMake(512, 80);
-    CGFloat scale = 2;
-    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
-    CodableAudioWaveform *unfilled = [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform()];
-    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
-        if (![WaveformRendererRegistry supportsLevelsForIdentifier:style]) {
-            continue;
-        }
-        for (CGFloat barWidth : {1.0, 2.0})
-        for (BOOL centered : {YES, NO}) {
-            AudioWaveformRenderer *renderer = [self rendererForStyle:style];
-            renderer.barWidthScale = barWidth;
-            renderer.centered = centered;
-            CGRect band = [renderer restingBandForBounds:CGRectMake(0, 0, size.width, size.height)];
-            CGImageRef image = [WaveformRendererRegistry newImageForCodableWaveform:unfilled identifier:style
-                    pointSize:size scale:scale progress:0.5 dark:YES theme:theme
-                    barDensity:1 barWidth:barWidth centered:centered normalize:NO gainDB:0];
-            XCTAssertTrue(image != NULL, @"%@", style);
-            if (!image) continue;
-            NSData *pixels = CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image)));
-            size_t rows = CGImageGetHeight(image), rowBytes = CGImageGetBytesPerRow(image);
-            CGImageRelease(image);
-            const uint8_t *bytes = (const uint8_t *)pixels.bytes;
-            for (size_t row = 0; row < rows; row++) {
-                BOOL drawn = NO;
-                for (size_t x = 0; x < (size_t)(size.width * scale) && !drawn; x++) {
-                    drawn = bytes[row * rowBytes + x * 4 + 3] != 0;
-                }
-                // Row 0 is the top; the layers are y-up.
-                CGFloat bottom = (CGFloat)(rows - row - 1) / scale, top = (CGFloat)(rows - row) / scale;
-                XCTAssertTrue(!drawn || (bottom >= CGRectGetMinY(band) && top <= CGRectGetMaxY(band)),
-                              @"%@ width %.0f centered %d draws [%.1f, %.1f] outside its resting band [%.1f, %.1f]",
-                              style, barWidth, centered, bottom, top, CGRectGetMinY(band), CGRectGetMaxY(band));
-            }
-        }
-    }
-}
-
 #pragma mark - 3-Band
 
 // The painter's layers, in order: low, mid, high, low+mid, low+high, mid+high,
@@ -653,6 +611,15 @@ static uint32_t VibeARGBAt(CGImageRef image, size_t row, size_t column) {
 }
 static uint32_t VibeRGBAt(CGImageRef image, size_t row, size_t column) {
     return VibeARGBAt(image, row, column) & 0xffffff;
+}
+// A pixel the color filled: within a step per channel of its 8-bit sRGB.
+static BOOL VibeNearRGB(uint32_t pixel, VibeColor *color) {
+    NSColor *srgb = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    CGFloat channels[3] = {srgb.redComponent, srgb.greenComponent, srgb.blueComponent};
+    for (int i = 0; i < 3; i++) {
+        if (labs((long)(pixel >> (16 - 8 * i) & 0xff) - lround(channels[i] * 255)) > 1) return NO;
+    }
+    return YES;
 }
 
 // The band layers' host, which the sides' mask covers.
@@ -714,8 +681,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     return visible;
 }
 
-// Which layers show: each band alone in its own color, and every ring
-// colored by the set of bands reaching it, so the rings nest as the sets do.
 // Grounded, every band set stands on the baseline at its centered height, so
 // the rings still nest.
 - (void)testGroundedThreeBandStandsOnTheBaseline {
@@ -729,8 +694,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
         for (CAShapeLayer *layer in VibeThreeBandLayers(renderer)) {
             boxes[centered].push_back(CGPathGetPathBoundingBox(layer.path));
         }
-        XCTAssertEqualWithAccuracy(CGRectGetMinY([renderer restingBandForBounds:renderer.parentLayer.bounds]) + 1,
-                                   centered ? 40 : VibeBarBaseline(80), 1e-6);
     }
     for (NSUInteger layer = 0; layer < kThreeBandLayers; layer++) {
         XCTAssertEqualWithAccuracy(boxes[NO][layer].size.height, boxes[YES][layer].size.height, 1e-3, @"layer %lu", layer);
@@ -738,6 +701,8 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
 }
 
+// Which layers show: each band alone in its own color, and every ring
+// colored by the set of bands reaching it, so the rings nest as the sets do.
 - (void)testThreeBandRingsAreTheSetsOfBandsReachingThem {
     std::vector<CGFloat> low = [self visibleThreeBandLayerHeightsForBands:{1, 0, 0}];
     std::vector<CGFloat> mid = [self visibleThreeBandLayerHeightsForBands:{0, 1, 0}];
@@ -865,8 +830,8 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     std::vector<CGFloat> heights = [self threeBandLayerHeightsForBands:bands];
     size_t brownRow = center - (size_t)((heights[3] / 2 + heights[6] / 2) / 2);
     size_t blueRow = center - (size_t)((heights[0] / 2 + heights[3] / 2) / 2);
-    XCTAssertEqual(VibeRGBAt(image, center, 256), 0xf5ebd7u, @"the core: all three bands");
-    XCTAssertEqual(VibeRGBAt(image, brownRow, 256), 0xb4690au, @"low and mid");
+    XCTAssertTrue(VibeNearRGB(VibeRGBAt(image, center, 256), flat.bandColors[6]), @"the core: all three bands");
+    XCTAssertTrue(VibeNearRGB(VibeRGBAt(image, brownRow, 256), flat.bandColors[3]), @"low and mid");
     XCTAssertEqual(VibeRGBAt(image, blueRow, 256), 0x0055e1u, @"low alone");
     CGImageRelease(image);
 
@@ -877,7 +842,8 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     [renderer updateColors:NO];
     CGImageRef light = [renderer newEnvelopeImageForSize:size scale:1
                                                  samples:[renderer envelopeSamplesForWaveform:&waveform]];
-    XCTAssertEqual(VibeRGBAt(light, center, 256), 0x33302cu);
+    XCTAssertTrue(VibeNearRGB(VibeRGBAt(light, center, 256), flatLight.bandColors[6]));
+    XCTAssertLessThan(VibeRGBAt(light, center, 256) >> 16, 0x60u);
     CGImageRelease(light);
 }
 

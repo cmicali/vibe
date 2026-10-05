@@ -10,6 +10,7 @@
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
 #import "AppTheme.h"
+#import "WaveformRendererRegistry.h"
 #else
 #import <UIKit/UIKit.h>
 #endif
@@ -33,68 +34,44 @@ static const CGFloat kArtworkLightMaxLuminance = 0.45;
 // Toward the color's own luminance gray, which leaves the clamp above intact.
 static const CGFloat kArtworkUnplayedDesaturation = 0.5;
 
-// The named palettes in the layer order, light then dark. Rekord Bin's dark is
-// the 3-band palette of hdelplan/three-band-waveform: blue lows, amber mids,
-// white highs, brown where low and mid overlap, pale tints wherever high
-// joins. Its light keeps the hues and turns the luminance over, since white
-// highs vanish on a light window: the highs and their tints go dark, and the
-// amber deepens to hold its edge against the background. Dengine's dark is
-// sampled from Engine DJ's deck, which paints each band whole over the ones
-// below: green covers blue outright, and the white lets about 6% of what it
-// covers through. Engine has no light mode; Dengine's turns over as Rekord
-// Bin's does.
-enum { kRekordBin, kDengine };
-
-static NSArray<VibeColor *> *VibeNamedBandColors(NSUInteger palette, BOOL isDark) {
-    static const uint32_t kRGB[2][2][7] = {
-        {
-            {0x0055e1, 0xd97706, 0x262626, 0xa35a0c, 0x17306b, 0x5c3a0e, 0x33302c},
-            {0x0055e1, 0xffa600, 0xffffff, 0xb4690a, 0xd2dcfa, 0xfff0d7, 0xf5ebd7},
-        },
-        {
-            {0x2f69e0, 0x209e52, 0x262626, 0x209e52, 0x272a31, 0x262d29, 0x262d29},
-            {0x2f69e0, 0x4cdf80, 0xffffff, 0x4cdf80, 0xf3f6fd, 0xf4fdf7, 0xf4fdf7},
-        },
-    };
-    static NSArray<VibeColor *> *colors[2][2];
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        for (NSUInteger p = 0; p < 2; p++) {
-            for (NSUInteger dark = 0; dark < 2; dark++) {
-                NSMutableArray<VibeColor *> *layers = [NSMutableArray arrayWithCapacity:7];
-                for (NSUInteger i = 0; i < 7; i++) {
-                    uint32_t rgb = kRGB[p][dark][i];
-                    [layers addObject:[VibeColor colorWithRed:(rgb >> 16 & 0xff) / 255.0
-                                                        green:(rgb >> 8 & 0xff) / 255.0
-                                                         blue:(rgb & 0xff) / 255.0 alpha:1]];
-                }
-                colors[p][dark] = layers;
-            }
-        }
-    });
-    return colors[palette][isDark ? 1 : 0];
-}
-
-#if TARGET_OS_OSX
-// Custom's overlaps. Rekord Bin's follow this rule to within 13/255: low with
-// mid is the mid shaded, and wherever the highs join they are tinted toward
-// what they join, further on light, where the highs are dark.
+// 3-Band's seven fills from its three bands, in the layer order. Shaded, the
+// CDJ's way: low with mid is the mid shaded, and wherever the highs join they
+// are tinted toward what they join, further on light, where the highs are
+// dark; the CDJ palette of hdelplan/three-band-waveform follows this within
+// 13/255. Unshaded, Engine DJ's way: each band painted whole over the ones
+// below, the highs letting about 6% of what they cover through. Opaque, since
+// the layers stack.
 static const CGFloat kBandLowMidShade = 0.3;
 static const CGFloat kBandHighTintDark = 0.18;
 static const CGFloat kBandHighTintLight = 0.35;
 static const CGFloat kBandAllThreeTint = 0.6;
+static const CGFloat kBandHighTintUnshaded = 0.06;
 
-static NSArray<VibeColor *> *VibeBlendedBandColors(NSArray<VibeColor *> *bands, BOOL isDark) {
-    // Opaque, since the layers stack.
-    VibeColor *low = [bands[0] colorWithAlphaComponent:1];
-    VibeColor *mid = [bands[1] colorWithAlphaComponent:1];
-    VibeColor *high = [bands[2] colorWithAlphaComponent:1];
-    VibeColor *lowMid = VibeColorBlended(mid, [VibeColor blackColor], kBandLowMidShade);
-    CGFloat tint = isDark ? kBandHighTintDark : kBandHighTintLight;
+static NSArray<VibeColor *> *VibeBandColors(VibeColor *low, VibeColor *mid, VibeColor *high, BOOL shade,
+                                            BOOL isDark) {
+    low = [low colorWithAlphaComponent:1];
+    mid = [mid colorWithAlphaComponent:1];
+    high = [high colorWithAlphaComponent:1];
+    VibeColor *lowMid = shade ? VibeColorBlended(mid, [VibeColor blackColor], kBandLowMidShade) : mid;
+    CGFloat tint = !shade ? kBandHighTintUnshaded : isDark ? kBandHighTintDark : kBandHighTintLight;
     return @[low, mid, high, lowMid, VibeColorBlended(high, low, tint), VibeColorBlended(high, mid, tint),
-             VibeColorBlended(high, lowMid, tint * kBandAllThreeTint)];
+             VibeColorBlended(high, lowMid, shade ? tint * kBandAllThreeTint : tint)];
 }
-#endif
+
+// Rekord Bin's bands, shaded: iOS's always, and a mac theme's until it sets
+// its own (AppTheme's unset band wells are these).
+static NSArray<VibeColor *> *VibeDefaultBandColors(BOOL isDark) {
+    static NSArray<VibeColor *> *colors[2];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        for (NSUInteger dark = 0; dark < 2; dark++) {
+            colors[dark] = VibeBandColors(VibeColorFromHexString(@"0055E1"),
+                                          VibeColorFromHexString(dark ? @"FFA600" : @"D97706"),
+                                          VibeColorFromHexString(dark ? @"FFFFFF" : @"262626"), YES, dark);
+        }
+    });
+    return colors[isDark ? 1 : 0];
+}
 
 static BOOL VibeGetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
     CGFloat a = 0;
@@ -122,7 +99,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _playedColor = played;
         _unplayedColor = unplayed;
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
-        _bandColors = VibeNamedBandColors(kRekordBin, isDark);
+        _bandColors = VibeDefaultBandColors(isDark);
         CGFloat pr, pg, pb, ur, ug, ub;
         // Alphas aside on purpose: the scrubber's single-bitmap fast path
         // recovers the level difference from unplayedOverPlayedOpacity.
@@ -141,21 +118,20 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 #if TARGET_OS_OSX
 + (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
                        artworkColor:(VibeColor *)artworkColor {
-    WaveformTheme *resolved = [self themeForIdentifier:theme.waveformTheme
+    // 3-Band's hues are its bands, so its played side, which the hover and the
+    // volume bar read, is Mono's rather than the hidden waveform color's.
+    BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle];
+    WaveformTheme *resolved = [self themeForIdentifier:bands ? SETTINGS_VALUE_WAVEFORM_THEME_MONO : theme.waveformTheme
                                                 isDark:isDark
                                           artworkColor:artworkColor
                                           customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
                                         customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
     resolved.flatFill = !theme.waveformGradient;
-    NSString *bands = theme.waveformBandTheme;
-    if ([bands isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE]) {
-        resolved.bandColors = VibeNamedBandColors(kDengine, isDark);
-    } else if ([bands isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
-        resolved.bandColors = VibeBlendedBandColors(@[
-            [theme displayColorForBase:kVibeThemeColorWaveformLow dark:isDark],
-            [theme displayColorForBase:kVibeThemeColorWaveformMid dark:isDark],
-            [theme displayColorForBase:kVibeThemeColorWaveformHigh dark:isDark],
-        ], isDark);
+    if (bands) {
+        resolved.bandColors = VibeBandColors([theme displayColorForBase:kVibeThemeColorWaveformLow dark:isDark],
+                                             [theme displayColorForBase:kVibeThemeColorWaveformMid dark:isDark],
+                                             [theme displayColorForBase:kVibeThemeColorWaveformHigh dark:isDark],
+                                             theme.waveformShadeOverlaps, isDark);
     }
     if (theme.waveformPlayheadLine) {
         resolved.playheadColor = [theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:isDark];

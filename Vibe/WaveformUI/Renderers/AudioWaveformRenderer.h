@@ -105,21 +105,14 @@ static const CGFloat kVibeBarAmplitudeOfHalfHeight = 0.75;
 static inline CGFloat VibeBarVScale(CGFloat height) {
     return (height / 2) * kVibeBarAmplitudeOfHalfHeight;
 }
-static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
-    CGFloat midY = bounds.size.height / 2;
-    CGFloat vscale = VibeBarVScale(bounds.size.height);
-    CGFloat bottomY = round(midY - vscale);
-    CGFloat topY = round(midY + vscale);
-    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
-}
 // The band's foot, where Centered off grounds the bars.
 static inline CGFloat VibeBarBaseline(CGFloat height) {
     return height / 2 - VibeBarVScale(height);
 }
-// A point either side of where silence rests: the midline, or the baseline.
-static inline CGRect VibeBarRestingBand(CGRect bounds, BOOL centered) {
-    CGFloat rest = centered ? bounds.size.height / 2 : VibeBarBaseline(bounds.size.height);
-    return CGRectMake(bounds.origin.x, bounds.origin.y + rest - 1, bounds.size.width, 2);
+static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
+    CGFloat bottomY = round(VibeBarBaseline(bounds.size.height));
+    CGFloat topY = round(bounds.size.height - VibeBarBaseline(bounds.size.height));
+    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 // Both styles' gradient: a ramp down the band, the resting level at the top
@@ -259,11 +252,6 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // The vertical band a click must land in to seek, from the bounds alone. Every
 // renderer must override it; the base only asserts.
 - (CGRect)seekHitBandForBounds:(CGRect)bounds;
-
-// The band silence draws in, whose middle the mac's streaming reveal grows a
-// newly decoded stretch up from: off the resting line, the bars grow from
-// mid-air. A point either side of the vertical center here.
-- (CGRect)restingBandForBounds:(CGRect)bounds;
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;

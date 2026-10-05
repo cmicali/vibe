@@ -195,66 +195,53 @@ static NSUInteger ChannelDistance(uint32_t lhs, uint32_t rhs) {
     return worst;
 }
 
-static const uint32_t kRekordBin[2][7] = {
+// The CDJ palette of hdelplan/three-band-waveform, which the shaded rule
+// follows from its three bands.
+static const uint32_t kCDJ[2][7] = {
     {0x0055e1, 0xd97706, 0x262626, 0xa35a0c, 0x17306b, 0x5c3a0e, 0x33302c},
     {0x0055e1, 0xffa600, 0xffffff, 0xb4690a, 0xd2dcfa, 0xfff0d7, 0xf5ebd7},
 };
 
-// Rekord Bin everywhere a palette is resolved, iOS's identifier path included,
-// until the mac theme picks another.
-- (void)testBandsAreRekordBinByDefault {
+static AppTheme *ThreeBandRecord(NSDictionary *fields) {
+    NSMutableDictionary *record = [fields mutableCopy];
+    record[@"waveformStyle"] = @"three_band";
+    return [[AppTheme alloc] initWithRecord:record];
+}
+
+// Rekord Bin's bands, shaded, wherever a palette is resolved: iOS's identifier
+// path, and a mac theme whose band wells are unset. The overlaps come from the
+// rule, within 13/255 of the CDJ's own.
+- (void)testBandsDefaultToRekordBin {
     for (int darkPass = 0; darkPass <= 1; darkPass++) {
         BOOL isDark = darkPass == 1;
-        AppTheme *record = [[AppTheme alloc] initWithRecord:nil];
         for (WaveformTheme *theme in @[[self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE isDark:isDark],
-                                       [WaveformTheme themeForAppTheme:record isDark:isDark artworkColor:nil]]) {
+                                       [WaveformTheme themeForAppTheme:ThreeBandRecord(@{}) isDark:isDark
+                                                          artworkColor:nil]]) {
             XCTAssertEqual(theme.bandColors.count, 7u);
             for (NSUInteger layer = 0; layer < 7; layer++) {
-                XCTAssertEqual(RGBOf(theme.bandColors[layer]), kRekordBin[darkPass][layer], @"layer %lu",
-                               (unsigned long)layer);
+                NSUInteger distance = ChannelDistance(RGBOf(theme.bandColors[layer]), kCDJ[darkPass][layer]);
+                XCTAssertLessThanOrEqual(distance, layer < 3 ? 0u : 13u, @"layer %lu", (unsigned long)layer);
             }
         }
     }
 }
 
-// Custom derives its overlaps by a rule Rekord Bin's hand-tuned overlaps
-// follow within 13/255: proved through Custom's unset wells, which are Rekord
-// Bin's bands.
-- (void)testBlendedOverlapsFollowRekordBin {
-    AppTheme *record = [[AppTheme alloc] initWithRecord:@{@"waveformBandTheme": @"custom"}];
-    for (int darkPass = 0; darkPass <= 1; darkPass++) {
-        NSArray<VibeColor *> *bands = [WaveformTheme themeForAppTheme:record isDark:darkPass == 1
-                                                         artworkColor:nil].bandColors;
-        for (NSUInteger layer = 0; layer < 7; layer++) {
-            NSUInteger distance = ChannelDistance(RGBOf(bands[layer]), kRekordBin[darkPass][layer]);
-            XCTAssertLessThanOrEqual(distance, layer < 3 ? 0u : 13u, @"layer %lu", (unsigned long)layer);
-        }
+// Unshaded, each band is painted whole over the ones below, as Engine DJ's
+// deck is: the Dengine theme's bands reproduce the colors sampled off it.
+- (void)testUnshadedOverlapsAreEngineDJs {
+    AppTheme *dengine = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"dengine"]];
+    XCTAssertFalse(dengine.waveformShadeOverlaps);
+    NSArray<VibeColor *> *bands = [WaveformTheme themeForAppTheme:dengine isDark:YES artworkColor:nil].bandColors;
+    const uint32_t sampled[7] = {0x2f69e0, 0x4cdf80, 0xffffff, 0x4cdf80, 0xf3f6fd, 0xf4fdf7, 0xf4fdf7};
+    for (NSUInteger layer = 0; layer < 7; layer++) {
+        XCTAssertEqual(RGBOf(bands[layer]), sampled[layer], @"layer %lu", (unsigned long)layer);
     }
-}
-
-// Engine DJ's deck, sampled: blue lows, green mids and white highs, each band
-// painted whole over the ones below, so green covers blue outright and white
-// lets about 6% of what it covers through. Light's highs go dark.
-- (void)testDengineIsEngineDJsDeck {
-    AppTheme *record = [[AppTheme alloc] initWithRecord:@{@"waveformBandTheme": @"dengine"}];
-    NSArray<VibeColor *> *dark = [WaveformTheme themeForAppTheme:record isDark:YES artworkColor:nil].bandColors;
-    XCTAssertEqual(RGBOf(dark[0]), 0x2f69e0u);
-    XCTAssertEqual(RGBOf(dark[1]), 0x4cdf80u);
-    XCTAssertEqual(RGBOf(dark[2]), 0xffffffu);
-    XCTAssertEqual(RGBOf(dark[3]), RGBOf(dark[1]), @"mid covers low");
-    for (NSUInteger layer = 4; layer < 7; layer++) {
-        XCTAssertLessThanOrEqual(ChannelDistance(RGBOf(dark[layer]), 0xffffff), 13u, @"layer %lu",
-                                 (unsigned long)layer);
-    }
-    NSArray<VibeColor *> *light = [WaveformTheme themeForAppTheme:record isDark:NO artworkColor:nil].bandColors;
-    XCTAssertLessThan(Luminance(light[2]), 0.2);
-    XCTAssertLessThan(Luminance(light[1]), Luminance(dark[1]));
 }
 
 // The wells' colors as the bands, opaque whatever their alpha, since the
 // layers stack; the overlaps blend them.
-- (void)testCustomBandsDrawOpaque {
-    AppTheme *record = [[AppTheme alloc] initWithRecord:@{@"waveformBandTheme": @"custom"}];
+- (void)testBandWellsDrawOpaque {
+    AppTheme *record = ThreeBandRecord(@{});
     [record setColor:[NSColor colorWithSRGBRed:1 green:0 blue:0 alpha:0.5] forBase:kVibeThemeColorWaveformLow dark:YES];
     [record setColor:[NSColor colorWithSRGBRed:0 green:200 / 255.0 blue:0 alpha:1] forBase:kVibeThemeColorWaveformMid dark:YES];
     [record setColor:[NSColor colorWithSRGBRed:0 green:0 blue:1 alpha:1] forBase:kVibeThemeColorWaveformHigh dark:YES];
@@ -267,6 +254,18 @@ static const uint32_t kRekordBin[2][7] = {
     }
     XCTAssertEqual(RGBOf(bands[3]), 0x008c00u, @"the mid shaded");
     XCTAssertEqual(RGBOf(bands[4]), 0x2e00d1u, @"the high tinted toward the low");
+}
+
+// 3-Band hides the waveform color, so its played side, which the hover and
+// the volume bar read, is Mono's whatever the hidden choice holds.
+- (void)testUnderThreeBandThePlayedSideIsMono {
+    WaveformTheme *bands = [WaveformTheme themeForAppTheme:ThreeBandRecord(@{@"waveformTheme": @"orange"})
+                                                    isDark:YES artworkColor:nil];
+    XCTAssertTrue(SameRGB(bands.playedColor, NSColor.whiteColor));
+    XCTAssertTrue(SameRGB(bands.hoverColor, NSColor.whiteColor));
+    AppTheme *detailed = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"detailed", @"waveformTheme": @"orange"}];
+    XCTAssertFalse(SameRGB([WaveformTheme themeForAppTheme:detailed isDark:YES artworkColor:nil].playedColor,
+                           NSColor.whiteColor));
 }
 
 // Hover clears the played color's luminance by 0.25 toward the appearance's

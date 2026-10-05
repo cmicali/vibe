@@ -42,12 +42,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK              @"artwork"
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS               @"always"
 
-// 3-Band's palette, a ladder of its own since its hues name the bands: Rekord
-// Bin (the default), Engine DJ's, or the custom low, mid and high pairs
-// (SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM).
-#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN       @"rekord_bin"
-#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE          @"dengine"
-
 // The volume slider's bar: the window tint's mono (the system slider),
 // artwork and custom, plus the waveform's played color (the default). Its knob
 // takes the same ladder and default, mono the system's white pill, plus the
@@ -109,7 +103,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayed;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformUnplayed;
 // The line waveformPlayheadLine draws. Unset, white on dark and black on light.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayhead;
-// 3-Band's custom bands, opaque. Unset, Rekord Bin's.
+// 3-Band's bands, in place of the played and unplayed pair; opaque. Unset,
+// Rekord Bin's.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformLow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformMid;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformHigh;
@@ -246,9 +241,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *mode;                 // single/dual color sets
 @property (readonly, nonatomic) BOOL isSingleMode;
 @property (nonatomic, copy) NSString *waveformTheme;        // mono/orange/album_art/custom
-@property (nonatomic, copy) NSString *waveformBandTheme;    // 3-Band's: rekord_bin/dengine/custom
 @property (nonatomic) BOOL waveformGradient;                // NO draws flat bars, no vertical ramp
 @property (nonatomic) BOOL waveformCentered;                // NO grounds the bars on a baseline
+// 3-Band's overlaps: YES (default) shades and tints them as a CDJ does; NO
+// paints each band whole over the ones below, as Engine DJ does.
+@property (nonatomic) BOOL waveformShadeOverlaps;
 // YES draws the whole waveform as played under a line at the playhead; NO
 // (default) dims the unplayed side.
 @property (nonatomic) BOOL waveformPlayheadLine;

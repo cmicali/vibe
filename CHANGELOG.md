@@ -7,7 +7,7 @@
 * Added the 3-Band waveform style and Rekord Bin theme (mac only) that uses it
 * Added a playhead line option for waveforms
 * Added a Centered waveform setting: off, every bar rises from a baseline at the bottom. Wiggle MC is now Wiggle with Centered off
-* Added 3-Band waveform colors (mac only): Rekord Bin, Dengine (Engine DJ's blue, green, and white), and Custom low, mid, and high colors
+* Added 3-Band waveform colors (mac only): low, mid, and high colors and a Shade overlaps switch in the theme editor, and the Dengine theme in Engine DJ's blue, green, and white
 * Improved FLAC decoding: seeking is now near-instant even for long files, less CPU and memory, and better compatibility
 * Improved WAV and AIFF decoding: 1.4x–3.2x faster, better compatibility
 * Improved playback performance: 20–30% less CPU and 15–25% less energy
