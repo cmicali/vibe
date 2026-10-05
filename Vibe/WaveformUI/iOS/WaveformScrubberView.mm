@@ -358,17 +358,19 @@ static const CFTimeInterval kCompletionGrowDuration = 0.35;
 }
 
 // Everything the resolution reads, in both appearances — including this page's
-// artwork color, or a swipe onto a track with different art compares equal
-// and keeps the previous track's palette.
+// artwork color under album_art, or a swipe onto a track with different art
+// compares equal and keeps the previous track's palette. Under any other theme
+// it is left out, so late art re-bakes nothing.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
+    BOOL readsArtwork = [settings.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART];
     return [NSString stringWithFormat:@"%@|%d|%@|%@|%@|%@|%@", settings.waveformTheme,
             [self drawsPlayheadLine],
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",
             VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:NO]) ?: @"",
-            VibeHexStringFromColor(_artworkThemeColor) ?: @""];
+            readsArtwork ? (VibeHexStringFromColor(_artworkThemeColor) ?: @"") : @""];
 }
 
 // The signature compare makes a repeated set free, and the pager reconfigures
