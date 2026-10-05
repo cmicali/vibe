@@ -670,6 +670,21 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
 }
 
 #if VIBE_VERBOSE_LOGGING
++ (AudioObjectPropertyListenerBlock)eventLogListenerForObject:(AudioObjectID)object
+                                                       name:(NSString *)name queue:(dispatch_queue_t)queue {
+    return ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
+        for (UInt32 i = 0; i < count; i++) {
+            AudioObjectPropertyAddress address = addresses[i];
+            // TRAP: HAL delivers running/overload notifications synchronously
+            // on its IO thread. A property read here can deadlock its stop.
+            dispatch_async(queue, ^{
+                LogInfo(@"HAL: %@ (%u) %@", name, object,
+                        [self eventDescriptionOfProperty:address object:object]);
+            });
+        }
+    };
+}
+
 + (NSString *)eventDescriptionOfProperty:(AudioObjectPropertyAddress)address object:(AudioObjectID)object {
     UInt32 u = 0;
     BOOL haveU = VibeReadDeviceProperty(object, address.mSelector, address.mScope, &u, sizeof(u));

@@ -87,7 +87,7 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
 #if VIBE_VERBOSE_LOGGING
     // Beta instrumentation: the device event log. Per watched device id,
     // its name, the listener blocks and the stream they sit on, which removal
-    // needs; confined to _refreshQueue. Events arrive on _eventLogQueue.
+    // needs; confined to _refreshQueue. Reads/logging run on _eventLogQueue.
     NSMutableDictionary<NSNumber *, NSDictionary *> *_eventLogWatches;
     dispatch_queue_t _eventLogQueue;
     NSInteger _eventLogDefaultID;
@@ -351,15 +351,16 @@ static const AudioObjectPropertyAddress kVibeEventLogStreamAddresses[] = {
 };
 
 static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAddress *addresses, size_t count,
-                               dispatch_queue_t queue, AudioObjectPropertyListenerBlock listener, BOOL add) {
+                               AudioObjectPropertyListenerBlock listener, BOOL add) {
     for (size_t i = 0; i < count; i++) {
         if (!AudioObjectHasProperty(object, &addresses[i])) {
             continue;
         }
         if (add) {
-            AudioObjectAddPropertyListenerBlock(object, &addresses[i], queue, listener);
+            // The IO thread must not wait behind the event log's property reads.
+            AudioObjectAddPropertyListenerBlock(object, &addresses[i], NULL, listener);
         } else {
-            AudioObjectRemovePropertyListenerBlock(object, &addresses[i], queue, listener);
+            AudioObjectRemovePropertyListenerBlock(object, &addresses[i], NULL, listener);
         }
     }
 }
@@ -372,13 +373,8 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
         _eventLogWatches = [NSMutableDictionary dictionary];
         _eventLogDefaultID = -1;
         VibeEventLogListen(kAudioObjectSystemObject, kVibeEventLogSystemAddresses,
-                           sizeof(kVibeEventLogSystemAddresses) / sizeof(kVibeEventLogSystemAddresses[0]), _eventLogQueue,
-                           ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
-            for (UInt32 i = 0; i < count; i++) {
-                LogInfo(@"HAL: system %@",
-                        [CoreAudioUtil eventDescriptionOfProperty:addresses[i] object:kAudioObjectSystemObject]);
-            }
-        }, YES);
+                           sizeof(kVibeEventLogSystemAddresses) / sizeof(kVibeEventLogSystemAddresses[0]),
+                           [CoreAudioUtil eventLogListenerForObject:kAudioObjectSystemObject name:@"system" queue:_eventLogQueue], YES);
     }
     size_t deviceCount = sizeof(kVibeEventLogDeviceAddresses) / sizeof(kVibeEventLogDeviceAddresses[0]);
     size_t streamCount = sizeof(kVibeEventLogStreamAddresses) / sizeof(kVibeEventLogStreamAddresses[0]);
@@ -397,24 +393,14 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
         }
         NSString *name = device.name;
         AudioObjectID object = (AudioObjectID)device.deviceId;
-        AudioObjectPropertyListenerBlock deviceListener = ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
-            for (UInt32 i = 0; i < count; i++) {
-                LogInfo(@"HAL: %@ (%u) %@", name, object,
-                        [CoreAudioUtil eventDescriptionOfProperty:addresses[i] object:object]);
-            }
-        };
-        VibeEventLogListen(object, kVibeEventLogDeviceAddresses, deviceCount, _eventLogQueue, deviceListener, YES);
+        AudioObjectPropertyListenerBlock deviceListener = [CoreAudioUtil eventLogListenerForObject:object name:name queue:_eventLogQueue];
+        VibeEventLogListen(object, kVibeEventLogDeviceAddresses, deviceCount, deviceListener, YES);
         AudioStreamID stream = kAudioObjectUnknown;
         AudioStreamBasicDescription physical = {0};
         [CoreAudioUtil readOutputStream:&stream physicalFormat:&physical availableFormats:NULL count:NULL forDeviceID:object];
-        AudioObjectPropertyListenerBlock streamListener = ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
-            for (UInt32 i = 0; i < count; i++) {
-                LogInfo(@"HAL: %@ (%u) %@", name, object,
-                        [CoreAudioUtil eventDescriptionOfProperty:addresses[i] object:stream]);
-            }
-        };
+        AudioObjectPropertyListenerBlock streamListener = [CoreAudioUtil eventLogListenerForObject:stream name:name queue:_eventLogQueue];
         if (stream != kAudioObjectUnknown) {
-            VibeEventLogListen(stream, kVibeEventLogStreamAddresses, streamCount, _eventLogQueue, streamListener, YES);
+            VibeEventLogListen(stream, kVibeEventLogStreamAddresses, streamCount, streamListener, YES);
         }
         _eventLogWatches[key] = @{@"name": name, @"device": deviceListener,
                                   @"stream": streamListener, @"streamID": @(stream)};
@@ -425,11 +411,11 @@ static void VibeEventLogListen(AudioObjectID object, const AudioObjectPropertyAd
             continue;
         }
         NSDictionary *watch = _eventLogWatches[key];
-        VibeEventLogListen(key.unsignedIntValue, kVibeEventLogDeviceAddresses, deviceCount, _eventLogQueue,
+        VibeEventLogListen(key.unsignedIntValue, kVibeEventLogDeviceAddresses, deviceCount,
                            watch[@"device"], NO);
         AudioStreamID stream = [watch[@"streamID"] unsignedIntValue];
         if (stream != kAudioObjectUnknown) {
-            VibeEventLogListen(stream, kVibeEventLogStreamAddresses, streamCount, _eventLogQueue, watch[@"stream"], NO);
+            VibeEventLogListen(stream, kVibeEventLogStreamAddresses, streamCount, watch[@"stream"], NO);
         }
         [_eventLogWatches removeObjectForKey:key];
         LogInfo(@"HAL: %@ (%@) is gone", watch[@"name"], key);

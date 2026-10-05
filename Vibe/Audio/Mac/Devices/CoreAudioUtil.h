@@ -127,6 +127,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSDictionary<NSString *, id> *)diagnosticDescriptionOfDeviceID:(AudioDeviceID)deviceID;
 
 #if VIBE_VERBOSE_LOGGING
+// Register with a NULL delivery queue: the callback copies each address and
+// queues its read/log here, so even a busy log queue cannot hold the IO thread.
++ (AudioObjectPropertyListenerBlock)eventLogListenerForObject:(AudioObjectID)object
+                                                       name:(NSString *)name queue:(dispatch_queue_t)queue;
 // Beta instrumentation: one changed HAL property as a log phrase with
 // its new value ("nominal rate = 44100 Hz", "exclusive owner = 1377 (Vibe)"),
 // for the device event log. Reads through coreaudiod; call it off main.
