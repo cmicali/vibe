@@ -4,7 +4,7 @@
 #
 #   scripts/appstore-generate-store-screenshots.sh [--platform macos|ios] [lang]
 #   scripts/appstore-generate-store-screenshots.sh --all [--platform macos|ios]
-#   scripts/appstore-generate-store-screenshots.sh --creative   # iOS 27 header + search results
+#   scripts/appstore-generate-store-screenshots.sh --creative   # iOS 27 header + search results, GitHub preview
 #
 # Defaults: macos, en; --all runs every catalog language. OUT_DIR overrides the
 # output directory (under --all, the base of one directory per language).
@@ -46,6 +46,18 @@ if [ "${1:-}" = --creative ]; then
         "$ROOT/Assets/screenshot-ios-iphone-playlist.png" \
         "$ROOT/Assets/screenshot-ios-iphone-player.png" \
         "$ROOT/Assets/screenshot-ios-iphone-seek.png"
+    # GitHub's social preview, uploaded by hand under the repo's Settings >
+    # General: 1280x640, and under GitHub's 1 MB cap, which the PNG is not.
+    # The repo card shows only rows 78-562, the band GitHub's template marks,
+    # so the block is centred in that band with 63px clear above the text and
+    # below the window; --block-y offsets the space above the headline's caps,
+    # which the compositor's own centring counts as part of the block.
+    "$COMPOSE_BIN" "$ROOT/Assets/screenshot-basic.png" "$OUT/github-social-preview.png" \
+        --canvas 1280x640 --width 0.70 --block-y 0.47 --headline Vibe --headline-scale 2.0 \
+        --subhead "A fast, minimal player for your music files" --subhead-scale 1.48
+    sips -s format jpeg -s formatOptions 90 "$OUT/github-social-preview.png" \
+        --out "$OUT/github-social-preview.jpg" >/dev/null
+    rm "$OUT/github-social-preview.png"
     exit 0
 fi
 

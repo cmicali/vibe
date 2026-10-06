@@ -5,7 +5,7 @@
 //
 //     compose <shot.png> <out.png> [--headline …] [--subhead …] [--lang …]
 //         [--canvas WxH] [--width frac] [--glyphs a,b] [--wash-color RRGGBB]
-//         [--headline-scale x] [--center-text]
+//         [--headline-scale x] [--subhead-scale x] [--block-y frac] [--center-text]
 //     compose --measure --headline … [--subhead …] [--lang …] [--canvas WxH]
 //         [--headline-scale x]         # exit 1 if the caption cannot fit
 //     compose --header <out.png> --canvas WxH
@@ -44,7 +44,7 @@ let WINDOW_W_FRAC = 0.84
 let WINDOW_H_FRAC = 0.72
 
 // Vertical placement of the headline + window block within the free space.
-let BLOCK_Y_FRAC = 0.5
+let BLOCK_Y_FRAC = 0.5  // --block-y overrides
 
 // --center-text pins the window this far from the bottom and centres the text
 // above it. Centring the whole stack lets the window jump between shots whose
@@ -431,10 +431,10 @@ extension String {
 
 // renderTextLayer and textHeight both consume this, so the drawn stack and the
 // centring cannot disagree. Dies (exit 1) when a string cannot fit: the
-// --measure contract. headlineScale multiplies ONLY the headline (iOS captions
+// --measure contract. Each scale multiplies only its own line (iOS captions
 // are headline-only).
 func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ h: Int, _ lang: String,
-                _ headlineScale: Double = 1.0) -> [Line] {
+                _ headlineScale: Double = 1.0, _ subheadScale: Double = 1.0) -> [Line] {
     let maxW = Double(w) * MAX_TEXT_W_FRAC
     // Sizes scale with area; the line cap stays a fraction of WIDTH.
     let typeBase = (Double(w) * Double(h)).squareRoot()
@@ -444,7 +444,7 @@ func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ h: Int, _ lan
         LINES, [(headline, headlineTracking), (subhead, SUBHEAD_TRACKING)])
     {
         if content.isEmpty { continue }
-        let roleScale = kind == "headline" ? headlineScale : 1.0
+        let roleScale = kind == "headline" ? headlineScale : subheadScale
         let nominal = Double(Int(typeBase * sizeFrac * roleScale))
         var size = nominal
         var lines: [String]?
@@ -595,7 +595,7 @@ func dropShadows(canvasW: Int, canvasH: Int, window: Buffer, x: Int, y: Int, sca
 func compose(
     shot: String, out: String, headline: String, subhead: String,
     canvasW: Int, canvasH: Int, widthFrac: Double, glyphs: [String], lang: String,
-    washColor: String?, headlineScale: Double, centerText: Bool
+    washColor: String?, headlineScale: Double, subheadScale: Double, centerText: Bool, blockY: Double
 ) {
     let (rawWin, header) = loadWindow(shot)
     let art = crop(rawWin, x: 0, y: 0, w: header, h: header)
@@ -615,11 +615,11 @@ func compose(
         glyphGap = Double(canvasW) * GLYPH_BLOCK_GAP_FRAC
     }
 
-    let layout = layoutText(headline, subhead, canvasW, canvasH, lang, headlineScale)
+    let layout = layoutText(headline, subhead, canvasW, canvasH, lang, headlineScale, subheadScale)
     let blockH = textHeight(layout)
     let gap = blockH > 0 ? Double(canvasW) * 0.032 : 0
     let stack = glyphH + glyphGap + blockH + gap + Double(win.h)
-    var top = (Double(canvasH) - stack) * BLOCK_Y_FRAC
+    var top = (Double(canvasH) - stack) * blockY
     var windowTop = top + glyphH + glyphGap + blockH + gap
     if centerText {
         windowTop = Double(canvasH) - Double(win.h) - Double(canvasH) * WINDOW_BOTTOM_FRAC
@@ -785,6 +785,8 @@ var creative: String? = nil
 var headline = "", subhead = "", lang = "en"
 var washColor: String? = nil
 var headlineScale = 1.0
+var subheadScale = 1.0
+var blockY = BLOCK_Y_FRAC
 var centerText = false
 var widthFrac = WINDOW_W_FRAC
 var canvasSpec = "\(CANVAS_W)x\(CANVAS_H)"
@@ -807,6 +809,8 @@ while !args.isEmpty {
     case "--glyphs": glyphSpec = value()
     case "--wash-color": washColor = value().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
     case "--headline-scale": headlineScale = Double(value()) ?? 1.0
+    case "--subhead-scale": subheadScale = Double(value()) ?? 1.0
+    case "--block-y": blockY = Double(value()) ?? BLOCK_Y_FRAC
     case "--center-text": centerText = true
     case "--measure": measure = true
     case "--header": creative = "header"
@@ -835,7 +839,7 @@ if positional.count > 2 { die("unexpected argument \(positional[2])") }
 let shot = positional.first, outPath = positional.dropFirst().first
 
 if measure {
-    _ = layoutText(headline, subhead, canvasParts[0], canvasParts[1], lang, headlineScale)
+    _ = layoutText(headline, subhead, canvasParts[0], canvasParts[1], lang, headlineScale, subheadScale)
     exit(0)
 }
 guard let shotPath = shot, let output = outPath else {
@@ -845,5 +849,5 @@ let glyphNames = glyphSpec.split(separator: ",").map { $0.trimmingCharacters(in:
 compose(
     shot: shotPath, out: output, headline: headline, subhead: subhead,
     canvasW: canvasParts[0], canvasH: canvasParts[1], widthFrac: widthFrac,
-    glyphs: glyphNames, lang: lang, washColor: washColor, headlineScale: headlineScale,
-    centerText: centerText)
+    glyphs: glyphNames, lang: lang, washColor: washColor, headlineScale: headlineScale, subheadScale: subheadScale,
+    centerText: centerText, blockY: blockY)
