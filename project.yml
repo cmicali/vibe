@@ -25,8 +25,8 @@ settingGroups:
   # VIBE_VERBOSE_LOGGING to 0 (the vibe-release skill); the release scripts
   # read the number back out of the BUILT app.
   vibe-version:
-    MARKETING_VERSION: "1.16-beta1"
-    CURRENT_PROJECT_VERSION: 308
+    MARKETING_VERSION: "1.16-beta2"
+    CURRENT_PROJECT_VERSION: 309
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
