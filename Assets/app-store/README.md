@@ -92,6 +92,26 @@ caption sits on one line.
   (`scripts/appstore-upload-metadata.sh`, the Swift tool in
   `scripts/asc-upload/`).
 
+## Creative assets (iOS 27)
+
+`creative/header.png` (3840x1646, the product-page header) and
+`creative/search-results.png` (3840x2560, the search-results card), both
+built by `scripts/appstore-generate-store-screenshots.sh --creative` at the
+sizes Apple's templates use. Both are **text-free on purpose**: one image
+serves all 29 locales, and nothing needs re-translating.
+
+- **The header** is the icon's own waveform, its played bars white and the
+  rest grey, run across the full width over the icon's groove. The art safe
+  area in Apple's header template is only the central 1646x661, so the peak sits
+  inside it and everything outside it is decoration that a phone may crop.
+- **The search result** is the iPhone playlist, player and seek captures side
+  by side, built from the same captures as the iOS screenshots, so re-capturing
+  those means rebuilding these too. The widget capture is left out because it
+  shows Apple's own app icons.
+
+Nothing uploads them. They go into App Store Connect's Asset Library by
+hand, and `appstore-upload-metadata` has no creative-asset support.
+
 ## iOS screenshot music
 
 The iOS captures use fictional artist/title metadata and the four new sleeve

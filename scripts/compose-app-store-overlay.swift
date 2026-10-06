@@ -8,6 +8,8 @@
 //         [--headline-scale x] [--center-text]
 //     compose --measure --headline … [--subhead …] [--lang …] [--canvas WxH]
 //         [--headline-scale x]         # exit 1 if the caption cannot fit
+//     compose --header <out.png> --canvas WxH
+//     compose --row <art.png> <out.png> <left> <middle> <right> --canvas WxH
 //
 // A mock-up, unlike appstore-capture-app-screenshots.sh: it lays an
 // already-captured window (the alpha-channel PNGs in Assets/) over a generated
@@ -659,9 +661,127 @@ func compose(
     print("wrote \(out) (\(canvasW)x\(canvasH), window \(win.w)px wide, \(String(format: "%.2f", scale))x)")
 }
 
+// --- creative assets --------------------------------------------------------
+
+// The iOS 27 product-page header and search-results art. Both are text-free,
+// so one image serves every locale, and both are built only from the icon's
+// own pieces or real captures.
+
+// Apple's header template's art safe area, as fractions of 3840x1646: the
+// only part every device and orientation is guaranteed to show.
+let HEADER_SAFE = CGRect(x: 1097.0 / 3840, y: 493.0 / 1646, width: 1646.0 / 3840, height: 661.0 / 1646)
+
+func drawn(w: Int, h: Int, _ body: (CGContext) -> Void) -> Buffer {
+    var layer = Buffer(w: w, h: h)
+    layer.data.withUnsafeMutableBytes { raw in
+        let ctx = CGContext(
+            data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8,
+            bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        body(ctx)
+    }
+    return layer
+}
+
+func flattenAndSave(_ canvas: inout Buffer, _ out: String) {
+    for i in stride(from: 3, to: canvas.data.count, by: 4) { canvas.data[i] = 255 }
+    savePNG(canvas, to: out)
+    print("wrote \(out) (\(canvas.w)x\(canvas.h))")
+}
+
+// The icon's waveform — rounded bars, played white up to the peak and grey
+// after — run the full width under an envelope that puts the peak in the
+// safe area. The jitter is seeded so a rebuild is byte-stable.
+func composeHeader(out: String, w: Int, h: Int) {
+    // Neutral charcoal, so only the groove shows; a wash color leaves the art
+    // unread. The extra contrast lifts the grooves off the flat field.
+    var canvas = buildBackground(art: Buffer(w: 1, h: 1), washColor: "252525", w: w, h: h)
+    enhanceContrast(&canvas, 1.8)
+
+    let pitch = Double(w) * 0.0161, barW = Double(w) * 0.0068
+    let maxH = Double(h) * HEADER_SAFE.height * 0.91
+    let half = Int(Double(w) / pitch / 2) - 1
+    var seed: UInt64 = 7
+    func jitter() -> Double {  // SplitMix64
+        seed &+= 0x9E37_79B9_7F4A_7C15
+        var z = seed
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return Double(z ^ (z >> 31)) / Double(UInt64.max)
+    }
+    let played = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
+    let unplayed = CGColor(red: 139 / 255, green: 145 / 255, blue: 160 / 255, alpha: 1)  // the icon's grey
+    var bars: [(CGRect, Bool, Double)] = []
+    for i in -half...half {
+        let t = Double(abs(i)) / Double(half)
+        let envelope = exp(-pow(t / 0.42, 2)) * 0.9 + 0.1
+        let bh = max(barW, maxH * envelope * (i == 0 ? 1 : 0.55 + 0.45 * jitter()))
+        let x = Double(w) / 2 + Double(i) * pitch
+        let edgeFade = min(1, (1 - t) / 0.25)
+        bars.append((CGRect(x: x - barW / 2, y: (Double(h) - bh) / 2, width: barW, height: bh), i <= 0, edgeFade))
+    }
+    func barLayer(glow: Bool) -> Buffer {
+        drawn(w: w, h: h) { ctx in
+            for (rect, isPlayed, fade) in bars where !glow || isPlayed {
+                let color = glow
+                    ? CGColor(red: 170 / 255, green: 200 / 255, blue: 1, alpha: 0.55 * fade)
+                    : (isPlayed ? played : unplayed).copy(alpha: fade)!
+                ctx.setFillColor(color)
+                ctx.addPath(CGPath(roundedRect: rect, cornerWidth: barW / 2, cornerHeight: barW / 2, transform: nil))
+                ctx.fillPath()
+            }
+        }
+    }
+    composite(&canvas, blurred(barLayer(glow: true), sigma: barW * 1.6), x: 0, y: 0)
+    composite(&canvas, barLayer(glow: false), x: 0, y: 0)
+    flattenAndSave(&canvas, out)
+}
+
+// Three full-screen iPhone captures side by side, the middle one larger: the
+// search result's job is to show the app in use at a glance.
+func composeRow(art: String, out: String, shots: [String], w: Int, h: Int) {
+    if shots.count != 3 { die("--row takes three captures, left to right") }
+    let artCG = loadCGImage(art)
+    var canvas = buildBackground(
+        art: Buffer(cgImage: artCG, w: artCG.width, h: artCG.height), washColor: nil, w: w, h: h)
+
+    let phones: [Buffer] = shots.enumerated().map { i, path in
+        let cg = loadCGImage(path)
+        let ph = Double(h) * (i == 1 ? 0.80 : 0.736)
+        let pw = Double(cg.width) * ph / Double(cg.height)
+        let radius = pw * 0.128  // the iPhone screen's own corner
+        let rect = CGRect(x: 0, y: 0, width: pw.rounded(), height: ph.rounded())
+        return drawn(w: Int(rect.width), h: Int(rect.height)) { ctx in
+            let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+            ctx.interpolationQuality = .high
+            ctx.addPath(path)
+            ctx.clip()
+            ctx.draw(cg, in: rect)
+            // A hairline, or the black playlist screen dissolves into the wash.
+            ctx.addPath(path)
+            ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.14))
+            ctx.setLineWidth(Double(w) * 0.0012)
+            ctx.strokePath()
+        }
+    }
+    let gap = Int(Double(w) * 0.035)
+    var x = (w - phones.reduce(0) { $0 + $1.w } - 2 * gap) / 2
+    for phone in phones {
+        let y = (h - phone.h) / 2
+        let scale = Double(w) / 2560
+        for shadow in dropShadows(canvasW: w, canvasH: h, window: phone, x: x, y: y, scale: scale) {
+            composite(&canvas, shadow, x: 0, y: 0)
+        }
+        composite(&canvas, phone, x: x, y: y)
+        x += phone.w + gap
+    }
+    flattenAndSave(&canvas, out)
+}
+
 // --- CLI --------------------------------------------------------------------
 
-var shot: String?, outPath: String?
+var positional: [String] = []
+var creative: String? = nil
 var headline = "", subhead = "", lang = "en"
 var washColor: String? = nil
 var headlineScale = 1.0
@@ -689,14 +809,30 @@ while !args.isEmpty {
     case "--headline-scale": headlineScale = Double(value()) ?? 1.0
     case "--center-text": centerText = true
     case "--measure": measure = true
+    case "--header": creative = "header"
+    case "--row": creative = "row"
     default:
         if arg.hasPrefix("--") { die("unknown option \(arg)") }
-        if shot == nil { shot = arg } else if outPath == nil { outPath = arg } else { die("unexpected argument \(arg)") }
+        positional.append(arg)
     }
 }
 
 let canvasParts = canvasSpec.split(separator: "x").compactMap { Int($0) }
 guard canvasParts.count == 2 else { die("bad --canvas \(canvasSpec)") }
+
+if let mode = creative {
+    if mode == "header" {
+        guard positional.count == 1 else { die("usage: compose-app-store-overlay --header <out.png> --canvas WxH") }
+        composeHeader(out: positional[0], w: canvasParts[0], h: canvasParts[1])
+    } else {
+        guard positional.count >= 2 else { die("usage: compose-app-store-overlay --row <art.png> <out.png> <left> <middle> <right> --canvas WxH") }
+        composeRow(art: positional[0], out: positional[1], shots: Array(positional.dropFirst(2)),
+                   w: canvasParts[0], h: canvasParts[1])
+    }
+    exit(0)
+}
+if positional.count > 2 { die("unexpected argument \(positional[2])") }
+let shot = positional.first, outPath = positional.dropFirst().first
 
 if measure {
     _ = layoutText(headline, subhead, canvasParts[0], canvasParts[1], lang, headlineScale)

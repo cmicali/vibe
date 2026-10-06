@@ -4,6 +4,7 @@
 #
 #   scripts/appstore-generate-store-screenshots.sh [--platform macos|ios] [lang]
 #   scripts/appstore-generate-store-screenshots.sh --all [--platform macos|ios]
+#   scripts/appstore-generate-store-screenshots.sh --creative   # iOS 27 header + search results
 #
 # Defaults: macos, en; --all runs every catalog language. OUT_DIR overrides the
 # output directory (under --all, the base of one directory per language).
@@ -32,6 +33,20 @@ if [ -z "${COMPOSE_BIN:-}" ]; then
     export COMPOSE_BIN
     trap 'rm -rf "$(dirname "$COMPOSE_BIN")"' EXIT
     xcrun swiftc -O -o "$COMPOSE_BIN" "$COMPOSE"
+fi
+
+# The iOS 27 creative assets: text-free, so one set for every locale, sized to
+# Apple's templates. The search result's wash is the player shot's cover.
+if [ "${1:-}" = --creative ]; then
+    OUT="${OUT_DIR:-$ROOT/Assets/app-store/creative}"
+    mkdir -p "$OUT"
+    ART="$ROOT/Assets/app-store/demo-music/artwork/soft-relay.png"
+    "$COMPOSE_BIN" --header "$OUT/header.png" --canvas 3840x1646
+    "$COMPOSE_BIN" --row "$ART" "$OUT/search-results.png" --canvas 3840x2560 \
+        "$ROOT/Assets/screenshot-ios-iphone-playlist.png" \
+        "$ROOT/Assets/screenshot-ios-iphone-player.png" \
+        "$ROOT/Assets/screenshot-ios-iphone-seek.png"
+    exit 0
 fi
 
 if [ "${1:-}" = --all ]; then
