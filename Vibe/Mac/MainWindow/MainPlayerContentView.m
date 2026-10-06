@@ -86,6 +86,11 @@ static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 // columns are measured (layoutVolumeControl).
 static const CGFloat kVolumeSliderWidth = 100;
 static const CGFloat kVolumeGap = 6;
+// How far the control's hover reaches past its frame, so the pointer finds a
+// slider it cannot see. Tuned for the corner, where the window's edges cut it
+// to the top-right corner down to about the waveform's top.
+static const CGFloat kVolumeHoverOutsetX = 100;
+static const CGFloat kVolumeHoverOutsetY = 18;
 
 // The traffic lights: 13pt dots on 23pt centers, like the real macOS
 // controls, left-aligned with the playlist icon below.
@@ -162,6 +167,7 @@ API_AVAILABLE(macos(26.0))
     SymbolButton *_playlistToggleButton;
     NSTrackingArea *_windowHoverArea;
     __weak NSView *_windowHoverHost;
+    NSTrackingArea *_volumeHoverArea;
     // An input to the hover fade, not a second writer of the same alpha.
     BOOL _trafficLightsShown;
     BOOL _dropHintShown;
@@ -319,13 +325,16 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
-- (BOOL)isCursorOverWindow {
-    NSView *host = _windowHoverHost;
-    if (!host.window) {
+static BOOL CursorIsIn(NSView *view, NSRect rect) {
+    if (!view.window) {
         return NO;
     }
-    NSPoint p = [host convertPoint:host.window.mouseLocationOutsideOfEventStream fromView:nil];
-    return NSMouseInRect(p, host.bounds, host.isFlipped);
+    NSPoint p = [view convertPoint:view.window.mouseLocationOutsideOfEventStream fromView:nil];
+    return NSMouseInRect(p, rect, view.isFlipped);
+}
+
+- (BOOL)isCursorOverWindow {
+    return CursorIsIn(_windowHoverHost, _windowHoverHost.bounds);
 }
 
 - (void)setTrafficLightsShown:(BOOL)shown {
@@ -334,12 +343,16 @@ API_AVAILABLE(macos(26.0))
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
+// The window's area answers whether the pointer is in the window; a crossing
+// of the volume control's own only asks the funnel to look again.
 - (void)mouseEntered:(NSEvent *)event {
-    [self setControlsShown:YES animated:YES];
+    BOOL volumeArea = event.trackingArea == _volumeHoverArea;
+    [self setControlsShown:volumeArea ? [self isCursorOverWindow] : YES animated:YES];
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    [self setControlsShown:NO animated:YES];
+    BOOL volumeArea = event.trackingArea == _volumeHoverArea;
+    [self setControlsShown:volumeArea ? [self isCursorOverWindow] : NO animated:YES];
 }
 
 // The one place button visibility is decided, so a hidden button never fades
@@ -349,7 +362,6 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
 }
 
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated {
-    shown = shown || _volumeDragging;
     CGFloat traffic   = (shown && _trafficLightsShown) ? 1.0 : 0.0;
     AppSettings *settings = AppSettings.sharedInstance;
     AppTheme *theme = settings.currentTheme;
@@ -359,9 +371,10 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     // readouts, or the time row's drop hint.
     BOOL volumeShown = settings.volumeControl;
     BOOL corner = VolumeAtTopRight(settings);
-    CGFloat volume = (shown && volumeShown) ? 1.0 : 0.0;
-    CGFloat readouts = (shown && corner) ? 0.0 : 1.0;
-    CGFloat hint = (shown && volumeShown && !corner) ? 0.0 : kDropHintAlpha;
+    BOOL volumeUp = volumeShown && (_volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
+    CGFloat volume = volumeUp ? 1.0 : 0.0;
+    CGFloat readouts = (volumeUp && corner) ? 0.0 : 1.0;
+    CGFloat hint = (volumeUp && !corner) ? 0.0 : kDropHintAlpha;
     BOOL gradientEnabled = self.transportGradientEnabled;
     CGFloat gradient = gradientEnabled && (shown || ![theme.buttonGradient isEqualToString:SETTINGS_VALUE_BUTTON_GRADIENT_HOVER]) ? 1 : 0;
     _albumArtGradientView.hidden = !gradientEnabled;
@@ -411,11 +424,11 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
-// TRAP: the pointer can leave the window mid-drag, and fading the control
-// then leaves the knob in hand invisible, still setting the volume. The drag
-// holds the hover open; the release re-decides it from the pointer. The hold
-// rests on the slider sending its action once more at the mouse-up: nothing
-// else clears it.
+// TRAP: the pointer can leave the control's hover mid-drag, and fading the
+// control then leaves the knob in hand invisible, still setting the volume.
+// The drag holds its hover open; the release re-decides it from the pointer.
+// The hold rests on the slider sending its action once more at the mouse-up:
+// nothing else clears it.
 - (void)volumeSliderDidMove {
     [self renderVolumePercent];
     NSEventType type = NSApp.currentEvent.type;
@@ -512,6 +525,36 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
     if (!NSEqualRects(frame, _volumeControlView.frame)) {
         _volumeControlView.frame = frame;
     }
+    [self placeVolumeHoverArea];
+}
+
+// The frame grown by the outsets, kept inside this view: past the window's
+// edge, the window's exit would re-decide with the pointer still in the rect
+// and leave the control up after it had gone, and past this view's right edge
+// the rect would reach over an open pitch panel. While the control is off
+// there is no area, so nothing wakes for it.
+- (void)placeVolumeHoverArea {
+    NSRect rect = NSZeroRect;
+    if (AppSettings.sharedInstance.volumeControl) {
+        rect = NSIntersectionRect(NSInsetRect(_volumeControlView.frame,
+                                              -kVolumeHoverOutsetX, -kVolumeHoverOutsetY),
+                                  self.bounds);
+    }
+    if (NSEqualRects(rect, _volumeHoverArea.rect)) {
+        return;
+    }
+    if (_volumeHoverArea) {
+        [self removeTrackingArea:_volumeHoverArea];
+        _volumeHoverArea = nil;
+    }
+    if (NSIsEmptyRect(rect)) {
+        return;
+    }
+    _volumeHoverArea = [[NSTrackingArea alloc]
+            initWithRect:rect
+                 options:NSTrackingActiveAlways | NSTrackingMouseEnteredAndExited
+                   owner:self userInfo:nil];
+    [self addTrackingArea:_volumeHoverArea];
 }
 
 // None (nil) is the system slider's. Waveform is the played color the

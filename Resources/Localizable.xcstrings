@@ -63242,7 +63242,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.caption": {
-      "comment": "Theme editor: caption under the volume slider's Location row. In the top-right corner the slider appears while the pointer is over the window, and the file info, status icons, tempo and key fade out for it; they come back when the pointer leaves. 'Track information' is the heading of the editor's group for those readouts. No trailing period.",
+      "comment": "Theme editor: caption under the volume slider's Location row. In the top-right corner the slider appears while the pointer is over its spot, and the file info, status icons, tempo and key fade out for it; they come back when the pointer leaves. 'Track information' is the heading of the editor's group for those readouts. No trailing period.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63428,7 +63428,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.top_right": {
-      "comment": "Theme editor, volume slider location choice: the player window's top-right corner, above the waveform, where it swaps with the track information while the pointer is over the window. The default.",
+      "comment": "Theme editor, volume slider location choice: the player window's top-right corner, above the waveform, where it swaps with the track information while the pointer is over it. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -88538,7 +88538,7 @@
       "extractionState": "manual"
     },
     "settings.general.volume_control.caption": {
-      "comment": "Settings: Volume control explanation. The slider appears when the pointer is over the window, like the play buttons. No trailing period.",
+      "comment": "Settings: Volume control explanation. The slider appears while the pointer is over its spot in the window. No trailing period.",
       "localizations": {
         "bg": {
           "stringUnit": {
