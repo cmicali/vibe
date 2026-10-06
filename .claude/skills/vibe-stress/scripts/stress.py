@@ -1915,6 +1915,342 @@ def run_gesture_test(args):
             command(["toggle_pitch_panel"])
 
 
+# --------------------------------------------------------------------------
+# iOS: attach through the existing simulator client, never the mac channel.
+# --------------------------------------------------------------------------
+
+
+def ios_validate_step(step):
+    if isinstance(step, dict) and set(step) == {"check"}:
+        if step["check"] in ("progress", "sustained", "pending-idle", "idle", "tail", "consistency"):
+            return
+    argv = step.get("command") if isinstance(step, dict) else None
+    if not isinstance(argv, list) or not argv or any(not isinstance(a, str) for a in argv):
+        raise ValueError(f"invalid iOS replay step: {step!r}")
+    if set(step) != {"command"}:
+        raise ValueError("unexpected iOS replay fields")
+    verb, *args = argv
+    if verb in ("next", "previous", "play_pause") and not args:
+        return
+    if verb == "open" and args == ["$CORPUS"]:
+        return
+    if verb in ("set_shuffle", "set_pause_at_track_end") and args in (["on"], ["off"]):
+        return
+    if verb == "set_repeat" and args in (["off"], ["one"], ["all"]):
+        return
+    if verb == "set_fx_pad" and args in (["off"], ["0.8", "0.7"]):
+        return
+    if verb in ("play_index", "seek") and len(args) == 1 and re.fullmatch(r"[0-9]{1,6}", args[0]):
+        return
+    if verb == "burst" and len(args) == 2 and args[0] == "100" and re.fullmatch(r"[0-9]{1,10}", args[1]):
+        return
+    raise ValueError(f"iOS replay refuses {argv!r}")
+
+
+def ios_record(file, **record):
+    file.write(json.dumps({"time": time.time(), **record}) + "\n")
+    file.flush()
+
+
+def ios_command(env, journal, argv, phase="run", timeout=10):
+    # Every oracle and cleanup command takes this path too. A terminal timeout
+    # must survive even when no subsequent command can answer.
+    ios_record(journal, event="begin", phase=phase, command=argv)
+    started = time.monotonic()
+    try:
+        proc = subprocess.Popen([str(LAUNCH_SH.with_name("debug-ios.sh")), *argv],
+                                env={**env, "VIBE_DEBUG_TIMEOUT": str(timeout)},
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+    except OSError as error:
+        ios_record(journal, event="reply", phase=phase, command=argv, code=127, stderr=str(error))
+        raise Failure("harness", str(error), argv) from error
+    interrupted = False
+    try:
+        raw, stderr = proc.communicate(timeout=timeout + 3)
+        code = proc.returncode
+    except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+        interrupted = isinstance(error, KeyboardInterrupt)
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            raw, stderr = proc.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            raw, stderr = proc.communicate()
+        code = 130 if interrupted else 124
+    try:
+        reply = json.loads(raw)
+    except (ValueError, TypeError):
+        reply = None
+    ios_record(journal, event="reply", phase=phase, command=argv, code=code,
+               elapsed=time.monotonic() - started, reply=reply, stdout=raw, stderr=stderr)
+    if interrupted:
+        raise KeyboardInterrupt
+    if code or not isinstance(reply, dict) or "error" in reply:
+        raise Failure("channel" if code in (1, 124) else "command",
+                      f"{argv!r}: exit {code}: {raw or stderr}", argv)
+    return reply
+
+
+def ios_wait(command, kind, timeout, expected_index=None):
+    deadline = time.monotonic() + timeout
+    baseline = None
+    while True:
+        state = command(["dump_state"])
+        path = command(["dump_audio_path"])
+        output = next(s for s in path["stages"] if s["stage"] == "output")
+        player = state["player"]
+        if kind in ("progress", "sustained"):
+            identity = ((state.get("currentTrack") or {}).get("url"), state["playlist"]["currentIndex"])
+            position = player["position"]
+            if (player["state"] == "playing" and not player.get("buffering", False)
+                    and identity[0] and not state.get("ui", {}).get("trackStartPending", False)
+                    and (expected_index is None or identity[1] == expected_index)):
+                # Seven seconds spans the player's six-second idle stop;
+                # an immediate post-resume tick would miss its stale firing.
+                advance = 7 if kind == "sustained" else 0.1
+                if (baseline and identity == baseline[0] and position - baseline[1] >= advance
+                        and (kind != "sustained" or time.monotonic() - baseline[2] >= 7)):
+                    return state
+                if baseline is None:
+                    baseline = (identity, position, time.monotonic())
+                elif identity != baseline[0] or position < baseline[1]:
+                    raise Failure("progress", "track changed or position reset during settled progress check")
+        elif kind == "idle":
+            if (player["state"] != "playing" and output["idle"] is True
+                    and output["running"] is False and not output.get("unitRunning", False)):
+                return state
+        elif kind == "pending-idle":
+            if player["state"] == "paused" and output.get("idleStopPending") and not output["idle"]:
+                return state
+        elif kind == "tail":
+            fx = next(s for s in path["stages"] if s["stage"] == "fx")
+            if (player["state"] == "paused" and output["running"] and not output["idle"]
+                    and any(s.get("active") for s in fx["stages"].values())):
+                return state
+        if time.monotonic() >= deadline:
+            raise Failure(kind, f"{kind} did not settle within {timeout:g}s")
+        time.sleep(min(0.2, max(0, deadline - time.monotonic())))
+
+
+def ios_lifecycle_steps(rounds):
+    for _ in range(rounds):
+        # Normal shutdown, resume after shutdown, FX drain, then both ways of
+        # superseding the idle stop before it can deactivate a new play.
+        for item in (["set_fx_pad", "off"], ["play_index", "0"], "progress",
+                     ["play_pause"], "idle", ["play_pause"], "progress",
+                     ["set_fx_pad", "0.8", "0.7"], "progress",
+                     ["play_pause"], "tail", ["set_fx_pad", "off"], "idle",
+                     ["play_pause"], "progress", ["play_pause"], "pending-idle",
+                     ["play_pause"], "sustained", ["play_pause"], "pending-idle",
+                     ["play_index", "1"], "sustained", "consistency"):
+            yield {"check": item} if isinstance(item, str) else {"command": item}
+
+
+def ios_restore(command, before, idle_timeout):
+    errors = []
+    try:
+        command(["set_fx_pad", "off"])
+        if command(["dump_state"])["player"]["state"] == "playing":
+            command(["play_pause"])
+        ios_wait(command, "idle", idle_timeout)
+    except (Failure, KeyError, StopIteration) as error:
+        errors.append(str(error))
+    # Restoration must continue even if stopping output or one write failed.
+    for verb, key in (("set_repeat", "repeatMode"), ("set_shuffle", "shuffleEnabled"),
+                      ("set_pause_at_track_end", "pauseAtTrackEnd")):
+        try:
+            value = before["settings"][key]
+            command([verb, on_off(value) if isinstance(value, bool) else str(value)])
+            if command(["dump_state"])["settings"][key] != value:
+                errors.append(f"failed to restore {key}")
+        except (Failure, KeyError) as error:
+            errors.append(str(error))
+    return errors
+
+
+def run_ios(args):
+    import fcntl
+    import hashlib
+    import tempfile
+
+    # Validate the entire recipe before contacting the app. No raw input,
+    # arbitrary paths, shell wrappers or unbounded blocking verbs in replay.
+    steps = None
+    if args.replay:
+        steps = [json.loads(line) for line in Path(args.replay).read_text().splitlines() if line.strip()]
+        if not steps:
+            raise ValueError("empty iOS replay")
+        for step in steps:
+            ios_validate_step(step)
+    if args.ios_output == "remoteio" and not args.isolated_host_audio:
+        raise ValueError("RemoteIO requires --isolated-host-audio: stable supported host output, no Mac audio stress")
+    if args.iterations < 0 or args.batch < 1 or args.ios_rounds < 0 or (args.duration is not None and args.duration <= 0):
+        raise ValueError("invalid iOS run bounds")
+    if not 1 <= args.ios_idle_timeout <= 120 or not 1 <= args.ios_progress_timeout <= 60:
+        raise ValueError("iOS idle timeout must be 1..120s and progress timeout 1..60s")
+    def simctl(*argv):
+        return subprocess.check_output(["xcrun", "simctl", *argv], text=True, timeout=20).strip()
+    devices = json.loads(simctl("list", "devices", "available", "-j"))["devices"]
+    if not any(d["udid"] == args.ios and d["state"] == "Booted" for ds in devices.values() for d in ds):
+        raise ValueError("--ios must name an exact booted simulator UUID (never 'booted' or a phone)")
+    # This lock spans worktrees, unlike a build/ lock. Never unlink a flock
+    # inode: another waiter may already hold an open descriptor to it.
+    with open(Path(tempfile.gettempdir()) / f"vibe-ios-stress-{args.ios}.lock", "a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("another iOS stress runner owns this simulator")
+        data = Path(simctl("get_app_container", args.ios, "com.commonwealthrecordings.Vibe", "data"))
+        app = Path(simctl("get_app_container", args.ios, "com.commonwealthrecordings.Vibe", "app"))
+        corpus = Path(args.corpus).expanduser().resolve()
+        if not corpus.is_dir() or not corpus.is_relative_to((data / "Documents").resolve()):
+            raise ValueError("iOS --corpus must be an existing directory inside this simulator app's Documents")
+        files = sorted(p for p in corpus.rglob("*") if p.is_file())
+        if any(p.is_symlink() for p in corpus.rglob("*")):
+            raise ValueError("iOS stress corpus must not contain symlinks")
+        def digest(path):
+            value = hashlib.sha256()
+            with path.open("rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    value.update(chunk)
+            return value.hexdigest()
+        if args.app and digest(Path(args.app) / "Vibe") != digest(app / "Vibe"):
+            raise ValueError("installed simulator executable differs from --app; relaunch with launch-ios.sh")
+        seed = args.seed if args.seed is not None else random.SystemRandom().randrange(2**32)
+        DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        out = Path(tempfile.mkdtemp(prefix=f"ios-{seed}-", dir=DEFAULT_OUTPUT_DIR))
+        print(f"iOS seed {seed}; evidence: {out}", flush=True)
+        manifest = {str(p.relative_to(corpus)): digest(p) for p in files}
+        (out / "corpus.json").write_text(json.dumps(manifest, indent=2))
+        if args.replay:
+            original = Path(args.replay).with_name("corpus.json")
+            if not original.exists() or json.loads(original.read_text()) != manifest:
+                raise ValueError("replay requires the original corpus.json and identical corpus contents")
+        env = {**os.environ, "VIBE_SIM_UDID": args.ios, "VIBE_APP_TMP": str(data / "tmp")}
+        before, failure, failure_kind, cleanup, pid = None, None, None, [], None
+        since = time.time()
+        processes = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True)
+        for line in processes.splitlines():
+            fields = line.strip().split(None, 1)
+            if len(fields) == 2 and (fields[1] == str(app / "Vibe") or fields[1].startswith(str(app / "Vibe") + " ")):
+                pid = int(fields[0])
+        if pid is None:
+            raise ValueError("no running process for the installed app; use launch-ios.sh first")
+        with (out / "journal.ndjson").open("w") as journal, (out / "replay.ndjson").open("w") as recipe:
+            command = lambda argv: ios_command(env, journal, argv)
+            expected_index = None
+            def perform(step):
+                nonlocal expected_index
+                ios_validate_step(step)
+                recipe.write(json.dumps(step) + "\n")
+                recipe.flush()
+                if "command" in step:
+                    argv = step["command"]
+                    command([str(corpus) if a == "$CORPUS" else a for a in argv])
+                    if argv[0] == "play_index":
+                        expected_index = int(argv[1])
+                    elif argv[0] in ("next", "previous", "burst", "open"):
+                        expected_index = None
+                elif step["check"] == "consistency":
+                    if not command(["check_consistency"])["ok"]:
+                        raise Failure("consistency", "settled consistency check failed")
+                else:
+                    kind = step["check"]
+                    ios_wait(command, kind, args.ios_idle_timeout if kind == "idle" else args.ios_progress_timeout, expected_index)
+            try:
+                ios_record(journal, event="run", seed=seed, simulator=args.ios, pid=pid,
+                           output=args.ios_output, corpus=str(corpus), arguments=vars(args),
+                           executableSHA256=digest(app / "Vibe"),
+                           replaySHA256=digest(Path(args.replay)) if args.replay else None)
+                command(["dump_build"])
+                state = command(["dump_state"])
+                if bool(state["player"]["noAudioHw"]) != (args.ios_output == "pump"):
+                    raise Failure("setup", "running app output mode does not match --ios-output")
+                if not state["settings"]["audioFXEnabled"] or state["ui"]["fxPadEngaged"]:
+                    raise Failure("setup", "enable audio FX and release the pad before running")
+                if any(s["enabled"] for s in state["fx"]["stages"].values()):
+                    raise Failure("setup", "release all FX before running")
+                settings = {k: state["settings"].get(k) for k in
+                            ("folderOpenSort", "crossfadeMilliseconds", "analyzeBPM")}
+                (out / "settings.json").write_text(json.dumps(settings, indent=2))
+                if args.replay:
+                    original = Path(args.replay).with_name("settings.json")
+                    if not original.exists() or json.loads(original.read_text()) != settings:
+                        raise Failure("setup", "replay requires matching folder order, crossfade and BPM settings")
+                before = state
+                if steps is not None:
+                    for step in steps:
+                        perform(step)
+                else:
+                    for argv in (["set_repeat", "one"], ["set_shuffle", "off"],
+                                 ["set_pause_at_track_end", "off"], ["open", "$CORPUS"]):
+                        perform({"command": argv})
+                    perform({"check": "progress"})
+                    state = command(["dump_state"])
+                    count = state["playlist"]["count"]
+                    if count < 2 or state["player"]["duration"] < 60:
+                        raise Failure("setup", "use at least two tracks; row 0 must be at least 60 seconds")
+                    for step in ios_lifecycle_steps(args.ios_rounds):
+                        perform(step)
+                    rng = random.Random(seed)
+                    deadline = time.monotonic() + args.duration if args.duration else float("inf")
+                    for index in range(args.iterations):
+                        if time.monotonic() >= deadline:
+                            break
+                        argv = rng.choice([["next"], ["previous"], ["play_pause"],
+                            ["play_index", str(rng.randrange(count))], ["seek", str(rng.randrange(45))],
+                            ["burst", "100", str(rng.randrange(2**32))],
+                            ["set_fx_pad", "0.8", "0.7"], ["set_fx_pad", "off"]])
+                        perform({"command": argv})
+                        if (index + 1) % args.batch == 0:
+                            # Probe the selected track before replacing it: restarting
+                            # playback here would hide a stalled render like R2.
+                            state = command(["dump_state"])
+                            if state["player"]["state"] == "playing":
+                                perform({"check": "progress"})
+                            for step in ({"command": ["set_fx_pad", "off"]},
+                                         {"command": ["play_index", "0"]}, {"check": "progress"},
+                                         {"command": ["play_pause"]}, {"check": "idle"},
+                                         {"check": "consistency"}):
+                                perform(step)
+                            print(f"{index + 1} operations; progress, idle and consistency passed", flush=True)
+                    # Cover a final partial batch too.
+                    state = command(["dump_state"])
+                    if state["player"]["state"] == "playing":
+                        perform({"check": "progress"})
+            except (Exception, KeyboardInterrupt) as error:
+                failure = str(error) or "interrupted"
+                failure_kind = error.kind if isinstance(error, Failure) else (
+                    "interrupted" if isinstance(error, KeyboardInterrupt) else "harness")
+                ios_record(journal, event="failure", kind=failure_kind, detail=failure)
+                # Sample only the pinned installed process, never 'Vibe' by name.
+                listing = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True)
+                if not listing.stdout.strip():
+                    failure_kind = "app-exited"
+                if listing.stdout.strip().startswith(str(app / "Vibe")):
+                    try:
+                        subprocess.run(["sample", str(pid), "2", "-file", str(out / "sample.txt")],
+                                       capture_output=True, timeout=10)
+                    except (OSError, subprocess.TimeoutExpired) as error:
+                        ios_record(journal, event="diagnostic-error", detail=str(error))
+            finally:
+                if before is not None:
+                    cleanup = ios_restore(lambda argv: ios_command(env, journal, argv, "cleanup"), before, args.ios_idle_timeout)
+                for report in fresh_crash_reports(since):
+                    if re.search(r'"pid"\s*:\s*' + str(pid) + r'\b', report.read_text(errors="replace")):
+                        shutil.copy2(report, out / report.name)
+                        failure = failure or "app crash report found"
+                        failure_kind = "app-crash"
+                ios_record(journal, event="result", failure=failure, kind=failure_kind, cleanupErrors=cleanup)
+        (out / "result.json").write_text(json.dumps({"failure": failure, "kind": failure_kind, "cleanupErrors": cleanup}, indent=2))
+        print(f"{'FAILED' if failure or cleanup else 'PASSED'}: {out}")
+        return int(bool(failure or cleanup))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1967,7 +2303,15 @@ def main():
                              "diagnosed finding that masks what lies behind it. Repeatable; "
                              "printed in the run header.")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--ios", metavar="SIMULATOR_UUID", help="attach to this booted simulator; corpus is inside its app Documents")
+    parser.add_argument("--ios-output", choices=("pump", "remoteio"), default="pump")
+    parser.add_argument("--isolated-host-audio", action="store_true", help="acknowledge stable supported host output and no concurrent Mac audio stress")
+    parser.add_argument("--ios-rounds", type=int, default=3, help="output lifecycle rounds before random stress (default 3)")
+    parser.add_argument("--ios-idle-timeout", type=float, default=30, help="FX-tail-aware output idle deadline (seconds)")
+    parser.add_argument("--ios-progress-timeout", type=float, default=10, help="settled playback progress deadline (seconds)")
     args = parser.parse_args()
+    if args.ios and (args.gesture_test or args.isolated_desktop):
+        parser.error("iOS stress never drives desktop input")
     if args.gesture_test:
         if not args.isolated_desktop or args.replay or args.shrink:
             parser.error("--gesture-test requires --isolated-desktop and cannot replay or shrink")
@@ -1985,6 +2329,10 @@ def main():
     signal.signal(signal.SIGTERM, signal.default_int_handler)
     signal.signal(signal.SIGHUP, signal.default_int_handler)
 
+    if args.ios:
+        if args.shrink or args.gesture_test or args.client_app or args.journal or args.profile != "base":
+            parser.error("iOS supports seeded runs and replay; no shrink, gestures, client-app, journal override or Mac profiles")
+        return run_ios(args)
     if args.shrink:
         return shrink(args)
     if args.replay:
