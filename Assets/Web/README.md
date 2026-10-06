@@ -35,11 +35,12 @@ served month-old screenshots through a release deploy before anyone noticed.
 | --- | --- |
 | `img/icon-*.png`, `img/icon-512.webp` | `Resources/AppIcon.icon/Assets/` — the vinyl ground and the glass waveform, composited and masked to the rounded square |
 | `img/player.{png,webp}` | `Assets/screenshot-basic.png` |
-| `img/playlist.{png,webp}` | `Assets/screenshot-playlist.png` |
 | `img/ios.{png,webp}` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
+| `img/ios-playlist.{png,webp}`, `img/ios-seek.{png,webp}` | `Assets/screenshot-ios-iphone-{playlist,seek}.png`, framed like `ios` |
+| `img/store-*.webp` | the English macOS App Store screenshots in `Assets/app-store/screenshots/en/macos/`, 1600px wide, for the carousel |
 | `img/app-store-badge.svg` | Apple's own marketing toolkit, copied verbatim. **Not generated and not to be edited** — the badge is Apple's artwork and its clear space and proportions are set by their guidelines. Replace it only with a newer file from the same source. |
 
-`web-build-images.sh` covers the three screenshots; **the icons and the badge
+`web-build-images.sh` covers the screenshots; **the icons and the badge
 are outside it**, so `--check` says nothing about them. The icons are derived
 by hand from the app icon and the badge is Apple's file, and neither tracks a
 source that changes on its own — but do not read a passing `--check` as "every

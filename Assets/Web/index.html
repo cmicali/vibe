@@ -59,7 +59,7 @@
   },
   "screenshot": [
     "https://vibeplayer.app/img/player.png",
-    "https://vibeplayer.app/img/playlist.png"
+    "https://vibeplayer.app/img/ios.png"
   ],
   "featureList": [
     "Seekable full-track waveform",
@@ -81,7 +81,7 @@
   ]
 }
 </script>
-<link rel="stylesheet" href="styles.css?v=4df799dea9">
+<link rel="stylesheet" href="styles.css?v=0cfc16db86">
 </head>
 <body>
 
@@ -169,7 +169,7 @@
 </section>
 
 <section class="brew" aria-labelledby="brew-h">
-  <h2 id="brew-h">Also available via Homebrew</h2>
+  <h2 id="brew-h">Available via Homebrew</h2>
   <div class="terminal">
     <code><span class="prompt" aria-hidden="true">$ </span><span class="cmd" id="brew-cmd">brew install cmicali/tap/vibe</span></code>
     <!-- Hidden until the script below runs, so no visitor sees a button that does nothing. -->
@@ -181,17 +181,21 @@
   </div>
 </section>
 
-<section class="feature-row" aria-labelledby="playlist-h">
-  <div class="copy">
-    <h2 id="playlist-h">Drop a folder, start playing</h2>
-    <p>Drop audio files or a whole folder on the window or the dock icon. Artwork, tags, and BPM fill in behind you while the first track is already playing. <code>Tab</code> shows and hides the playlist; arrow keys select and <code>Return</code> plays.</p>
+<section class="feature-row shots" aria-label="Screenshots">
+  <div class="carousel">
+    <div class="carousel-track" id="carousel-track" tabindex="0">
+      <figure class="slide"><img src="img/store-playlist.webp?v=db38bbb7ba" width="1600" height="1000" loading="lazy" alt="Drop a folder, start playing: the playlist with artwork, tags, and BPM."></figure>
+      <figure class="slide"><img src="img/store-themes.webp?v=6e77127504" width="1600" height="1000" loading="lazy" alt="Themes: Vibe in a custom theme from the theme editor."></figure>
+      <figure class="slide"><img src="img/store-pitch.webp?v=d0c651dba9" width="1600" height="1000" loading="lazy" alt="DJs will feel at home: the turntable-style pitch fader beside the waveform."></figure>
+    </div>
+    <button type="button" class="carousel-btn prev" aria-label="Previous screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
+    <button type="button" class="carousel-btn next" aria-label="Next screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
   </div>
-  <figure class="shot">
-    <picture>
-      <source srcset="img/playlist.webp?v=c50ca9a49c" type="image/webp">
-      <img src="img/playlist.png?v=48b1ffb6d5" width="1452" height="892" loading="lazy" alt="Vibe with the playlist open, showing numbered tracks with artwork thumbnails, titles, artists, and durations.">
-    </picture>
-  </figure>
+  <div class="carousel-dots" id="carousel-dots">
+    <button type="button" aria-label="Screenshot 1"></button>
+    <button type="button" aria-label="Screenshot 2"></button>
+    <button type="button" aria-label="Screenshot 3"></button>
+  </div>
 </section>
 
 <section class="feature-row" aria-labelledby="ios-h">
@@ -204,16 +208,45 @@
       </a>
     </p>
   </div>
-  <figure class="shot shot-phone">
-    <picture>
-      <source srcset="img/ios.webp?v=1e57c9a07f" type="image/webp">
-      <img src="img/ios.png?v=22f1dae7f7" width="574" height="1228" loading="lazy" alt="Vibe on iPhone: album art above the track title, a full-width waveform, and transport controls.">
-    </picture>
-  </figure>
+  <div class="phones">
+    <figure class="shot shot-phone">
+      <picture>
+        <source srcset="img/ios-playlist.webp?v=f6ee7c2c48" type="image/webp">
+        <img src="img/ios-playlist.png?v=42b06f9a7e" width="574" height="1228" loading="lazy" alt="Vibe on iPhone: the playlist, with artwork thumbnails, titles, artists, and durations, and a mini player above the tab bar.">
+      </picture>
+    </figure>
+    <figure class="shot shot-phone">
+      <picture>
+        <source srcset="img/ios.webp?v=1e57c9a07f" type="image/webp">
+        <img src="img/ios.png?v=22f1dae7f7" width="574" height="1228" loading="lazy" alt="Vibe on iPhone: album art above the track title, a full-width waveform, and transport controls.">
+      </picture>
+    </figure>
+    <figure class="shot shot-phone">
+      <picture>
+        <source srcset="img/ios-seek.webp?v=beb217e915" type="image/webp">
+        <img src="img/ios-seek.png?v=ea4edb8b7a" width="574" height="1228" loading="lazy" alt="Vibe on iPhone: seeking through a track by dragging along its waveform.">
+      </picture>
+    </figure>
+  </div>
 </section>
 
 </main>
 
+<script>
+(() => {
+  const track = document.getElementById("carousel-track");
+  const dots = [...document.querySelectorAll("#carousel-dots button")];
+  const count = dots.length;
+  const index = () => Math.round(track.scrollLeft / track.clientWidth);
+  const go = (i) => track.scrollTo({ left: ((i + count) % count) * track.clientWidth, behavior: "smooth" });
+  const mark = () => dots.forEach((d, i) => d.setAttribute("aria-current", i === index() ? "true" : "false"));
+  document.querySelector(".carousel-btn.prev").addEventListener("click", () => go(index() - 1));
+  document.querySelector(".carousel-btn.next").addEventListener("click", () => go(index() + 1));
+  dots.forEach((d, i) => d.addEventListener("click", () => go(i)));
+  track.addEventListener("scroll", mark, { passive: true });
+  mark();
+})();
+</script>
 <script>
 (() => {
   const button = document.getElementById("brew-copy");

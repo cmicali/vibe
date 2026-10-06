@@ -16,8 +16,12 @@ CHECK=0
 # <source capture>:<web basename>
 PAIRS=(
     "Assets/screenshot-basic.png:player"
-    "Assets/screenshot-playlist.png:playlist"
     "Assets/screenshot-ios-iphone-player.png:ios"
+    "Assets/screenshot-ios-iphone-playlist.png:ios-playlist"
+    "Assets/screenshot-ios-iphone-seek.png:ios-seek"
+    "Assets/app-store/screenshots/en/macos/02-playlist.png:store-playlist"
+    "Assets/app-store/screenshots/en/macos/03-themes.png:store-themes"
+    "Assets/app-store/screenshots/en/macos/04-pitch.png:store-pitch"
 )
 
 STALE=0
@@ -29,7 +33,13 @@ for pair in "${PAIRS[@]}"; do
 
     # A simulator capture is a plain rectangle, so it gets the rounded corners
     # and margin the window captures already carry.
-    if [[ "$NAME" == ios ]]; then EXTRA=phone; else EXTRA=plain; fi
+    # The store screenshots are opaque and already framed, and only the
+    # carousel shows them, which every browser draws from WebP.
+    case "$NAME" in
+        ios*) EXTRA=phone; EXTS="png webp" ;;
+        store-*) EXTRA=store; EXTS="webp" ;;
+        *) EXTRA=plain; EXTS="png webp" ;;
+    esac
 
     python3 - "$SRC" "$TMP/$NAME" "$EXTRA" <<'PY'
 import sys
@@ -47,11 +57,15 @@ if kind == "phone":
     canvas = Image.new("RGBA", (CONTENT_W + 2 * MARGIN, ch + 2 * MARGIN), (0, 0, 0, 0))
     canvas.paste(im, (MARGIN, MARGIN), im)
     im = canvas
+if kind == "store":
+    im = im.convert("RGB").resize((1600, round(im.height * 1600 / im.width)), Image.LANCZOS)
+    im.save(out + ".webp", quality=82, method=6)
+    sys.exit(0)
 im.save(out + ".png", optimize=True)
 im.save(out + ".webp", quality=88, method=6)
 PY
 
-    for ext in png webp; do
+    for ext in $EXTS; do
         if [[ $CHECK == 1 ]]; then
             if ! cmp -s "$TMP/$NAME.$ext" "$OUT.$ext"; then
                 echo "stale: $OUT.$ext does not match $SRC"; STALE=1

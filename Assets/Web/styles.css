@@ -217,6 +217,8 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
 /* A phone is portrait: at the .shot width the window shots use it would stand
    nearly 1800px tall and the section would be nothing but screenshot. */
 .shot-phone { max-width: 300px; }
+.phones { display: flex; justify-content: center; gap: clamp(10px, 2.4vw, 24px); }
+.phones .shot-phone { flex: 1 1 0; min-width: 0; max-width: 240px; margin-inline: 0; }
 
 /* Apple's own badge, used as supplied. Its art has the clear space built in,
    so it gets margin rather than padding, and a fixed height rather than a
@@ -232,6 +234,58 @@ code {
   font: 500 0.88em/1 ui-monospace, "SF Mono", Menlo, monospace;
   color: var(--ink);
 }
+
+/* ---------- screenshot carousel ---------- */
+
+/* Native horizontal scroll with snap points, so touch and trackpad swipes
+   work with no script; the arrows and dots only drive the same scroll. */
+.shots { padding-top: clamp(34px, 5.4vw, 58px); }
+.carousel { position: relative; max-width: 960px; margin: 0 auto; }
+.carousel-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.carousel-track::-webkit-scrollbar { display: none; }
+.slide { flex: 0 0 100%; margin: 0; scroll-snap-align: center; }
+.slide img { display: block; width: 100%; height: auto; }
+
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: rgba(20, 20, 26, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+.carousel-btn:hover { background: rgba(38, 38, 46, 0.9); }
+.carousel-btn svg { width: 20px; height: 20px; }
+.carousel-btn.prev { left: 14px; }
+.carousel-btn.next { right: 14px; }
+@media (max-width: 600px) { .carousel-btn { display: none; } }
+
+.carousel-dots { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+.carousel-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink-ghost);
+  cursor: pointer;
+}
+.carousel-dots button[aria-current="true"] { background: var(--accent); }
 
 /* ---------- Homebrew ---------- */
 
