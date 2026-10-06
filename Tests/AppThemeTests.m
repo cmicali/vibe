@@ -65,6 +65,7 @@
     XCTAssertEqualObjects(theme.volumeBar, @"waveform");
     XCTAssertTrue(theme.showVolumeLabels);
     XCTAssertEqualObjects(theme.volumeLocation, @"top_right");
+    XCTAssertEqualObjects(theme.volumeVisibility, @"hover_close");
     XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.bullet");
     XCTAssertEqualObjects(theme.playButtonGlyph, @"play.fill");
     XCTAssertEqualObjects(theme.pauseButtonGlyph, @"pause.fill");
@@ -703,10 +704,11 @@ static CGFloat Brightness(NSString *hex) {
 - (void)testVolumeFieldsSnapAndRoundTripUnderTheVolumeSection {
     AppTheme *snapped = [[AppTheme alloc] initWithRecord:@{
         @"volumeBar": @"plaid", @"volumeKnob": @"plaid", @"volumeLocation": @"bottom_left",
-        @"showVolumeLabels": @"no"}];
+        @"volumeVisibility": @"sometimes", @"showVolumeLabels": @"no"}];
     XCTAssertEqualObjects(snapped.volumeBar, @"waveform");
     XCTAssertEqualObjects(snapped.volumeKnob, @"bar");
     XCTAssertEqualObjects(snapped.volumeLocation, @"top_right");
+    XCTAssertEqualObjects(snapped.volumeVisibility, @"hover_close");
     XCTAssertTrue(snapped.showVolumeLabels);
     XCTAssertEqualObjects(snapped.dictionaryRepresentation, @{});
     for (NSString *bar in @[@"mono", @"artwork", @"custom"]) {
@@ -717,16 +719,21 @@ static CGFloat Brightness(NSString *hex) {
         snapped.volumeKnob = knob;
         XCTAssertEqualObjects(snapped.volumeKnob, knob);
     }
+    for (NSString *visibility in @[@"always", @"hover_exact"]) {
+        snapped.volumeVisibility = visibility;
+        XCTAssertEqualObjects(snapped.volumeVisibility, visibility);
+    }
     snapped.volumeBar = @"bar";
     XCTAssertEqualObjects(snapped.volumeBar, @"waveform", @"only the knob can follow the bar");
 
     NSData *json = [@"{\"volume\":{\"bar\":\"custom\",\"barColorDark\":\"#FF0000\","
                      "\"knob\":\"custom\",\"knobColorDark\":\"#00FF00\","
-                     "\"showLabels\":false,\"location\":\"bottom\"}}"
+                     "\"showLabels\":false,\"location\":\"bottom\",\"visibility\":\"hover_exact\"}}"
             dataUsingEncoding:NSUTF8StringEncoding];
     NSDictionary *expected = @{@"volumeBar": @"custom", @"volumeBarColorDark": @"#FF0000",
                                @"volumeKnob": @"custom", @"volumeKnobColorDark": @"#00FF00",
-                               @"showVolumeLabels": @NO, @"volumeLocation": @"bottom"};
+                               @"showVolumeLabels": @NO, @"volumeLocation": @"bottom",
+                               @"volumeVisibility": @"hover_exact"};
     NSDictionary *record = [AppTheme recordFromJSONData:json name:NULL error:NULL];
     XCTAssertEqualObjects(record, expected);
     AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
@@ -737,6 +744,7 @@ static CGFloat Brightness(NSString *hex) {
     NSData *exported = [AppTheme JSONDataForRecord:record name:@"Volume"];
     NSDictionary *object = [NSJSONSerialization JSONObjectWithData:exported options:0 error:NULL];
     XCTAssertEqualObjects(object[@"volume"][@"location"], @"bottom");
+    XCTAssertEqualObjects(object[@"volume"][@"visibility"], @"hover_exact");
     XCTAssertEqualObjects([AppTheme recordFromJSONData:exported name:NULL error:NULL], expected);
 }
 
@@ -812,8 +820,8 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"dengine", @"field", @"glassy", @"rekord_bin", @"snake",
-                              @"sonic_cirrus", @"tangerine", @"technical"]));
+                          (@[@"vibe", @"cupertino", @"dark_wolf", @"dengine", @"field", @"glassy", @"rekord_bin",
+                              @"snake", @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 
 - (void)testVibeBuiltInIsTheEmptyRecord {

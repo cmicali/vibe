@@ -545,6 +545,14 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                to:_volumeLocationPopUp];
     [self addItem:STR_SETTINGS_THEME_VOLUME_LOCATION_TOP_RIGHT value:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT
                to:_volumeLocationPopUp];
+    _volumeVisibilityPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                                 action:@selector(volumeVisibilityChanged:)];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_VISIBILITY_ALWAYS value:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS
+               to:_volumeVisibilityPopUp];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_VISIBILITY_HOVER_CLOSE value:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE
+               to:_volumeVisibilityPopUp];
+    [self addItem:STR_SETTINGS_THEME_VOLUME_VISIBILITY_HOVER_EXACT value:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_EXACT
+               to:_volumeVisibilityPopUp];
 
     // Automatic or Custom, the wells beside the choice while Custom.
     _playlistColorPopUps = [NSMutableDictionary dictionary];
@@ -663,6 +671,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_LOCATION
                                   caption:STR_SETTINGS_THEME_VOLUME_LOCATION_CAPTION
                                   control:_volumeLocationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_VISIBILITY control:_volumeVisibilityPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_VOLUME_LABELS control:_volumeLabelsSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_BAR control:_volumeBarPopUp],
             _volumeBarDarkRow,
@@ -856,6 +865,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectValue:theme.volumeKnob in:_volumeKnobPopUp];
     _volumeLabelsSwitch.state = StateForBOOL(theme.showVolumeLabels);
     [self selectValue:theme.volumeLocation in:_volumeLocationPopUp];
+    [self selectValue:theme.volumeVisibility in:_volumeVisibilityPopUp];
 
     [self refreshFontValueLabels];
 
@@ -1088,6 +1098,11 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 - (void)volumeLocationChanged:(id)sender {
     AppSettings.sharedInstance.currentTheme.volumeLocation = _volumeLocationPopUp.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeSettingsLiveEffectVolume];
+}
+
+- (void)volumeVisibilityChanged:(id)sender {
+    AppSettings.sharedInstance.currentTheme.volumeVisibility = _volumeVisibilityPopUp.selectedItem.representedObject;
     [self themeFieldDidChange:VibeSettingsLiveEffectVolume];
 }
 

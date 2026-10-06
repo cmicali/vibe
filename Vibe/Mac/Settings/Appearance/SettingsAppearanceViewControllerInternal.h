@@ -68,7 +68,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     SettingsRowView *_playlistBackgroundColorsRow;
     NSPopUpButton *_playlistTintPopUp;
     SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
-    NSPopUpButton *_volumeBarPopUp, *_volumeKnobPopUp, *_volumeLocationPopUp;
+    NSPopUpButton *_volumeBarPopUp, *_volumeKnobPopUp, *_volumeLocationPopUp, *_volumeVisibilityPopUp;
     VibeSwitch *_volumeLabelsSwitch;
     SettingsRowView *_volumeBarDarkRow, *_volumeBarLightRow;
     SettingsRowView *_volumeKnobDarkRow, *_volumeKnobLightRow;

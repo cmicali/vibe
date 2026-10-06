@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "name": "Dark Wolf",
+  "description": "Contributed by JohnnyFireOne (#183). A dark teal window with red and amber waveform bars.",
+  "window": {
+    "appIconShape": false,
+    "backgroundColorDark": "#1E1E1E",
+    "mode": "single",
+    "tint": "custom",
+    "tintColorDark": "#1C2F31"
+  },
+  "player": {
+    "artistColorDark": "#438681",
+    "artistFontFace": "HelveticaNeue-Medium",
+    "artistFontSize": 18,
+    "nextButtonColorDark": "#E7D396",
+    "nextButtonGlyph": "arrow.right.circle.fill",
+    "pauseButtonGlyph": "pause.circle.fill",
+    "playButtonColorDark": "#E7D396",
+    "playButtonGlyph": "play.circle.fill",
+    "playlistButtonColorDark": "#E7D396",
+    "playlistButtonGlyph": "music.note.list",
+    "showTransportButtons": false,
+    "titleColorDark": "#71A08C",
+    "titleFontFace": "HelveticaNeue-Medium",
+    "titleFontSize": 20
+  },
+  "info": {
+    "colorDark": "#D54532",
+    "fontFace": "HelveticaNeue-Medium",
+    "timeColorDark": "#FEF2B6"
+  },
+  "volume": {
+    "bar": "custom",
+    "barColorDark": "#438681",
+    "knob": "custom",
+    "knobColorDark": "#71A08C",
+    "showLabels": false
+  },
+  "waveform": {
+    "barDensity": 0.75,
+    "barWidth": 1.25,
+    "gradient": false,
+    "playedColorDark": "#D8462D",
+    "style": "basic",
+    "theme": "custom",
+    "unplayedColorDark": "#FFAE44"
+  },
+  "playlist": {
+    "artistColorDark": "#438681",
+    "artistColorEnabled": true,
+    "backgroundColorDark": "#1E1E1E",
+    "durationColorEnabled": true,
+    "durationFontFace": "HelveticaNeue-Medium",
+    "durationFontSize": 14,
+    "fontFace": "HelveticaNeue-Medium",
+    "fontSize": 16,
+    "numberColorEnabled": true,
+    "playingRowColorDark": "#37717540",
+    "selectedRowColorDark": "#3771757F",
+    "tint": "custom",
+    "tintColorDark": "#192B2DBF",
+    "titleColorDark": "#71A08C",
+    "titleColorEnabled": true
+  }
+}

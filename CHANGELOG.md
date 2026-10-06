@@ -1,3 +1,8 @@
+# v1.16
+
+* mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
+* mac: Added a volume slider show setting to theme editor
+
 # v1.15
 
 * Added shuffle, repeat all, and repeat one
