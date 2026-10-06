@@ -268,6 +268,9 @@ targets:
       - path: Resources/Themes
         type: folder
         buildPhase: resources
+      # Parked in the playlist on the first launch only (`welcomeTrackLoaded`).
+      - path: Resources/vibe-theme.mp3
+        buildPhase: resources
     preBuildScripts:
       # build/generated/VibeGitInfo.h for the launch provenance block; reading
       # .git needs ENABLE_USER_SCRIPT_SANDBOXING: NO (set below).
@@ -479,6 +482,8 @@ targets:
       - path: Resources/Localizable.xcstrings
         buildPhase: resources
       - path: Resources/InfoPlist.xcstrings
+        buildPhase: resources
+      - path: Resources/vibe-theme.mp3
         buildPhase: resources
     preBuildScripts:
       - script: '"$SRCROOT/scripts/generate-git-info.sh"'

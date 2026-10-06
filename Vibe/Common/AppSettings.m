@@ -258,6 +258,14 @@ void VibeNotifyDisplaySettingsChanged(void) {
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_SHUFFLE_REPEAT];
 }
 
+- (BOOL)welcomeTrackLoaded {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WELCOME_TRACK_LOADED];
+}
+
+- (void)setWelcomeTrackLoaded:(BOOL)loaded {
+    [[NSUserDefaults standardUserDefaults] setBool:loaded forKey:SETTING_WELCOME_TRACK_LOADED];
+}
+
 #if !TARGET_OS_OSX
 - (void)setHexColor:(VibeColor *)color forKey:(NSString *)key {
     NSString *hex = VibeHexStringFromColor(color);

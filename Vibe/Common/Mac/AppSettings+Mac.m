@@ -149,6 +149,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 }
 
 - (void)factoryReset {
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_WELCOME_TRACK_LOADED];
     [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_USER_THEMES];
     [self resetToDefaults];
 }

@@ -38,7 +38,29 @@
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif
+    [self copyWelcomeTrackIfFirstLaunch];
     return YES;
+}
+
+// Once per install, so a user who deletes it from On My iPhone keeps it gone.
+- (void)copyWelcomeTrackIfFirstLaunch {
+    if (AppSettings.sharedInstance.welcomeTrackLoaded) {
+        return;
+    }
+    AppSettings.sharedInstance.welcomeTrackLoaded = YES;
+    NSURL *source = [NSBundle.mainBundle URLForResource:@"vibe-theme" withExtension:@"mp3"];
+    NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
+                                                            inDomains:NSUserDomainMask].firstObject;
+    if (!source || !documents) {
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSError *error = nil;
+        NSURL *target = [documents URLByAppendingPathComponent:source.lastPathComponent];
+        if (![NSFileManager.defaultManager copyItemAtURL:source toURL:target error:&error]) {
+            LogWarn(@"Welcome track not copied: %@", error.localizedDescription);
+        }
+    });
 }
 
 @end
