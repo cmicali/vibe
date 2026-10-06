@@ -1,25 +1,2 @@
-* New: shuffle, repeat all, and repeat one, in the Playback menu (⌥⌘S, ⌘R), with their icons on the file-info line
-* New: CUE sheet playback, from a .cue file or one embedded in a FLAC
-* New: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R, and ADTS playback
-* New: a Keyboard Shortcuts pane in Settings to change any shortcut
-* New: a crossfade slider, from off up to 3 seconds in tenths of a second
-* New: customizable 3-Band waveform style and two themes that use it
-* New: option to center (or not) waveforms
-* New: a playhead line option, with the whole waveform in full color
-* Changed: the Settings window is reorganized, with search
-* Improved: FLAC seeking is near-instant even in long files, using less CPU and memory, with better compatibility
-* Improved: WAV and AIFF decoding is 1.4x–3.2x faster, with better compatibility
-* Improved: playback uses 20–30% less CPU and 15–25% less energy
-* Improved: tags and artwork scan 2x faster, and library scans use 20% less CPU
-* Improved: faster launch, large M3U playlists, and editing of very large playlists
-* Improved: Set as Default also claims CUE and M3U files, and keeps going when you decline one file type
-* Fixed: crossfade did nothing when one track played into the next; it only worked when changing tracks by hand
-* Fixed: single-key shortcuts did not work on AZERTY, Greek, Cyrillic, and other non-US keyboard layouts
-* Fixed: waveform bars rippled while the window was resized
-* Fixed: 24 and 32-bit little-endian AIFF-C files played at the wrong length
-* Fixed: seeks in low-bitrate MPEG-2 MP3 files landed slightly off
-* Fixed: FLAC files that don't record their length showed no duration
-* Fixed: Vibe could crash reading tags from certain malformed M4A and MP3 files
-* Fixed: Convert to FLAC added a click at every full-scale peak of a float file
-* Fixed: opening a CUE sheet or M3U playlist whose files are all missing did nothing; Vibe now says it couldn't open them
-* Fixed: Vibe wrote diagnostic logging to the system log
+* New: vibe theme track loads on the first launch
+* Changed: the volume slider appears only when the pointer is near it
