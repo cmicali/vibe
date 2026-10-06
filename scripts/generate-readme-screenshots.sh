@@ -84,14 +84,14 @@ SCAN_WAIT="${SCAN_WAIT:-30}"
 
 # The factory values of two settings the shots show, so a capture never
 # carries its author's own: normalization fills the waveform's height, and the
-# fader reads ±8. Neither has a channel verb, so this drives the Settings
-# window.
+# fader reads ±8. Neither has a channel verb: normalization drives the Settings
+# window, and the range its menu item, since settings_click cannot press the
+# pane's segmented control.
 pin_settings_defaults() {
     quiet settings_open appearance
     quiet settings_click "Normalize waveform" on
-    quiet settings_open playback
-    quiet settings_click 8%
     quiet settings_close
+    quiet click_menu pitch_range_8
 }
 
 [ "$#" -gt 0 ] && SHOTS=("$@") || SHOTS=(basic pitch themes playlist playlist-pitch)
