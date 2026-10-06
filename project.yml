@@ -25,8 +25,8 @@ settingGroups:
   # VIBE_VERBOSE_LOGGING to 0 (the vibe-release skill); the release scripts
   # read the number back out of the BUILT app.
   vibe-version:
-    MARKETING_VERSION: "1.15-beta1"
-    CURRENT_PROJECT_VERSION: 306
+    MARKETING_VERSION: "1.15"
+    CURRENT_PROJECT_VERSION: 307
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
@@ -96,7 +96,7 @@ settings:
     # report with nothing logged means the path was not taken. 0 for a stable
     # release: info and debug are stream-only, and only steps over their
     # threshold are recorded.
-    VIBE_VERBOSE_LOGGING: 1
+    VIBE_VERBOSE_LOGGING: 0
     # Nothing else fails on a compiler warning: the analyze gate matches only
     # checker findings. If a toolchain warns on vendored code, give that file a
     # per-file -Wno-* flag beside the PIN caches' entries rather than turning
