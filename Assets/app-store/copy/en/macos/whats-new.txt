@@ -1,2 +1,4 @@
 * New: vibe theme track loads on the first launch
+* New: Dark Wolf theme, by JohnnyFireOne
+* New: volume slider show setting in the theme editor
 * Changed: the volume slider appears only when the pointer is near it
