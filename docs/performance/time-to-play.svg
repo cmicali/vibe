@@ -21,53 +21,52 @@
 <text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
 <text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
 <text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
-<text class="m" x="537.9" y="293" font-size="10" text-anchor="middle">pre-release</text>
-<path class="l s0" d="M88.1,78.2 L152.4,79.2 L216.6,85.0 L280.9,74.5 L345.1,76.6 L409.4,64.3 L473.6,144.9 L537.9,156.5"/>
-<circle class="s0" cx="88.1" cy="78.2" r="4" stroke="none"><title>First after launch: 68 ms</title></circle>
-<circle class="s0" cx="152.4" cy="79.2" r="4" stroke="none"><title>First after launch: 67 ms</title></circle>
-<circle class="s0" cx="216.6" cy="85.0" r="4" stroke="none"><title>First after launch: 65 ms</title></circle>
-<circle class="s0" cx="280.9" cy="74.5" r="4" stroke="none"><title>First after launch: 69 ms</title></circle>
-<circle class="s0" cx="345.1" cy="76.6" r="4" stroke="none"><title>First after launch: 68 ms</title></circle>
-<circle class="s0" cx="409.4" cy="64.3" r="4" stroke="none"><title>First after launch: 73 ms</title></circle>
-<circle class="s0" cx="473.6" cy="144.9" r="4" stroke="none"><title>First after launch: 43 ms</title></circle>
-<circle class="s0" cx="537.9" cy="156.5" r="4" stroke="none"><title>First after launch: 39 ms</title></circle>
-<path class="l s1" d="M88.1,174.1 L152.4,163.6 L216.6,155.1 L280.9,148.7 L345.1,156.3 L409.4,151.1 L473.6,237.0 L537.9,247.5"/>
-<circle class="s1" cx="88.1" cy="174.1" r="4" stroke="none"><title>Switch to AAC: 33 ms</title></circle>
-<circle class="s1" cx="152.4" cy="163.6" r="4" stroke="none"><title>Switch to AAC: 36 ms</title></circle>
-<circle class="s1" cx="216.6" cy="155.1" r="4" stroke="none"><title>Switch to AAC: 40 ms</title></circle>
-<circle class="s1" cx="280.9" cy="148.7" r="4" stroke="none"><title>Switch to AAC: 42 ms</title></circle>
-<circle class="s1" cx="345.1" cy="156.3" r="4" stroke="none"><title>Switch to AAC: 39 ms</title></circle>
-<circle class="s1" cx="409.4" cy="151.1" r="4" stroke="none"><title>Switch to AAC: 41 ms</title></circle>
-<circle class="s1" cx="473.6" cy="237.0" r="4" stroke="none"><title>Switch to AAC: 10 ms</title></circle>
-<circle class="s1" cx="537.9" cy="247.5" r="4" stroke="none"><title>Switch to AAC: 6 ms</title></circle>
-<path class="l s2" d="M88.1,164.2 L152.4,179.8 L216.6,156.1 L280.9,160.9 L345.1,165.8 L409.4,168.4 L473.6,263.8 L537.9,253.4"/>
-<circle class="s2" cx="88.1" cy="164.2" r="4" stroke="none"><title>Switch to FLAC: 36 ms</title></circle>
-<circle class="s2" cx="152.4" cy="179.8" r="4" stroke="none"><title>Switch to FLAC: 31 ms</title></circle>
-<circle class="s2" cx="216.6" cy="156.1" r="4" stroke="none"><title>Switch to FLAC: 39 ms</title></circle>
-<circle class="s2" cx="280.9" cy="160.9" r="4" stroke="none"><title>Switch to FLAC: 37 ms</title></circle>
-<circle class="s2" cx="345.1" cy="165.8" r="4" stroke="none"><title>Switch to FLAC: 36 ms</title></circle>
-<circle class="s2" cx="409.4" cy="168.4" r="4" stroke="none"><title>Switch to FLAC: 35 ms</title></circle>
-<circle class="s2" cx="473.6" cy="263.8" r="4" stroke="none"><title>Switch to FLAC: 0 ms</title></circle>
-<circle class="s2" cx="537.9" cy="253.4" r="4" stroke="none"><title>Switch to FLAC: 4 ms</title></circle>
-<path class="l s3" d="M88.1,159.6 L152.4,167.8 L216.6,160.1 L280.9,150.5 L345.1,174.1 L409.4,181.9 L473.6,243.9 L537.9,262.5"/>
-<circle class="s3" cx="88.1" cy="159.6" r="4" stroke="none"><title>Switch to 24/192: 38 ms</title></circle>
-<circle class="s3" cx="152.4" cy="167.8" r="4" stroke="none"><title>Switch to 24/192: 35 ms</title></circle>
-<circle class="s3" cx="216.6" cy="160.1" r="4" stroke="none"><title>Switch to 24/192: 38 ms</title></circle>
-<circle class="s3" cx="280.9" cy="150.5" r="4" stroke="none"><title>Switch to 24/192: 41 ms</title></circle>
-<circle class="s3" cx="345.1" cy="174.1" r="4" stroke="none"><title>Switch to 24/192: 33 ms</title></circle>
-<circle class="s3" cx="409.4" cy="181.9" r="4" stroke="none"><title>Switch to 24/192: 30 ms</title></circle>
-<circle class="s3" cx="473.6" cy="243.9" r="4" stroke="none"><title>Switch to 24/192: 7 ms</title></circle>
-<circle class="s3" cx="537.9" cy="262.5" r="4" stroke="none"><title>Switch to 24/192: 1 ms</title></circle>
-<rect class="s0" x="582" y="147.5" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="152.5" font-size="11">First after launch</text>
-<text class="m" x="598" y="165.5" font-size="11">39</text>
+<path class="l s0" d="M88.1,76.9 L152.4,80.1 L216.6,77.2 L280.9,81.2 L345.1,78.9 L409.4,93.0 L473.6,161.6 L537.9,147.6"/>
+<circle class="s0" cx="88.1" cy="76.9" r="4" stroke="none"><title>First after launch: 68 ms</title></circle>
+<circle class="s0" cx="152.4" cy="80.1" r="4" stroke="none"><title>First after launch: 67 ms</title></circle>
+<circle class="s0" cx="216.6" cy="77.2" r="4" stroke="none"><title>First after launch: 68 ms</title></circle>
+<circle class="s0" cx="280.9" cy="81.2" r="4" stroke="none"><title>First after launch: 66 ms</title></circle>
+<circle class="s0" cx="345.1" cy="78.9" r="4" stroke="none"><title>First after launch: 67 ms</title></circle>
+<circle class="s0" cx="409.4" cy="93.0" r="4" stroke="none"><title>First after launch: 62 ms</title></circle>
+<circle class="s0" cx="473.6" cy="161.6" r="4" stroke="none"><title>First after launch: 37 ms</title></circle>
+<circle class="s0" cx="537.9" cy="147.6" r="4" stroke="none"><title>First after launch: 42 ms</title></circle>
+<path class="l s1" d="M88.1,156.4 L152.4,148.6 L216.6,166.0 L280.9,149.6 L345.1,160.5 L409.4,145.6 L473.6,241.5 L537.9,246.3"/>
+<circle class="s1" cx="88.1" cy="156.4" r="4" stroke="none"><title>Switch to AAC: 39 ms</title></circle>
+<circle class="s1" cx="152.4" cy="148.6" r="4" stroke="none"><title>Switch to AAC: 42 ms</title></circle>
+<circle class="s1" cx="216.6" cy="166.0" r="4" stroke="none"><title>Switch to AAC: 36 ms</title></circle>
+<circle class="s1" cx="280.9" cy="149.6" r="4" stroke="none"><title>Switch to AAC: 42 ms</title></circle>
+<circle class="s1" cx="345.1" cy="160.5" r="4" stroke="none"><title>Switch to AAC: 38 ms</title></circle>
+<circle class="s1" cx="409.4" cy="145.6" r="4" stroke="none"><title>Switch to AAC: 43 ms</title></circle>
+<circle class="s1" cx="473.6" cy="241.5" r="4" stroke="none"><title>Switch to AAC: 8 ms</title></circle>
+<circle class="s1" cx="537.9" cy="246.3" r="4" stroke="none"><title>Switch to AAC: 6 ms</title></circle>
+<path class="l s2" d="M88.1,161.3 L152.4,162.3 L216.6,156.2 L280.9,153.9 L345.1,161.0 L409.4,165.3 L473.6,248.8 L537.9,264.0"/>
+<circle class="s2" cx="88.1" cy="161.3" r="4" stroke="none"><title>Switch to FLAC: 37 ms</title></circle>
+<circle class="s2" cx="152.4" cy="162.3" r="4" stroke="none"><title>Switch to FLAC: 37 ms</title></circle>
+<circle class="s2" cx="216.6" cy="156.2" r="4" stroke="none"><title>Switch to FLAC: 39 ms</title></circle>
+<circle class="s2" cx="280.9" cy="153.9" r="4" stroke="none"><title>Switch to FLAC: 40 ms</title></circle>
+<circle class="s2" cx="345.1" cy="161.0" r="4" stroke="none"><title>Switch to FLAC: 37 ms</title></circle>
+<circle class="s2" cx="409.4" cy="165.3" r="4" stroke="none"><title>Switch to FLAC: 36 ms</title></circle>
+<circle class="s2" cx="473.6" cy="248.8" r="4" stroke="none"><title>Switch to FLAC: 6 ms</title></circle>
+<circle class="s2" cx="537.9" cy="264.0" r="4" stroke="none"><title>Switch to FLAC: 0 ms</title></circle>
+<path class="l s3" d="M88.1,163.5 L152.4,160.8 L216.6,162.6 L280.9,162.1 L345.1,173.8 L409.4,165.1 L473.6,246.7 L537.9,259.2"/>
+<circle class="s3" cx="88.1" cy="163.5" r="4" stroke="none"><title>Switch to 24/192: 37 ms</title></circle>
+<circle class="s3" cx="152.4" cy="160.8" r="4" stroke="none"><title>Switch to 24/192: 38 ms</title></circle>
+<circle class="s3" cx="216.6" cy="162.6" r="4" stroke="none"><title>Switch to 24/192: 37 ms</title></circle>
+<circle class="s3" cx="280.9" cy="162.1" r="4" stroke="none"><title>Switch to 24/192: 37 ms</title></circle>
+<circle class="s3" cx="345.1" cy="173.8" r="4" stroke="none"><title>Switch to 24/192: 33 ms</title></circle>
+<circle class="s3" cx="409.4" cy="165.1" r="4" stroke="none"><title>Switch to 24/192: 36 ms</title></circle>
+<circle class="s3" cx="473.6" cy="246.7" r="4" stroke="none"><title>Switch to 24/192: 6 ms</title></circle>
+<circle class="s3" cx="537.9" cy="259.2" r="4" stroke="none"><title>Switch to 24/192: 2 ms</title></circle>
+<rect class="s0" x="582" y="138.6" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="143.6" font-size="11">First after launch</text>
+<text class="m" x="598" y="156.6" font-size="11">42</text>
 <rect class="s1" x="582" y="203.0" width="10" height="3" rx="1.5" stroke="none"/>
 <text class="t" x="598" y="208.0" font-size="11">Switch to AAC</text>
 <text class="m" x="598" y="221.0" font-size="11">6</text>
-<rect class="s2" x="582" y="231.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="236.0" font-size="11">Switch to FLAC</text>
-<text class="m" x="598" y="249.0" font-size="11">4</text>
-<rect class="s3" x="582" y="259.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="264.0" font-size="11">Switch to 24/192</text>
-<text class="m" x="598" y="277.0" font-size="11">1</text>
+<rect class="s3" x="582" y="231.0" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="236.0" font-size="11">Switch to 24/192</text>
+<text class="m" x="598" y="249.0" font-size="11">2</text>
+<rect class="s2" x="582" y="259.0" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="264.0" font-size="11">Switch to FLAC</text>
+<text class="m" x="598" y="277.0" font-size="11">0</text>
 </svg>

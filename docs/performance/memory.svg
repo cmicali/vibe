@@ -25,53 +25,52 @@
 <text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
 <text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
 <text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
-<text class="m" x="537.9" y="293" font-size="10" text-anchor="middle">pre-release</text>
-<path class="l s0" d="M88.1,202.5 L152.4,202.0 L216.6,206.3 L280.9,199.5 L345.1,209.5 L409.4,209.7 L473.6,195.3 L537.9,191.4"/>
-<circle class="s0" cx="88.1" cy="202.5" r="4" stroke="none"><title>Idle: 34 MB</title></circle>
-<circle class="s0" cx="152.4" cy="202.0" r="4" stroke="none"><title>Idle: 34 MB</title></circle>
-<circle class="s0" cx="216.6" cy="206.3" r="4" stroke="none"><title>Idle: 31 MB</title></circle>
-<circle class="s0" cx="280.9" cy="199.5" r="4" stroke="none"><title>Idle: 35 MB</title></circle>
-<circle class="s0" cx="345.1" cy="209.5" r="4" stroke="none"><title>Idle: 30 MB</title></circle>
-<circle class="s0" cx="409.4" cy="209.7" r="4" stroke="none"><title>Idle: 30 MB</title></circle>
-<circle class="s0" cx="473.6" cy="195.3" r="4" stroke="none"><title>Idle: 37 MB</title></circle>
-<circle class="s0" cx="537.9" cy="191.4" r="4" stroke="none"><title>Idle: 40 MB</title></circle>
-<path class="l s1" d="M88.1,141.6 L152.4,138.0 L216.6,170.0 L280.9,162.6 L345.1,175.7 L409.4,175.6 L473.6,164.1 L537.9,159.7"/>
-<circle class="s1" cx="88.1" cy="141.6" r="4" stroke="none"><title>After playback: 67 MB</title></circle>
-<circle class="s1" cx="152.4" cy="138.0" r="4" stroke="none"><title>After playback: 69 MB</title></circle>
-<circle class="s1" cx="216.6" cy="170.0" r="4" stroke="none"><title>After playback: 51 MB</title></circle>
-<circle class="s1" cx="280.9" cy="162.6" r="4" stroke="none"><title>After playback: 55 MB</title></circle>
-<circle class="s1" cx="345.1" cy="175.7" r="4" stroke="none"><title>After playback: 48 MB</title></circle>
-<circle class="s1" cx="409.4" cy="175.6" r="4" stroke="none"><title>After playback: 48 MB</title></circle>
-<circle class="s1" cx="473.6" cy="164.1" r="4" stroke="none"><title>After playback: 55 MB</title></circle>
-<circle class="s1" cx="537.9" cy="159.7" r="4" stroke="none"><title>After playback: 57 MB</title></circle>
-<path class="l s2" d="M88.1,68.9 L152.4,65.3 L216.6,146.6 L280.9,140.0 L345.1,157.8 L409.4,156.2 L473.6,150.4 L537.9,145.5"/>
-<circle class="s2" cx="88.1" cy="68.9" r="4" stroke="none"><title>Library loaded: 106 MB</title></circle>
-<circle class="s2" cx="152.4" cy="65.3" r="4" stroke="none"><title>Library loaded: 108 MB</title></circle>
-<circle class="s2" cx="216.6" cy="146.6" r="4" stroke="none"><title>Library loaded: 64 MB</title></circle>
-<circle class="s2" cx="280.9" cy="140.0" r="4" stroke="none"><title>Library loaded: 68 MB</title></circle>
-<circle class="s2" cx="345.1" cy="157.8" r="4" stroke="none"><title>Library loaded: 58 MB</title></circle>
-<circle class="s2" cx="409.4" cy="156.2" r="4" stroke="none"><title>Library loaded: 59 MB</title></circle>
-<circle class="s2" cx="473.6" cy="150.4" r="4" stroke="none"><title>Library loaded: 62 MB</title></circle>
-<circle class="s2" cx="537.9" cy="145.5" r="4" stroke="none"><title>Library loaded: 65 MB</title></circle>
-<path class="l s3" d="M88.1,65.3 L152.4,62.1 L216.6,143.5 L280.9,136.8 L345.1,156.6 L409.4,155.0 L473.6,149.6 L537.9,145.0"/>
-<circle class="s3" cx="88.1" cy="65.3" r="4" stroke="none"><title>Peak: 108 MB</title></circle>
-<circle class="s3" cx="152.4" cy="62.1" r="4" stroke="none"><title>Peak: 110 MB</title></circle>
-<circle class="s3" cx="216.6" cy="143.5" r="4" stroke="none"><title>Peak: 66 MB</title></circle>
-<circle class="s3" cx="280.9" cy="136.8" r="4" stroke="none"><title>Peak: 69 MB</title></circle>
-<circle class="s3" cx="345.1" cy="156.6" r="4" stroke="none"><title>Peak: 59 MB</title></circle>
-<circle class="s3" cx="409.4" cy="155.0" r="4" stroke="none"><title>Peak: 59 MB</title></circle>
-<circle class="s3" cx="473.6" cy="149.6" r="4" stroke="none"><title>Peak: 62 MB</title></circle>
-<circle class="s3" cx="537.9" cy="145.0" r="4" stroke="none"><title>Peak: 65 MB</title></circle>
-<rect class="s3" x="582" y="136.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="141.0" font-size="11">Peak</text>
-<text class="m" x="598" y="154.0" font-size="11">65</text>
-<rect class="s2" x="582" y="164.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="169.0" font-size="11">Library loaded</text>
-<text class="m" x="598" y="182.0" font-size="11">65</text>
-<rect class="s1" x="582" y="192.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="197.0" font-size="11">After playback</text>
-<text class="m" x="598" y="210.0" font-size="11">57</text>
-<rect class="s0" x="582" y="220.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="225.0" font-size="11">Idle</text>
-<text class="m" x="598" y="238.0" font-size="11">40</text>
+<path class="l s0" d="M88.1,207.0 L152.4,205.9 L216.6,200.4 L280.9,204.3 L345.1,209.1 L409.4,209.0 L473.6,189.0 L537.9,195.4"/>
+<circle class="s0" cx="88.1" cy="207.0" r="4" stroke="none"><title>Idle: 31 MB</title></circle>
+<circle class="s0" cx="152.4" cy="205.9" r="4" stroke="none"><title>Idle: 32 MB</title></circle>
+<circle class="s0" cx="216.6" cy="200.4" r="4" stroke="none"><title>Idle: 35 MB</title></circle>
+<circle class="s0" cx="280.9" cy="204.3" r="4" stroke="none"><title>Idle: 33 MB</title></circle>
+<circle class="s0" cx="345.1" cy="209.1" r="4" stroke="none"><title>Idle: 30 MB</title></circle>
+<circle class="s0" cx="409.4" cy="209.0" r="4" stroke="none"><title>Idle: 30 MB</title></circle>
+<circle class="s0" cx="473.6" cy="189.0" r="4" stroke="none"><title>Idle: 41 MB</title></circle>
+<circle class="s0" cx="537.9" cy="195.4" r="4" stroke="none"><title>Idle: 37 MB</title></circle>
+<path class="l s1" d="M88.1,145.6 L152.4,150.0 L216.6,163.4 L280.9,169.5 L345.1,175.2 L409.4,176.7 L473.6,158.9 L537.9,162.8"/>
+<circle class="s1" cx="88.1" cy="145.6" r="4" stroke="none"><title>After playback: 65 MB</title></circle>
+<circle class="s1" cx="152.4" cy="150.0" r="4" stroke="none"><title>After playback: 62 MB</title></circle>
+<circle class="s1" cx="216.6" cy="163.4" r="4" stroke="none"><title>After playback: 55 MB</title></circle>
+<circle class="s1" cx="280.9" cy="169.5" r="4" stroke="none"><title>After playback: 52 MB</title></circle>
+<circle class="s1" cx="345.1" cy="175.2" r="4" stroke="none"><title>After playback: 48 MB</title></circle>
+<circle class="s1" cx="409.4" cy="176.7" r="4" stroke="none"><title>After playback: 48 MB</title></circle>
+<circle class="s1" cx="473.6" cy="158.9" r="4" stroke="none"><title>After playback: 57 MB</title></circle>
+<circle class="s1" cx="537.9" cy="162.8" r="4" stroke="none"><title>After playback: 55 MB</title></circle>
+<path class="l s2" d="M88.1,71.4 L152.4,69.9 L216.6,142.1 L280.9,146.4 L345.1,156.4 L409.4,155.6 L473.6,144.5 L537.9,146.4"/>
+<circle class="s2" cx="88.1" cy="71.4" r="4" stroke="none"><title>Library loaded: 105 MB</title></circle>
+<circle class="s2" cx="152.4" cy="69.9" r="4" stroke="none"><title>Library loaded: 106 MB</title></circle>
+<circle class="s2" cx="216.6" cy="142.1" r="4" stroke="none"><title>Library loaded: 66 MB</title></circle>
+<circle class="s2" cx="280.9" cy="146.4" r="4" stroke="none"><title>Library loaded: 64 MB</title></circle>
+<circle class="s2" cx="345.1" cy="156.4" r="4" stroke="none"><title>Library loaded: 59 MB</title></circle>
+<circle class="s2" cx="409.4" cy="155.6" r="4" stroke="none"><title>Library loaded: 59 MB</title></circle>
+<circle class="s2" cx="473.6" cy="144.5" r="4" stroke="none"><title>Library loaded: 65 MB</title></circle>
+<circle class="s2" cx="537.9" cy="146.4" r="4" stroke="none"><title>Library loaded: 64 MB</title></circle>
+<path class="l s3" d="M88.1,67.8 L152.4,67.5 L216.6,139.4 L280.9,143.5 L345.1,155.8 L409.4,154.9 L473.6,143.8 L537.9,145.9"/>
+<circle class="s3" cx="88.1" cy="67.8" r="4" stroke="none"><title>Peak: 107 MB</title></circle>
+<circle class="s3" cx="152.4" cy="67.5" r="4" stroke="none"><title>Peak: 107 MB</title></circle>
+<circle class="s3" cx="216.6" cy="139.4" r="4" stroke="none"><title>Peak: 68 MB</title></circle>
+<circle class="s3" cx="280.9" cy="143.5" r="4" stroke="none"><title>Peak: 66 MB</title></circle>
+<circle class="s3" cx="345.1" cy="155.8" r="4" stroke="none"><title>Peak: 59 MB</title></circle>
+<circle class="s3" cx="409.4" cy="154.9" r="4" stroke="none"><title>Peak: 60 MB</title></circle>
+<circle class="s3" cx="473.6" cy="143.8" r="4" stroke="none"><title>Peak: 66 MB</title></circle>
+<circle class="s3" cx="537.9" cy="145.9" r="4" stroke="none"><title>Peak: 64 MB</title></circle>
+<rect class="s3" x="582" y="136.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="141.9" font-size="11">Peak</text>
+<text class="m" x="598" y="154.9" font-size="11">64</text>
+<rect class="s2" x="582" y="164.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="169.9" font-size="11">Library loaded</text>
+<text class="m" x="598" y="182.9" font-size="11">64</text>
+<rect class="s1" x="582" y="192.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="197.9" font-size="11">After playback</text>
+<text class="m" x="598" y="210.9" font-size="11">55</text>
+<rect class="s0" x="582" y="220.9" width="10" height="3" rx="1.5" stroke="none"/>
+<text class="t" x="598" y="225.9" font-size="11">Idle</text>
+<text class="m" x="598" y="238.9" font-size="11">37</text>
 </svg>

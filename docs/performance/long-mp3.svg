@@ -21,53 +21,52 @@
 <text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
 <text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
 <text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
-<text class="m" x="537.9" y="293" font-size="10" text-anchor="middle">pre-release</text>
-<path class="l s0" d="M88.1,161.2 L152.4,168.1 L216.6,167.0 L280.9,155.7 L345.1,160.8 L409.4,163.8 L473.6,253.1 L537.9,247.6"/>
-<circle class="s0" cx="88.1" cy="161.2" r="4" stroke="none"><title>Open, 60 min VBR: 37 ms</title></circle>
-<circle class="s0" cx="152.4" cy="168.1" r="4" stroke="none"><title>Open, 60 min VBR: 35 ms</title></circle>
-<circle class="s0" cx="216.6" cy="167.0" r="4" stroke="none"><title>Open, 60 min VBR: 35 ms</title></circle>
-<circle class="s0" cx="280.9" cy="155.7" r="4" stroke="none"><title>Open, 60 min VBR: 39 ms</title></circle>
-<circle class="s0" cx="345.1" cy="160.8" r="4" stroke="none"><title>Open, 60 min VBR: 38 ms</title></circle>
-<circle class="s0" cx="409.4" cy="163.8" r="4" stroke="none"><title>Open, 60 min VBR: 36 ms</title></circle>
-<circle class="s0" cx="473.6" cy="253.1" r="4" stroke="none"><title>Open, 60 min VBR: 4 ms</title></circle>
-<circle class="s0" cx="537.9" cy="247.6" r="4" stroke="none"><title>Open, 60 min VBR: 6 ms</title></circle>
-<path class="l s1" d="M88.1,143.3 L152.4,126.4 L216.6,134.2 L280.9,125.8 L345.1,160.5 L409.4,145.9 L473.6,168.4 L537.9,217.0"/>
-<circle class="s1" cx="88.1" cy="143.3" r="4" stroke="none"><title>Open, no Xing: 44 ms</title></circle>
-<circle class="s1" cx="152.4" cy="126.4" r="4" stroke="none"><title>Open, no Xing: 50 ms</title></circle>
-<circle class="s1" cx="216.6" cy="134.2" r="4" stroke="none"><title>Open, no Xing: 47 ms</title></circle>
-<circle class="s1" cx="280.9" cy="125.8" r="4" stroke="none"><title>Open, no Xing: 50 ms</title></circle>
-<circle class="s1" cx="345.1" cy="160.5" r="4" stroke="none"><title>Open, no Xing: 38 ms</title></circle>
-<circle class="s1" cx="409.4" cy="145.9" r="4" stroke="none"><title>Open, no Xing: 43 ms</title></circle>
-<circle class="s1" cx="473.6" cy="168.4" r="4" stroke="none"><title>Open, no Xing: 35 ms</title></circle>
-<circle class="s1" cx="537.9" cy="217.0" r="4" stroke="none"><title>Open, no Xing: 17 ms</title></circle>
-<path class="l s2" d="M88.1,116.8 L152.4,113.5 L216.6,115.5 L280.9,114.9 L345.1,59.5 L409.4,60.1 L473.6,246.0 L537.9,256.5"/>
-<circle class="s2" cx="88.1" cy="116.8" r="4" stroke="none"><title>Seek, 60 min VBR: 54 ms</title></circle>
-<circle class="s2" cx="152.4" cy="113.5" r="4" stroke="none"><title>Seek, 60 min VBR: 55 ms</title></circle>
-<circle class="s2" cx="216.6" cy="115.5" r="4" stroke="none"><title>Seek, 60 min VBR: 54 ms</title></circle>
-<circle class="s2" cx="280.9" cy="114.9" r="4" stroke="none"><title>Seek, 60 min VBR: 54 ms</title></circle>
-<circle class="s2" cx="345.1" cy="59.5" r="4" stroke="none"><title>Seek, 60 min VBR: 74 ms</title></circle>
-<circle class="s2" cx="409.4" cy="60.1" r="4" stroke="none"><title>Seek, 60 min VBR: 74 ms</title></circle>
-<circle class="s2" cx="473.6" cy="246.0" r="4" stroke="none"><title>Seek, 60 min VBR: 7 ms</title></circle>
-<circle class="s2" cx="537.9" cy="256.5" r="4" stroke="none"><title>Seek, 60 min VBR: 3 ms</title></circle>
-<path class="l s3" d="M88.1,117.7 L152.4,116.0 L216.6,115.6 L280.9,117.1 L345.1,59.9 L409.4,61.3 L473.6,255.9 L537.9,256.9"/>
-<circle class="s3" cx="88.1" cy="117.7" r="4" stroke="none"><title>Seek, no Xing: 53 ms</title></circle>
-<circle class="s3" cx="152.4" cy="116.0" r="4" stroke="none"><title>Seek, no Xing: 54 ms</title></circle>
-<circle class="s3" cx="216.6" cy="115.6" r="4" stroke="none"><title>Seek, no Xing: 54 ms</title></circle>
-<circle class="s3" cx="280.9" cy="117.1" r="4" stroke="none"><title>Seek, no Xing: 53 ms</title></circle>
-<circle class="s3" cx="345.1" cy="59.9" r="4" stroke="none"><title>Seek, no Xing: 74 ms</title></circle>
-<circle class="s3" cx="409.4" cy="61.3" r="4" stroke="none"><title>Seek, no Xing: 74 ms</title></circle>
+<path class="l s0" d="M88.1,171.1 L152.4,163.2 L216.6,165.3 L280.9,173.2 L345.1,179.7 L409.4,177.3 L473.6,256.6 L537.9,253.8"/>
+<circle class="s0" cx="88.1" cy="171.1" r="4" stroke="none"><title>Open, 60 min VBR: 34 ms</title></circle>
+<circle class="s0" cx="152.4" cy="163.2" r="4" stroke="none"><title>Open, 60 min VBR: 37 ms</title></circle>
+<circle class="s0" cx="216.6" cy="165.3" r="4" stroke="none"><title>Open, 60 min VBR: 36 ms</title></circle>
+<circle class="s0" cx="280.9" cy="173.2" r="4" stroke="none"><title>Open, 60 min VBR: 33 ms</title></circle>
+<circle class="s0" cx="345.1" cy="179.7" r="4" stroke="none"><title>Open, 60 min VBR: 31 ms</title></circle>
+<circle class="s0" cx="409.4" cy="177.3" r="4" stroke="none"><title>Open, 60 min VBR: 32 ms</title></circle>
+<circle class="s0" cx="473.6" cy="256.6" r="4" stroke="none"><title>Open, 60 min VBR: 3 ms</title></circle>
+<circle class="s0" cx="537.9" cy="253.8" r="4" stroke="none"><title>Open, 60 min VBR: 4 ms</title></circle>
+<path class="l s1" d="M88.1,140.2 L152.4,134.6 L216.6,144.3 L280.9,142.2 L345.1,133.3 L409.4,140.8 L473.6,189.8 L537.9,225.8"/>
+<circle class="s1" cx="88.1" cy="140.2" r="4" stroke="none"><title>Open, no Xing: 45 ms</title></circle>
+<circle class="s1" cx="152.4" cy="134.6" r="4" stroke="none"><title>Open, no Xing: 47 ms</title></circle>
+<circle class="s1" cx="216.6" cy="144.3" r="4" stroke="none"><title>Open, no Xing: 44 ms</title></circle>
+<circle class="s1" cx="280.9" cy="142.2" r="4" stroke="none"><title>Open, no Xing: 44 ms</title></circle>
+<circle class="s1" cx="345.1" cy="133.3" r="4" stroke="none"><title>Open, no Xing: 48 ms</title></circle>
+<circle class="s1" cx="409.4" cy="140.8" r="4" stroke="none"><title>Open, no Xing: 45 ms</title></circle>
+<circle class="s1" cx="473.6" cy="189.8" r="4" stroke="none"><title>Open, no Xing: 27 ms</title></circle>
+<circle class="s1" cx="537.9" cy="225.8" r="4" stroke="none"><title>Open, no Xing: 14 ms</title></circle>
+<path class="l s2" d="M88.1,113.9 L152.4,114.2 L216.6,114.9 L280.9,114.4 L345.1,55.7 L409.4,58.9 L473.6,249.9 L537.9,253.8"/>
+<circle class="s2" cx="88.1" cy="113.9" r="4" stroke="none"><title>Seek, 60 min VBR: 55 ms</title></circle>
+<circle class="s2" cx="152.4" cy="114.2" r="4" stroke="none"><title>Seek, 60 min VBR: 54 ms</title></circle>
+<circle class="s2" cx="216.6" cy="114.9" r="4" stroke="none"><title>Seek, 60 min VBR: 54 ms</title></circle>
+<circle class="s2" cx="280.9" cy="114.4" r="4" stroke="none"><title>Seek, 60 min VBR: 54 ms</title></circle>
+<circle class="s2" cx="345.1" cy="55.7" r="4" stroke="none"><title>Seek, 60 min VBR: 76 ms</title></circle>
+<circle class="s2" cx="409.4" cy="58.9" r="4" stroke="none"><title>Seek, 60 min VBR: 75 ms</title></circle>
+<circle class="s2" cx="473.6" cy="249.9" r="4" stroke="none"><title>Seek, 60 min VBR: 5 ms</title></circle>
+<circle class="s2" cx="537.9" cy="253.8" r="4" stroke="none"><title>Seek, 60 min VBR: 4 ms</title></circle>
+<path class="l s3" d="M88.1,114.3 L152.4,115.0 L216.6,115.9 L280.9,115.9 L345.1,56.6 L409.4,60.2 L473.6,255.9 L537.9,258.9"/>
+<circle class="s3" cx="88.1" cy="114.3" r="4" stroke="none"><title>Seek, no Xing: 54 ms</title></circle>
+<circle class="s3" cx="152.4" cy="115.0" r="4" stroke="none"><title>Seek, no Xing: 54 ms</title></circle>
+<circle class="s3" cx="216.6" cy="115.9" r="4" stroke="none"><title>Seek, no Xing: 54 ms</title></circle>
+<circle class="s3" cx="280.9" cy="115.9" r="4" stroke="none"><title>Seek, no Xing: 54 ms</title></circle>
+<circle class="s3" cx="345.1" cy="56.6" r="4" stroke="none"><title>Seek, no Xing: 75 ms</title></circle>
+<circle class="s3" cx="409.4" cy="60.2" r="4" stroke="none"><title>Seek, no Xing: 74 ms</title></circle>
 <circle class="s3" cx="473.6" cy="255.9" r="4" stroke="none"><title>Seek, no Xing: 3 ms</title></circle>
-<circle class="s3" cx="537.9" cy="256.9" r="4" stroke="none"><title>Seek, no Xing: 3 ms</title></circle>
+<circle class="s3" cx="537.9" cy="258.9" r="4" stroke="none"><title>Seek, no Xing: 2 ms</title></circle>
 <rect class="s1" x="582" y="175.0" width="10" height="3" rx="1.5" stroke="none"/>
 <text class="t" x="598" y="180.0" font-size="11">Open, no Xing</text>
-<text class="m" x="598" y="193.0" font-size="11">17</text>
+<text class="m" x="598" y="193.0" font-size="11">14</text>
 <rect class="s0" x="582" y="203.0" width="10" height="3" rx="1.5" stroke="none"/>
 <text class="t" x="598" y="208.0" font-size="11">Open, 60 min VBR</text>
-<text class="m" x="598" y="221.0" font-size="11">6</text>
+<text class="m" x="598" y="221.0" font-size="11">4</text>
 <rect class="s2" x="582" y="231.0" width="10" height="3" rx="1.5" stroke="none"/>
 <text class="t" x="598" y="236.0" font-size="11">Seek, 60 min VBR</text>
-<text class="m" x="598" y="249.0" font-size="11">3</text>
+<text class="m" x="598" y="249.0" font-size="11">4</text>
 <rect class="s3" x="582" y="259.0" width="10" height="3" rx="1.5" stroke="none"/>
 <text class="t" x="598" y="264.0" font-size="11">Seek, no Xing</text>
-<text class="m" x="598" y="277.0" font-size="11">3</text>
+<text class="m" x="598" y="277.0" font-size="11">2</text>
 </svg>
