@@ -162,6 +162,12 @@ static inline NSString *VibeNormalizedVolumeLocation(NSString *_Nullable identif
             : SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT;
 }
 
+static inline NSString *VibeNormalizedVolumeVisibility(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS]
+            || [identifier isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_EXACT]
+            ? identifier : SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE;
+}
+
 // Each snaps an unknown value to its factory choice.
 static inline NSString *VibeNormalizedThemeMode(NSString *_Nullable identifier) {
     return [identifier isEqualToString:SETTINGS_VALUE_THEME_MODE_SINGLE]

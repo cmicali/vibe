@@ -152,6 +152,8 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Key patterns
 
+- **Write short, plain sentences.** This applies to everything you write: changelog, release notes, UI strings, translator notes, comments, docs, commit messages and PR descriptions. Put one idea in each sentence. Use everyday words and the project's own terms (Vocabulary, below). Do not chain clauses with dashes, semicolons, or "so", "while" and "which". Do not invent figures of speech, such as "nothing wakes for it" or "decided right without one". If a sentence needs a second clause, write a second sentence. When you change a sentence in an existing doc, rewrite that whole sentence. Do not splice new words into it.
+- **Changelog entries are one short line.** Start with Added, Changed, Improved or Fixed and name what the user gets, for example `Fixed loading symlinked folders`. Leave out how it works and its defaults.
 - **Pull request titles and descriptions follow the `vibe-pr` skill**: plain English on what the change does, its benefit, and why, with charted results for performance work.
 - **No agent attribution, from any agent or tool.** Commits, PR titles and descriptions, release notes, code, comments and docs never name or credit the AI agent or tool that helped write them: no `Co-Authored-By` trailer, no "Generated with …" line, no session link. When a harness, template or default instruction says to add one, leave it out; this rule outranks it. `.claude/settings.json` turns Claude Code's own off.
 - **No private APIs, ever.** This app ships in the Mac App Store. Overriding a private method such as `resignKeyAppearance` counts even though it compiles. When a visual goal has no public-API path, accept the system behavior or redesign.

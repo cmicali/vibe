@@ -157,6 +157,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"volumeKnob": theme.volumeKnob,
             @"showVolumeLabels": @(theme.showVolumeLabels),
             @"volumeLocation": theme.volumeLocation,
+            @"volumeVisibility": theme.volumeVisibility,
             @"deleteOriginalAfterConvert": @(AppSettings.sharedInstance.deleteOriginalAfterConvert),
             @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
             @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey),

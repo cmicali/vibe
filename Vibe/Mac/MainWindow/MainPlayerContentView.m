@@ -86,9 +86,8 @@ static const CGFloat kDropHintWidth = kTotalTimeX - kDropHintX;
 // columns are measured (layoutVolumeControl).
 static const CGFloat kVolumeSliderWidth = 100;
 static const CGFloat kVolumeGap = 6;
-// How far the control's hover reaches past its frame, so the pointer finds a
-// slider it cannot see. Tuned for the corner, where the window's edges cut it
-// to the top-right corner down to about the waveform's top.
+// How far the close hover area reaches past the slider. In the top-right
+// corner, the window edges clip it to the corner above the waveform.
 static const CGFloat kVolumeHoverOutsetX = 100;
 static const CGFloat kVolumeHoverOutsetY = 18;
 
@@ -118,11 +117,15 @@ static const CGFloat kDropHintAlpha = 0.5;
 // Light text on dark glass only; dark text needs no shadow.
 static const CGFloat kLabelShadowOpacityDark = 0.9;
 
-// The slider is on and the theme puts it in the top-right corner, where it
-// swaps with the codec and BPM lines on hover.
+// The slider is on and the theme puts it in the top-right corner. There it
+// swaps with the codec and BPM lines.
 static BOOL VolumeAtTopRight(AppSettings *settings) {
     return settings.volumeControl && [settings.currentTheme.volumeLocation
             isEqualToString:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT];
+}
+
+static BOOL VolumeAlwaysShown(AppTheme *theme) {
+    return [theme.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS];
 }
 
 // Decorative: hit-transparent, so the art's drag-out and the buttons get the
@@ -343,8 +346,8 @@ static BOOL CursorIsIn(NSView *view, NSRect rect) {
     [self setControlsShown:[self isCursorOverWindow] animated:NO];
 }
 
-// The window's area answers whether the pointer is in the window; a crossing
-// of the volume control's own only asks the funnel to look again.
+// The window's area says whether the pointer is in the window. The volume
+// area only re-runs the funnel.
 - (void)mouseEntered:(NSEvent *)event {
     BOOL volumeArea = event.trackingArea == _volumeHoverArea;
     [self setControlsShown:volumeArea ? [self isCursorOverWindow] : YES animated:YES];
@@ -371,7 +374,8 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     // readouts, or the time row's drop hint.
     BOOL volumeShown = settings.volumeControl;
     BOOL corner = VolumeAtTopRight(settings);
-    BOOL volumeUp = volumeShown && (_volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
+    BOOL volumeUp = volumeShown
+            && (VolumeAlwaysShown(theme) || _volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
     CGFloat volume = volumeUp ? 1.0 : 0.0;
     CGFloat readouts = (volumeUp && corner) ? 0.0 : 1.0;
     CGFloat hint = (volumeUp && !corner) ? 0.0 : kDropHintAlpha;
@@ -528,17 +532,19 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
     [self placeVolumeHoverArea];
 }
 
-// The frame grown by the outsets, kept inside this view: past the window's
-// edge, the window's exit would re-decide with the pointer still in the rect
-// and leave the control up after it had gone, and past this view's right edge
-// the rect would reach over an open pitch panel. While the control is off
-// there is no area, so nothing wakes for it.
+// The area is clipped to this view. Past the window's edge, leaving the window
+// would not hide the slider. Past the right edge, it would cover the pitch
+// panel. There is no area when the slider is off or always shown.
 - (void)placeVolumeHoverArea {
+    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = settings.currentTheme;
     NSRect rect = NSZeroRect;
-    if (AppSettings.sharedInstance.volumeControl) {
-        rect = NSIntersectionRect(NSInsetRect(_volumeControlView.frame,
-                                              -kVolumeHoverOutsetX, -kVolumeHoverOutsetY),
-                                  self.bounds);
+    if (settings.volumeControl && !VolumeAlwaysShown(theme)) {
+        rect = _volumeControlView.frame;
+        if ([theme.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE]) {
+            rect = NSInsetRect(rect, -kVolumeHoverOutsetX, -kVolumeHoverOutsetY);
+        }
+        rect = NSIntersectionRect(rect, self.bounds);
     }
     if (NSEqualRects(rect, _volumeHoverArea.rect)) {
         return;
