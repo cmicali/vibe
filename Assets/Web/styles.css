@@ -238,12 +238,11 @@ code {
 /* A one-line terminal: the command in the app's own monospace, and a copy
    button. The type scales with the viewport so the whole command fits on one
    line at phone width rather than scrolling. */
-/* No rule above: it reads as a footnote to the section before it, so it sits
-   on that section's bottom padding rather than adding its own. The space below
-   matches the space above it: that padding plus the screenshot's transparent
-   margin, 27 of its 1452 pixels, at most 800px wide. */
+/* No rule above: it reads as a footnote to the feature grid, so it sits on
+   that section's bottom padding rather than adding its own, and leaves the
+   same space below. */
 .brew {
-  padding-block: 0 calc(clamp(34px, 5.4vw, 58px) + min(15px, 1.86vw));
+  padding-block: 0 clamp(56px, 9vw, 96px);
   text-align: center;
 }
 .brew h2 {
