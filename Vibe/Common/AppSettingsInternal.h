@@ -27,6 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_SHUFFLE_ENABLED                     @"Transport.shuffleEnabled"
 #define SETTING_AUDIO_FX_ENABLED                    @"AudioPlayer.fxEnabled"
 #define SETTING_ANALYZE_BPM                         @"Audio.analyzeBPM"
+#define SETTING_WELCOME_TRACK_LOADED                @"Welcome.trackLoaded"
 // The player display keys, each under the name its platform shipped.
 #if TARGET_OS_OSX
 #define SETTING_SHOW_REMAINING_TIME                 @"MainWindow.showRemainingTime"

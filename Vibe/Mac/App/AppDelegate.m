@@ -125,11 +125,16 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     // A launch-time open may need a restored grant, so the coalescer's queue
     // drains only once the grants are back (bounded).
+    // Any first launch spends the welcome track, even one a launch-time open
+    // or a restore pre-empts; only Factory reset re-arms it.
+    BOOL firstLaunch = !AppSettings.sharedInstance.welcomeTrackLoaded;
+    AppSettings.sharedInstance.welcomeTrackLoaded = YES;
     [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
         // A launch-time open outranks the remembered playlist, and the restore
         // is not an open (Mac/App/AGENTS.md).
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
-            return [self.mainPlayerController restoreLastPlaylist];
+            return [self.mainPlayerController restoreLastPlaylist]
+                || (firstLaunch && [self.mainPlayerController loadWelcomeTrack]);
         } revealEmpty:^{
             [self.mainPlayerController revealEmptyStateNamingPlaylist:nil];
         }];

@@ -160,6 +160,11 @@ void VibeNotifyDisplaySettingsChanged(void);
 // (PlaybackController.pushTransportModes).
 @property (nonatomic) BOOL showShuffleRepeat;
 
+// Whether the first launch has spent the bundled vibe-theme.mp3: parked on the
+// mac, copied into Documents on iOS. State, not a preference: set on any first
+// launch, cleared only by the mac's factoryReset.
+@property (nonatomic) BOOL welcomeTrackLoaded;
+
 @end
 
 NS_ASSUME_NONNULL_END

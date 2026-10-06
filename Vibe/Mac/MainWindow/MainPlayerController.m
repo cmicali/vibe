@@ -719,6 +719,13 @@ static NSURL *VibeLastPlaylistURL(void) {
     }];
 }
 
+- (BOOL)loadWelcomeTrack {
+    NSURL *url = [NSBundle.mainBundle URLForResource:@"vibe-theme" withExtension:@"mp3"];
+    if (!url) return NO;
+    [self loadTracks:@[[[AudioTrack alloc] initWithURL:url]] selectingIndex:0 startPaused:YES];
+    return YES;
+}
+
 - (void)applyReopenLastPlaylist {
     if (!AppSettings.sharedInstance.reopenLastPlaylist) {
         [self removeLastPlaylist];   // off means forget, not merely stop writing

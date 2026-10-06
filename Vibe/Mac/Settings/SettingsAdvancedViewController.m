@@ -452,6 +452,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [_mp3DecoderPopUp selectItemWithTag:AppSettings.sharedInstance.appleMPEGDecoder];
     [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
+            || AppSettings.sharedInstance.welcomeTrackLoaded
             || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
     _resetButton.toolTip = _resetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
     _factoryResetButton.toolTip = _factoryResetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
