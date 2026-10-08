@@ -332,6 +332,10 @@ PAGE_CHARTS = [
         ('key.flac-16-44', 'cpu_per_minute', 'Key, 44.1 kHz'),
         ('bpm.flac-24-96', 'cpu_per_minute', 'Tempo, 96 kHz'),
         ('key.flac-24-96', 'cpu_per_minute', 'Key, 96 kHz')], 1),
+    ('components-pitch', 'The pitch fader\'s converter, CPU per minute of audio', 'ms', [
+        ('pitch.-8', 'cpu_per_minute', '−8%'),
+        ('pitch.+4', 'cpu_per_minute', '+4%'),
+        ('pitch.+16', 'cpu_per_minute', '+16%')], 0),
     ('components-metadata', 'Reading a file\'s tags and cover art', 'ms per file', [
         ('metadata.mp3-320', 'wall_per_unit', 'MP3, 1000 px cover'),
         ('metadata.flac-16-44', 'wall_per_unit', 'FLAC, 1000 px cover'),

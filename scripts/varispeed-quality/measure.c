@@ -1,8 +1,10 @@
-// Measures the pitch fader's varispeed (docs/future/custom-varispeed.md):
-// Apple's Varispeed unit hosted as AudioPlayer+Pipeline.m hosts it, r8brain at
-// the same fixed ratio as the reference, and a custom windowed-sinc converter
-// in the shape a render would run it. Input and output are both on a 48 kHz
-// grid, so at ratio r an input tone at f / r comes out at f.
+// Measures the pitch fader's varispeed (docs/audio-quality.md, "The pitch
+// fader"): Apple's Varispeed unit hosted as AudioPlayer+Pipeline.m hosted it
+// before Vibe's own converter, r8brain at the same fixed ratio as the
+// reference, and a prototype of that converter. Audio/FX/AudioVarispeed.m is
+// this one's design, and testPitchQuality measures it in the player. Input
+// and output are both on a 48 kHz grid, so at ratio r an input tone at f / r
+// comes out at f.
 //
 // Each output tone is fitted at its frequency with free gain and phase, after
 // refining the frequency, and the residual is distortion + noise. That is more
@@ -79,7 +81,7 @@ static OSStatus apple_input(void *ref, AudioUnitRenderActionFlags *flags, const 
     return noErr;
 }
 
-// As hostVarispeedOnQueueWithFormat: hosts it: stereo float32 at the bus rate,
+// As AudioPlayer+Pipeline.m hosted it: stereo float32 at the bus rate,
 // 4096 frames per slice at most, the highest render quality. `mastering` also
 // asks for Apple's Mastering converter, which the unit refuses.
 static AudioUnit apple_make(Source *src, int mastering, OSStatus *masteringStatus) {

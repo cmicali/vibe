@@ -38,11 +38,7 @@ static void VibeBenchComponentsRegisterResample(void) {
         const double seconds = 30;
         VibeBenchComponentsAdd("resample", std::to_string((int)rate), "audio s", [noise, rate, seconds]() -> double {
             noise->resize((size_t)(rate * seconds) * 2);
-            uint32_t state = 22222;
-            for (float &sample : *noise) {
-                state = state * 1664525u + 1013904223u;
-                sample = (float)(int32_t)state / 2147483648.0f * 0.5f;
-            }
+            VibeBenchComponentsNoise(noise->data(), noise->size(), 22222);
             return seconds;
         }, [noise, rate]() {
             size_t frames = noise->size() / 2;
