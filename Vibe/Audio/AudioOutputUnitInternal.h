@@ -24,9 +24,8 @@ typedef struct {
     _Atomic uint64_t cycles;
     _Atomic uint64_t renderNanos;
     _Atomic uint64_t renderMaxNanos;
-    // The device's IO cycle in frames, written by the queue; 0 when unknown or
-    // variable, which checks nothing. An open cycle that pulls another count
-    // is the unit resampling: counted from each start, with its last pull.
+    // Written by the queue; 0 checks nothing. The callback counts each open
+    // cycle that pulls other than cycleFrames, and keeps its pull.
     _Atomic uint32_t cycleFrames;
     _Atomic uint64_t resampledCycles;
     _Atomic uint32_t resampledPullFrames;

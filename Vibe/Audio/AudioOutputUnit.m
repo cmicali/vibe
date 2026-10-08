@@ -303,14 +303,16 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
 }
 
 #if TARGET_OS_OSX
-static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,
-                                   AudioObjectID object, double rate) {
+static UInt32 VibeFramesOfProperty(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,
+                                   AudioObjectID object) {
     AudioObjectPropertyAddress address = { selector, scope, kAudioObjectPropertyElementMain };
     UInt32 frames = 0, size = sizeof(frames);
-    if (AudioObjectGetPropertyData(object ?: device, &address, 0, NULL, &size, &frames) != noErr || rate <= 0) {
-        return 0;
-    }
-    return frames / rate;
+    return AudioObjectGetPropertyData(object ?: device, &address, 0, NULL, &size, &frames) == noErr ? frames : 0;
+}
+
+static double VibeSecondsOfLatency(AudioDeviceID device, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope,
+                                   AudioObjectID object, double rate) {
+    return rate > 0 ? VibeFramesOfProperty(device, selector, scope, object) / rate : 0;
 }
 #endif
 
@@ -450,14 +452,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
             + VibeSecondsOfLatency(device, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, 0, rate)
             + (stream != kAudioObjectUnknown
                ? VibeSecondsOfLatency(device, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal, stream, rate) : 0);
-    AudioObjectPropertyAddress cycleAddress = { kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
-    AudioObjectPropertyAddress variableAddress = { kAudioDevicePropertyUsesVariableBufferFrameSizes, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    UInt32 cycle = 0;
-    size = sizeof(cycle);
-    if (AudioObjectGetPropertyData(device, &cycleAddress, 0, NULL, &size, &cycle) != noErr) {
-        cycle = 0;
-    }
+    UInt32 cycle = VibeFramesOfProperty(device, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0);
     self.bufferLatency = rate > 0 ? cycle / rate : 0;
+    AudioObjectPropertyAddress variableAddress = { kAudioDevicePropertyUsesVariableBufferFrameSizes, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     // A variable cycle's pulls vary with no converter in the unit.
     atomic_store_explicit(&_state->cycleFrames, AudioObjectHasProperty(device, &variableAddress) ? 0 : cycle,
                           memory_order_relaxed);
@@ -538,6 +535,9 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     OSStatus refusal = _bindStatus ?: _configureStatus;
     if (refusal == noErr) {
         uint64_t began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        // Unchecked until the read after the start, which a device that
+        // resizes its cycle at start would otherwise fail.
+        atomic_store_explicit(&_state->cycleFrames, 0, memory_order_relaxed);
         // TRAP: open, then re-check. A stop landing between the check above
         // and this store must win, or the unit pulls the pipeline at a rate
         // the player has moved off. The stop bumps the generation before it

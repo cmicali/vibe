@@ -1241,8 +1241,11 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
                         ? [NSString stringWithFormat:@"the output unit pulls at %.0f Hz", unitFormat.sampleRate]
                 : nil;
         report.formatConfirmed = (unconfirmed == nil);
-        // Every rate above can agree while AUHAL still converts.
-        report.unitResamples = _outputUnit.resampledCycles > 0;
+        // Every rate above can agree while AUHAL still converts. Only a run
+        // the drain has already rebuilt for this play counts, so a run about
+        // to be rebuilt never shows the caption.
+        report.unitResamples = _outputUnit.resampledCycles > 0
+                && _resamplingRebuiltPlayIdentifier == _activeSubmittedPlayIdentifier;
         report.hogWanted = _exclusiveOutputWanted; // the device is eligible and prepared by here
         report.exclusive = readOwner && answered && ownerRead && owner == getpid();
         if (readControls) {

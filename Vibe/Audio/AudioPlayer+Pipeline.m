@@ -1300,7 +1300,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 // left playing and reported: a second rebuild would only repeat the gap.
 - (void)noteOutputResamplingOnQueue {
     AudioOutputUnit *unit = _outputUnit;
-    if (!unit.resampledCycles || unit.runGeneration == _resamplingNotedGeneration || !unit.format) {
+    if (!unit.resampledCycles || unit.runGeneration == _resamplingNotedGeneration) {
         return;
     }
     _resamplingNotedGeneration = unit.runGeneration;
@@ -1316,9 +1316,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         [self resumeOutputAfterEditOnQueue:wasPlaying reason:@"output unit rebuilt"];
         return;
     }
-#if TARGET_OS_OSX
-    [self publishBitPerfectReportOnQueue];
-#endif
+    [self refreshOutputAudioActiveOnQueue]; // refolds the bit-perfect report
 }
 
 - (NSDictionary<NSString *, id> *)pipelineRenderSnapshotOnQueue {

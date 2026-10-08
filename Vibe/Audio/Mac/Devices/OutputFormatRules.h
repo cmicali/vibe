@@ -65,8 +65,8 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusRateUnsupported,
     // The output route, format or gain could not be confirmed.
     VibeBitPerfectStatusSwitchFailed,
-    // Everything above held, but the output unit's own cycles show it
-    // resampling (AudioOutputUnit.resampledCycles).
+    // Outranked only by SwitchFailed: the output unit's own cycles show it
+    // resampling after its rebuild (AudioOutputUnit.resampledCycles).
     VibeBitPerfectStatusOutputResampled,
     VibeBitPerfectStatusChannelConversion,
     VibeBitPerfectStatusDepthInsufficient,
@@ -97,7 +97,7 @@ typedef struct {
     BOOL hasTrack;
     BOOL rateExact;
     BOOL formatConfirmed;   // the bound device has the requested format; its gain reads succeeded
-    BOOL unitResamples;     // the output unit pulled other than the device's cycle this run
+    BOOL unitResamples;     // the output unit still resamples after this play's rebuild
     BOOL channelsMatch;     // unchanged source channels, verified output routing
     BOOL depthOK;
     BOOL muted;
