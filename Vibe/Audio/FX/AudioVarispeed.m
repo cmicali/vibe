@@ -91,23 +91,44 @@ uint64_t VibeVarispeedReach(const VibeVarispeedTable *table, double fraction, do
     return (uint64_t)last + table->half + 2;
 }
 
+// Four taps' weights from the cubic's four rows, from tap `i`.
+static inline simd_double4 VibeVarispeedWeights(const double *r0, const double *r1, const double *r2, const double *r3,
+                                                simd_double4 cubic, uint32_t i) CA_REALTIME_API {
+    return cubic.x * *(const simd_packed_double4 *)(r0 + i) + cubic.y * *(const simd_packed_double4 *)(r1 + i)
+            + cubic.z * *(const simd_packed_double4 *)(r2 + i) + cubic.w * *(const simd_packed_double4 *)(r3 + i);
+}
+
+// Four ring frames from `i`, widened to double.
+static inline simd_double4 VibeVarispeedWide(const float *x, uint32_t i) CA_REALTIME_API {
+    return __builtin_convertvector(*(const simd_packed_float4 *)(x + i), simd_double4);
+}
+
 // `count` taps of the kernel, from `r0` in the first of the cubic's four rows
 // (the others follow a row of `taps` apart), weighted by `cubic` and dotted
 // with the ring frames from `left` and `right`, in double. Each four taps'
 // weights serve both channels. Written in vectors because -Os, the shipping
-// optimization, leaves the scalar loop unvectorized at three times the cost.
+// optimization, leaves the scalar loop unvectorized at three times the cost;
+// eight taps a pass, into two sums per channel, so no add waits on the last
+// one (7% at the wider kernels, the `pitch` benchmarks).
 static inline simd_double2 VibeVarispeedTaps(const double *r0, uint32_t taps, simd_double4 cubic, uint32_t count,
                                              const float *left, const float *right) CA_REALTIME_API {
     const double *r1 = r0 + taps, *r2 = r1 + taps, *r3 = r2 + taps;
-    simd_double4 sumLeft = 0, sumRight = 0;
+    simd_double4 left0 = 0, left1 = 0, right0 = 0, right1 = 0;
     uint32_t i = 0;
-    for (; i + 4 <= count; i += 4) {
-        simd_double4 w = cubic.x * *(const simd_packed_double4 *)(r0 + i) + cubic.y * *(const simd_packed_double4 *)(r1 + i)
-                + cubic.z * *(const simd_packed_double4 *)(r2 + i) + cubic.w * *(const simd_packed_double4 *)(r3 + i);
-        sumLeft += __builtin_convertvector(*(const simd_packed_float4 *)(left + i), simd_double4) * w;
-        sumRight += __builtin_convertvector(*(const simd_packed_float4 *)(right + i), simd_double4) * w;
+    for (; i + 8 <= count; i += 8) {
+        simd_double4 w0 = VibeVarispeedWeights(r0, r1, r2, r3, cubic, i), w1 = VibeVarispeedWeights(r0, r1, r2, r3, cubic, i + 4);
+        left0 += VibeVarispeedWide(left, i) * w0;
+        right0 += VibeVarispeedWide(right, i) * w0;
+        left1 += VibeVarispeedWide(left, i + 4) * w1;
+        right1 += VibeVarispeedWide(right, i + 4) * w1;
     }
-    simd_double2 sum = { simd_reduce_add(sumLeft), simd_reduce_add(sumRight) };
+    if (i + 4 <= count) {
+        simd_double4 w = VibeVarispeedWeights(r0, r1, r2, r3, cubic, i);
+        left0 += VibeVarispeedWide(left, i) * w;
+        right0 += VibeVarispeedWide(right, i) * w;
+        i += 4;
+    }
+    simd_double2 sum = { simd_reduce_add(left0 + left1), simd_reduce_add(right0 + right1) };
     for (; i < count; i++) {
         double w = cubic.x * r0[i] + cubic.y * r1[i] + cubic.z * r2[i] + cubic.w * r3[i];
         sum += (simd_double2){ left[i] * w, right[i] * w };
@@ -128,8 +149,8 @@ void VibeVarispeedConvert(const VibeVarispeedTable *table, const float *ringLeft
     for (uint32_t n = 0; n < frames; n++) {
         double phase = past * kVarispeedPhases, mu = phase - (int)phase;
         const double *row = table->rows + (size_t)(int)phase * taps;
-        simd_double4 cubic = { -mu * (mu - 1) * (mu - 2) / 6, (mu + 1) * (mu - 1) * (mu - 2) / 2,
-                               -(mu + 1) * mu * (mu - 2) / 2, (mu + 1) * mu * (mu - 1) / 6 };
+        double m1 = mu - 1, m2 = mu - 2, p1 = mu + 1;
+        simd_double4 cubic = { -mu * m1 * m2 * (1.0 / 6), p1 * m1 * m2 * 0.5, -p1 * mu * m2 * 0.5, p1 * mu * m1 * (1.0 / 6) };
         uint32_t start = (uint32_t)(at - half + 1) & mask;
         uint32_t first = taps < capacity - start ? taps : capacity - start;
         simd_double2 sum = VibeVarispeedTaps(row, taps, cubic, first, ringLeft + start, ringRight + start)
