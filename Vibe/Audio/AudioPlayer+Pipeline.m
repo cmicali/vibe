@@ -46,8 +46,7 @@ static const int kRenderLeaveSpinLimit = 500; // 100 ms
 // seen outside them; the master bus points at the current one.
 typedef struct {
     VibeMasterBus *master;           // the channels and the counters
-    _Atomic(VibeVarispeedTable *) table; // the ratio's; `unity` at or below 1. The queue swaps it.
-    VibeVarispeedTable *unity;
+    _Atomic(VibeVarispeedTable *) table; // the ratio's; the queue swaps it
     _Atomic int32_t engaged;         // 1 while the converter is in the chain; the render's, set at a slice boundary
     // A ring of bus frames that the render alone touches, written only around
     // the converter: while an engage is being prepared it records the frames
@@ -59,8 +58,7 @@ typedef struct {
     uint32_t recentMask;
     uint64_t recentWritten;
     uint64_t serveNext;              // a cursor into the ring, for the replay
-    uint32_t preparing;              // 1 while the direct path records history for the engage
-    uint64_t prepareStart;           // recentWritten when the preparation began
+    uint32_t recorded;               // frames the direct path has recorded for the engage; 0 when not preparing one
     uint32_t replayRemaining;        // pulled-ahead frames the direct path still plays before the bus
     // The converter's position, in ring frames: the frame at or before it and
     // the fraction past it. `ratio` is where the last slice's ramp ended.
@@ -169,38 +167,29 @@ static inline VibeMasterBusStereoList VibeMasterBusSubList(const VibeMasterBus *
     return list;
 }
 
-// The last `frames` of `data` into the hosting's ring, in bus time.
+// `frames` of `data` into the hosting's ring, which holds more than a slice.
 static inline void VibeMasterBusRecord(VibeVarispeedHost *host, const AudioBufferList *data, UInt32 frames) CA_REALTIME_API {
     uint32_t capacity = host->recentMask + 1;
-    if (!host->recent[0] || frames == 0) {
-        return;
-    }
     uint32_t channels = VibeMasterBusChannels(host->master);
-    UInt32 skip = frames > capacity ? frames - capacity : 0;
-    UInt32 count = frames - skip;
-    uint32_t index = (uint32_t)(host->recentWritten + skip) & host->recentMask;
-    UInt32 first = count < capacity - index ? count : capacity - index;
+    uint32_t index = (uint32_t)host->recentWritten & host->recentMask;
+    UInt32 first = frames < capacity - index ? frames : capacity - index;
     for (uint32_t c = 0; c < channels; c++) {
         const float *source = data->mBuffers[c].mData;
         if (!source) {
             continue;
         }
-        source += skip;
         memcpy(host->recent[c] + index, source, first * sizeof(float));
-        if (count > first) {
-            memcpy(host->recent[c], source + first, (count - first) * sizeof(float));
+        if (frames > first) {
+            memcpy(host->recent[c], source + first, (frames - first) * sizeof(float));
         }
     }
     host->recentWritten += frames;
     atomic_fetch_add_explicit(&host->master->varispeedHistoryWrites, 1, memory_order_relaxed);
 }
 
-// `frames` of the ring from `start` (bus time) into `data` at `offset`.
+// `frames` of the ring from `start` into `data` at `offset`.
 static inline void VibeMasterBusRecall(const VibeVarispeedHost *host, uint64_t start, UInt32 frames, AudioBufferList *data,
                                        UInt32 offset) CA_REALTIME_API {
-    if (!host->recent[0]) {
-        return; // never asked without a ring: the counters it serves are set only with one
-    }
     uint32_t capacity = host->recentMask + 1;
     uint32_t index = (uint32_t)start & host->recentMask;
     UInt32 first = frames < capacity - index ? frames : capacity - index;
@@ -220,28 +209,21 @@ static inline void VibeMasterBusRecall(const VibeVarispeedHost *host, uint64_t s
 // The bus into the ring up to `until`, in ring frames: the converter's input.
 static OSStatus VibeMasterBusPull(VibeVarispeedHost *host, VibeVoiceMix *mix, const AudioTimeStamp *stamp,
                                   uint64_t until) CA_REALTIME_API {
-    if (host->recentWritten >= until) {
-        return noErr;
-    }
-    uint32_t channels = VibeMasterBusChannels(host->master), capacity = host->recentMask + 1;
+    VibeMasterBusStereoList ring = { 2, {{ 1, 0, host->recent[0] }, { 1, 0, host->recent[1] }} };
+    uint32_t capacity = host->recentMask + 1;
     OSStatus status = noErr;
     while (host->recentWritten < until) {
         uint32_t index = (uint32_t)host->recentWritten & host->recentMask;
         UInt32 count = until - host->recentWritten < capacity - index ? (UInt32)(until - host->recentWritten) : capacity - index;
-        VibeMasterBusStereoList span = { channels, {{0}} };
-        for (uint32_t c = 0; c < channels; c++) {
-            span.mBuffers[c].mNumberChannels = 1;
-            span.mBuffers[c].mDataByteSize = count * (UInt32)sizeof(float);
-            span.mBuffers[c].mData = host->recent[c] + index;
-        }
+        VibeMasterBusStereoList span = VibeMasterBusSubList(host->master, (AudioBufferList *)&ring, index, count);
         BOOL silence = NO;
         OSStatus pulled = VibeVoiceBusRender(mix, &silence, stamp, count, (AudioBufferList *)&span);
         if (pulled != noErr) {
             status = pulled;
         }
         host->recentWritten += count;
+        atomic_fetch_add_explicit(&host->master->varispeedHistoryWrites, 1, memory_order_relaxed);
     }
-    atomic_fetch_add_explicit(&host->master->varispeedHistoryWrites, 1, memory_order_relaxed);
     return status;
 }
 
@@ -273,7 +255,7 @@ static OSStatus VibeMasterBusRenderVarispeed(VibeVarispeedHost *host, VibeVoiceM
 // what the direct path just played, the kernel's past. The ratio ramps from 1
 // across the first slice.
 static void VibeMasterBusEngageVarispeed(VibeVarispeedHost *host) CA_REALTIME_API {
-    host->preparing = 0;
+    host->recorded = 0;
     host->index = host->recentWritten;
     host->fraction = 0;
     host->ratio = 1;
@@ -293,11 +275,11 @@ static void VibeMasterBusDisengageVarispeed(VibeVarispeedHost *host) CA_REALTIME
 // The source segment into `list`: the bus through the converter while the
 // pitch is off zero, the bus straight in otherwise. At zero it is a
 // bit-perfect pass-through: nothing converted, no delay, no copy, the samples
-// the bus produced. A change of mind is applied
-// at slice boundaries. Leaving zero, the direct path first plays and records
-// the widest kernel's half-width of frames, and any replay left, then engages
-// the converter at the end of that slice. Returning to zero disengages at the
-// slice's start and replays what the converter had pulled ahead.
+// the bus produced. A change of mind is applied at slice boundaries. Leaving
+// zero, the direct path first plays and records the widest kernel's
+// half-width of frames, and any replay left, then engages the converter at
+// the end of that slice. Returning to zero disengages at the slice's start
+// and replays what the converter had pulled ahead.
 static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *mix, const AudioTimeStamp *stamp, UInt32 frames,
                                           AudioBufferList *list) CA_REALTIME_API {
     // Read once: a re-host swaps the pointer, and this render finishes
@@ -327,18 +309,15 @@ static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *m
     }
     if (!wanted) {
         if (host) {
-            host->preparing = 0;
+            host->recorded = 0;
         }
         return status;
     }
     // Preparing the engage: what was heard is the kernel's past. Not while a
     // replay is left, since the bus is already past its frames.
-    if (!host->preparing) {
-        host->preparing = 1;
-        host->prepareStart = host->recentWritten;
-    }
     VibeMasterBusRecord(host, list, frames);
-    if (!host->replayRemaining && host->recentWritten - host->prepareStart >= kVibeVarispeedMaxHalfWidth) {
+    host->recorded += frames;
+    if (!host->replayRemaining && host->recorded >= kVibeVarispeedMaxHalfWidth) {
         VibeMasterBusEngageVarispeed(host);
     }
     return status;
@@ -405,13 +384,9 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
     }
 #endif
     if (!mix) {
+        // No bus is published only with the output stopped, around a segment
+        // rebuild that replaces the varispeed's hosting too.
         VibeMasterBusZero(list, 0, frames);
-        VibeVarispeedHost *host = atomic_load_explicit(&master->varispeed, memory_order_seq_cst);
-        if (host) {
-            atomic_store_explicit(&host->engaged, 0, memory_order_relaxed);
-            host->replayRemaining = 0;
-            host->preparing = 0;
-        }
     }
     else {
         status = VibeMasterBusRenderSource(master, mix, &stamp, frames, list);
@@ -907,16 +882,12 @@ VIBE_REALTIME_END
 
 #pragma mark - The source segment
 
-// The tables and the ring go together, after the render was seen outside them.
+// The table and the ring go together, after the render was seen outside them.
 static void VibeVarispeedHostFree(VibeVarispeedHost *host) {
     if (!host) {
         return;
     }
-    VibeVarispeedTable *table = atomic_load_explicit(&host->table, memory_order_relaxed);
-    if (table != host->unity) {
-        free(table);
-    }
-    free(host->unity);
+    free(atomic_load_explicit(&host->table, memory_order_relaxed));
     free(host->recent[0]);
     free(host);
 }
@@ -955,25 +926,25 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     [self afterRenderLeavesOnQueue:^{ VibeVarispeedHostFree(host); }];
 }
 
-// Hosts the varispeed for the bus: the converter's unity table and the
-// ring, sized for the widest slice at the widest ratio and
-// the kernel's reach either side. The kernel is a fraction of the bus rate,
-// so nothing here depends on it. NO with nothing hosted.
+// Hosts the varispeed for the bus: the table for a ratio of 1, and the ring,
+// sized for the widest slice at the widest ratio and the kernel's reach
+// either side. The kernel is a fraction of the bus rate, so nothing here
+// depends on it. NO with nothing hosted.
 - (BOOL)hostVarispeedOnQueue {
     VibeVarispeedHost *host = calloc(1, sizeof(VibeVarispeedHost));
     if (!host) {
         return NO;
     }
     host->master = _masterBus;
-    host->unity = VibeVarispeedTableCreate(1);
-    atomic_init(&host->table, host->unity);
+    VibeVarispeedTable *table = VibeVarispeedTableCreate(1);
+    atomic_init(&host->table, table);
     uint32_t reach = (uint32_t)ceil(kVibeMasterBusMaxFrames * kVibeVarispeedMaxRatio) + 2 * kVibeVarispeedMaxHalfWidth + 2;
     uint32_t capacity = 256;
     while (capacity < reach) {
         capacity <<= 1;
     }
     host->recent[0] = calloc((size_t)capacity * 2, sizeof(float));
-    if (!host->unity || !host->recent[0]) {
+    if (!table || !host->recent[0]) {
         VibeVarispeedHostFree(host);
         return NO;
     }
@@ -1095,12 +1066,11 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 }
 
 // The one mapping from the published pitch to the converter: the ratio, its
-// kernel, and whether it is in the chain at all. At zero it is not, so zero
-// is a bit-perfect pass-through: the kernel is a low-pass at a ratio of 1
-// too, not a pass-through. Above 1 the kernel
-// is stretched by the ratio, built here and published by pointer; the one it
-// replaces is freed once the render has left it. The ratio is held to the
-// fader's widest throw, which the ring is sized for.
+// kernel, and whether it is in the chain at all. At zero it is not in the
+// chain, since even at a ratio of 1 the kernel is a low-pass. A new
+// stretch's table is built here and published by pointer, and the old one is
+// freed once the render has left it. The ratio is held to the fader's widest
+// throw, which the ring is sized for.
 - (void)applyPitchOnQueue:(float)pitch {
     VibeVarispeedHost *host = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
     if (!host) {
@@ -1110,12 +1080,10 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     double stretch = MAX(ratio, 1);
     VibeVarispeedTable *old = atomic_load_explicit(&host->table, memory_order_relaxed);
     if (old->stretch != stretch) {
-        VibeVarispeedTable *table = stretch == 1 ? host->unity : VibeVarispeedTableCreate(ratio);
+        VibeVarispeedTable *table = VibeVarispeedTableCreate(ratio);
         if (table) {
             atomic_store_explicit(&host->table, table, memory_order_seq_cst);
-            if (old != host->unity) {
-                [self afterRenderLeavesOnQueue:^{ free(old); }];
-            }
+            [self afterRenderLeavesOnQueue:^{ free(old); }];
         }
         else {
             LogError(@"AudioPlayer: no varispeed kernel for a ratio of %.4f; the last one stays", ratio);

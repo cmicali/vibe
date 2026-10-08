@@ -251,6 +251,14 @@ void VibeBenchComponentsSetAnalyzeTree(VibeBenchComponentsAnalyzeTreeFunction fu
 
 // MARK: - Shared fixtures
 
+void VibeBenchComponentsNoise(float *samples, size_t count, uint32_t seed) {
+    uint32_t state = seed;
+    for (size_t i = 0; i < count; i++) {
+        state = state * 1664525u + 1013904223u;
+        samples[i] = (float)(int32_t)state / 2147483648.0f * 0.5f;
+    }
+}
+
 VibeBenchComponentsPCM *VibeBenchComponentsDecoded(NSString *name) {
     static NSMutableDictionary<NSString *, NSValue *> *cache;
     if (!cache) {

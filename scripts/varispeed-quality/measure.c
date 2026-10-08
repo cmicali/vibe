@@ -2,8 +2,9 @@
 // fader"): Apple's Varispeed unit hosted as AudioPlayer+Pipeline.m hosted it
 // before Vibe's own converter, r8brain at the same fixed ratio as the
 // reference, and a prototype of that converter. Audio/FX/AudioVarispeed.m is
-// this one's design, and testPitchQuality measures it in the player. Input and output are both on a 48 kHz
-// grid, so at ratio r an input tone at f / r comes out at f.
+// this one's design, and testPitchQuality measures it in the player. Input
+// and output are both on a 48 kHz grid, so at ratio r an input tone at f / r
+// comes out at f.
 //
 // Each output tone is fitted at its frequency with free gain and phase, after
 // refining the frequency, and the residual is distortion + noise. That is more

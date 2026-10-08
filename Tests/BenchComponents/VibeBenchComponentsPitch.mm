@@ -23,11 +23,7 @@ static std::shared_ptr<std::vector<float>> VibeBenchComponentsPitchNoise(void) {
     static std::shared_ptr<std::vector<float>> noise;
     if (!noise) {
         noise = std::make_shared<std::vector<float>>((size_t)kPitchNoiseFrames * 2);
-        uint32_t state = 33333;
-        for (float &sample : *noise) {
-            state = state * 1664525u + 1013904223u;
-            sample = (float)(int32_t)state / 2147483648.0f * 0.5f;
-        }
+        VibeBenchComponentsNoise(noise->data(), noise->size(), 33333);
     }
     return noise;
 }

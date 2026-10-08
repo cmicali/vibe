@@ -3602,10 +3602,8 @@ static NSData *MP3Frames(NSData *mp3) {
         for (int k = 0; k < 20; k++) signal += (a[k] * a[k] + b[k] * b[k]) / 2;
         double twentyTones = 10 * log10(residual / signal);
         for (NSUInteger index = falseFirst; index < segments.count; index++) {
-            windowOf(index);
-            double power = 0;
-            for (NSUInteger n = 0; n < window; n++) power += x[n] * x[n];
-            double level = 10 * log10(power / window / (full * full / 2));
+            double rms = RMS(capture, 2, 0, NSMakeRange(windowOf(index), window));
+            double level = 10 * log10(rms * rms / (full * full / 2));
             falseTones = isnan(falseTones) ? level : MAX(falseTones, level);
         }
         free(x);
@@ -4633,9 +4631,9 @@ static NSData *MP3Frames(NSData *mp3) {
 // At zero pitch the varispeed is a bit-perfect pass-through: it is hosted but
 // not in the chain, so the output is the file exactly, and so is a track that
 // plays on after the fader returns to zero. Leaving and returning to zero
-// engages and disengages it with no click or skip: on a 100 Hz tone every
-// transition keeps the waveform continuous and its envelope full, and the file
-// advances exactly as far as the rates played.
+// engages and disengages it with no click: on a 100 Hz tone every transition
+// keeps the waveform continuous and its envelope full. Every edge is read to
+// the frame by testPitchEngagesAndDisengagesAtTheExactFrame.
 - (void)testZeroPitchIsBitPerfectAndTogglesAreClickFree {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
@@ -4651,37 +4649,11 @@ static NSData *MP3Frames(NSData *mp3) {
     NSArray<NSNumber *> *pitches = @[@0, @4, @0, @-4, @0, @8, @-8, @0];
     [self play:[self fixture:@"100.wav"] paused:NO position:0];
     [_capture setLength:0];
-    // Each segment advances the file by the frames the converter played plus
-    // what it pulled ahead, within a couple of frames. An engage first plays
-    // the slice in which the kernel's past is recorded directly, at rate 1.
-    // The converter then starts at the next frame, ramps its ratio across its
-    // first slice from the last one's, 1 after an engage, and pulls the
-    // kernel's half-width ahead, plus up to a frame. A disengage plays what
-    // was pulled ahead from the ring without consuming.
-    double expected = 0, ahead = 0, previous = 1;
-    BOOL wasEngaged = NO;
     for (NSNumber *pitch in pitches) {
-        double before = _player.position, rate = 1 + pitch.doubleValue / 100, pulled = ahead, frames = 9600 - pulled;
         _player.pitch = pitch.floatValue;
         [self render:9600];
-        NSDictionary *counts = _player.debugRenderCounts;
-        BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
-        XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
-        ahead = 0;
-        if (engaged) {
-            // The delay is the half-width of input frames, played at the ratio.
-            double half = round([counts[@"varispeedLatency"] doubleValue] * 48000 * rate);
-            XCTAssertEqual(half, rate > 1 ? ceil(64 * rate) : 64, @"the kernel's half-width at pitch %@", pitch);
-            double direct = wasEngaged ? 0 : _blockSize, from = wasEngaged ? previous : 1;
-            ahead = half + 1.5 - rate;
-            frames = direct + (9600 - direct) * rate + (_blockSize - 1) / 2.0 * (from - rate) + ahead - pulled;
-            previous = rate;
-        }
-        XCTAssertEqualWithAccuracy((_player.position - before) * 48000, frames, 2, @"the file advanced at pitch %@", pitch);
-        expected += frames / 48000;
-        wasEngaged = engaged;
+        XCTAssertEqual([_player.debugRenderCounts[@"varispeedEngaged"] boolValue], pitch.floatValue != 0, @"pitch %@", pitch);
     }
-    XCTAssertEqualWithAccuracy(_player.position, expected, 0.0001, @"the file advanced as far as the rates played");
     uint64_t historyWrites = [_player.debugRenderCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
     XCTAssertGreaterThan(historyWrites, 0ull, @"the engages recorded their history");
     // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
