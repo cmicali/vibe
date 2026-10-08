@@ -4630,12 +4630,13 @@ static NSData *MP3Frames(NSData *mp3) {
 @end
 @implementation AudioPlayerRenderOutputTests
 
-// At zero pitch the varispeed is hosted but not in the chain, so the output is
-// the file exactly. Leaving and returning to zero engages and disengages it
-// with no click or skip: on a 100 Hz tone every transition keeps the waveform
-// continuous and its envelope full, and the file advances exactly as far as
-// the rates played.
-- (void)testZeroPitchRendersTheBusDirectlyAndTogglesAreClickFree {
+// At zero pitch the varispeed is a bit-perfect pass-through: it is hosted but
+// not in the chain, so the output is the file exactly, and so is a track that
+// plays on after the fader returns to zero. Leaving and returning to zero
+// engages and disengages it with no click or skip: on a 100 Hz tone every
+// transition keeps the waveform continuous and its envelope full, and the file
+// advances exactly as far as the rates played.
+- (void)testZeroPitchIsBitPerfectAndTogglesAreClickFree {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
     [self play:noise paused:NO position:0];
@@ -4702,9 +4703,22 @@ static NSData *MP3Frames(NSData *mp3) {
         XCTAssertGreaterThan(rms, nominal * 0.93, @"a dip in the window at frame %lu", (unsigned long)f);
         if (rms <= nominal * 0.93) return;
     }
-    // Back at zero: the unit is idle, nothing is copied, and the output is
-    // the file, exactly.
+    // Back at zero mid-track: from the first frame after the fader returns,
+    // the replay of what the converter pulled ahead included, the track that
+    // plays on is the file bit for bit, one unbroken excerpt.
+    [self play:noise paused:NO position:0];
+    [self render:12000];
+    _player.pitch = 4;
+    [self render:12000];
+    _player.pitch = 0;
+    [_capture setLength:0];
+    [self render:24000];
+    XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:noise])] inCapture:[_capture copy] rampFrames:0 ramped:NULL], 1u,
+                   @"the track after the fader returned to zero is the file exactly");
+    // Settled at zero: the converter is idle, nothing is copied, and a fresh
+    // play is the file, exactly.
     uint64_t renders = [_player.debugRenderCounts[@"varispeedRenders"] unsignedLongLongValue];
+    historyWrites = [_player.debugRenderCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
     XCTAssertGreaterThan(renders, 0ull, @"the varispeed rendered while the pitch was off zero");
     [self play:noise paused:NO position:0];
     [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];

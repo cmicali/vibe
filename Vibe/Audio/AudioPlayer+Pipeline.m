@@ -7,6 +7,7 @@
 #import "AudioPlayerInternal.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
+#import "AudioVarispeed.h"
 #if TARGET_OS_OSX
 #import "AudioPlayer+Devices.h"
 #import "OutputFormatRules.h"
@@ -17,7 +18,6 @@
 #endif
 #import <Accelerate/Accelerate.h>
 #include <mach/mach_time.h>
-#include <simd/simd.h>
 #include <stdatomic.h>
 #include <unistd.h>
 
@@ -38,99 +38,6 @@ static const NSTimeInterval kSlowOutputStartLogThresholdSeconds = 0.25;
 // wait is bounded, as the output unit's stop is.
 static const useconds_t kRenderLeaveSpinMicroseconds = 200;
 static const int kRenderLeaveSpinLimit = 500; // 100 ms
-
-#pragma mark - The varispeed
-
-// The pitch fader's converter: a Kaiser-windowed sinc, β 15.6 for about 150 dB
-// of stopband, with 64 zero crossings each side. Its −6 dB point is 22 kHz at
-// 48 kHz, the same fraction of any bus rate. Above a ratio of 1 the kernel is
-// stretched by the ratio, so its cutoff follows the output's Nyquist and no
-// input above it folds back. docs/audio-quality.md has the measurements.
-static const double kVarispeedZeroCrossings = 64;
-static const double kVarispeedCutoff = 22000.0 / 48000.0;
-static const double kVarispeedBeta = 15.6;
-// The kernel's resolution: a fine table at 512 points per input frame, which
-// every polyphase table is read from, and that table's rows per input frame.
-// A cubic across four rows gives the kernel at any phase.
-static const int kVarispeedFinePoints = 512;
-static const int kVarispeedPhases = 128;
-// The fader's widest throw, ±16%, and the kernel's half-width there,
-// ceil(64 × 1.16). The ring and an engage's history are sized for them.
-static const double kVarispeedMaxRatio = 1.16;
-static const uint32_t kVarispeedMaxHalfWidth = 75;
-
-// One stretch of the kernel as a polyphase table. Phase j of kVarispeedPhases
-// is row j + 1, for j from −1 to kVarispeedPhases + 1, so the cubic always has
-// four rows. A row holds the taps for input frames index − half + 1 through
-// index + half, around a position at index + j / kVarispeedPhases.
-typedef struct {
-    double stretch;                  // the ratio above 1, else 1
-    uint32_t half;                   // ceil(64 × stretch)
-    double rows[];
-} VibeVarispeedTable;
-
-static double VibeBesselI0(double x) {
-    double sum = 1, term = 1, q = x * x / 4;
-    for (int k = 1; k < 200 && term > sum * 1e-17; k++) {
-        term *= q / ((double)k * k);
-        sum += term;
-    }
-    return sum;
-}
-
-// The kernel at kVarispeedFinePoints per input frame, from its center out.
-// Built once: every bus rate shares it.
-static const double *VibeVarispeedFineKernel(void) {
-    static double *fine;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        int count = (int)kVarispeedZeroCrossings * kVarispeedFinePoints + 4;
-        fine = malloc((size_t)count * sizeof(double));
-        double i0 = VibeBesselI0(kVarispeedBeta);
-        for (int i = 0; fine && i < count; i++) {
-            double u = (double)i / kVarispeedFinePoints, x = 2 * kVarispeedCutoff * u, edge = u / kVarispeedZeroCrossings;
-            double sinc = u == 0 ? 1 : sin(M_PI * x) / (M_PI * x);
-            double window = edge >= 1 ? 0 : VibeBesselI0(kVarispeedBeta * sqrt(1 - edge * edge)) / i0;
-            fine[i] = 2 * kVarispeedCutoff * sinc * window;
-        }
-    });
-    return fine;
-}
-
-// The kernel `u` input frames from its center: a cubic through the four
-// fine points around it.
-static double VibeVarispeedKernelAt(const double *fine, double u) {
-    u = fabs(u) * kVarispeedFinePoints;
-    int j = (int)u;
-    if (j > (int)kVarispeedZeroCrossings * kVarispeedFinePoints) {
-        return 0;
-    }
-    double y0 = j > 0 ? fine[j - 1] : fine[1], y1 = fine[j], y2 = fine[j + 1], y3 = fine[j + 2], m = u - j;
-    double c1 = y2 - y0 / 3 - y1 / 2 - y3 / 6, c2 = (y0 + y2) / 2 - y1, c3 = (y3 - y0) / 6 + (y1 - y2) / 2;
-    return ((c3 * m + c2) * m + c1) * m + y1;
-}
-
-// The table for `stretch`, from 1 to kVarispeedMaxRatio. 0.1 ms; NULL when
-// it cannot be allocated.
-static VibeVarispeedTable *VibeVarispeedTableCreate(double stretch) {
-    const double *fine = VibeVarispeedFineKernel();
-    uint32_t half = (uint32_t)ceil(kVarispeedZeroCrossings * stretch), taps = 2 * half;
-    VibeVarispeedTable *table = fine ? malloc(sizeof(VibeVarispeedTable) + (size_t)(kVarispeedPhases + 3) * taps * sizeof(double))
-                                     : NULL;
-    if (!table) {
-        return NULL;
-    }
-    table->stretch = stretch;
-    table->half = half;
-    for (int j = -1; j <= kVarispeedPhases + 1; j++) {
-        double *row = table->rows + (size_t)(j + 1) * taps;
-        for (uint32_t i = 0; i < taps; i++) {
-            double x = (double)i - half + 1 - (double)j / kVarispeedPhases;
-            row[i] = VibeVarispeedKernelAt(fine, x / stretch) / stretch;
-        }
-    }
-    return table;
-}
 
 #pragma mark - The master bus
 
@@ -338,74 +245,24 @@ static OSStatus VibeMasterBusPull(VibeVarispeedHost *host, VibeVoiceMix *mix, co
     return status;
 }
 
-// `count` taps of the kernel, from `r0` in the first of the cubic's four rows
-// (the others follow a row of `taps` apart), weighted by `cubic` and dotted
-// with the ring frames from `left` and `right`, in double. Each four taps'
-// weights serve both channels. Written in vectors because -Os, the shipping
-// optimization, leaves the scalar loop unvectorized at three times the cost.
-static inline simd_double2 VibeVarispeedTaps(const double *r0, uint32_t taps, simd_double4 cubic, uint32_t count,
-                                             const float *left, const float *right) CA_REALTIME_API {
-    const double *r1 = r0 + taps, *r2 = r1 + taps, *r3 = r2 + taps;
-    simd_double4 sumLeft = 0, sumRight = 0;
-    uint32_t i = 0;
-    for (; i + 4 <= count; i += 4) {
-        simd_double4 w = cubic.x * *(const simd_packed_double4 *)(r0 + i) + cubic.y * *(const simd_packed_double4 *)(r1 + i)
-                + cubic.z * *(const simd_packed_double4 *)(r2 + i) + cubic.w * *(const simd_packed_double4 *)(r3 + i);
-        sumLeft += __builtin_convertvector(*(const simd_packed_float4 *)(left + i), simd_double4) * w;
-        sumRight += __builtin_convertvector(*(const simd_packed_float4 *)(right + i), simd_double4) * w;
-    }
-    simd_double2 sum = { simd_reduce_add(sumLeft), simd_reduce_add(sumRight) };
-    for (; i < count; i++) {
-        double w = cubic.x * r0[i] + cubic.y * r1[i] + cubic.z * r2[i] + cubic.w * r3[i];
-        sum += (simd_double2){ left[i] * w, right[i] * w };
-    }
-    return sum;
-}
-
-// The converter's slice: the ratio ramps linearly across it, from where the
-// last slice ended to the queue's, so a drag moves smoothly instead of in
-// steps. Each output frame is the kernel at its phase, a cubic across the
-// table's four rows around it, dotted with the ring around its position,
-// which may wrap. The bus is pulled first, as far as the slice's last output
-// reads: its position plus the kernel's half-width.
+// The converter's slice, the ratio ramped across it from where the last
+// slice ended to the queue's, so a drag glides instead of stepping. The bus
+// is pulled into the ring first, as far as the slice reads.
 static OSStatus VibeMasterBusRenderVarispeed(VibeVarispeedHost *host, VibeVoiceMix *mix, const AudioTimeStamp *stamp,
                                              UInt32 frames, AudioBufferList *list) CA_REALTIME_API {
     VibeMasterBus *master = host->master;
-    uint32_t channels = VibeMasterBusChannels(master), capacity = host->recentMask + 1;
+    uint32_t channels = VibeMasterBusChannels(master);
     // VibeMasterBusRender checked the buffers; the analyzer cannot see that.
-    float *out[2] = { list->mBuffers[0].mData, list->mBuffers[channels - 1].mData };
-    if (!out[0] || !out[1]) {
+    float *left = list->mBuffers[0].mData, *right = list->mBuffers[channels - 1].mData;
+    if (!left || !right) {
         return noErr;
     }
     const VibeVarispeedTable *table = atomic_load_explicit(&host->table, memory_order_acquire);
     double from = host->ratio, to = atomic_load_explicit(&master->varispeedRatio, memory_order_relaxed);
-    double slope = (to - from) / frames;
-    uint32_t half = table->half, taps = 2 * half;
-    // The last output's position. It reads `half` frames past it; one more is
-    // margin, since the loop sums the steps one at a time.
-    double reach = host->fraction + (frames - 1) * from + slope * (frames - 1) * frames / 2;
-    OSStatus status = VibeMasterBusPull(host, mix, stamp, host->index + (uint64_t)reach + half + 2);
-    const float *left = host->recent[0], *right = host->recent[1];
-    uint64_t index = host->index;
-    double fraction = host->fraction;
-    for (UInt32 n = 0; n < frames; n++) {
-        double phase = fraction * kVarispeedPhases, mu = phase - (int)phase;
-        const double *row = table->rows + (size_t)(int)phase * taps;
-        simd_double4 cubic = { -mu * (mu - 1) * (mu - 2) / 6, (mu + 1) * (mu - 1) * (mu - 2) / 2,
-                               -(mu + 1) * mu * (mu - 2) / 2, (mu + 1) * mu * (mu - 1) / 6 };
-        uint32_t start = (uint32_t)(index - half + 1) & host->recentMask;
-        uint32_t first = taps < capacity - start ? taps : capacity - start;
-        simd_double2 sum = VibeVarispeedTaps(row, taps, cubic, first, left + start, right + start)
-                + VibeVarispeedTaps(row + first, taps, cubic, taps - first, left, right);
-        out[0][n] = (float)sum.x;
-        out[1][n] = (float)sum[channels - 1];
-        fraction += from + slope * (n + 1);
-        uint64_t whole = (uint64_t)fraction;
-        index += whole;
-        fraction -= (double)whole;
-    }
-    host->index = index;
-    host->fraction = fraction;
+    OSStatus status = VibeMasterBusPull(host, mix, stamp, host->index + VibeVarispeedReach(table, host->fraction, from, to, frames));
+    // A mono output reads its one channel twice, into its one buffer.
+    VibeVarispeedConvert(table, host->recent[0], host->recent[channels - 1], host->recentMask, &host->index, &host->fraction,
+                         from, to, frames, left, right);
     host->ratio = to;
     atomic_fetch_add_explicit(&master->varispeedRenders, 1, memory_order_relaxed);
     return status;
@@ -434,8 +291,9 @@ static void VibeMasterBusDisengageVarispeed(VibeVarispeedHost *host) CA_REALTIME
 }
 
 // The source segment into `list`: the bus through the converter while the
-// pitch is off zero, the bus straight in otherwise: nothing converted, no
-// delay, no copy, the samples the bus produced. A change of mind is applied
+// pitch is off zero, the bus straight in otherwise. At zero it is a
+// bit-perfect pass-through: nothing converted, no delay, no copy, the samples
+// the bus produced. A change of mind is applied
 // at slice boundaries. Leaving zero, the direct path first plays and records
 // the widest kernel's half-width of frames, and any replay left, then engages
 // the converter at the end of that slice. Returning to zero disengages at the
@@ -480,7 +338,7 @@ static OSStatus VibeMasterBusRenderSource(VibeMasterBus *master, VibeVoiceMix *m
         host->prepareStart = host->recentWritten;
     }
     VibeMasterBusRecord(host, list, frames);
-    if (!host->replayRemaining && host->recentWritten - host->prepareStart >= kVarispeedMaxHalfWidth) {
+    if (!host->replayRemaining && host->recentWritten - host->prepareStart >= kVibeVarispeedMaxHalfWidth) {
         VibeMasterBusEngageVarispeed(host);
     }
     return status;
@@ -1109,7 +967,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     host->master = _masterBus;
     host->unity = VibeVarispeedTableCreate(1);
     atomic_init(&host->table, host->unity);
-    uint32_t reach = (uint32_t)ceil(kVibeMasterBusMaxFrames * kVarispeedMaxRatio) + 2 * kVarispeedMaxHalfWidth + 2;
+    uint32_t reach = (uint32_t)ceil(kVibeMasterBusMaxFrames * kVibeVarispeedMaxRatio) + 2 * kVibeVarispeedMaxHalfWidth + 2;
     uint32_t capacity = 256;
     while (capacity < reach) {
         capacity <<= 1;
@@ -1237,9 +1095,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 }
 
 // The one mapping from the published pitch to the converter: the ratio, its
-// kernel, and whether it is in the chain at all. At zero it is not: the
-// render plays the bus straight, with nothing converted and no delay, because
-// the kernel is not a pass-through at a ratio of 1 either. Above 1 the kernel
+// kernel, and whether it is in the chain at all. At zero it is not, so zero
+// is a bit-perfect pass-through: the kernel is a low-pass at a ratio of 1
+// too, not a pass-through. Above 1 the kernel
 // is stretched by the ratio, built here and published by pointer; the one it
 // replaces is freed once the render has left it. The ratio is held to the
 // fader's widest throw, which the ring is sized for.
@@ -1248,11 +1106,11 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     if (!host) {
         return;
     }
-    double ratio = MIN(MAX(1 + pitch / 100.0, 2 - kVarispeedMaxRatio), kVarispeedMaxRatio);
+    double ratio = MIN(MAX(1 + pitch / 100.0, 2 - kVibeVarispeedMaxRatio), kVibeVarispeedMaxRatio);
     double stretch = MAX(ratio, 1);
     VibeVarispeedTable *old = atomic_load_explicit(&host->table, memory_order_relaxed);
     if (old->stretch != stretch) {
-        VibeVarispeedTable *table = stretch == 1 ? host->unity : VibeVarispeedTableCreate(stretch);
+        VibeVarispeedTable *table = stretch == 1 ? host->unity : VibeVarispeedTableCreate(ratio);
         if (table) {
             atomic_store_explicit(&host->table, table, memory_order_seq_cst);
             if (old != host->unity) {
