@@ -8,7 +8,7 @@ The fader sets the playback rate to 1 + pitch/100, up to ±8% or ±16%. Pitch an
 
 ## Measurements
 
-A standalone program hosted the Varispeed as Vibe does: 48 kHz stereo float32, highest render quality, at most 4096 frames per slice, rendered in 512-frame slices. It did not run through Vibe's player. The reference is r8brain at the same fixed ratio, set up as `Audio/AudioResampler.mm` sets it up. Each output tone is fitted at its exact frequency, and everything left after the fit counts as distortion and noise. The fit lets each tone's gain and phase float. These numbers are therefore more lenient than `ResamplerQualityTests`' and cannot be compared with the tables in `docs/audio-quality.md`. The float32 test signal sets the floor: about −150 dB for one tone and −141 dB for twenty. Everything ran on an M4 Max.
+`scripts/varispeed-quality/` hosted the Varispeed as Vibe does: 48 kHz stereo float32, highest render quality, at most 4096 frames per slice, rendered in 512-frame slices. It did not run through Vibe's player. The reference is r8brain at the same fixed ratio, set up as `Audio/AudioResampler.mm` sets it up. Each output tone is fitted at its exact frequency, and everything left after the fit counts as distortion and noise. The fit lets each tone's gain and phase float. These numbers are therefore more lenient than `ResamplerQualityTests`' and cannot be compared with the tables in `docs/audio-quality.md`. The float32 test signal sets the floor: about −150 dB for one tone and −141 dB for twenty. Everything ran on an M4 Max.
 
 Ranges cover fader settings from −16% to +16%. Tones at a filter's edge are left out. **More negative is better.**
 
@@ -42,11 +42,11 @@ At 21 kHz, Apple's filter is 4 to 12 dB down when speeding up. The custom one is
 
 | Fader | Apple Varispeed | Custom, double | Custom, float32 | r8brain, fixed ratio |
 | --- | --- | --- | --- | --- |
-| −8% | 0.074% | 0.241% | 0.132% | 0.089% |
-| +4% | 0.075% | 0.309% | 0.153% | 0.098% |
-| +16% | 0.076% | 0.350% | 0.168% | 0.184% |
+| −8% | 0.081% | 0.256% | 0.135% | 0.094% |
+| +4% | 0.081% | 0.316% | 0.157% | 0.104% |
+| +16% | 0.081% | 0.364% | 0.171% | 0.195% |
 
-Summing in float32 halves the cost and loses 15 dB. The distortion floor becomes −134 dB, and twenty tones measure −133 dB. That is still 35 dB better than Apple's.
+Float32 sums and a float32 table halve the cost. Distortion rises to −140 dB, twenty tones to −138 dB, and false tones to −141 dB. That is still about 40 dB better than Apple's.
 
 Apple's unit declares 48 input frames of latency. The custom converter's latency is its kernel's half-width: 64 input frames, and 75 at +16%.
 
@@ -104,4 +104,10 @@ Key lock changes the tempo and keeps the key. It needs a time-stretcher, not a r
 
 ## Measuring again
 
-The measurement program was a scratch program and is not in the repo. To measure again, host the unit as `hostVarispeedOnQueueWithFormat:` does. Feed it a float32 tone at f / r and fit the output at f with free gain and phase. Refine the fitted frequency first. Apple's rate parameter is a Float32, up to 0.04 ppm off the ratio asked for. For false tones, feed a tone between 24 kHz / r and 24 kHz and measure everything that comes out.
+`scripts/varispeed-quality/run.sh` builds the measurement tool into `build/varispeed-quality/` and runs it. It needs no app and no audio device.
+
+- `run.sh quality apple r8brain custom custom-float` prints each engine's tables at every fader setting.
+- `run.sh drag` measures the side tones while the fader moves.
+- `run.sh cpu` times all four engines.
+
+`VS_T`, `VS_FC`, `VS_BETA`, and `VS_P` change the custom kernel. A new design can be tried this way before it is built into the pipeline. The custom engine in `measure.c` is the shape a render would run: the polyphase table, the cubic across phases, and the ramp across each slice.
