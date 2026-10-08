@@ -875,7 +875,7 @@ targets:
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
-      - path: Vibe/Audio/AudioVarispeed.m
+      - path: Vibe/Audio/FX/AudioVarispeed.m
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Audio/AudioVoiceBus.m

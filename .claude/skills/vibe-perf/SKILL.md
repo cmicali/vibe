@@ -147,6 +147,6 @@ VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterThings)
 
 **TRAP: VibeBenchComponents is built Release, as the app ships (`-Os`).** At `-Os` a `std::vector` insert or assign of floats is an element loop, not a memmove — it was a fifth of the key analyzer. Benchmark Release; a Debug build's numbers mean nothing here.
 
-**A whole-app `-O2` or `-O3` is not a win.** Measured, it moves nothing: the hot paths are vDSP and the third-party decoders and resampler, which already build at `-O3`. The pitch converter (`AudioVarispeed.m`, the `pitch` group) is app code at `-Os`, so its loops are written in `simd` vectors; as scalar loops they cost three times as much.
+**A whole-app `-O2` or `-O3` is not a win.** Measured, it moves nothing: the hot paths are vDSP and the third-party decoders and resampler, which already build at `-O3`. The pitch converter (`FX/AudioVarispeed.m`, the `pitch` group) is app code at `-Os`, so its loops are written in `simd` vectors; as scalar loops they cost three times as much.
 
 **Never launch the app from here.** VibeBenchComponents is its own process with its own defaults domain and touches no app state; the app benchmarks' app runs as `VibeBenchApp` with its own bundle identifier, home and channel directory, so neither collides with a `Vibe` instance another session is stressing (which matches `pgrep -x Vibe`).

@@ -1,4 +1,4 @@
-# DJ FX (the master-bus segment)
+# DJ FX (the master-bus segment) and the pitch converter
 
 `AudioPlayer` owns one `AudioFX` (readonly `fx`): the Q low-kill high-pass with its W double-cutoff boost, and the send-returns, E a long reverb wash, R and T BPM-synced ping-pong delays on 1/8- and 1/16-note taps fed by the controller through `delayTapBPM`. The topology and threading are `AudioFX.h`'s preamble; the traps (MatrixReverb's stale header ranges, the frames-per-slice a directly hosted unit defaults to, the unit that writes back into a lent input buffer) are `TRAP:` comments in `AudioFX.m`.
 
@@ -15,3 +15,7 @@
 **The numbers are `AudioFXMath.h`, header-only and tested**: the three-way low-kill cutoff, the iOS pad's two axes (y the cutoff on a log curve from parked to `kFXPadLowCutMaxHz`; x the reverb level, and past `kFXPadDelayOnset` the 1/8-note delay's on top), the ping-pong tap and lane times with their no-tempo fallback, the lane feedback and the swell target. The fast logic suite checks the math, `AudioFXChainTests` renders the chain on its own over a virtual clock (an idle chain exact, a held send echoing at its tap and resting after its tail, the low kill cutting and resting exactly, a rate change), and `VibeAudioTests` renders the whole player offline (`Tests/AGENTS.md`).
 
 **Every toggle is click-free** (cutoff sweeps and gate fades on the player queue with generation preemption), and **off is colorless**: the low kill sweeps to the 20 Hz floor and then swaps its bands to a 0 dB parametric type, an identity biquad, because a high-pass parked at the floor still lifts the sub-bass through its resonant peak; settled, the unit is reset and skipped, and a reset flat EQ is exact from its first frame (measured).
+
+## The pitch fader's converter
+
+**`AudioVarispeed` is the pitch fader's converter, and it is not part of the FX segment.** It runs before the segment in the render, at the bus rate, only while the pitch is off zero. It is the arithmetic alone: the kernel, its polyphase tables and the conversion from a ring. The pipeline owns everything around it: the bypass at zero, the engage and disengage, the ring and the replay, and each table's lifetime (`Audio/AGENTS.md`, `AudioPlayer+Pipeline.m`). Unlike the FX units it is Vibe's own code, not an Apple unit, so nothing about it is hosted. `testPitchQuality` holds its quality, the `pitch` benchmark group (the `vibe-perf` skill) its cost, and `docs/audio-quality.md` has both.
