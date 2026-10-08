@@ -5,8 +5,10 @@
 //
 // Targets the one editable version on ONE platform (--platform macos, the
 // default, or ios): localizations hang off a version, and versions are per
-// platform. Text is PATCHed only when it differs; each screenshot set is
-// replaced wholesale, ordered by file name.
+// platform. Text is PATCHed only when it differs. A screenshot is uploaded
+// only when no processed screenshot in its set has the file's checksum. The
+// run then waits until App Store Connect has processed every upload, and
+// orders each changed set by file name.
 
 import BagbutikAppStore
 import BagbutikAppStoreModels
@@ -39,6 +41,23 @@ let editableStates: Set<AppVersionState> = [
     .prepareForSubmission, .developerRejected, .rejected, .metadataRejected,
     .invalidBinary, .readyForReview, .waitingForReview,
 ]
+
+// TRAP: App Store Connect can leave a committed screenshot in UPLOAD_COMPLETE
+// for good, with no errors and a null sourceFileChecksum. On the iOS 1.15
+// upload about half of every batch did this, and "Add for Review" refused
+// the version until each one was processed. Uploading the set again stalled
+// as often, and re-sending the commit answered 500. Deleting one stuck
+// screenshot and uploading it again is what worked, a few rounds over.
+let screenshotStall: Duration = .seconds(240)
+let screenshotPoll: Duration = .seconds(60)
+let screenshotUploadRounds = 8
+
+typealias ScreenshotFiles = (type: ScreenshotDisplayType, files: [URL])
+
+// A screenshot set this run changed. `ids` holds the screenshot for each
+// file, in file-name order.
+typealias ChangedSet = (locale: String, localizationId: String, set: ScreenshotFiles,
+                        setId: String, ids: [String])
 
 // The version train written to; also names copy/<lang>/<platform>/.
 enum TargetPlatform: String {
@@ -127,7 +146,7 @@ struct LocaleCopy {
     let marketingUrl: String   // shared across locales (copy/marketing-url.txt)
     let privacyPolicyUrl: String  // shared (copy/privacy-url.txt); appInfo, not version
     // One entry per ASC screenshot set, each ordered by file name.
-    let screenshotSets: [(type: ScreenshotDisplayType, files: [URL])]
+    let screenshotSets: [ScreenshotFiles]
 }
 
 func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
@@ -169,7 +188,7 @@ func loadCopy(root: URL, options: Options) throws -> [LocaleCopy] {
             guard !trimmed.isEmpty else { throw Fail("\(language): \(name) is empty") }
             return trimmed
         }
-        var screenshotSets: [(type: ScreenshotDisplayType, files: [URL])] = []
+        var screenshotSets: [ScreenshotFiles] = []
         if !options.skipScreenshots {
             for set in options.platform.screenshotSets {
                 var shotDir = root.appendingPathComponent("screenshots")
@@ -270,15 +289,17 @@ struct ASCUpload {
         var byLocale = [String: AppStoreVersionLocalization]()
         for l in existing { if let loc = l.attributes?.locale { byLocale[loc] = l } }
 
+        var changedSets: [ChangedSet] = []
         for copy in copies {
-            try await sync(copy, version: version, current: byLocale[copy.locale],
-                           acceptsWhatsNew: acceptsWhatsNew, service: service, options: options)
+            changedSets += try await sync(copy, version: version, current: byLocale[copy.locale],
+                                          acceptsWhatsNew: acceptsWhatsNew, service: service, options: options)
         }
 
         if !options.skipText {
             try await syncPrivacyPolicyUrl(appId: app.id, copies: copies,
                                            service: service, options: options)
         }
+        try await settleScreenshots(changedSets, service: service, options: options)
         print(options.dryRun ? "dry run complete — nothing was uploaded" : "done")
     }
 
@@ -336,7 +357,7 @@ struct ASCUpload {
 
     static func sync(_ copy: LocaleCopy, version: AppStoreVersion,
                      current: AppStoreVersionLocalization?, acceptsWhatsNew: Bool,
-                     service: BagbutikService, options: Options) async throws {
+                     service: BagbutikService, options: Options) async throws -> [ChangedSet] {
         var localizationId = current?.id
         // nil omits the attribute entirely, which is what a first version
         // needs — sending it, even unchanged, is what ASC rejects.
@@ -389,57 +410,140 @@ struct ASCUpload {
             }
         }
 
-        guard !options.skipScreenshots else { return }
+        guard !options.skipScreenshots else { return [] }
         guard let localizationId else {
             for set in copy.screenshotSets {
                 print("\(copy.locale): would upload \(set.files.count) \(set.type.rawValue) screenshots")
             }
-            return
+            return []
         }
+        var changed: [ChangedSet] = []
         for set in copy.screenshotSets {
-            try await syncScreenshots(copy, set: set, localizationId: localizationId,
-                                      service: service, options: options)
+            if let c = try await syncScreenshots(set, locale: copy.locale, localizationId: localizationId,
+                                                 service: service, options: options) {
+                changed.append(c)
+            }
         }
+        return changed
     }
 
-    static func syncScreenshots(_ copy: LocaleCopy,
-                                set: (type: ScreenshotDisplayType, files: [URL]),
-                                localizationId: String,
-                                service: BagbutikService, options: Options) async throws {
-        let displayType = set.type
-        let sets = try await service.request(.listAppScreenshotSetsForAppStoreVersionLocalizationV1(
+    /// An unchanged set is left alone, so it is not exposed to the stall.
+    /// Syncing a set again uploads only its unprocessed screenshots, which is
+    /// the retry. Returns nil for an unchanged set and in a dry run.
+    static func syncScreenshots(_ set: ScreenshotFiles, locale: String, localizationId: String,
+                                service: BagbutikService, options: Options) async throws -> ChangedSet? {
+        let label = "\(locale) \(set.type.rawValue)"
+        let existing = try await service.request(.listAppScreenshotSetsForAppStoreVersionLocalizationV1(
             id: localizationId,
-            filters: [.screenshotDisplayType([displayType])])).data
-
-        if options.dryRun {
-            print("\(copy.locale): would replace \(displayType.rawValue) set with \(set.files.count) screenshots")
-            return
+            filters: [.screenshotDisplayType([set.type])])).data.first
+        var shots: [AppScreenshot] = []
+        if let existing {
+            shots = try await service.request(.listAppScreenshotsForAppScreenshotSetV1(
+                id: existing.id, limit: 50)).data
         }
+
+        var processed = shots.filter { $0.attributes?.assetDeliveryState?.state == .complete }
+        var kept: [String?] = []
+        for file in set.files {
+            let checksum = md5Hex(try Data(contentsOf: file))
+            let match = processed.firstIndex { $0.attributes?.sourceFileChecksum?.lowercased() == checksum }
+            kept.append(match.map { processed.remove(at: $0).id })
+        }
+        if kept == shots.map({ $0.id }) {
+            print("\(label): \(shots.count) screenshots unchanged")
+            return nil
+        }
+        let stale = shots.filter { !kept.contains($0.id) }
+        let uploads = kept.filter { $0 == nil }.count
+        print("\(label): keeping \(set.files.count - uploads), uploading \(uploads), deleting \(stale.count)\(options.dryRun ? " [dry run]" : "")")
+        if options.dryRun { return nil }
 
         let setId: String
-        if let existing = sets.first {
+        if let existing {
             setId = existing.id
-            let shots = try await service.request(.listAppScreenshotsForAppScreenshotSetV1(
-                id: setId, limit: 50)).data
-            for shot in shots {
-                _ = try await service.request(.deleteAppScreenshotV1(id: shot.id))
-            }
         } else {
-            let created = try await service.request(.createAppScreenshotSetV1(
+            setId = try await service.request(.createAppScreenshotSetV1(
                 requestBody: AppScreenshotSetCreateRequest(data: .init(
-                    attributes: .init(screenshotDisplayType: displayType),
-                    relationships: .init(appStoreVersionLocalization: .init(data: .init(id: localizationId)))))))
-            setId = created.data.id
+                    attributes: .init(screenshotDisplayType: set.type),
+                    relationships: .init(appStoreVersionLocalization: .init(data: .init(id: localizationId))))))).data.id
         }
-
-        for file in set.files {
-            try await upload(file, setId: setId, locale: copy.locale, service: service)
+        // Deleted first: a set holds at most ten screenshots.
+        for shot in stale {
+            _ = try await service.request(.deleteAppScreenshotV1(id: shot.id))
         }
-        print("\(copy.locale): uploaded \(set.files.count) \(displayType.rawValue) screenshots")
+        var ids: [String] = []
+        for (file, id) in zip(set.files, kept) {
+            if let id {
+                ids.append(id)
+            } else {
+                ids.append(try await upload(file, setId: setId, service: service))
+            }
+        }
+        return (locale: locale, localizationId: localizationId, set: set, setId: setId, ids: ids)
     }
 
-    static func upload(_ file: URL, setId: String, locale: String,
-                       service: BagbutikService) async throws {
+    /// Waits until every screenshot in `sets` is processed, then orders each
+    /// set by file name. A set still waiting `screenshotStall` into a round is
+    /// synced again.
+    static func settleScreenshots(_ sets: [ChangedSet], service: BagbutikService,
+                                  options: Options) async throws {
+        guard !sets.isEmpty else { return }
+        var sets = sets
+        let total = sets.reduce(0) { $0 + $1.ids.count }
+        var waiting = Array(sets.indices)
+        var unprocessed: [URL] = []
+        for round in 1 ... screenshotUploadRounds {
+            let deadline = ContinuousClock.now + screenshotStall
+            repeat {
+                try await Task.sleep(for: screenshotPoll)
+                var stillWaiting: [Int] = []
+                unprocessed = []
+                for s in waiting {
+                    let shots = try await service.request(.listAppScreenshotsForAppScreenshotSetV1(
+                        id: sets[s].setId, limit: 50)).data
+                    let pending = try zip(sets[s].set.files, sets[s].ids).filter { file, id in
+                        let delivery = shots.first { $0.id == id }?.attributes?.assetDeliveryState
+                        if delivery?.state == .failed {
+                            let errors = (delivery?.errors ?? []).map { "\($0.code ?? "?"): \($0.description ?? "")" }
+                            throw Fail("\(file.path): App Store Connect could not process it — "
+                                       + (errors.isEmpty ? "it gave no error" : errors.joined(separator: "; ")))
+                        }
+                        return delivery?.state != .complete
+                    }
+                    if !pending.isEmpty { stillWaiting.append(s) }
+                    unprocessed += pending.map { $0.0 }
+                }
+                waiting = stillWaiting
+                print("screenshots: \(total - unprocessed.count) of \(total) processed")
+            } while !waiting.isEmpty && ContinuousClock.now < deadline
+            if waiting.isEmpty { break }
+
+            guard round < screenshotUploadRounds else {
+                throw Fail("\(unprocessed.count) screenshots still unprocessed after \(round) rounds: "
+                           + unprocessed.map(\.path).joined(separator: ", ")
+                           + ". Run again: it keeps every processed screenshot and uploads only these.")
+            }
+            print("\(unprocessed.count) screenshots unprocessed after \(screenshotStall.components.seconds / 60) minutes. Syncing their sets again (round \(round + 1) of \(screenshotUploadRounds)).")
+            for s in waiting {
+                if let synced = try await syncScreenshots(sets[s].set, locale: sets[s].locale,
+                                                          localizationId: sets[s].localizationId,
+                                                          service: service, options: options) {
+                    sets[s] = synced
+                }
+            }
+        }
+        for set in sets {
+            _ = try await service.request(.replaceAppScreenshotsForAppScreenshotSetV1(
+                id: set.setId,
+                requestBody: AppScreenshotSetAppScreenshotsLinkagesRequest(
+                    data: set.ids.map { .init(id: $0) })))
+        }
+        print("ordered \(sets.count) screenshot sets by file name")
+    }
+
+    /// Reserves, uploads and commits one screenshot, returning its id.
+    static func upload(_ file: URL, setId: String,
+                       service: BagbutikService) async throws -> String {
         let data = try Data(contentsOf: file)
         let reserved = try await service.request(.createAppScreenshotV1(
             requestBody: AppScreenshotCreateRequest(data: .init(
@@ -447,12 +551,12 @@ struct ASCUpload {
                 relationships: .init(appScreenshotSet: .init(data: .init(id: setId)))))))
 
         guard let operations = reserved.data.attributes?.uploadOperations else {
-            throw Fail("\(locale)/\(file.lastPathComponent): no upload operations returned")
+            throw Fail("\(file.path): no upload operations returned")
         }
         for op in operations {
             guard let urlString = op.url, let url = URL(string: urlString),
                   let offset = op.offset, let length = op.length else {
-                throw Fail("\(locale)/\(file.lastPathComponent): malformed upload operation")
+                throw Fail("\(file.path): malformed upload operation")
             }
             var request = URLRequest(url: url)
             request.httpMethod = op.method ?? "PUT"
@@ -464,15 +568,19 @@ struct ASCUpload {
             let chunk = data.subdata(in: offset ..< offset + length)
             let (_, response) = try await URLSession.shared.upload(for: request, from: chunk)
             guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
-                throw Fail("\(locale)/\(file.lastPathComponent): chunk upload failed (\((response as? HTTPURLResponse)?.statusCode ?? -1))")
+                throw Fail("\(file.path): chunk upload failed (\((response as? HTTPURLResponse)?.statusCode ?? -1))")
             }
         }
 
-        let md5 = Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
         _ = try await service.request(.updateAppScreenshotV1(
             id: reserved.data.id,
             requestBody: AppScreenshotUpdateRequest(data: .init(
                 id: reserved.data.id,
-                attributes: .init(sourceFileChecksum: md5, uploaded: true)))))
+                attributes: .init(sourceFileChecksum: md5Hex(data), uploaded: true)))))
+        return reserved.data.id
+    }
+
+    static func md5Hex(_ data: Data) -> String {
+        Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
