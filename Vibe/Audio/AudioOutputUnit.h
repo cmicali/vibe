@@ -87,6 +87,15 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 @property (nonatomic, readonly) double renderMaxMicroseconds;
 // Zeroes the four. Any thread; a cycle in flight lands in the new count.
 - (void)clearCounters;
+// The unit's own evidence that it resamples: IO cycles since the last start
+// that pulled other than the device's cycle (cycleFrames), and the last such
+// pull. AUHAL pulls exactly the cycle unless it converts rates, so this
+// catches a converter the format properties do not show. The cycle is read
+// as bufferLatency is; 0 (iOS, an unbound unit, a variable cycle) counts
+// nothing.
+@property (nonatomic, readonly) uint64_t resampledCycles;
+@property (nonatomic, readonly) UInt32 resampledPullFrames;
+@property (nonatomic, readonly) UInt32 cycleFrames;
 
 #if TARGET_OS_OSX
 // Stopped only. Sets kAudioOutputUnitProperty_CurrentDevice on the unit's

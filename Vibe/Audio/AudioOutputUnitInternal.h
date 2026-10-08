@@ -24,6 +24,12 @@ typedef struct {
     _Atomic uint64_t cycles;
     _Atomic uint64_t renderNanos;
     _Atomic uint64_t renderMaxNanos;
+    // The device's IO cycle in frames, written by the queue; 0 when unknown or
+    // variable, which checks nothing. An open cycle that pulls another count
+    // is the unit resampling: counted from each start, with its last pull.
+    _Atomic uint32_t cycleFrames;
+    _Atomic uint64_t resampledCycles;
+    _Atomic uint32_t resampledPullFrames;
     uint32_t channels;
     VibeOutputRenderProc _Nullable renderProc;
     void * _Nullable renderRefCon;

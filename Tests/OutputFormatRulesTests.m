@@ -519,6 +519,18 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusRateUnsupported);
 }
 
+// AUHAL can convert while every rate the report reads agrees. It has its own
+// caption, which a failed switch still outranks.
+- (void)testAResamplingOutputUnitIsNeverActive {
+    VibeBitPerfectReport r = Perfect();
+    r.unitResamples = YES;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusOutputResampled);
+    r.rateExact = NO;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusOutputResampled);
+    r.formatConfirmed = NO;
+    XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSwitchFailed);
+}
+
 - (void)testUnconfirmedOutputCannotBeActiveEvenAtTheRightRateAndUnityVolume {
     VibeBitPerfectReport r = Perfect();
     r.formatConfirmed = NO; // wrong route or a failed format/volume/mute read
@@ -552,6 +564,9 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
     r = Perfect();
     r.playerVolume = 0.5f;
+    XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
+    r = Perfect();
+    r.unitResamples = YES;
     XCTAssertFalse(VibeBitPerfectReportsEqual(Perfect(), r));
 }
 
@@ -1211,6 +1226,41 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     VibeTestFreeIOBuffers(data);
 }
 
+static void VibeTestPull(VibeOutputUnitState *state, UInt32 frames, UInt64 cycle) {
+    AudioBufferList *data = VibeTestIOBuffers(2, frames, 0.5f);
+    AudioUnitRenderActionFlags flags = 0;
+    VibeTestCycle(state, data, frames, &flags, cycle);
+    VibeTestFreeIOBuffers(data);
+}
+
+// AUHAL pulls exactly the device's cycle unless it converts rates: another
+// count is the unit resampling, counted only through the open gate and only
+// against a known cycle. The audio is rendered either way.
+- (void)testOutputUnitCallbackCountsPullsOffTheDeviceCycleAsResampling {
+    VibeTestEngine engine = { .maxFrames = 8192 };
+    VibeOutputUnitState state = {0};
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
+    atomic_store(&state.gate, 1);
+    VibeTestPull(&state, 470, 1);
+    XCTAssertEqual(atomic_load(&state.resampledCycles), 0ull, @"no cycle known, nothing checked");
+    atomic_store(&state.cycleFrames, 512);
+    VibeTestPull(&state, 512, 2);
+    VibeTestPull(&state, 512, 3);
+    XCTAssertEqual(atomic_load(&state.resampledCycles), 0ull);
+    VibeTestPull(&state, 470, 4);
+    VibeTestPull(&state, 471, 5);
+    XCTAssertEqual(atomic_load(&state.resampledCycles), 2ull);
+    XCTAssertEqual(atomic_load(&state.resampledPullFrames), 471u);
+    VibeTestPull(&state, 512, 6);
+    XCTAssertEqual(atomic_load(&state.resampledCycles), 2ull, @"a matching cycle never clears the run's count");
+    atomic_store(&state.gate, 0);
+    VibeTestPull(&state, 470, 7);
+    XCTAssertEqual(atomic_load(&state.resampledCycles), 2ull);
+    XCTAssertEqual(engine.calls, 6u);
+    XCTAssertEqual(engine.rendered, 470u + 512 + 512 + 470 + 471 + 512);
+    XCTAssertEqual(atomic_load(&state.dropouts), 0ull);
+}
+
 - (void)testOutputUnitCallbackCountsItsCostOnlyWhileTheGateIsOpen {
     VibeTestEngine engine = { .maxFrames = 8192 };
     VibeOutputUnitState state = {0};
@@ -1332,6 +1382,22 @@ static int32_t VibeGate(AudioOutputUnit *unit) {
         dispatch_semaphore_signal(release);
         [unit waitUntilIdle];
         XCTAssertEqual(VibeGate(unit), 0);
+    });
+}
+
+// The resampled count is per run: the drain reads a nonzero count as this
+// run's evidence, so a start must not inherit the last run's.
+- (void)testAStartResetsTheResampledCount {
+    AudioOutputUnit *unit = [[AudioOutputUnit alloc] init];
+    XCTAssertNotNil(unit);
+    atomic_store(&unit.state->resampledCycles, 5);
+    atomic_store(&unit.state->resampledPullFrames, 470);
+    VibeWithHALStart(^OSStatus { return noErr; }, ^{
+        [unit start];
+        XCTAssertEqual(unit.resampledCycles, 0ull);
+        XCTAssertEqual(unit.resampledPullFrames, 0u);
+        [unit stop];
+        [unit waitUntilIdle];
     });
 }
 

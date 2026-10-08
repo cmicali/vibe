@@ -89,6 +89,14 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
         if (nanos > atomic_load_explicit(&state->renderMaxNanos, memory_order_relaxed)) {
             atomic_store_explicit(&state->renderMaxNanos, nanos, memory_order_relaxed);
         }
+        // Without a converter AUHAL pulls exactly the device's cycle; with
+        // one it pulls the cycle at the other rate (measured: 470 or 471
+        // frames for 44.1 kHz on a 512-frame cycle at 48 kHz).
+        uint32_t cycle = atomic_load_explicit(&state->cycleFrames, memory_order_relaxed);
+        if (cycle && frameCount != cycle) {
+            atomic_fetch_add_explicit(&state->resampledCycles, 1, memory_order_relaxed);
+            atomic_store_explicit(&state->resampledPullFrames, frameCount, memory_order_relaxed);
+        }
     }
     return status;
 }
@@ -278,6 +286,18 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
     VibeOutputUnitStateClearCounters(_state);
 }
 
+- (uint64_t)resampledCycles {
+    return atomic_load_explicit(&_state->resampledCycles, memory_order_relaxed);
+}
+
+- (UInt32)resampledPullFrames {
+    return atomic_load_explicit(&_state->resampledPullFrames, memory_order_relaxed);
+}
+
+- (UInt32)cycleFrames {
+    return atomic_load_explicit(&_state->cycleFrames, memory_order_relaxed);
+}
+
 - (VibeOutputUnitState *)state {
     return _state;
 }
@@ -333,6 +353,10 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
         return;
     }
     _running = YES;
+    // The gate is closed until the queued start opens it, so no cycle of
+    // this run can land before the reset.
+    atomic_store_explicit(&_state->resampledCycles, 0, memory_order_relaxed);
+    atomic_store_explicit(&_state->resampledPullFrames, 0, memory_order_relaxed);
     uint64_t generation = VibeOutputUnitNextGeneration();
     atomic_store_explicit(&_runGeneration, generation, memory_order_seq_cst);
 #if TARGET_OS_OSX
@@ -411,6 +435,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     if (device == kAudioObjectUnknown) {
         self.presentationLatency = 0;
         self.bufferLatency = 0;
+        atomic_store_explicit(&_state->cycleFrames, 0, memory_order_relaxed);
         return;
     }
     AudioObjectPropertyAddress rateAddress = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
@@ -425,7 +450,17 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
             + VibeSecondsOfLatency(device, kAudioDevicePropertySafetyOffset, kAudioObjectPropertyScopeOutput, 0, rate)
             + (stream != kAudioObjectUnknown
                ? VibeSecondsOfLatency(device, kAudioStreamPropertyLatency, kAudioObjectPropertyScopeGlobal, stream, rate) : 0);
-    self.bufferLatency = VibeSecondsOfLatency(device, kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, 0, rate);
+    AudioObjectPropertyAddress cycleAddress = { kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
+    AudioObjectPropertyAddress variableAddress = { kAudioDevicePropertyUsesVariableBufferFrameSizes, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    UInt32 cycle = 0;
+    size = sizeof(cycle);
+    if (AudioObjectGetPropertyData(device, &cycleAddress, 0, NULL, &size, &cycle) != noErr) {
+        cycle = 0;
+    }
+    self.bufferLatency = rate > 0 ? cycle / rate : 0;
+    // A variable cycle's pulls vary with no converter in the unit.
+    atomic_store_explicit(&_state->cycleFrames, AudioObjectHasProperty(device, &variableAddress) ? 0 : cycle,
+                          memory_order_relaxed);
 }
 #endif
 
