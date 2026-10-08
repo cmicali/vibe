@@ -491,7 +491,7 @@ Slowing down moves everything in the file down with it, the top end included. At
 
 **Dragging the fader.** Apple's unit jumps to each new speed. While the fader moves, that adds side tones 60 to 63 dB below the music. Gliding across each block brings them down to −98 dB on an 8 kHz tone and −116 dB on a 1 kHz tone.
 
-**CPU.** Vibe's converter takes 0.21% to 0.26% of one CPU core at 48 kHz on an M4 Max, from −8% to +16% (the `pitch` component benchmarks). Apple's Varispeed took about 0.08%. **Lower is better.**
+**CPU.** Vibe's converter takes 0.20% to 0.24% of one CPU core at 48 kHz on an M4 Max, from −8% to +16%. Apple's Varispeed takes 0.07% in the same benchmark (the `pitch` component benchmarks), about a third as much. **Lower is better.**
 
 **A wider filter was tried and rejected.** With 96 zero crossings and the cutoff at 22.9 kHz, 20 kHz stayed flat at −8%. But its stopband began too close to the output's limit, and at +1% a 23.8 kHz tone came back at −101 dB.
 
