@@ -1,6 +1,6 @@
 # Future: which cloud file services to handle next, in order
 
-**Status: planned 2026-10-08, nothing started.** This is the order for the other file sources, with the reason for each place. The plans it points at are the detail: [iCloud Drive](ios-icloud-improvements.md), [streaming from any source](streaming-any-source.md), [Dropbox shared links](dropbox-shared-links.md) and [Google Drive](ios-google-drive.md). Current behavior is in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md) and [System](../../Vibe/System/AGENTS.md) docs.
+**Status: planned 2026-10-08, nothing started.** This is the order for the other file sources, with the reason for each place. The plans it points at are the detail: [iCloud Drive](ios-icloud-improvements.md), [streaming from any source](streaming-any-source.md), [Dropbox shared links](dropbox-shared-links.md), [Vibe links](share-links.md) and [Google Drive](ios-google-drive.md). Current behavior is in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md) and [System](../../Vibe/System/AGENTS.md) docs.
 
 ## Where things stand
 
@@ -28,9 +28,9 @@ One afternoon on a device decides which services need native work at all.
 
 This is infrastructure, not only a feature. Each native client below is then a writer behind an unchanged reader. Phase 0's measurements decide how far past phase 1 to go.
 
-### 3. Dropbox shared links
+### 3. Links
 
-[Plan](dropbox-shared-links.md). Not a new service, but it extends the stack users already have. Phase 1 is zero new files and folds the client's two path lookups into one. Defer phase 2, the share extension, until someone asks for it. It is a new target with no offsetting removal.
+Two plans, one shape. [Vibe links](share-links.md) plays a single file reached by a plain HTTP URL, with no account, on both platforms. It moves the streamed download and the ranged read out of `DropboxClient` into one shared HTTP transfer, and turns the remote backend from one root into a registration. Items 4 and 6 need both of those and have no home for them today, so this plan goes first. [Dropbox shared links](dropbox-shared-links.md) is folder links through a signed-in account. Its phase 1 is zero new files and folds the client's two path lookups into one. Defer its phase 2, the share extension, until someone asks for it. It is a new target with no offsetting removal.
 
 ### 4. OneDrive, a native client on iOS
 
@@ -61,4 +61,4 @@ Covers Nextcloud, ownCloud, Synology and most self-hosted NAS setups. The Files 
 
 ## The budget, across the list
 
-Items 1, 2 and 3 plan zero new files and zero new types. Item 4 adds a service's client and mirror, and must give back the Dropbox-specific shape of both. Items 5 and 6 reuse item 4's shape and add no second cloud stack. Each item reports its own net lines, new files and new types when it lands.
+Items 1 and 2 plan zero new files and zero new types. Item 3's budget is in each of its two plans. Item 4 adds a service's client and mirror, and must give back the Dropbox-specific shape of both. Items 5 and 6 reuse item 4's shape and add no second cloud stack. Each item reports its own net lines, new files and new types when it lands.
