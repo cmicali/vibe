@@ -1,6 +1,6 @@
 # Vibe links: share a remote track, open it in Vibe
 
-**Status: planned 2026-10-08. Phase 0 is partly done; its results are under Phases.** No app code is built. This is the plan and the decisions it needs.
+**Status: planned 2026-10-08. Phase 0 is done but for two probes, and its results are under Phases.** The SoundCloud token probe waits on decision 2, and Apple's CDN check waits on Phase 1's deploy. No app code is built. This is the plan and the decisions it needs.
 
 The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox share link, a direct file URL, or a SoundCloud track. The site answers a short link, `https://vibeplayer.app/p/<id>`. A person who taps it gets Vibe, open on that track, streaming it from where it lives. Nobody downloads a file first.
 
@@ -93,22 +93,35 @@ An afternoon with `curl`, recorded in this document.
 - Cloudflare Pages Functions and KV on the `vibe` project: a function answering `/p/<id>` beside the static tree, and `deploy-web.sh` still deploying both.
 - The AASA file served from `vibeplayer.app/.well-known/` with the right content type and no redirect, checked with Apple's CDN validator.
 
-**Results, 2026-10-08.** The SoundCloud and Cloudflare probes ran without credentials, or locally. The rows marked "not run" need the maintainer.
+**Results, 2026-10-08.** The SoundCloud probes ran without a token. The Cloudflare probes ran locally and on a preview branch of the `vibe` project, never on production. The Dropbox probes ran on the maintainer's own links.
 
 | Probe | Result |
 | --- | --- |
-| Dropbox file link | Not run. It needs a share link to an audio file the project owns, plus a password-protected link and a revoked one. |
+| Dropbox file link | Run on a 21 MB FLAC. `dl=1` answers a 302 to `dl.dropboxusercontent.com`, with a new host and path on every request. That host answers `Range` with 206 and `Content-Range`, from byte 0 to a 128-byte suffix. The `ETag` is the same across requests and across fresh redirects. It is unquoted, so the transfer compares it as an opaque string. |
+| Dropbox `If-Range` | Ignored. A wrong `ETag` in `If-Range` still answers 206 with the requested bytes. So the transfer must check the `ETag` of every response itself, as Version (above) says. |
+| Dropbox type and name | Not usable. A GET answers `application/binary`, and a HEAD answers `application/json`. `Content-Disposition` names the file `unspecified`. So a Dropbox link is classified by its host, and the track's name and extension come from the share link's path. |
+| Dropbox password link | Without the password, a 302 to `www.dropbox.com/sm/password…`, then a 200 HTML page. The app can name it from the redirect's path. |
+| Dropbox deleted link | A 200 HTML page on `www.dropbox.com`, with no redirect. A good link always ends on `dl.dropboxusercontent.com`. So any other final host means the link is gone. |
+| Dropbox redirect lifetime | One redirect URL answered 206 at once, after 5 minutes, and after 20 minutes, despite `Cache-Control: max-age=60`. Its full lifetime was not measured. So a resend reuses it, and a resend that fails on it starts again from the share link. |
+| Dropbox changed file | Run on a throwaway 15 MB MP3 with an ID3v1 tail. The owner copied another file over it in Finder, through the Dropbox desktop client. The share link did not survive. It answered the "File Deleted" page, the same as a deleted link. A redirect URL taken before the replace still answered 206 with the old bytes, the old size, and the old `ETag`. A replace through the Dropbox website was not tried. |
 | SoundCloud oEmbed | Works with no key. It answers the title, the author's name and URL, and a 500×500 JPEG `thumbnail_url`. A missing track answers 404. |
 | SoundCloud API | Not run with a token. Registering an app needs Artist Pro ([register an app](https://developers.soundcloud.com/docs/api/register-app)). Without a token, `/resolve` answered 429 "Rate Limit Exceeded", not 401. The API guide caps client credentials tokens at 50 per 12 hours per app and 30 per hour per IP. So the resolve function must keep its token in KV and reuse it for its hour. |
 | SoundCloud streams | Settled from SoundCloud's own sources. The API's schema for `/tracks/{urn}/streams` lists no progressive URL. Full tracks are HLS AAC only, and preview tracks keep a progressive MP3. The 401 issue is closed (SoundCloud, above). |
 | Pages Functions | Run locally with `wrangler pages dev` (wrangler 4.148). A function at `functions/p/[id].js` answers `/p/<id>` beside the static tree. It answers JSON for `Accept: application/json`, HTML otherwise, and 404 for an unknown id. The static pages, the `/support` 301, and the `/download/latest` 302 are unchanged. The generated `_routes.json` includes only `/p/*`. So a static request never runs the function and does not count against the Workers request limit. |
-| KV | Local KV works. The release token cannot reach KV. `wrangler kv namespace list` answers authentication error 10000, because the token has only Account, Cloudflare Pages, Edit. Phase 1 needs a namespace created once, by a token with Workers KV Storage Edit or in the dashboard, and bound to the project. |
-| `deploy-web.sh` | Not run against the project. Wrangler looks for `functions/` in the directory it runs from, not in the directory it uploads. Inside `Assets/Web` the functions would also upload as static files, and GitHub Pages would publish their source. So Phase 1 keeps them beside `Assets/Web`, and `deploy-web.sh` runs wrangler from their parent. |
-| Preview deploy | Not run. A deploy of the probe to a preview branch of the `vibe` project waits for the maintainer's approval. |
-| AASA | Today vibeplayer.app answers 404 for both AASA paths, with no redirect. Apple's CDN answers 404 for the domain. Locally, Pages serves the extensionless file as `application/octet-stream`. A `_headers` rule for the path makes it `application/json`. Apple's CDN check needs the file on the production domain, so it waits for Phase 1's deploy. |
+| KV | The release token cannot reach KV. `wrangler kv namespace list` answers authentication error 10000, because the token has only Account, Cloudflare Pages, Edit. So the namespace was made in the dashboard and bound to the project there. The token can still read and change the project's bindings through the Pages API. A binding is per environment, Production or Preview. It reaches only deployments made after it is set. |
+| Preview deploy | Run on the `links-probe` branch with `wrangler pages deploy` and the release token. The function read a record from KV and answered JSON or HTML, and 404 for an unknown id. The static pages, the `/support` 301, the `/download/latest` 302, and the `/privacy` 308 were unchanged. Production answered 404 for `/p/probe` throughout. The branch alias served the previous deployment on one request in three for a minute after a deploy. A deployment's own URL was always right, so a check after a deploy uses that URL. Both probe deployments are deleted. |
+| `deploy-web.sh` | Not run. Wrangler looks for `functions/` in the directory it runs from, not in the directory it uploads. The preview deploy ran that way. Inside `Assets/Web` the functions would also upload as static files, and GitHub Pages would publish their source. So Phase 1 keeps them beside `Assets/Web`, and `deploy-web.sh` runs wrangler from their parent. |
+| AASA | Today vibeplayer.app answers 404 for both AASA paths, with no redirect. Apple's CDN answers 404 for the domain. Pages serves the extensionless file as `application/octet-stream` by default. A `_headers` rule for the path makes it `application/json`, and the preview deploy answered that way with no redirect. Apple's CDN check needs the file on the production domain, so it waits for Phase 1's deploy. |
 | App ID | The mac and iOS targets share one bundle id. So one AASA entry covers both: `4UEV752JH4.com.commonwealthrecordings.Vibe`. |
 
-**What the results change.** SoundCloud's full tracks need an HLS reader, and Phase 4 assumed a progressive MP3. Without HLS, a SoundCloud link can play only its 30 second preview through the HTTP road. That makes decision 2 a question about HLS, not only about the subscription.
+**What the results change.**
+
+- SoundCloud's full tracks need an HLS reader, and Phase 4 assumed a progressive MP3. Without HLS, a SoundCloud link can play only its 30 second preview through the HTTP road. That makes decision 2 a question about HLS, not only about the subscription.
+- Dropbox serves what the HTTP road needs: ranges, a suffix range, and a stable `ETag`. The degraded row in Range (above) does not apply to it.
+- The link function classifies a Dropbox link by its host and takes the name from its path. The app names a password link and a deleted link by where the redirect lands, not by status.
+- A file replaced in the desktop client ends its share link. So the usual outcome of a changed Dropbox file is a dead link, not a new `ETag`. The `ETag` check stays, for a replace that keeps the link.
+- A redirect URL keeps serving the version it was issued for. So one play's resends reuse its redirect URL and read one version throughout. A new play starts from the share link.
+- Phase 1's KV namespace is made in the dashboard, and bound for Production only when the functions ship.
 
 ### Phase 1: the service and the landing page
 
