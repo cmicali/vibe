@@ -56,24 +56,7 @@ static NSString *PairName(RatePair pair) {
     return [NSString stringWithFormat:@"%g>%g", pair.from / 1000, pair.to / 1000];
 }
 
-static double DB(double ratio) {
-    return ratio > 0 ? 10 * log10(ratio) : -400;
-}
-
 #pragma mark - Analysis
-
-typedef struct {
-    double amplitude;   // hypot(a, b)
-    double a, b;        // cos and sin terms
-    double residualPower;
-} ToneFit;
-
-static ToneFit FitTone(const double *x, NSUInteger count, double frequency, double rate, double index, double origin) {
-    ToneFit fit;
-    fit.residualPower = VibeFitTones(x, count, &frequency, 1, rate, index, origin, &fit.a, &fit.b);
-    fit.amplitude = hypot(fit.a, fit.b);
-    return fit;
-}
 
 static double BesselI0(double x) {
     double sum = 1, term = 1;
@@ -395,7 +378,7 @@ static NSArray<NSValue *> *TonesForPair(RatePair pair) {
             for (NSUInteger n = 0; n < kAnalysisFrames; n++) {
                 power += window[n] * window[n];
             }
-            double level = DB(power / kAnalysisFrames / inputPower);
+            double level = VibeDB(power / kAnalysisFrames / inputPower);
             if (tone.frequency >= 1.02 * outNyquist) {
                 q->stopbandDB = MAX(q->stopbandDB, level);
             }
@@ -404,15 +387,15 @@ static NSArray<NSValue *> *TonesForPair(RatePair pair) {
             }
             continue;
         }
-        ToneFit fit = FitTone(window, kAnalysisFrames, tone.frequency, pair.to, first, origin);
+        VibeToneFit fit = VibeFitTone(window, kAnalysisFrames, tone.frequency, pair.to, first, origin);
         double gainDB = 20 * log10(fit.amplitude / tone.amplitude);
         if (tone.amplitude < 0.5) {
-            q->noiseFloorDBFS = DB(fit.residualPower / 0.5);
+            q->noiseFloorDBFS = VibeDB(fit.residualPower / 0.5);
             continue;
         }
         if (tone.frequency <= 20000) {
             q->rippleDB = MAX(q->rippleDB, fabs(gainDB));
-            q->worstTHDNdB = MAX(q->worstTHDNdB, DB(fit.residualPower / (fit.amplitude * fit.amplitude / 2)));
+            q->worstTHDNdB = MAX(q->worstTHDNdB, VibeDB(fit.residualPower / (fit.amplitude * fit.amplitude / 2)));
             double delay = atan2(-fit.a, fit.b) / (2 * M_PI * tone.frequency) * pair.to;
             if (tone.frequency >= 100 && tone.frequency <= 18000) {
                 minDelay = MIN(minDelay, delay);
@@ -431,11 +414,11 @@ static NSArray<NSValue *> *TonesForPair(RatePair pair) {
                 }
                 double harmonics = 0;
                 for (int h = 2; h <= 10 && h * tone.frequency < 0.98 * lowerNyquist; h++) {
-                    ToneFit harmonic = FitTone(residual, kAnalysisFrames, h * tone.frequency, pair.to, first, origin);
+                    VibeToneFit harmonic = VibeFitTone(residual, kAnalysisFrames, h * tone.frequency, pair.to, first, origin);
                     harmonics += harmonic.amplitude * harmonic.amplitude / 2;
                 }
                 free(residual);
-                double thd = DB(harmonics / (fit.amplitude * fit.amplitude / 2));
+                double thd = VibeDB(harmonics / (fit.amplitude * fit.amplitude / 2));
                 if (tone.frequency == 1000) {
                     q->thd1kDB = thd;
                 }
@@ -515,13 +498,13 @@ static double SweepReference(KaiserSpectrum *spectrum, double rate, double *scra
         double outside, inside;
         [spectrum powerOf:y + start into:power];
         SplitPower(power, frame, pair.to, zone, 1, guardHz, &outside, &inside);
-        double level = DB(outside / reference);
+        double level = VibeDB(outside / reference);
         if (fb <= 20000) {
             q->sweepInBandDB = MAX(q->sweepInBandDB, level);
         }
         else if (pair.from > pair.to && fa >= 1.02 * outNyquist) {
             SplitPower(power, frame, pair.to, NULL, 0, guardHz, &outside, &inside);
-            q->sweepStopbandDB = MAX(q->sweepStopbandDB, DB(outside / reference));
+            q->sweepStopbandDB = MAX(q->sweepStopbandDB, VibeDB(outside / reference));
         }
     }
     free(power);
@@ -567,7 +550,7 @@ static double SawSpur(const double *samples, double rate) {
     SplitPower(power, kSawFrame, rate, fundamental, 1, guardHz, &ignored, &fundamentalPower);
     free(zones);
     free(power);
-    return DB(outside / fundamentalPower);
+    return VibeDB(outside / fundamentalPower);
 }
 
 - (void)measureSawForPair:(RatePair)pair into:(Quality *)q {
@@ -643,7 +626,7 @@ static double Null(NSData *output, NSData *ideal) {
         error += (y[n] - x[n]) * (y[n] - x[n]);
         signal += x[n] * x[n];
     }
-    return DB(error / signal);
+    return VibeDB(error / signal);
 }
 
 - (void)measureMultitoneForPair:(RatePair)pair into:(Quality *)q {
@@ -683,7 +666,7 @@ static double Null(NSData *output, NSData *ideal) {
         double power = (a[k] * a[k] + b[k] * b[k]) / 2;
         if (k < 2) tones += power; else products += power;
     }
-    q->imdCCIFdB = DB(products / tones);
+    q->imdCCIFdB = VibeDB(products / tones);
     double smpte[6] = { 60, 7000, 6940, 7060, 6880, 7120 };
     double origin = half / pair.from;
     first = (NSUInteger)(segmentOut + segmentOut / 2 - window / 2);
@@ -692,7 +675,7 @@ static double Null(NSData *output, NSData *ideal) {
     for (int k = 2; k < 6; k++) {
         products += (a[k] * a[k] + b[k] * b[k]) / 2;
     }
-    q->imdSMPTEdB = DB(products / ((a[1] * a[1] + b[1] * b[1]) / 2));
+    q->imdSMPTEdB = VibeDB(products / ((a[1] * a[1] + b[1] * b[1]) / 2));
 }
 
 // A unit impulse at the middle of a second: the output's transform about the
@@ -757,7 +740,7 @@ static double Null(NSData *output, NSData *ideal) {
     double residual = VibeFitTones((const double *)output.bytes + first, window, &f, 1, pair.to, first, 0, &a, &b);
     double fitted = hypot(a, b);
     q->oversGainDB = 20 * log10(fitted / amplitude);
-    q->oversTHDNdB = DB(residual / (fitted * fitted / 2));
+    q->oversTHDNdB = VibeDB(residual / (fitted * fitted / 2));
 }
 
 - (Quality)qualityForPair:(RatePair)pair {
@@ -860,7 +843,7 @@ static NSString *TableRow(RatePair pair, Quality q) {
             double outside, inside;
             [spectrum powerOf:ideal into:power];
             SplitPower(power, kSweepFrame, pair.to, zone, 1, guardHz, &outside, &inside);
-            sweepFloor = MAX(sweepFloor, DB(outside / reference));
+            sweepFloor = MAX(sweepFloor, VibeDB(outside / reference));
         }
         NSUInteger outputFrames = (NSUInteger)llround(kSawSeconds * pair.to);
         vDSP_vclrD(ideal, 1, kSawFrame);

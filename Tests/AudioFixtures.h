@@ -6,8 +6,8 @@
 //  itself, so reading a fixture back through AudioFileHandle never makes the
 //  handle its own oracle; VibeWriteFixture uses the handle's writer for what a
 //  bare RIFF cannot carry — a channel layout, or a codec. VibeReferenceResample
-//  is the one reference conversion. VibeFitTones is the one tone fit, which
-//  both quality measurements share. VibeRangedPCMFormat is a device's offered
+//  is the one reference conversion. VibeFitTones is the one tone fit, with
+//  VibeFitTone and VibeDB beside it, which both quality measurements share. VibeRangedPCMFormat is a device's offered
 //  format, for the bit-perfect format rules.
 //
 
@@ -356,6 +356,26 @@ static inline double VibeFitTones(const double *x, NSUInteger count, const doubl
     free(basis);
     free(coefficients);
     return residual / count;
+}
+
+// One tone of VibeFitTones, with its amplitude.
+typedef struct {
+    double amplitude;   // hypot(a, b)
+    double a, b;        // cos and sin terms
+    double residualPower;
+} VibeToneFit;
+
+static inline VibeToneFit VibeFitTone(const double *x, NSUInteger count, double frequency, double rate, double index,
+                                      double origin) {
+    VibeToneFit fit;
+    fit.residualPower = VibeFitTones(x, count, &frequency, 1, rate, index, origin, &fit.a, &fit.b);
+    fit.amplitude = hypot(fit.a, fit.b);
+    return fit;
+}
+
+// A power ratio in dB; -400 for none.
+static inline double VibeDB(double ratio) {
+    return ratio > 0 ? 10 * log10(ratio) : -400;
 }
 
 typedef struct {

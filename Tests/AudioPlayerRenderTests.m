@@ -3583,36 +3583,38 @@ static NSData *MP3Frames(NSData *mp3) {
             for (NSUInteger n = 0; n < window; n++) x[n] = out[(first + n) * 2];
             return first;
         };
-        double distortion[3] = {NAN, NAN, NAN}, flatness = 0, gain20k = 0, falseTones = NAN;
+        // Distortion + noise at 1, 10 and 20 kHz, where 20 kHz's input is below
+        // the kernel's −6 dB point.
+        NSMutableDictionary<NSNumber *, NSNumber *> *distortion = [NSMutableDictionary dictionary];
+        double flatness = 0, gain20k = 0, falseTones = NAN;
         for (NSUInteger index = 0; index < tones.count; index++) {
-            double f = tones[index].doubleValue, a = 0, b = 0;
-            NSUInteger first = windowOf(index);
-            double residual = VibeFitTones(x, window, &f, 1, 48000, first, 0, &a, &b), amplitude = hypot(a, b);
-            double gain = 20 * log10(amplitude / full), dn = 10 * log10(residual / (amplitude * amplitude / 2));
+            double f = tones[index].doubleValue;
+            VibeToneFit fit = VibeFitTone(x, window, f, 48000, windowOf(index), 0);
+            double gain = 20 * log10(fit.amplitude / full);
             // Slowing down, the input of an output tone near 20 kHz sits in the
             // kernel's transition band, above its passband edge of 20 kHz × the ratio.
             if (f <= 20000 * MIN(1, ratio)) flatness = MAX(flatness, fabs(gain));
             if (f == 20000) gain20k = gain;
-            NSUInteger at = f == 1000 ? 0 : f == 10000 ? 1 : f == 20000 && f / ratio < 22000 ? 2 : NSNotFound;
-            if (at != NSNotFound) distortion[at] = dn;
+            if (f == 1000 || f == 10000 || (f == 20000 && f / ratio < 22000)) {
+                double dn = VibeDB(fit.residualPower / (fit.amplitude * fit.amplitude / 2));
+                distortion[tones[index]] = @(dn);
+                XCTAssertLessThan(dn, -145, @"%@%% distortion + noise at %@ Hz", percent, tones[index]);
+            }
         }
         double a[20], b[20], signal = 0;
         NSUInteger first = windowOf(tones.count);
         double residual = VibeFitTones(x, window, twenty, 20, 48000, first, 0, a, b);
         for (int k = 0; k < 20; k++) signal += (a[k] * a[k] + b[k] * b[k]) / 2;
-        double twentyTones = 10 * log10(residual / signal);
+        double twentyTones = VibeDB(residual / signal);
         for (NSUInteger index = falseFirst; index < segments.count; index++) {
             double rms = RMS(capture, 2, 0, NSMakeRange(windowOf(index), window));
-            double level = 10 * log10(rms * rms / (full * full / 2));
+            double level = VibeDB(rms * rms / (full * full / 2));
             falseTones = isnan(falseTones) ? level : MAX(falseTones, level);
         }
         free(x);
         [table appendFormat:@"| %+g%% | %.1f | %.1f | %.1f | %.1f | %.1f | %.6f | %.4f |\n", percent.doubleValue,
-         distortion[0], distortion[1], distortion[2], twentyTones, falseTones, flatness, gain20k];
-        NSArray<NSString *> *at = @[@"1 kHz", @"10 kHz", @"20 kHz"];
-        for (int i = 0; i < 3; i++) {
-            if (!isnan(distortion[i])) XCTAssertLessThan(distortion[i], -145, @"%@%% distortion + noise at %@", percent, at[i]);
-        }
+         (distortion[@1000] ?: @(NAN)).doubleValue, (distortion[@10000] ?: @(NAN)).doubleValue,
+         (distortion[@20000] ?: @(NAN)).doubleValue, twentyTones, falseTones, flatness, gain20k];
         XCTAssertLessThan(twentyTones, -145, @"%@%% twenty tones", percent);
         if (ratio > 1) XCTAssertLessThan(falseTones, -145, @"%@%% false tones", percent);
         XCTAssertLessThan(flatness, 0.0001, @"%@%% passband flatness", percent);
@@ -3622,6 +3624,26 @@ static NSData *MP3Frames(NSData *mp3) {
     attachment.name = @"pitch quality";
     attachment.lifetime = XCTAttachmentLifetimeKeepAlways;
     [self addAttachment:attachment];
+}
+// A slice that ramps the ratio down keeps the kernel stretched for where the
+// ramp starts. A 22 kHz tone is in that kernel's stopband at +16%, so the
+// slice ramping to −1% is silent; with the target's kernel the tone would
+// pass while the ratio is still above 1, and fold back. Once the ratio has
+// landed, the tone plays at −1% as it should, about 6 dB down.
+- (void)testARampDownKeepsTheWiderKernel {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _blockSize = 4096;
+    NSData *tone = StereoTone(3 * 48000, 48000, 22000, 0.5f);
+    _player.maxPitch = 16;
+    _player.pitch = 16;
+    [self play:[self write:tone rate:48000 channels:2 name:@"22k.wav"] paused:NO position:0];
+    [self render:48000];
+    _player.pitch = -1;
+    NSData *ramp = [self renderSeconds:4096 / 48000.0];
+    [self render:4096];
+    NSData *landed = [self renderSeconds:8192 / 48000.0];
+    XCTAssertLessThan(RMS(ramp, 2, 0, NSMakeRange(0, 4096)), 1e-5, @"the ramp down let the tone through");
+    XCTAssertGreaterThan(RMS(landed, 2, 0, NSMakeRange(0, 8192)), 0.1, @"the tone plays once the ratio has landed");
 }
 // Under the pump the output cannot follow the file's rate, so this measures
 // the bus's converter: the fallback a device that refuses a rate takes.

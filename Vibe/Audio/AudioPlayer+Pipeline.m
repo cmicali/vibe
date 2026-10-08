@@ -47,6 +47,11 @@ static const int kRenderLeaveSpinLimit = 500; // 100 ms
 typedef struct {
     VibeMasterBus *master;           // the channels and the counters
     _Atomic(VibeVarispeedTable *) table; // the ratio's; the queue swaps it
+    // The table the render's last slice used, which the render writes. A slice
+    // that ramps the ratio down keeps it, since its kernel is stretched for
+    // where the ramp starts; the target's would let that start fold back.
+    _Atomic(VibeVarispeedTable *) inUse;
+    VibeVarispeedTable *retired;     // the queue's: a replaced table the render was still using
     _Atomic int32_t engaged;         // 1 while the converter is in the chain; the render's, set at a slice boundary
     // A ring of bus frames that the render alone touches, written only around
     // the converter: while an engage is being prepared it records the frames
@@ -239,8 +244,13 @@ static OSStatus VibeMasterBusRenderVarispeed(VibeVarispeedHost *host, VibeVoiceM
     if (!left || !right) {
         return noErr;
     }
-    const VibeVarispeedTable *table = atomic_load_explicit(&host->table, memory_order_acquire);
+    VibeVarispeedTable *table = atomic_load_explicit(&host->table, memory_order_acquire);
     double from = host->ratio, to = atomic_load_explicit(&master->varispeedRatio, memory_order_relaxed);
+    if (table->stretch < from) {
+        // A ramp down: the table in use is stretched for at least `from`.
+        table = atomic_load_explicit(&host->inUse, memory_order_relaxed);
+    }
+    atomic_store_explicit(&host->inUse, table, memory_order_relaxed);
     OSStatus status = VibeMasterBusPull(host, mix, stamp, host->index + VibeVarispeedReach(table, host->fraction, from, to, frames));
     // A mono output reads its one channel twice, into its one buffer.
     VibeVarispeedConvert(table, host->recent[0], host->recent[channels - 1], host->recentMask, &host->index, &host->fraction,
@@ -888,6 +898,7 @@ static void VibeVarispeedHostFree(VibeVarispeedHost *host) {
         return;
     }
     free(atomic_load_explicit(&host->table, memory_order_relaxed));
+    free(host->retired);
     free(host->recent[0]);
     free(host);
 }
@@ -915,6 +926,23 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     free(master);
 }
 
+// A table the queue replaced, and any it kept before, freed now unless the
+// render's last slice used one: that one waits for the next retire. The
+// render is outside, so the table in use cannot change under this.
+static void VibeVarispeedHostRetire(VibeVarispeedHost *host, VibeVarispeedTable *replaced) {
+    VibeVarispeedTable *inUse = atomic_load_explicit(&host->inUse, memory_order_relaxed);
+    VibeVarispeedTable *candidates[2] = { host->retired, replaced };
+    host->retired = NULL;
+    for (int i = 0; i < 2; i++) {
+        if (candidates[i] == inUse) {
+            host->retired = candidates[i];
+        }
+        else {
+            free(candidates[i]);
+        }
+    }
+}
+
 // The hosting leaves the bus now, and is freed once the render was seen
 // outside it.
 - (void)disposeVarispeedOnQueue {
@@ -938,6 +966,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     host->master = _masterBus;
     VibeVarispeedTable *table = VibeVarispeedTableCreate(1);
     atomic_init(&host->table, table);
+    atomic_init(&host->inUse, table);
     uint32_t reach = (uint32_t)ceil(kVibeMasterBusMaxFrames * kVibeVarispeedMaxRatio) + 2 * kVibeVarispeedMaxHalfWidth + 2;
     uint32_t capacity = 256;
     while (capacity < reach) {
@@ -1069,8 +1098,8 @@ void VibeMasterBusFree(VibeMasterBus *master) {
 // kernel, and whether it is in the chain at all. At zero it is not in the
 // chain, since even at a ratio of 1 the kernel is a low-pass. A new
 // stretch's table is built here and published by pointer, and the old one is
-// freed once the render has left it. The ratio is held to the fader's widest
-// throw, which the ring is sized for.
+// freed once the render no longer uses it. The ratio is held to the fader's
+// widest throw, which the ring is sized for.
 - (void)applyPitchOnQueue:(float)pitch {
     VibeVarispeedHost *host = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
     if (!host) {
@@ -1083,7 +1112,7 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         VibeVarispeedTable *table = VibeVarispeedTableCreate(ratio);
         if (table) {
             atomic_store_explicit(&host->table, table, memory_order_seq_cst);
-            [self afterRenderLeavesOnQueue:^{ free(old); }];
+            [self afterRenderLeavesOnQueue:^{ VibeVarispeedHostRetire(host, old); }];
         }
         else {
             LogError(@"AudioPlayer: no varispeed kernel for a ratio of %.4f; the last one stays", ratio);
