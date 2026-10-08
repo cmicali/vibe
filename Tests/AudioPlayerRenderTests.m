@@ -3522,6 +3522,109 @@ static NSData *MP3Frames(NSData *mp3) {
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
     [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }
+// The pitch fader's converter, measured through the player in the style of
+// ResamplerQualityTests. The source is a 48 kHz file of segments, each built
+// so that at the fader's ratio its output is known: one tone at −1 dBFS, twenty
+// tones at once, or, speeding up, an input the output's Nyquist cannot carry.
+// The middle of each segment's output is fitted at exactly its frequencies,
+// gain and phase free, so the residual is everything that is not the tones.
+// The float32 file and capture set the floor, about −150 dB. Each bound sits
+// a few dB above what the converter measured. The table is attached as
+// "pitch quality"; docs/audio-quality.md compares it with Apple's Varispeed.
+- (void)testPitchQuality {
+    self.continueAfterFailure = YES; // every bound reports, and the table attaches
+    const NSUInteger segment = 32768, window = 8192;
+    const double full = pow(10, -1 / 20.0);
+    NSArray<NSNumber *> *tones = @[@20, @100, @1000, @5000, @10000, @15000, @18000, @20000];
+    NSMutableString *table = [@"| pitch | D+N 1 kHz dB | D+N 10 kHz dB | D+N 20 kHz dB | twenty tones dB | false tones dB "
+                              "| flatness dB | gain at 20 kHz dB |\n|---|---|---|---|---|---|---|---|\n" mutableCopy];
+    _blockSize = 4096;
+    for (NSNumber *percent in @[@-16, @-8, @-1, @1, @8, @16]) {
+        double ratio = 1 + percent.doubleValue / 100;
+        // Each segment's input frequencies.
+        NSMutableArray<NSArray<NSNumber *> *> *segments = [NSMutableArray array];
+        for (NSNumber *tone in tones) [segments addObject:@[@(tone.doubleValue / ratio)]];
+        double twenty[20], top = MIN(19500, ratio < 1 ? 23500 * ratio : 19500);
+        NSMutableArray<NSNumber *> *twentyIn = [NSMutableArray array];
+        for (int k = 0; k < 20; k++) {
+            twenty[k] = 40 * pow(top / 40, k / 19.0);
+            [twentyIn addObject:@(twenty[k] / ratio)];
+        }
+        [segments addObject:twentyIn];
+        NSUInteger falseFirst = segments.count;
+        if (ratio > 1) {
+            double edge = 24000 / ratio;
+            for (NSNumber *f in @[@(edge + 150), @((edge + 24000) / 2), @23800]) [segments addObject:@[f]];
+        }
+        NSUInteger length = (NSUInteger)ceil(segment * ratio);
+        NSMutableData *source = [NSMutableData dataWithLength:length * segments.count * 2 * sizeof(float)];
+        float *s = source.mutableBytes;
+        [segments enumerateObjectsUsingBlock:^(NSArray<NSNumber *> *frequencies, NSUInteger index, BOOL *stop) {
+            double amplitude = frequencies.count == 1 ? full : 0.045;
+            for (NSUInteger m = 0; m < length; m++) {
+                double v = 0;
+                for (NSUInteger k = 0; k < frequencies.count; k++) {
+                    v += amplitude * sin(2 * M_PI * frequencies[k].doubleValue * m / 48000 + 0.7 * k);
+                }
+                s[(index * length + m) * 2] = s[(index * length + m) * 2 + 1] = (float)v;
+            }
+        }];
+        NSURL *url = [self write:source rate:48000 channels:2 name:[NSString stringWithFormat:@"pitch%@.wav", percent]];
+        [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+        _player.maxPitch = 16;
+        _player.pitch = percent.floatValue;
+        [self play:url paused:NO position:0];
+        NSData *capture = [self renderSeconds:(length * segments.count / ratio + window) / 48000];
+        const float *out = capture.bytes;
+        double *x = malloc(window * sizeof(double));
+        // The window at the middle of segment `index`'s output.
+        NSUInteger (^windowOf)(NSUInteger) = ^NSUInteger(NSUInteger index) {
+            NSUInteger first = (NSUInteger)llround((index * length + length / 2.0) / ratio) - window / 2;
+            for (NSUInteger n = 0; n < window; n++) x[n] = out[(first + n) * 2];
+            return first;
+        };
+        double distortion[3] = {NAN, NAN, NAN}, flatness = 0, gain20k = 0, falseTones = NAN;
+        for (NSUInteger index = 0; index < tones.count; index++) {
+            double f = tones[index].doubleValue, a = 0, b = 0;
+            NSUInteger first = windowOf(index);
+            double residual = VibeFitTones(x, window, &f, 1, 48000, first, 0, &a, &b), amplitude = hypot(a, b);
+            double gain = 20 * log10(amplitude / full), dn = 10 * log10(residual / (amplitude * amplitude / 2));
+            // Slowing down, the input of an output tone near 20 kHz sits in the
+            // kernel's transition band, above its passband edge of 20 kHz × the ratio.
+            if (f <= 20000 * MIN(1, ratio)) flatness = MAX(flatness, fabs(gain));
+            if (f == 20000) gain20k = gain;
+            NSUInteger at = f == 1000 ? 0 : f == 10000 ? 1 : f == 20000 && f / ratio < 22000 ? 2 : NSNotFound;
+            if (at != NSNotFound) distortion[at] = dn;
+        }
+        double a[20], b[20], signal = 0;
+        NSUInteger first = windowOf(tones.count);
+        double residual = VibeFitTones(x, window, twenty, 20, 48000, first, 0, a, b);
+        for (int k = 0; k < 20; k++) signal += (a[k] * a[k] + b[k] * b[k]) / 2;
+        double twentyTones = 10 * log10(residual / signal);
+        for (NSUInteger index = falseFirst; index < segments.count; index++) {
+            windowOf(index);
+            double power = 0;
+            for (NSUInteger n = 0; n < window; n++) power += x[n] * x[n];
+            double level = 10 * log10(power / window / (full * full / 2));
+            falseTones = isnan(falseTones) ? level : MAX(falseTones, level);
+        }
+        free(x);
+        [table appendFormat:@"| %+g%% | %.1f | %.1f | %.1f | %.1f | %.1f | %.6f | %.4f |\n", percent.doubleValue,
+         distortion[0], distortion[1], distortion[2], twentyTones, falseTones, flatness, gain20k];
+        NSArray<NSString *> *at = @[@"1 kHz", @"10 kHz", @"20 kHz"];
+        for (int i = 0; i < 3; i++) {
+            if (!isnan(distortion[i])) XCTAssertLessThan(distortion[i], -145, @"%@%% distortion + noise at %@", percent, at[i]);
+        }
+        XCTAssertLessThan(twentyTones, -145, @"%@%% twenty tones", percent);
+        if (ratio > 1) XCTAssertLessThan(falseTones, -145, @"%@%% false tones", percent);
+        XCTAssertLessThan(flatness, 0.0001, @"%@%% passband flatness", percent);
+        if (ratio >= 0.99) XCTAssertLessThan(fabs(gain20k), 0.0001, @"%@%% flat at 20 kHz", percent);
+    }
+    XCTAttachment *attachment = [XCTAttachment attachmentWithString:table];
+    attachment.name = @"pitch quality";
+    attachment.lifetime = XCTAttachmentLifetimeKeepAlways;
+    [self addAttachment:attachment];
+}
 // Under the pump the output cannot follow the file's rate, so this measures
 // the bus's converter: the fallback a device that refuses a rate takes.
 - (void)testSampleRateConversionQuality {
@@ -4547,29 +4650,37 @@ static NSData *MP3Frames(NSData *mp3) {
     NSArray<NSNumber *> *pitches = @[@0, @4, @0, @-4, @0, @8, @-8, @0];
     [self play:[self fixture:@"100.wav"] paused:NO position:0];
     [_capture setLength:0];
-    // Each segment advances the file by its own rate, within a few frames.
-    // An engage first plays the slice in which the unit's history is
-    // recorded directly, at rate 1, then pulls the unit's latency ahead of
-    // its output; a disengage plays that pulled-ahead latency from the ring
-    // without consuming. So the two segments carry those frames each way.
-    double expected = 0, latency = 0;
+    // Each segment advances the file by the frames the converter played plus
+    // what it pulled ahead, within a couple of frames. An engage first plays
+    // the slice in which the kernel's past is recorded directly, at rate 1.
+    // The converter then starts at the next frame, ramps its ratio across its
+    // first slice from the last one's, 1 after an engage, and pulls the
+    // kernel's half-width ahead, plus up to a frame. A disengage plays what
+    // was pulled ahead from the ring without consuming.
+    double expected = 0, ahead = 0, previous = 1;
     BOOL wasEngaged = NO;
     for (NSNumber *pitch in pitches) {
-        double before = _player.position, rate = 1 + pitch.doubleValue / 100;
+        double before = _player.position, rate = 1 + pitch.doubleValue / 100, pulled = ahead, frames = 9600 - pulled;
         _player.pitch = pitch.floatValue;
         [self render:9600];
         NSDictionary *counts = _player.debugRenderCounts;
         BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
         XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
-        if (engaged) latency = [counts[@"varispeedLatency"] doubleValue];
-        double direct = ceil(2 * latency * 48000 / _blockSize) * _blockSize / 48000;
-        double advance = 0.2 * rate + (engaged && !wasEngaged ? latency + direct * (1 - rate) : 0) - (!engaged && wasEngaged ? latency : 0);
-        XCTAssertEqualWithAccuracy(_player.position - before, advance, 0.0002, @"the file advanced at pitch %@", pitch);
-        expected += advance;
+        ahead = 0;
+        if (engaged) {
+            // The delay is the half-width of input frames, played at the ratio.
+            double half = round([counts[@"varispeedLatency"] doubleValue] * 48000 * rate);
+            XCTAssertEqual(half, rate > 1 ? ceil(64 * rate) : 64, @"the kernel's half-width at pitch %@", pitch);
+            double direct = wasEngaged ? 0 : _blockSize, from = wasEngaged ? previous : 1;
+            ahead = half + 1.5 - rate;
+            frames = direct + (9600 - direct) * rate + (_blockSize - 1) / 2.0 * (from - rate) + ahead - pulled;
+            previous = rate;
+        }
+        XCTAssertEqualWithAccuracy((_player.position - before) * 48000, frames, 2, @"the file advanced at pitch %@", pitch);
+        expected += frames / 48000;
         wasEngaged = engaged;
     }
-    XCTAssertGreaterThan(latency, 0.0005, @"the unit's declared latency, read while engaged");
-    XCTAssertEqualWithAccuracy(_player.position, expected, 0.0002, @"the file advanced as far as the rates played");
+    XCTAssertEqualWithAccuracy(_player.position, expected, 0.0001, @"the file advanced as far as the rates played");
     uint64_t historyWrites = [_player.debugRenderCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
     XCTAssertGreaterThan(historyWrites, 0ull, @"the engages recorded their history");
     // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
@@ -5218,8 +5329,7 @@ static NSData *MP3Frames(NSData *mp3) {
     XCTAssertEqual([bus[@"liveVoices"] intValue], 1);
     XCTAssertTrue([varispeed[@"present"] boolValue]);
     XCTAssertFalse([varispeed[@"engaged"] boolValue]);
-    XCTAssertEqual([varispeed[@"quality"] intValue], 127, @"the varispeed at its highest render quality");
-    XCTAssertGreaterThan([varispeed[@"latencyFrames"] intValue], 0);
+    XCTAssertEqual([varispeed[@"latencyFrames"] intValue], 64, @"the kernel's half-width at a ratio of 1");
     XCTAssertTrue([fx[@"connected"] boolValue]);
     XCTAssertTrue([fx[@"inRender"] boolValue]);
     XCTAssertEqual([fx[@"hostedUnits"] intValue], 10);

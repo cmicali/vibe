@@ -29,7 +29,7 @@ Every file is first decoded to 32-bit floating point. After that, each dashed st
 
 - **Resample**: only when the file's sample rate is different from the output's.
 - **Declick**: a 10-millisecond fade when you start, pause, seek or stop, so you never hear a click. It never touches the music in between. You can turn it off in Settings > Audio > Declick, and then those moments become clean cuts. A crossfade between tracks, if you turn one on, is the only longer fade.
-- **Pitch**: only runs while the pitch fader is away from 0%. At 0% it is removed. We remove it rather than set it to "normal speed" because Apple's pitch processor still changes the samples slightly even at normal speed. The fader clicks into exactly 0% at its center.
+- **Pitch**: Vibe's own converter, which only runs while the pitch fader is away from 0%. At 0% it is removed. We remove it rather than set it to "normal speed", because its filter still changes the samples slightly even at normal speed. The fader clicks into exactly 0% at its center. See [The pitch fader](#the-pitch-fader).
 - **DJ effects**: each effect only runs while you are using it, or while its echo or reverb is still dying away. Then it is reset and removed. When you release the low cut, it glides down, turns itself flat so there is no jump in sound, and a quarter of a second later is removed completely. We had a bug where a released low cut stayed in the path and slightly boosted the deep bass; a test now prevents that.
 - **Volume**: Vibe's own volume fader. At full volume it does nothing at all.
 
@@ -447,12 +447,63 @@ What the numbers mean:
 
 - **Licensing.** BASS is closed source and free only for non-commercial use.
 
+## The pitch fader
+
+The pitch fader changes the speed and the pitch together, as on a turntable, by up to 8% or 16%. Vibe does this by resampling at a ratio that follows the fader. The fader is on macOS only, and never in bit-perfect output.
+
+The fader has a converter written for Vibe. r8brain can't do this job: it fixes its ratio when it is created, and it converts ahead of playback, so the fader would lag behind your hand. The free libraries that can change their ratio were less accurate or had the wrong license. libsamplerate's best mode is about as accurate as Apple's Varispeed. libsoxr is LGPL and zita-resampler is GPL, and the App Store can't take either.
+
+How it works:
+
+- **A windowed-sinc filter**, the standard design for resampling. It has 64 zero crossings on each side and a Kaiser window (β 15.6), which blocks about 150 dB.
+- **The top end is kept.** The filter is flat to 20 kHz and 6 dB down at 22 kHz (at 48 kHz; it scales with the sample rate).
+- **No false tones when speeding up.** The filter stretches with the speed, so its top follows the output's limit.
+- **Smooth drags.** When the fader moves, the speed glides across each block of audio instead of jumping.
+- **64-bit sums**, rounded once to 32-bit float at the end.
+- **A short delay**: 64 samples, about 1.3 ms at 48 kHz, and up to 75 when speeding up by 16%.
+
+Vibe used Apple's Varispeed until this converter replaced it. We measured both through Vibe's player with the same test, at −16%, −8%, −1%, +1%, +8% and +16%, at 48 kHz. Each tone is fitted at exactly its frequency, so anything that isn't the tone counts. 32-bit float sets a floor of about −150 dB. **More negative is better.**
+
+| Measurement | Apple Varispeed | Vibe's converter |
+| --- | --- | --- |
+| Distortion + noise, 1 kHz tone at −1 dBFS | −129 to −135 | −150 to −152 |
+| Same, 10 kHz | −93 to −99 | −150 to −153 |
+| Same, 20 kHz, from −8% to +16% | −83 to −87 | −148 to −151 |
+| Twenty tones at once | −96 to −99 | −149 to −150 |
+| False tones when speeding up | −114 to −133 | −148 to −149 |
+
+**Apple's error grows 12 dB per octave**, the sign of a coarse filter table. It can't be tuned away. The unit already ran at its highest quality, and it refuses Apple's Mastering converter setting.
+
+**Apple's filter also cut the top end.** The level of a 20 kHz tone, in dB:
+
+| Fader | Apple Varispeed | Vibe's converter |
+| --- | --- | --- |
+| +16% | −0.33 | 0.00 |
+| +8% | −0.77 | 0.00 |
+| +1% | −1.49 | 0.00 |
+| −1% | −0.05 | 0.00 |
+| −8% | −7.8 | −3.0 |
+| −16% | −131 | −123 |
+
+Slowing down moves everything in the file down with it, the top end included. At −8%, a 20 kHz tone comes from 21.7 kHz in the file, which is on the filter's slope. At −16% it comes from 23.8 kHz, which no converter keeps.
+
+**Dragging the fader.** Apple's unit jumps to each new speed. While the fader moves, that adds side tones 60 to 63 dB below the music. Gliding across each block brings them down to −98 dB on an 8 kHz tone and −116 dB on a 1 kHz tone.
+
+**CPU.** Vibe's converter takes 0.23% to 0.28% of one CPU core at 48 kHz, measured through the player on an M4 Max. Apple's Varispeed took about 0.08%. **Lower is better.**
+
+**A wider filter was tried and rejected.** With 96 zero crossings and the cutoff at 22.9 kHz, 20 kHz stayed flat at −8%. But its stopband began too close to the output's limit, and at +1% a 23.8 kHz tone came back at −101 dB.
+
+**Key lock is a different feature.** It changes the tempo and keeps the key, which needs a time-stretcher rather than a resampler. Every time-stretcher adds sounds of its own. The pitch fader adds none.
+
+`scripts/varispeed-quality/run.sh` measures Apple's Varispeed, r8brain at a fixed ratio and a prototype of this converter outside the player, with no audio device. It times them too, and measures a drag. It is the place to try a new filter design before it goes into the player.
+
 ## How we test it
 
 These tests run automatically on every change, without any audio hardware:
 
 - **Every sample is checked.** The real player plays into memory, and every sample of every channel is compared with the file. This covers 44.1 kHz to 192 kHz; 16-bit, 24-bit and float; mono and stereo; and every supported format. Bit-perfect and regular playback must match the file exactly. The only exception is the first 50 ms, while the declick fades in, and not even that when Declick is off. The check catches a single changed bit, a dropped or repeated sample, swapped channels, or flipped polarity.
 - **Unused features change nothing.** The file must play back exactly with the effects turned on but unused, with the equalizer bars running, with the pitch fader at 0%, and after every effect has been used and released: each effect key, the boost, the iOS effects pad, and an effect switched off partway through. "Exactly" means exactly, not "within a tolerance". A released low cut left in the path changes the audio by about 0.0000000000007, and only an exact comparison catches that.
+- **The pitch fader** must keep distortion, noise and false tones below −145 dB at six settings from −16% to +16%, and stay flat to 20 kHz from −1% up. Leaving 0% and coming back must not click, skip or repeat a sample, and at 0% the file must play exactly.
 - **The resampler** must pass every measurement above at all eight rate changes. It must also continue seamlessly across gapless track changes, and match the same conversion done separately from the player, exactly.
 - **The MP3 decoder** must stay at least 50 times inside the ISO accuracy limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks, seek to the exact sample, including in 8 kbps files, decode frames with private bits set and 8 kHz mixed blocks as FFmpeg does, cap a damaged frame at +12 dB, and end cut-off files where Apple's does. And switching decoders must take effect on the very next track, even if that track was already being opened.
 - **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a tag in front, a stale seek table, a seek table with a garbage entry, a damaged frame, a damaged frame header, a damaged first frame, bytes lost inside a frame, a damaged frame the seek table points at, a download cut short at points all across a frame, and a file that doesn't say how long it is, alone and with a megabyte of zeros after it, which must know its length, play in full, and seek. Files whose frames are split into more than 256 parts must decode exactly, and a file more than 2^32 samples long must seek forward and back across that distance.

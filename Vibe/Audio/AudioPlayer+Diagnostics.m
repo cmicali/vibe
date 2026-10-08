@@ -828,10 +828,12 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-// TRAP: the varispeed emits the bus's frames its declared latency (48 frames)
-// late, so the cutoff is padded by varispeedLatencyOnQueue (0 at zero pitch,
-// where the unit is skipped); unpadded, the probe reads the outgoing track's
-// tail as the incoming one's first signal.
+// TRAP: the varispeed emits the bus's frames late by its kernel's half-width:
+// 64 input frames, and ceil(64 × ratio) above a ratio of 1, which play in
+// half / ratio output frames. So the cutoff is padded by
+// varispeedLatencyOnQueue, which is 0 at zero pitch, where the converter is
+// skipped. Unpadded, the probe reads the outgoing track's tail as the
+// incoming one's first signal.
 - (void)noteRetiringAudioSilentOnQueue {
 #if VIBE_VERBOSE_LOGGING
     AudioTimeStamp time = [self outputRenderTimeOnQueue];

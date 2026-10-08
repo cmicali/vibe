@@ -33,8 +33,7 @@ void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *id
     [violations addObject:@{@"id": identifier, @"detail": detail}];
 }
 
-// Headroom over the varispeed and the FX chain's ten units, which are created
-// once and kept. A leak blows past it; the sensitive detector is the stress
+// Headroom over the FX chain's ten units, which are created once and kept. A leak blows past it; the sensitive detector is the stress
 // driver diffing the count against its baseline.
 static const NSUInteger kVibeMaxReasonableHostedUnits = 16;
 

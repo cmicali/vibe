@@ -62,82 +62,6 @@ static double DB(double ratio) {
 
 #pragma mark - Analysis
 
-// The least-squares fit of c + Σ a_k·cos(ω_k t) + b_k·sin(ω_k t) over
-// `count` samples, t = (index + n) / rate − origin: the tones at their exact
-// frequencies, jointly, and the power of everything else. `a` and `b` receive
-// each tone's cos and sin terms when given.
-static double FitTones(const double *x, NSUInteger count, const double *frequencies, int tones, double rate, double index,
-                       double origin, double *a, double *b) {
-    int size = 2 * tones + 1;
-    double *m = calloc((size_t)size * size, sizeof(double)), *v = calloc((size_t)size, sizeof(double));
-    double *basis = malloc((size_t)size * sizeof(double)), *coefficients = calloc((size_t)size, sizeof(double));
-    for (NSUInteger n = 0; n < count; n++) {
-        double t = (index + n) / rate - origin;
-        basis[0] = 1;
-        for (int k = 0; k < tones; k++) {
-            double phase = 2 * M_PI * frequencies[k] * t;
-            basis[1 + 2 * k] = cos(phase);
-            basis[2 + 2 * k] = sin(phase);
-        }
-        for (int i = 0; i < size; i++) {
-            v[i] += basis[i] * x[n];
-            for (int j = i; j < size; j++) {
-                m[i * size + j] += basis[i] * basis[j];
-            }
-        }
-    }
-    for (int i = 0; i < size; i++) {
-        for (int j = 0; j < i; j++) {
-            m[i * size + j] = m[j * size + i];
-        }
-    }
-    // Gaussian elimination with partial pivoting on the normal equations.
-    for (int col = 0; col < size; col++) {
-        int pivot = col;
-        for (int row = col + 1; row < size; row++) {
-            if (fabs(m[row * size + col]) > fabs(m[pivot * size + col])) pivot = row;
-        }
-        if (pivot != col) {
-            for (int k = 0; k < size; k++) {
-                double swap = m[col * size + k]; m[col * size + k] = m[pivot * size + k]; m[pivot * size + k] = swap;
-            }
-            double swap = v[col]; v[col] = v[pivot]; v[pivot] = swap;
-        }
-        for (int row = col + 1; row < size; row++) {
-            double factor = m[row * size + col] / m[col * size + col];
-            for (int k = col; k < size; k++) {
-                m[row * size + k] -= factor * m[col * size + k];
-            }
-            v[row] -= factor * v[col];
-        }
-    }
-    for (int row = size - 1; row >= 0; row--) {
-        double sum = v[row];
-        for (int k = row + 1; k < size; k++) {
-            sum -= m[row * size + k] * coefficients[k];
-        }
-        coefficients[row] = sum / m[row * size + row];
-    }
-    double residual = 0;
-    for (NSUInteger n = 0; n < count; n++) {
-        double t = (index + n) / rate - origin, e = x[n] - coefficients[0];
-        for (int k = 0; k < tones; k++) {
-            double phase = 2 * M_PI * frequencies[k] * t;
-            e -= coefficients[1 + 2 * k] * cos(phase) + coefficients[2 + 2 * k] * sin(phase);
-        }
-        residual += e * e;
-    }
-    for (int k = 0; k < tones; k++) {
-        if (a) a[k] = coefficients[1 + 2 * k];
-        if (b) b[k] = coefficients[2 + 2 * k];
-    }
-    free(m);
-    free(v);
-    free(basis);
-    free(coefficients);
-    return residual / count;
-}
-
 typedef struct {
     double amplitude;   // hypot(a, b)
     double a, b;        // cos and sin terms
@@ -146,7 +70,7 @@ typedef struct {
 
 static ToneFit FitTone(const double *x, NSUInteger count, double frequency, double rate, double index, double origin) {
     ToneFit fit;
-    fit.residualPower = FitTones(x, count, &frequency, 1, rate, index, origin, &fit.a, &fit.b);
+    fit.residualPower = VibeFitTones(x, count, &frequency, 1, rate, index, origin, &fit.a, &fit.b);
     fit.amplitude = hypot(fit.a, fit.b);
     return fit;
 }
@@ -753,7 +677,7 @@ static double Null(NSData *output, NSData *ideal) {
     double a[8], b[8];
     double ccif[5] = { 19000, 20000, 1000, 18000, 21000 };
     NSUInteger first = (NSUInteger)(segmentOut / 2 - window / 2);
-    FitTones(y + first, window, ccif, 5, pair.to, first, 0, a, b);
+    VibeFitTones(y + first, window, ccif, 5, pair.to, first, 0, a, b);
     double tones = 0, products = 0;
     for (int k = 0; k < 5; k++) {
         double power = (a[k] * a[k] + b[k] * b[k]) / 2;
@@ -763,7 +687,7 @@ static double Null(NSData *output, NSData *ideal) {
     double smpte[6] = { 60, 7000, 6940, 7060, 6880, 7120 };
     double origin = half / pair.from;
     first = (NSUInteger)(segmentOut + segmentOut / 2 - window / 2);
-    FitTones(y + first, window, smpte, 6, pair.to, first, origin, a, b);
+    VibeFitTones(y + first, window, smpte, 6, pair.to, first, origin, a, b);
     products = 0;
     for (int k = 2; k < 6; k++) {
         products += (a[k] * a[k] + b[k] * b[k]) / 2;
@@ -830,7 +754,7 @@ static double Null(NSData *output, NSData *ideal) {
     NSData *output = [self convert:url toRate:pair.to];
     NSUInteger available = output.length / sizeof(double), window = 16384, first = available / 2 - window / 2;
     double a = 0, b = 0;
-    double residual = FitTones((const double *)output.bytes + first, window, &f, 1, pair.to, first, 0, &a, &b);
+    double residual = VibeFitTones((const double *)output.bytes + first, window, &f, 1, pair.to, first, 0, &a, &b);
     double fitted = hypot(a, b);
     q->oversGainDB = 20 * log10(fitted / amplitude);
     q->oversTHDNdB = DB(residual / (fitted * fitted / 2));

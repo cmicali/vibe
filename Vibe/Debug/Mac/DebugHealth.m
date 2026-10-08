@@ -273,8 +273,8 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"tableRows": @(controller.playlistTableView.numberOfRows),
             @"playerLoading": @(player.isLoading),
             @"gaplessArmed": @(player.isGaplessArmed),
-            // Hosted units, the varispeed and the FX chain's: created once
-            // and kept, so a count that moves is a rebuild that leaked.
+            // Hosted units, the FX chain's: created once and kept, so a
+            // count that moves is a rebuild that leaked.
             @"hostedUnits": counts[@"hostedUnits"],
             // The bus's drain timer: on only while the output runs voices, so
             // 1 at rest is a wakeup the idle guarantee forbids.

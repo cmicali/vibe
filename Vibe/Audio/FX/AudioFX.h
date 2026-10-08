@@ -125,16 +125,4 @@ typedef struct VibeFXChain VibeFXChain;
 // ends the call with its status; the caller silences the slice.
 OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
 
-// The one hosting sequence the FX units and the varispeed share; `configure`
-// runs before the initialize. NO, with nothing hosted, when any step is
-// refused. Player queue, output stopped.
-BOOL VibeHostAudioUnit(AudioUnit _Nullable * _Nonnull unit, OSType type, OSType subtype,
-                       const AudioStreamBasicDescription *format, UInt32 maximumFrameCount,
-                       AURenderCallbackStruct input, void (^ _Nullable configure)(AudioUnit));
-// Uninitializes and disposes `*unit` when there is one, leaving NULL.
-void VibeDisposeAudioUnit(AudioUnit _Nullable * _Nonnull unit);
-// A unit's Float64 global property — latency, tail time — in seconds; 0 when
-// unreadable.
-double VibeAudioUnitSeconds(AudioUnit _Nullable unit, AudioUnitPropertyID property);
-
 NS_ASSUME_NONNULL_END

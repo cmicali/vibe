@@ -22,7 +22,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // The largest slice the pipeline renders at once — the bus's own span, so
-// the bus mixes every slice whole — and every hosted unit's frames per
+// the bus mixes every slice whole — and every hosted FX unit's frames per
 // slice; an output unit's larger cycle is rendered in slices.
 static const AVAudioFrameCount kVibeMasterBusMaxFrames = kVibeVoiceBusMaxRenderFrames;
 
@@ -96,23 +96,20 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // As a timestamp: sample time only, in the pipeline's frames; no flag set
 // before the pipeline has a format.
 - (AudioTimeStamp)outputRenderTimeOnQueue;
-// The hosted varispeed, in ordinary playback on macOS: whether it exists,
-// whether the render has it in the chain (the pitch off zero), its declared
-// latency while it does and 0 otherwise, and how often it has rendered.
+// The varispeed, in ordinary playback on macOS: whether it is hosted,
+// whether the render has it in the chain (the pitch off zero), its delay
+// while it does and 0 otherwise, and how many slices it has converted.
 - (BOOL)varispeedPresentOnQueue;
 - (BOOL)varispeedEngagedOnQueue;
 - (NSTimeInterval)varispeedLatencyOnQueue;
 - (uint64_t)varispeedRendersOnQueue;
 // Writes into the history ring: only while an engage is being prepared or
-// the unit is in the chain, never at zero pitch settled.
+// the converter is in the chain, never at zero pitch settled.
 - (uint64_t)varispeedHistoryWritesOnQueue;
 // Renders the pipeline turned away because another was inside; cumulative,
 // zero through every soak.
 - (uint64_t)renderRefusalsOnQueue;
 - (void)clearRenderRefusalsOnQueue;
-
-// Hosted units alive: the varispeed and the FX chain's.
-- (NSUInteger)hostedUnitCountOnQueue;
 
 // Makes the source segment what the mode wants — the bus at the output's
 // format, with a varispeed unless bit-perfect output is on — building or
@@ -124,8 +121,8 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // before the rebuild kills the voice, and a killed current voice is started
 // again at it. The caller restarts the output for a playing one.
 - (BOOL)reconcileSourceSegmentOnQueue;
-// Pitch in percent onto the varispeed's rate, and whether it is in the
-// chain at all (off zero); a no-op without one.
+// Pitch in percent onto the varispeed's ratio and kernel, and whether it is
+// in the chain at all (off zero); a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;
 
 // Opens the gate and starts the output unit, then the meter. Every start and
@@ -153,7 +150,7 @@ VibeMasterBus *VibeMasterBusCreate(void);
 void VibeMasterBusSetVolume(VibeMasterBus *master, float gain);
 // Whether a render is inside the pipeline right now.
 BOOL VibeMasterBusRenderInside(VibeMasterBus *master);
-// Disposes the hosted varispeed and frees the master bus; the output unit is
+// Frees the varispeed and the master bus; the output unit is
 // stopped and no render is inside. The player's dealloc.
 void VibeMasterBusFree(VibeMasterBus *master);
 

@@ -1,6 +1,7 @@
 #!/bin/bash
-# Measures the pitch fader's varispeed against r8brain and a custom
-# windowed-sinc converter. The findings are docs/future/custom-varispeed.md.
+# Measures Apple's Varispeed, the pitch fader's converter before Vibe's own,
+# against r8brain and a prototype of Vibe's windowed-sinc converter. The
+# findings are in docs/audio-quality.md, under "The pitch fader".
 #
 # Usage: scripts/varispeed-quality/run.sh quality apple|r8brain|custom|custom-float ...
 #        scripts/varispeed-quality/run.sh drag

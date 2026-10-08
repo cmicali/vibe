@@ -1687,7 +1687,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
         NSDictionary *unit = [self outputUnitCountersOnQueue];
-        counts = @{@"hostedUnits": @([self hostedUnitCountOnQueue]),
+        counts = @{@"hostedUnits": @(self.fx.hostedUnitCount),
                    @"unitRenders": @(self.fx.unitRenders),
                    @"outputDropouts": unit[@"dropouts"],
                    @"renderCycles": unit[@"renderCycles"],
