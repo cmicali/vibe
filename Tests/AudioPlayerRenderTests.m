@@ -5395,7 +5395,12 @@ static NSData *MP3Frames(NSData *mp3) {
     XCTAssertEqual([bus[@"liveVoices"] intValue], 1);
     XCTAssertTrue([varispeed[@"present"] boolValue]);
     XCTAssertFalse([varispeed[@"engaged"] boolValue]);
-    XCTAssertEqual([varispeed[@"latencyFrames"] intValue], 64, @"the kernel's half-width at a ratio of 1");
+    XCTAssertEqual([varispeed[@"latencyFrames"] intValue], 0, @"no kernel before the fader first leaves zero");
+    _player.pitch = -1;
+    [self render:4800];
+    NSDictionary *pitched = _player.audioPathSnapshot[3];
+    XCTAssertTrue([pitched[@"engaged"] boolValue]);
+    XCTAssertEqual([pitched[@"latencyFrames"] intValue], 64, @"the kernel's half-width at a ratio below 1");
     XCTAssertTrue([fx[@"connected"] boolValue]);
     XCTAssertTrue([fx[@"inRender"] boolValue]);
     XCTAssertEqual([fx[@"hostedUnits"] intValue], 10);

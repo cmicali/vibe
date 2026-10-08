@@ -2,12 +2,15 @@
 //  VibeBenchComponentsPitch.mm
 //  VibeBenchComponents
 //
-//  The pitch fader's converter, AudioVarispeed, and beside it Apple's
-//  Varispeed unit, which it replaced, hosted as the render hosted it: so the
-//  two compare in one harness. Earlier versions have the Apple variants only.
+//  The pitch fader's stage, AudioVarispeed, and beside it Apple's Varispeed
+//  unit, which it replaced, hosted as the render hosted it: so the two
+//  compare in one harness. Earlier versions have the Apple variants only.
 //
 //  Both convert 30 s of stereo noise out at 48 kHz, in the 512-frame slices
-//  of a typical output cycle, at the fader's −8%, +4% and +16%.
+//  of a typical output cycle, at the fader's −8%, +4% and +16%. Both copy
+//  their input from the noise, as the render served it from the bus. Vibe's
+//  stage builds its kernel inside the measurement, about 1.5 ms the first
+//  time and 0.1 ms after.
 //
 
 #import "VibeBenchComponents.h"
@@ -118,32 +121,42 @@ static void VibeBenchComponentsRegisterAppleVarispeed(void) {
 
 VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterAppleVarispeed)
 
-#pragma mark - Vibe's converter
+#pragma mark - Vibe's stage
 
 #if __has_include("AudioVarispeed.h")
 #import "AudioVarispeed.h"
 
-// The ring holds the whole input, so this measures the conversion and no
-// copying; Apple's variants copy their input, as the render served it.
+// The stage's source, served from the noise as the Apple unit's is.
+static OSStatus VibeBenchComponentsStageInput(void *context, UInt32 frames, AudioBufferList *into) CA_REALTIME_API {
+    VibeBenchComponentsVarispeedSource *source = (VibeBenchComponentsVarispeedSource *)context;
+    for (UInt32 c = 0; c < into->mNumberBuffers; c++) {
+        memcpy(into->mBuffers[c].mData, source->channels[c] + source->cursor, frames * sizeof(float));
+    }
+    source->cursor += frames;
+    return noErr;
+}
+
+// The whole stage, as the render runs it: its first slice plays the source
+// directly while the converter's past is recorded, and the rest convert.
 static void VibeBenchComponentsRegisterPitch(void) {
     for (int percent : {-8, 4, 16}) {
-        double ratio = 1 + percent / 100.0;
-        auto table = std::make_shared<VibeVarispeedTable *>(nullptr);
-        VibeBenchComponentsAdd("pitch", VibeBenchComponentsPitchName("", percent), "audio s", [table, ratio]() -> double {
-            VibeBenchComponentsPitchNoise();
-            if (!*table) {
-                *table = VibeVarispeedTableCreate(ratio);
-            }
-            return *table ? kPitchSeconds : -1;
-        }, [table, ratio]() {
+        auto source = std::make_shared<VibeBenchComponentsVarispeedSource>();
+        VibeBenchComponentsAdd("pitch", VibeBenchComponentsPitchName("", percent), "audio s", [source]() -> double {
             auto noise = VibeBenchComponentsPitchNoise();
+            source->channels[0] = noise->data();
+            source->channels[1] = noise->data() + kPitchNoiseFrames;
+            return kPitchSeconds;
+        }, [source, percent]() {
+            VibeVarispeed *stage = VibeVarispeedCreate(2, kPitchSlice);
+            VibeVarispeedTable *replaced = NULL;
+            VibeVarispeedSetPitch(stage, percent, &replaced);
+            source->cursor = 0;
             std::vector<float> left(kPitchSlice), right(kPitchSlice);
-            uint64_t index = kVibeVarispeedMaxHalfWidth;
-            double fraction = 0;
+            VibeStereoBufferList out = { 2, {{ 1, kPitchSlice * 4, left.data() }, { 1, kPitchSlice * 4, right.data() }} };
             for (uint32_t done = 0; done < (uint32_t)(kPitchSeconds * kPitchRate); done += kPitchSlice) {
-                VibeVarispeedConvert(*table, noise->data(), noise->data() + kPitchNoiseFrames, kPitchNoiseFrames - 1, &index,
-                                     &fraction, ratio, ratio, kPitchSlice, left.data(), right.data());
+                VibeVarispeedRender(stage, VibeBenchComponentsStageInput, source.get(), kPitchSlice, (AudioBufferList *)&out);
             }
+            VibeVarispeedFree(stage);
         });
     }
 }
