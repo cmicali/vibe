@@ -96,16 +96,11 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // As a timestamp: sample time only, in the pipeline's frames; no flag set
 // before the pipeline has a format.
 - (AudioTimeStamp)outputRenderTimeOnQueue;
-// The varispeed, in ordinary playback on macOS: whether it is hosted,
-// whether the render has it in the chain (the pitch off zero), its delay
-// while it does and 0 otherwise, and how many slices it has converted.
+// The varispeed, in ordinary playback on macOS: whether it is hosted, and
+// how late it plays the bus while the pitch is off zero, 0 otherwise. The
+// rest of its state is pipelineRenderSnapshotOnQueue's.
 - (BOOL)varispeedPresentOnQueue;
-- (BOOL)varispeedEngagedOnQueue;
 - (NSTimeInterval)varispeedLatencyOnQueue;
-- (uint64_t)varispeedRendersOnQueue;
-// Writes into the history ring: only while an engage is being prepared or
-// the converter is in the chain, never at zero pitch settled.
-- (uint64_t)varispeedHistoryWritesOnQueue;
 // Renders the pipeline turned away because another was inside; cumulative,
 // zero through every soak.
 - (uint64_t)renderRefusalsOnQueue;
@@ -150,8 +145,8 @@ VibeMasterBus *VibeMasterBusCreate(void);
 void VibeMasterBusSetVolume(VibeMasterBus *master, float gain);
 // Whether a render is inside the pipeline right now.
 BOOL VibeMasterBusRenderInside(VibeMasterBus *master);
-// Frees the varispeed and the master bus; the output unit is
-// stopped and no render is inside. The player's dealloc.
+// Frees the varispeed and the master bus; the output unit is stopped and no
+// render is inside. The player's dealloc.
 void VibeMasterBusFree(VibeMasterBus *master);
 
 NS_ASSUME_NONNULL_END

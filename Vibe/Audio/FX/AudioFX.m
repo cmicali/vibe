@@ -5,6 +5,7 @@
 
 #import "AudioFX.h"
 #import "AudioFXMath.h"
+#import "AudioVarispeed.h"
 #import "FadeMath.h"
 #import <AVFAudio/AVFAudio.h>
 #import <Accelerate/Accelerate.h>
@@ -109,12 +110,6 @@ static const double kGateSlewSeconds = 0.025;
 
 #pragma mark - The chain
 
-// A stereo buffer list the render can build on its stack.
-typedef struct {
-    UInt32 mNumberBuffers;
-    AudioBuffer mBuffers[2];
-} VibeFXStereoList;
-
 // One hosted unit and the scratch pair its input callback copies from.
 typedef struct {
     AudioUnit _Nullable unit;
@@ -189,7 +184,7 @@ struct VibeFXChain {
 VIBE_REALTIME_UNCHECKED_BEGIN
 static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, const AudioTimeStamp *timestamp,
                                         UInt32 frames, float *const out[2]) CA_REALTIME_API {
-    VibeFXStereoList list = { 2, { { 1, frames * (UInt32)sizeof(float), out[0] }, { 1, frames * (UInt32)sizeof(float), out[1] } } };
+    VibeStereoBufferList list = { 2, { { 1, frames * (UInt32)sizeof(float), out[0] }, { 1, frames * (UInt32)sizeof(float), out[1] } } };
     AudioUnitRenderActionFlags flags = 0;
     atomic_fetch_add_explicit(chain->unitRenders, 1, memory_order_relaxed);
     return AudioUnitRender(unit->unit, &flags, timestamp, 0, frames, (AudioBufferList *)&list);

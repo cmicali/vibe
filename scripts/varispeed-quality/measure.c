@@ -81,7 +81,7 @@ static OSStatus apple_input(void *ref, AudioUnitRenderActionFlags *flags, const 
     return noErr;
 }
 
-// As hostVarispeedOnQueueWithFormat: hosts it: stereo float32 at the bus rate,
+// As AudioPlayer+Pipeline.m hosted it: stereo float32 at the bus rate,
 // 4096 frames per slice at most, the highest render quality. `mastering` also
 // asks for Apple's Mastering converter, which the unit refuses.
 static AudioUnit apple_make(Source *src, int mastering, OSStatus *masteringStatus) {

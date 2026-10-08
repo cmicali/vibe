@@ -73,10 +73,6 @@ struct VibeMasterBus {
     // The varispeed: hosted for ordinary playback on macOS, a bit-perfect
     // pass-through at zero pitch (AudioVarispeed.h).
     _Atomic(VibeVarispeed *) varispeed; // NULL without one
-    // The bus and the stamp of the slice in flight, the render's: what the
-    // varispeed's pulls read, so a slice reads one bus.
-    VibeVoiceMix *sliceMix;
-    AudioTimeStamp sliceStamp;
 #if DEBUG
     // A test's stuck render: while set, a render blocks inside the pipeline
     // after reading the bus; rendersHeld counts them.
@@ -119,12 +115,12 @@ static inline void VibeMasterBusZero(AudioBufferList *data, UInt32 offset, UInt3
     }
 }
 
-// The varispeed's source, and the slice's without one: the bus this slice
-// read, at the slice's stamp.
-static OSStatus VibeMasterBusSource(void *context, UInt32 frames, AudioBufferList *into) CA_REALTIME_API {
-    VibeMasterBus *master = context;
+// The varispeed's source, and the slice's without one: the bus the slice
+// read, which is `context`.
+static OSStatus VibeMasterBusSource(void *context, const AudioTimeStamp *stamp, UInt32 frames,
+                                    AudioBufferList *into) CA_REALTIME_API {
     BOOL silence = NO;
-    return VibeVoiceBusRender(master->sliceMix, &silence, &master->sliceStamp, frames, into);
+    return VibeVoiceBusRender(context, &silence, stamp, frames, into);
 }
 
 // After the meter, so the equalizer shows the signal whatever the volume. A
@@ -196,10 +192,8 @@ static OSStatus VibeMasterBusRenderSlice(VibeMasterBus *master, const AudioTimeS
         // Read once: a re-host swaps the pointer, and this render finishes
         // inside the stage it read.
         VibeVarispeed *varispeed = atomic_load_explicit(&master->varispeed, memory_order_seq_cst);
-        master->sliceMix = mix;
-        master->sliceStamp = stamp;
-        status = varispeed ? VibeVarispeedRender(varispeed, VibeMasterBusSource, master, frames, list)
-                           : VibeMasterBusSource(master, frames, list);
+        status = varispeed ? VibeVarispeedRender(varispeed, VibeMasterBusSource, mix, &stamp, frames, list)
+                           : VibeMasterBusSource(mix, &stamp, frames, list);
     }
     VibeFXChain *chain = atomic_load_explicit(&master->chain, memory_order_seq_cst);
     if (chain) {
@@ -405,12 +399,8 @@ VIBE_REALTIME_END
     UInt32 count = (UInt32)MIN(frames, (NSUInteger)kVibeMasterBusMaxFrames);
     uint32_t channels = VibeMasterBusChannels(master);
     float *storage = calloc((size_t)count * 2 + 1, sizeof(float));
-    VibeStereoBufferList list = { channels, {{0}} };
-    for (uint32_t c = 0; c < channels; c++) {
-        list.mBuffers[c].mNumberChannels = 1;
-        list.mBuffers[c].mDataByteSize = count * (UInt32)sizeof(float);
-        list.mBuffers[c].mData = storage + (size_t)c * count;
-    }
+    UInt32 bytes = count * (UInt32)sizeof(float);
+    VibeStereoBufferList list = { channels, {{ 1, bytes, storage }, { 1, bytes, storage + count }} };
     VibeMasterBusRender(master, NULL, count, (AudioBufferList *)&list);
     free(storage);
 }
@@ -657,27 +647,12 @@ VIBE_REALTIME_END
     return atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed) != NULL;
 }
 
-- (BOOL)varispeedEngagedOnQueue {
-    VibeVarispeed *varispeed = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
-    return varispeed && VibeVarispeedEngaged(varispeed);
-}
-
-- (uint64_t)varispeedRendersOnQueue {
-    VibeVarispeed *varispeed = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
-    return varispeed ? VibeVarispeedRenders(varispeed) : 0;
-}
-
 - (uint64_t)renderRefusalsOnQueue {
     return atomic_load_explicit(&_masterBus->refusedRenders, memory_order_relaxed);
 }
 
 - (void)clearRenderRefusalsOnQueue {
     atomic_store_explicit(&_masterBus->refusedRenders, 0, memory_order_relaxed);
-}
-
-- (uint64_t)varispeedHistoryWritesOnQueue {
-    VibeVarispeed *varispeed = atomic_load_explicit(&_masterBus->varispeed, memory_order_relaxed);
-    return varispeed ? VibeVarispeedRingWrites(varispeed) : 0;
 }
 
 - (NSTimeInterval)varispeedLatencyOnQueue {
@@ -709,25 +684,6 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     free(master);
 }
 
-// The varispeed leaves the bus now, and is freed once the render was seen
-// outside it.
-- (void)disposeVarispeedOnQueue {
-    VibeVarispeed *varispeed = atomic_exchange_explicit(&_masterBus->varispeed, NULL, memory_order_seq_cst);
-    if (varispeed) {
-        [self afterRenderLeavesOnQueue:^{ VibeVarispeedFree(varispeed); }];
-    }
-}
-
-// Hosts the varispeed for the bus, at zero pitch. NO with nothing hosted.
-- (BOOL)hostVarispeedOnQueue {
-    VibeVarispeed *varispeed = VibeVarispeedCreate(VibeMasterBusChannels(_masterBus), kVibeMasterBusMaxFrames);
-    if (!varispeed) {
-        return NO;
-    }
-    atomic_store_explicit(&_masterBus->varispeed, varispeed, memory_order_release);
-    return YES;
-}
-
 - (BOOL)ensureSourceSegmentOnQueueRebuilt:(BOOL *)rebuilt {
     if (rebuilt) {
         *rebuilt = NO;
@@ -752,7 +708,10 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     // reads it under.
     [self stopOutputOnQueue];
     [self dropVoiceBusOnQueue];
-    [self disposeVarispeedOnQueue];
+    VibeVarispeed *old = atomic_exchange_explicit(&_masterBus->varispeed, NULL, memory_order_seq_cst);
+    if (old) {
+        [self afterRenderLeavesOnQueue:^{ VibeVarispeedFree(old); }];
+    }
 #if DEBUG
     BOOL inlineDecoding = _manualPump != nil && ![(VibeManualRenderPump *)_manualPump automatic];
 #else
@@ -768,8 +727,12 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     for (AudioFileHandle *file in _retiredDecoderFiles) {
         [bus withholdReadsOfFile:file];
     }
-    if (wantVarispeed && ![self hostVarispeedOnQueue]) {
-        return NO;
+    if (wantVarispeed) {
+        VibeVarispeed *varispeed = VibeVarispeedCreate(VibeMasterBusChannels(_masterBus), kVibeMasterBusMaxFrames);
+        if (!varispeed) {
+            return NO;
+        }
+        atomic_store_explicit(&_masterBus->varispeed, varispeed, memory_order_release);
     }
     os_unfair_lock_lock(&_stateLock);
     _voiceBus = bus;
@@ -980,8 +943,9 @@ void VibeMasterBusFree(VibeMasterBus *master) {
         @"pitch": @(self.pitch),
         @"rate": @(varispeed ? VibeVarispeedRatio(varispeed) : 1),
         @"latencySeconds": @([self varispeedLatencyOnQueue]),
-        @"latencyFrames": @(varispeed ? VibeVarispeedHalfWidth(varispeed) : 0), // the kernel's half-width, in input frames
-        @"renders": @([self varispeedRendersOnQueue]),
+        @"latencyFrames": @(varispeed ? VibeVarispeedDelayFrames(varispeed) : 0),
+        @"renders": @(varispeed ? VibeVarispeedRenders(varispeed) : 0),
+        @"historyWrites": @(varispeed ? VibeVarispeedHistoryWrites(varispeed) : 0),
     };
 
     return @{@"varispeed": varispeedStage,

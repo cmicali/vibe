@@ -736,11 +736,9 @@ static double Null(NSData *output, NSData *ideal) {
     }];
     NSData *output = [self convert:url toRate:pair.to];
     NSUInteger available = output.length / sizeof(double), window = 16384, first = available / 2 - window / 2;
-    double a = 0, b = 0;
-    double residual = VibeFitTones((const double *)output.bytes + first, window, &f, 1, pair.to, first, 0, &a, &b);
-    double fitted = hypot(a, b);
-    q->oversGainDB = 20 * log10(fitted / amplitude);
-    q->oversTHDNdB = VibeDB(residual / (fitted * fitted / 2));
+    VibeToneFit fit = VibeFitTone((const double *)output.bytes + first, window, f, pair.to, first, 0);
+    q->oversGainDB = 20 * log10(fit.amplitude / amplitude);
+    q->oversTHDNdB = VibeDB(fit.residualPower / (fit.amplitude * fit.amplitude / 2));
 }
 
 - (Quality)qualityForPair:(RatePair)pair {

@@ -18,7 +18,7 @@
 
 ## The pitch fader's stage
 
-**`AudioVarispeed` is the pitch fader's stage, and it is not part of the FX segment.** It runs before the segment in the render, at the bus rate. It owns everything about the varispeed but its hosting: the kernel and its tables, the ring, the position, the bypass at zero, the engage and disengage, and the replay. The pipeline publishes one per source segment, pulls nothing itself, and frees what the stage replaced once no render is inside (`Audio/AGENTS.md`). Unlike the FX units it is Vibe's own code, not an Apple unit, so nothing about it is hosted.
+**`AudioVarispeed` is the pitch fader's stage, and it is not part of the FX segment.** It runs before the segment in the render, at the bus rate. It owns everything about the varispeed but its hosting: the kernel and its tables, the ring, the position, the bypass at zero, the engage and disengage, and the replay. The pipeline publishes one per source segment, pulls nothing itself, and frees what the stage replaced once no render is inside (`Audio/AGENTS.md`). Unlike the FX units it is Vibe's own code, not an Apple unit.
 
 **At zero pitch it is a bit-perfect pass-through**: the source goes straight to the output, nothing converted, delayed or copied. The bypass is what makes zero exact, since the kernel is a low-pass at a ratio of 1 too (`testZeroPitchIsBitPerfectAndTogglesAreClickFree`). A stage builds no kernel until the pitch first leaves zero, so a session that never moves the fader pays nothing for it.
 

@@ -37,20 +37,24 @@ static std::string VibeBenchComponentsPitchName(const char *prefix, int percent)
 
 #pragma mark - Apple's Varispeed
 
-// The unit's input, served from the noise from a cursor, a copy as the
+// Both converters' input, served from the noise from a cursor, a copy as the
 // render's bus served it.
 struct VibeBenchComponentsVarispeedSource {
     const float *channels[2];
     uint32_t cursor;
 };
 
-static OSStatus VibeBenchComponentsVarispeedInput(void *refCon, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *stamp,
-                                                  UInt32 bus, UInt32 frames, AudioBufferList *data) {
-    VibeBenchComponentsVarispeedSource *source = (VibeBenchComponentsVarispeedSource *)refCon;
+static void VibeBenchComponentsVarispeedServe(VibeBenchComponentsVarispeedSource *source, UInt32 frames,
+                                              AudioBufferList *data) CA_REALTIME_API {
     for (UInt32 c = 0; c < 2 && c < data->mNumberBuffers; c++) {
         memcpy(data->mBuffers[c].mData, source->channels[c] + source->cursor, frames * sizeof(float));
     }
     source->cursor += frames;
+}
+
+static OSStatus VibeBenchComponentsVarispeedInput(void *refCon, AudioUnitRenderActionFlags *flags, const AudioTimeStamp *stamp,
+                                                  UInt32 bus, UInt32 frames, AudioBufferList *data) {
+    VibeBenchComponentsVarispeedServe((VibeBenchComponentsVarispeedSource *)refCon, frames, data);
     return noErr;
 }
 
@@ -127,12 +131,9 @@ VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterAppleVarispeed)
 #import "AudioVarispeed.h"
 
 // The stage's source, served from the noise as the Apple unit's is.
-static OSStatus VibeBenchComponentsStageInput(void *context, UInt32 frames, AudioBufferList *into) CA_REALTIME_API {
-    VibeBenchComponentsVarispeedSource *source = (VibeBenchComponentsVarispeedSource *)context;
-    for (UInt32 c = 0; c < into->mNumberBuffers; c++) {
-        memcpy(into->mBuffers[c].mData, source->channels[c] + source->cursor, frames * sizeof(float));
-    }
-    source->cursor += frames;
+static OSStatus VibeBenchComponentsStageInput(void *context, const AudioTimeStamp *stamp, UInt32 frames,
+                                              AudioBufferList *into) CA_REALTIME_API {
+    VibeBenchComponentsVarispeedServe((VibeBenchComponentsVarispeedSource *)context, frames, into);
     return noErr;
 }
 
@@ -153,8 +154,9 @@ static void VibeBenchComponentsRegisterPitch(void) {
             source->cursor = 0;
             std::vector<float> left(kPitchSlice), right(kPitchSlice);
             VibeStereoBufferList out = { 2, {{ 1, kPitchSlice * 4, left.data() }, { 1, kPitchSlice * 4, right.data() }} };
+            AudioTimeStamp stamp = {};
             for (uint32_t done = 0; done < (uint32_t)(kPitchSeconds * kPitchRate); done += kPitchSlice) {
-                VibeVarispeedRender(stage, VibeBenchComponentsStageInput, source.get(), kPitchSlice, (AudioBufferList *)&out);
+                VibeVarispeedRender(stage, VibeBenchComponentsStageInput, source.get(), &stamp, kPitchSlice, (AudioBufferList *)&out);
             }
             VibeVarispeedFree(stage);
         });

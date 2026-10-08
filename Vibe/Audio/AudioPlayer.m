@@ -1687,6 +1687,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self runSyncOnQueue:^{
         VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
         NSDictionary *unit = [self outputUnitCountersOnQueue];
+        NSDictionary *varispeed = [self pipelineRenderSnapshotOnQueue][@"varispeed"];
         counts = @{@"hostedUnits": @(self.fx.hostedUnitCount),
                    @"unitRenders": @(self.fx.unitRenders),
                    @"outputDropouts": unit[@"dropouts"],
@@ -1708,9 +1709,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                    @"gain": @(snapshot.gain),
                    @"underrunFrames": @(snapshot.underrunFrames),
                    @"varispeedLatency": @([self varispeedLatencyOnQueue]),
-                   @"varispeedEngaged": @([self varispeedEngagedOnQueue]),
-                   @"varispeedRenders": @([self varispeedRendersOnQueue]),
-                   @"varispeedHistoryWrites": @([self varispeedHistoryWritesOnQueue]),
+                   @"varispeedEngaged": varispeed[@"engaged"],
+                   @"varispeedRenders": varispeed[@"renders"],
+                   @"varispeedHistoryWrites": varispeed[@"historyWrites"],
                    @"outputRate": @([self masterBusFormatOnQueue].sampleRate)};
     }];
     return counts;

@@ -98,39 +98,33 @@ static VibeVarispeedTable *VibeVarispeedTableCreate(double ratio) {
 
 #pragma mark - The stage
 
-// The queue writes the table, the ratio and `wanted`. The render owns the
-// rest, and writes `engaged`, `inUse` and the counters for the queue to read.
+// The queue writes the table, the ratio and `wanted`, and keeps `retired`.
+// The render owns the rest, and writes `engaged`, `inUse` and the counters
+// for the queue to read.
 struct VibeVarispeed {
     uint32_t channels;
     uint32_t history;                     // the widest kernel's half-width: the past an engage records
     _Atomic(VibeVarispeedTable *) table;  // the ratio's; NULL until the pitch first leaves zero
-    // The table the render's last slice used. A slice that ramps the ratio
-    // down keeps it, since its kernel is stretched for where the ramp starts;
-    // the target's would let that start fold back.
-    _Atomic(VibeVarispeedTable *) inUse;
-    VibeVarispeedTable *retired;          // the queue's: a replaced table the render was still using
+    _Atomic(VibeVarispeedTable *) inUse;  // the table the render's last slice used
+    VibeVarispeedTable *retired;          // a replaced table the render was still using
     _Atomic double ratio;
     _Atomic int32_t wanted;
     _Atomic int32_t engaged;              // 1 while the converter is in the chain; set at a slice boundary
-    // A ring of source frames that the render alone touches, written only
-    // around the converter: while an engage is being prepared it records the
-    // frames the direct path plays, which are the kernel's past; while the
-    // converter is in the chain it holds the source pulled ahead of the
-    // converter's position, which a disengage replays. At zero pitch and
-    // settled, no frame is copied.
+    // The history ring, of source frames: what the direct path plays while
+    // an engage is prepared, then the source pulled ahead while the converter
+    // is in the chain. Written only then.
     float *ring[2];
     uint32_t mask;
     uint64_t written;
     uint32_t recorded;                    // frames recorded for the engage; 0 when not preparing one
-    uint64_t replayNext;                  // the replay's cursor into the ring
-    uint32_t replayRemaining;             // pulled-ahead frames the direct path still plays before the source
+    uint32_t replayRemaining;             // pulled-ahead frames the direct path still plays from `index`
     // The converter's position, in ring frames: the frame at or before it and
     // the fraction past it. `applied` is where the last slice's ramp ended.
     uint64_t index;
     double fraction;
     double applied;
     _Atomic uint64_t renders;
-    _Atomic uint64_t ringWrites;
+    _Atomic uint64_t historyWrites;
 };
 
 VibeVarispeed *VibeVarispeedCreate(uint32_t channels, uint32_t maxFrames) {
@@ -172,23 +166,19 @@ void VibeVarispeedFree(VibeVarispeed *stage) {
 BOOL VibeVarispeedSetPitch(VibeVarispeed *stage, double percent, VibeVarispeedTable **replaced) {
     *replaced = NULL;
     double ratio = MIN(MAX(1 + percent / 100, 2 - kVarispeedMaxRatio), kVarispeedMaxRatio);
-    BOOL wanted = percent != 0, built = YES;
     VibeVarispeedTable *old = atomic_load_explicit(&stage->table, memory_order_relaxed);
-    if (wanted && (!old || old->stretch != MAX(ratio, 1))) {
+    if (percent != 0 && (!old || old->stretch != MAX(ratio, 1))) {
         VibeVarispeedTable *table = VibeVarispeedTableCreate(ratio);
-        if (table) {
-            atomic_store_explicit(&stage->table, table, memory_order_seq_cst);
-            *replaced = old;
+        if (!table) {
+            return NO;
         }
-        else {
-            built = NO;
-            wanted = old != NULL;
-        }
+        atomic_store_explicit(&stage->table, table, memory_order_seq_cst);
+        *replaced = old;
     }
     atomic_store_explicit(&stage->ratio, ratio, memory_order_relaxed);
     // After the table: a render that sees `wanted` sees a table.
-    atomic_store_explicit(&stage->wanted, wanted, memory_order_seq_cst);
-    return built;
+    atomic_store_explicit(&stage->wanted, percent != 0, memory_order_seq_cst);
+    return YES;
 }
 
 void VibeVarispeedRetire(VibeVarispeed *stage, VibeVarispeedTable *replaced) {
@@ -217,21 +207,17 @@ double VibeVarispeedRatio(const VibeVarispeed *stage) {
     return atomic_load_explicit(&stage->ratio, memory_order_relaxed);
 }
 
-uint32_t VibeVarispeedHalfWidth(const VibeVarispeed *stage) {
-    VibeVarispeedTable *table = atomic_load_explicit(&stage->table, memory_order_relaxed);
-    return table ? table->half : 0;
-}
-
 double VibeVarispeedDelayFrames(const VibeVarispeed *stage) {
-    return VibeVarispeedWanted(stage) ? VibeVarispeedHalfWidth(stage) / VibeVarispeedRatio(stage) : 0;
+    VibeVarispeedTable *table = atomic_load_explicit(&stage->table, memory_order_relaxed);
+    return VibeVarispeedWanted(stage) && table ? table->half / VibeVarispeedRatio(stage) : 0;
 }
 
 uint64_t VibeVarispeedRenders(const VibeVarispeed *stage) {
     return atomic_load_explicit(&stage->renders, memory_order_relaxed);
 }
 
-uint64_t VibeVarispeedRingWrites(const VibeVarispeed *stage) {
-    return atomic_load_explicit(&stage->ringWrites, memory_order_relaxed);
+uint64_t VibeVarispeedHistoryWrites(const VibeVarispeed *stage) {
+    return atomic_load_explicit(&stage->historyWrites, memory_order_relaxed);
 }
 
 #pragma mark - The audio thread
@@ -293,166 +279,143 @@ static inline simd_double2 VibeVarispeedTaps(const double *r0, uint32_t taps, si
 
 // Each output frame is the kernel at its phase, a cubic across the table's
 // four rows around it, dotted with the ring around its position, which may
-// wrap.
-static void VibeVarispeedConvert(const VibeVarispeedTable *table, const float *ringLeft, const float *ringRight, uint32_t mask,
-                          uint64_t *index, double *fraction, double from, double to, uint32_t frames,
-                          float *left, float *right) CA_REALTIME_API {
+// wrap. A mono stage reads its one channel twice, into its one buffer.
+static void VibeVarispeedConvert(VibeVarispeed *stage, const VibeVarispeedTable *table, double from, double to, UInt32 frames,
+                                 float *const out[2]) CA_REALTIME_API {
     double slope = (to - from) / frames;
-    uint32_t half = table->half, taps = 2 * half, capacity = mask + 1;
-    uint64_t at = *index;
-    double past = *fraction;
-    for (uint32_t n = 0; n < frames; n++) {
+    uint32_t half = table->half, taps = 2 * half, capacity = stage->mask + 1;
+    const float *left = stage->ring[0], *right = stage->ring[stage->channels - 1];
+    uint64_t at = stage->index;
+    double past = stage->fraction;
+    for (UInt32 n = 0; n < frames; n++) {
         double phase = past * kVarispeedPhases, mu = phase - (int)phase;
         const double *row = table->rows + (size_t)(int)phase * taps;
         double m1 = mu - 1, m2 = mu - 2, p1 = mu + 1;
         simd_double4 cubic = { -mu * m1 * m2 * (1.0 / 6), p1 * m1 * m2 * 0.5, -p1 * mu * m2 * 0.5, p1 * mu * m1 * (1.0 / 6) };
-        uint32_t start = (uint32_t)(at - half + 1) & mask;
+        uint32_t start = (uint32_t)(at - half + 1) & stage->mask;
         uint32_t first = taps < capacity - start ? taps : capacity - start;
-        simd_double2 sum = VibeVarispeedTaps(row, taps, cubic, first, ringLeft + start, ringRight + start)
-                + VibeVarispeedTaps(row + first, taps, cubic, taps - first, ringLeft, ringRight);
-        left[n] = (float)sum.x;
-        right[n] = (float)sum.y;
+        simd_double2 sum = VibeVarispeedTaps(row, taps, cubic, first, left + start, right + start)
+                + VibeVarispeedTaps(row + first, taps, cubic, taps - first, left, right);
+        out[0][n] = (float)sum.x;
+        out[1][n] = (float)sum.y;
         past += from + slope * (n + 1);
         uint64_t whole = (uint64_t)past;
         at += whole;
         past -= (double)whole;
     }
-    *index = at;
-    *fraction = past;
+    stage->index = at;
+    stage->fraction = past;
 }
 
-// `frames` the direct path played into the ring, which holds more than a slice.
-static void VibeVarispeedRecord(VibeVarispeed *stage, float *const played[2], UInt32 frames) CA_REALTIME_API {
-    uint32_t capacity = stage->mask + 1, at = (uint32_t)stage->written & stage->mask;
-    UInt32 first = frames < capacity - at ? frames : capacity - at;
+// `frames` between the ring from frame `at` and `outside`, into the ring or
+// out of it. The ring holds more than a slice.
+static void VibeVarispeedRingCopy(VibeVarispeed *stage, uint64_t at, float *const outside[2], UInt32 frames,
+                                  BOOL intoRing) CA_REALTIME_API {
+    uint32_t capacity = stage->mask + 1, start = (uint32_t)at & stage->mask;
+    UInt32 first = frames < capacity - start ? frames : capacity - start;
     for (uint32_t c = 0; c < stage->channels; c++) {
-        memcpy(stage->ring[c] + at, played[c], first * sizeof(float));
-        if (frames > first) {
-            memcpy(stage->ring[c], played[c] + first, (frames - first) * sizeof(float));
+        if (intoRing) {
+            memcpy(stage->ring[c] + start, outside[c], first * sizeof(float));
+            memcpy(stage->ring[c], outside[c] + first, (frames - first) * sizeof(float));
+        }
+        else {
+            memcpy(outside[c], stage->ring[c] + start, first * sizeof(float));
+            memcpy(outside[c] + first, stage->ring[c], (frames - first) * sizeof(float));
         }
     }
-    stage->written += frames;
-    stage->recorded += frames;
-    atomic_fetch_add_explicit(&stage->ringWrites, 1, memory_order_relaxed);
-}
-
-// `frames` of the replay into `out`.
-static void VibeVarispeedReplay(VibeVarispeed *stage, float *const out[2], UInt32 frames) CA_REALTIME_API {
-    uint32_t capacity = stage->mask + 1, at = (uint32_t)stage->replayNext & stage->mask;
-    UInt32 first = frames < capacity - at ? frames : capacity - at;
-    for (uint32_t c = 0; c < stage->channels; c++) {
-        memcpy(out[c], stage->ring[c] + at, first * sizeof(float));
-        if (frames > first) {
-            memcpy(out[c] + first, stage->ring[c], (frames - first) * sizeof(float));
-        }
-    }
-    stage->replayNext += frames;
-    stage->replayRemaining -= frames;
 }
 
 // The source into the ring up to `until`, in ring frames: the converter's input.
-static OSStatus VibeVarispeedPull(VibeVarispeed *stage, VibeVarispeedInputProc input, void *context,
+static OSStatus VibeVarispeedPull(VibeVarispeed *stage, VibeVarispeedInputProc input, void *context, const AudioTimeStamp *stamp,
                                   uint64_t until) CA_REALTIME_API {
     uint32_t capacity = stage->mask + 1;
     OSStatus status = noErr;
     while (stage->written < until) {
         uint32_t at = (uint32_t)stage->written & stage->mask;
         UInt32 count = until - stage->written < capacity - at ? (UInt32)(until - stage->written) : capacity - at;
-        VibeStereoBufferList ring = { 2, {{ 1, 0, stage->ring[0] }, { 1, 0, stage->ring[1] }} };
-        VibeStereoBufferList span = VibeStereoBufferListSpan((AudioBufferList *)&ring, stage->channels, at, count);
-        OSStatus pulled = input(context, count, (AudioBufferList *)&span);
+        UInt32 bytes = count * (UInt32)sizeof(float);
+        VibeStereoBufferList span = { stage->channels, {{ 1, bytes, stage->ring[0] + at }, { 1, bytes, stage->ring[1] + at }} };
+        OSStatus pulled = input(context, stamp, count, (AudioBufferList *)&span);
         if (pulled != noErr) {
             status = pulled;
         }
         stage->written += count;
-        atomic_fetch_add_explicit(&stage->ringWrites, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&stage->historyWrites, 1, memory_order_relaxed);
     }
     return status;
 }
 
 // The converter's slice, the ratio ramped across it from where the last
-// slice ended to the queue's, so a drag glides instead of stepping. The
-// source is pulled into the ring first, as far as the slice reads.
-static OSStatus VibeVarispeedConvertSlice(VibeVarispeed *stage, VibeVarispeedInputProc input, void *context, UInt32 frames,
-                                          float *const out[2]) CA_REALTIME_API {
+// slice ended to the queue's, so a drag glides instead of stepping. Its
+// kernel is stretched for both ends of the ramp. Down, the table in use is
+// stretched for where the ramp starts; the target's would let that start
+// fold back. Up, a ratio the table has not caught up with waits for the next
+// slice. The source is pulled into the ring first, as far as the slice reads.
+static OSStatus VibeVarispeedConvertSlice(VibeVarispeed *stage, VibeVarispeedInputProc input, void *context,
+                                          const AudioTimeStamp *stamp, UInt32 frames, float *const out[2]) CA_REALTIME_API {
     VibeVarispeedTable *table = atomic_load_explicit(&stage->table, memory_order_acquire);
     double from = stage->applied, to = atomic_load_explicit(&stage->ratio, memory_order_relaxed);
     if (table->stretch < from) {
-        // A ramp down: the table in use is stretched for at least `from`.
         table = atomic_load_explicit(&stage->inUse, memory_order_relaxed);
     }
+    if (to > table->stretch) {
+        to = table->stretch;
+    }
     atomic_store_explicit(&stage->inUse, table, memory_order_relaxed);
-    OSStatus status = VibeVarispeedPull(stage, input, context,
+    OSStatus status = VibeVarispeedPull(stage, input, context, stamp,
                                         stage->index + VibeVarispeedReach(table, stage->fraction, from, to, frames));
-    // A mono stage reads its one channel twice, into its one buffer.
-    VibeVarispeedConvert(table, stage->ring[0], stage->ring[stage->channels - 1], stage->mask, &stage->index, &stage->fraction,
-                         from, to, frames, out[0], out[1]);
+    VibeVarispeedConvert(stage, table, from, to, frames, out);
     stage->applied = to;
     atomic_fetch_add_explicit(&stage->renders, 1, memory_order_relaxed);
     return status;
 }
 
-// Puts the converter in the chain at the next source frame, so its first
-// output is the frame the direct path would have played. The ring's last
-// frames are what the direct path just played, the kernel's past. The ratio
-// ramps from 1 across the first slice.
-static void VibeVarispeedEngage(VibeVarispeed *stage) CA_REALTIME_API {
-    stage->recorded = 0;
-    stage->index = stage->written;
-    stage->fraction = 0;
-    stage->applied = 1;
-    atomic_store_explicit(&stage->engaged, 1, memory_order_release);
-}
-
-// Takes the converter out of the chain without a skip: the source frames it
-// pulled past its position play from the ring before the source, at its own
-// pace. The fraction past the position is rounded, under a frame.
-static void VibeVarispeedDisengage(VibeVarispeed *stage) CA_REALTIME_API {
-    uint64_t next = stage->index + (stage->fraction >= 0.5 ? 1 : 0);
-    stage->replayNext = next;
-    stage->replayRemaining = (uint32_t)(stage->written - next);
-    atomic_store_explicit(&stage->engaged, 0, memory_order_release);
-}
-
-// A change of mind is applied at slice boundaries. Leaving zero, the direct
-// path first plays and records the widest kernel's half-width of frames, and
-// any replay left, then engages the converter at the end of that slice.
-// Returning to zero disengages at the slice's start and replays what the
-// converter had pulled ahead.
-OSStatus VibeVarispeedRender(VibeVarispeed *stage, VibeVarispeedInputProc input, void *context, UInt32 frames,
-                             AudioBufferList *out) CA_REALTIME_API {
+OSStatus VibeVarispeedRender(VibeVarispeed *stage, VibeVarispeedInputProc input, void *context, const AudioTimeStamp *stamp,
+                             UInt32 frames, AudioBufferList *out) CA_REALTIME_API {
     // The caller checked the buffers; the analyzer cannot see that.
     float *channels[2] = { out->mBuffers[0].mData, out->mBuffers[stage->channels - 1].mData };
     if (!channels[0] || !channels[1]) {
         return noErr;
     }
     BOOL wanted = atomic_load_explicit(&stage->wanted, memory_order_seq_cst) != 0;
-    BOOL engaged = atomic_load_explicit(&stage->engaged, memory_order_relaxed) != 0;
-    if (!wanted && engaged) {
-        VibeVarispeedDisengage(stage);
-        engaged = NO;
+    if (!wanted && atomic_load_explicit(&stage->engaged, memory_order_relaxed)) {
+        // Out of the chain without a skip: the frames the converter pulled
+        // past its position play from the ring first, its fraction rounded.
+        stage->index += stage->fraction >= 0.5 ? 1 : 0;
+        stage->fraction = 0;
+        stage->replayRemaining = (uint32_t)(stage->written - stage->index);
+        atomic_store_explicit(&stage->engaged, 0, memory_order_release);
     }
-    if (engaged) {
-        return VibeVarispeedConvertSlice(stage, input, context, frames, channels);
+    if (atomic_load_explicit(&stage->engaged, memory_order_relaxed)) {
+        return VibeVarispeedConvertSlice(stage, input, context, stamp, frames, channels);
     }
-    UInt32 offset = stage->replayRemaining < frames ? stage->replayRemaining : frames;
+    UInt32 replay = stage->replayRemaining < frames ? stage->replayRemaining : frames;
     OSStatus status = noErr;
-    if (offset) {
-        VibeVarispeedReplay(stage, channels, offset);
+    if (replay) {
+        VibeVarispeedRingCopy(stage, stage->index, channels, replay, NO);
+        stage->index += replay;
+        stage->replayRemaining -= replay;
     }
-    if (offset < frames) {
-        VibeStereoBufferList rest = VibeStereoBufferListSpan(out, stage->channels, offset, frames - offset);
-        status = input(context, frames - offset, (AudioBufferList *)&rest);
+    if (replay < frames) {
+        VibeStereoBufferList rest = VibeStereoBufferListSpan(out, stage->channels, replay, frames - replay);
+        status = input(context, stamp, frames - replay, (AudioBufferList *)&rest);
     }
     if (!wanted) {
         stage->recorded = 0;
         return status;
     }
     // Preparing the engage: what was heard is the kernel's past. Not while a
-    // replay is left, since the source is already past its frames.
-    VibeVarispeedRecord(stage, channels, frames);
+    // replay is left, since the source is already past its frames. Then the
+    // converter joins at the next source frame, its ratio ramped from 1.
+    VibeVarispeedRingCopy(stage, stage->written, channels, frames, YES);
+    stage->written += frames;
+    stage->recorded += frames;
+    atomic_fetch_add_explicit(&stage->historyWrites, 1, memory_order_relaxed);
     if (!stage->replayRemaining && stage->recorded >= stage->history) {
-        VibeVarispeedEngage(stage);
+        stage->index = stage->written;
+        stage->fraction = 0;
+        stage->applied = 1;
+        atomic_store_explicit(&stage->engaged, 1, memory_order_release);
     }
     return status;
 }
