@@ -472,6 +472,8 @@ Vibe used Apple's Varispeed until this converter replaced it. We measured both t
 | Twenty tones at once | −96 to −99 | −149 to −150 |
 | False tones when speeding up | −114 to −133 | −148 to −149 |
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/pitch-quality-dark.svg"><img alt="Noise, distortion and false tones of the pitch fader, Apple's Varispeed against Vibe's converter" src="audio-quality/pitch-quality-light.svg"></picture>
+
 **Apple's error grows 12 dB per octave**, the sign of a coarse filter table. It can't be tuned away. The unit already ran at its highest quality, and it refuses Apple's Mastering converter setting.
 
 **Apple's filter also cut the top end.** The level of a 20 kHz tone, in dB:
@@ -489,7 +491,7 @@ Slowing down moves everything in the file down with it, the top end included. At
 
 **Dragging the fader.** Apple's unit jumps to each new speed. While the fader moves, that adds side tones 60 to 63 dB below the music. Gliding across each block brings them down to −98 dB on an 8 kHz tone and −116 dB on a 1 kHz tone.
 
-**CPU.** Vibe's converter takes 0.23% to 0.28% of one CPU core at 48 kHz, measured through the player on an M4 Max. Apple's Varispeed took about 0.08%. **Lower is better.**
+**CPU.** Vibe's converter takes 0.21% to 0.26% of one CPU core at 48 kHz on an M4 Max, from −8% to +16% (the `pitch` component benchmarks). Apple's Varispeed took about 0.08%. **Lower is better.**
 
 **A wider filter was tried and rejected.** With 96 zero crossings and the cutoff at 22.9 kHz, 20 kHz stayed flat at −8%. But its stopband began too close to the output's limit, and at +1% a 23.8 kHz tone came back at −101 dB.
 
