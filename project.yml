@@ -725,6 +725,7 @@ targets:
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
+      - path: Vibe/Audio/FX/AudioVarispeed.m
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
