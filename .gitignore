@@ -25,6 +25,8 @@ DerivedData/
 
 # AppCode
 .idea/
+# clang's compilation database. `make compile-commands` writes it.
+/compile_commands.json
 
 # XcodeGen — the Xcode project is generated from project.yml; do not track it.
 /Vibe.xcodeproj/

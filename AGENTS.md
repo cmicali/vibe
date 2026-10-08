@@ -16,6 +16,7 @@ A CUE sheet — beside its files, or embedded in a FLAC — plays as rows, each 
 | `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. With `CONFIG=Debug`, exactly CI's iOS Debug build. |
 | `make install-ios [CONFIG=Debug]` | iOS app onto a paired device, signed. `DEVICE=<name or id>` when more than one is paired. |
 | `make run` / `make install` | Launch; copy into `/Applications`. |
+| `make compile-commands` | Writes `compile_commands.json`, which clangd, CLion and clang-tidy read. It covers both apps and `VibeTests`, Debug. Rerun it after adding a file. |
 | `make clean` | Removes `build/` and the generated project. |
 | `make reset-state [ARGS=-n]` | Wipes Vibe's persisted state (macOS container; `--both` adds the simulator app). Prompts; `-n` previews. |
 
