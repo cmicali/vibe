@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: compile-db bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -53,25 +53,26 @@ build-ios: project
 install-ios: project
 	SKIP_GENERATE=1 scripts/install-ios.sh $(CONFIG)
 
-# compile_commands.json for CLion and clangd: the macOS app, VibeTests and the
-# iOS app, all Debug. Clang writes one fragment per file it compiles, so the
-# build starts from empty derived data every time. An incremental build would
-# drop every file it skipped. The entries point into build/CompileDB for header
-# maps, so `make clean` breaks them until the next run.
+# Writes compile_commands.json, clang's compilation database. clangd, CLion
+# and clang-tidy read it. It covers the macOS app, VibeTests and the iOS app,
+# all Debug. Clang writes one fragment per file it compiles. So the build
+# starts from empty derived data every time. An incremental build would drop
+# every file it skipped. The entries point into build/CompileCommands for
+# header maps. `make clean` breaks them until the next run.
 #
 # TRAP: Xcode's -include names its built prefix header, which only another
 # clang of the same build can read. The merge points it back at the source, or
 # every Log* macro reads as undeclared.
-COMPILE_DB = build/CompileDB
-CDB_FLAGS = -derivedDataPath $(COMPILE_DB) -configuration Debug \
-    'OTHER_CFLAGS=$$(inherited) -gen-cdb-fragment-path $$(SRCROOT)/$(COMPILE_DB)/fragments'
-compile-db: project
-	rm -rf $(COMPILE_DB)
+COMPILE_COMMANDS = build/CompileCommands
+COMPILE_COMMANDS_FLAGS = -derivedDataPath $(COMPILE_COMMANDS) -configuration Debug \
+    'OTHER_CFLAGS=$$(inherited) -gen-cdb-fragment-path $$(SRCROOT)/$(COMPILE_COMMANDS)/fragments'
+compile-commands: project
+	rm -rf $(COMPILE_COMMANDS)
 	xcodebuild -project Vibe.xcodeproj -scheme Vibe -destination 'platform=macOS' \
-	    $(CDB_FLAGS) -quiet build build-for-testing
+	    $(COMPILE_COMMANDS_FLAGS) -quiet build build-for-testing
 	xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -destination 'generic/platform=iOS Simulator' \
-	    ARCHS=arm64 CODE_SIGNING_ALLOWED=NO $(CDB_FLAGS) -quiet build
-	{ echo '['; cat $(COMPILE_DB)/fragments/*.json | sed -E -e '$$ s/,$$//' \
+	    ARCHS=arm64 CODE_SIGNING_ALLOWED=NO $(COMPILE_COMMANDS_FLAGS) -quiet build
+	{ echo '['; cat $(COMPILE_COMMANDS)/fragments/*.json | sed -E -e '$$ s/,$$//' \
 	    -e 's#"[^"]*/SharedPrecompiledHeaders/[0-9]+/Vibe-Prefix\.pch"#"$(CURDIR)/Vibe/Common/Vibe-Prefix.pch"#'; \
 	    echo ']'; } > compile_commands.json
 
