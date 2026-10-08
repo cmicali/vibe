@@ -1,6 +1,6 @@
 # Vibe links: share a remote track, open it in Vibe
 
-**Status: planned 2026-10-08, not started.** Nothing here is built. This is the plan and the decisions it needs.
+**Status: planned 2026-10-08. Phase 0 is partly done; its results are under Phases.** No app code is built. This is the plan and the decisions it needs.
 
 The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox share link, a direct file URL, or a SoundCloud track. The site answers a short link, `https://vibeplayer.app/p/<id>`. A person who taps it gets Vibe, open on that track, streaming it from where it lives. Nobody downloads a file first.
 
@@ -53,7 +53,7 @@ Two plans in this directory touch the same ground. [Dropbox shared links](dropbo
 | `VibeStrings.h` | The errors: a link that no longer answers, a folder link, a stream that needs a sign-in. `make strings`. |
 | Debug | `open_link <url>` on both command tables. `VibeFakeCloud` or a stubbed `NSURLProtocol`, as `DropboxMirrorTests` use, serves a scripted file, so no test needs the network. |
 
-**Resolving at play time.** A Dropbox or direct record resolves to its stored URL. A SoundCloud record asks the service, `GET /api/resolve/<id>`, which holds the SoundCloud credentials and answers the track's progressive stream URL. That URL is time limited, so a replay after it expires resolves again. The app never holds a SoundCloud secret.
+**Resolving at play time.** A Dropbox or direct record resolves to its stored URL. A SoundCloud record asks the service, `GET /api/resolve/<id>`. The service holds the SoundCloud credentials. It requests the track's stream with its token and answers the signed CDN URL from the redirect. For a full track that URL is an HLS playlist, which the HTTP road cannot read (SoundCloud, below). The URL is time limited, so a replay after it expires resolves again. The app never holds a SoundCloud secret.
 
 **Version.** A Dropbox direct link answers whatever is current. The transfer pins the first response's `ETag` and fails with the Dropbox client's changed-file error when a resend sees another, exactly as the `rev` check does.
 
@@ -64,8 +64,8 @@ Two plans in this directory touch the same ground. [Dropbox shared links](dropbo
 SoundCloud is the hard one, and it is a product decision before it is code.
 
 - **The API needs a registered app, and registration needs a SoundCloud Artist Pro subscription** ([register an app](https://developers.soundcloud.com/docs/api/register-app)). Client credentials cover public playback and URL resolution with no user sign-in ([API guide](https://developers.soundcloud.com/docs/api)). Play stream requests are capped at 15,000 a day per app ([rate limits](https://developers.soundcloud.com/docs/api/rate-limits)).
-- **The stream is 128 kbps MP3**, progressive or HLS. Vibe plays the progressive one through the HTTP road. The HLS one needs a parser Vibe does not have. Many tracks answer only a 30 second preview, and some answer no stream at all.
-- **One open issue reports a 401 on the streams endpoint with a client credentials token** ([soundcloud/api#478](https://github.com/soundcloud/api/issues/478)). Phase 0 settles whether it works today.
+- **A full track streams as HLS AAC only.** SoundCloud removed the progressive MP3, HLS MP3, and HLS Opus streams after 31 December 2025 ([the deprecation notice](https://developers.soundcloud.com/blog/api-streaming-urls)). What remains is `hls_aac_160_url`, `hls_aac_96_url`, and `preview_mp3_128_url`. The preview is a 30 second MP3. Vibe has no HLS reader, so the HTTP road cannot play a full SoundCloud track. Many tracks answer only the preview, and some answer no stream at all.
+- **Every streams request needs the token.** The 401 in [soundcloud/api#478](https://github.com/soundcloud/api/issues/478) came from fetching a URL that `/streams` returned without the token. SoundCloud's answer was that those requests must stay authenticated, and the issue closed in January 2026. An authenticated request answers a redirect to a signed CDN URL that needs no token. Its expiry follows the track's length. In the same thread a SoundCloud engineer wrote that playback without a user sign-in may be deprecated later.
 - **The terms require attribution and forbid caching.** The track row shows the SoundCloud name and links to the track page. The part file is deleted at the end of the play, not kept under the download budget.
 
 The oEmbed endpoint needs no key, so title and art work for every SoundCloud link whether or not the stream does. A record whose stream cannot be resolved lands on the page with the title and a button to SoundCloud, and the app shows the same.
@@ -93,6 +93,23 @@ An afternoon with `curl`, recorded in this document.
 - Cloudflare Pages Functions and KV on the `vibe` project: a function answering `/p/<id>` beside the static tree, and `deploy-web.sh` still deploying both.
 - The AASA file served from `vibeplayer.app/.well-known/` with the right content type and no redirect, checked with Apple's CDN validator.
 
+**Results, 2026-10-08.** The SoundCloud and Cloudflare probes ran without credentials, or locally. The rows marked "not run" need the maintainer.
+
+| Probe | Result |
+| --- | --- |
+| Dropbox file link | Not run. It needs a share link to an audio file the project owns, plus a password-protected link and a revoked one. |
+| SoundCloud oEmbed | Works with no key. It answers the title, the author's name and URL, and a 500×500 JPEG `thumbnail_url`. A missing track answers 404. |
+| SoundCloud API | Not run with a token. Registering an app needs Artist Pro ([register an app](https://developers.soundcloud.com/docs/api/register-app)). Without a token, `/resolve` answered 429 "Rate Limit Exceeded", not 401. The API guide caps client credentials tokens at 50 per 12 hours per app and 30 per hour per IP. So the resolve function must keep its token in KV and reuse it for its hour. |
+| SoundCloud streams | Settled from SoundCloud's own sources. The API's schema for `/tracks/{urn}/streams` lists no progressive URL. Full tracks are HLS AAC only, and preview tracks keep a progressive MP3. The 401 issue is closed (SoundCloud, above). |
+| Pages Functions | Run locally with `wrangler pages dev` (wrangler 4.148). A function at `functions/p/[id].js` answers `/p/<id>` beside the static tree. It answers JSON for `Accept: application/json`, HTML otherwise, and 404 for an unknown id. The static pages, the `/support` 301, and the `/download/latest` 302 are unchanged. The generated `_routes.json` includes only `/p/*`. So a static request never runs the function and does not count against the Workers request limit. |
+| KV | Local KV works. The release token cannot reach KV. `wrangler kv namespace list` answers authentication error 10000, because the token has only Account, Cloudflare Pages, Edit. Phase 1 needs a namespace created once, by a token with Workers KV Storage Edit or in the dashboard, and bound to the project. |
+| `deploy-web.sh` | Not run against the project. Wrangler looks for `functions/` in the directory it runs from, not in the directory it uploads. Inside `Assets/Web` the functions would also upload as static files, and GitHub Pages would publish their source. So Phase 1 keeps them beside `Assets/Web`, and `deploy-web.sh` runs wrangler from their parent. |
+| Preview deploy | Not run. A deploy of the probe to a preview branch of the `vibe` project waits for the maintainer's approval. |
+| AASA | Today vibeplayer.app answers 404 for both AASA paths, with no redirect. Apple's CDN answers 404 for the domain. Locally, Pages serves the extensionless file as `application/octet-stream`. A `_headers` rule for the path makes it `application/json`. Apple's CDN check needs the file on the production domain, so it waits for Phase 1's deploy. |
+| App ID | The mac and iOS targets share one bundle id. So one AASA entry covers both: `4UEV752JH4.com.commonwealthrecordings.Vibe`. |
+
+**What the results change.** SoundCloud's full tracks need an HLS reader, and Phase 4 assumed a progressive MP3. Without HLS, a SoundCloud link can play only its 30 second preview through the HTTP road. That makes decision 2 a question about HLS, not only about the subscription.
+
 ### Phase 1: the service and the landing page
 
 The form, the two functions, the KV namespace, the AASA file. Deployable and useful before the app changes: the landing page's original link opens Dropbox or SoundCloud in the browser. `deploy-web.sh` learns the functions directory and the KV binding. GitHub Pages serves the static tree only, with no functions, so `/p/` and `/share` are Cloudflare only, as `/download` is.
@@ -107,7 +124,7 @@ The scheme, the universal link, the entitlements, the `Links` root, the open, th
 
 ### Phase 4: SoundCloud, on Phase 0's evidence
 
-The resolve function with the credentials in the Pages project's secrets, the attribution row, the deleted part.
+The resolve function with the credentials in the Pages project's secrets, the attribution row, the deleted part. Phase 0 found that a full track is HLS AAC only. So this phase also needs an HLS reader, or it plays previews only.
 
 ### Phase 5: the App Clip, if asked for
 
@@ -142,7 +159,7 @@ The resolve function with the credentials in the Pages project's secrets, the at
 ## Decisions needed
 
 1. **The privacy change** (Costs, first bullet). The feature does not exist without it.
-2. **SoundCloud at all**, given the Artist Pro subscription, the daily cap, the 128 kbps stream and the preview-only tracks. Without it, Phase 4 is dropped and the form still accepts SoundCloud links for their page.
+2. **SoundCloud at all.** The costs are the Artist Pro subscription, the daily cap, and the preview-only tracks. A full track also needs an HLS reader that Vibe does not have. Without SoundCloud, Phase 4 is dropped and the form still accepts SoundCloud links for their page.
 3. **The mac** in the first cut, or iOS first. The mac's share is the network entitlement and a URL scheme; the open road is otherwise the same code.
 4. **The App Clip**, and whether a player that stops at the lock screen is worth a target.
 5. **The short link's path.** `/p/<id>` here. `/t/`, `/l/` or `/play/` cost the same.
