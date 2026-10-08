@@ -4727,6 +4727,54 @@ static NSData *MP3Frames(NSData *mp3) {
     XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
 }
 
+// The converter joins and leaves at the exact frame. On a linear ramp each
+// sample's value is its frame in the file, the converter's output included,
+// since its kernel passes DC and is symmetric, so every edge can be read off
+// the output. Joining, a slice after the fader leaves zero (the direct path
+// plays it while it records the kernel's past), the first converted frame is
+// the frame after the last direct one. Leaving, the first direct frame is the converter's next
+// position rounded, and the file runs on from it exactly. A frame skipped or
+// repeated at either edge moves it by one. Five toggles at different pitches
+// and lengths land the edges at different fractions.
+- (void)testPitchEngagesAndDisengagesAtTheExactFrame {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    const double step = 1.0 / (1 << 20); // a frame's rise: exact in float32 at every frame of the file
+    const NSUInteger length = 4 * 48000;
+    NSMutableData *ramp = [NSMutableData dataWithLength:length * 2 * sizeof(float)];
+    float *samples = ramp.mutableBytes;
+    for (NSUInteger i = 0; i < length; i++) samples[2 * i] = samples[2 * i + 1] = (float)(i * step);
+    [self play:[self write:ramp rate:48000 channels:2 name:@"ramp.wav"] paused:NO position:0];
+    [self render:12000]; // past the declick
+    NSArray<NSNumber *> *pitches = @[@4, @-4, @8, @-8, @1];
+    NSArray<NSNumber *> *engaged = @[@9600, @10000, @7681, @12345, @8888];
+    NSUInteger at = 12000;
+    for (NSUInteger s = 0; s < pitches.count; s++) {
+        NSUInteger on = engaged[s].unsignedIntegerValue, off = 6000 + 333 * s;
+        double ratio = 1 + pitches[s].doubleValue / 100;
+        _player.pitch = pitches[s].floatValue;
+        [self render:on];
+        _player.pitch = 0;
+        [self render:off];
+        const float *out = _capture.bytes;
+        NSUInteger join = at + _blockSize;
+        double lastDirect = out[(join - 1) * 2] / step, firstConverted = out[join * 2] / step;
+        XCTAssertEqual(lastDirect, round(lastDirect), @"pitch %@: the frame before the converter joins is the file's", pitches[s]);
+        XCTAssertEqualWithAccuracy(firstConverted, lastDirect + 1, 0.05, @"pitch %@: the converter joins at the next frame", pitches[s]);
+        NSUInteger leave = at + on;
+        double lastConverted = out[(leave - 1) * 2] / step, firstDirect = out[leave * 2] / step;
+        XCTAssertEqual(firstDirect, round(firstDirect), @"pitch %@: the frame after the converter leaves is the file's", pitches[s]);
+        XCTAssertEqualWithAccuracy(firstDirect, lastConverted + ratio, 0.55,
+                                   @"pitch %@: the direct path resumes at the converter's next position", pitches[s]);
+        for (NSUInteger n = 1; n < off; n++) {
+            if (out[(leave + n) * 2] != (float)((firstDirect + n) * step)) {
+                XCTFail(@"pitch %@: frame %lu after the converter left is not the file's next frame", pitches[s], (unsigned long)n);
+                break;
+            }
+        }
+        at = leave + off;
+    }
+}
+
 // The volume is the render's last stage, after the meter. At full volume the
 // output is the file exactly; at half the fader it is the file times 1/8, the
 // cube, exactly, since that is a power of two; at zero it is silence while
