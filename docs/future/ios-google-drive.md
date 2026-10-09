@@ -130,7 +130,7 @@ The repository's default feature budget is zero new files and zero new types. Th
 | `FilesSettingsViewController` | A Google account section with connect/disconnect, usage and cache controls. Start with one Google account alongside one Dropbox account and a budget per provider. |
 | `project.yml`, `VibeStrings.h`, existing tests and debug channel | Client configuration and callback; localized source/error strings and `make strings`; extend existing network stubs and debug scenarios. |
 
-**Calling `setRemoteRoot:fetch:read:availability:` twice will not work**: it replaces process-wide blocks and the one placeholder root. Nor should the root simply become all of Application Support, where unrelated unreadable files could be classified as remote placeholders. A small collection of exact roots in the existing owners is sufficient; it need not become a service registry.
+**`setRemoteRoot:fetch:read:availability:` takes one backend per root.** A Drive mirror installs its own root beside Dropbox's. The root should not become all of Application Support, where unrelated unreadable files could be classified as remote placeholders. A small collection of exact roots in the existing owners is sufficient.
 
 The consolidating pass should remove Dropbox-only singleton lookups from provider-independent shell behavior and leave one account/retry/download/cache lifecycle. If the simple branches become demonstrably unworkable, request a specific exception before introducing types. The research itself adds only this requested document and changes no implementation.
 

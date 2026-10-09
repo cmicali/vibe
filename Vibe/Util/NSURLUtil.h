@@ -25,10 +25,12 @@ NSString *_Nullable VibeComparablePath(NSString *_Nullable path);
 // alone.
 NSString *VibeAliasFreePath(NSString *path);
 
-// Under the remote backend's root; no disk, and NO with no root installed. For a caller that has already stat'ed the file.
+// Under any remote backend's root, from the path's spelling alone: no disk,
+// and NO with no root installed. Ask it before a stat. A file under no root
+// then pays none.
 FOUNDATION_EXPORT BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path);
 
-// The remote placeholder's mode: see setRemotePlaceholderRoot:.
+// The remote placeholder's mode: see setRemotePlaceholderRoots:.
 static inline BOOL VibeFileModeIsRemotePlaceholder(mode_t mode) {
     return S_ISREG(mode) && (mode & S_IRUSR) == 0;
 }
@@ -64,12 +66,14 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // YES too.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Under the remote backend's root (iOS: the Dropbox mirror, installed
-// through CloudFileMaterializer's setRemoteRoot:fetch:read:availability:), a
-// regular file its owner may not read is a placeholder for a remote file: its
-// stat — size, mtime, the cache key — is the remote file's, and any direct
-// open fails instead of reading zeros. Anywhere else, and on the mac, which
-// installs no root, an unreadable file is merely unreadable.
+// Under a remote backend's root (iOS: the Dropbox mirror), a regular file its
+// owner may not read is a placeholder for a remote file. Its stat is the
+// remote file's: size, mtime and the cache key. Any direct open fails instead
+// of reading zeros. Anywhere else an unreadable file is merely unreadable.
+// CloudFileMaterializer's setRemoteRoot:fetch:read:availability: keeps the
+// roots in step with its backends. The single-root setter installs exactly
+// that root, or none for nil.
++ (void)setRemotePlaceholderRoots:(NSArray<NSURL *> *)roots;
 + (void)setRemotePlaceholderRoot:(nullable NSURL *)root;
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url;
 
