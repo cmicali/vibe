@@ -53,15 +53,22 @@ xcrun simctl launch "$UDID" "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 
 # Short per-attempt timeouts: a command written before the channel installs is
 # swept as stale, and a fresh one lands. A channel that never answers (a
-# non-debug build) falls back to a flat 2s.
+# non-debug build) gets a warning after 30 s.
+# TRAP: ask THIS device's app. An inherited VIBE_APP_TMP names another
+# simulator's container (dropbox-streaming.sh exports its own before booting
+# workers), so that app answered for one still starting, and the caller's
+# first command was swept.
+TMP="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)/tmp"
 READY=""
-for _ in $(seq 1 15); do
-    if VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
+DEADLINE=$(( $(date +%s) + 30 ))
+while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+    if VIBE_APP_TMP="$TMP" VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
         READY=1
         break
     fi
+    sleep 0.2
 done
-[ -n "$READY" ] || sleep 2
+[ -n "$READY" ] || echo "launch-ios.sh: the debug channel on $UDID did not answer in 30 s" >&2
 
 # A live touch driver holds the process just killed: without a re-attach its
 # next gesture waits a minute and then relaunches the app itself (the TRAP in
