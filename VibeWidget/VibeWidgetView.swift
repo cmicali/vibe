@@ -373,8 +373,8 @@ struct VibeWidgetView: View {
     // On the Lock Screen the image is only a shape, which the system tints.
     // Both halves draw the PLAYED image, solid up to the playhead and dim after
     // it. TRAP: the unplayed image carries its theme's low resting alpha, so as
-    // a shape it all but vanished. There are no seek zones there: 32 of them
-    // across a strip that narrow are too small to aim at.
+    // a shape it all but vanished. There are no seek zones there. Across a
+    // strip that narrow they are too small to aim at.
     private func waveform(lockScreen: Bool = false) -> some View {
         GeometryReader { geometry in
             let progress = state.map { $0.progress(at: entry.date) } ?? 0
