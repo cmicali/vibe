@@ -197,14 +197,37 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         return;
     }
     __weak AppDelegate *weakSelf = self;
-    OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
+    OpenRequestToken *token = [self beginOpenRequestAppending:append fromURLs:urls];
+    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
+        [weakSelf openURLsWithRestoredAccess:urls token:token];
+    }];
+}
+
+- (OpenRequestToken *)beginOpenRequestAppending:(BOOL)append fromURLs:(NSArray<NSURL *> *)urls {
+    __weak AppDelegate *weakSelf = self;
+    return [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
                          delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
                              [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending
                                                   fromURLs:urls];
                          }];
-    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
-        [weakSelf openURLsWithRestoredAccess:urls token:token];
+}
+
+- (void)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
+    OpenRequestToken *token = [self beginOpenRequestAppending:NO fromURLs:@[]];
+    __weak AppDelegate *weakSelf = self;
+    [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
+        if (file) {
+            [weakSelf openURLsWithRestoredAccess:@[file] token:token];
+        }
+        else {
+            // Nothing to open: the empty delivery. It leaves a loaded
+            // playlist as it is. Over an empty one it ends the launch grace.
+            [OpenRequestCoordinator.sharedCoordinator finishRequest:token rows:@[] folderCount:0];
+        }
+        if (completion) {
+            completion(file, error);
+        }
     }];
 }
 

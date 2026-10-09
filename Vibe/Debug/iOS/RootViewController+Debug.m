@@ -408,6 +408,15 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     [self.playback debugAppendPath:path];
 }
 
+- (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *, NSError *))completion {
+    // The replace question goes over whatever is on screen: the card may be up.
+    UIViewController *presenter = self;
+    while (presenter.presentedViewController) {
+        presenter = presenter.presentedViewController;
+    }
+    [self.playback openLinkString:link from:presenter completion:completion];
+}
+
 - (AudioTrackMetadataCache *)debugMetadataCache {
     return self.playback.debugMetadataCache;
 }

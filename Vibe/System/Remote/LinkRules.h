@@ -381,7 +381,7 @@ static inline NSArray<NSString *> *VibeLinkDirectoriesToPrune(NSDictionary<NSStr
     NSMutableArray<NSString *> *pruned = [NSMutableArray array];
     for (NSString *name in records) {
         id record = records[name];
-        id opened = [record isKindOfClass:NSDictionary.class] ? record[@"opened"] : nil;
+        id opened = [record isKindOfClass:NSDictionary.class] ? ((NSDictionary *)record)[@"opened"] : nil;
         NSTimeInterval at = [opened isKindOfClass:NSNumber.class] ? [opened doubleValue] : 0;
         if (![kept containsObject:name] && now - at > kVibeLinkPruneAgeSeconds) {
             [pruned addObject:name];

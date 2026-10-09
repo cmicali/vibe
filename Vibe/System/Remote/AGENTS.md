@@ -70,6 +70,8 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). It uses the plain client, with no subclass. Its root is `<Application Support>/Links`, kept out of backups. Both apps install it as a remote backend at launch, before anything can open a file under it. The mac installs it in `applicationWillFinishLaunching:`, before the restore. iOS installs it beside the Dropbox mirror. Each root has its own backend (`System/AGENTS.md`).
 
+**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`, and `open_url` resolves through each shell's own road.
+
 **The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkURLAcceptance`, on the link and on every redirect. A redirect can leave the local network, and a stub cannot test App Transport Security.
 
 **One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). It holds one file, the placeholder or the download, named by `VibeLinkFileName`. The same link opened again reuses the directory and its file. Two links never share a name.

@@ -715,6 +715,7 @@ targets:
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/DebugWireFormat.m
       - path: Vibe/Debug/VibeFakeCloud.m
+      - path: Vibe/Debug/VibeFakeHTTP.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m

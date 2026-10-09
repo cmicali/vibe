@@ -117,6 +117,7 @@
 - (void)debugSetOutputRouteKind:(VibeOutputRouteKind)kind deviceName:(NSString *)name;
 - (void)debugOpenPath:(NSString *)path;
 - (void)debugAppendPath:(NSString *)path;
+- (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *file, NSError *error))completion;
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;
 
