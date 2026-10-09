@@ -112,26 +112,32 @@ struct VibeProvider: TimelineProvider {
     }
 }
 
+// The gallery shows the kinds in this order, and each kind's sizes smallest
+// first, whatever order families lists them in (tested: a medium listed first
+// still came second). TRAP: the original kind keeps its small and medium, since
+// both shipped, and a placed widget belongs to its kind. Moving either size to
+// another kind would break every copy of it on someone's Home Screen.
 @main
 struct VibeWidgetBundle: WidgetBundle {
     var body: some Widget {
+        VibeNowPlayingWidget(kind: "VibeNowPlayingWaveformPlay", families: [.systemSmall],
+                             waveformTile: true, playButton: true)
         VibeNowPlayingWidget()
-        VibeNowPlayingWidget(waveformTile: true)
-        VibeNowPlayingWidget(waveformTile: true, playButton: true)
+        VibeNowPlayingWidget(kind: "VibeNowPlayingLarge", families: [.systemLarge])
+        VibeNowPlayingWidget(kind: "VibeNowPlayingWaveform", families: [.systemSmall],
+                             waveformTile: true)
     }
 }
 
-// One type, three kinds. They share a name and a description, but the gallery
+// One type, four kinds. They share a name and a description, but the gallery
 // offers each kind as its own page, so every small layout can sit on one Home
 // Screen. The app's reload is reloadAllTimelines, so it reaches every kind.
 struct VibeNowPlayingWidget: Widget {
+    var kind = "VibeNowPlaying"
+    var families: [WidgetFamily] = [.systemSmall, .systemMedium,
+                                    .accessoryCircular, .accessoryRectangular, .accessoryInline]
     var waveformTile = false
     var playButton = false
-
-    private var kind: String {
-        guard waveformTile else { return "VibeNowPlaying" }
-        return playButton ? "VibeNowPlayingWaveformPlay" : "VibeNowPlayingWaveform"
-    }
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: VibeProvider()) { entry in
@@ -141,10 +147,7 @@ struct VibeNowPlayingWidget: Widget {
         // TRAP). Each MUST match its STR_WIDGET_* entry, which is what puts the key in the catalog.
         .configurationDisplayName(LocalizedStringResource("widget.name.now_playing", defaultValue: "Now Playing"))
         .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is currently playing."))
-        .supportedFamilies(waveformTile
-            ? [.systemSmall]
-            : [.systemSmall, .systemMedium, .systemLarge,
-               .accessoryCircular, .accessoryRectangular, .accessoryInline])
+        .supportedFamilies(families)
         .contentMarginsDisabled()
     }
 }
