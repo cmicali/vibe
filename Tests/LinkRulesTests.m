@@ -610,6 +610,19 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqualObjects(Name(@"https://example.com/get?file=Song.mp3", @"mp3"), @"get.mp3");
 }
 
+// The mac's header names a failed link by its file, else its host, else the
+// text typed.
+- (void)testAFailedLinkIsNamedByItsFileThenItsHost {
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"https://example.com/music/My%20Song.mp3"), @"My Song.mp3");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@" https://example.com/a/b%2Fc.flac?x=1#t\n"), @"b/c.flac");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"https://example.com/page/"), @"page");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"https://Example.com"), @"Example.com");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"https://example.com/"), @"example.com");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"http://192.168.1.2:8080/"), @"192.168.1.2");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"  not a link  "), @"not a link");
+    XCTAssertEqualObjects(VibeLinkNameOfText(@"song"), @"song");
+}
+
 // Google Drive's path names nothing. The Content-Disposition file name does.
 // A path that names a playable file keeps its name, as a Dropbox link's does.
 - (void)testTheDispositionNamesALinkWhosePathDoesNot {
@@ -942,55 +955,72 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
     return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
 }
 
+// Each failure's alert message, then its short status for the mac's header.
 - (void)testEachFailureShowsItsOwnString {
-    NSDictionary<NSNumber *, NSString *> *expected = @{
-        @(VibeLinkErrorInvalid): STR_LINK_ERROR_INVALID,
-        @(VibeLinkErrorInsecure): STR_LINK_ERROR_INSECURE,
-        @(VibeLinkErrorUnreachable): STR_LINK_ERROR_UNREACHABLE,
-        @(VibeLinkErrorLocalNetwork): STR_LINK_ERROR_LOCAL_NETWORK,
-        @(VibeLinkErrorNotFound): STR_LINK_ERROR_NOT_FOUND,
-        @(VibeLinkErrorDenied): STR_LINK_ERROR_DENIED,
-        @(VibeLinkErrorNotAudio): STR_LINK_ERROR_NOT_AUDIO,
-        @(VibeLinkErrorNoSize): STR_LINK_ERROR_NO_SIZE,
-        @(VibeLinkErrorLiveStream): STR_LINK_ERROR_LIVE_STREAM,
+    NSDictionary<NSNumber *, NSArray<NSString *> *> *expected = @{
+        @(VibeLinkErrorInvalid): @[STR_LINK_ERROR_INVALID, STR_LINK_STATUS_INVALID],
+        @(VibeLinkErrorInsecure): @[STR_LINK_ERROR_INSECURE, STR_LINK_STATUS_INSECURE],
+        @(VibeLinkErrorUnreachable): @[STR_LINK_ERROR_UNREACHABLE, STR_LINK_STATUS_UNREACHABLE],
+        @(VibeLinkErrorLocalNetwork): @[STR_LINK_ERROR_LOCAL_NETWORK, STR_LINK_STATUS_LOCAL_NETWORK],
+        @(VibeLinkErrorNotFound): @[STR_LINK_ERROR_NOT_FOUND, STR_LINK_STATUS_NOT_FOUND],
+        @(VibeLinkErrorDenied): @[STR_LINK_ERROR_DENIED, STR_LINK_STATUS_DENIED],
+        @(VibeLinkErrorNotAudio): @[STR_LINK_ERROR_NOT_AUDIO, STR_LINK_STATUS_NOT_AUDIO],
+        @(VibeLinkErrorNoSize): @[STR_LINK_ERROR_NO_SIZE, STR_LINK_STATUS_NO_SIZE],
+        @(VibeLinkErrorLiveStream): @[STR_LINK_ERROR_LIVE_STREAM, STR_LINK_STATUS_LIVE_STREAM],
     };
     for (NSNumber *code in expected) {
-        XCTAssertEqualObjects([LinkStore messageForError:LinkError(code.integerValue, nil)], expected[code], @"%@", code);
+        NSError *error = LinkError(code.integerValue, nil);
+        XCTAssertEqualObjects([LinkStore messageForError:error brief:NO], expected[code][0], @"%@", code);
+        XCTAssertEqualObjects([LinkStore messageForError:error brief:YES], expected[code][1], @"%@", code);
     }
-    NSMutableSet<NSString *> *distinct = [NSMutableSet setWithArray:expected.allValues];
-    [distinct addObject:STR_LINK_ERROR_SERVER];
-    XCTAssertEqual(distinct.count, expected.count + 1, @"no two failures share a message");
+    for (NSUInteger brief = 0; brief < 2; brief++) {
+        NSMutableSet<NSString *> *distinct = [NSMutableSet set];
+        for (NSArray<NSString *> *pair in expected.allValues) {
+            [distinct addObject:pair[brief]];
+        }
+        [distinct addObject:brief ? STR_LINK_STATUS_SERVER : STR_LINK_ERROR_SERVER];
+        XCTAssertEqual(distinct.count, expected.count + 1, @"no two failures share a string");
+    }
 }
 
-// The status goes into the message. A server error with no status still
-// shows the server's message.
+// The status goes into both strings. A server error with no status still
+// shows the server's string.
 - (void)testAServerFailureNamesItsStatus {
     NSError *error = LinkError(VibeLinkErrorServer, @{VibeHTTPErrorStatusCodeKey: @503});
-    NSString *with503 = [NSString stringWithFormat:STR_LINK_ERROR_SERVER, 503L];
-    NSString *withNone = [NSString stringWithFormat:STR_LINK_ERROR_SERVER, 0L];
-    XCTAssertEqualObjects([LinkStore messageForError:error], with503);
-    XCTAssertTrue([[LinkStore messageForError:error] containsString:@"503"]);
-    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorServer, nil)], withNone);
+    XCTAssertEqualObjects([LinkStore messageForError:error brief:NO],
+                          ([NSString stringWithFormat:STR_LINK_ERROR_SERVER, 503L]));
+    XCTAssertEqualObjects([LinkStore messageForError:error brief:YES],
+                          ([NSString stringWithFormat:STR_LINK_STATUS_SERVER, 503L]));
+    XCTAssertTrue([[LinkStore messageForError:error brief:NO] containsString:@"503"]);
+    XCTAssertTrue([[LinkStore messageForError:error brief:YES] containsString:@"503"]);
+    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorServer, nil) brief:NO],
+                          ([NSString stringWithFormat:STR_LINK_ERROR_SERVER, 0L]));
+    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorServer, nil) brief:YES],
+                          ([NSString stringWithFormat:STR_LINK_STATUS_SERVER, 0L]));
 }
 
 // A disk failure is passed through as its POSIX error. It, a code from
 // another domain, a code no shell names, and nil all read as unreachable.
 - (void)testAnythingElseReadsAsUnreachable {
-    NSError *posix = [NSError errorWithDomain:NSPOSIXErrorDomain code:VibeLinkErrorDenied userInfo:nil];
-    XCTAssertEqualObjects([LinkStore messageForError:posix], STR_LINK_ERROR_UNREACHABLE);
-    NSError *network = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil];
-    XCTAssertEqualObjects([LinkStore messageForError:network], STR_LINK_ERROR_UNREACHABLE);
-    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorNone, nil)], STR_LINK_ERROR_UNREACHABLE);
-    XCTAssertEqualObjects([LinkStore messageForError:LinkError(99, nil)], STR_LINK_ERROR_UNREACHABLE);
-    XCTAssertEqualObjects([LinkStore messageForError:LinkError(-1, nil)], STR_LINK_ERROR_UNREACHABLE);
-    XCTAssertEqualObjects([LinkStore messageForError:nil], STR_LINK_ERROR_UNREACHABLE);
+    NSArray *others = @[
+        [NSError errorWithDomain:NSPOSIXErrorDomain code:VibeLinkErrorDenied userInfo:nil],
+        [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil],
+        LinkError(VibeLinkErrorNone, nil), LinkError(99, nil), LinkError(-1, nil), NSNull.null,
+    ];
+    for (id other in others) {
+        NSError *error = other == NSNull.null ? nil : other;
+        XCTAssertEqualObjects([LinkStore messageForError:error brief:NO], STR_LINK_ERROR_UNREACHABLE, @"%@", other);
+        XCTAssertEqualObjects([LinkStore messageForError:error brief:YES], STR_LINK_STATUS_UNREACHABLE, @"%@", other);
+    }
 }
 
-// The user's own cancel shows no alert. Only the link domain's code is one.
+// The user's own cancel shows nothing. Only the link domain's code is one.
 - (void)testACancelShowsNothing {
-    XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil)]);
+    XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil) brief:NO]);
+    XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil) brief:YES]);
     NSError *other = [NSError errorWithDomain:NSURLErrorDomain code:VibeLinkErrorCancelled userInfo:nil];
-    XCTAssertEqualObjects([LinkStore messageForError:other], STR_LINK_ERROR_UNREACHABLE);
+    XCTAssertEqualObjects([LinkStore messageForError:other brief:NO], STR_LINK_ERROR_UNREACHABLE);
+    XCTAssertEqualObjects([LinkStore messageForError:other brief:YES], STR_LINK_STATUS_UNREACHABLE);
 }
 
 // Open with nothing typed is Cancel, not an invalid address.

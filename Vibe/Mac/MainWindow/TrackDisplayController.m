@@ -199,6 +199,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
                rate:(double)rate
         errorStatus:(NSString *)errorStatus
 unplayablePlaylistName:(NSString *)unplayablePlaylistName {
+    if (_openErrorStatus) {
+        return;
+    }
     BOOL showTime = AppSettings.sharedInstance.showTimeLabels;
     self.currentTimeTextField.hidden = !showTime;
     self.totalTimeTextField.hidden = !showTime;
@@ -244,36 +247,53 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
         break;
 
     case TrackDisplayStateEmpty:
-    case TrackDisplayStateError: {
-        // The error goes on the artist line, over the failed track's title, or
-        // over the playlist's name for an open that found nothing in it.
-        BOOL playError = (state == TrackDisplayStateError);
-        setStringValueIfChanged(self.artistTextField,
-                playError ? (errorStatus ?: STR_ERROR_PLAYBACK_GENERIC)
-                          : (unplayablePlaylistName ? STR_ERROR_PLAYLIST_FILES_UNAVAILABLE : @""));
-        [self setTitleLabelText:playError ? track.singleLineTitle : (unplayablePlaylistName ?: @"")];
-        // Half strength; the title matches the waveform placeholder, half the
-        // shimmer's 0.55 peak.
-        self.artistTextField.alphaValue = 0.5;
-        self.titleTextField.alphaValue = 0.275;
-        self.currentTimeTextField.alphaValue = 0.5;
-        self.totalTimeTextField.alphaValue = 0.5;
-        [_contentView setDropHintShown:YES];
-        setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
-        setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
-        _lastPosition = -1;
-        [_waveformView showEmptyPlaceholder];
-        [self setFileMetadataText:@""]; // see LaunchGrace: FX symbols persist
+        [self renderEmptyWithStatus:(unplayablePlaylistName ? STR_ERROR_PLAYLIST_FILES_UNAVAILABLE : @"")
+                              title:unplayablePlaylistName];
+        break;
+
+    case TrackDisplayStateError:
+        [self renderEmptyWithStatus:(errorStatus ?: STR_ERROR_PLAYBACK_GENERIC) title:track.singleLineTitle];
         break;
     }
-    }
+}
+
+// The empty look. A status goes on the artist line, over what failed: a
+// track, a playlist that listed nothing playable, or a link.
+- (void)renderEmptyWithStatus:(NSString *)status title:(NSString *)title {
+    setStringValueIfChanged(self.artistTextField, status);
+    [self setTitleLabelText:title];
+    // Half strength; the title matches the waveform placeholder, half the
+    // shimmer's 0.55 peak.
+    self.artistTextField.alphaValue = 0.5;
+    self.titleTextField.alphaValue = 0.275;
+    self.currentTimeTextField.alphaValue = 0.5;
+    self.totalTimeTextField.alphaValue = 0.5;
+    [_contentView setDropHintShown:YES];
+    setStringValueIfChanged(self.totalTimeTextField, STR_LABEL_TIME_UNKNOWN);
+    setStringValueIfChanged(self.currentTimeTextField, STR_LABEL_TIME_UNKNOWN);
+    _lastPosition = -1;
+    [_waveformView showEmptyPlaceholder];
+    [self setFileMetadataText:@""]; // see LaunchGrace: FX symbols persist
+}
+
+- (void)showOpenError:(NSString *)status naming:(NSString *)name {
+    _openErrorStatus = nil;
+    [self renderBPM:0 keyText:@"" colorKey:-1];
+    [self renderEmptyWithStatus:status title:name];
+    _openErrorStatus = [status copy];
+}
+
+- (BOOL)endOpenError {
+    BOOL shown = _openErrorStatus != nil;
+    _openErrorStatus = nil;
+    return shown;
 }
 
 - (void)renderPosition:(NSTimeInterval)position
               duration:(NSTimeInterval)duration
                   rate:(double)rate
                  state:(TrackDisplayState)state {
-    if (state != TrackDisplayStateTrack && state != TrackDisplayStateLoading) {
+    if (_openErrorStatus || (state != TrackDisplayStateTrack && state != TrackDisplayStateLoading)) {
         return;
     }
     if (duration > 0) {
@@ -306,13 +326,16 @@ unplayablePlaylistName:(NSString *)unplayablePlaylistName {
 
 - (void)renderTotalDuration:(NSTimeInterval)duration rate:(double)rate state:(TrackDisplayState)state {
     // Track only, with a known duration; other states keep --:--.
-    if (!VibeTrackTimeMayUpdate(state, duration, YES)) {
+    if (_openErrorStatus || !VibeTrackTimeMayUpdate(state, duration, YES)) {
         return;
     }
     [self renderRightTimeLabelWithDisplayPosition:MAX(0, _lastPosition) duration:duration rate:rate];
 }
 
 - (void)renderBPM:(float)displayBPM keyText:(NSString *)keyText colorKey:(NSInteger)colorKey {
+    if (_openErrorStatus) {
+        return;
+    }
     if (!AppSettings.sharedInstance.showFileInfo) {
         // The FX symbols are deck state, not file info, and keep rendering.
         displayBPM = 0;
@@ -446,6 +469,9 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
 }
 
 - (void)resetPlayheadToStartWithDuration:(NSTimeInterval)duration rate:(double)rate {
+    if (_openErrorStatus) {
+        return;
+    }
     _waveformView.progress = 0;
     _lastPosition = 0;
     setStringValueIfChanged(self.currentTimeTextField,
@@ -456,16 +482,23 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
 
 #pragma mark - Waveform rendering states
 
+// The strip keeps its placeholder line while an open error holds it.
 - (void)prepareForWaveformLoad {
-    [_waveformView prepareForWaveformLoad];
+    if (!_openErrorStatus) {
+        [_waveformView prepareForWaveformLoad];
+    }
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    [_waveformView showWaveform:waveform];
+    if (!_openErrorStatus) {
+        [_waveformView showWaveform:waveform];
+    }
 }
 
 - (void)showWaveformLoadingIndicator {
-    [_waveformView showLoadingIndicator];
+    if (!_openErrorStatus) {
+        [_waveformView showLoadingIndicator];
+    }
 }
 
 - (void)hideWaveformLoadingIndicator {

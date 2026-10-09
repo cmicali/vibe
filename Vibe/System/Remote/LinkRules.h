@@ -353,6 +353,28 @@ static inline NSString *_Nullable VibeLinkAudioExtension(NSData *head,
 
 static const NSUInteger kVibeLinkNameMaxBytes = 200;
 
+// The URL's last path component, percent-decoded. Empty when the path names
+// nothing.
+static inline NSString *VibeLinkLastPathName(NSURL *_Nullable url) {
+    // The encoded path, split before decoding: a %2F belongs to the name.
+    NSURLComponents *components = url ? [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO] : nil;
+    NSString *name = @"";
+    for (NSString *component in [components.percentEncodedPath componentsSeparatedByString:@"/"]) {
+        if (component.length > 0) name = component;
+    }
+    return name.stringByRemovingPercentEncoding ?: name;
+}
+
+// What the mac's header calls a link that failed: its last path component,
+// else its host, else the text as typed, trimmed.
+static inline NSString *VibeLinkNameOfText(NSString *text) {
+    NSURL *url = VibeLinkURLFromString(text);
+    NSString *name = VibeLinkLastPathName(url);
+    if (name.length == 0) name = url.host ?: @"";
+    if (name.length == 0) name = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return name;
+}
+
 // The link's file name, cleaned, with extension forced on. It is the URL's
 // last path component, percent-decoded, when that carries a playable
 // extension. Otherwise the Content-Disposition file name wins when there is
@@ -366,13 +388,7 @@ static inline NSString *VibeLinkFileName(NSURL *url,
                                          NSString *_Nullable contentDisposition,
                                          NSString *extension,
                                          NSSet<NSString *> *playable) {
-    // The encoded path, split before decoding: a %2F belongs to the name.
-    NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
-    NSString *name = @"";
-    for (NSString *component in [components.percentEncodedPath componentsSeparatedByString:@"/"]) {
-        if (component.length > 0) name = component;
-    }
-    name = name.stringByRemovingPercentEncoding ?: name;
+    NSString *name = VibeLinkLastPathName(url);
     NSString *disposition = VibeLinkFilenameOfContentDisposition(contentDisposition);
     if (disposition != nil && ![playable containsObject:name.pathExtension.lowercaseString]) {
         name = disposition;

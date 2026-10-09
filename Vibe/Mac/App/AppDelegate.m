@@ -240,8 +240,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // A drop holding links (System/Remote/AGENTS.md). Each .webloc is read for
 // its link off main. Then each link resolves in drop order, one at a time.
 // The files and the links' files open as one open, in drop order. A link
-// that fails drops out, and the first failure's alert shows. A cancel, or a
-// newer replacing open, opens nothing.
+// that fails drops out, and the header shows the first failure. A cancel, or
+// a newer replacing open, opens nothing.
 - (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append token:(OpenRequestToken *)token {
     __weak AppDelegate *weakSelf = self;
     [self.mainPlayerController beginLinkResolveFeedbackAppending:append];
@@ -265,7 +265,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         });
         dispatch_async(dispatch_get_main_queue(), ^{
             NSMutableArray<NSURL *> *files = [NSMutableArray array];
-            __block NSString *message = nil;
+            __block NSString *status = nil;
+            __block NSString *failed = nil;
             __block void (^step)(NSUInteger) = nil;
             step = ^(NSUInteger next) {
                 AppDelegate *strongSelf = weakSelf;
@@ -283,8 +284,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                         if (file) {
                             [files addObject:file];
                         }
-                        else if (!message) {
-                            message = [LinkStore messageForError:error];
+                        else if (!status) {
+                            status = [LinkStore messageForError:error brief:YES];
+                            failed = VibeLinkNameOfText(order[next].absoluteString);
                         }
                         void (^again)(NSUInteger) = step;
                         again(next + 1);
@@ -299,8 +301,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                 else {
                     [strongSelf openFiles:files token:token];
                 }
-                if (current && message) {
-                    [strongSelf showLinkError:message];
+                if (current && status) {
+                    [strongSelf.mainPlayerController showOpenError:status naming:failed];
                 }
                 // Last: this block may go with it.
                 step = nil;
@@ -340,6 +342,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (!append) {
         [self cancelLinkOpens];
     }
+    // The newer open's header must not wait for a held link error.
+    [self.mainPlayerController endOpenError];
     return token;
 }
 
@@ -357,6 +361,12 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         }
         if (completion) {
             completion(file, error);
+        }
+        // After the completion, which closes the sheet. A newer open or
+        // Close leaves the header alone.
+        NSString *status = error ? [LinkStore messageForError:error brief:YES] : nil;
+        if (status && [OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token]) {
+            [weakSelf.mainPlayerController showOpenError:status naming:VibeLinkNameOfText(string)];
         }
     }];
 }
@@ -584,13 +594,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [spinner startAnimation:nil];
     __weak AppDelegate *weakSelf = self;
     _cancelOpenLink = [self openLinkString:text completion:^(NSURL *file, NSError *error) {
-        NSString *message = error ? [LinkStore messageForError:error] : nil;
         // A cancel's sheet is already gone.
-        if (file || message) {
+        if (file || [LinkStore messageForError:error brief:YES]) {
             [weakSelf endOpenLinkSheet];
-        }
-        if (message) {
-            [weakSelf showLinkError:message];
         }
     }];
 }
@@ -611,14 +617,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (alert) {
         [self.mainPlayerController.window endSheet:alert.window];
     }
-}
-
-- (void)showLinkError:(NSString *)message {
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.alertStyle = NSAlertStyleWarning;
-    alert.messageText = STR_LINK_ERROR_TITLE;
-    alert.informativeText = message;
-    [alert beginSheetModalForWindow:self.mainPlayerController.window completionHandler:nil];
 }
 
 #if DEBUG

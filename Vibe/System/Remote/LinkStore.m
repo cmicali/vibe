@@ -449,28 +449,28 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 
 #pragma mark - Messages
 
-+ (NSString *)messageForError:(NSError *)error {
++ (NSString *)messageForError:(NSError *)error brief:(BOOL)brief {
     if (![error.domain isEqualToString:VibeLinkErrorDomain]) {
-        return STR_LINK_ERROR_UNREACHABLE;
+        return brief ? STR_LINK_STATUS_UNREACHABLE : STR_LINK_ERROR_UNREACHABLE;
     }
     switch ((VibeLinkError)error.code) {
-        case VibeLinkErrorInvalid:      return STR_LINK_ERROR_INVALID;
-        case VibeLinkErrorInsecure:     return STR_LINK_ERROR_INSECURE;
-        case VibeLinkErrorLocalNetwork: return STR_LINK_ERROR_LOCAL_NETWORK;
-        case VibeLinkErrorNotFound:     return STR_LINK_ERROR_NOT_FOUND;
-        case VibeLinkErrorDenied:       return STR_LINK_ERROR_DENIED;
-        case VibeLinkErrorNotAudio:     return STR_LINK_ERROR_NOT_AUDIO;
-        case VibeLinkErrorNoSize:       return STR_LINK_ERROR_NO_SIZE;
-        case VibeLinkErrorLiveStream:   return STR_LINK_ERROR_LIVE_STREAM;
+        case VibeLinkErrorInvalid:      return brief ? STR_LINK_STATUS_INVALID : STR_LINK_ERROR_INVALID;
+        case VibeLinkErrorInsecure:     return brief ? STR_LINK_STATUS_INSECURE : STR_LINK_ERROR_INSECURE;
+        case VibeLinkErrorLocalNetwork: return brief ? STR_LINK_STATUS_LOCAL_NETWORK : STR_LINK_ERROR_LOCAL_NETWORK;
+        case VibeLinkErrorNotFound:     return brief ? STR_LINK_STATUS_NOT_FOUND : STR_LINK_ERROR_NOT_FOUND;
+        case VibeLinkErrorDenied:       return brief ? STR_LINK_STATUS_DENIED : STR_LINK_ERROR_DENIED;
+        case VibeLinkErrorNotAudio:     return brief ? STR_LINK_STATUS_NOT_AUDIO : STR_LINK_ERROR_NOT_AUDIO;
+        case VibeLinkErrorNoSize:       return brief ? STR_LINK_STATUS_NO_SIZE : STR_LINK_ERROR_NO_SIZE;
+        case VibeLinkErrorLiveStream:   return brief ? STR_LINK_STATUS_LIVE_STREAM : STR_LINK_ERROR_LIVE_STREAM;
         case VibeLinkErrorServer:
-            return [NSString stringWithFormat:STR_LINK_ERROR_SERVER,
+            return [NSString stringWithFormat:brief ? STR_LINK_STATUS_SERVER : STR_LINK_ERROR_SERVER,
                                               (long)[error.userInfo[VibeHTTPErrorStatusCodeKey] integerValue]];
         case VibeLinkErrorCancelled:    return nil;
         case VibeLinkErrorNone:
         case VibeLinkErrorUnreachable:
             break;
     }
-    return STR_LINK_ERROR_UNREACHABLE;
+    return brief ? STR_LINK_STATUS_UNREACHABLE : STR_LINK_ERROR_UNREACHABLE;
 }
 
 #pragma mark - Pruning

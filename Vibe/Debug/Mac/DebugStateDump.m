@@ -99,6 +99,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"waveformLoading": @(controller.trackDisplay.waveformLoadingIndicatorShown),
+            @"openError": controller.trackDisplay.openErrorStatus ?: @"",
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),

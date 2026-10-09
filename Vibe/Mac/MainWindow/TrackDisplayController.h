@@ -52,6 +52,16 @@ typedef struct {
         errorStatus:(nullable NSString *)errorStatus
 unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
 
+// A link that failed to open, over whatever the header showed: the Error look,
+// with status on the artist line and name on the title line. It holds until
+// endOpenError. Until then nothing else writes the labels, the times, the
+// BPM line, or the waveform. endOpenError answers whether one held, and the
+// caller then renders the header again.
+- (void)showOpenError:(NSString *)status naming:(NSString *)name;
+- (BOOL)endOpenError;
+// The held status, or nil. The debug channel's state dump reads it.
+@property (nonatomic, readonly, nullable, copy) NSString *openErrorStatus;
+
 // The position tick. duration is the caller's cache: the live one reads 0
 // while Loading.
 - (void)renderPosition:(NSTimeInterval)position

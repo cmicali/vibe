@@ -627,12 +627,13 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Open URL
 
-// The prompt and its errors, on both platforms. Each error is the message of
-// an alert titled STR_LINK_ERROR_TITLE.
+// The prompt and its errors. On iOS, each link.error string is the message of
+// an alert titled STR_LINK_ERROR_TITLE. The Mac shows the short link.status
+// string in the player header instead.
 
 #define STR_LINK_PROMPT_TITLE         NSLS(@"link.prompt.title",         @"Open URL",                 @"Title of the prompt that asks for the web address of an audio file to play, on Mac and on iPhone and iPad. URL is the usual term for a web address; keep it if this language's apps do.")
 #define STR_LINK_PROMPT_MESSAGE       NSLS(@"link.prompt.message",       @"Enter the address of an audio file.", @"Message of the Open URL prompt, above the field where the user types or pastes a web address.")
-#define STR_LINK_ERROR_TITLE          NSLS(@"link.error.title",          @"Couldn’t Open URL",        @"Title of the alert shown when a web address entered in the Open URL prompt could not be played. Title case, as an alert title. Uses a curly apostrophe (’).")
+#define STR_LINK_ERROR_TITLE          NSLS(@"link.error.title",          @"Couldn’t Open URL",        @"Title of the alert shown on iPhone and iPad when a web address entered in the Open URL prompt could not be played. Title case, as an alert title. Uses a curly apostrophe (’).")
 #define STR_LINK_ERROR_INVALID        NSLS(@"link.error.invalid",        @"That isn’t a web address. Enter an address that starts with https://.", @"Open URL error: what the user entered is not a web address. Keep https:// exactly as written.")
 #define STR_LINK_ERROR_INSECURE       NSLS(@"link.error.insecure",       @"Vibe opens plain http:// addresses only on your local network. Use https:// instead.", @"Open URL error: the address starts with http://, which is not encrypted, and points outside the user's home or office network. Vibe is the app name. Keep http:// and https:// exactly as written.")
 #define STR_LINK_ERROR_UNREACHABLE    NSLS(@"link.error.unreachable",    @"Couldn’t reach the server. Check the address and your internet connection.", @"Open URL error: no connection could be made to the server, for example while offline or when the address is mistyped.")
@@ -643,6 +644,17 @@ static inline NSString *VibeAppName(void) {
 #define STR_LINK_ERROR_NO_SIZE        NSLS(@"link.error.no_size",        @"The server doesn’t say how big the file is. Vibe needs the size to play it.", @"Open URL error: the server sent the file without its size, which Vibe needs in order to stream and seek. Vibe is the app name.")
 #define STR_LINK_ERROR_LIVE_STREAM    NSLS(@"link.error.live_stream",    @"Live streams and internet radio aren’t supported. Enter the address of an audio file.", @"Open URL error: the address is a live broadcast that never ends, such as an internet radio station, rather than a file.")
 #define STR_LINK_ERROR_SERVER         NSLS(@"link.error.server",         @"The server reported an error (%ld). Try again later.", @"Open URL error: the server answered with an error. %ld is the HTTP status code, a number such as 500. Keep %ld exactly as written.")
+
+#define STR_LINK_STATUS_INVALID       NSLS(@"link.status.invalid",       @"Not a web address",        @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. What the user entered is not a web address.")
+#define STR_LINK_STATUS_INSECURE      NSLS(@"link.status.insecure",      @"Use https:// for this address", @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address starts with http://, which Vibe opens only on the local network. Keep https:// exactly as written.")
+#define STR_LINK_STATUS_UNREACHABLE   NSLS(@"link.status.unreachable",   @"Could not reach the server", @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. No connection could be made to the server, for example while offline.")
+#define STR_LINK_STATUS_LOCAL_NETWORK NSLS(@"link.status.local_network", @"Could not reach the device", @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. No connection could be made to a device on the user's home or office network, such as a music server.")
+#define STR_LINK_STATUS_NOT_FOUND     NSLS(@"link.status.not_found",     @"No file at this address",  @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server answered that nothing exists at the address (HTTP 404).")
+#define STR_LINK_STATUS_DENIED        NSLS(@"link.status.denied",        @"Access denied",            @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server refused to send the file (HTTP 401 or 403), for example a private or expired share link.")
+#define STR_LINK_STATUS_NOT_AUDIO     NSLS(@"link.status.not_audio",     @"Not an audio file",        @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address leads to something else, such as a web page.")
+#define STR_LINK_STATUS_NO_SIZE       NSLS(@"link.status.no_size",       @"Server did not give the size", @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server sent the file without its size, which Vibe needs in order to play it.")
+#define STR_LINK_STATUS_LIVE_STREAM   NSLS(@"link.status.live_stream",   @"Live streams not supported", @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address is a live broadcast that never ends, such as an internet radio station.")
+#define STR_LINK_STATUS_SERVER        NSLS(@"link.status.server",        @"Server error (%ld)",       @"Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server answered with an error. %ld is the HTTP status code, a number such as 500. Keep %ld exactly as written.")
 
 #pragma mark - iOS
 

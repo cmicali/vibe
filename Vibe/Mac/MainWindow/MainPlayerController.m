@@ -73,6 +73,8 @@
     // B's first track is still opening.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
+    // Pairs a held link error with its own timer (showOpenError:naming:).
+    NSUInteger                  _openErrorGeneration;
     TransportKeyMonitor*        _keyMonitor;
     BOOL                        _folderArtRefreshScheduled;
     uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
@@ -560,26 +562,57 @@
     [self.trackDisplay showWaveformLoadingIndicator];
 }
 
-// The shimmer cleared the waveform it covered, so a shown track loads it again.
 - (void)endLinkResolveFeedback {
-    if (!self.trackDisplay.waveformLoadingIndicatorShown) {
-        return;
+    if (self.trackDisplay.waveformLoadingIndicatorShown) {
+        [self restoreCoveredHeader];
     }
+}
+
+static const NSTimeInterval kOpenErrorSeconds = 4;
+
+- (void)showOpenError:(NSString *)status naming:(NSString *)name {
+    [self.trackDisplay showOpenError:status naming:name];
+    NSUInteger generation = ++_openErrorGeneration;
+    __weak MainPlayerController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOpenErrorSeconds * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        MainPlayerController *strongSelf = weakSelf;
+        if (strongSelf && strongSelf->_openErrorGeneration == generation) {
+            [strongSelf endOpenError];
+        }
+    });
+}
+
+- (void)endOpenError {
+    _openErrorGeneration++;
+    if ([self.trackDisplay endOpenError]) {
+        [self restoreCoveredHeader];
+    }
+}
+
+// The header after the drop shimmer or a held link error. Either cleared the
+// waveform, so a shown track loads it again. A slow open gets back the
+// shimmer the error kept off. A track's open still in flight keeps the strip.
+- (void)restoreCoveredHeader {
     AudioTrack *track = self.playlistController.currentTrack;
     switch ([self displayStateForTrack:track]) {
         case TrackDisplayStateLoading:
-            return;
+            if (_loadingURL) {
+                [self.trackDisplay showWaveformLoadingIndicator];
+                [self.trackDisplay setWaveformLoadingProgress:_loadingProgress];
+            }
+            break;
         case TrackDisplayStateTrack:
             [self.trackDisplay prepareForWaveformLoad];
             [self.waveformCache loadWaveformForTrack:track];
-            return;
+            break;
         case TrackDisplayStateEmpty:
         case TrackDisplayStateLaunchGrace:
         case TrackDisplayStateError:
             [self.trackDisplay hideWaveformLoadingIndicator];
-            [self updateUI];
-            return;
+            break;
     }
+    [self updateUI];
 }
 
 - (void)play:(NSArray<AudioTrack *> *)tracks {
@@ -680,6 +713,7 @@
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
     [self pauseUIUpdateTimer];
+    [self endOpenError];
     [self updateUI];
 }
 

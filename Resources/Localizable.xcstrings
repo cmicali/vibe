@@ -14510,7 +14510,7 @@
       "extractionState": "manual"
     },
     "link.error.title": {
-      "comment": "Title of the alert shown when a web address entered in the Open URL prompt could not be played. Title case, as an alert title. Uses a curly apostrophe (’).",
+      "comment": "Title of the alert shown on iPhone and iPad when a web address entered in the Open URL prompt could not be played. Title case, as an alert title. Uses a curly apostrophe (’).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -15248,6 +15248,126 @@
           "stringUnit": {
             "state": "translated",
             "value": "打開 URL"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.denied": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server refused to send the file (HTTP 401 or 403), for example a private or expired share link.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access denied"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.insecure": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address starts with http://, which Vibe opens only on the local network. Keep https:// exactly as written.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use https:// for this address"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.invalid": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. What the user entered is not a web address.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not a web address"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.live_stream": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address is a live broadcast that never ends, such as an internet radio station.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live streams not supported"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.local_network": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. No connection could be made to a device on the user's home or office network, such as a music server.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not reach the device"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.no_size": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server sent the file without its size, which Vibe needs in order to play it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server did not give the size"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.not_audio": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address leads to something else, such as a web page.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not an audio file"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.not_found": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server answered that nothing exists at the address (HTTP 404).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No file at this address"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.server": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The server answered with an error. %ld is the HTTP status code, a number such as 500. Keep %ld exactly as written.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server error (%ld)"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.unreachable": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. No connection could be made to the server, for example while offline.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not reach the server"
           }
         }
       },

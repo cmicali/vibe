@@ -940,7 +940,7 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
                 [strongSelf dismissSheet];
             }
         }
-        NSString *message = error ? [LinkStore messageForError:error] : nil;
+        NSString *message = error ? [LinkStore messageForError:error brief:NO] : nil;
         UIViewController *root = window.rootViewController;
         if (message && root) {
             VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, message);

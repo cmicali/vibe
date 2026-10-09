@@ -61,10 +61,11 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 // root, or a directory with no record. Any thread. Reads one cached xattr.
 - (nullable NSDictionary *)recordOfLinkFileURL:(NSURL *)url;
 
-// What the shell shows for a failed open: the error's link.error string. A
-// Server error names its status. Any error outside the link domain reads as
-// unreachable. A disk failure is one. Nil for a cancel, which shows nothing.
-+ (nullable NSString *)messageForError:(nullable NSError *)error;
+// What the shell shows for a failed open: the error's link.error string, or
+// its short link.status string when brief. A Server error names its status.
+// Any error outside the link domain reads as unreachable. A disk failure is
+// one. Nil for a cancel, which shows nothing.
++ (nullable NSString *)messageForError:(nullable NSError *)error brief:(BOOL)brief;
 
 // Deletes each link not opened for 30 days that no URL in kept lies in. Once
 // per launch, after the restore, so kept holds what the shell restored. A

@@ -594,7 +594,7 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqual(completions, 1u, @"the cancel completes before it returns");
     XCTAssertEqualObjects(failure.domain, VibeLinkErrorDomain);
     XCTAssertEqual(failure.code, VibeLinkErrorCancelled);
-    XCTAssertNil([LinkStore messageForError:failure], @"a cancel shows nothing");
+    XCTAssertNil([LinkStore messageForError:failure brief:NO], @"a cancel shows nothing");
 
     // The held answer goes on and finds its load stopped.
     dispatch_semaphore_signal(gate);
