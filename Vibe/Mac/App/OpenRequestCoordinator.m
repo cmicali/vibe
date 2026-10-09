@@ -36,9 +36,9 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     // and only ever climb.
     NSUInteger _armedDeadlineGeneration;
     NSUInteger _armedDeadlineSequence;
-    // Stamps each armed deadline, so one a release re-armed for the same
-    // request leaves the older timer nothing to do.
-    NSUInteger _armedDeadlineSerial;
+    // Stamps each armed deadline. Only the latest timer acts, so one a
+    // release re-armed for the same request leaves the older nothing to do.
+    NSUInteger _deadlineTimerGeneration;
     // The current generation's held requests, by sequence (holdRequest:).
     NSMutableIndexSet *_heldSequences;
 }
@@ -171,7 +171,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     }
     _armedDeadlineGeneration = generation;
     _armedDeadlineSequence = missingSequence;
-    NSUInteger serial = ++_armedDeadlineSerial;
+    NSUInteger timerGeneration = ++_deadlineTimerGeneration;
     __weak OpenRequestCoordinator *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -181,9 +181,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         }
         // TRAP: a replacement or a later gap may have armed its own deadline;
         // disarming here would strand that missing request.
-        if (strongSelf->_armedDeadlineGeneration != generation ||
-                strongSelf->_armedDeadlineSequence != missingSequence ||
-                strongSelf->_armedDeadlineSerial != serial) {
+        if (strongSelf->_deadlineTimerGeneration != timerGeneration) {
             return;
         }
         strongSelf->_armedDeadlineGeneration = 0;

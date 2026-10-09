@@ -639,20 +639,8 @@ static NSError *VibeMaterializationCancelledError(void) {
     return availability ? availability(url) : nil;
 }
 
-+ (CloudFileRemoteRead)remoteRead {
-    if (VibeRemoteBackends().count == 0) {
-        return nil;
-    }
-    return ^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
-        CloudFileRemoteRead read = VibeRemoteBackendForURL(url)[@"read"];
-        if (!read) {
-            if (error) {
-                *error = VibeNoRemoteBackendError();
-            }
-            return nil;
-        }
-        return read(url, offset, length, error);
-    };
++ (CloudFileRemoteRead)remoteReadForURL:(NSURL *)url {
+    return VibeRemoteBackendForURL(url)[@"read"];
 }
 
 // A cancel that wins this lock fails the call; a later one finds no work.

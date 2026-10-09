@@ -32,16 +32,16 @@
 // (LinkRules.h). Each opens its resolved link, in drop order.
 - (void)openDroppedURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
-// Escape on the player window. Every drop still resolving its links stops,
+// Escape on the player window. Every open still resolving its links stops,
 // and opens nothing. NO when none was.
 - (BOOL)cancelLinkOpens;
 
-// Open URL: the typed link resolved (LinkStore), then its file opened as a
-// replace through the open funnel. The request is taken at the call. A
-// later open supersedes it. A link that fails or is cancelled leaves the
-// playlist as it is. A failure that is still current then shows in the
+// Open URL: a drop's road with the one typed link. Its file opens as a
+// replace. The request is taken at the call. A later open supersedes it,
+// and a replacing one cancels it. A link that fails or is cancelled leaves
+// the playlist as it is. A failure that is still current then shows in the
 // header. Completion on main, with exactly one of file and error. The
-// returned block cancels the resolve on main, as LinkStore's does.
+// returned block cancels, on main.
 - (dispatch_block_t)openLinkString:(NSString *)string
                         completion:(void (^)(NSURL *file, NSError *error))completion;
 

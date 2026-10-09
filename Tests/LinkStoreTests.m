@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/xattr.h>
 
+#import "AudioTrack.h"
 #import "CloudFileMaterializer.h"
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
@@ -38,19 +39,9 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
 // A FLAC's signature, then a pattern: audio to the probe, distinct bytes to
 // every range.
 static NSData *FlacBytes(NSUInteger count) {
-    NSMutableData *data = [NSMutableData dataWithLength:count];
-    uint8_t *bytes = data.mutableBytes;
-    for (NSUInteger i = 0; i < count; i++) {
-        bytes[i] = (uint8_t)((i * 7 + i / 251) & 0xff);
-    }
-    memcpy(bytes, "fLaC", MIN(count, (NSUInteger)4));
+    NSMutableData *data = [PatternBytes(count) mutableCopy];
+    memcpy(data.mutableBytes, "fLaC", MIN(count, (NSUInteger)4));
     return data;
-}
-
-static struct stat StatOf(NSURL *url) {
-    struct stat st = {0};
-    lstat(url.fileSystemRepresentation, &st);
-    return st;
 }
 
 static BOOL IsPlaceholder(NSURL *url) {
@@ -458,8 +449,8 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects(stored, [self recordOf:file]);
     LinkStore *other = [[LinkStore alloc] initWithClient:_client rootURL:_root];
     XCTAssertEqualObjects([other indexOfDirectory:directory], stored, @"read back by a new store");
-    XCTAssertEqualObjects([_store recordOfLinkFileURL:file], stored, @"a shell reads it by the file");
-    XCTAssertNil([_store recordOfLinkFileURL:[_base URLByAppendingPathComponent:@"a.flac"]], @"outside the root");
+    XCTAssertEqualObjects([_store hostOfLinkFileURL:file], stored[@"host"], @"a shell reads it by the file");
+    XCTAssertNil([_store hostOfLinkFileURL:[_base URLByAppendingPathComponent:@"a.flac"]], @"outside the root");
     NSSet *keys = [NSSet setWithArray:@[@"url", @"etag", @"lastModified", @"version", @"size", @"modified", @"ranges",
                                         @"host", @"opened"]];
     XCTAssertEqualObjects([NSSet setWithArray:stored.allKeys], keys, @"no Content-Type, so none recorded");
@@ -524,14 +515,14 @@ static BOOL IsDownloaded(NSURL *url) {
     record[@"size"] = @"4000";
     [_store writeIndex:record ofDirectory:file.URLByDeletingLastPathComponent];
     ino_t inode = StatOf(file).st_ino;
-    XCTAssertNil([_store recordOfLinkFileURL:file]);
+    XCTAssertNil([_store hostOfLinkFileURL:file]);
     NSError *error = nil;
     XCTAssertNil([_store readPlaceholderAtURL:file offset:0 length:16 error:&error], @"no record names no target");
 
     XCTAssertEqualObjects([self resolvePath:@"/a.flac"], file);
     XCTAssertNotEqual(StatOf(file).st_ino, inode, @"a fresh placeholder");
     XCTAssertEqualObjects([self recordOf:file][@"size"], @4000);
-    XCTAssertNotNil([_store recordOfLinkFileURL:file]);
+    XCTAssertNotNil([_store hostOfLinkFileURL:file]);
 }
 
 - (void)testALinkWithNoVersionIsFetchedAgain {
@@ -1050,8 +1041,8 @@ static BOOL IsDownloaded(NSURL *url) {
     if ([keptPath hasPrefix:@"/private/"]) {
         keptPath = [keptPath substringFromIndex:8];
     }
-    [_store pruneKeepingURLs:[NSSet setWithObjects:[NSURL fileURLWithPath:keptPath],
-                              [NSURL fileURLWithPath:@"/elsewhere/song.flac"], nil]];
+    [_store pruneKeepingTracks:@[[[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/elsewhere/song.flac"]]]
+                    recentURLs:@[[NSURL fileURLWithPath:keptPath], [NSURL URLWithString:@"https://example.com/a.mp3"]]];
     [self settleDiskQueue];
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:files[0].URLByDeletingLastPathComponent.path]);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:stray.path], @"no record: as old as can be");
@@ -1088,10 +1079,10 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertTrue([NSURLUtil isDatalessFile:otherFile]);
 
     NSError *error = nil;
-    XCTAssertEqualObjects(CloudFileMaterializer.remoteRead(file, 16, 32, &error),
+    XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:file](file, 16, 32, &error),
                           [bytes subdataWithRange:NSMakeRange(16, 32)]);
     XCTAssertEqual(atomic_load(&otherReads), 0u);
-    XCTAssertEqualObjects(CloudFileMaterializer.remoteRead(otherFile, 0, 5, &error), otherBytes);
+    XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:otherFile](otherFile, 0, 5, &error), otherBytes);
     XCTAssertEqual(atomic_load(&otherReads), 1u);
 
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];

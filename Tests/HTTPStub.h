@@ -16,6 +16,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#include <sys/stat.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -79,5 +80,22 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger stoppedAnswers;
 
 @end
+
+// Distinct bytes at every offset, so a range answered from the wrong place
+// shows.
+static inline NSData *PatternBytes(NSUInteger count) {
+    NSMutableData *data = [NSMutableData dataWithLength:count];
+    uint8_t *bytes = data.mutableBytes;
+    for (NSUInteger i = 0; i < count; i++) {
+        bytes[i] = (uint8_t)((i * 7 + i / 251) & 0xff);
+    }
+    return data;
+}
+
+static inline struct stat StatOf(NSURL *url) {
+    struct stat st = {0};
+    lstat(url.fileSystemRepresentation, &st);
+    return st;
+}
 
 NS_ASSUME_NONNULL_END

@@ -176,14 +176,17 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Drag and Drop
 
+// Each item's first string in VibeDropURLsOfItems' order, the only one it
+// reads. Each read is a round trip to the pasteboard server.
 static NSArray<NSDictionary<NSString *, NSString *> *> *VibeDropItemsOfPasteboard(NSPasteboard *pboard) {
     NSMutableArray<NSDictionary<NSString *, NSString *> *> *items = [NSMutableArray array];
     for (NSPasteboardItem *item in pboard.pasteboardItems) {
-        NSMutableDictionary<NSString *, NSString *> *strings = [NSMutableDictionary dictionary];
+        NSDictionary<NSString *, NSString *> *strings = @{};
         for (NSString *type in @[kVibeDropTypeFileURL, kVibeDropTypeURL, kVibeDropTypeText]) {
             NSString *string = [item stringForType:type];
             if (string) {
-                strings[type] = string;
+                strings = @{type: string};
+                break;
             }
         }
         [items addObject:strings];

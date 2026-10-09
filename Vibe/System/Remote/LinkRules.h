@@ -545,21 +545,6 @@ static inline NSArray<NSURL *> *VibeDropOpenOrder(NSArray<NSURL *> *urls,
 // still names it.
 static const NSTimeInterval kVibeLinkPruneAgeSeconds = 30 * 24 * 60 * 60;
 
-// The URLs that keep their links from the launch's pruning: the playlist's
-// rows as the launch restored them, and the recent items. Each shell passes
-// its own lists. Only file URLs count.
-static inline NSSet<NSURL *> *VibeLinkKeptURLs(NSArray<NSURL *> *rows, NSArray<NSURL *> *recents) {
-    NSMutableSet<NSURL *> *kept = [NSMutableSet set];
-    for (NSArray<NSURL *> *list in @[rows, recents]) {
-        for (NSURL *url in list) {
-            if (url.isFileURL) {
-                [kept addObject:url];
-            }
-        }
-    }
-    return kept;
-}
-
 // The link directories to delete, by name, sorted. records maps each
 // directory's name to its record, NSNull for a directory with none. One
 // opened more than 30 days before now goes, unless kept names it. A record
@@ -582,24 +567,21 @@ static inline NSArray<NSString *> *VibeLinkDirectoriesToPrune(NSDictionary<NSStr
 
 #pragma mark - Failures
 
-// An HTTP status. A 2xx is no failure. A redirect the session did not follow
-// is the server's failure, like every other status not named here.
+// A status the session did not take as a file. A redirect it did not follow
+// is the server's failure, and so is a 2xx, like every other status not
+// named here.
 static inline VibeLinkError VibeLinkErrorOfStatus(NSInteger status) {
-    if (status >= 200 && status < 300) return VibeLinkErrorNone;
     if (status == 401 || status == 403) return VibeLinkErrorDenied;
     if (status == 404 || status == 410) return VibeLinkErrorNotFound;
     return VibeLinkErrorServer;
 }
 
 // A request that got no response. App Transport Security's refusal is the
-// insecure failure. A cancel is the caller's own and shows nothing. Any other
-// failure to reach a local host is the local-network one. A denied
-// local-network permission fails that way.
-static inline VibeLinkError VibeLinkErrorOfNetworkError(NSError *_Nullable error, NSString *_Nullable host) {
-    if (error == nil) return VibeLinkErrorNone;
+// insecure failure. Any other failure to reach a local host is the
+// local-network one. A denied local-network permission fails that way.
+static inline VibeLinkError VibeLinkErrorOfNetworkError(NSError *error, NSString *_Nullable host) {
     if ([error.domain isEqualToString:NSURLErrorDomain]) {
         switch (error.code) {
-            case NSURLErrorCancelled: return VibeLinkErrorNone;
             case NSURLErrorAppTransportSecurityRequiresSecureConnection: return VibeLinkErrorInsecure;
             case NSURLErrorBadURL:
             case NSURLErrorUnsupportedURL: return VibeLinkErrorInvalid;

@@ -18,6 +18,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AudioTrack;
+
 // A link that did not open. The code is a VibeLinkError. A Server error
 // carries the status under VibeHTTPErrorStatusCodeKey. The error that caused
 // it, if any, is under NSUnderlyingErrorKey. Each shell shows its
@@ -56,10 +58,10 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 // Multiplies the probe's deadline. 1 unless a test shortens it.
 @property (nonatomic) double probeTimeoutScale;
 
-// The record of the link whose file url is: {url, host, …}, as the Links
-// section of System/Remote/AGENTS.md lists it. Nil for a file outside the
-// root, or a directory with no record. Any thread. Reads one cached xattr.
-- (nullable NSDictionary *)recordOfLinkFileURL:(NSURL *)url;
+// The host of the link whose file url is, from its record. Nil for a file
+// outside the root, or a directory with no record. Any thread. Reads one
+// cached xattr.
+- (nullable NSString *)hostOfLinkFileURL:(NSURL *)url;
 
 // What the shell shows for a failed open: the error's link.error string, or
 // its short link.status string when brief. A Server error names its status.
@@ -67,11 +69,11 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 // one. Nil for a cancel, which shows nothing.
 + (nullable NSString *)messageForError:(nullable NSError *)error brief:(BOOL)brief;
 
-// Deletes each link not opened for 30 days that no URL in kept lies in. Once
-// per launch, after the restore, so kept holds what the shell restored. A
-// saved playlist naming a deleted link finds its entry missing. Off main, on
-// the store's queue.
-- (void)pruneKeepingURLs:(NSSet<NSURL *> *)kept;
+// Deletes each link not opened for 30 days that no track's file or recent
+// URL lies in. Once per launch, after the restore, so tracks are the
+// playlist's rows as the shell restored them. A saved playlist naming a
+// deleted link finds its entry missing. Off main, on the store's queue.
+- (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents;
 
 @end
 

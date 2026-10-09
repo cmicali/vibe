@@ -1453,7 +1453,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     else {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
-    VibeApplyRowContent(cell, content, VibeBrowserRootRowIsOpening(row, _cancelLinkResolve != nil));
+    // Only Open URL… spins, while its link resolves.
+    VibeApplyRowContent(cell, content, row == VibeBrowserRootRowOpenURL && _cancelLinkResolve != nil);
     return cell;
 }
 
@@ -1498,7 +1499,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
     // A second tap on the row still opening gives it up.
     dispatch_block_t cancel = _cancelLinkResolve;
-    if (cancel && VibeBrowserRootRowIsOpening(row, YES)) {
+    if (cancel && row == VibeBrowserRootRowOpenURL) {
         cancel();
         return;
     }

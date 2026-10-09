@@ -47,6 +47,11 @@ NS_ASSUME_NONNULL_BEGIN
                     attempt:(NSInteger)attempt
                      resend:(void (^)(NSInteger attempt))resend
                        fail:(void (^)(NSError *error))fail;
+// Not a hook. The default's wait and resend: YES when it scheduled one.
+- (BOOL)resendAfterStatus:(NSInteger)status
+               retryAfter:(nullable NSString *)retryAfter
+                  attempt:(NSInteger)attempt
+                   resend:(void (^)(NSInteger attempt))resend;
 
 // An accepted response's metadata, as the completions carry it. The default
 // is etag, lastModified, contentType, contentDisposition, and url, and size
@@ -57,10 +62,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)versionOfMetadata:(nullable NSDictionary *)metadata;
 // The file's size in the metadata, -1 when it names none.
 - (int64_t)sizeOfMetadata:(nullable NSDictionary *)metadata;
+// Not a hook. The CDN case (VibeHTTPIsSameFileUnderAnotherETag), on the
+// size and lastModified of both.
+- (BOOL)isSameFileUnderAnotherETag:(NSDictionary *)metadata asMetadata:(NSDictionary *)pinned;
 // The error a transfer fails with for the base's own reasons.
 - (NSError *)errorWithCode:(VibeHTTPError)code description:(NSString *)description;
-// Whether a download that ended with `error` keeps its file for the next
-// download to continue. The default keeps it for a cancel and a lost
+// Not a hook. Whether a download that ended with `error` keeps its file for
+// the next download to continue: a cancel (errorWithCode:'s) or a lost
 // connection, which the link ended. A transfer its own answer ended would
 // only fail again from the same bytes.
 - (BOOL)keepsPartAfterError:(nullable NSError *)error;

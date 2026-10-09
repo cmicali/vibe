@@ -473,21 +473,6 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 
 #pragma mark - The store's hooks
 
-// Through the client's own selectors, which the tests observe.
-- (dispatch_block_t)downloadTarget:(id)target
-                             toURL:(NSURL *)destination
-                          progress:(void (^)(uint64_t, int64_t, NSString *))progress
-                        completion:(void (^)(NSDictionary *, NSError *))completion {
-    return [self.client downloadPath:target toURL:destination progress:progress completion:completion];
-}
-
-- (dispatch_block_t)readTarget:(id)target
-                        offset:(uint64_t)offset
-                        length:(uint64_t)length
-                    completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
-    return [self.client readPath:target offset:offset length:length completion:completion];
-}
-
 // Downloaded bytes take the version's mtime, so the next listing sees them
 // as current.
 - (time_t)modificationTimeOfMetadata:(NSDictionary *)metadata forURL:(NSURL *)url {

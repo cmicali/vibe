@@ -206,10 +206,22 @@ static NSDictionary *VibeSlowVolumeReply(NSNumber *released) {
 
 // A VibeLinkError by its link.error key's last part. A script reads the
 // failure the shell would show.
-static NSString *VibeLinkErrorName(NSInteger code) {
-    NSArray<NSString *> *names = @[@"none", @"invalid", @"insecure", @"unreachable", @"local_network",
-                                   @"not_found", @"denied", @"not_audio", @"no_size", @"live_stream", @"server"];
-    return code >= 0 && (NSUInteger)code < names.count ? names[(NSUInteger)code] : @"unknown";
+static NSString *VibeLinkErrorName(VibeLinkError code) {
+    switch (code) {
+        case VibeLinkErrorNone: return @"none";
+        case VibeLinkErrorInvalid: return @"invalid";
+        case VibeLinkErrorInsecure: return @"insecure";
+        case VibeLinkErrorUnreachable: return @"unreachable";
+        case VibeLinkErrorLocalNetwork: return @"local_network";
+        case VibeLinkErrorNotFound: return @"not_found";
+        case VibeLinkErrorDenied: return @"denied";
+        case VibeLinkErrorNotAudio: return @"not_audio";
+        case VibeLinkErrorNoSize: return @"no_size";
+        case VibeLinkErrorLiveStream: return @"live_stream";
+        case VibeLinkErrorServer: return @"server";
+        case VibeLinkErrorCancelled: return @"cancelled";
+    }
+    return @"unknown";
 }
 
 static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
@@ -220,24 +232,12 @@ static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
     NSError *cause = error.userInfo[NSUnderlyingErrorKey];
     return @{
         @"ok": @NO,
-        @"linkError": linkError ? VibeLinkErrorName(error.code) : [NSString stringWithFormat:@"%@ %ld",
+        @"linkError": linkError ? VibeLinkErrorName((VibeLinkError)error.code) : [NSString stringWithFormat:@"%@ %ld",
                                                                         error.domain, (long)error.code],
         @"code": @(error.code),
         @"status": error.userInfo[VibeHTTPErrorStatusCodeKey] ?: NSNull.null,
         @"cause": cause ? [NSString stringWithFormat:@"%@ %ld", cause.domain, (long)cause.code] : NSNull.null,
     };
-}
-
-// A byte count, with a K or M suffix for KiB or MiB.
-static BOOL VibeParseByteCount(NSString *token, uint64_t *bytes) {
-    double scale = [token hasSuffix:@"K"] ? 1024 : [token hasSuffix:@"M"] ? 1024 * 1024 : 1;
-    NSString *digits = scale > 1 ? [token substringToIndex:token.length - 1] : token;
-    double number = 0;
-    if (!VibeParseDouble(digits, &number) || number < 0) {
-        return NO;
-    }
-    *bytes = (uint64_t)(number * scale);
-    return YES;
 }
 
 // Each link's directory under the Links root, with its record and its file:

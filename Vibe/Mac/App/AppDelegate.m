@@ -160,14 +160,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // A link it names was opened within 30 days, unless a saved playlist names an
 // older one.
 - (void)pruneLinks {
-    NSMutableArray<NSURL *> *rows = [NSMutableArray array];
-    for (AudioTrack *track in self.mainPlayerController.playlistController.playlist) {
-        if (track.url) {
-            [rows addObject:track.url];
-        }
-    }
-    NSArray<NSURL *> *recents = NSDocumentController.sharedDocumentController.recentDocumentURLs;
-    [LinkStore.shared pruneKeepingURLs:VibeLinkKeptURLs(rows, recents)];
+    [LinkStore.shared pruneKeepingTracks:self.mainPlayerController.playlistController.playlist
+                              recentURLs:NSDocumentController.sharedDocumentController.recentDocumentURLs];
 }
 
 // Dash-prefixed flags are skipped. Under the sandbox only paths it already
@@ -238,16 +232,34 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 }
 
 // A drop holding links (System/Remote/AGENTS.md). Each .webloc is read for
-// its link off main. Then each link resolves in drop order, one at a time.
-// The files and the links' files open as one open, in drop order. A link
-// that fails drops out, and the header shows the first failure. A cancel, or
-// a newer replacing open, opens nothing.
+// its link off main, then the drop opens in drop order.
 - (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append token:(OpenRequestToken *)token {
+    [self.mainPlayerController beginLinkResolveFeedbackAppending:append];
+    [self openInOrder:^NSArray *{
+        return VibeDropOpenOrder(urls, ^NSData *(NSURL *webloc) {
+            NSFileHandle *handle = [NSFileHandle fileHandleForReadingFromURL:webloc error:NULL];
+            NSData *head = [handle readDataUpToLength:kVibeLinkWeblocMaxBytes error:NULL];
+            [handle closeAndReturnError:NULL];
+            return head;
+        });
+    } token:token completion:nil];
+}
+
+// The one road a link opens by, a drop's and the sheet's. order runs off
+// main and answers what opens: file URLs, and links as NSURLs or typed text.
+// Each link resolves in that order, one at a time. The files and the links'
+// files then open as one open, in that order. A link that fails drops out,
+// and the header shows the first failure. A cancel, or a newer replacing
+// open, opens nothing. Completion on main, before the header shows the
+// failure, with what opened and the first failure. Returns the cancel, on
+// main.
+- (dispatch_block_t)openInOrder:(NSArray *(^)(void))order
+                          token:(OpenRequestToken *)token
+                     completion:(nullable void (^)(NSArray<NSURL *> *files, NSError *_Nullable error))completion {
     __weak AppDelegate *weakSelf = self;
     // Held while the links resolve. A later open that finishes first must
-    // not give up on the drop at the straggler deadline.
+    // not give up on this one at the straggler deadline.
     [OpenRequestCoordinator.sharedCoordinator holdRequest:token];
-    [self.mainPlayerController beginLinkResolveFeedbackAppending:append];
     __block BOOL cancelled = NO;
     __block dispatch_block_t cancelResolve = nil;
     dispatch_block_t cancel = ^{
@@ -260,14 +272,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     };
     [_linkOpenCancels addObject:cancel];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<NSURL *> *order = VibeDropOpenOrder(urls, ^NSData *(NSURL *webloc) {
-            NSFileHandle *handle = [NSFileHandle fileHandleForReadingFromURL:webloc error:NULL];
-            NSData *head = [handle readDataUpToLength:kVibeLinkWeblocMaxBytes error:NULL];
-            [handle closeAndReturnError:NULL];
-            return head;
-        });
+        NSArray *items = order();
         dispatch_async(dispatch_get_main_queue(), ^{
             NSMutableArray<NSURL *> *files = [NSMutableArray array];
+            __block NSError *firstError = nil;
             __block NSString *status = nil;
             __block NSString *failed = nil;
             __block void (^step)(NSUInteger) = nil;
@@ -277,19 +285,25 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                     return;
                 }
                 BOOL current = !cancelled && [OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token];
-                while (current && next < order.count && order[next].isFileURL) {
-                    [files addObject:order[next++]];
+                while (current && next < items.count && [items[next] isKindOfClass:NSURL.class]
+                       && [items[next] isFileURL]) {
+                    [files addObject:items[next++]];
                 }
-                if (current && next < order.count) {
-                    cancelResolve = [LinkStore.shared resolveURLString:order[next].absoluteString
+                if (current && next < items.count) {
+                    id item = items[next];
+                    NSString *text = [item isKindOfClass:NSURL.class] ? [item absoluteString] : item;
+                    cancelResolve = [LinkStore.shared resolveURLString:text
                                                             completion:^(NSURL *file, NSError *error) {
                         cancelResolve = nil;
                         if (file) {
                             [files addObject:file];
                         }
-                        else if (!status) {
-                            status = [LinkStore messageForError:error brief:YES];
-                            failed = VibeLinkNameOfText(order[next].absoluteString);
+                        else {
+                            firstError = firstError ?: error;
+                            if (!status) {
+                                status = [LinkStore messageForError:error brief:YES];
+                                failed = VibeLinkNameOfText(text);
+                            }
                         }
                         void (^again)(NSUInteger) = step;
                         again(next + 1);
@@ -300,16 +314,20 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                 OpenRequestCoordinator *coordinator = OpenRequestCoordinator.sharedCoordinator;
                 [coordinator releaseRequest:token];
                 if (![coordinator isRequestCurrent:token]) {
-                    // Superseded: nothing delivers for this drop, so its
-                    // shimmer ends here.
+                    // Superseded: nothing delivers for this open, so a
+                    // drop's shimmer ends here.
                     [strongSelf endLinkResolveFeedbackIfIdle];
                 }
                 else if (!current || files.count == 0) {
-                    // The empty delivery, as an Open URL failure's.
+                    // The empty delivery. It leaves a loaded playlist as it
+                    // is. Over an empty one it ends the launch grace.
                     [coordinator finishRequest:token rows:@[] folderCount:0];
                 }
                 else {
                     [strongSelf openFiles:files token:token];
+                }
+                if (completion) {
+                    completion(files, firstError);
                 }
                 if (current && status) {
                     [strongSelf.mainPlayerController showOpenError:status naming:failed];
@@ -321,6 +339,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             first(0);
         });
     });
+    return cancel;
 }
 
 // After the last link drop settles. A delivery while another drop resolves
@@ -359,28 +378,16 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 - (dispatch_block_t)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
     OpenRequestToken *token = [self beginOpenRequestAppending:NO fromURLs:@[]];
-    // Held while the link resolves, as a drop's is.
-    [OpenRequestCoordinator.sharedCoordinator holdRequest:token];
-    __weak AppDelegate *weakSelf = self;
-    return [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
-        [OpenRequestCoordinator.sharedCoordinator releaseRequest:token];
-        if (file) {
-            [weakSelf openURLsWithRestoredAccess:@[file] token:token];
+    return [self openInOrder:^NSArray *{
+        return @[string];
+    } token:token completion:^(NSArray<NSURL *> *files, NSError *error) {
+        if (!completion) {
+            return;
         }
-        else {
-            // Nothing to open: the empty delivery. It leaves a loaded
-            // playlist as it is. Over an empty one it ends the launch grace.
-            [OpenRequestCoordinator.sharedCoordinator finishRequest:token rows:@[] folderCount:0];
-        }
-        if (completion) {
-            completion(file, error);
-        }
-        // After the completion, which closes the sheet. A newer open or
-        // Close leaves the header alone.
-        NSString *status = error ? [LinkStore messageForError:error brief:YES] : nil;
-        if (status && [OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token]) {
-            [weakSelf.mainPlayerController showOpenError:status naming:VibeLinkNameOfText(string)];
-        }
+        // Superseded before its resolve began, it settles as a cancel.
+        completion(files.firstObject, files.count ? nil : error ?: [NSError errorWithDomain:VibeLinkErrorDomain
+                                                                                       code:VibeLinkErrorCancelled
+                                                                                   userInfo:nil]);
     }];
 }
 
@@ -606,10 +613,13 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     open.enabled = NO;
     [spinner startAnimation:nil];
     __weak AppDelegate *weakSelf = self;
+    NSAlert *alert = _openLinkAlert;
     _cancelOpenLink = [self openLinkString:text completion:^(NSURL *file, NSError *error) {
-        // A cancel's sheet is already gone.
-        if (file || [LinkStore messageForError:error brief:YES]) {
-            [weakSelf endOpenLinkSheet];
+        // However it settled, a newer open's cancel included. The user's own
+        // cancel already closed it, and a later sheet is not this one.
+        AppDelegate *strongSelf = weakSelf;
+        if (strongSelf && strongSelf->_openLinkAlert == alert) {
+            [strongSelf endOpenLinkSheet];
         }
     }];
 }

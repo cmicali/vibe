@@ -22,6 +22,10 @@ NSErrorUserInfoKey const VibeHTTPErrorStatusCodeKey = @"VibeHTTPErrorStatusCode"
 static const NSInteger kMaximumNetworkRetries = 2;
 static const NSTimeInterval kNetworkRetryDelay = 1;
 
+// What a failure's body keeps for handleFailureStatus:. A Dropbox error is a
+// small JSON object.
+static const NSUInteger kErrorBodyMaxBytes = 64 * 1024;
+
 // The version a download's file holds bytes of, on the file itself, so the
 // next download of that destination continues it (downloadTarget:). The
 // name must not change: a part kept under it would no longer resume.
@@ -170,18 +174,28 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
                     attempt:(NSInteger)attempt
                      resend:(void (^)(NSInteger))resend
                        fail:(void (^)(NSError *))fail {
-    NSTimeInterval delay = VibeHTTPRetryDelay(status, retryAfter);
-    if (delay >= 0 && attempt < kVibeHTTPMaximumAttempts) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * self.retryDelayScale * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            resend(attempt + 1);
-        });
+    if ([self resendAfterStatus:status retryAfter:retryAfter attempt:attempt resend:resend]) {
         return;
     }
     NSString *summary = [NSString stringWithFormat:@"HTTP %ld", (long)status];
     LogWarn(@"%@: request failed: %@", self.logName, summary);
     fail([NSError errorWithDomain:VibeHTTPErrorDomain code:VibeHTTPErrorStatus
                          userInfo:@{NSLocalizedDescriptionKey: summary, VibeHTTPErrorStatusCodeKey: @(status)}]);
+}
+
+- (BOOL)resendAfterStatus:(NSInteger)status
+                retryAfter:(NSString *)retryAfter
+                   attempt:(NSInteger)attempt
+                    resend:(void (^)(NSInteger))resend {
+    NSTimeInterval delay = VibeHTTPRetryDelay(status, retryAfter);
+    if (delay < 0 || attempt >= kVibeHTTPMaximumAttempts) {
+        return NO;
+    }
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * self.retryDelayScale * NSEC_PER_SEC)),
+                   dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        resend(attempt + 1);
+    });
+    return YES;
 }
 
 - (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response {
@@ -232,7 +246,9 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 }
 
 - (BOOL)keepsPartAfterError:(NSError *)error {
-    return ([error.domain isEqualToString:VibeHTTPErrorDomain] && error.code == VibeHTTPErrorCancelled)
+    // A subclass's errorWithCode: may name the cancel in its own domain.
+    NSError *cancelled = [self errorWithCode:VibeHTTPErrorCancelled description:@""];
+    return ([error.domain isEqualToString:cancelled.domain] && error.code == cancelled.code)
             || VibeHTTPIsConnectionError(error);
 }
 
@@ -773,7 +789,10 @@ didReceiveResponse:(NSURLResponse *)response
     didReceiveData:(NSData *)data {
     HTTPTransfer *transfer = [self transferForTask:dataTask];
     if (transfer.errorData) {
-        [transfer.errorData appendData:data];
+        // A failure's body is read for its error, never kept whole. A link's
+        // server can answer with a large page.
+        NSUInteger room = kErrorBodyMaxBytes - MIN(transfer.errorData.length, kErrorBodyMaxBytes);
+        [transfer.errorData appendData:data.length > room ? [data subdataWithRange:NSMakeRange(0, room)] : data];
     }
     else if (transfer.readLength > 0) {
         [self read:transfer task:dataTask didReceiveData:data];

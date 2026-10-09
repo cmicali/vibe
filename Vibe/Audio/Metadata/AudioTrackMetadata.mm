@@ -63,9 +63,9 @@ public:
 
 #endif
 
-// A remote placeholder read by range (CloudFileMaterializer.remoteRead): the
-// parse fetches only what TagLib reads — the head's tags, a frame header, a
-// trailer — so a folder's tags cost kilobytes per file, not the files.
+// A remote placeholder read by range (CloudFileMaterializer's
+// remoteReadForURL:): the parse fetches only what TagLib reads — the head's
+// tags, a frame header, a trailer — so a folder's tags cost kilobytes per file, not the files.
 // Fetched in aligned blocks, one request per run of missing blocks, cached for
 // the stream's life. TRAP: a failed fetch THROWS, and loadFromURL:'s barrier
 // turns that into a failed parse; returning short would let TagLib build a
@@ -172,12 +172,14 @@ private:
 // is a remote placeholder. The root test comes before the stat. A file under
 // no remote root then pays no stat.
 static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
-    CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
     struct stat st;
-    if (read && VibePathIsUnderRemotePlaceholderRoot(@(path)) && stat(path, &st) == 0
+    if (VibePathIsUnderRemotePlaceholderRoot(@(path)) && stat(path, &st) == 0
             && VibeFileModeIsRemotePlaceholder(st.st_mode)) {
-        return std::make_unique<VibeRangedStream>([NSURL fileURLWithPath:@(path)], read,
-                                                  (TagLib::offset_t)st.st_size);
+        NSURL *url = [NSURL fileURLWithPath:@(path) isDirectory:NO];
+        CloudFileRemoteRead read = [CloudFileMaterializer remoteReadForURL:url];
+        if (read) {
+            return std::make_unique<VibeRangedStream>(url, read, (TagLib::offset_t)st.st_size);
+        }
     }
     return std::make_unique<TagLib::FileStream>(path, true);
 }

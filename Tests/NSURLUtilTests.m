@@ -48,7 +48,7 @@
 
 - (void)tearDown {
     [NSURLUtil setPlaylistFolderGrantHandler:nil];
-    [NSURLUtil setRemotePlaceholderRoot:nil];
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
     [self unlock:_root];
     [NSFileManager.defaultManager removeItemAtURL:_root error:nil];
     [super tearDown];
@@ -733,7 +733,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     [self makeFile:@"open.mp3"];
     NSURL *remote = [self makeFile:@"remote/song.mp3"];
     chmod(remote.fileSystemRepresentation, 0000);
-    [NSURLUtil setRemotePlaceholderRoot:[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]];
+    [NSURLUtil setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
     NSURL *playlist = [self makeText:@"open.mp3\nremote/song.mp3\n" at:@"set.m3u"];
     __block NSUInteger asked = 0;
     [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
@@ -766,7 +766,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     XCTAssertTrue(VibePathIsUnderRemotePlaceholderRoot(second.path));
     XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(outside.path));
 
-    [NSURLUtil setRemotePlaceholderRoot:firstRoot];
+    [NSURLUtil setRemotePlaceholderRoots:@[firstRoot]];
     XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:first]);
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:second]);
 
@@ -785,7 +785,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     NSURL *unreadable = [self makeFile:@"music/locked.mp3"];
     chmod(placeholder.fileSystemRepresentation, 0000);
     chmod(unreadable.fileSystemRepresentation, 0000);
-    [NSURLUtil setRemotePlaceholderRoot:[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]];
+    [NSURLUtil setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
 
     XCTAssertFalse([TrackCommands handsOutURL:placeholder]);
     XCTAssertTrue([TrackCommands handsOutURL:download]);
@@ -795,7 +795,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     XCTAssertFalse([TrackCommands handsOutURL:nil]);
 
     // With no root, nothing is a placeholder.
-    [NSURLUtil setRemotePlaceholderRoot:nil];
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
     XCTAssertTrue([TrackCommands handsOutURL:placeholder]);
 }
 

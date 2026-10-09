@@ -32,21 +32,6 @@ static const NSUInteger kStallBytes = 5 * 64 * 1024;
 // A small format's window (AudioFileOpenRules.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 
-static NSData *PatternBytes(NSUInteger count) {
-    NSMutableData *data = [NSMutableData dataWithLength:count];
-    uint8_t *bytes = data.mutableBytes;
-    for (NSUInteger i = 0; i < count; i++) {
-        bytes[i] = (uint8_t)((i * 7 + i / 251) & 0xff);
-    }
-    return data;
-}
-
-static struct stat StatOf(NSURL *url) {
-    struct stat st = {0};
-    lstat(url.fileSystemRepresentation, &st);
-    return st;
-}
-
 // What NSURLUtil reads as a placeholder under a registered root.
 static BOOL IsPlaceholder(NSURL *url) {
     struct stat st = StatOf(url);
@@ -539,12 +524,12 @@ typedef struct {
     NSData *bytes = PatternBytes(1024 * 1024);
     NSURL *url = [self placeholder:@"a.flac" bytes:bytes];
     XCTAssertFalse([NSURLUtil isDatalessFile:url], @"no root yet");
-    XCTAssertNil(CloudFileMaterializer.remoteRead);
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:url]);
     [_store installAsRemoteBackend];
     XCTAssertTrue([NSURLUtil isDatalessFile:url]);
 
     NSError *error = nil;
-    XCTAssertEqualObjects(CloudFileMaterializer.remoteRead(url, 16, 32, &error),
+    XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:url](url, 16, 32, &error),
                           [bytes subdataWithRange:NSMakeRange(16, 32)]);
     XCTAssertNil(error);
     XCTAssertEqualObjects([[_stub requestsToPath:@"/a.flac"].lastObject valueForHTTPHeaderField:@"Range"],
@@ -584,7 +569,7 @@ typedef struct {
                                                                     downloadBudget:1LL << 40];
     [rootless installAsRemoteBackend];
     XCTAssertTrue([NSURLUtil isDatalessFile:url]);
-    XCTAssertNotNil(CloudFileMaterializer.remoteRead);
+    XCTAssertNotNil([CloudFileMaterializer remoteReadForURL:url]);
 }
 
 @end

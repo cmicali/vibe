@@ -618,7 +618,8 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
 }
 
 - (NSString *)remoteReadOf:(NSURL *)url {
-    NSData *bytes = CloudFileMaterializer.remoteRead(url, 0, 1, NULL);
+    CloudFileRemoteRead read = [CloudFileMaterializer remoteReadForURL:url];
+    NSData *bytes = read ? read(url, 0, 1, NULL) : nil;
     return bytes ? [[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] : nil;
 }
 
@@ -679,34 +680,25 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
 
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
-    XCTAssertNil(CloudFileMaterializer.remoteRead);
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:innerFile]);
     XCTAssertNil([CloudFileMaterializer availabilityForURL:innerFile]);
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:innerFile]);
     XCTAssertFalse([NSURLUtil isDatalessFile:innerFile]);
     XCTAssertEqualObjects(log, (@[@"read outer", @"read other"]));
 }
 
-// The read is nil with no root. Otherwise it is one block that asks the
-// backend holding each URL, and fails for a URL under no root.
-- (void)testTheRemoteReadDispatchesPerURL {
-    XCTAssertNil(CloudFileMaterializer.remoteRead);
+// Each URL's read is its own backend's, and nil under no root.
+- (void)testTheRemoteReadIsPerURL {
     NSURL *first = [self makeTemporaryRoot];
     NSURL *second = [self makeTemporaryRoot];
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[first URLByAppendingPathComponent:@"x.flac"]]);
     NSMutableArray<NSString *> *log = [NSMutableArray array];
     [self installBackendNamed:@"first" at:first availability:nil log:log];
-    CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
-    XCTAssertNotNil(read);
     [self installBackendNamed:@"second" at:second availability:nil log:log];
 
-    // A block taken before the second install still reaches it.
-    NSData *bytes = read([second URLByAppendingPathComponent:@"x.flac"], 0, 1, NULL);
-    XCTAssertEqualObjects(bytes, [@"second" dataUsingEncoding:NSUTF8StringEncoding]);
+    XCTAssertEqualObjects([self remoteReadOf:[second URLByAppendingPathComponent:@"x.flac"]], @"second");
     XCTAssertEqualObjects([self remoteReadOf:[first URLByAppendingPathComponent:@"x.flac"]], @"first");
-
-    NSError *error = nil;
-    XCTAssertNil(read([NSURL fileURLWithPath:@"/nowhere/x.flac"], 0, 1, &error));
-    XCTAssertEqualObjects(error.domain, NSPOSIXErrorDomain);
-    XCTAssertEqual(error.code, EACCES);
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[NSURL fileURLWithPath:@"/nowhere/x.flac"]]);
     XCTAssertEqualObjects(log, (@[@"read second", @"read first"]));
 }
 

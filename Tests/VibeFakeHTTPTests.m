@@ -11,6 +11,7 @@
 
 #include <sys/stat.h>
 
+#import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
 #import "LinkStore.h"
 #import "NSURLUtil.h"
@@ -20,12 +21,8 @@ static const NSUInteger kSongBytes = 512 * 1024;
 
 // ID3, then a pattern: an MP3 to the probe, distinct bytes to every range.
 static NSData *SongBytes(NSUInteger count) {
-    NSMutableData *data = [NSMutableData dataWithLength:count];
-    uint8_t *bytes = data.mutableBytes;
-    for (NSUInteger i = 0; i < count; i++) {
-        bytes[i] = (uint8_t)((i * 7 + i / 251) & 0xff);
-    }
-    memcpy(bytes, "ID3\x04\x00", MIN(count, (NSUInteger)5));
+    NSMutableData *data = [PatternBytes(count) mutableCopy];
+    memcpy(data.mutableBytes, "ID3\x04\x00", MIN(count, (NSUInteger)5));
     return data;
 }
 
