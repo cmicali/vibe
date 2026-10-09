@@ -11,7 +11,6 @@
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
-#import "PlatformColor.h"
 #import "UIImage+DominantColor.h"
 #import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
@@ -304,25 +303,18 @@ static const CGFloat kWidgetWaveformScale = 3;
     // nil widget style means "match app".
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-    VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
-    VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
 
     // Always dark: the widget's background is. The artwork colour is memoized
     // on the image; nil (not decoded, or too gray) resolves album_art to Mono.
-    WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                                      isDark:YES
-                                                artworkColor:_publishedTrack.cachedArt.vibeDominantColor
-                                                customPlayed:played
-                                              customUnplayed:unplayed];
+    WaveformTheme *theme = [WaveformTheme themeForSettings:settings isDark:YES
+                                              artworkColor:_publishedTrack.cachedArt.vibeDominantColor];
     // The RESOLVED palette, not the inputs, so a cover arriving under a theme
     // that ignores it bakes nothing. The waveform, not its track: the
     // signature clears on a track change, and a new waveform for the same
     // track, the bands' decode, must bake.
     BOOL centered = settings.widgetWaveformCentered;
-    NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%@|%p",
-                           style, centered, VibeHexStringFromColor(theme.playedColor) ?: @"",
-                           VibeHexStringFromColor(theme.unplayedColor) ?: @"",
-                           (void *)waveform];
+    NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%p",
+                           style, centered, theme.paletteSignature, (void *)waveform];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }
