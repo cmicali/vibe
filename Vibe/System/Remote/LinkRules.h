@@ -26,17 +26,23 @@ NS_ASSUME_NONNULL_BEGIN
 // placeholders. Decimal, as the Dropbox budgets are.
 static const NSInteger kVibeLinkDownloadBudgetBytes = 2000L * 1000 * 1000;
 
-#pragma mark - Acceptance
-
-typedef NS_ENUM(NSInteger, VibeLinkAcceptance) {
-    VibeLinkAccepted,
-    // Not http or https: ftp, file, a custom scheme.
-    VibeLinkRefusedNotHTTP,
-    // Plain http to a host that is not on the local network.
-    VibeLinkRefusedInsecurePublicHTTP,
-    // No scheme, no host, or not a URL at all.
-    VibeLinkRefusedInvalid,
+// Why a link did not open. Each shell turns one into its link.error string.
+// The names follow the string keys.
+typedef NS_ENUM(NSInteger, VibeLinkError) {
+    VibeLinkErrorNone,
+    VibeLinkErrorInvalid,
+    VibeLinkErrorInsecure,
+    VibeLinkErrorUnreachable,
+    VibeLinkErrorLocalNetwork,
+    VibeLinkErrorNotFound,
+    VibeLinkErrorDenied,
+    VibeLinkErrorNotAudio,
+    VibeLinkErrorNoSize,
+    VibeLinkErrorLiveStream,
+    VibeLinkErrorServer,
 };
+
+#pragma mark - Acceptance
 
 static inline BOOL VibeLinkIPv4IsLocal(struct in_addr address) {
     uint32_t a = ntohl(address.s_addr);
@@ -104,18 +110,19 @@ static inline BOOL VibeLinkHostIsLocal(NSString *_Nullable host) {
     return [name rangeOfString:@"."].location == NSNotFound;
 }
 
-// https reaches any host. Plain http reaches only the local network. App
-// Transport Security's NSAllowsLocalNetworking draws the same line. The
-// transfer applies this to every redirect too (VibeLinkRequestIsAllowed). A
-// redirect can leave the local network.
-static inline VibeLinkAcceptance VibeLinkURLAcceptance(NSURL *_Nullable url) {
+// The address rule: None for an address Vibe fetches. https reaches any
+// host. Plain http reaches only the local network, and is Insecure past it.
+// Another scheme, or no host, is Invalid. App Transport Security's
+// NSAllowsLocalNetworking draws the same line. The transfer applies this to
+// every redirect too (VibeLinkRequestIsAllowed). A redirect can leave the
+// local network.
+static inline VibeLinkError VibeLinkURLAcceptance(NSURL *_Nullable url) {
     NSString *scheme = url.scheme.lowercaseString;
-    if (scheme.length == 0) return VibeLinkRefusedInvalid;
     BOOL https = [scheme isEqualToString:@"https"];
-    if (!https && ![scheme isEqualToString:@"http"]) return VibeLinkRefusedNotHTTP;
-    if (url.host.length == 0) return VibeLinkRefusedInvalid;
-    if (https || VibeLinkHostIsLocal(url.host)) return VibeLinkAccepted;
-    return VibeLinkRefusedInsecurePublicHTTP;
+    if (!https && ![scheme isEqualToString:@"http"]) return VibeLinkErrorInvalid;
+    if (url.host.length == 0) return VibeLinkErrorInvalid;
+    if (https || VibeLinkHostIsLocal(url.host)) return VibeLinkErrorNone;
+    return VibeLinkErrorInsecure;
 }
 
 // Whether the transfer may request `to`, reached by a redirect from `from`,
@@ -123,7 +130,7 @@ static inline VibeLinkAcceptance VibeLinkURLAcceptance(NSURL *_Nullable url) {
 // public host never reaches the local network, whatever the scheme. A public
 // page could otherwise send Vibe's requests to a device at home.
 static inline BOOL VibeLinkRequestIsAllowed(NSURL *_Nullable from, NSURL *_Nullable to) {
-    if (VibeLinkURLAcceptance(to) != VibeLinkAccepted) return NO;
+    if (VibeLinkURLAcceptance(to) != VibeLinkErrorNone) return NO;
     return from == nil || VibeLinkHostIsLocal(from.host) || !VibeLinkHostIsLocal(to.host);
 }
 
@@ -427,23 +434,6 @@ static inline NSString *VibeLinkDirectoryName(NSURL *url) {
     return [hex substringToIndex:16];
 }
 
-#pragma mark - Response headers
-
-// The total of a Content-Range header. "bytes 0-15/12345" and "bytes */12345"
-// are both 12345. -1 when the total is unknown ("*") or the header does not
-// parse. The transfer's own rule (HTTPTransferRules.h).
-static inline long long VibeLinkContentRangeTotal(NSString *_Nullable header) {
-    return VibeHTTPContentRangeTotal(header);
-}
-
-// An ETag that names exact bytes. A weak one (W/"…") says only that two
-// responses mean the same. It counts as absent. A strong one is kept as sent,
-// quotes included. It is compared as an opaque string. The transfer's own
-// rule (HTTPTransferRules.h).
-static inline NSString *_Nullable VibeLinkStrongETag(NSString *_Nullable etag) {
-    return VibeHTTPVersionFromHeaders(etag, nil);
-}
-
 #pragma mark - Pruning
 
 // A link not opened for this long is deleted at launch, unless something
@@ -486,33 +476,6 @@ static inline NSArray<NSString *> *VibeLinkDirectoriesToPrune(NSDictionary<NSStr
 }
 
 #pragma mark - Failures
-
-// Why a link did not open. Each shell turns one into its link.error string.
-// The names follow the string keys.
-typedef NS_ENUM(NSInteger, VibeLinkError) {
-    VibeLinkErrorNone,
-    VibeLinkErrorInvalid,
-    VibeLinkErrorInsecure,
-    VibeLinkErrorUnreachable,
-    VibeLinkErrorLocalNetwork,
-    VibeLinkErrorNotFound,
-    VibeLinkErrorDenied,
-    VibeLinkErrorNotAudio,
-    VibeLinkErrorNoSize,
-    VibeLinkErrorLiveStream,
-    VibeLinkErrorServer,
-};
-
-// A refused address. Another scheme is as invalid as no address at all.
-static inline VibeLinkError VibeLinkErrorOfAcceptance(VibeLinkAcceptance acceptance) {
-    switch (acceptance) {
-        case VibeLinkAccepted: return VibeLinkErrorNone;
-        case VibeLinkRefusedInsecurePublicHTTP: return VibeLinkErrorInsecure;
-        case VibeLinkRefusedNotHTTP:
-        case VibeLinkRefusedInvalid: return VibeLinkErrorInvalid;
-    }
-    return VibeLinkErrorInvalid;
-}
 
 // An HTTP status. A 2xx is no failure. A redirect the session did not follow
 // is the server's failure, like every other status not named here.

@@ -18,7 +18,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 ## The client
 
-**The defaults are plain HTTP.** A target is an `NSURL`, fetched with a `GET`. The size is a 206's Content-Range total, or a 200's Content-Length when no Content-Encoding is set. The version is a strong ETag, else Last-Modified. A weak ETag (`W/` or `w/`) counts as absent, since it promises equivalent bytes, not the same ones. `VibeHTTPVersionFromHeaders` is the one weak-ETag rule. `LinkRules.h`'s `VibeLinkStrongETag` calls it, and its `VibeLinkContentRangeTotal` calls the client's Content-Range rule. A subclass changes any of this through the hooks in `HTTPTransferClientInternal.h`. Each hook gets the transfer's own `state` dictionary, which lives across its attempts and which the base never reads. `DropboxClient` keeps its access token and the refresh flag there.
+**The defaults are plain HTTP.** A target is an `NSURL`, fetched with a `GET`. The size is a 206's Content-Range total, or a 200's Content-Length when no Content-Encoding is set. The version is a strong ETag, else Last-Modified. A weak ETag (`W/` or `w/`) counts as absent, since it promises equivalent bytes, not the same ones. `VibeHTTPVersionFromHeaders` is the one weak-ETag rule. A subclass changes any of this through the hooks in `HTTPTransferClientInternal.h`. Each hook gets the transfer's own `state` dictionary, which lives across its attempts and which the base never reads. `DropboxClient` keeps its access token and the refresh flag there.
 
 **TRAP: every default request asks for `Accept-Encoding: identity`.** With no such header, `NSURLSession` asks for gzip and inflates the answer. A range's offsets then stop matching the file's bytes.
 
@@ -46,7 +46,9 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 ## The placeholder store
 
-**A placeholder is a sparse file of the remote size and mtime with no permissions** (`VibeWritePlaceholder`, `NSURLUtil`'s remote placeholder). Its stat is the real one, and a direct open fails rather than reading zeros. It is written whole and renamed into place. Downloaded bytes are renamed into place too (`VibeInstallPart`). No reader ever sees either half made. **The install's mtime keeps the cache key.** The key is size, mtime and path (`NSURL+Hash`), so the cached tags and waveform match the downloaded file. The default mtime is the placeholder's. `DropboxMirror` takes its response's `server_modified`.
+**A placeholder is a sparse file of the remote size and mtime with no permissions** (`writePlaceholderAtURL:…`, `NSURLUtil`'s remote placeholder). Its stat is the real one, and a direct open fails rather than reading zeros. It is written whole and renamed into place. Downloaded bytes are renamed into place too (`installPart:…`). No reader ever sees either half made. **The install's mtime keeps the cache key.** The key is size, mtime and path (`NSURL+Hash`), so the cached tags and waveform match the downloaded file. The default mtime is the placeholder's. `DropboxMirror` takes its response's `server_modified`.
+
+**The store makes its root once and keeps it out of backups** (`prepareRoot`). It is a cache of what the server holds. `containsURL:` says whether a file lies under the root, from its path alone.
 
 **Each directory carries an index in an xattr**, named at init. It is on the directory, because a placeholder's attributes are as unreadable as its bytes. Its contents are the subclass's. The store caches parsed indexes in memory, since a ranged read asks for one per block, and rewrites one only when it changed. A removed directory takes its cached index with it (`forgetCachedIndexes`).
 
@@ -76,7 +78,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkRequestIsAllowed`, on the link and on every redirect. It applies the address rule to each. A redirect from a public host never reaches the local network, whatever the scheme. A public page could otherwise send requests to a device at home. A redirect can also leave the local network, and a stub cannot test App Transport Security.
 
-**The address rule is `VibeLinkURLAcceptance`.** https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost` or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7 or fe80::/10. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
+**The address rule is `VibeLinkURLAcceptance`.** It answers the `VibeLinkError` a refusal fails with, and None for an address Vibe fetches. https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost` or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7 or fe80::/10. Plain http to any other host is insecure. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
 
 **TRAP: an IPv4 address is parsed as the resolver parses it** (`inet_aton`). `134744072` and `0x8.8.8.8` are 8.8.8.8, not unqualified names. Read as a name, a bare number would let plain http reach any public address.
 
@@ -86,7 +88,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **The file name is `VibeLinkFileName`.** It is the link's last path component, percent-decoded, when that has a playable extension. Otherwise the Content-Disposition file name wins, when there is one. The extension the audio check chose is forced on. Cleaning swaps `/` and `:` for `-`, and drops control characters, the bidi controls and leading dots. An override would show a name's end reversed. The name is cut to 200 UTF-8 bytes. It is `Link.<extension>` when nothing survives.
 
-**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. The xattr is read from disk, so each field is checked. A record with a field of the wrong type is no record (`recordOfDirectory:`). A shell reads a link's record by its file (`recordOfLinkFileURL:`). iOS names a link in Recents by its host.
+**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. The xattr is read from disk, so each field is checked. A record with a field of the wrong type is no record (`recordOfDirectory:`). A shell reads a link's record by its file (`recordOfLinkFileURL:`), and asks the store whether a file is a link (`containsURL:`). iOS names a link in Recents by its host.
 
 **`resolveURLString:completion:` opens a link in five steps.** It runs off main and completes on main.
 1. The address rule. A refusal fails before any request.
@@ -96,7 +98,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 5. The record and the placeholder. The size is the probe's. The mtime is Last-Modified, else the probe's time. The cache key then stays the same across the install.
 
 **A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`** (`LinkStore.h`). The `VibeLinkErrorOf…` functions in `LinkRules.h` choose the code.
-- A refused address is insecure for plain http to a public host, and invalid otherwise.
+- A refused address fails with the address rule's own answer.
 - A status of 401 or 403 is denied, and 404 or 410 is not found. Any other status is the server's failure, a 2xx other than 200 or 206 included. The status rides under `VibeHTTPErrorStatusCodeKey`.
 - A request with no response is insecure when App Transport Security refused it. A cancel shows nothing. Any other failure is the local network's when the host is local, and unreachable otherwise. A denied local-network permission fails as the local network's.
 - A refused redirect is insecure.

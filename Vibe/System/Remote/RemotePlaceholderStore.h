@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
 // The remote placeholder root.
 @property (nonatomic, readonly) NSURL *rootURL;
 
+// Whether url is a file URL under the root, the root itself included. From
+// the path's spelling alone: no disk.
+- (BOOL)containsURL:(NSURL *)url;
+
 // Main thread; applied, not saved. A smaller one sends the oldest downloads
 // back to placeholders at once, reporting the new total.
 @property (nonatomic) long long downloadBudget;

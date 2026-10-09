@@ -139,8 +139,7 @@ static inline int64_t VibeHTTPSizeFromHeaders(NSInteger status,
 
 // What names a response's bytes: a strong ETag, else Last-Modified, nil for
 // neither. A weak ETag (W/"…", in either case) promises equivalent content,
-// not the same bytes, so it counts as absent. The one weak-ETag rule:
-// LinkRules.h's VibeLinkStrongETag calls this.
+// not the same bytes, so it counts as absent. The one weak-ETag rule.
 static inline NSString *_Nullable VibeHTTPVersionFromHeaders(NSString *_Nullable etag,
                                                              NSString *_Nullable lastModified) {
     NSString *tag = [etag stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];

@@ -618,6 +618,13 @@ static inline NSString *VibeAppName(void) {
 #define STR_PLAYLIST_GRANT_BUTTON  NSLS(@"playlist.grant.button",  @"Grant Access", @"Confirm button that grants the app access to a folder: of the Mac's folder-picker panel, for a playlist file's folder or one from the Add Common Folder menu, and of the alert that opens the folder picker for a playlist file's folder on iPhone and iPad.")
 #define STR_PLAYLIST_SAVE_DEFAULT_NAME NSLS(@"playlist.save.default_name", @"Playlist", @"Default file name, without extension, that the save panel offers when the playlist's tracks share no folder to name it after. It becomes a file name, so it must not contain a slash.")
 
+#pragma mark - Buttons
+
+// Shared by both platforms: the Open URL prompt and iOS alerts.
+
+#define STR_BUTTON_CANCEL NSLS(@"button.cancel", @"Cancel", @"The button that dismisses an alert without doing anything: a confirmation alert on iOS, and the Open URL prompt on both platforms. Use the wording the system uses for this button in this language.")
+#define STR_BUTTON_OPEN   NSLS(@"button.open",  @"Open",   @"Button that opens something. On iOS, the empty playlist screen's button, which brings the Files tab forward to browse for a folder or file to play. On both platforms, the Open URL prompt's button, which plays the address entered.")
+
 #pragma mark - Open URL
 
 // The prompt and its errors, on both platforms. Each error is the message of
@@ -665,7 +672,6 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_SETTINGS_SEARCH_FOLDERS_COVERED NSLS(@"settings.search_folders.covered", @"That folder is already inside one you added, so it is being searched already.", @"iOS Files tab: alert message shown when the user adds a location that sits inside a folder already on the Locations list. Permission to a folder covers everything inside it, so nothing needed to be added.")
 #define STR_BUTTON_OK                       NSLS(@"button.ok",                       @"OK",                @"Dismiss button of an alert that only reports something, with nothing to choose. Use the wording the system uses for this button in this language.")
-#define STR_BUTTON_CANCEL                   NSLS(@"button.cancel",                   @"Cancel",            @"The button that dismisses an alert without doing anything: a confirmation alert on iOS, and the Open URL prompt on both platforms. Use the wording the system uses for this button in this language.")
 #define STR_BUTTON_CLEAR                    NSLS(@"button.clear",                    @"Clear",             @"A verb. Button that empties something: in the Mac's Keyboard Shortcuts settings, below the list, removes the selected command's shortcut; on iOS, in the Files tab's Recents bar, opens a menu confirming the Recents list should be emptied.")
 
 #define STR_SETTINGS_DROPBOX_CONNECT        NSLS(@"settings.dropbox.connect",        @"Connect to Dropbox…", @"iOS settings screen, Files: the row that signs in to the user's Dropbox account, opening Dropbox's own sign-in page. Dropbox is a product name: keep it untranslated. Ends with a real ellipsis character (…), not three periods.")
@@ -707,7 +713,6 @@ static inline NSString *VibeAppName(void) {
 #define STR_BROWSER_RECENTS_EMPTY NSLS(@"browser.recents_empty", @"Files and folders you play appear here.", @"iOS Files tab: shown in place of the Recents list before the user has played or added anything.")
 #define STR_ERROR_OPEN_TOO_SLOW NSLS(@"error.open_too_slow", @"This is taking too long to open, so Vibe stopped trying. Its cloud service may be slow or unreachable. Try again in a moment.", @"iOS: alert message shown when opening a file or folder the user tapped took too long and was given up. The alert's title is the item's name. Nothing changed: the playlist that was playing stays.")
 #define STR_ERROR_RECENT_UNAVAILABLE NSLS(@"error.recent.unavailable", @"This item can’t be opened right now. It may have been moved or deleted, or its cloud service may be signed out.", @"iOS: alert message shown when tapping a Recents row whose file or folder could not be found. The alert’s title is the item’s name. Uses a curly apostrophe (’).")
-#define STR_BUTTON_OPEN         NSLS(@"button.open",         @"Open",                        @"Button that opens something. On iOS, the empty playlist screen's button, which brings the Files tab forward to browse for a folder or file to play. On both platforms, the Open URL prompt's button, which plays the address entered.")
 #define STR_LABEL_EMPTY_TITLE   NSLS(@"label.library.empty.title",   @"Nothing to Play",     @"iOS: headline of the empty library screen, shown when no folder or file has been opened.")
 #define STR_LABEL_EMPTY_MESSAGE NSLS(@"label.library.empty.message", @"Choose a folder or file to get started.", @"iOS: explanatory line under the empty library headline, above the Open button.")
 

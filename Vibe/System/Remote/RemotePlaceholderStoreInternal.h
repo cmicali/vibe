@@ -11,16 +11,19 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@interface RemotePlaceholderStore ()
+
 // A sparse file of `size` bytes and mtime `modified` with no permissions,
 // swapped in at url with one rename so no reader ever sees it half made. A
 // directory standing at url is replaced.
-BOOL VibeWritePlaceholder(NSURL *url, long long size, time_t modified);
++ (BOOL)writePlaceholderAtURL:(NSURL *)url size:(long long)size modified:(time_t)modified;
 
 // Downloaded bytes in `part` take mtime `modified` (none when negative), then
 // replace whatever stood at url in one rename. On failure the part is gone.
-BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError *__autoreleasing _Nullable *_Nullable error);
-
-@interface RemotePlaceholderStore ()
++ (BOOL)installPart:(NSURL *)part
+              atURL:(NSURL *)url
+           modified:(time_t)modified
+              error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
 // Serial: every change to the store's directories, so two changes to one
 // directory never interleave. The downloads are counted, evicted and removed
@@ -35,6 +38,10 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError *__autore
 // Drops every cached index, to be read again from the xattrs: a removed
 // directory takes its index with it, and the cache cannot name a subtree.
 - (void)forgetCachedIndexes;
+
+// Makes the root, once, and keeps it out of backups: the store is a cache of
+// what the server holds. The disk queue, before the first directory under it.
+- (void)prepareRoot;
 
 // The download of target into url's part file, then the install at url with
 // modificationTimeOfMetadata:forURL:'s mtime. Progress and completion on the
@@ -52,11 +59,6 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError *__autore
 // budget, never `keep`. Answers what the downloads take afterwards. The disk
 // queue.
 - (long long)enforceDownloadBudgetKeeping:(nullable NSURL *)keep;
-
-// What a file streaming now holds of a range, from its part file or its tail
-// window: the longest prefix held, nil for none. Waits a few seconds for a
-// range its stream is about to hold.
-- (nullable NSData *)streamedBytesOfURL:(NSURL *)url at:(uint64_t)offset length:(uint64_t)length;
 
 #pragma mark Hooks
 

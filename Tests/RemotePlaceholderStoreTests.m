@@ -151,7 +151,7 @@ static BOOL IsPlaceholder(NSURL *url) {
     targets[name] = [_stub URLForPath:name];
     _store.targets = targets;
     NSURL *url = [_album URLByAppendingPathComponent:name];
-    XCTAssertTrue(VibeWritePlaceholder(url, (long long)bytes.length, kStamp));
+    XCTAssertTrue([RemotePlaceholderStore writePlaceholderAtURL:url size:(long long)bytes.length modified:kStamp]);
     return url;
 }
 
@@ -235,7 +235,7 @@ typedef struct {
     [[NSData dataWithBytes:"old" length:3] writeToURL:url atomically:NO];
     ino_t before = StatOf(url).st_ino;
 
-    XCTAssertTrue(VibeWritePlaceholder(url, 5000000, kStamp));
+    XCTAssertTrue([RemotePlaceholderStore writePlaceholderAtURL:url size:5000000 modified:kStamp]);
     struct stat st = StatOf(url);
     XCTAssertEqual(st.st_size, 5000000);
     XCTAssertEqual(st.st_mtimespec.tv_sec, kStamp);
@@ -247,18 +247,18 @@ typedef struct {
 
     NSURL *folder = [_album URLByAppendingPathComponent:@"b.flac" isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:folder withIntermediateDirectories:NO attributes:nil error:NULL];
-    XCTAssertTrue(VibeWritePlaceholder(folder, 10, kStamp));
+    XCTAssertTrue([RemotePlaceholderStore writePlaceholderAtURL:folder size:10 modified:kStamp]);
     XCTAssertTrue(S_ISREG(StatOf(folder).st_mode), @"a directory in the way is replaced");
 }
 
 - (void)testAnInstalledPartTakesItsMtimeAndReplacesThePlaceholder {
     NSURL *url = [_album URLByAppendingPathComponent:@"a.flac"];
-    XCTAssertTrue(VibeWritePlaceholder(url, 5, kStamp));
+    XCTAssertTrue([RemotePlaceholderStore writePlaceholderAtURL:url size:5 modified:kStamp]);
     NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
     [[NSData dataWithBytes:"BYTES" length:5] writeToURL:part atomically:NO];
 
     NSError *error = nil;
-    XCTAssertTrue(VibeInstallPart(part, url, kStamp + 60, &error));
+    XCTAssertTrue([RemotePlaceholderStore installPart:part atURL:url modified:kStamp + 60 error:&error]);
     XCTAssertNil(error);
     struct stat st = StatOf(url);
     XCTAssertEqual(st.st_mode & 0777, 0644);
@@ -269,11 +269,11 @@ typedef struct {
     // No mtime keeps the part's own.
     [[NSData dataWithBytes:"AGAIN" length:5] writeToURL:part atomically:NO];
     time_t written = StatOf(part).st_mtimespec.tv_sec;
-    XCTAssertTrue(VibeInstallPart(part, url, -1, NULL));
+    XCTAssertTrue([RemotePlaceholderStore installPart:part atURL:url modified:-1 error:NULL]);
     XCTAssertEqual(StatOf(url).st_mtimespec.tv_sec, written);
 
     // A part that cannot be installed is gone, with the reason.
-    XCTAssertFalse(VibeInstallPart(part, url, kStamp, &error));
+    XCTAssertFalse([RemotePlaceholderStore installPart:part atURL:url modified:kStamp error:&error]);
     XCTAssertEqualObjects(error.domain, NSPOSIXErrorDomain);
 }
 

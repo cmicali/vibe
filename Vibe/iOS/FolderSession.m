@@ -9,7 +9,7 @@
 #import "AudioTrack.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
-#import "FilesTabRules.h"
+#import "FileSearchRules.h"
 #import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "PlaylistFile.h"
@@ -900,8 +900,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // does a link opened alone: it restores from its placeholder, offline
         // too (VibeFolderSessionPersistsBase).
         BOOL openedFolder = folderURL || addedFolders.count > 0;
-        BOOL baseIsLink = base && VibePathIsLink(VibeComparablePath(base.path),
-                                                 VibeComparablePath(LinkStore.shared.rootURL.path));
+        BOOL baseIsLink = base && [LinkStore.shared containsURL:base];
         BOOL persistedBaseIsFolder = NO;
         if (base && !keepsSessionBookmark && !openedFolder && !baseIsLink) {
             NSNumber *isDirectory = nil;

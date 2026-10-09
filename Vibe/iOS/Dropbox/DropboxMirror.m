@@ -32,8 +32,6 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropbox";
 
 @implementation DropboxMirror {
-    // The disk queue's: the root exists and is kept out of backups.
-    BOOL _rootPrepared;
     // The disk queue's: the sheets being fetched, by local path, each with
     // the refreshes waiting on it. The claim on a sheet's download.
     NSMutableDictionary<NSString *, NSMutableArray<dispatch_block_t> *> *_sidecarWaiters;
@@ -126,11 +124,6 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
     });
 }
 
-- (BOOL)containsURL:(NSURL *)url {
-    return url.isFileURL && VibeSearchRootCoversPath(VibeComparablePath(self.rootURL.path),
-                                                     VibeComparablePath(url.path));
-}
-
 // The path below the account, derived from local names and composed again
 // (see VibeDropboxIndexKey); nil outside the account's mirror.
 - (NSString *)derivedDropboxPathForURL:(NSURL *)url {
@@ -177,13 +170,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 // directories are made (a file in the way is replaced).
 - (NSURL *)directoryForDropboxPath:(NSString *)path account:(NSURL *)account {
     NSFileManager *files = NSFileManager.defaultManager;
-    if (!_rootPrepared) {
-        NSURL *root = self.rootURL;
-        [files createDirectoryAtURL:root withIntermediateDirectories:YES attributes:nil error:NULL];
-        // The mirror is a cache of Dropbox: never in a backup.
-        [root setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:NULL];
-        _rootPrepared = YES;
-    }
+    [self prepareRoot];
     [self ensureDirectoryAtURL:account];
     NSURL *directory = account;
     // TRAP: listed, not probed: on a case-insensitive volume an lstat of
@@ -272,7 +259,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             }
             continue;
         }
-        if (VibeWritePlaceholder(url, size, modified)) {
+        if ([DropboxMirror writePlaceholderAtURL:url size:size modified:modified]) {
             placeholders++;
             *discarded = *discarded || (present && !VibeFileModeIsRemotePlaceholder(st.st_mode));
         }

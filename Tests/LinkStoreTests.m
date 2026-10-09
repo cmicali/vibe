@@ -465,6 +465,16 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects([NSSet setWithArray:stored.allKeys], keys, @"no Content-Type, so none recorded");
 }
 
+// The root and what lies under it, by the path's spelling. A sibling whose
+// name starts with the root's is not under it.
+- (void)testTheStoreContainsOnlyFilesUnderItsRoot {
+    XCTAssertTrue([_store containsURL:[_root URLByAppendingPathComponent:@"0123456789abcdef/Song.mp3"]]);
+    XCTAssertTrue([_store containsURL:_root]);
+    XCTAssertFalse([_store containsURL:[_base URLByAppendingPathComponent:@"Links Old/a/Song.mp3"]]);
+    XCTAssertFalse([_store containsURL:[_base URLByAppendingPathComponent:@"Song.mp3"]]);
+    XCTAssertFalse([_store containsURL:[NSURL URLWithString:@"https://example.com/Links/a.mp3"]]);
+}
+
 - (void)testReopeningReusesTheLinkAndTouchesItsOpenedTime {
     [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
     NSURL *file = [self resolvePath:@"/a.flac"];
@@ -875,7 +885,7 @@ static BOOL IsDownloaded(NSURL *url) {
     NSURL *other = [_base URLByAppendingPathComponent:@"Other" isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:other withIntermediateDirectories:YES attributes:nil error:NULL];
     NSURL *otherFile = [other URLByAppendingPathComponent:@"song.flac"];
-    XCTAssertTrue(VibeWritePlaceholder(otherFile, 4000, kModifiedTime));
+    XCTAssertTrue([RemotePlaceholderStore writePlaceholderAtURL:otherFile size:4000 modified:kModifiedTime]);
     __block _Atomic NSUInteger otherReads = 0;
     NSData *otherBytes = [@"OTHER" dataUsingEncoding:NSUTF8StringEncoding];
     [CloudFileMaterializer setRemoteRoot:other fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,

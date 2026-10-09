@@ -2,9 +2,9 @@
 
 Bridges to OS services that are neither the audio engine nor the app's UI. Both platforms drive everything here, and nothing here knows which one it is talking to beyond a `TARGET_OS_OSX` guard around an API that genuinely differs.
 
-Three residents, and the bar is the test all of them pass: **it talks to the system on the app's behalf, it holds no playback state of its own, and both targets need it.** Something only one platform can use belongs in that platform's directory; something with no OS service behind it is `Util/`.
+Four residents. Every one passes one bar: **it reaches outside the app on the app's behalf, it holds no playback state of its own, and both targets need it.** Three talk to the system. Something only one platform can use belongs in that platform's directory. Something with no service outside the app behind it is `Util/`.
 
-`Remote/` is the app's own HTTP side, on both platforms. It holds the HTTP transfer, the placeholder store and the Links store behind Open URL. The Dropbox client and mirror subclass the first two. Its stores are the materializer's remote fetch (below). Its doc is `Remote/AGENTS.md`.
+The fourth is `Remote/`, the app's own HTTP side, on both platforms. It reaches servers rather than the system. It holds the HTTP transfer, the placeholder store and the Links store behind Open URL. The Dropbox client and mirror subclass the first two. Its stores are the materializer's remote fetch (below). Its doc is `Remote/AGENTS.md`.
 
 ## NowPlayingController
 

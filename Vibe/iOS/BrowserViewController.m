@@ -15,7 +15,7 @@
 #import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
-#import "FilesTabRules.h"
+#import "FileSearchRules.h"
 #import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "PlaybackController.h"
@@ -1791,8 +1791,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
                                             point:(CGPoint)point {
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
     BOOL folder = [item[@"folder"] boolValue];
-    BOOL folderActions = VibeRecentOffersFolderActions(item[@"path"],
-                                                       VibeComparablePath(LinkStore.shared.rootURL.path));
+    // A link's folder is the store's, named by a hash and holding the one
+    // file: no Play in Folder, no Open Folder.
+    BOOL folderActions = ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"]]];
     BOOL appendingSheet = _appending;
     __weak RecentsViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil

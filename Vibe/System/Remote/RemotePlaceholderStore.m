@@ -36,49 +36,10 @@ static NSError *VibePOSIXError(void) {
     return [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
 }
 
-BOOL VibeWritePlaceholder(NSURL *url, long long size, time_t modified) {
-    NSURL *directory = url.URLByDeletingLastPathComponent;
-    NSURL *temp = [directory URLByAppendingPathComponent:
-            [NSString stringWithFormat:@".%@.vibe-placeholder", url.lastPathComponent]];
-    unlink(temp.fileSystemRepresentation);
-    int fd = open(temp.fileSystemRepresentation, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0600);
-    if (fd < 0) {
-        return NO;
-    }
-    struct timeval times[2] = {{modified, 0}, {modified, 0}};
-    BOOL made = ftruncate(fd, size) == 0 && futimes(fd, times) == 0 && fchmod(fd, 0) == 0;
-    close(fd);
-    struct stat st;
-    if (made && lstat(url.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)) {
-        [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
-    }
-    if (!made || rename(temp.fileSystemRepresentation, url.fileSystemRepresentation) != 0) {
-        unlink(temp.fileSystemRepresentation);
-        return NO;
-    }
-    return YES;
-}
-
-BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError **error) {
-    if (chmod(part.fileSystemRepresentation, 0644) != 0) {
-        if (error) *error = VibePOSIXError();
-        unlink(part.fileSystemRepresentation);
-        return NO;
-    }
-    if (modified >= 0) {
-        struct timeval times[2] = {{modified, 0}, {modified, 0}};
-        utimes(part.fileSystemRepresentation, times);
-    }
-    if (rename(part.fileSystemRepresentation, url.fileSystemRepresentation) != 0) {
-        if (error) *error = VibePOSIXError();
-        unlink(part.fileSystemRepresentation);
-        return NO;
-    }
-    return YES;
-}
-
 @implementation RemotePlaceholderStore {
     NSString *_indexAttribute;
+    // The disk queue's: the root exists and is kept out of backups.
+    BOOL _rootPrepared;
     // Written on main, read on the disk queue.
     long long _downloadBudget;
     // Parsed directory indexes by path, NSNull for "none"; a ranged read asks
@@ -126,6 +87,61 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError **error) 
     } availability:^CloudFileAvailability *(NSURL *url) {
         return [self availabilityForURL:url];
     }];
+}
+
+- (BOOL)containsURL:(NSURL *)url {
+    if (!url.isFileURL) {
+        return NO;
+    }
+    NSString *root = VibeComparablePath(_rootURL.path);
+    NSString *path = VibeComparablePath(url.path);
+    // The separator on both sides: "/Links" never covers "/Links Old".
+    root = [root hasSuffix:@"/"] ? root : [root stringByAppendingString:@"/"];
+    path = [path hasSuffix:@"/"] ? path : [path stringByAppendingString:@"/"];
+    return [path hasPrefix:root];
+}
+
+#pragma mark - The placeholder
+
++ (BOOL)writePlaceholderAtURL:(NSURL *)url size:(long long)size modified:(time_t)modified {
+    NSURL *directory = url.URLByDeletingLastPathComponent;
+    NSURL *temp = [directory URLByAppendingPathComponent:
+            [NSString stringWithFormat:@".%@.vibe-placeholder", url.lastPathComponent]];
+    unlink(temp.fileSystemRepresentation);
+    int fd = open(temp.fileSystemRepresentation, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        return NO;
+    }
+    struct timeval times[2] = {{modified, 0}, {modified, 0}};
+    BOOL made = ftruncate(fd, size) == 0 && futimes(fd, times) == 0 && fchmod(fd, 0) == 0;
+    close(fd);
+    struct stat st;
+    if (made && lstat(url.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)) {
+        [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
+    }
+    if (!made || rename(temp.fileSystemRepresentation, url.fileSystemRepresentation) != 0) {
+        unlink(temp.fileSystemRepresentation);
+        return NO;
+    }
+    return YES;
+}
+
++ (BOOL)installPart:(NSURL *)part atURL:(NSURL *)url modified:(time_t)modified error:(NSError **)error {
+    if (chmod(part.fileSystemRepresentation, 0644) != 0) {
+        if (error) *error = VibePOSIXError();
+        unlink(part.fileSystemRepresentation);
+        return NO;
+    }
+    if (modified >= 0) {
+        struct timeval times[2] = {{modified, 0}, {modified, 0}};
+        utimes(part.fileSystemRepresentation, times);
+    }
+    if (rename(part.fileSystemRepresentation, url.fileSystemRepresentation) != 0) {
+        if (error) *error = VibePOSIXError();
+        unlink(part.fileSystemRepresentation);
+        return NO;
+    }
+    return YES;
 }
 
 #pragma mark - Hooks
@@ -221,6 +237,16 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError **error) 
     [_indexes removeAllObjects];
 }
 
+- (void)prepareRoot {
+    if (_rootPrepared) {
+        return;
+    }
+    [NSFileManager.defaultManager createDirectoryAtURL:_rootURL withIntermediateDirectories:YES attributes:nil
+                                                 error:NULL];
+    [_rootURL setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:NULL];
+    _rootPrepared = YES;
+}
+
 #pragma mark - Downloads (the disk queue)
 
 - (dispatch_block_t)downloadTarget:(id)target
@@ -231,8 +257,9 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError **error) 
     return [self downloadTarget:target toURL:part progress:progress completion:^(NSDictionary *metadata,
                                                                                  NSError *error) {
         NSError *installError = nil;
-        if (!error && !VibeInstallPart(part, url, [self modificationTimeOfMetadata:metadata forURL:url],
-                                       &installError)) {
+        if (!error && ![RemotePlaceholderStore installPart:part atURL:url
+                                                  modified:[self modificationTimeOfMetadata:metadata forURL:url]
+                                                     error:&installError]) {
             error = installError;
         }
         completion(error);
@@ -265,8 +292,8 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError **error) 
 // Size and mtime are kept, so the cache key, and with it the cached tags and
 // waveform, still match when the song is downloaded again.
 - (BOOL)evictDownload:(NSDictionary *)download {
-    return VibeWritePlaceholder(download[@"url"], [download[@"size"] longLongValue],
-                                (time_t)[download[@"modified"] longLongValue]);
+    return [RemotePlaceholderStore writePlaceholderAtURL:download[@"url"] size:[download[@"size"] longLongValue]
+                                                modified:(time_t)[download[@"modified"] longLongValue]];
 }
 
 // Oldest first, never the one just fetched: it is about to be opened.
@@ -345,7 +372,10 @@ BOOL VibeInstallPart(NSURL *part, NSURL *url, time_t modified, NSError **error) 
 
 #pragma mark - Ranged reads
 
-- (NSData *)streamedBytesOfURL:(NSURL *)url at:(uint64_t)offset length:(uint64_t)length {
+// What a file streaming now holds of a range, from its part file or its tail
+// window: the longest prefix held, nil for none. Waits a few seconds for a
+// range its stream is about to hold.
+- (nullable NSData *)streamedBytesOfURL:(NSURL *)url at:(uint64_t)offset length:(uint64_t)length {
     NSString *key = VibeComparablePath(url.path);
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kStreamedTagWaitSeconds];
     [_streamsCondition lock];

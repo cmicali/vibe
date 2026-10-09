@@ -15,7 +15,7 @@
 
 NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
 
-// On every link directory: the link's record (LinkStore's record:…). On the
+// On every link directory: the link's record (recordOfLink:…). On the
 // directory, because a placeholder's attributes are as unreadable as its
 // bytes.
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.link";
@@ -56,8 +56,10 @@ static NSError *VibeLinkErrorOfProbe(NSError *error, NSString *_Nullable host) {
     return VibeLinkMakeError(code, error);
 }
 
-// An HTTP date (RFC 9110's IMF-fixdate) as seconds since 1970, -1 for none.
-static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
+// The metadata's Last-Modified (RFC 9110's IMF-fixdate) as seconds since
+// 1970, `fallback` when it has none.
+static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeInterval fallback) {
+    NSString *text = VibeLinkString(metadata[@"lastModified"]);
     static NSDateFormatter *formatter;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -67,13 +69,11 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         formatter.dateFormat = @"EEE, dd MMM yyyy HH:mm:ss zzz";
     });
     NSDate *date = text.length > 0 ? [formatter dateFromString:text] : nil;
-    return date ? (time_t)date.timeIntervalSince1970 : -1;
+    time_t seconds = date ? (time_t)date.timeIntervalSince1970 : -1;
+    return seconds >= 0 ? seconds : (time_t)fallback;
 }
 
-@implementation LinkStore {
-    // The disk queue's: the root exists and is kept out of backups.
-    BOOL _rootPrepared;
-}
+@implementation LinkStore
 
 + (LinkStore *)shared {
     static LinkStore *shared;
@@ -156,8 +156,8 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     return record;
 }
 
-// Whether an answer is of the file the record describes: the same size, and
-// the record's version. Under another ETag, the same Last-Modified will do
+// Whether an answer is of the file the record describes, a checked record
+// (recordOfDirectory:): the same size, and the record's version. Under another ETag, the same Last-Modified will do
 // (the CDN case, VibeHTTPIsSameFileUnderAnotherETag). A record with no
 // version matches on its size alone.
 - (BOOL)record:(NSDictionary *)record matchesMetadata:(NSDictionary *)metadata {
@@ -166,11 +166,11 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     if (size < 0 || size != recorded.longLongValue) {
         return NO;
     }
-    NSString *version = VibeLinkString(record[@"version"]);
+    NSString *version = record[@"version"];
     if (!version || [[self versionOfMetadata:metadata] isEqualToString:version]) {
         return YES;
     }
-    if (VibeHTTPIsSameFileUnderAnotherETag(recorded.longLongValue, VibeLinkString(record[@"lastModified"]), size,
+    if (VibeHTTPIsSameFileUnderAnotherETag(recorded.longLongValue, record[@"lastModified"], size,
                                            VibeLinkString(metadata[@"lastModified"]))) {
         LogInfo(@"Links: %@ answered another ETag with the same size and date (version %@, now %@)",
                 record[@"host"], version, [self versionOfMetadata:metadata]);
@@ -209,12 +209,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
 }
 
 - (nullable NSDictionary *)recordOfLinkFileURL:(NSURL *)url {
-    NSString *root = [VibeComparablePath(self.rootURL.path) stringByAppendingString:@"/"];
-    NSString *path = VibeComparablePath(url.path);
-    if (![path hasPrefix:root]) {
-        return nil;
-    }
-    return [self recordOfDirectory:url.URLByDeletingLastPathComponent];
+    return [self containsURL:url] ? [self recordOfDirectory:url.URLByDeletingLastPathComponent] : nil;
 }
 
 #pragma mark - Hooks
@@ -267,12 +262,9 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
             modified = (time_t)[record[@"modified"] longLongValue];
             return;
         }
-        modified = VibeLinkTimeOfHTTPDate(VibeLinkString(metadata[@"lastModified"]));
-        if (modified < 0) {
-            modified = (time_t)NSDate.date.timeIntervalSince1970;
-        }
+        modified = VibeLinkModificationTime(metadata, NSDate.date.timeIntervalSince1970);
         if (record) {
-            NSURL *link = [NSURL URLWithString:VibeLinkString(record[@"url"]) ?: @""];
+            NSURL *link = [NSURL URLWithString:record[@"url"]];
             NSMutableDictionary *followed = [self recordOfLink:link metadata:metadata
                                                         ranges:[record[@"ranges"] boolValue] modified:modified
                                                         opened:[record[@"opened"] doubleValue]];
@@ -297,10 +289,10 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         });
     };
     NSURL *typed = VibeLinkURLFromString(string);
-    VibeLinkAcceptance acceptance = VibeLinkURLAcceptance(typed);
-    if (acceptance != VibeLinkAccepted) {
-        LogInfo(@"Links: refused a link (%ld)", (long)acceptance);
-        finish(nil, VibeLinkMakeError(VibeLinkErrorOfAcceptance(acceptance), nil));
+    VibeLinkError refused = VibeLinkURLAcceptance(typed);
+    if (refused != VibeLinkErrorNone) {
+        LogInfo(@"Links: refused a link (%ld)", (long)refused);
+        finish(nil, VibeLinkMakeError(refused, nil));
         return;
     }
     NSURL *link = VibeLinkDirectDownloadURL(typed);
@@ -364,9 +356,9 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         return nil;
     }
     NSURL *directory = [self directoryOfLink:link];
-    NSError *diskError = nil;
-    if (![self prepareDirectory:directory error:&diskError]) {
-        if (error) *error = diskError;
+    [self prepareRoot];
+    if (![NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil
+                                                      error:error]) {
         return nil;
     }
     BOOL ranges = response.statusCode == 206;
@@ -378,15 +370,12 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     struct stat st;
     BOOL current = existing && lstat(existing.fileSystemRepresentation, &st) == 0
             && st.st_size == [record[@"size"] longLongValue] && st.st_mtimespec.tv_sec == [record[@"modified"] longLongValue];
-    if (current && VibeLinkString(record[@"version"]) && [self record:record matchesMetadata:metadata]) {
+    if (current && record[@"version"] && [self record:record matchesMetadata:metadata]) {
         [self touchRecord:record ofDirectory:directory ranges:@(ranges)];
         LogInfo(@"Links: %@ is unchanged; reusing %@", link.host, existing.lastPathComponent);
         return existing;
     }
-    time_t modified = VibeLinkTimeOfHTTPDate(VibeLinkString(metadata[@"lastModified"]));
-    if (modified < 0) {
-        modified = (time_t)probed;
-    }
+    time_t modified = VibeLinkModificationTime(metadata, probed);
     NSDictionary *fresh = [self recordOfLink:link metadata:metadata ranges:ranges modified:modified opened:probed];
     // TRAP: a file streaming now keeps its placeholder. The fetch's install
     // renames the bytes it downloaded over whatever stands at the URL, and
@@ -402,7 +391,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         [NSFileManager.defaultManager removeItemAtURL:existing error:NULL];
         [NSFileManager.defaultManager removeItemAtURL:[NSURLUtil remotePlaceholderPartURL:existing] error:NULL];
     }
-    if (!VibeWritePlaceholder(file, size, modified)) {
+    if (![LinkStore writePlaceholderAtURL:file size:size modified:modified]) {
         if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
         LogWarn(@"Links: could not write the placeholder for %@: %s", link.host, strerror(errno));
         return nil;
@@ -413,19 +402,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     return file;
 }
 
-- (BOOL)prepareDirectory:(NSURL *)directory error:(NSError **)error {
-    NSFileManager *files = NSFileManager.defaultManager;
-    if (!_rootPrepared) {
-        NSURL *root = self.rootURL;
-        [files createDirectoryAtURL:root withIntermediateDirectories:YES attributes:nil error:NULL];
-        // A cache of the web: never in a backup.
-        [root setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:NULL];
-        _rootPrepared = YES;
-    }
-    return [files createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil error:error];
-}
-
-#pragma mark - Pruning
+#pragma mark - Messages
 
 + (NSString *)messageForError:(NSError *)error {
     if (![error.domain isEqualToString:VibeLinkErrorDomain]) {
@@ -450,15 +427,17 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     return STR_LINK_ERROR_UNREACHABLE;
 }
 
+#pragma mark - Pruning
+
 - (void)pruneKeepingURLs:(NSSet<NSURL *> *)kept {
     dispatch_async(self.diskQueue, ^{
-        NSString *root = [VibeComparablePath(self.rootURL.path) stringByAppendingString:@"/"];
+        // A kept URL names its link by the component below the root.
+        NSUInteger depth = VibeComparablePath(self.rootURL.path).pathComponents.count;
         NSMutableSet<NSString *> *keptNames = [NSMutableSet set];
         for (NSURL *url in kept) {
-            NSString *path = VibeComparablePath(url.path);
-            NSString *name = [path hasPrefix:root] ? [path substringFromIndex:root.length].pathComponents.firstObject : nil;
-            if (name) {
-                [keptNames addObject:name];
+            NSArray<NSString *> *components = VibeComparablePath(url.path).pathComponents;
+            if ([self containsURL:url] && components.count > depth) {
+                [keptNames addObject:components[depth]];
             }
         }
         NSMutableDictionary<NSString *, id> *records = [NSMutableDictionary dictionary];

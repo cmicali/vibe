@@ -56,9 +56,6 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 // The linked account's Dropbox root, nil while unlinked.
 @property (nonatomic, readonly, nullable) NSURL *accountURL;
 
-// Inside the mirror of any account, a signed-out one's included.
-- (BOOL)containsURL:(NSURL *)url;
-
 // The Dropbox path ("" for the root, else "/Music/Album") a mirror URL stands
 // for; nil outside the linked account's mirror.
 - (nullable NSString *)dropboxPathForURL:(NSURL *)url;

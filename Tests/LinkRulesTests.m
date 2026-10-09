@@ -17,7 +17,7 @@
 @interface LinkRulesTests : XCTestCase
 @end
 
-static VibeLinkAcceptance Accept(NSString *string) {
+static VibeLinkError Accept(NSString *string) {
     return VibeLinkURLAcceptance(VibeLinkURLFromString(string));
 }
 
@@ -68,7 +68,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
                             @"HTTPS://Example.COM/a.mp3", @"https://pi.local/a.mp3",
                             @"https://192.168.1.5/a.mp3", @"https://nas/a.mp3",
                             @"https://example.com:8443/a.mp3", @"https://user:pass@example.com/a.mp3"]) {
-        XCTAssertEqual(Accept(url), VibeLinkAccepted, @"%@", url);
+        XCTAssertEqual(Accept(url), VibeLinkErrorNone, @"%@", url);
     }
 }
 
@@ -77,7 +77,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
                             @"file:///Users/me/a.mp3", @"file://localhost/Users/me/a.mp3",
                             @"vibe://open?u=x", @"data:audio/mpeg;base64,AAAA",
                             @"webdav://nas/a.mp3", @"httpx://example.com/a.mp3", @"htp://example.com/a.mp3"]) {
-        XCTAssertEqual(Accept(url), VibeLinkRefusedNotHTTP, @"%@", url);
+        XCTAssertEqual(Accept(url), VibeLinkErrorInvalid, @"%@", url);
     }
 }
 
@@ -85,31 +85,31 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     for (NSString *url in @[@"", @"   ", @"\n", @"example.com/a.mp3", @"/a.mp3", @"a.mp3",
                             @"https://", @"https:///a.mp3", @"http://", @"http:a.mp3",
                             @"//example.com/a.mp3", @"https://exa mple.com/a.mp3"]) {
-        XCTAssertEqual(Accept(url), VibeLinkRefusedInvalid, @"%@", url);
+        XCTAssertEqual(Accept(url), VibeLinkErrorInvalid, @"%@", url);
     }
-    XCTAssertEqual(VibeLinkURLAcceptance(nil), VibeLinkRefusedInvalid);
+    XCTAssertEqual(VibeLinkURLAcceptance(nil), VibeLinkErrorInvalid);
 }
 
 - (void)testTheSchemeMatchesInAnyCase {
-    XCTAssertEqual(Accept(@"HTTP://pi.local/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"Http://example.com/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"hTtPs://example.com/a.mp3"), VibeLinkAccepted);
+    XCTAssertEqual(Accept(@"HTTP://pi.local/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"Http://example.com/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"hTtPs://example.com/a.mp3"), VibeLinkErrorNone);
 }
 
 - (void)testPortsAndUserInfoDoNotMoveTheVerdict {
-    XCTAssertEqual(Accept(@"http://pi.local:8080/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://192.168.1.5:80/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://[::1]:8000/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://user:pass@pi.local/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://example.com:80/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://user@8.8.8.8/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
+    XCTAssertEqual(Accept(@"http://pi.local:8080/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://192.168.1.5:80/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://[::1]:8000/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://user:pass@pi.local/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://example.com:80/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://user@8.8.8.8/a.mp3"), VibeLinkErrorInsecure);
 }
 
 // The host is what follows the '@', however local the user name looks.
 - (void)testAUserNameIsNotTheHost {
-    XCTAssertEqual(Accept(@"http://pi.local@8.8.8.8/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://localhost:80@example.com/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://example.com@nas/a.mp3"), VibeLinkAccepted);
+    XCTAssertEqual(Accept(@"http://pi.local@8.8.8.8/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://localhost:80@example.com/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://example.com@nas/a.mp3"), VibeLinkErrorNone);
 }
 
 - (void)testAPastedLinkLosesItsWhitespace {
@@ -130,7 +130,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
                             @"http://server.test/a.mp3", @"http://fake.vibe.test/a.mp3",
                             @"http://nas/a.mp3", @"http://NAS/a.mp3", @"http://nas./a.mp3",
                             @"http://my-nas_2/a.mp3", @"http://local/a.mp3", @"http://test/a.mp3"]) {
-        XCTAssertEqual(Accept(url), VibeLinkAccepted, @"%@", url);
+        XCTAssertEqual(Accept(url), VibeLinkErrorNone, @"%@", url);
     }
 }
 
@@ -140,10 +140,10 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
                             @"http://pilocal/../x", @"http://x.locals/a.mp3", @"http://x.testing/a.mp3",
                             @"http://x.localhosts/a.mp3", @"http://xlocalhost.com/a.mp3",
                             @"http://localhost.example.com/a.mp3"]) {
-        VibeLinkAcceptance verdict = Accept(url);
+        VibeLinkError verdict = Accept(url);
         NSURL *parsed = [NSURL URLWithString:url];
         BOOL unqualified = [parsed.host rangeOfString:@"."].location == NSNotFound;
-        XCTAssertEqual(verdict, unqualified ? VibeLinkAccepted : VibeLinkRefusedInsecurePublicHTTP, @"%@", url);
+        XCTAssertEqual(verdict, unqualified ? VibeLinkErrorNone : VibeLinkErrorInsecure, @"%@", url);
     }
 }
 
@@ -176,23 +176,23 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     [cases enumerateKeysAndObjectsUsingBlock:^(NSString *address, NSNumber *local, BOOL *stop) {
         XCTAssertEqual(VibeLinkHostIsLocal(address), local.boolValue, @"%@", address);
         NSString *url = [NSString stringWithFormat:@"http://%@/a.mp3", address];
-        XCTAssertEqual(Accept(url), local.boolValue ? VibeLinkAccepted : VibeLinkRefusedInsecurePublicHTTP, @"%@", url);
+        XCTAssertEqual(Accept(url), local.boolValue ? VibeLinkErrorNone : VibeLinkErrorInsecure, @"%@", url);
         url = [NSString stringWithFormat:@"https://%@/a.mp3", address];
-        XCTAssertEqual(Accept(url), VibeLinkAccepted, @"%@", url);
+        XCTAssertEqual(Accept(url), VibeLinkErrorNone, @"%@", url);
     }];
 }
 
 // The resolver reads a bare number, a short form and hex as IPv4 addresses.
 - (void)testANumericHostIsReadAsTheResolverReadsIt {
-    XCTAssertEqual(Accept(@"http://134744072/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);   // 8.8.8.8
-    XCTAssertEqual(Accept(@"http://0x8.8.8.8/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://0x08080808/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://8.8/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://2130706433/a.mp3"), VibeLinkAccepted);                   // 127.0.0.1
-    XCTAssertEqual(Accept(@"http://127.1/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://0x7f.1/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://10.1/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://192.168.1.5./a.mp3"), VibeLinkAccepted);
+    XCTAssertEqual(Accept(@"http://134744072/a.mp3"), VibeLinkErrorInsecure);   // 8.8.8.8
+    XCTAssertEqual(Accept(@"http://0x8.8.8.8/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://0x08080808/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://8.8/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://2130706433/a.mp3"), VibeLinkErrorNone);                   // 127.0.0.1
+    XCTAssertEqual(Accept(@"http://127.1/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://0x7f.1/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://10.1/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://192.168.1.5./a.mp3"), VibeLinkErrorNone);
 }
 
 #pragma mark - Acceptance: IPv6
@@ -212,9 +212,9 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
         NSString *bracketed = [NSString stringWithFormat:@"[%@]", address];
         XCTAssertEqual(VibeLinkHostIsLocal(bracketed), local.boolValue, @"%@", bracketed);
         NSString *url = [NSString stringWithFormat:@"http://[%@]/a.mp3", address];
-        XCTAssertEqual(Accept(url), local.boolValue ? VibeLinkAccepted : VibeLinkRefusedInsecurePublicHTTP, @"%@", url);
+        XCTAssertEqual(Accept(url), local.boolValue ? VibeLinkErrorNone : VibeLinkErrorInsecure, @"%@", url);
         url = [NSString stringWithFormat:@"https://[%@]:443/a.mp3", address];
-        XCTAssertEqual(Accept(url), VibeLinkAccepted, @"%@", url);
+        XCTAssertEqual(Accept(url), VibeLinkErrorNone, @"%@", url);
     }];
 }
 
@@ -223,8 +223,8 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertTrue(VibeLinkHostIsLocal(@"[fe80::1%en0]"));
     XCTAssertTrue(VibeLinkHostIsLocal(@"[fe80::1%25en0]"));
     XCTAssertFalse(VibeLinkHostIsLocal(@"2001:db8::1%en0"));
-    XCTAssertEqual(Accept(@"http://[fe80::1%25en0]/a.mp3"), VibeLinkAccepted);
-    XCTAssertEqual(Accept(@"http://[fe80::1%25en0]:8000/a.mp3"), VibeLinkAccepted);
+    XCTAssertEqual(Accept(@"http://[fe80::1%25en0]/a.mp3"), VibeLinkErrorNone);
+    XCTAssertEqual(Accept(@"http://[fe80::1%25en0]:8000/a.mp3"), VibeLinkErrorNone);
 }
 
 // A zone id belongs to an IPv6 literal. Anywhere else a '%' or a NUL makes
@@ -237,8 +237,8 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertFalse(VibeLinkHostIsLocal(@"[pi%en0]"));
     NSString *nul = [NSString stringWithFormat:@"localhost%C.example.com", (unichar)0];
     XCTAssertFalse(VibeLinkHostIsLocal(nul));
-    XCTAssertEqual(Accept(@"http://pi%25.example.com/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
-    XCTAssertEqual(Accept(@"http://localhost%00.example.com/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
+    XCTAssertEqual(Accept(@"http://pi%25.example.com/a.mp3"), VibeLinkErrorInsecure);
+    XCTAssertEqual(Accept(@"http://localhost%00.example.com/a.mp3"), VibeLinkErrorInsecure);
 }
 
 #pragma mark - Acceptance: redirects
@@ -246,13 +246,13 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 // Each hop is judged alone, by the same rule as the typed link.
 - (void)testARedirectIsJudgedByTheSameRule {
     NSDictionary<NSString *, NSNumber *> *hops = @{
-        @"https://dl.dropboxusercontent.com/cd/0/get/abc/file": @(VibeLinkAccepted),
-        @"http://cdn.example.com/a.mp3": @(VibeLinkRefusedInsecurePublicHTTP),
-        @"http://8.8.8.8/a.mp3": @(VibeLinkRefusedInsecurePublicHTTP),
-        @"http://pi.local/a.mp3": @(VibeLinkAccepted),
-        @"http://192.168.1.5/a.mp3": @(VibeLinkAccepted),
-        @"ftp://example.com/a.mp3": @(VibeLinkRefusedNotHTTP),
-        @"file:///etc/passwd": @(VibeLinkRefusedNotHTTP),
+        @"https://dl.dropboxusercontent.com/cd/0/get/abc/file": @(VibeLinkErrorNone),
+        @"http://cdn.example.com/a.mp3": @(VibeLinkErrorInsecure),
+        @"http://8.8.8.8/a.mp3": @(VibeLinkErrorInsecure),
+        @"http://pi.local/a.mp3": @(VibeLinkErrorNone),
+        @"http://192.168.1.5/a.mp3": @(VibeLinkErrorNone),
+        @"ftp://example.com/a.mp3": @(VibeLinkErrorInvalid),
+        @"file:///etc/passwd": @(VibeLinkErrorInvalid),
     };
     [hops enumerateKeysAndObjectsUsingBlock:^(NSString *hop, NSNumber *verdict, BOOL *stop) {
         XCTAssertEqual(VibeLinkURLAcceptance([NSURL URLWithString:hop]), verdict.integerValue, @"%@", hop);
@@ -374,7 +374,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 // The address the rewrite makes is a link Vibe fetches like any other.
 - (void)testAGoogleDriveDownloadAddressIsAccepted {
     NSURL *download = VibeLinkDirectDownloadURL([NSURL URLWithString:@"https://drive.google.com/file/d/1AbC/view"]);
-    XCTAssertEqual(VibeLinkURLAcceptance(download), VibeLinkAccepted);
+    XCTAssertEqual(VibeLinkURLAcceptance(download), VibeLinkErrorNone);
     XCTAssertEqualObjects(Name(download.absoluteString, @"wav"), @"download.wav");
 }
 
@@ -809,22 +809,22 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
         @"": @-1,
     };
     [cases enumerateKeysAndObjectsUsingBlock:^(NSString *header, NSNumber *total, BOOL *stop) {
-        XCTAssertEqual(VibeLinkContentRangeTotal(header), total.longLongValue, @"%@", header);
+        XCTAssertEqual(VibeHTTPContentRangeTotal(header), total.longLongValue, @"%@", header);
     }];
-    XCTAssertEqual(VibeLinkContentRangeTotal(nil), -1);
+    XCTAssertEqual(VibeHTTPContentRangeTotal(nil), -1);
 }
 
 - (void)testAWeakETagCountsAsAbsent {
-    XCTAssertEqualObjects(VibeLinkStrongETag(@"\"abc\""), @"\"abc\"");
-    XCTAssertEqualObjects(VibeLinkStrongETag(@"abc"), @"abc");
-    XCTAssertEqualObjects(VibeLinkStrongETag(@"  \"abc\"  "), @"\"abc\"");
-    XCTAssertEqualObjects(VibeLinkStrongETag(@"\"W/abc\""), @"\"W/abc\"");
-    XCTAssertNil(VibeLinkStrongETag(@"W/\"abc\""));
-    XCTAssertNil(VibeLinkStrongETag(@"w/\"abc\""));
-    XCTAssertNil(VibeLinkStrongETag(@" W/\"abc\""));
-    XCTAssertNil(VibeLinkStrongETag(@""));
-    XCTAssertNil(VibeLinkStrongETag(@"   "));
-    XCTAssertNil(VibeLinkStrongETag(nil));
+    XCTAssertEqualObjects(VibeHTTPVersionFromHeaders(@"\"abc\"", nil), @"\"abc\"");
+    XCTAssertEqualObjects(VibeHTTPVersionFromHeaders(@"abc", nil), @"abc");
+    XCTAssertEqualObjects(VibeHTTPVersionFromHeaders(@"  \"abc\"  ", nil), @"\"abc\"");
+    XCTAssertEqualObjects(VibeHTTPVersionFromHeaders(@"\"W/abc\"", nil), @"\"W/abc\"");
+    XCTAssertNil(VibeHTTPVersionFromHeaders(@"W/\"abc\"", nil));
+    XCTAssertNil(VibeHTTPVersionFromHeaders(@"w/\"abc\"", nil));
+    XCTAssertNil(VibeHTTPVersionFromHeaders(@" W/\"abc\"", nil));
+    XCTAssertNil(VibeHTTPVersionFromHeaders(@"", nil));
+    XCTAssertNil(VibeHTTPVersionFromHeaders(@"   ", nil));
+    XCTAssertNil(VibeHTTPVersionFromHeaders(nil, nil));
 }
 
 - (void)testTheBudgetIsTwoGigabytes {
@@ -851,14 +851,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 }
 
 #pragma mark - Failures
-
-- (void)testEachAcceptanceNamesItsFailure {
-    XCTAssertEqual(VibeLinkErrorOfAcceptance(VibeLinkAccepted), VibeLinkErrorNone);
-    XCTAssertEqual(VibeLinkErrorOfAcceptance(VibeLinkRefusedInsecurePublicHTTP), VibeLinkErrorInsecure);
-    XCTAssertEqual(VibeLinkErrorOfAcceptance(VibeLinkRefusedNotHTTP), VibeLinkErrorInvalid);
-    XCTAssertEqual(VibeLinkErrorOfAcceptance(VibeLinkRefusedInvalid), VibeLinkErrorInvalid);
-    XCTAssertEqual(VibeLinkErrorOfAcceptance((VibeLinkAcceptance)99), VibeLinkErrorInvalid);
-}
 
 - (void)testEachStatusNamesItsFailure {
     for (NSNumber *status in @[@200, @204, @206, @299]) {
@@ -986,7 +978,7 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
         XCTAssertFalse(VibeLinkTextIsBlank(text), @"%@", text);
     }
     // What is not blank but parses as nothing is the invalid address's.
-    XCTAssertEqual(Accept(@"not a link"), VibeLinkRefusedInvalid);
+    XCTAssertEqual(Accept(@"not a link"), VibeLinkErrorInvalid);
 }
 
 - (void)testPruningKeepsEveryRowAndRecentFile {
