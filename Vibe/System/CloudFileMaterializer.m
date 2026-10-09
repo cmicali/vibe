@@ -612,7 +612,7 @@ static NSError *VibeMaterializationCancelledError(void) {
     NSParameterAssert((fetch == nil) == (read == nil) && (fetch || !availability) && (root || !fetch));
     NSString *prefix = root ? [VibeComparablePath(root.path) stringByAppendingString:@"/"] : nil;
     NSMutableDictionary *installed = nil;
-    if (fetch) {
+    if (fetch && root) {
         installed = [@{@"root": root, @"prefix": prefix, @"fetch": [fetch copy], @"read": [read copy]} mutableCopy];
         if (availability) {
             installed[@"availability"] = [availability copy];
