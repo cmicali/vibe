@@ -2,24 +2,24 @@
   "sourceLanguage": "en",
   "strings": {
     "widget.description": {
-      "comment": "iOS widget gallery: the one-line description under the Now Playing widget's name, shown while the user is choosing a widget to add. Vibe is the app name.",
+      "comment": "iOS widget gallery: the one-line description under every Vibe widget's name, shown while the user is choosing a widget to add. Vibe is the app name.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Какво възпроизвежда Vibe."
+            "value": "Какво възпроизвежда Vibe в момента."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Co Vibe přehrává."
+            "value": "Co Vibe právě přehrává."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hvad Vibe afspiller."
+            "value": "Hvad Vibe afspiller lige nu."
           }
         },
         "de": {
@@ -31,529 +31,157 @@
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Τι αναπαράγει το Vibe."
+            "value": "Τι αναπαράγει τώρα το Vibe."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "What Vibe is playing."
+            "value": "What Vibe is currently playing."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lo que está reproduciendo Vibe."
+            "value": "Lo que Vibe está reproduciendo ahora."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mitä Vibe toistaa."
+            "value": "Mitä Vibe toistaa juuri nyt."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce que Vibe est en train de lire."
+            "value": "Ce que Vibe lit en ce moment."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Što Vibe reproducira."
+            "value": "Što Vibe trenutačno reproducira."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Amit a Vibe lejátszik."
+            "value": "Amit a Vibe éppen lejátszik."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yang sedang diputar Vibe."
+            "value": "Yang sedang diputar Vibe saat ini."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cosa sta riproducendo Vibe."
+            "value": "Cosa sta riproducendo Vibe in questo momento."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibeで再生中の曲。"
+            "value": "Vibeで現在再生中の曲。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe에서 재생 중인 항목."
+            "value": "Vibe에서 현재 재생 중인 항목."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hva Vibe spiller."
+            "value": "Hva Vibe spiller akkurat nå."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wat Vibe afspeelt."
+            "value": "Wat Vibe nu afspeelt."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Co odtwarza Vibe."
+            "value": "Co Vibe teraz odtwarza."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que o Vibe está reproduzindo."
+            "value": "O que o Vibe está reproduzindo agora."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que o Vibe está a reproduzir."
+            "value": "O que o Vibe está a reproduzir neste momento."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce redă Vibe."
+            "value": "Ce redă Vibe în acest moment."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что воспроизводит Vibe."
+            "value": "Что сейчас воспроизводит Vibe."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Čo Vibe prehráva."
+            "value": "Čo Vibe práve prehráva."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vad Vibe spelar upp."
+            "value": "Vad Vibe spelar just nu."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สิ่งที่ Vibe กำลังเล่น"
+            "value": "สิ่งที่ Vibe กำลังเล่นอยู่ตอนนี้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe’ın çaldığı parça."
+            "value": "Vibe’ın şu anda çaldığı parça."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Що відтворює Vibe."
+            "value": "Що зараз відтворює Vibe."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe đang phát gì."
+            "value": "Vibe đang phát gì lúc này."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 正在播放的内容。"
+            "value": "Vibe 当前正在播放的内容。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 正在播放的內容。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "widget.description.waveform": {
-      "comment": "iOS widget gallery: the description under the Waveform widget's name. Seek means jump to a position in the track.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Песента и нейната вълнова форма. Докоснете вълновата форма, за да превъртите."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladba a její tvar vlny. Klepnutím na tvar vlny přetočíte."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nummeret og dets bølgeform. Tryk på bølgeformen for at spole."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Titel und seine Wellenform. Tippe auf die Wellenform, um zu spulen."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Το κομμάτι και η κυματομορφή του. Αγγίξτε την κυματομορφή για μετάβαση."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The track and its waveform. Tap the waveform to seek."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La canción y su forma de onda. Toca la forma de onda para desplazarte por la canción."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kappale ja sen aaltomuoto. Siirry kappaleessa napauttamalla aaltomuotoa."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le morceau et sa forme d’onde. Touchez la forme d’onde pour vous déplacer dans le morceau."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pjesma i njezin valni oblik. Dodirnite valni oblik za premotavanje."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A szám és a hullámformája. Koppints a hullámformára a tekeréshez."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lagu dan bentuk gelombangnya. Ketuk bentuk gelombang untuk mencari posisi."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il brano e la sua forma d’onda. Tocca la forma d’onda per spostarti nel brano."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲とその波形。波形をタップしてシークします。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "트랙과 파형. 파형을 탭하여 탐색합니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sporet og bølgeformen. Trykk på bølgeformen for å spole."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Het nummer en de golfvorm. Tik op de golfvorm om te spoelen."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utwór i jego kształt fali. Stuknij kształt fali, aby przewinąć."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A faixa e sua forma de onda. Toque na forma de onda para avançar ou voltar."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A faixa e a respetiva forma de onda. Toque na forma de onda para avançar ou recuar."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Piesa și forma ei de undă. Atingeți forma de undă pentru a derula."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Трек и его волновая форма. Коснитесь волновой формы, чтобы перемотать."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladba a jej vlnový priebeh. Klepnutím na vlnový priebeh pretočíte."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spåret och dess vågform. Tryck på vågformen för att spola."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แทร็กและรูปคลื่นของแทร็ก แตะรูปคลื่นเพื่อเลื่อนหา"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Parça ve dalga biçimi. Sarmak için dalga biçimine dokunun."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Трек і його хвильова форма. Торкніться хвильової форми, щоб перемотати."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bài hát và dạng sóng của bài. Chạm vào dạng sóng để tua."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲目及其波形。轻点波形即可跳转。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲目及其波形。點一下波形即可跳轉。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "widget.description.waveform_player": {
-      "comment": "iOS widget gallery: the description under the Waveform Player widget's name. Play/pause is the button that starts and stops playback.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Песента, нейната вълнова форма и пускане/пауза."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladba, její tvar vlny a přehrávání/pozastavení."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nummeret, dets bølgeform og afspil/pause."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Titel, seine Wellenform und Abspielen/Pause."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Το κομμάτι, η κυματομορφή του και αναπαραγωγή/παύση."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The track, its waveform, and play/pause."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La canción, su forma de onda y reproducir/pausa."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kappale, sen aaltomuoto ja toisto/keskeytys."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le morceau, sa forme d’onde et lecture/pause."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pjesma, njezin valni oblik i reprodukcija/pauza."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A szám, a hullámformája és a lejátszás/szünet."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lagu, bentuk gelombangnya, dan putar/jeda."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il brano, la sua forma d’onda e riproduci/pausa."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲、波形、再生/一時停止。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "트랙, 파형, 재생/일시 정지."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sporet, bølgeformen og spill av/pause."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Het nummer, de golfvorm en afspelen/pauzeren."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utwór, jego kształt fali oraz odtwarzanie/wstrzymanie."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A faixa, sua forma de onda e reproduzir/pausar."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A faixa, a respetiva forma de onda e reproduzir/pausa."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Piesa, forma ei de undă și redare/pauză."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Трек, его волновая форма и воспроизведение/пауза."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladba, jej vlnový priebeh a prehrávanie/pozastavenie."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spåret, dess vågform och spela upp/pausa."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แทร็ก รูปคลื่น และเล่น/หยุดพัก"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Parça, dalga biçimi ve çal/duraklat."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Трек, його хвильова форма і відтворення/пауза."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bài hát, dạng sóng và phát/tạm dừng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲目、波形以及播放/暂停。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲目、波形以及播放/暫停。"
+            "value": "Vibe 目前正在播放的內容。"
           }
         }
       },
@@ -1304,7 +932,7 @@
       "extractionState": "manual"
     },
     "widget.name.now_playing": {
-      "comment": "iOS widget gallery: the name of the widget that shows the current track with its artwork and play controls, on the Home Screen and the Lock Screen. Use the system's term for the track that is playing now.",
+      "comment": "iOS widget gallery: the name every Vibe widget shares, Home Screen and Lock Screen alike. Each shows the track that is playing. Use the system's term for the track that is playing now.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1484,378 +1112,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在播放"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "widget.name.waveform": {
-      "comment": "iOS widget gallery: the name of a small widget that shows the current track's title, artist, and waveform, with no buttons. Waveform is the drawing of the track's loudness over time.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вълнова форма"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tvar vlny"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeform"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wellenform"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Κυματομορφή"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waveform"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de onda"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aaltomuoto"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forme d’onde"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Valni oblik"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hullámforma"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bentuk Gelombang"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma d’onda"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파형"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeform"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Golfvorm"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kształt fali"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de Onda"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de onda"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forma de undă"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Волновая форма"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vlnový priebeh"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vågform"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "รูปคลื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalga Biçimi"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Хвильова форма"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dạng sóng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "widget.name.waveform_player": {
-      "comment": "iOS widget gallery: the name of a small widget that shows the current track's title, artist, and waveform, with a play/pause button. Keep it short; it is a title.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Плейър с вълнова форма"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Přehrávač s tvarem vlny"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeformafspiller"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wellenform-Player"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Κυματομορφή με αναπαραγωγή"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waveform Player"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reproductor con forma de onda"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aaltomuotosoitin"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lecteur avec forme d’onde"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reproduktor s valnim oblikom"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hullámforma-lejátszó"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pemutar Bentuk Gelombang"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Player con forma d’onda"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形プレーヤー"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "파형 플레이어"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bølgeformspiller"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Golfvormspeler"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odtwarzacz z kształtem fali"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Player com Forma de Onda"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Leitor com forma de onda"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Player cu forma de undă"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Плеер с волновой формой"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prehrávač s vlnovým priebehom"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vågformsspelare"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เครื่องเล่นรูปคลื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dalga Biçimi Oynatıcı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Плеєр із хвильовою формою"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trình phát dạng sóng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形播放器"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "波形播放器"
           }
         }
       },

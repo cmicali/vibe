@@ -116,48 +116,35 @@ struct VibeProvider: TimelineProvider {
 struct VibeWidgetBundle: WidgetBundle {
     var body: some Widget {
         VibeNowPlayingWidget()
-        VibeWaveformWidget()
-        VibeWaveformWidget(playButton: true)
+        VibeNowPlayingWidget(waveformTile: true)
+        VibeNowPlayingWidget(waveformTile: true, playButton: true)
     }
 }
 
+// One type, three kinds. They share a name and a description, but the gallery
+// offers each kind as its own page, so every small layout can sit on one Home
+// Screen. The app's reload is reloadAllTimelines, so it reaches every kind.
 struct VibeNowPlayingWidget: Widget {
+    var waveformTile = false
+    var playButton = false
+
+    private var kind: String {
+        guard waveformTile else { return "VibeNowPlaying" }
+        return playButton ? "VibeNowPlayingWaveformPlay" : "VibeNowPlayingWaveform"
+    }
+
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "VibeNowPlaying", provider: VibeProvider()) { entry in
-            VibeWidgetView(entry: entry)
+        StaticConfiguration(kind: kind, provider: VibeProvider()) { entry in
+            VibeWidgetView(entry: entry, waveformTile: waveformTile, playButton: playButton)
         }
         // Literals for the same reason the intents' titles are (VibeWidgetIntents.swift's
         // TRAP). Each MUST match its STR_WIDGET_* entry, which is what puts the key in the catalog.
         .configurationDisplayName(LocalizedStringResource("widget.name.now_playing", defaultValue: "Now Playing"))
-        .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is playing."))
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge,
-                            .accessoryCircular, .accessoryRectangular, .accessoryInline])
-        .contentMarginsDisabled()
-    }
-}
-
-// Separate kinds, not configurations of the first: the gallery offers each
-// kind as its own tile, so every small layout can sit on one home screen. One
-// type serves two kinds, with and without the play/pause disc. The app's
-// reload is reloadAllTimelines, so it reaches these kinds unchanged.
-struct VibeWaveformWidget: Widget {
-    var playButton = false
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: playButton ? "VibeNowPlayingWaveformPlay" : "VibeNowPlayingWaveform",
-                            provider: VibeProvider()) { entry in
-            VibeWidgetView(entry: entry, waveformTile: true, playButton: playButton)
-        }
-        // Literals under VibeNowPlayingWidget's TRAP.
-        .configurationDisplayName(playButton
-            ? LocalizedStringResource("widget.name.waveform_player", defaultValue: "Waveform Player")
-            : LocalizedStringResource("widget.name.waveform", defaultValue: "Waveform"))
-        .description(playButton
-            ? LocalizedStringResource("widget.description.waveform_player",
-                                      defaultValue: "The track, its waveform, and play/pause.")
-            : LocalizedStringResource("widget.description.waveform",
-                                      defaultValue: "The track and its waveform. Tap the waveform to seek."))
-        .supportedFamilies([.systemSmall])
+        .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is currently playing."))
+        .supportedFamilies(waveformTile
+            ? [.systemSmall]
+            : [.systemSmall, .systemMedium, .systemLarge,
+               .accessoryCircular, .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }
 }

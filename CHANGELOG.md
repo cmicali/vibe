@@ -2,7 +2,7 @@
 
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
-* ios: Added Waveform and Waveform Player small widgets, a large widget, and Lock Screen widgets
+* ios: Added small waveform widgets, a large widget, and Lock Screen widgets
 
 # v1.15
 

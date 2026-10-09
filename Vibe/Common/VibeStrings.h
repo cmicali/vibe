@@ -635,12 +635,8 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Home-screen widget
 
-#define STR_WIDGET_DESCRIPTION    NSLS(@"widget.description",    @"What Vibe is playing.", @"iOS widget gallery: the one-line description under the Now Playing widget's name, shown while the user is choosing a widget to add. Vibe is the app name.")
-#define STR_WIDGET_NAME_NOW_PLAYING NSLS(@"widget.name.now_playing", @"Now Playing", @"iOS widget gallery: the name of the widget that shows the current track with its artwork and play controls, on the Home Screen and the Lock Screen. Use the system's term for the track that is playing now.")
-#define STR_WIDGET_NAME_WAVEFORM  NSLS(@"widget.name.waveform",  @"Waveform",              @"iOS widget gallery: the name of a small widget that shows the current track's title, artist, and waveform, with no buttons. Waveform is the drawing of the track's loudness over time.")
-#define STR_WIDGET_NAME_WAVEFORM_PLAYER NSLS(@"widget.name.waveform_player", @"Waveform Player", @"iOS widget gallery: the name of a small widget that shows the current track's title, artist, and waveform, with a play/pause button. Keep it short; it is a title.")
-#define STR_WIDGET_DESCRIPTION_WAVEFORM NSLS(@"widget.description.waveform", @"The track and its waveform. Tap the waveform to seek.", @"iOS widget gallery: the description under the Waveform widget's name. Seek means jump to a position in the track.")
-#define STR_WIDGET_DESCRIPTION_WAVEFORM_PLAYER NSLS(@"widget.description.waveform_player", @"The track, its waveform, and play/pause.", @"iOS widget gallery: the description under the Waveform Player widget's name. Play/pause is the button that starts and stops playback.")
+#define STR_WIDGET_DESCRIPTION    NSLS(@"widget.description",    @"What Vibe is currently playing.", @"iOS widget gallery: the one-line description under every Vibe widget's name, shown while the user is choosing a widget to add. Vibe is the app name.")
+#define STR_WIDGET_NAME_NOW_PLAYING NSLS(@"widget.name.now_playing", @"Now Playing", @"iOS widget gallery: the name every Vibe widget shares, Home Screen and Lock Screen alike. Each shows the track that is playing. Use the system's term for the track that is playing now.")
 #define STR_WIDGET_INTENT_PLAY    NSLS(@"widget.intent.play_pause", @"Play or Pause",      @"Name of the widget's play/pause action, as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_WIDGET_INTENT_PREVIOUS NSLS(@"widget.intent.previous", @"Previous Track",     @"Name of the widget's skip-to-previous-track action, as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_WIDGET_INTENT_NEXT    NSLS(@"widget.intent.next",      @"Next Track",          @"Name of the widget's skip-to-next-track action, as it appears in the Shortcuts app's action list. A command, not a label.")
