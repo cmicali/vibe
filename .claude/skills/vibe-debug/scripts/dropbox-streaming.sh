@@ -491,6 +491,7 @@ scenario_scrub-buffering() {
 # no-progress deadline, paused in place; resume fetches afresh and plays on.
 # Then, in a fresh folder, a stall lifted inside the deadline, which releases.
 scenario_stall() {
+    # Unapplied, the 60 s default holds through every wait below.
     must set_audio_loading timeout-baseline=6 timeout-silence=6 || return 1
     fixture 20 long.wav short.wav || return 1
     must fake_dropbox_fault stall after=3M file=$F0 || return 1
@@ -529,20 +530,29 @@ scenario_stall() {
     check "a stall lifted in time releases" '.heldAgain and .releasedBuffering == false' "$m"
 }
 
-# The last whole download in the log, and the requests after it.
+# A connection lost at 2 MB, then the resend. The fake's delivered count is
+# what it handed the URL loading system. A failed load discards the bytes the
+# client has not read yet, so the resend starts at what the client wrote. That
+# is a whole number of 64 KB pieces, at or below the drop. The installed file
+# must equal the host's byte for byte.
 scenario_drop() {
     fixture 12 long.wav short.wav || return 1
     must fake_dropbox_fault drop after=2M file=$F0 || return 1
     open_folder "$FOLDER" || return 1
     wait_for 50 '.tracks[0].ph == false' || true
     snap
-    local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
+    local identical=false
+    cmp -s "$FIX/$FOLDER/$F0" "$ACCOUNT/$FOLDER/$F0" && identical=true
+    local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" --argjson identical "$identical" '
         [.log[] | select(.file == $f0 and (.kind == "whole" or .kind == "resume"))] as $d |
-        {requests: [$d[] | {kind, range, status, rev, delivered, outcome}], installed: (.tracks[0].ph == false),
-         state, errors: [.err | select(. != "")]}')"
+        {requests: [$d[] | {kind, range, status, rev, size, delivered, outcome}],
+         resumedAt: ((($d[1].range // "") | capture("^bytes=(?<o>[0-9]+)-$")? | .o | tonumber) // null),
+         identical: $identical, installed: (.tracks[0].ph == false), state, errors: [.err | select(. != "")]}')"
     record "$m"
     check "the body dropped at 2 MB" '.requests[0].outcome == "dropped" and .requests[0].delivered == 2097152' "$m"
-    check "resumed with Range from the drop, same rev" '.requests[1].kind == "resume" and .requests[1].range == "bytes=2097152-" and .requests[1].status == 206 and .requests[1].rev == .requests[0].rev and .requests[1].outcome == "complete"' "$m"
+    check "resumed with Range from what was written, same rev" '.requests[1].kind == "resume" and .resumedAt != null and .resumedAt > 0 and .resumedAt <= 2097152 and .resumedAt % 65536 == 0 and .requests[1].status == 206 and .requests[1].rev == .requests[0].rev' "$m"
+    check "the resend delivered the rest whole" '.requests[1].outcome == "complete" and .requests[1].delivered == .requests[1].size - .resumedAt' "$m"
+    check "the installed file is the host file" '.identical' "$m"
     check "installed and playing, no error" '.installed and .state == "playing" and .errors == []' "$m"
 }
 
@@ -712,7 +722,10 @@ if [ -z "$CLAIMS" ] && [ "$JOBS" -gt 1 ]; then
     jq -s '{scenarios: (map(.scenarios) | add), failed: (map(.failed) | add)}' "$OUT"/summary-*.json > "$OUT/summary.json"
     echo "summary: $OUT/summary.json"
     MISSING="$(jq -r --arg all "$SCENARIOS" '($all | split(" ") | map(select(. != ""))) - (.scenarios | keys) | join(" ")' "$OUT/summary.json")"
-    [ -z "$MISSING" ] || echo "NOT RUN (no simulator took them): $MISSING"
+    for s in $MISSING; do
+        echo "NOT RUN (no simulator finished it): $s"
+        [ -f "$OUT/$s.out" ] && sed 's/^/    /' "$OUT/$s.out"
+    done
     if [ "$(jq '.failed | length' "$OUT/summary.json")" -gt 0 ] || [ -n "$MISSING" ]; then
         jq -r '.failed[] | "FAILED: \(.)"' "$OUT/summary.json"
         exit 1

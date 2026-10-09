@@ -54,10 +54,11 @@ xcrun simctl launch "$UDID" "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 # Short per-attempt timeouts: a command written before the channel installs is
 # swept as stale, and a fresh one lands. A channel that never answers (a
 # non-debug build) gets a warning after 30 s.
-# TRAP: ask THIS device's app. An inherited VIBE_APP_TMP names another
-# simulator's container (dropbox-streaming.sh exports its own before booting
-# workers), so that app answered for one still starting, and the caller's
-# first command was swept.
+# TRAP: the poll names this device's container, resolved after the install,
+# and never an inherited VIBE_APP_TMP. That path is another caller's device,
+# or this one's before the install moved it. Inherited, another simulator's
+# app answered at once, so the launch returned before this app's channel was
+# up, and its first command was swept.
 TMP="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)/tmp"
 READY=""
 DEADLINE=$(( $(date +%s) + 30 ))
