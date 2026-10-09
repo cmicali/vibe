@@ -73,9 +73,8 @@
     // B's first track is still opening.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
-    // The header's notice (showOpenError:naming:), nil for none, and the
-    // generation that pairs it with its own timer.
-    NSString*                   _noticeStatus;
+    // The header's notice title (showNotice:naming:), and the generation that
+    // pairs the notice with its own timer. noticeStatus is the notice.
     NSString*                   _noticeTitle;
     NSUInteger                  _noticeGeneration;
     TransportKeyMonitor*        _keyMonitor;
@@ -447,25 +446,27 @@
 }
 
 - (TrackDisplayState)headerState {
-    return _noticeStatus ? TrackDisplayStateNotice : [self displayState];
+    return [self headerStateForState:[self displayState]];
 }
 
-- (NSString *)noticeStatus {
-    return _noticeStatus;
+// The one home of the rule: a notice outranks the display state, on the
+// header only.
+- (TrackDisplayState)headerStateForState:(TrackDisplayState)state {
+    return _noticeStatus ? TrackDisplayStateNotice : state;
 }
 
 - (void)renderTrackPresentationForState:(TrackDisplayState)state
                                   track:(AudioTrack *)track
                            displayTrack:(AudioTrack *)displayTrack {
-    BOOL notice = (_noticeStatus != nil);
-    TrackDisplayState header = notice ? TrackDisplayStateNotice : state;
+    TrackDisplayState header = [self headerStateForState:state];
+    NSString *errorStatus = track && track == _erroredTrack ? _errorStatus : nil;
     // renderState rewrites the codec line, so tempo/key and FX follow it.
     [self.trackDisplay renderState:header
                              track:(header == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                            status:(notice ? _noticeStatus : track && track == _erroredTrack ? _errorStatus : nil)
-                             title:(notice ? _noticeTitle : _unplayablePlaylistName)];
+                            status:(_noticeStatus ?: errorStatus)
+                             title:(_noticeStatus ? _noticeTitle : _unplayablePlaylistName)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];
@@ -533,7 +534,13 @@
 // unconditional: neither the label's 0.1 BPM granularity nor a hidden readout
 // may gate the audio.
 - (void)effectiveTempoDidChange {
-    AudioTrack *track = [self displayedTrack];
+    // One currentTrack read (displayedTrack's trap). The audio follows the
+    // playing track. The label follows the header, which names none under a
+    // notice.
+    AudioTrack *current = self.playlistController.currentTrack;
+    TrackDisplayState state = [self displayStateForTrack:current];
+    AudioTrack *track = [self displayedTrackForState:state track:current];
+    AudioTrack *shown = [self displayedTrackForState:[self headerStateForState:state] track:current];
     float baseBPM = track.bpm;
     float scaledBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
     self.audioPlayer.fx.delayTapBPM = scaledBPM;
@@ -541,9 +548,6 @@
     // at the 16% extreme, and a flickering key would misread as a data change.
     // The notation applies to tagged keys too.
     AppSettings *settings = AppSettings.sharedInstance;
-    // The label's track. A notice's header names none, and the audio above
-    // still follows the playing track.
-    AudioTrack *shown = _noticeStatus ? nil : track;
     VibeMusicalKey key = shown && settings.showKey ? shown.key : VibeMusicalKeyNone;
     NSString *keyText = @"";
     if (VibeMusicalKeyIsValid(key)) {
@@ -585,24 +589,24 @@
     }
 }
 
-static const NSTimeInterval kOpenErrorSeconds = 4;
+static const NSTimeInterval kNoticeSeconds = 4;
 
-- (void)showOpenError:(NSString *)status naming:(NSString *)name {
+- (void)showNotice:(NSString *)status naming:(NSString *)name {
     _noticeStatus = [status copy];
     _noticeTitle = [name copy];
     NSUInteger generation = ++_noticeGeneration;
     [self updateUI];
     __weak MainPlayerController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOpenErrorSeconds * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kNoticeSeconds * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         MainPlayerController *strongSelf = weakSelf;
         if (strongSelf && strongSelf->_noticeGeneration == generation) {
-            [strongSelf endOpenError];
+            [strongSelf endNotice];
         }
     });
 }
 
-- (void)endOpenError {
+- (void)endNotice {
     _noticeGeneration++;
     if (!_noticeStatus) {
         return;
@@ -737,7 +741,7 @@ static const NSTimeInterval kOpenErrorSeconds = 4;
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
     [self pauseUIUpdateTimer];
-    [self endOpenError];
+    [self endNotice];
     [self updateUI];
 }
 

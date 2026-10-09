@@ -43,8 +43,9 @@
         return;
     }
     // Not the source alone: a late snapshot must not repaint over the error
-    // state of the same, still-current track.
-    if ([self displayState] == TrackDisplayStateError) {
+    // state of the same, still-current track, or over a notice.
+    TrackDisplayState header = [self headerState];
+    if (header == TrackDisplayStateError || header == TrackDisplayStateNotice) {
         return;
     }
     [self.trackDisplay showWaveform:waveform];

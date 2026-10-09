@@ -46,9 +46,10 @@ typedef struct {
 // parked track's play error stands in for the file info line. title is what
 // Empty and Notice name: an opened playlist that listed nothing playable, or
 // a link that failed to open.
-// While Notice is drawn, the track's waveform stays off the header: the
-// waveform and the playhead drop their writes until another state is
-// rendered. The caller then loads the waveform again.
+// While Notice is drawn, the track's strip stays off the header: the waveform
+// prep, the loading indicator, and the playhead drop their writes until
+// another state is rendered. The caller then loads the waveform again, and
+// keeps a delivered waveform off it.
 - (void)renderState:(TrackDisplayState)state
               track:(nullable AudioTrack *)track
            duration:(NSTimeInterval)duration

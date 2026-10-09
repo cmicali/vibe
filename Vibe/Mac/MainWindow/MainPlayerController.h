@@ -56,8 +56,8 @@ NS_ASSUME_NONNULL_BEGIN
 // in the Error look, for 4 s. Then it shows what it showed before. Playback
 // and Now Playing go on under it. A newer open ends it early, and so does
 // Close.
-- (void)showOpenError:(NSString *)status naming:(NSString *)name;
-- (void)endOpenError;
+- (void)showNotice:(NSString *)status naming:(NSString *)name;
+- (void)endNotice;
 
 // YES when the mirror came back, parked on its last current row; NO when the
 // setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).

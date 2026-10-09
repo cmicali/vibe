@@ -535,8 +535,7 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
     // Every state but Track and the launch grace renders the placeholder
     // rather than a time: a real clock there means a previous track's position
     // survived the transition.
-    if (header == TrackDisplayStateLoading || header == TrackDisplayStateEmpty
-            || header == TrackDisplayStateError || header == TrackDisplayStateNotice) {
+    if (header != TrackDisplayStateTrack && header != TrackDisplayStateLaunchGrace) {
         NSString *placeholder = STR_LABEL_TIME_UNKNOWN;
         checked++;
         NSString *elapsed = display.currentTimeTextField.stringValue ?: @"";

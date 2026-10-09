@@ -108,7 +108,7 @@ NS_ASSUME_NONNULL_BEGIN
 // delay's tempo read the display state.
 - (TrackDisplayState)headerState;
 // The held notice's status, nil for none.
-- (nullable NSString *)noticeStatus;
+@property (nonatomic, readonly, copy, nullable) NSString *noticeStatus;
 
 #pragma mark - Settings live effects
 

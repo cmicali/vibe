@@ -37,8 +37,11 @@
     NSDictionary            *_cornerTextAttributes;
     // For the artist line's re-cap, which depends on the codec line's width.
     __weak MainPlayerContentView *_contentView;
-    // The state renderState: last drew. Under Notice the waveform and
-    // playhead writes are dropped.
+    // The state renderState: last drew. Under Notice the strip and playhead
+    // writes are dropped.
+    // TRAP: it lags the live state until the next updateUI. Gate on Notice
+    // alone, which always renders as it starts and ends. A gate on Error
+    // would drop a retry's waveform prep, which runs before the re-render.
     TrackDisplayState        _state;
 }
 
@@ -256,7 +259,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         break;
 
     case TrackDisplayStateNotice:
-        [self renderEmptyWithStatus:status ?: @"" title:title];
+        [self renderEmptyWithStatus:status title:title];
         break;
     }
 }
@@ -478,9 +481,7 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
 }
 
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
-    if (_state != TrackDisplayStateNotice) {
-        [_waveformView showWaveform:waveform];
-    }
+    [_waveformView showWaveform:waveform];
 }
 
 - (void)showWaveformLoadingIndicator {

@@ -335,7 +335,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                     completion(files, firstError);
                 }
                 if (current && status) {
-                    [strongSelf.mainPlayerController showOpenError:status naming:failed];
+                    [strongSelf.mainPlayerController showNotice:status naming:failed];
                 }
                 // Last: this block may go with it.
                 step = nil;
@@ -377,7 +377,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         [self cancelLinkOpens];
     }
     // The newer open's header must not wait for a held link error.
-    [self.mainPlayerController endOpenError];
+    [self.mainPlayerController endNotice];
     return token;
 }
 
