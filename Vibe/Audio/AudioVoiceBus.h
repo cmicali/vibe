@@ -242,6 +242,10 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // voice is readable until the drain has reported it ended — read what its
 // end needs inside that handler, since the same drain recycles the slot.
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice;
+// Any thread. The file the voice's decoder reads now: its own, or the queued
+// successor once the decoder has switched into it. Nil for a voice with no
+// slot.
+- (nullable AudioFileHandle *)fileOfVoice:(VibeVoiceID)voice;
 // Detailed failure and exact handle identity, including for repeated URLs.
 // Read before the ended handler returns.
 - (nullable NSError *)errorOfVoice:(VibeVoiceID)voice

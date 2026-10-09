@@ -2985,6 +2985,29 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertNil(_playError);
 }
 
+// A stream that stops still stalls while its queued successor, on a slow
+// share, keeps reading ahead. Only the file the voice reads counts as
+// progress. The successor's would hold the voice for as long as it fetched.
+- (void)testAStalledTrackStallsWhileItsQueuedSuccessorReadsAhead {
+    [self streamingCopyOf:[self fixture:@"noise-48000-24-2.wav"] prefix:44 + 28800 * 6 name:@"stalled.wav"];
+    NSURL *successor = [self networkNoiseOfSeconds:20 name:@"successor.wav"];
+    NSDictionary *attributes = [NSFileManager.defaultManager attributesOfItemAtPath:successor.path error:NULL];
+    uint64_t lastBlock = (attributes.fileSize - 1) / kReadAheadBlock * kReadAheadBlock;
+    _script.throttle = 250000;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self shortenTheOpenDeadline];
+        [self play:self->_streamURL paused:NO position:0];
+    }];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_player prefetchTrack:[AudioTrack withURL:successor]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self stallTheStream];
+    XCTAssertGreaterThan([_script readsOf:successor.lastPathComponent at:kReadAheadBlock], 0u, @"the successor read ahead");
+    XCTAssertEqual([_script readsOf:successor.lastPathComponent at:lastBlock], 0u,
+                   @"the stall came while the successor still read ahead");
+}
+
 #pragma mark - An estimated length
 
 // An MP3's audio frames, its ID3v2 tag left off.

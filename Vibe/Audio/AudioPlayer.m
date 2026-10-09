@@ -926,7 +926,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
     uint64_t bytes = [self bufferedStreamBytesOnQueue];
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-    if (bytes > _bufferingBytes) {
+    // Any change: a file's count only grows, and a switch to another file
+    // is movement too.
+    if (bytes != _bufferingBytes) {
         _bufferingBytes = bytes;
         _deadlineMovedUptime = now;
     }
@@ -935,10 +937,13 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
 }
 
-// What the current voice's writers have fetched: its file's and a queued
-// successor's (AudioFileHandle.bytesWritten), a transfer's or a read-ahead's.
+// What the writer of the file the voice's decoder reads has fetched
+// (AudioFileHandle.bytesWritten), a transfer's or a read-ahead's. That file
+// is the voice's own, or the queued successor once the decoder has switched
+// into it. A successor not yet read never counts. Its download would hide a
+// stall of the file the voice waits on.
 - (uint64_t)bufferedStreamBytesOnQueue {
-    return _file.bytesWritten + _successorFile.bytesWritten;
+    return [_voiceBus fileOfVoice:_voice].bytesWritten;
 }
 
 // Published under _stateLock beside the tuple, with the output-liveness fold
