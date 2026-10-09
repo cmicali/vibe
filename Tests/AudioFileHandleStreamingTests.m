@@ -155,9 +155,15 @@
 @property (nonatomic, readonly) dispatch_semaphore_t failed;
 @property (atomic) useconds_t throttle;
 - (void)stallFrom:(uint64_t)offset;
+// Lets one stalled read through. The rest stay stalled.
+- (void)releaseOneStall;
+// Releases every stalled read and every held failure.
 - (void)releaseStalls;
 // Reads at or past `offset` fail with `code`, once or every time.
 - (void)fail:(int)code from:(uint64_t)offset always:(BOOL)always;
+// A failing read then waits after signalling `failed`, until releaseStalls.
+// Its errno reaches the thread only then.
+- (void)holdFailures;
 // Reads at or past `offset` find the file's end.
 - (void)cutAt:(uint64_t)offset;
 - (NSUInteger)readsAt:(uint64_t)offset;
@@ -170,8 +176,10 @@
     NSCondition *_condition;
     NSCountedSet<NSNumber *> *_reads;
     uint64_t _stallFrom, _failFrom, _cutAt;
+    NSUInteger _stallPasses;
     int _failCode;
     BOOL _failAlways;
+    BOOL _holdFailures;
 }
 
 - (instancetype)init {
@@ -193,8 +201,25 @@
     [_condition unlock];
 }
 
+- (void)releaseOneStall {
+    [_condition lock];
+    _stallPasses++;
+    [_condition broadcast];
+    [_condition unlock];
+}
+
 - (void)releaseStalls {
-    [self stallFrom:UINT64_MAX];
+    [_condition lock];
+    _stallFrom = UINT64_MAX;
+    _holdFailures = NO;
+    [_condition broadcast];
+    [_condition unlock];
+}
+
+- (void)holdFailures {
+    [_condition lock];
+    _holdFailures = YES;
+    [_condition unlock];
 }
 
 - (void)fail:(int)code from:(uint64_t)offset always:(BOOL)always {
@@ -237,8 +262,11 @@
     [_reads addObject:@(offset)];
     if (offset >= _stallFrom) {
         dispatch_semaphore_signal(_stalled);
-        while (offset >= _stallFrom) {
+        while (offset >= _stallFrom && _stallPasses == 0) {
             [_condition wait];
+        }
+        if (offset >= _stallFrom) {
+            _stallPasses--;
         }
     }
     int code = 0;
@@ -249,12 +277,14 @@
         }
     }
     BOOL cut = offset >= _cutAt;
-    [_condition unlock];
     if (code) {
         dispatch_semaphore_signal(_failed);
-        return code;
+        while (_holdFailures) {
+            [_condition wait];
+        }
     }
-    return cut ? -1 : 0;
+    [_condition unlock];
+    return code ?: cut ? -1 : 0;
 }
 
 @end
@@ -1516,10 +1546,10 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 }
 
 // Eight handles gone while their threads are stuck in a read make a ninth
-// read-ahead open fail, before it makes a thread, with the handle's own
-// status. Live handles never count: more than eight open fine. Once the
-// reads return, the orphans are gone and a read-ahead opens again.
-- (void)testEightOrphansRefuseTheNinthReadAheadWhileLiveHandlesOpenFine {
+// read-ahead open wait, with no thread made, until one of them exits. A ninth
+// whose `interrupted` answers YES returns as an interruption. Live handles
+// never count: more than eight open fine, and the direct road never waits.
+- (void)testEightOrphansMakeTheNinthReadAheadWaitWhileLiveHandlesOpenFine {
     VibeReadAheadScript *script = [self readAhead];
     NSURL *url = [self networkCopyOf:[self noiseWAVNamed:@"orphans.wav" frames:100000]];
     @autoreleasepool {
@@ -1548,18 +1578,42 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     }
     XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 8);
     XCTAssertEqual(AudioFileHandle.debugLiveReadAheads, 8);
-    NSError *error = nil;
-    XCTAssertNil(VibeOpenInterruptibly(url, &error));
-    XCTAssertEqualObjects(error.domain, NSOSStatusErrorDomain);
-    XCTAssertEqual(error.code, 'rdah', @"%@", error);
-    XCTAssertEqual(AudioFileHandle.debugLiveReadAheads, 8, @"refused before making a thread");
-    XCTAssertNotNil([[AudioFileHandle alloc] initForReading:url error:NULL], @"the direct road is never refused");
 
-    [script releaseStalls];
-    XCTAssertTrue([self eventually:^BOOL {
-        return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
-    }]);
-    XCTAssertNotNil(VibeOpenInterruptibly(url, &error), @"%@", error);
+    __block _Atomic bool cancelled = false;
+    __block AudioFileHandle *interrupted = nil, *waited = nil;
+    __block NSError *interruption = nil, *waitError = nil;
+    dispatch_semaphore_t interruptedReturned = dispatch_semaphore_create(0);
+    dispatch_semaphore_t waitedReturned = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *openError = nil;
+        interrupted = [[AudioFileHandle alloc] initForReading:url interleaved:NO interrupted:^BOOL {
+            return atomic_load(&cancelled);
+        } error:&openError];
+        interruption = openError;
+        dispatch_semaphore_signal(interruptedReturned);
+    });
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *openError = nil;
+        waited = VibeOpenInterruptibly(url, &openError);
+        waitError = openError;
+        dispatch_semaphore_signal(waitedReturned);
+    });
+    XCTAssertNotEqual(dispatch_semaphore_wait(waitedReturned, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC))), 0,
+                      @"the ninth waits");
+    XCTAssertEqual(AudioFileHandle.debugLiveReadAheads, 8, @"no thread made while it waits");
+    XCTAssertNotNil([[AudioFileHandle alloc] initForReading:url error:NULL], @"the direct road never waits");
+
+    atomic_store(&cancelled, true);
+    XCTAssertTrue([self await:interruptedReturned]);
+    XCTAssertNil(interrupted);
+    XCTAssertTrue([AudioFileHandle isInterruption:interruption], @"%@", interruption);
+    XCTAssertEqual(AudioFileHandle.debugLiveReadAheads, 8, @"no thread made");
+
+    [script releaseOneStall];
+    XCTAssertTrue([self await:waitedReturned], @"one orphan exited");
+    XCTAssertNotNil(waited, @"%@", waitError);
+    XCTAssertTrue(waited.waitsForBytes);
+    XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 7);
 }
 
 // The metadata parse's never-wait open and an open with no `interrupted`
@@ -1692,21 +1746,97 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 }
 
 // A handle let go while its thread waits out a failed read's pause ends the
-// thread, and the read is never tried again.
+// thread, and the read is never tried again. The failed read returns only
+// once the handle is gone. The pause's first wait then sees the finish,
+// whatever the scheduling.
 - (void)testAHandleGoneDuringTheRetryPauseEndsItsThreadWithoutARetry {
     VibeReadAheadScript *script = [self readAhead];
     [script fail:EIO from:256 * 1024 always:NO];
+    [script holdFailures];
     NSURL *url = [self networkCopyOf:[self noiseWAVNamed:@"pausing.wav" frames:400000]];
     @autoreleasepool {
         AudioFileHandle *handle = VibeOpenInterruptibly(url, NULL);
         XCTAssertNotNil(handle);
-        XCTAssertTrue([self await:script.failed], @"a read failed, and the thread pauses");
+        XCTAssertTrue([self await:script.failed], @"a read failed");
     }
+    XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 1, @"its thread holds the failed read");
+    [script releaseStalls];
     XCTAssertTrue([self eventually:^BOOL {
         return AudioFileHandle.debugLiveReadAheads == 0 && AudioFileHandle.debugOrphanedReadAheads == 0;
     }]);
     XCTAssertEqual([script readsAt:256 * 1024], 1u, @"never retried");
     XCTAssertEqual(script.reads, 2u, @"block 0, then the failed read, and nothing after");
+}
+
+// An open that read the file's tail last, an M4A with its moov there, leaves
+// its reader at the head. The thread then fetches the whole span ahead of the
+// head with no read asked of it, as a parked prefetch needs. Throttled, the
+// thread cannot reach the span's last block while the open still reads the
+// head.
+- (void)testAnOpenThatReadTheTailFetchesAheadOfTheHead {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = 256 * 1024;
+    AudioStreamBasicDescription alac = {.mSampleRate = 44100, .mFormatID = kAudioFormatAppleLossless,
+                                        .mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData,
+                                        .mFramesPerPacket = 4096, .mChannelsPerFrame = 2};
+    NSURL *moovFirst = [self sourceNamed:@"long-moov-first.m4a"];
+    NSError *error = nil;
+    AVAudioPCMBuffer *noise = VibeNoiseBuffer(88200);
+    AudioFileHandle *writer = [[AudioFileHandle alloc] initForWriting:moovFirst fileType:kAudioFileM4AType
+                                                           fileFormat:[[AVAudioFormat alloc] initWithStreamDescription:&alac]
+                                                     processingFormat:noise.format error:&error];
+    for (int i = 0; i < 28; i++) {
+        XCTAssertTrue([writer writeFromBuffer:noise error:&error], @"%@", error);
+    }
+    XCTAssertTrue([writer closeWithError:&error], @"%@", error);
+    NSData *moovLast = VibeMoovLast([NSData dataWithContentsOfURL:moovFirst]);
+    XCTAssertGreaterThan(moovLast.length, 34 * block, @"the tail's drop keeps nothing of the span");
+    NSURL *source = [self sourceNamed:@"long-moov-last.m4a"];
+    XCTAssertTrue([moovLast writeToURL:source atomically:YES]);
+    script.throttle = 2000;
+    AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], &error);
+    XCTAssertNotNil(handle, @"%@", error);
+    XCTAssertTrue([self eventually:^BOOL { return [script readsAt:31 * block] == 1; }], @"the span's last block");
+}
+
+// A read that fails after a partial result leaves a block ending inside a
+// range a wait wants. The retry fetches from that end, and no byte below it
+// is read twice.
+- (void)testARetryAfterAPartialReadStartsAtTheHeldEnd {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = 256 * 1024, partial = block + 100 * 1024;
+    NSURL *source = [self noiseWAVNamed:@"partial.wav" frames:400000];
+    NSURL *url = [self networkCopyOf:source];
+    NSData *bytes = [NSData dataWithContentsOfURL:source];
+    [script stallFrom:block];
+    AudioFileHandle *handle = VibeOpenInterruptibly(url, NULL);
+    XCTAssertNotNil(handle);
+    XCTAssertTrue([self await:script.stalled], @"block 1's read waits");
+    // The file is short while that read runs: its first pread comes back
+    // partial, and the next one fails.
+    XCTAssertEqual(truncate(url.fileSystemRepresentation, (off_t)partial), 0);
+    [script fail:EIO from:partial always:NO];
+    [script holdFailures];
+    [script stallFrom:UINT64_MAX];
+    XCTAssertTrue([self await:script.failed]);
+    XCTAssertTrue([bytes writeToURL:url atomically:NO]);
+    // A read straddling the partial end, asked before the failure lands.
+    AVAudioFramePosition frame = (AVAudioFramePosition)(partial - 2048 - 44) / 4;
+    __block NSData *pcm = nil;
+    __block NSError *error = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        pcm = [handle seekToFrame:frame error:&readError] ? VibeDecode(handle, 4096, 4096, &readError) : nil;
+        error = readError;
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertTrue([self eventually:^BOOL { return handle.waitingForBytes; }]);
+    [script releaseStalls];
+    XCTAssertTrue([self await:done]);
+    [self assertPCM:pcm equals:[self referenceOf:source from:frame frames:4096] context:@"across the partial end"];
+    XCTAssertEqual([script readsAt:block], 1u, @"the partial read is never repeated");
+    XCTAssertEqual([script readsAt:partial], 2u, @"the failed read, then the retry from the held end");
 }
 
 

@@ -90,8 +90,8 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // The count noted so far: the transfer's progress (DownloadProgressMonitor),
 // and what tells a reader a stalled transfer from a slow one.
 @property (nonatomic, readonly) uint64_t writtenBytes;
-// The bytes noted plus every block byte ever installed. It only grows, so
-// any rise is movement, whichever writer it is.
+// The bytes noted plus every block byte ever installed. It only grows. Any
+// rise is movement, whichever writer it is.
 @property (nonatomic, readonly) uint64_t progressBytes;
 // Once. Nil is complete, after which every range is ready on disk. An error
 // fails every wait, since nothing already read can be trusted. Either drops
@@ -104,8 +104,9 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // past the size.
 - (void)installWindow:(NSData *)bytes atOffset:(uint64_t)offset;
 // A writer with no part file: the file's bytes at offset, held until dropped.
-// Ignored once finished, past the size, or when blocks already hold the whole
-// range. Otherwise it replaces every block it overlaps.
+// The writer hands the bytes over and never touches them again. Ignored once
+// finished, past the size, or when blocks already hold the whole range.
+// Otherwise it replaces every block it overlaps.
 - (void)installBlock:(NSData *)bytes atOffset:(uint64_t)offset;
 // Drops every block wholly outside [offset, offset + length). Three are
 // always kept: the block at byte 0, the block that ends at the size, and any
@@ -115,13 +116,13 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 @property (nonatomic, readonly) uint64_t windowLength;
 // Where the bytes held contiguously from offset end: on disk below the bytes
 // written, then in blocks. Offset itself when none is held. It never waits
-// and records nothing, so the writer asks it rather than a wait.
+// and records nothing. The writer asks it rather than a wait.
 - (uint64_t)heldEndAt:(uint64_t)offset;
 
 // Blocks until [offset, offset + length) is held, the writer finished,
 // `interrupted` answers YES, or `deadline` passes (Interrupted for both).
-// `interrupted` is asked each time the wait would block, under the lock
-// wakeWaiters takes, so it must not call into this object. A range is
+// `interrupted` is asked each time the wait would block. It is asked under
+// the lock wakeWaiters takes, and must not call into this object. A range is
 // clipped to the size, and one at or past it is the end, never a wait.
 // A range already readable is Ready even when interrupted: an interrupt ends
 // waits, not reads.
@@ -134,9 +135,9 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 //
 // With no part file, every Ready range below the size comes from blocks. A
 // wait before noteSize: waits, since nothing is known to be the end. It
-// sleeps in 0.25 s slices and asks `interrupted` again after each, so an
-// interrupt needs no wake. Only `deadline` ends it on time. A transfer's wait
-// sleeps until woken.
+// sleeps in 0.25 s slices and asks `interrupted` again after each. An
+// interrupt then needs no wake. Only `deadline` ends it on time. A
+// transfer's wait sleeps until woken.
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
                                  windowInto:(void *_Nullable)buffer
@@ -145,10 +146,10 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
                                 interrupted:(BOOL (NS_NOESCAPE ^_Nullable)(void))interrupted
                                    deadline:(nullable NSDate *)deadline
                                       error:(NSError *__autoreleasing _Nullable *_Nullable)error;
-// Never waits: the longest prefix of [offset, offset + length) readable now,
-// copied out of the blocks, or read from the part file below the bytes
-// noted, so never a byte not yet written. Nil when none, and once finished,
-// when the part is renamed or deleted. Any thread. The disk read is outside
+// Never waits: the longest prefix of [offset, offset + length) readable now.
+// It is copied out of the blocks, or read from the part file below the bytes
+// noted. It is never a byte not yet written. Nil when none, and once
+// finished, when the part is renamed or deleted. Any thread. The disk read is outside
 // the lock. A tag parse during a play reads what the stream holds this way.
 - (nullable NSData *)readyBytesAt:(uint64_t)offset length:(uint64_t)length;
 // Any thread: every wait asks its `interrupted` again. Call it after making
@@ -161,12 +162,14 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // cleared. Otherwise it returns at the deadline. It reports the range a
 // blocked wait wants, length 0 when none is blocked, and the reader's
 // position, the offset of the most recent wait. These are reported on every
-// return, so a writer that has just installed a block reads them afresh.
+// return. A writer that has just installed a block reads them afresh.
 // NO once finished, at once.
 - (BOOL)waitForWorkUntil:(NSDate *)deadline
                   wanted:(uint64_t *)offset
                   length:(uint64_t *)length
           readerPosition:(uint64_t *)position;
+// Moves the reader's position and wakes the writer. A transfer ignores it.
+- (void)noteReaderPosition:(uint64_t)offset;
 // Set while the reader's reads are interrupted. The writer then fetches only
 // a range a wait wants. Clearing it wakes the writer's wait for work. A
 // transfer ignores it.

@@ -887,8 +887,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // is buffered, the end is known, or the decoder has nothing left to wait
 // for. A hold with no progress for the open deadline's span
 // (AudioFileOpenTimeoutMath.h) pauses in place with an error, never a track
-// end. It is read off the voice's snapshot at each drain, which runs while
-// the output runs voices. The render is untouched.
+// end. It is read off the voice's snapshot at each drain. The drain runs
+// while the output runs voices. The render is untouched.
 - (void)updateBufferingOnQueue {
     if (_state != VibePlayerStatePlaying || !_voice || ![self renderingOnQueue]) {
         return;

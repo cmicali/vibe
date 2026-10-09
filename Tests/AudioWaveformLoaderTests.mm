@@ -126,6 +126,8 @@
     // The streams the remote backend answers, by path; set only by a test
     // that streams, and uninstalled in tearDown.
     NSMutableDictionary<NSString *, WaveformStreamAvailability *> *_streams;
+    // The read-ahead test's stalled reads wait on it. tearDown opens it.
+    dispatch_semaphore_t _readAheadGate;
 }
 
 - (void)setUp {
@@ -148,6 +150,16 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 - (void)tearDown {
     if (_streams) {
         [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    }
+    if (_readAheadGate) {
+        // The read-ahead counts are process-wide: every parked thread is
+        // released and gone before the next test counts.
+        dispatch_semaphore_signal(_readAheadGate);
+        [AudioFileHandle debugSetMountRule:nil];
+        XCTAssertTrue([self eventually:^BOOL {
+            return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
+        }]);
+        [AudioFileHandle debugSetBeforeRead:nil];
     }
     [NSFileManager.defaultManager removeItemAtURL:_tempDirectory error:nil];
     _loader = nil;
@@ -790,8 +802,7 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
 // waits. A cancel then ends that wait.
 - (void)testAReadAheadLoadPublishesItsFirstBlockBeforeAStalledRead {
     NSURL *url = [self writeNoiseWAVNamed:@"network.wav" seconds:6.0 seed:17];
-    NSCondition *gate = [[NSCondition alloc] init];
-    __block BOOL released = NO;
+    dispatch_semaphore_t gate = _readAheadGate = dispatch_semaphore_create(0);
     dispatch_semaphore_t stalled = dispatch_semaphore_create(0);
     [AudioFileHandle debugSetMountRule:^NSNumber *(NSURL *candidate) {
         return [candidate.path isEqualToString:url.path] ? @YES : nil;
@@ -800,11 +811,9 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     [AudioFileHandle debugSetBeforeRead:^int(NSURL *candidate, uint64_t offset, uint64_t length) {
         if ([candidate.path isEqualToString:url.path] && offset >= 2 * 256 * 1024) {
             dispatch_semaphore_signal(stalled);
-            [gate lock];
-            while (!released) {
-                [gate wait];
-            }
-            [gate unlock];
+            // Passed on once open, so every later read passes too.
+            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
+            dispatch_semaphore_signal(gate);
         }
         return 0;
     }];
@@ -824,16 +833,6 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     [loader cancel];
     XCTAssertTrue([self await:done], @"the cancel ended the wait");
     XCTAssertNil(result);
-
-    [gate lock];
-    released = YES;
-    [gate broadcast];
-    [gate unlock];
-    [AudioFileHandle debugSetMountRule:nil];
-    XCTAssertTrue([self eventually:^BOOL {
-        return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
-    }]);
-    [AudioFileHandle debugSetBeforeRead:nil];
 }
 
 #pragma mark - Through the cache

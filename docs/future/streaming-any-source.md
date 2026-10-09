@@ -8,7 +8,7 @@
 - A file on a network mount reads ahead when its opener can be interrupted: the coordinator's opens and the waveform loader's. The kernel's mount table decides (`VibeMountReadsAhead`). A thread per handle fetches 256 KB blocks up to 8 MB ahead of the reader.
 - The waveform loader's read-ahead publishes its first snapshot at once, as a stream's does, and a cancel frees its slot on a dead mount. That is phase 3's first half.
 - A dropped server holds the play, then pauses it in place with "Connection lost" within the stall span. A server back within the span plays on. Seek, skip and stop stay responsive. The mac publishes rate 0 to Now Playing during a hold. It draws no buffering on screen.
-- Three changes from the plan below. A read error is retried until the handle goes and is never a failure. A dead server ends in the stall's pause. The bound counts orphaned threads, not live ones: at eight, a new read-ahead open is refused with the handle's own error. An MP3 on a share is counted exactly at open, as a local file is. A headerless mix that takes longer than the open deadline to cross the wire fails to open.
+- Three changes from the plan below. A read error is retried until the handle goes and is never a failure. A dead server ends in the stall's pause. The bound counts orphaned threads, not live ones. At eight, a new read-ahead open waits until one exits. The open deadline still bounds that wait. An MP3 on a share is counted exactly at open, as a local file is. A headerless mix that takes longer than the open deadline to cross the wire fails to open.
 
 **Deferred.**
 

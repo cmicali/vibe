@@ -54,8 +54,9 @@
 //  interrupted: a thread of the handle's own reads it into an availability
 //  with no part file, and every read waits for its bytes there, as a
 //  stream's does. The handle then holds no descriptor. A read the server
-//  fails is retried until the handle goes, so a dead server is a wait, never
-//  a failure. Its dealloc ends the thread once the thread's read returns.
+//  fails is retried until the handle goes. A dead server is then a wait,
+//  never a failure. Its dealloc ends the thread once the thread's read
+//  returns.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -181,8 +182,8 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 // Any thread, lock-free: YES while a read is blocked waiting for bytes, never
 // for bytes already here.
 @property (atomic, readonly) BOOL waitingForBytes;
-// What the handle's writer has fetched so far, which only grows: the
-// transfer's progress or the read-ahead's. The size of a whole file. Any
+// What the handle's writer has fetched so far. It only grows. It is the
+// transfer's progress or the read-ahead's, and the size of a whole file. Any
 // thread.
 @property (nonatomic, readonly) uint64_t bytesWritten;
 // Once, on the opening thread before the handle is shared: makes it one of

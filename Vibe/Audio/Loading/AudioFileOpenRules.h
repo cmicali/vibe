@@ -67,10 +67,17 @@ static inline uint64_t VibeAudioFileTailWindowBytes(NSString *extension, uint64_
     return size > 2 * window ? window : 0;
 }
 
-// A path's spelling under /private when it starts with /var or /tmp, the two
-// symlinks into it, so a mount and a path compare as one spelling without
-// asking the disk. Truncated to `capacity`.
+// One spelling for a mount and a path, made without asking the disk. A
+// leading /System/Volumes/Data is dropped. The data volume's firmlinks make
+// that prefix and the root one place. A path that then starts with /var or
+// /tmp is spelled under /private. Those two are symlinks into it. Truncated
+// to `capacity`.
 static inline void VibeMountSpelling(const char *path, char *spelled, size_t capacity) {
+    static const char kData[] = "/System/Volumes/Data";
+    const size_t data = sizeof(kData) - 1;
+    if (strncmp(path, kData, data) == 0 && (path[data] == '/' || path[data] == '\0')) {
+        path = path[data] == '\0' ? "/" : path + data;
+    }
     BOOL aliased = (strncmp(path, "/var", 4) == 0 || strncmp(path, "/tmp", 4) == 0)
             && (path[4] == '/' || path[4] == '\0');
     snprintf(spelled, capacity, "%s%s", aliased ? "/private" : "", path);
@@ -101,9 +108,9 @@ static inline int VibeMountHoldingPath(const struct statfs *_Nullable mounts, in
     return best;
 }
 
-// Whether a file reads ahead: YES when the mount holding it is a network one,
-// which is any mount not flagged MNT_LOCAL. No mount, or an empty table, is
-// NO: the direct road.
+// Whether a file reads ahead: YES when the mount holding it is a network one.
+// A network mount is any mount not flagged MNT_LOCAL. No mount, or an empty
+// table, is NO: the direct road.
 static inline BOOL VibeMountReadsAhead(const struct statfs *_Nullable mounts, int count, const char *path) {
     int index = VibeMountHoldingPath(mounts, count, path);
     return index >= 0 && (mounts[index].f_flags & MNT_LOCAL) == 0;

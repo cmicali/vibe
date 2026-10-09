@@ -754,7 +754,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     uint64_t offset = 0, length = 0, position = 0;
     NSDate *soon = [NSDate dateWithTimeIntervalSinceNow:0.05];
     XCTAssertTrue([availability waitForWorkUntil:soon wanted:&offset length:&length readerPosition:&position]);
-    XCTAssertGreaterThan(-soon.timeIntervalSinceNow, -0.01, @"no news, so the writer's wait ran to its deadline");
     XCTAssertEqual(position, 550u, @"the last wait's offset, not the queries'");
 
     CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:1000];
@@ -765,6 +764,33 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual([transfer heldEndAt:700], 1000u, @"the tail window");
     [transfer noteWrittenBytes:600];
     XCTAssertEqual([transfer heldEndAt:10], 600u, @"the window is dropped once the disk reaches it");
+}
+
+// Noting the reader's position wakes the writer's wait for work, which then
+// reports it. A transfer ignores it.
+- (void)testNotingTheReaderPositionWakesTheWriter {
+    NSData *file = WindowPattern(1000);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(900, 100)] atOffset:900];
+    uint8_t buffer[8];
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 950, 1, buffer, 8, &copied), CloudFileAvailabilityReady);
+    TakeNews(availability);
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t returned = [self waitForWork:availability open:&open wanted:&wanted length:&length
+                                             position:&position];
+    [availability noteReaderPosition:0];
+    [self awaitReturn:returned];
+    XCTAssertTrue(open);
+    XCTAssertEqual(position, 0u, @"the head, not the last wait's offset");
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:1000];
+    [transfer noteReaderPosition:500];
+    uint64_t offset = 0, at = 7;
+    [transfer waitForWorkUntil:[NSDate distantPast] wanted:&offset length:&length readerPosition:&at];
+    XCTAssertEqual(at, 0u, @"a transfer ignores it");
 }
 
 // A drop keeps the block at byte 0, the block ending at the size, and a block
@@ -951,6 +977,7 @@ static void TakeNews(CloudFileAvailability *availability) {
         XCTAssertEqual([availability waitForBytesAt:10 length:10 windowInto:NULL capacity:0 copied:NULL
                                         interrupted:^BOOL { return NO; } deadline:deadline error:NULL],
                        CloudFileAvailabilityInterrupted);
+        // A lower bound: descheduling only makes the clock later, never earlier.
         XCTAssertGreaterThanOrEqual([NSDate.date timeIntervalSinceDate:deadline], 0.0);
     }
 }

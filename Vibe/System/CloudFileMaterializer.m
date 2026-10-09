@@ -71,7 +71,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     NSUInteger _readers;
     dispatch_block_t _onLastReaderGone;
     // Offset-ordered and disjoint, each offset beside its block. A
-    // transfer's one block lies wholly past _written, so a read never mixes
+    // transfer's one block lies wholly past _written. A read then never mixes
     // the disk and memory.
     NSMutableArray<NSData *> *_blocks;
     NSMutableArray<NSNumber *> *_blockOffsets;
@@ -136,8 +136,8 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     [_condition lock];
     if (bytes > _written) {
         _written = MIN(bytes, _size);
-        // TRAP: dropped under the lock a reader copies under, so a wait a
-        // block answered has copied before the block can go. A range in it
+        // TRAP: dropped under the lock a reader copies under. A wait a block
+        // answered has then copied before the block can go. A range in it
         // past the download's edge waits for the disk from here.
         while (_blocks.count > 0 && _blockOffsets[0].unsignedLongLongValue <= _written) {
             [_blocks removeObjectAtIndex:0];
@@ -177,11 +177,11 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     [_condition unlock];
 }
 
-// Under the lock: where the blocks held contiguously from offset end, and in
-// *index the block holding offset. Offset itself, and NSNotFound, when no
-// block holds it.
+// Under the lock: where the blocks held contiguously from offset end, clipped
+// to the size, and in *index, when given, the block holding offset. Offset
+// itself, and NSNotFound, when no block holds it.
 - (uint64_t)heldEndAt:(uint64_t)offset block:(NSUInteger *)index {
-    *index = NSNotFound;
+    NSUInteger first = NSNotFound;
     uint64_t end = offset;
     for (NSUInteger i = 0; i < _blocks.count; i++) {
         uint64_t start = _blockOffsets[i].unsignedLongLongValue;
@@ -190,13 +190,16 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
         }
         uint64_t blockEnd = start + _blocks[i].length;
         if (blockEnd > end) {
-            if (*index == NSNotFound) {
-                *index = i;
+            if (first == NSNotFound) {
+                first = i;
             }
             end = blockEnd;
         }
     }
-    return end;
+    if (index) {
+        *index = first;
+    }
+    return first == NSNotFound ? offset : MIN(end, _size);
 }
 
 // Under the lock: length bytes from offset, held from block index on.
@@ -243,12 +246,10 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
 }
 
 - (void)installBlock:(NSData *)bytes atOffset:(uint64_t)offset {
-    NSData *block = VibeContiguousCopy(bytes);
-    NSUInteger index;
     [_condition lock];
-    if (!_complete && !_failure && block.length > 0 && offset < _size && block.length <= _size - offset
-            && [self heldEndAt:offset block:&index] < offset + block.length) {
-        [self insertBlock:block atOffset:offset];
+    if (!_complete && !_failure && bytes.length > 0 && offset < _size && bytes.length <= _size - offset
+            && [self heldEndAt:offset block:NULL] < offset + bytes.length) {
+        [self insertBlock:bytes atOffset:offset];
     }
     [_condition unlock];
 }
@@ -266,17 +267,16 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
             [dropped addIndex:i];
         }
     }
-    // TRAP: dropped under the lock a reader copies under, so a wait a block
-    // answered has copied before the block can go.
+    // TRAP: dropped under the lock a reader copies under. A wait a block
+    // answered has then copied before the block can go.
     [_blocks removeObjectsAtIndexes:dropped];
     [_blockOffsets removeObjectsAtIndexes:dropped];
     [_condition unlock];
 }
 
 - (uint64_t)heldEndAt:(uint64_t)offset {
-    NSUInteger index;
     [_condition lock];
-    uint64_t end = [self heldEndAt:MAX(offset, _written) block:&index];
+    uint64_t end = [self heldEndAt:MAX(offset, _written) block:NULL];
     [_condition unlock];
     return end;
 }
@@ -329,7 +329,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
         uint64_t held = [self heldEndAt:offset block:&block];
         if (last <= held) {
             if (buffer) {
-                fromBlocks = MIN(capacity, MIN(held, _size) - offset);
+                fromBlocks = MIN(capacity, held - offset);
                 [self copyHeldBytesAt:offset length:fromBlocks fromBlock:block into:buffer];
             }
             // The writer refills ahead once the reader enters another block,
@@ -393,7 +393,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     NSUInteger block;
     uint64_t held = [self heldEndAt:offset block:&block];
     if (block != NSNotFound) {
-        NSMutableData *copy = [NSMutableData dataWithLength:(NSUInteger)MIN(length, MIN(held, _size) - offset)];
+        NSMutableData *copy = [NSMutableData dataWithLength:(NSUInteger)MIN(length, held - offset)];
         [self copyHeldBytesAt:offset length:copy.length fromBlock:block into:copy.mutableBytes];
         [_condition unlock];
         return copy;
@@ -446,6 +446,16 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     *position = _readerPosition;
     [_condition unlock];
     return running;
+}
+
+- (void)noteReaderPosition:(uint64_t)offset {
+    if (_partURL) {
+        return;
+    }
+    [_condition lock];
+    _readerPosition = offset;
+    [self signalWriter];
+    [_condition unlock];
 }
 
 - (BOOL)readAheadPaused {

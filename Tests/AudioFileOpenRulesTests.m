@@ -152,6 +152,20 @@ static BOOL VibeReadsAheadIn(NSData *table, NSString *path) {
     XCTAssertTrue(VibeReadsAheadIn(shortNames, @"/tmp/share/a.flac"));
 }
 
+// A leading /System/Volumes/Data names the same place as the root, on a
+// mount's name and on a path alike, and only as a whole component.
+- (void)testTheDataVolumeSpellingMatchesEitherWay {
+    NSData *table = VibeMountTable(@{@"/": @YES, @"/System/Volumes/Data": @YES, @"/System/Volumes/Data/home": @NO,
+                                     @"/Volumes/Media": @NO});
+    XCTAssertTrue(VibeReadsAheadIn(table, @"/home/me/a.flac"), @"the mount named under the data volume");
+    XCTAssertTrue(VibeReadsAheadIn(table, @"/System/Volumes/Data/home/me/a.flac"));
+    XCTAssertTrue(VibeReadsAheadIn(table, @"/System/Volumes/Data/Volumes/Media/a.flac"), @"the path named under it");
+    XCTAssertFalse(VibeReadsAheadIn(table, @"/System/Volumes/Data/Users/me/a.flac"));
+    XCTAssertFalse(VibeReadsAheadIn(table, @"/System/Volumes/Database/home/a.flac"), @"a prefix is whole components");
+    NSData *aliased = VibeMountTable(@{@"/": @YES, @"/private/var/share": @NO});
+    XCTAssertTrue(VibeReadsAheadIn(aliased, @"/System/Volumes/Data/private/var/share/a.flac"));
+}
+
 // No table, or no mount holding the path, is the direct road.
 - (void)testNoMountIsTheDirectRoad {
     XCTAssertFalse(VibeMountReadsAhead(NULL, 0, "/Volumes/Media/a.flac"));
