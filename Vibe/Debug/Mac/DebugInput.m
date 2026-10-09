@@ -11,6 +11,7 @@
 #import "AppSettings+Mac.h"
 #import "MainMenuBuilder.h"
 #import "MainPlayerController+Settings.h"
+#import "LinkRules.h"
 
 #if DEBUG
 
@@ -506,7 +507,7 @@ NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSStr
 // path a real external file drag takes through MainWindow, as direct delegate
 // calls with no mouse events or NSDraggingSession: mouse handlers can start
 // window-server dragging, which unattended stress must avoid. Coordinates are
-// the mouse verbs'.
+// the mouse verbs'. file_drag_drop takes a link too, dropped as text.
 
 static NSString *VibeWellName(PlaylistDropWellAction action) {
     switch (action) {
@@ -524,7 +525,7 @@ static BOOL VibeDragPointArgument(NSArray<NSString *> *tokens, NSWindow *window,
     double x = 0, y = 0;
     if (tokens.count < 3 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)) {
         *errorJSON = VibeErrorJSON(@"usage: %@ <x> <y>%@", verb,
-                [verb isEqualToString:@"file_drag_drop"] ? @" <file-or-directory>" : @"");
+                [verb isEqualToString:@"file_drag_drop"] ? @" <file-directory-or-link>" : @"");
         return NO;
     }
     *outX = x;
@@ -564,11 +565,21 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
         return errorJSON;
     }
     if (tokens.count < 4) {
-        return VibeErrorJSON(@"usage: file_drag_drop <x> <y> <file-or-directory>");
+        return VibeErrorJSON(@"usage: file_drag_drop <x> <y> <file-directory-or-link>");
     }
-    NSString *path = [[tokens subarrayWithRange:NSMakeRange(3, tokens.count - 3)]
-            componentsJoinedByString:@" "].stringByExpandingTildeInPath;
-    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+    NSString *argument = [[tokens subarrayWithRange:NSMakeRange(3, tokens.count - 3)]
+            componentsJoinedByString:@" "];
+    NSString *path = argument.stringByExpandingTildeInPath;
+    // A file as Finder drags one. Anything else as a browser's text.
+    NSDictionary<NSString *, NSString *> *item;
+    if ([NSFileManager.defaultManager fileExistsAtPath:path]) {
+        item = @{kVibeDropTypeFileURL: [NSURL fileURLWithPath:path].absoluteString};
+    }
+    else if (VibeLinkIsWebLink(VibeLinkURLFromString(argument))) {
+        item = @{kVibeDropTypeText: argument};
+        path = argument;
+    }
+    else {
         return VibeErrorJSON(@"no file or directory at '%@'", path);
     }
     // For the reply only, resolved before anything mutates; the delivery
@@ -576,11 +587,11 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
     PlaylistDropWellAction well = [controller.playerContentView.playlistDropZoneView
             dropActionForWindowPoint:location];
     // performDragOperation:'s order: the well's append flag, the open funnel,
-    // then draggingEnded's teardown. The funnel owns the expansion, so this
-    // returns without waiting; poll dump_state for the playlist. As with
-    // `open`, an ungranted path may be denied at read time.
+    // then draggingEnded's teardown. The funnel owns the expansion and a
+    // link's resolve, so this returns without waiting; poll dump_state for the
+    // playlist. As with `open`, an ungranted path may be denied at read time.
     BOOL append = [window.dropDelegate mainWindow:window dropAppendsAtLocation:location];
-    [(AppDelegate *)NSApp.delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:append];
+    [window openDroppedItems:@[item] appending:append];
     [window.dropDelegate mainWindowFileDraggingEnded:window];
     return VibeJSONString(@{@"ok": @YES, @"dropping": path,
                             @"x": @(x), @"y": @(y), @"well": VibeWellName(well)});

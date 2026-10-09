@@ -10,7 +10,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 | `RemotePlaceholderStore` | remote files as local placeholders under one root: the placeholder and the install, the directory index, the fetch that streams, the ranged read, the download budget, and the backend it installs. Tested (`RemotePlaceholderStoreTests`) |
 | `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads, and the budget |
 | `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
-| `LinkRules.h` | the address rule, the audio check, the names, the Dropbox and Google Drive share-link rewrites, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
+| `LinkRules.h` | the address rule, the audio check, the names, the Dropbox and Google Drive share-link rewrites, what a drop opens, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
 
 `DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store over the plain client (below).
 
@@ -136,4 +136,6 @@ The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through a
 
 **Pruning deletes each link not opened for 30 days that nothing keeps** (`pruneKeepingURLs:`, `VibeLinkDirectoriesToPrune`). A directory with no record counts as long unopened. A shell calls it once per launch, off main, after the launch's restore. It keeps the playlist's rows as the launch restored them and the recent items (`VibeLinkKeptURLs`). On the mac those are the recent documents. On iOS they are Recents. **A saved M3U naming a pruned link finds that entry missing.**
 
-**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`. `open_url` resolves a link through each shell's own Open URL road.
+**A link can arrive by a drop on the mac's window** (`Mac/App/AGENTS.md`). What a drop holds is decided here, as plain data, so the tests need no pasteboard. `VibeDropURLsOfItems` reads each pasteboard item's strings by type: a file URL wins, then a URL, then text. A URL or text counts only when it is one http or https link (`VibeLinkIsWebLink`). A `.webloc` is a file, and its link is the `URL` key of its property list, XML or binary (`VibeLinkURLOfWebloc`). `VibeDropOpenOrder` swaps each `.webloc` for its link and keeps each link once, by its normalized URL. Files are never merged. Files and links keep drop order. iOS has no drop target.
+
+**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`. `open_url` resolves a link through each shell's own Open URL road. On the mac, `file_drag_drop` drops a link as a browser's text.

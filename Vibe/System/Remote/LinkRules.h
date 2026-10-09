@@ -436,6 +436,88 @@ static inline NSString *VibeLinkDirectoryName(NSURL *url) {
     return [hex substringToIndex:16];
 }
 
+#pragma mark - Drops
+
+// The pasteboard types a drop on the mac's window is read for. Finder writes
+// a file URL. A browser's link or address-bar drag writes a URL, and often
+// the same link as text. Text from anywhere else may hold one link.
+static NSString *const kVibeDropTypeFileURL = @"public.file-url";
+static NSString *const kVibeDropTypeURL = @"public.url";
+static NSString *const kVibeDropTypeText = @"public.utf8-plain-text";
+
+// A .webloc is a small property list. Only this many bytes are read.
+static const NSUInteger kVibeLinkWeblocMaxBytes = 64 * 1024;
+
+// An http or https URL with a host. The address rule still decides whether
+// Vibe fetches it. Plain http to a public host is a link that fails as
+// insecure, before any request.
+static inline BOOL VibeLinkIsWebLink(NSURL *_Nullable url) {
+    return VibeLinkURLAcceptance(url) != VibeLinkErrorInvalid;
+}
+
+static inline BOOL VibeLinkIsWebloc(NSURL *url) {
+    return url.isFileURL && [url.pathExtension.lowercaseString isEqualToString:@"webloc"];
+}
+
+// What a drop holds, in drop order. Each item is one pasteboard item's
+// strings by type. A file URL wins, then a URL, then text. A file is kept as
+// it came, since the shell pins its path. A URL or text that is no web link
+// adds nothing. So does text holding anything but one link.
+static inline NSArray<NSURL *> *VibeDropURLsOfItems(NSArray<NSDictionary<NSString *, NSString *> *> *items) {
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSDictionary<NSString *, NSString *> *item in items) {
+        NSString *file = item[kVibeDropTypeFileURL];
+        if (file) {
+            NSURL *url = [NSURL URLWithString:file];
+            if (url.isFileURL) [urls addObject:url];
+            continue;
+        }
+        NSURL *link = VibeLinkURLFromString(item[kVibeDropTypeURL] ?: item[kVibeDropTypeText]);
+        if (VibeLinkIsWebLink(link)) [urls addObject:link];
+    }
+    return urls;
+}
+
+// Whether a drop takes the link road: it holds a web link or a .webloc.
+static inline BOOL VibeDropHasLinks(NSArray<NSURL *> *urls) {
+    for (NSURL *url in urls) {
+        if (!url.isFileURL || VibeLinkIsWebloc(url)) return YES;
+    }
+    return NO;
+}
+
+// A .webloc's link: the URL key of its property list, XML or binary. Nil
+// when it holds no web link.
+static inline NSURL *_Nullable VibeLinkURLOfWebloc(NSData *_Nullable data) {
+    if (data.length == 0) return nil;
+    id plist = [NSPropertyListSerialization propertyListWithData:data options:NSPropertyListImmutable
+                                                          format:NULL error:NULL];
+    id string = [plist isKindOfClass:NSDictionary.class] ? ((NSDictionary *)plist)[@"URL"] : nil;
+    NSURL *url = [string isKindOfClass:NSString.class] ? VibeLinkURLFromString(string) : nil;
+    return VibeLinkIsWebLink(url) ? url : nil;
+}
+
+// What a drop on the link road opens, in drop order: its files, and its
+// links. Each .webloc is swapped for its link. read answers its first bytes,
+// or nil. A .webloc with no web link opens nothing. A link the drop already
+// holds is not added again, by the store's normalized URL.
+static inline NSArray<NSURL *> *VibeDropOpenOrder(NSArray<NSURL *> *urls,
+                                                  NSData *_Nullable (^read)(NSURL *webloc)) {
+    NSMutableArray<NSURL *> *order = [NSMutableArray array];
+    NSMutableSet<NSString *> *links = [NSMutableSet set];
+    for (NSURL *dropped in urls) {
+        NSURL *url = VibeLinkIsWebloc(dropped) ? VibeLinkURLOfWebloc(read(dropped)) : dropped;
+        if (url == nil) continue;
+        if (!url.isFileURL) {
+            NSString *key = VibeLinkNormalizedURLString(url);
+            if ([links containsObject:key]) continue;
+            [links addObject:key];
+        }
+        [order addObject:url];
+    }
+    return order;
+}
+
 #pragma mark - Pruning
 
 // A link not opened for this long is deleted at launch, unless something

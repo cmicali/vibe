@@ -59,6 +59,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSAlert *_openLinkAlert;
     // Cancels the prompt's link while it resolves.
     dispatch_block_t _cancelOpenLink;
+    // One cancel per open still resolving its links, until it settles.
+    NSMutableArray<dispatch_block_t> *_linkOpenCancels;
 }
 
 - (instancetype)init {
@@ -70,6 +72,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                                sink:^(NSArray<NSURL *> *urls, BOOL append) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
+        _linkOpenCancels = [NSMutableArray array];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
@@ -218,21 +221,117 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (urls.count == 0) {
         return;
     }
-    __weak AppDelegate *weakSelf = self;
     OpenRequestToken *token = [self beginOpenRequestAppending:append fromURLs:urls];
+    if (VibeDropHasLinks(urls)) {
+        [self openLinksAmongURLs:urls token:token];
+    }
+    else {
+        [self openFiles:urls token:token];
+    }
+}
+
+- (void)openFiles:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
+    __weak AppDelegate *weakSelf = self;
     [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
     }];
 }
 
+// A drop holding links (System/Remote/AGENTS.md). Each .webloc is read for
+// its link off main. Then each link resolves in drop order, one at a time.
+// The files and the links' files open as one open, in drop order. A link
+// that fails drops out, and the first failure's alert shows. A cancel, or a
+// newer replacing open, opens nothing.
+- (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
+    __weak AppDelegate *weakSelf = self;
+    __block BOOL cancelled = NO;
+    __block dispatch_block_t cancelResolve = nil;
+    dispatch_block_t cancel = ^{
+        cancelled = YES;
+        // A resolve's cancel completes it at once, which clears the variable.
+        dispatch_block_t resolve = cancelResolve;
+        if (resolve) {
+            resolve();
+        }
+    };
+    [_linkOpenCancels addObject:cancel];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray<NSURL *> *order = VibeDropOpenOrder(urls, ^NSData *(NSURL *webloc) {
+            NSFileHandle *handle = [NSFileHandle fileHandleForReadingFromURL:webloc error:NULL];
+            NSData *head = [handle readDataUpToLength:kVibeLinkWeblocMaxBytes error:NULL];
+            [handle closeAndReturnError:NULL];
+            return head;
+        });
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSMutableArray<NSURL *> *files = [NSMutableArray array];
+            __block NSString *message = nil;
+            __block void (^step)(NSUInteger) = nil;
+            step = ^(NSUInteger next) {
+                AppDelegate *strongSelf = weakSelf;
+                if (!strongSelf) {
+                    return;
+                }
+                BOOL current = !cancelled && [OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token];
+                while (current && next < order.count && order[next].isFileURL) {
+                    [files addObject:order[next++]];
+                }
+                if (current && next < order.count) {
+                    cancelResolve = [LinkStore.shared resolveURLString:order[next].absoluteString
+                                                            completion:^(NSURL *file, NSError *error) {
+                        cancelResolve = nil;
+                        if (file) {
+                            [files addObject:file];
+                        }
+                        else if (!message) {
+                            message = [LinkStore messageForError:error];
+                        }
+                        void (^again)(NSUInteger) = step;
+                        again(next + 1);
+                    }];
+                    return;
+                }
+                [strongSelf->_linkOpenCancels removeObjectIdenticalTo:cancel];
+                if (!current || files.count == 0) {
+                    // The empty delivery, as an Open URL failure's.
+                    [OpenRequestCoordinator.sharedCoordinator finishRequest:token rows:@[] folderCount:0];
+                }
+                else {
+                    [strongSelf openFiles:files token:token];
+                }
+                if (current && message) {
+                    [strongSelf showLinkError:message];
+                }
+                // Last: this block may go with it.
+                step = nil;
+            };
+            void (^first)(NSUInteger) = step;
+            first(0);
+        });
+    });
+}
+
+- (BOOL)cancelLinkOpens {
+    NSArray<dispatch_block_t> *cancels = [_linkOpenCancels copy];
+    for (dispatch_block_t cancel in cancels) {
+        cancel();
+    }
+    return cancels.count > 0;
+}
+
 - (OpenRequestToken *)beginOpenRequestAppending:(BOOL)append fromURLs:(NSArray<NSURL *> *)urls {
     __weak AppDelegate *weakSelf = self;
-    return [OpenRequestCoordinator.sharedCoordinator
+    OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
                          delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
                              [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending
                                                   fromURLs:urls];
                          }];
+    // After the supersession, so a superseded open delivers nothing. Its
+    // links stop resolving.
+    if (!append) {
+        [self cancelLinkOpens];
+    }
+    return token;
 }
 
 - (dispatch_block_t)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
