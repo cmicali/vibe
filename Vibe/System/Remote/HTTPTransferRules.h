@@ -68,31 +68,53 @@ static inline int64_t VibeHTTPParseLength(NSString *_Nullable text) {
     return value;
 }
 
-// The total of a Content-Range: "bytes 0-15/4000" and "bytes */4000" are
-// 4000. -1 when the total is unknown ("/*"), or the header is absent or
-// malformed, a range outside its own total included.
-static inline int64_t VibeHTTPContentRangeTotal(NSString *_Nullable contentRange) {
+// A Content-Range's parts: "bytes 0-15/4000" is 0, 15 and 4000, and
+// "bytes */4000" has no range, -1 for first and last. A total of "*" is -1.
+// NO when the header is absent or malformed, a range outside its own total
+// included.
+static inline BOOL VibeHTTPParseContentRange(NSString *_Nullable contentRange,
+                                             int64_t *first, int64_t *last, int64_t *total) {
+    *first = *last = *total = -1;
     NSString *text = [contentRange stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
     if (![text.lowercaseString hasPrefix:@"bytes "]) {
-        return -1;
+        return NO;
     }
     NSString *spec = [[text substringFromIndex:6] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
     NSRange slash = [spec rangeOfString:@"/"];
     if (slash.location == NSNotFound) {
-        return -1;
+        return NO;
     }
-    int64_t total = VibeHTTPParseLength([spec substringFromIndex:NSMaxRange(slash)]);
+    NSString *size = [spec substringFromIndex:NSMaxRange(slash)];
+    *total = [size isEqualToString:@"*"] ? -1 : VibeHTTPParseLength(size);
+    if (*total < 0 && ![size isEqualToString:@"*"]) {
+        return NO;
+    }
     NSString *range = [spec substringToIndex:slash.location];
-    if (total < 0 || [range isEqualToString:@"*"]) {
-        return total;
+    if ([range isEqualToString:@"*"]) {
+        return *total >= 0;
     }
     NSRange dash = [range rangeOfString:@"-"];
     if (dash.location == NSNotFound) {
-        return -1;
+        return NO;
     }
-    int64_t first = VibeHTTPParseLength([range substringToIndex:dash.location]);
-    int64_t last = VibeHTTPParseLength([range substringFromIndex:NSMaxRange(dash)]);
-    return first >= 0 && last >= first && last < total ? total : -1;
+    *first = VibeHTTPParseLength([range substringToIndex:dash.location]);
+    *last = VibeHTTPParseLength([range substringFromIndex:NSMaxRange(dash)]);
+    return *first >= 0 && *last >= *first && (*total < 0 || *last < *total);
+}
+
+// The total of a Content-Range: "bytes 0-15/4000" and "bytes */4000" are
+// 4000. -1 when the total is unknown ("/*"), or the header is absent or
+// malformed.
+static inline int64_t VibeHTTPContentRangeTotal(NSString *_Nullable contentRange) {
+    int64_t first, last, total;
+    return VibeHTTPParseContentRange(contentRange, &first, &last, &total) ? total : -1;
+}
+
+// The first byte a Content-Range carries: "bytes 100-199/4000" is 100. -1 for
+// "bytes */4000", which carries none, and for an absent or malformed header.
+static inline int64_t VibeHTTPContentRangeStart(NSString *_Nullable contentRange) {
+    int64_t first, last, total;
+    return VibeHTTPParseContentRange(contentRange, &first, &last, &total) ? first : -1;
 }
 
 // The whole file's size a response states, -1 when it states none. A 206

@@ -73,6 +73,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<NSURLRequest *> *)requestsToPath:(NSString *)path;
 // When each request arrived, by CFAbsoluteTimeGetCurrent, in the same order.
 @property (nonatomic, readonly) NSArray<NSNumber *> *requestTimes;
+// Answers the client stopped before they ended: a cancel mid-body.
+@property (nonatomic, readonly) NSUInteger stoppedAnswers;
 
 @end
 

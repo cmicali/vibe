@@ -104,8 +104,8 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     if (self) {
         // Every request and every redirect: a redirect can leave the local
         // network, and a stub cannot test App Transport Security.
-        client.allowsURL = ^BOOL(NSURL *url) {
-            return VibeLinkURLAcceptance(url) == VibeLinkAccepted;
+        client.allowsURL = ^BOOL(NSURL *from, NSURL *url) {
+            return VibeLinkRequestIsAllowed(from, url);
         };
     }
     return self;
@@ -162,7 +162,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
 // version matches on its size alone.
 - (BOOL)record:(NSDictionary *)record matchesMetadata:(NSDictionary *)metadata {
     int64_t size = [self.client sizeOfMetadata:metadata];
-    NSNumber *recorded = [record[@"size"] isKindOfClass:NSNumber.class] ? record[@"size"] : nil;
+    NSNumber *recorded = record[@"size"];
     if (size < 0 || size != recorded.longLongValue) {
         return NO;
     }
@@ -177,6 +177,26 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         return YES;
     }
     return NO;
+}
+
+// The directory's record, nil for none. The xattr is read from disk, so a
+// record whose fields are not what recordOfLink:… writes counts as none.
+- (nullable NSDictionary *)recordOfDirectory:(NSURL *)directory {
+    NSDictionary *record = [self indexOfDirectory:directory];
+    if (!VibeLinkString(record[@"url"])) {
+        return nil;
+    }
+    for (NSString *key in @[@"size", @"modified", @"ranges", @"opened"]) {
+        if (![record[key] isKindOfClass:NSNumber.class]) {
+            return nil;
+        }
+    }
+    for (NSString *key in @[@"etag", @"lastModified", @"version", @"contentType", @"host"]) {
+        if (record[key] && !VibeLinkString(record[key])) {
+            return nil;
+        }
+    }
+    return record;
 }
 
 - (void)touchRecord:(NSDictionary *)record ofDirectory:(NSURL *)directory ranges:(nullable NSNumber *)ranges {
@@ -194,19 +214,19 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     if (![path hasPrefix:root]) {
         return nil;
     }
-    return [self indexOfDirectory:url.URLByDeletingLastPathComponent];
+    return [self recordOfDirectory:url.URLByDeletingLastPathComponent];
 }
 
 #pragma mark - Hooks
 
 - (id)remoteTargetForURL:(NSURL *)url error:(NSError **)error {
-    NSString *link = VibeLinkString([self indexOfDirectory:url.URLByDeletingLastPathComponent][@"url"]);
+    NSString *link = [self recordOfDirectory:url.URLByDeletingLastPathComponent][@"url"];
     NSURL *target = link ? [NSURL URLWithString:link] : nil;
     return target ?: [super remoteTargetForURL:url error:error];
 }
 
 - (BOOL)readsByRangeAtURL:(NSURL *)url {
-    return [[self indexOfDirectory:url.URLByDeletingLastPathComponent][@"ranges"] boolValue];
+    return [[self recordOfDirectory:url.URLByDeletingLastPathComponent][@"ranges"] boolValue];
 }
 
 // A tag read of a file the record no longer describes would parse another
@@ -218,7 +238,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     NSURL *directory = [self directoryOfLink:target];
     return [super readTarget:target offset:offset length:length
                   completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
-        NSDictionary *record = [self indexOfDirectory:directory];
+        NSDictionary *record = [self recordOfDirectory:directory];
         if (data && record && ![self record:record matchesMetadata:metadata]) {
             LogWarn(@"Links: a read of %@ answered another file than its record's (version %@, now %@)",
                     record[@"host"], record[@"version"], [self versionOfMetadata:metadata]);
@@ -239,8 +259,10 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
 - (time_t)modificationTimeOfMetadata:(NSDictionary *)metadata forURL:(NSURL *)url {
     NSURL *directory = url.URLByDeletingLastPathComponent;
     __block time_t modified = -1;
+    // TRAP: a sync from the client's delivery queue onto the disk queue.
+    // Nothing on the disk queue may wait on the client, or the two deadlock.
     dispatch_sync(self.diskQueue, ^{
-        NSDictionary *record = [self indexOfDirectory:directory];
+        NSDictionary *record = [self recordOfDirectory:directory];
         if (record && [self record:record matchesMetadata:metadata]) {
             modified = (time_t)[record[@"modified"] longLongValue];
             return;
@@ -304,7 +326,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         return nil;
     }
     NSURL *directory = [self directoryOfLink:link];
-    NSDictionary *record = [self indexOfDirectory:directory];
+    NSDictionary *record = [self recordOfDirectory:directory];
     NSURL *file = record ? [self fileInDirectory:directory] : nil;
     struct stat st;
     if (!file || lstat(file.fileSystemRepresentation, &st) != 0 || VibeFileModeIsRemotePlaceholder(st.st_mode)) {
@@ -348,10 +370,15 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         return nil;
     }
     BOOL ranges = response.statusCode == 206;
-    NSDictionary *record = [self indexOfDirectory:directory];
+    NSDictionary *record = [self recordOfDirectory:directory];
     NSURL *existing = record ? [self fileInDirectory:directory] : nil;
-    // No version proves nothing: a link without one is fetched again.
-    if (existing && VibeLinkString(record[@"version"]) && [self record:record matchesMetadata:metadata]) {
+    // No version proves nothing: a link without one is fetched again. A file
+    // of another size or mtime than the record's is a placeholder the record
+    // moved past while it streamed.
+    struct stat st;
+    BOOL current = existing && lstat(existing.fileSystemRepresentation, &st) == 0
+            && st.st_size == [record[@"size"] longLongValue] && st.st_mtimespec.tv_sec == [record[@"modified"] longLongValue];
+    if (current && VibeLinkString(record[@"version"]) && [self record:record matchesMetadata:metadata]) {
         [self touchRecord:record ofDirectory:directory ranges:@(ranges)];
         LogInfo(@"Links: %@ is unchanged; reusing %@", link.host, existing.lastPathComponent);
         return existing;
@@ -442,7 +469,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         for (NSURL *directory in directories) {
             struct stat st;
             if (lstat(directory.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)) {
-                records[directory.lastPathComponent] = [self indexOfDirectory:directory] ?: NSNull.null;
+                records[directory.lastPathComponent] = [self recordOfDirectory:directory] ?: NSNull.null;
             }
         }
         NSArray<NSString *> *pruned = VibeLinkDirectoriesToPrune(records, keptNames, NSDate.date.timeIntervalSince1970);

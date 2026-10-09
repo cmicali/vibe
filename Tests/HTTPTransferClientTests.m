@@ -287,7 +287,7 @@ typedef struct {
 #pragma mark allowsURL
 
 - (void)testARefusedURLSendsNothing {
-    _client.allowsURL = ^BOOL(NSURL *url) {
+    _client.allowsURL = ^BOOL(NSURL *from, NSURL *url) {
         return [url.scheme isEqualToString:@"https"];
     };
     [_stub serveData:PatternBytes(4000) atPath:@"/a.flac" headers:nil];
@@ -302,7 +302,7 @@ typedef struct {
 }
 
 - (void)testARefusedRedirectFailsEveryTransfer {
-    _client.allowsURL = ^BOOL(NSURL *url) {
+    _client.allowsURL = ^BOOL(NSURL *from, NSURL *url) {
         return [url.scheme isEqualToString:@"https"];
     };
     [_stub serveData:PatternBytes(4000) atPath:@"/b.flac" headers:nil];
@@ -324,7 +324,11 @@ typedef struct {
 }
 
 - (void)testAnAllowedRedirectDownloads {
-    _client.allowsURL = ^BOOL(NSURL *url) {
+    NSMutableArray *asked = [NSMutableArray array];
+    _client.allowsURL = ^BOOL(NSURL *from, NSURL *url) {
+        @synchronized (asked) {
+            [asked addObject:@[from ?: NSNull.null, url]];
+        }
         return [url.scheme isEqualToString:@"https"];
     };
     NSData *file = PatternBytes(100000);
@@ -336,6 +340,8 @@ typedef struct {
     XCTAssertEqualObjects(metadata[@"url"], cdn);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], file);
     XCTAssertEqualObjects([self versionOfPart], @"\"e\"");
+    NSArray *expected = @[@[NSNull.null, [_stub URLForPath:@"/a.flac"]], @[[_stub URLForPath:@"/a.flac"], cdn]];
+    XCTAssertEqualObjects(asked, expected, @"the request, then the redirect from where it was sent");
 }
 
 #pragma mark Download
@@ -554,6 +560,91 @@ typedef struct {
     XCTAssertEqualObjects([self versionOfPart], @"\"v1\"");
 }
 
+// A kept part as long as the file is the file: the 416 to its resend, of
+// its version, completes the download with the bytes kept.
+- (void)testAKeptPartHoldingTheWholeFileIsComplete {
+    NSData *file = PatternBytes(4000);
+    [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    [self keepPart:file version:@"\"v1\""];
+    NSDictionary *metadata = nil;
+    XCTAssertNil([self download:[_stub URLForPath:@"/a.flac"] metadata:&metadata progress:nil]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], file);
+    XCTAssertEqual([_client sizeOfMetadata:metadata], 4000);
+    XCTAssertEqualObjects([_client versionOfMetadata:metadata], @"\"v1\"");
+    XCTAssertEqual(_stub.requests.count, 1u);
+    XCTAssertEqualObjects([_stub.requests.firstObject valueForHTTPHeaderField:@"Range"], @"bytes=4000-");
+}
+
+- (void)testAKeptPartOfAnotherVersionAsLongAsTheFileStartsOver {
+    NSData *file = PatternBytes(4000);
+    [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v2\""}];
+    [self keepPart:PatternBytes(4000) version:@"\"v1\""];
+    XCTAssertNil([self download:[_stub URLForPath:@"/a.flac"] metadata:NULL progress:nil]);
+    XCTAssertEqualObjects([self versionOfPart], @"\"v2\"");
+    NSArray<NSURLRequest *> *requests = _stub.requests;
+    XCTAssertEqual(requests.count, 2u);
+    XCTAssertNil([requests.lastObject valueForHTTPHeaderField:@"Range"]);
+}
+
+// A resend answered from an earlier byte skips what the file holds, as a
+// whole answer does.
+- (void)testAPartialResendFromAnEarlierByteSkipsTheBytesWritten {
+    NSData *file = PatternBytes(1000000);
+    [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    __block _Atomic uint64_t written = 0;
+    [_stub queueStep:[HTTPStubStep dropAfter:300000 ready:^BOOL {
+        return atomic_load(&written) >= 300000;
+    }] forPath:@"/a.flac"];
+    NSData *rest = [file subdataWithRange:NSMakeRange(200000, 800000)];
+    [_stub queueStep:[HTTPStubStep status:206 headers:@{@"ETag": @"\"v1\"",
+                                                        @"Content-Range": @"bytes 200000-999999/1000000"}
+                                      body:rest] forPath:@"/a.flac"];
+    NSError *downloadError = [self download:[_stub URLForPath:@"/a.flac"] metadata:NULL
+                       progress:^(uint64_t bytes, int64_t size, NSString *version) {
+        atomic_store(&written, bytes);
+    }];
+    XCTAssertNil(downloadError);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], file);
+}
+
+// A resend answered from past the bytes written would leave a gap.
+- (void)testAPartialResendFromALaterByteFailsAndDeletesThePart {
+    NSData *file = PatternBytes(1000000);
+    [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    __block _Atomic uint64_t written = 0;
+    [_stub queueStep:[HTTPStubStep dropAfter:300000 ready:^BOOL {
+        return atomic_load(&written) >= 300000;
+    }] forPath:@"/a.flac"];
+    [_stub queueStep:[HTTPStubStep status:206 headers:@{@"ETag": @"\"v1\"",
+                                                        @"Content-Range": @"bytes 400000-999999/1000000"}
+                                      body:[file subdataWithRange:NSMakeRange(400000, 600000)]]
+             forPath:@"/a.flac"];
+    NSError *error = [self download:[_stub URLForPath:@"/a.flac"] metadata:NULL
+                           progress:^(uint64_t bytes, int64_t size, NSString *version) {
+        atomic_store(&written, bytes);
+    }];
+    XCTAssertEqualObjects(error.domain, VibeHTTPErrorDomain);
+    XCTAssertEqual(error.code, VibeHTTPErrorBadRange);
+    XCTAssertFalse([self partExists]);
+}
+
+// A kept part's resend answered from past its end starts over, whole.
+- (void)testAKeptPartAnsweredFromALaterByteStartsOver {
+    NSData *file = PatternBytes(500000);
+    [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    [self keepPart:[file subdataWithRange:NSMakeRange(0, 100000)] version:@"\"v1\""];
+    [_stub queueStep:[HTTPStubStep status:206 headers:@{@"ETag": @"\"v1\"",
+                                                        @"Content-Range": @"bytes 200000-499999/500000"}
+                                      body:[file subdataWithRange:NSMakeRange(200000, 300000)]]
+             forPath:@"/a.flac"];
+    XCTAssertNil([self download:[_stub URLForPath:@"/a.flac"] metadata:NULL progress:nil]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], file);
+    NSArray<NSURLRequest *> *requests = _stub.requests;
+    XCTAssertEqual(requests.count, 2u);
+    XCTAssertEqualObjects([requests.firstObject valueForHTTPHeaderField:@"Range"], @"bytes=100000-");
+    XCTAssertNil([requests.lastObject valueForHTTPHeaderField:@"Range"]);
+}
+
 #pragma mark Ranged read
 
 - (void)testARangedReadAnswersItsBytesAndTheFilesSize {
@@ -576,6 +667,48 @@ typedef struct {
     XCTAssertNil(error);
     XCTAssertNotNil(read);
     XCTAssertEqual(read.length, 0u);
+}
+
+// A server ignoring the range sends the whole file. The read keeps its
+// bytes and stops the answer, never holding the file in memory. The answer
+// is held at 2 MB, so only a stop ends it in time.
+- (void)testAWholeAnswerToAReadIsCutAndStopped {
+    NSData *file = PatternBytes(5 * 1024 * 1024);
+    HTTPStubFile *served = [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    served.ignoresRanges = YES;
+    [_stub queueStep:[HTTPStubStep stallAfter:2 * 1024 * 1024 gate:[self gate]] forPath:@"/a.flac"];
+    NSDictionary *metadata = nil;
+    NSError *error = nil;
+    NSData *read = [self read:[_stub URLForPath:@"/a.flac"] offset:1024 * 1024 length:4096 metadata:&metadata
+                        error:&error];
+    XCTAssertNil(error);
+    XCTAssertEqualObjects(read, [file subdataWithRange:NSMakeRange(1024 * 1024, 4096)]);
+    XCTAssertEqualObjects(metadata[@"size"], @(file.length));
+    XCTAssertEqual(_stub.stoppedAnswers, 1u, @"cancelled before the body ended");
+}
+
+- (void)testAPartialAnswerFromAnotherByteFailsTheRead {
+    NSData *file = PatternBytes(4000);
+    [_stub serveData:file atPath:@"/a.flac" headers:nil];
+    [_stub queueStep:[HTTPStubStep status:206 headers:@{@"Content-Range": @"bytes 0-49/4000"}
+                                      body:[file subdataWithRange:NSMakeRange(0, 50)]] forPath:@"/a.flac"];
+    NSError *error = nil;
+    XCTAssertNil([self read:[_stub URLForPath:@"/a.flac"] offset:100 length:50 metadata:NULL error:&error]);
+    XCTAssertEqualObjects(error.domain, VibeHTTPErrorDomain);
+    XCTAssertEqual(error.code, VibeHTTPErrorBadRange);
+}
+
+#pragma mark Logs
+
+- (void)testALogNamesALinkByItsHostAndFileOnly {
+    NSURL *url = [NSURL URLWithString:@"https://user:secret@example.com/music/a.flac?token=key#t=10"];
+    NSString *described = [_client descriptionOfTarget:url];
+    XCTAssertEqualObjects(described, @"example.com/a.flac");
+    for (NSString *hidden in @[@"user", @"secret", @"token", @"key", @"t=10", @"music"]) {
+        XCTAssertFalse([described containsString:hidden], @"%@", hidden);
+    }
+    XCTAssertEqualObjects([_client descriptionOfTarget:[NSURL URLWithString:@"https://example.com/?a=b"]],
+                          @"example.com");
 }
 
 // A server that honors ranges refuses one past the end: the status error.

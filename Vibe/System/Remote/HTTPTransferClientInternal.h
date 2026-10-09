@@ -66,6 +66,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)keepsPartAfterError:(nullable NSError *)error;
 // The log lines' prefix.
 - (NSString *)logName;
+// How the log lines name a target. Never a whole link, whose query or user
+// info can hold a key. The default is an NSURL's host and last path
+// component.
+- (NSString *)descriptionOfTarget:(id)target;
 
 @end
 

@@ -100,6 +100,7 @@ typedef NS_ENUM(NSInteger, HTTPStubStepKind) {
 
 @interface HTTPStub ()
 - (nullable HTTPStubAnswer *)answerRequest:(NSURLRequest *)request;
+- (void)noteStoppedAnswer;
 @end
 
 #pragma mark - Instances by host
@@ -118,6 +119,8 @@ static HTTPStub *_Nullable HTTPStubForHost(NSString *host) {
 
 @interface HTTPStubProtocol : NSURLProtocol
 @property (atomic) BOOL stopped;
+// The answer reached the client whole, or failed. The loader's thread.
+@property (nonatomic) BOOL ended;
 @end
 
 @implementation HTTPStubProtocol
@@ -142,6 +145,8 @@ static NSArray<NSString *> *HTTPStubModes(void) {
 
 - (void)startLoading {
     HTTPStubAnswer *answer = [HTTPStubForHost(self.request.URL.host) answerRequest:self.request];
+    // Only a body in flight can be stopped before it ends.
+    self.ended = !answer || answer.error || answer.redirect;
     if (!answer) {
         [self.client URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain
                                                                            code:NSURLErrorCannotFindHost userInfo:nil]];
@@ -208,18 +213,23 @@ static NSArray<NSString *> *HTTPStubModes(void) {
 
 - (void)failLoading:(NSError *)error {
     if (!self.stopped) {
+        self.ended = YES;
         [self.client URLProtocol:self didFailWithError:error];
     }
 }
 
 - (void)finishLoading {
     if (!self.stopped) {
+        self.ended = YES;
         [self.client URLProtocolDidFinishLoading:self];
     }
 }
 
 - (void)stopLoading {
     self.stopped = YES;
+    if (!self.ended) {
+        [HTTPStubForHost(self.request.URL.host) noteStoppedAnswer];
+    }
 }
 
 @end
@@ -233,6 +243,7 @@ static NSArray<NSString *> *HTTPStubModes(void) {
     NSMutableArray<NSURLRequest *> *_requests;
     NSMutableArray<NSNumber *> *_requestTimes;
     NSMutableArray<NSString *> *_hosts;
+    NSUInteger _stoppedAnswers;
 }
 
 - (instancetype)init {
@@ -320,6 +331,19 @@ static NSArray<NSString *> *HTTPStubModes(void) {
     NSArray<NSNumber *> *times = [_requestTimes copy];
     os_unfair_lock_unlock(&_lock);
     return times;
+}
+
+- (NSUInteger)stoppedAnswers {
+    os_unfair_lock_lock(&_lock);
+    NSUInteger count = _stoppedAnswers;
+    os_unfair_lock_unlock(&_lock);
+    return count;
+}
+
+- (void)noteStoppedAnswer {
+    os_unfair_lock_lock(&_lock);
+    _stoppedAnswers++;
+    os_unfair_lock_unlock(&_lock);
 }
 
 - (NSArray<NSURLRequest *> *)requestsToPath:(NSString *)path {

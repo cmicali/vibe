@@ -332,6 +332,36 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqual([_stub requestsToPath:@"/b.flac"].count, 0u, @"never sent");
 }
 
+// A public page cannot send Vibe's requests to a device at home, over
+// https either.
+- (void)testARedirectFromAPublicHostIntoTheLocalNetworkIsRefused {
+    [_stub answerHost:@"example.com"];
+    [_stub answerHost:@"192.168.1.1"];
+    [self serve:FlacBytes(4000) at:@"/b.flac" headers:nil];
+    [_stub queueStep:[HTTPStubStep redirectTo:[NSURL URLWithString:@"http://192.168.1.1/b.flac"]] forPath:@"/a.flac"];
+    [_stub queueStep:[HTTPStubStep redirectTo:[NSURL URLWithString:@"https://192.168.1.1/b.flac"]] forPath:@"/a.flac"];
+    XCTAssertEqual([self failureOf:@"https://example.com/a.flac"], VibeLinkErrorInsecure);
+    XCTAssertEqual([self failureOf:@"https://example.com/a.flac"], VibeLinkErrorInsecure);
+    XCTAssertEqual([_stub requestsToPath:@"/a.flac"].count, 2u);
+    XCTAssertEqual([_stub requestsToPath:@"/b.flac"].count, 0u, @"never sent");
+    XCTAssertEqualObjects([self linkDirectories], @[]);
+}
+
+- (void)testARedirectBetweenPublicHostsOrWithinTheLocalNetworkOpens {
+    [_stub answerHost:@"example.com"];
+    [_stub answerHost:@"cdn.example.org"];
+    [_stub answerHost:@"nas.local"];
+    [self serve:FlacBytes(4000) at:@"/b.flac" headers:nil];
+    [_stub queueStep:[HTTPStubStep redirectTo:[NSURL URLWithString:@"https://cdn.example.org/b.flac"]]
+             forPath:@"/a.flac"];
+    NSError *error = nil;
+    XCTAssertNotNil([self resolve:@"https://example.com/a.flac" error:&error], @"%@", error);
+    [_stub queueStep:[HTTPStubStep redirectTo:[NSURL URLWithString:@"http://nas.local/b.flac"]] forPath:@"/c.flac"];
+    XCTAssertNotNil([self resolve:[_stub URLForPath:@"/c.flac" scheme:@"http"].absoluteString error:&error],
+                    @"%@", error);
+    XCTAssertEqual([_stub requestsToPath:@"/b.flac"].count, 2u);
+}
+
 - (void)testEveryRequestAsksForTheBytesAsStored {
     NSData *bytes = FlacBytes(4000);
     [self serve:bytes at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
@@ -474,6 +504,26 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], served.data);
 }
 
+// A record from disk is checked field by field. One of the wrong shape is
+// no record, and the link opens anew.
+- (void)testARecordOfTheWrongShapeIsNoRecord {
+    [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    NSURL *file = [self resolvePath:@"/a.flac"];
+    NSMutableDictionary *record = [[self recordOf:file] mutableCopy];
+    record[@"opened"] = @[@1];
+    record[@"size"] = @"4000";
+    [_store writeIndex:record ofDirectory:file.URLByDeletingLastPathComponent];
+    ino_t inode = StatOf(file).st_ino;
+    XCTAssertNil([_store recordOfLinkFileURL:file]);
+    NSError *error = nil;
+    XCTAssertNil([_store readPlaceholderAtURL:file offset:0 length:16 error:&error], @"no record names no target");
+
+    XCTAssertEqualObjects([self resolvePath:@"/a.flac"], file);
+    XCTAssertNotEqual(StatOf(file).st_ino, inode, @"a fresh placeholder");
+    XCTAssertEqualObjects([self recordOf:file][@"size"], @4000);
+    XCTAssertNotNil([_store recordOfLinkFileURL:file]);
+}
+
 - (void)testALinkWithNoVersionIsFetchedAgain {
     [self serve:FlacBytes(4000) at:@"/a.flac" headers:nil];
     NSURL *file = [self resolvePath:@"/a.flac"];
@@ -581,6 +631,57 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertTrue(fetched);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], bytes);
     XCTAssertEqualObjects([self recordOf:file][@"version"], @"\"v1\"", @"the record follows what was downloaded");
+}
+
+// The record moved to another version while the placeholder streamed. The
+// stream is cancelled and keeps its part. The next open must not reuse the
+// placeholder of the old size under the new record.
+- (void)testAPlaceholderTheRecordMovedPastIsWrittenAgain {
+    NSData *bytes = FlacBytes(1024 * 1024);
+    HTTPStubFile *served = [self serve:bytes at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    NSURL *file = [self resolvePath:@"/a.flac"];
+    dispatch_semaphore_t gate = [self gate];
+    [_stub queueStep:[HTTPStubStep stallAfter:kStallBytes gate:gate] forPath:@"/a.flac"];
+    [_stub queueStep:[HTTPStubStep stallAfter:kStallBytes gate:gate] forPath:@"/a.flac"];
+    XCTestExpectation *readable = [self expectationWithDescription:@"readable"];
+    XCTestExpectation *returned = [self expectationWithDescription:@"fetched"];
+    __block dispatch_block_t cancelFetch = nil;
+    __block NSError *fetchError = nil;
+    LinkStore *store = _store;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSError *error = nil;
+        XCTAssertFalse([store fetchPlaceholderAtURL:file onReadable:^{
+            [readable fulfill];
+        } onCancel:^(dispatch_block_t cancel) {
+            @synchronized (self) {
+                cancelFetch = cancel;
+            }
+        } error:&error]);
+        fetchError = error;
+        [returned fulfill];
+    });
+    [self waitForExpectations:@[readable] timeout:VIBE_TEST_HANG_TIMEOUT];
+
+    NSData *changed = FlacBytes(1536 * 1024);
+    served.data = changed;
+    served.headers = @{@"ETag": @"\"v2\""};
+    XCTAssertEqualObjects([self resolvePath:@"/a.flac"], file);
+    XCTAssertEqual(StatOf(file).st_size, (off_t)bytes.length, @"the placeholder under the stream stands");
+    XCTAssertEqualObjects([self recordOf:file][@"size"], @(changed.length));
+
+    @synchronized (self) {
+        cancelFetch();
+    }
+    [self waitForExpectations:@[returned] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(fetchError.code, VibeHTTPErrorCancelled);
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:file].path],
+                  @"the cancel keeps the part");
+
+    XCTAssertEqualObjects([self resolvePath:@"/a.flac"], file);
+    XCTAssertTrue(IsPlaceholder(file));
+    XCTAssertEqual(StatOf(file).st_size, (off_t)changed.length, @"a fresh placeholder of the new size");
+    [self fetchExpectingSuccess:file];
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], changed);
 }
 
 - (void)testADroppedFetchResumesWhereItStopped {

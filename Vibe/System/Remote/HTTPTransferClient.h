@@ -31,6 +31,8 @@ typedef NS_ERROR_ENUM(VibeHTTPErrorDomain, VibeHTTPError) {
     VibeHTTPErrorLengthMismatch,
     // allowsURL refused the request's URL, or a redirect's.
     VibeHTTPErrorRefusedURL,
+    // A partial answer began at another byte than the one asked for.
+    VibeHTTPErrorBadRange,
 };
 
 @interface HTTPTransferClient : NSObject
@@ -40,9 +42,10 @@ typedef NS_ERROR_ENUM(VibeHTTPErrorDomain, VibeHTTPError) {
 
 - (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration NS_DESIGNATED_INITIALIZER;
 
-// Asked of every request's URL before it is sent, and of every redirect's.
-// A refusal fails the transfer with VibeHTTPErrorRefusedURL. Nil allows all.
-@property (atomic, copy, nullable) BOOL (^allowsURL)(NSURL *url);
+// Asked of every request's URL before it is sent, with from nil, and of
+// every redirect's, with from the URL that redirected. A refusal fails the
+// transfer with VibeHTTPErrorRefusedURL. Nil allows all.
+@property (atomic, copy, nullable) BOOL (^allowsURL)(NSURL *_Nullable from, NSURL *url);
 
 // The target streamed into destination as the bytes arrive, so its size on
 // disk is the transfer's progress. Made once, at the first accepted
@@ -67,8 +70,9 @@ typedef NS_ERROR_ENUM(VibeHTTPErrorDomain, VibeHTTPError) {
 
 // `length` bytes of the target from `offset`, through a Range header: how a
 // tag parse reads a file it does not download. Fewer bytes come back only at
-// the file's end. metadata is the response's. The returned block cancels, as
-// the download's does.
+// the file's end. A server ignoring the range answers 200, and the read is
+// cancelled once its bytes are in. metadata is the response's. The returned
+// block cancels, as the download's does.
 - (dispatch_block_t)readTarget:(id)target
                         offset:(uint64_t)offset
                         length:(uint64_t)length

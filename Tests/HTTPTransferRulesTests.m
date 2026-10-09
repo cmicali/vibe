@@ -77,6 +77,27 @@
     XCTAssertEqual(VibeHTTPContentRangeTotal(nil), -1);
 }
 
+- (void)testAContentRangeStatesItsStart {
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes 0-15/4000"), 0);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes 100-199/4000"), 100);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"Bytes 3999-3999/4000"), 3999);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@" bytes  7-9/* "), 7, @"an unknown total still has a start");
+}
+
+- (void)testAContentRangeWithNoRangeOrMalformedStatesNoStart {
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes */4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes */*"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes 15/4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes 16-15/4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes 0-4000/4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes a-b/4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes -1-15/4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"bytes 0-15/-4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@"items 0-15/4000"), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(@""), -1);
+    XCTAssertEqual(VibeHTTPContentRangeStart(nil), -1);
+}
+
 - (void)testThePartialAnswerSizesByContentRangeAndTheWholeByContentLength {
     XCTAssertEqual(VibeHTTPSizeFromHeaders(206, @"bytes 0-15/4000", @"16", nil), 4000);
     XCTAssertEqual(VibeHTTPSizeFromHeaders(206, nil, @"16", nil), -1);

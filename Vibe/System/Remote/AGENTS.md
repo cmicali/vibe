@@ -22,25 +22,27 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **TRAP: every default request asks for `Accept-Encoding: identity`.** With no such header, `NSURLSession` asks for gzip and inflates the answer. A range's offsets then stop matching the file's bytes.
 
-**Two sessions.** Downloads and probes stream on a delegate session of their own. Calls and ranged reads are answered whole on the other, so a tag read never queues behind a download's disk writes. The client is the delegate of both. The call session needs it only for the redirect check.
+**Two sessions.** Downloads and probes stream on a delegate session of their own. Ranged reads and a subclass's calls run on the other, so a tag read never queues behind a download's disk writes. The client is the delegate of both. A subclass's call is answered whole by its own handler.
 
 **TRAP: a delegate session retains its delegate until it is invalidated.** The client lives as long as the app. Only a session that `useSessionConfiguration:` replaces is invalidated.
 
-**`allowsURL` is asked of every request and every redirect.** A request it refuses is never sent. A redirect it refuses completes its task with the 3xx itself, and the transfer fails with `VibeHTTPErrorRefusedURL`.
+**`allowsURL` is asked of every request and every redirect.** It gets the URL that redirected, nil for a request, and the URL to be requested. A request it refuses is never sent. A redirect it refuses completes its task with the 3xx itself, and the transfer fails with `VibeHTTPErrorRefusedURL`.
 
 **A cancel settles a transfer at once when no task is in flight for it** (`cancelTransfer:`). That covers a transfer waiting on the request hook, such as Dropbox's token refresh, or on a retry's delay. The lane the caller holds is freed now (`System/AGENTS.md`).
 
 **TRAP: a transfer is adopted and entered in the delegate's table under one lock** (`adoptTask:forTransfer:`). A cancel between the two left a task whose completion found no transfer, so the download never finished. The table is keyed by the task object, because the two sessions number their tasks apart.
 
-**A part file is made once per transfer, at its first accepted response, and only ever appended to.** A descriptor opened on it keeps seeing one inode grow. A resend asks for `Range: bytes=<written>-` and appends. A 200 to that is the whole file, and its prefix is skipped. A dropped connection is resent at most twice in a row with no byte between.
+**A part file is made once per transfer, at its first accepted response, and only ever appended to.** A descriptor opened on it keeps seeing one inode grow. A resend asks for `Range: bytes=<written>-` and appends. A 200 to that is the whole file, and its prefix is skipped. A 206 starts where its Content-Range says (`VibeHTTPContentRangeStart`). Bytes before the offset are skipped, as a 200's are. One naming no range is taken at its word. A 206 from past the offset would leave a gap. It fails the transfer with `VibeHTTPErrorBadRange`, or starts a kept part over. A dropped connection is resent at most twice in a row with no byte between.
 
 **TRAP: a resend answers whatever version is current.** Every response's version must therefore equal the first one's. A first response with no version is never resumed. A mismatch fails the transfer with `VibeHTTPErrorVersionChanged` and deletes the part. One answer is the same file under another ETag: the first response's size and Last-Modified, both stated (`VibeHTTPIsSameFileUnderAnotherETag`). A CDN's edges can each tag one file with an ETag of their own. The resend then continues, and the client logs it. Only the default metadata carries `lastModified`, so the Dropbox client never meets this case. A kept part holds only its version, so another ETag starts it over.
 
-**A transfer the link ended keeps its part** (`keepsPartAfterError:`: a cancel, or a connection lost past the resend bound). The part is tagged with its version in the xattr `com.commonwealthrecordings.Vibe.rev`. The name stays, so parts kept by the Dropbox client still resume. The next download of that destination continues from its last byte. An answer naming another version, or a 416 because the current version is shorter than the part, starts the transfer over, whole (`restart`). A part with no version tag is replaced. Anything the transfer's own answer ended deletes the part, since the same bytes would only fail again.
+**A transfer the link ended keeps its part** (`keepsPartAfterError:`: a cancel, or a connection lost past the resend bound). The part is tagged with its version in the xattr `com.commonwealthrecordings.Vibe.rev`. The name stays, so parts kept by the Dropbox client still resume. The next download of that destination continues from its last byte. An answer naming another version, or a 416 because the current version is shorter than the part, starts the transfer over, whole (`restart`). A 416 whose Content-Range total is the part's length, under the part's version, is the whole file. The download completes with the bytes kept. A part with no version tag is replaced. Anything the transfer's own answer ended deletes the part, since the same bytes would only fail again.
 
 **The first response's size is the file's length.** A transfer dropped after its last byte is complete, since `bytes=<size>-` would answer 416. One ending at any other length fails with `VibeHTTPErrorLengthMismatch` and deletes the part.
 
-**A probe reads the first bytes and the headers** (`probeTarget:length:`). It is a ranged `GET` on the download session. It cancels its own task once it holds the bytes. A server that ignores the range answers 200, and the probe keeps only the bytes asked for. A failure status goes through `handleFailureStatus:…` like any other.
+**A ranged read streams through the delegate and stops at its bytes** (`readTarget:…`). It cancels its own task once it holds them. A server that ignores the range answers 200 with the whole file, and the read keeps only the bytes asked for. It never holds the file in memory. A 206 from another byte than the one asked for fails with `VibeHTTPErrorBadRange`. A failure status goes through `handleFailureStatus:…` like any other. **A probe is a read of the first bytes on the download session** (`probeTarget:length:`). Its completion also carries the response.
+
+**A log line never names a whole link** (`descriptionOfTarget:`). A query or user info can carry a key. The default names a URL by its host and last path component. `DropboxClient` names its path.
 
 ## The placeholder store
 
@@ -72,17 +74,19 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **Both apps install it at launch, before anything can open a file under it.** The mac installs it first in `applicationWillFinishLaunching:`, before the restore. iOS installs it in `application:didFinishLaunchingWithOptions:`, after the Dropbox mirror and before the scene restores a playlist.
 
-**The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkURLAcceptance`, on the link and on every redirect. A redirect can leave the local network, and a stub cannot test App Transport Security.
+**The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkRequestIsAllowed`, on the link and on every redirect. It applies the address rule to each. A redirect from a public host never reaches the local network, whatever the scheme. A public page could otherwise send requests to a device at home. A redirect can also leave the local network, and a stub cannot test App Transport Security.
 
 **The address rule is `VibeLinkURLAcceptance`.** https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost` or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7 or fe80::/10. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
 
 **TRAP: an IPv4 address is parsed as the resolver parses it** (`inet_aton`). `134744072` and `0x8.8.8.8` are 8.8.8.8, not unqualified names. Read as a name, a bare number would let plain http reach any public address.
 
+**TRAP: a zone id belongs only to an IPv6 literal** (`fe80::1%en0`). A `%` anywhere else, or a NUL, makes the host not local. Cut there like a zone id, `pi%.example.com` would pass as the unqualified name `pi`.
+
 **One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). Normalized means the scheme and host lowercased and the fragment dropped. The directory holds one file, the placeholder or the download. The same link opened again reuses the directory and its file. Two links never share a name.
 
-**The file name is `VibeLinkFileName`.** It is the link's last path component, percent-decoded, when that has a playable extension. Otherwise the Content-Disposition file name wins, when there is one. The extension the audio check chose is forced on. Cleaning swaps `/` and `:` for `-`, and drops control characters and leading dots. The name is cut to 200 UTF-8 bytes. It is `Link.<extension>` when nothing survives.
+**The file name is `VibeLinkFileName`.** It is the link's last path component, percent-decoded, when that has a playable extension. Otherwise the Content-Disposition file name wins, when there is one. The extension the audio check chose is forced on. Cleaning swaps `/` and `:` for `-`, and drops control characters, the bidi controls and leading dots. An override would show a name's end reversed. The name is cut to 200 UTF-8 bytes. It is `Link.<extension>` when nothing survives.
 
-**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. A shell reads a link's record by its file (`recordOfLinkFileURL:`). iOS names a link in Recents by its host.
+**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. The xattr is read from disk, so each field is checked. A record with a field of the wrong type is no record (`recordOfDirectory:`). A shell reads a link's record by its file (`recordOfLinkFileURL:`). iOS names a link in Recents by its host.
 
 **`resolveURLString:completion:` opens a link in five steps.** It runs off main and completes on main.
 1. The address rule. A refusal fails before any request.
@@ -106,11 +110,13 @@ The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through a
 
 **Google Drive answers what a link needs** (measured on a shared WAV). A range gets a 206 with Content-Range. It sends Last-Modified and no ETag. Last-Modified is then the version. The path ends in `download` and names nothing. The name comes from Content-Disposition. A private or over-quota file answers an HTML page. It fails as denied on a 403, and as not audio on a 200. Drive's `/u/<n>/` paths and `docs.google.com` links are not rewritten.
 
-**An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
+**An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. The file's own size and mtime must be the record's too. A record changed while its file streamed describes bytes the placeholder does not. Once the stream ends, the next open writes a fresh placeholder. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
 
 **TRAP: a file streaming now keeps its placeholder.** The fetch's install renames its bytes over whatever stands at the URL, and its readers hold the part file. Only the record changes. The install then sets the record back to what it downloaded.
 
 **TRAP: the install keeps the record's mtime only while the download is the record's file** (`modificationTimeOfMetadata:forURL:`). The cache key is made from that mtime. A download of another version takes its own Last-Modified, else the time now, and the record follows it. A record left describing other bytes would send the download back to a placeholder at the next open, or fail its tag reads.
+
+**TRAP: the mtime hook syncs onto the disk queue from the client's delivery queue.** Nothing on the disk queue may wait on the client, or the two deadlock.
 
 **A tag read checks the record.** An answer of another size, or of another version, fails with `VibeHTTPErrorVersionChanged`, and the parse is retried later. A record with no version is checked by its size alone.
 

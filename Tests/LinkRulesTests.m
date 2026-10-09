@@ -227,6 +227,20 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqual(Accept(@"http://[fe80::1%25en0]:8000/a.mp3"), VibeLinkAccepted);
 }
 
+// A zone id belongs to an IPv6 literal. Anywhere else a '%' or a NUL makes
+// the host public, never the name before it.
+- (void)testAPercentOrANulOutsideAnIPv6LiteralIsNotLocal {
+    XCTAssertFalse(VibeLinkHostIsLocal(@"pi%en0"));
+    XCTAssertFalse(VibeLinkHostIsLocal(@"pi%.example.com"));
+    XCTAssertFalse(VibeLinkHostIsLocal(@"localhost%25"));
+    XCTAssertFalse(VibeLinkHostIsLocal(@"192.168.1.5%en0"));
+    XCTAssertFalse(VibeLinkHostIsLocal(@"[pi%en0]"));
+    NSString *nul = [NSString stringWithFormat:@"localhost%C.example.com", (unichar)0];
+    XCTAssertFalse(VibeLinkHostIsLocal(nul));
+    XCTAssertEqual(Accept(@"http://pi%25.example.com/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
+    XCTAssertEqual(Accept(@"http://localhost%00.example.com/a.mp3"), VibeLinkRefusedInsecurePublicHTTP);
+}
+
 #pragma mark - Acceptance: redirects
 
 // Each hop is judged alone, by the same rule as the typed link.
@@ -243,6 +257,27 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     [hops enumerateKeysAndObjectsUsingBlock:^(NSString *hop, NSNumber *verdict, BOOL *stop) {
         XCTAssertEqual(VibeLinkURLAcceptance([NSURL URLWithString:hop]), verdict.integerValue, @"%@", hop);
     }];
+}
+
+// A redirect from a public host never reaches the local network, whatever
+// the scheme. The link itself, from nil, is judged by the address rule.
+- (void)testARedirectFromAPublicHostNeverReachesTheLocalNetwork {
+    NSURL *(^u)(NSString *) = ^NSURL *(NSString *string) {
+        return [NSURL URLWithString:string];
+    };
+    XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"http://192.168.1.1/a.mp3")));
+    XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://192.168.1.1/a.mp3")));
+    XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://nas.local/a.mp3")));
+    XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://[::1]/a.mp3")));
+    XCTAssertTrue(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://cdn.example.org/a.mp3")));
+    XCTAssertTrue(VibeLinkRequestIsAllowed(u(@"http://nas.local/a"), u(@"http://192.168.1.1/a.mp3")));
+    XCTAssertTrue(VibeLinkRequestIsAllowed(u(@"http://192.168.1.1/a"), u(@"https://cdn.example.org/a.mp3")));
+    XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"http://nas.local/a"), u(@"http://cdn.example.org/a.mp3")),
+                   @"the address rule still holds");
+    XCTAssertTrue(VibeLinkRequestIsAllowed(nil, u(@"http://192.168.1.1/a.mp3")), @"the link itself");
+    XCTAssertTrue(VibeLinkRequestIsAllowed(nil, u(@"https://example.com/a.mp3")));
+    XCTAssertFalse(VibeLinkRequestIsAllowed(nil, u(@"http://example.com/a.mp3")));
+    XCTAssertFalse(VibeLinkRequestIsAllowed(nil, nil));
 }
 
 #pragma mark - Dropbox
@@ -617,6 +652,18 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqualObjects(Name(@"https://example.com/line%0Abreak%00.mp3", @"mp3"), @"linebreak.mp3");
     XCTAssertEqualObjects(Name(@"https://example.com/del%7Fete%C2%85.mp3", @"mp3"), @"delete.mp3");
     XCTAssertEqualObjects(Name(@"https://example.com/a.b.c.mp3", @"mp3"), @"a.b.c.mp3");
+}
+
+// A bidi override would show the name's end reversed: "evil\u202Egnp.exe"
+// reads as "evilexe.png".
+- (void)testBidiControlsAreDropped {
+    XCTAssertEqualObjects(Name(@"https://example.com/evil%E2%80%AEgnp.exe.mp3", @"mp3"), @"evilgnp.exe.mp3");
+    XCTAssertEqualObjects(Name(@"https://example.com/a%E2%80%AAb%E2%80%ABc%E2%80%ACd%E2%80%ADe.mp3", @"mp3"),
+                          @"abcde.mp3");
+    XCTAssertEqualObjects(Name(@"https://example.com/a%E2%81%A6b%E2%81%A7c%E2%81%A8d%E2%81%A9.mp3", @"mp3"),
+                          @"abcd.mp3");
+    XCTAssertEqualObjects(NameWithDisposition(@"https://example.com/download",
+                                              @"attachment; filename*=UTF-8''x%E2%80%AEy.wav", @"wav"), @"xy.wav");
 }
 
 // The joiners of an emoji sequence or a Persian word are format characters,

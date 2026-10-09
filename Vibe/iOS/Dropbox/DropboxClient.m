@@ -737,4 +737,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     return @"Dropbox";
 }
 
+// A Dropbox path or id names a file in the account, not a link.
+- (NSString *)descriptionOfTarget:(id)target {
+    return [target description];
+}
+
 @end

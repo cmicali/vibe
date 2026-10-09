@@ -69,6 +69,14 @@ void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *me
     [presenter presentViewController:alert animated:YES completion:nil];
 }
 
+UIViewController *VibeTopmostPresenter(UIViewController *root) {
+    UIViewController *presenter = root;
+    while (presenter.presentedViewController && !presenter.presentedViewController.isBeingDismissed) {
+        presenter = presenter.presentedViewController;
+    }
+    return presenter;
+}
+
 UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void)) {
     return [UIAction actionWithTitle:title
                                image:[UIImage systemImageNamed:symbol]
@@ -865,13 +873,16 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
 
 + (void)openLinkString:(NSString *)string
     replacingPlaylistOf:(PlaybackController *)playback
-                   from:(UIViewController *)presenter
+                   from:(UIViewController *)anchor
              completion:(void (^)(NSURL *, NSError *))completion {
     uint64_t token = [playback replaceRequestTokenOpening:nil];
+    __weak UIWindow *window = anchor.viewIfLoaded.window;
+    __weak UIViewController *weakAnchor = anchor;
     [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
-        if (file) {
-            [BrowserViewController confirmReplacingPlaylistOf:playback from:presenter openingURLs:@[file]
-                                                     inFolder:NO token:token];
+        UIViewController *root = window.rootViewController ?: weakAnchor;
+        if (file && root) {
+            [BrowserViewController confirmReplacingPlaylistOf:playback from:VibeTopmostPresenter(root)
+                                                  openingURLs:@[file] inFolder:NO token:token];
         }
         if (completion) {
             completion(file, error);
@@ -914,11 +925,13 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     if (VibeLinkTextIsBlank(text)) {
         return;
     }
-    // The add sheet is gone by the time a failure lands.
-    UIViewController *presenter = _appending ? self.navigationController.presentingViewController : self;
+    // Found when the failure lands: the add sheet is gone by then, and the
+    // card may be up.
+    __weak UIWindow *window = self.view.window;
     void (^showFailure)(NSError *) = ^(NSError *error) {
-        if (error && presenter.viewIfLoaded.window) {
-            VibePresentAlert(presenter, STR_LINK_ERROR_TITLE, [LinkStore messageForError:error]);
+        UIViewController *root = window.rootViewController;
+        if (error && root) {
+            VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, [LinkStore messageForError:error]);
         }
     };
     if (!_appending) {

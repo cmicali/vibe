@@ -62,20 +62,28 @@ static inline BOOL VibeLinkIPv6IsLocal(struct in6_addr address) {
 
 // Whether a host is on the local network: localhost, a name ending in .local,
 // .localhost or .test, an unqualified name, or an address in a private,
-// loopback or link-local range. Takes NSURL.host as it comes, brackets and an
-// IPv6 zone id included. It also picks the local-network error message.
+// loopback or link-local range. Takes NSURL.host as it comes, with or without
+// an IPv6 literal's brackets. It also picks the local-network error message.
 //
 // TRAP: an IPv4 address is parsed as the resolver parses it (inet_aton).
 // "134744072" and "0x8.8.8.8" are 8.8.8.8, not unqualified names. Treating a
 // bare number as a name would let plain http reach any public address.
+//
+// TRAP: a zone id ("%en0") belongs only to an IPv6 literal. A '%' anywhere
+// else, or a NUL, makes the host not local. Cut there like a zone id,
+// "pi%.example.com" would pass as the unqualified name "pi".
 static inline BOOL VibeLinkHostIsLocal(NSString *_Nullable host) {
     NSString *name = host.lowercaseString;
     if ([name hasPrefix:@"["] && [name hasSuffix:@"]"] && name.length >= 2) {
         name = [name substringWithRange:NSMakeRange(1, name.length - 2)];
     }
+    if ([name rangeOfCharacterFromSet:[NSCharacterSet characterSetWithRange:NSMakeRange(0, 1)]].location
+            != NSNotFound) return NO;
     NSRange zone = [name rangeOfString:@"%"];
     if (zone.location != NSNotFound) {
         name = [name substringToIndex:zone.location];
+        struct in6_addr literal;
+        if (inet_pton(AF_INET6, name.UTF8String, &literal) != 1) return NO;
     }
     if ([name hasSuffix:@"."]) {
         name = [name substringToIndex:name.length - 1];
@@ -98,8 +106,8 @@ static inline BOOL VibeLinkHostIsLocal(NSString *_Nullable host) {
 
 // https reaches any host. Plain http reaches only the local network. App
 // Transport Security's NSAllowsLocalNetworking draws the same line. The
-// transfer applies this to every redirect too. A redirect can leave the local
-// network.
+// transfer applies this to every redirect too (VibeLinkRequestIsAllowed). A
+// redirect can leave the local network.
 static inline VibeLinkAcceptance VibeLinkURLAcceptance(NSURL *_Nullable url) {
     NSString *scheme = url.scheme.lowercaseString;
     if (scheme.length == 0) return VibeLinkRefusedInvalid;
@@ -108,6 +116,15 @@ static inline VibeLinkAcceptance VibeLinkURLAcceptance(NSURL *_Nullable url) {
     if (url.host.length == 0) return VibeLinkRefusedInvalid;
     if (https || VibeLinkHostIsLocal(url.host)) return VibeLinkAccepted;
     return VibeLinkRefusedInsecurePublicHTTP;
+}
+
+// Whether the transfer may request `to`, reached by a redirect from `from`,
+// nil for the link itself. `to` must pass the address rule. A redirect from a
+// public host never reaches the local network, whatever the scheme. A public
+// page could otherwise send Vibe's requests to a device at home.
+static inline BOOL VibeLinkRequestIsAllowed(NSURL *_Nullable from, NSURL *_Nullable to) {
+    if (VibeLinkURLAcceptance(to) != VibeLinkAccepted) return NO;
+    return from == nil || VibeLinkHostIsLocal(from.host) || !VibeLinkHostIsLocal(to.host);
 }
 
 // The typed text as a URL: surrounding whitespace and newlines dropped, as a
@@ -332,8 +349,9 @@ static const NSUInteger kVibeLinkNameMaxBytes = 200;
 // extension. Otherwise the Content-Disposition file name wins when there is
 // one. Google Drive's path ends in "view" or "download" and names nothing.
 // A playable extension the name already carries is replaced. Cleaning swaps
-// '/' and ':' for '-' and drops C0 and C1 control characters and leading
-// dots. The whole name is cut to 200 UTF-8 bytes on a character boundary.
+// '/' and ':' for '-' and drops C0 and C1 control characters, the bidi
+// embeddings, overrides and isolates, and leading dots. An override would
+// show "mp3.exe" as "exe.3pm". The whole name is cut to 200 UTF-8 bytes on a character boundary.
 // "Link.<extension>" when nothing survives.
 static inline NSString *VibeLinkFileName(NSURL *url,
                                          NSString *_Nullable contentDisposition,
@@ -350,10 +368,13 @@ static inline NSString *VibeLinkFileName(NSURL *url,
     if (disposition != nil && ![playable containsObject:name.pathExtension.lowercaseString]) {
         name = disposition;
     }
-    // Cc only. NSCharacterSet.controlCharacterSet also holds Cf, and that
-    // takes the joiner out of an emoji sequence or a Persian word.
+    // Cc and the bidi controls only. NSCharacterSet.controlCharacterSet also
+    // holds the rest of Cf, and that takes the joiner out of an emoji
+    // sequence or a Persian word.
     NSMutableCharacterSet *controls = [NSMutableCharacterSet characterSetWithRange:NSMakeRange(0x00, 0x20)];
     [controls addCharactersInRange:NSMakeRange(0x7F, 0x21)];
+    [controls addCharactersInRange:NSMakeRange(0x202A, 5)];  // LRE, RLE, PDF, LRO, RLO
+    [controls addCharactersInRange:NSMakeRange(0x2066, 4)];  // LRI, RLI, FSI, PDI
     name = [[name componentsSeparatedByCharactersInSet:controls] componentsJoinedByString:@""];
     name = [name stringByReplacingOccurrencesOfString:@"/" withString:@"-"];
     name = [name stringByReplacingOccurrencesOfString:@":" withString:@"-"];
