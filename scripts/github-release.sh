@@ -17,15 +17,15 @@
 # Every published release also adds an item to Sparkle's feeds,
 # Assets/Web/appcast.xml (the universal zip) and appcast-arm64.xml, with the
 # signature release.sh made. The feeds are committed and pushed before the
-# tag, like the web page, and go live with `make deploy-web`, which must come
-# after the release: the items name its assets.
+# tag, like the web page. Then, once the release exists, this deploys the site
+# (deploy-web.sh), since the feed items and the page name its assets.
 #
 # The version is the built app's, never git's, so the tag names what the image
 # contains. Notes are Assets/app-store/copy/en/macos/whats-new.txt, which the
 # Mac App Store upload also takes, so the two channels cannot drift.
 #
-#   --draft        create it unpublished; the web page, the feeds and the tap
-#                  are left alone.
+#   --draft        create it unpublished; the web page, the feeds, the deploy
+#                  and the tap are left alone.
 #   --prerelease   publish a beta: not marked Latest, and neither the web page
 #                  nor the Homebrew tap is repointed, so neither hands out a
 #                  test build. Its feed items carry the beta channel, which
@@ -67,6 +67,18 @@ gh auth status >/dev/null 2>&1 || {
     echo "error: gh is not authenticated — run: gh auth login" >&2
     exit 1
 }
+# The deploy runs after publishing, so its credentials are checked before.
+if [[ -z "$DRAFT" ]]; then
+    command -v npx >/dev/null || {
+        echo "error: npx is not installed — the deploy runs wrangler through it (brew install node)" >&2
+        exit 1
+    }
+    # shellcheck disable=SC1091
+    ( [[ -f .release-env ]] && source .release-env; [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] ) || {
+        echo "error: no CLOUDFLARE_API_TOKEN in .release-env — scripts/deploy-web.sh says how to make one" >&2
+        exit 1
+    }
+fi
 [[ -d "$UNIVERSAL_APP" && -f "$UNIVERSAL_DMG" && -f "$UNIVERSAL_ZIP" \
         && -d "$ARM64_APP" && -f "$ARM64_DMG" && -f "$ARM64_ZIP" ]] || {
     echo "error: universal or arm64 release artifacts are missing — run 'make release' first" >&2
@@ -331,8 +343,17 @@ gh release create "$TAG" \
     --target "$(git rev-parse HEAD)" \
     ${DRAFT:+"$DRAFT"} ${PRERELEASE:+"$PRERELEASE"}
 
+# After the release, since the page and the feed items name its assets. The
+# release is already out, so a failure here is a warning with its retry.
+if [[ -z "$DRAFT" ]]; then
+    scripts/deploy-web.sh || {
+        echo "warning: the site and the update feeds are not deployed" >&2
+        echo "         installed copies will not see v$VERSION until: make deploy-web" >&2
+    }
+fi
+
 # After the release, since the cask's sha256s are the published assets' digests.
-# The release is already out, so a failure here is a warning with its retry.
+# A failure here is a warning with its retry, for the same reason.
 if [[ -z "$DRAFT$PRERELEASE" ]]; then
     scripts/brew-set-version.sh "$VERSION" || {
         echo "warning: the Homebrew tap still points at the previous release" >&2
@@ -342,4 +363,3 @@ fi
 
 echo "🔊 done"
 gh release view "$TAG" --json url -q .url
-[[ -n "$DRAFT" ]] || echo "🔊 next: make deploy-web    (publishes the page and the update feeds to Cloudflare)"

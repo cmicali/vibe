@@ -213,11 +213,13 @@ release:
 
 # Publish what `make release` produced as a GitHub release, tagged v<version>.
 # See scripts/github-release.sh. ARGS reaches its [--draft|--prerelease];
-# without it a beta publishes as Latest and repoints the website at it.
+# without it a beta publishes as Latest and repoints the website at it. It
+# ends by running deploy-web, which publishes the page and the update feeds.
 github-release:
 	scripts/github-release.sh $(ARGS)
 
 # Publish Assets/Web to Cloudflare Pages (the canonical vibeplayer.app).
+# github-release runs it, so this is for a retry or a page-only change.
 # Local-only: the token stays out of CI secrets and the script refuses to run
 # there. ARGS="--dry-run" lists what would go and needs no credentials.
 deploy-web:
