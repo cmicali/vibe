@@ -418,6 +418,9 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqualObjects(urls[0].path, @"/a/Song.mp3");
     XCTAssertEqualObjects(urls[1].path, @"/b");
     XCTAssertTrue(urls[0].isFileURL);
+    // From the recorded flag, never a stat of the path.
+    XCTAssertFalse(urls[0].hasDirectoryPath);
+    XCTAssertTrue(urls[1].hasDirectoryPath);
 }
 
 #pragma mark - The restored playlist

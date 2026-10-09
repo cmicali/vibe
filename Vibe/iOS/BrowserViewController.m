@@ -1823,7 +1823,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     BOOL folder = [item[@"folder"] boolValue];
     // A link's folder is the store's, named by a hash and holding the one
     // file: no Play in Folder, no Open Folder.
-    BOOL folderActions = ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"]]];
+    BOOL folderActions = ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"] isDirectory:folder]];
     BOOL appendingSheet = _appending;
     __weak RecentsViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil

@@ -166,12 +166,17 @@ static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection se
 
 // The recents' file URLs, from the paths they recorded. A launch's pruning
 // keeps every link these name.
+// TRAP: never fileURLWithPath: alone. It stats the path, and a recent on an
+// unreachable SMB share then holds main for the connect's 30 s timeout.
 static inline NSArray<NSURL *> *VibeRecentItemURLs(NSArray *items) {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
     for (id item in items) {
-        id path = [item isKindOfClass:NSDictionary.class] ? ((NSDictionary *)item)[@"path"] : nil;
+        NSDictionary *entry = [item isKindOfClass:NSDictionary.class] ? item : nil;
+        id path = entry[@"path"];
         if ([path isKindOfClass:NSString.class] && [path length] > 0) {
-            [urls addObject:[NSURL fileURLWithPath:path]];
+            id folder = entry[@"folder"];
+            BOOL isFolder = [folder isKindOfClass:NSNumber.class] && [folder boolValue];
+            [urls addObject:[NSURL fileURLWithPath:path isDirectory:isFolder]];
         }
     }
     return urls;
