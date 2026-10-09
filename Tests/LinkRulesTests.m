@@ -41,10 +41,6 @@ static NSString *NameWithDisposition(NSString *url, NSString *disposition, NSStr
     return VibeLinkFileName([NSURL URLWithString:url], disposition, extension, PlayableExtensions.lookup);
 }
 
-static NSString *Direct(NSString *link) {
-    return VibeLinkDirectDownloadURL([NSURL URLWithString:link]).absoluteString;
-}
-
 static NSUInteger UTF8Length(NSString *string) {
     return [string lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
 }
@@ -247,7 +243,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 // Each hop is judged alone, by the same rule as the typed link.
 - (void)testARedirectIsJudgedByTheSameRule {
     NSDictionary<NSString *, NSNumber *> *hops = @{
-        @"https://dl.dropboxusercontent.com/cd/0/get/abc/file": @(VibeLinkErrorNone),
+        @"https://files.example.net/get/abc/file": @(VibeLinkErrorNone),
         @"http://cdn.example.com/a.mp3": @(VibeLinkErrorInsecure),
         @"http://8.8.8.8/a.mp3": @(VibeLinkErrorInsecure),
         @"http://pi.local/a.mp3": @(VibeLinkErrorNone),
@@ -286,102 +282,18 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertFalse(VibeLinkRequestIsAllowed(nil, nil));
 }
 
-#pragma mark - Dropbox
+#pragma mark - Share links
 
-- (void)testADropboxShareLinkGetsDLOne {
-    NSDictionary<NSString *, NSString *> *cases = @{
-        @"https://www.dropbox.com/scl/fi/abc123/Song.flac?rlkey=xyz&dl=0":
-            @"https://www.dropbox.com/scl/fi/abc123/Song.flac?rlkey=xyz&dl=1",
-        @"https://www.dropbox.com/scl/fi/abc123/Song.flac?dl=0&rlkey=xyz&st=q1":
-            @"https://www.dropbox.com/scl/fi/abc123/Song.flac?rlkey=xyz&st=q1&dl=1",
-        @"https://www.dropbox.com/scl/fi/abc123/Song.flac?rlkey=xyz":
-            @"https://www.dropbox.com/scl/fi/abc123/Song.flac?rlkey=xyz&dl=1",
-        @"https://dropbox.com/s/abc123/Song.mp3":
-            @"https://dropbox.com/s/abc123/Song.mp3?dl=1",
-        @"https://www.dropbox.com/s/abc123/Song.mp3?dl=1":
-            @"https://www.dropbox.com/s/abc123/Song.mp3?dl=1",
-        @"https://WWW.DROPBOX.COM/s/abc123/Song.mp3?dl=0":
-            @"https://WWW.DROPBOX.COM/s/abc123/Song.mp3?dl=1",
-        @"https://www.dropbox.com/s/abc123/Song.mp3?dl=0&dl=0":
-            @"https://www.dropbox.com/s/abc123/Song.mp3?dl=1",
-        @"https://www.dropbox.com/s/abc123/My%20Song.mp3?dl=0#frag":
-            @"https://www.dropbox.com/s/abc123/My%20Song.mp3?dl=1#frag",
-        @"https://www.dropbox.com/scl/fi/5b8vg9wzcs/122-Basti-Pieper-I-Love-You.aif?rlkey=iobgi14c49&dl=0":
-            @"https://www.dropbox.com/scl/fi/5b8vg9wzcs/122-Basti-Pieper-I-Love-You.aif?rlkey=iobgi14c49&dl=1",
-    };
-    [cases enumerateKeysAndObjectsUsingBlock:^(NSString *link, NSString *expected, BOOL *stop) {
-        XCTAssertEqualObjects(VibeLinkDirectDownloadURL([NSURL URLWithString:link]).absoluteString, expected, @"%@", link);
-    }];
-}
-
-- (void)testOtherLinksAreUntouched {
-    for (NSString *string in @[@"https://www.dropbox.com/scl/fo/abc/folder?rlkey=x&dl=0",
-                               @"https://www.dropbox.com/sh/abc/folder?dl=0",
-                               @"https://www.dropbox.com/home/Music?dl=0",
-                               @"https://www.dropbox.com/s",
-                               @"https://www.dropbox.com/scl/fi",
-                               @"https://dl.dropboxusercontent.com/s/abc/Song.mp3",
-                               @"https://dropbox.com.evil.example/s/abc/Song.mp3?dl=0",
-                               @"https://notdropbox.com/s/abc/Song.mp3?dl=0",
-                               @"https://example.com/s/abc/Song.mp3?dl=0",
+// Each host's own file and tests hold its rewrite (DropboxLinkRulesTests,
+// GoogleDriveLinkRulesTests). Every other link is fetched as typed.
+- (void)testAnotherHostsLinkIsUntouched {
+    for (NSString *string in @[@"https://example.com/s/abc/Song.mp3?dl=0",
                                @"https://example.com/scl/fi/abc/Song.mp3?dl=0",
-                               @"https://drive.google.com/drive/folders/1AbC_d-E?usp=sharing",
-                               @"https://drive.google.com/drive/u/0/folders/1AbC_d-E",
-                               @"https://drive.google.com/",
-                               @"https://drive.google.com/file/d/",
-                               @"https://drive.google.com/file/x/1AbC_d-E/view",
-                               @"https://drive.google.com/open",
-                               @"https://drive.google.com/open?id=",
-                               @"https://drive.google.com/uc?export=download",
-                               @"https://drive.google.com/file/d/1AbC%2F..%2Fx/view",
-                               @"https://drive.google.com/open?id=1AbC%26x%3D1",
-                               @"https://drive.google.com/drive/open?id=1AbC_d-E",
-                               @"https://docs.google.com/file/d/1AbC_d-E/view",
-                               @"https://drive.google.com.evil.example/file/d/1AbC_d-E/view",
-                               @"https://drive.usercontent.google.com/download?id=1AbC_d-E&export=download"]) {
+                               @"https://example.com/file/d/1AbC_d-E/view",
+                               @"http://nas.local/Music/Song.flac"]) {
         NSURL *url = [NSURL URLWithString:string];
         XCTAssertEqualObjects(VibeLinkDirectDownloadURL(url), url, @"%@", string);
     }
-}
-
-#pragma mark - Google Drive
-
-- (void)testAGoogleDriveFileLinkGetsItsDownloadAddress {
-    NSString *download = @"https://drive.usercontent.google.com/download?id=1k_kSNfbzdX-Ab&export=download&confirm=t";
-    for (NSString *link in @[@"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/view?usp=sharing",
-                             @"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/view",
-                             @"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/edit?usp=drive_link",
-                             @"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/preview",
-                             @"https://drive.google.com/file/d/1k_kSNfbzdX-Ab",
-                             @"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/",
-                             @"https://DRIVE.GOOGLE.COM/file/d/1k_kSNfbzdX-Ab/view#frag",
-                             @"https://drive.google.com/open?id=1k_kSNfbzdX-Ab",
-                             @"https://drive.google.com/open?usp=sharing&id=1k_kSNfbzdX-Ab",
-                             @"https://drive.google.com/uc?id=1k_kSNfbzdX-Ab&export=download",
-                             @"https://drive.google.com/uc?export=download&id=1k_kSNfbzdX-Ab",
-                             @"https://drive.google.com/uc?id=1k_kSNfbzdX-Ab"]) {
-        XCTAssertEqualObjects(Direct(link), download, @"%@", link);
-    }
-}
-
-- (void)testAGoogleDriveResourceKeyIsKept {
-    NSString *download =
-        @"https://drive.usercontent.google.com/download?id=1AbC&export=download&confirm=t&resourcekey=0-xYz_9";
-    for (NSString *link in @[@"https://drive.google.com/file/d/1AbC/view?usp=sharing&resourcekey=0-xYz_9",
-                             @"https://drive.google.com/file/d/1AbC/view?resourcekey=0-xYz_9",
-                             @"https://drive.google.com/open?id=1AbC&resourcekey=0-xYz_9",
-                             @"https://drive.google.com/uc?id=1AbC&export=download&resourcekey=0-xYz_9"]) {
-        XCTAssertEqualObjects(Direct(link), download, @"%@", link);
-    }
-    XCTAssertEqualObjects(Direct(@"https://drive.google.com/file/d/1AbC/view?resourcekey="),
-                          @"https://drive.usercontent.google.com/download?id=1AbC&export=download&confirm=t");
-}
-
-// The address the rewrite makes is a link Vibe fetches like any other.
-- (void)testAGoogleDriveDownloadAddressIsAccepted {
-    NSURL *download = VibeLinkDirectDownloadURL([NSURL URLWithString:@"https://drive.google.com/file/d/1AbC/view"]);
-    XCTAssertEqual(VibeLinkURLAcceptance(download), VibeLinkErrorNone);
-    XCTAssertEqualObjects(Name(download.absoluteString, @"wav"), @"download.wav");
 }
 
 #pragma mark - Audio check: magic
@@ -612,7 +524,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqualObjects(Name(@"https://example.com/%E6%97%A5%E6%9C%AC.m4a", @"m4a"), @"日本.m4a");
     XCTAssertEqualObjects(Name(@"https://example.com/50%25%20off.mp3", @"mp3"), @"50% off.mp3");
     XCTAssertEqualObjects(Name(@"https://example.com/bad%ZZname.mp3", @"mp3"), @"bad%ZZname.mp3");
-    XCTAssertEqualObjects(Name(@"https://www.dropbox.com/scl/fi/abc/Song.flac?rlkey=x&dl=1", @"flac"), @"Song.flac");
+    XCTAssertEqualObjects(Name(@"https://example.com/share/abc/Song.flac?key=x&dl=1", @"flac"), @"Song.flac");
     XCTAssertEqualObjects(Name(@"https://example.com/get?file=Song.mp3", @"mp3"), @"get.mp3");
 }
 
@@ -629,23 +541,23 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqualObjects(VibeLinkNameOfText(@"song"), @"song");
 }
 
-// Google Drive's path names nothing. The Content-Disposition file name does.
-// A path that names a playable file keeps its name, as a Dropbox link's does.
+// A download address's path names nothing. The Content-Disposition file name
+// does. A path that names a playable file keeps its name.
 - (void)testTheDispositionNamesALinkWhosePathDoesNot {
-    NSString *drive = @"https://drive.usercontent.google.com/download?id=1AbC&export=download&confirm=t";
-    XCTAssertEqualObjects(NameWithDisposition(drive, @"attachment; filename=\"07A - Greg Benz Remix 0710.wav\"", @"wav"),
+    NSString *download = @"https://files.example.net/download?id=1AbC&export=download";
+    XCTAssertEqualObjects(NameWithDisposition(download, @"attachment; filename=\"07A - Greg Benz Remix 0710.wav\"", @"wav"),
                           @"07A - Greg Benz Remix 0710.wav");
-    XCTAssertEqualObjects(NameWithDisposition(drive, @"attachment; filename*=UTF-8''Caf%C3%A9.aif", @"aiff"),
+    XCTAssertEqualObjects(NameWithDisposition(download, @"attachment; filename*=UTF-8''Caf%C3%A9.aif", @"aiff"),
                           @"Café.aiff");
-    XCTAssertEqualObjects(NameWithDisposition(drive, @"attachment; filename=\"take two\"", @"flac"), @"take two.flac");
-    XCTAssertEqualObjects(NameWithDisposition(drive, @"attachment; filename=\"../a:b.mp3\"", @"mp3"), @"-a-b.mp3");
-    XCTAssertEqualObjects(NameWithDisposition(drive, @"attachment; filename=\"..\"", @"mp3"), @"Link.mp3");
-    XCTAssertEqualObjects(NameWithDisposition(drive, @"attachment", @"wav"), @"download.wav");
-    XCTAssertEqualObjects(NameWithDisposition(drive, nil, @"wav"), @"download.wav");
+    XCTAssertEqualObjects(NameWithDisposition(download, @"attachment; filename=\"take two\"", @"flac"), @"take two.flac");
+    XCTAssertEqualObjects(NameWithDisposition(download, @"attachment; filename=\"../a:b.mp3\"", @"mp3"), @"-a-b.mp3");
+    XCTAssertEqualObjects(NameWithDisposition(download, @"attachment; filename=\"..\"", @"mp3"), @"Link.mp3");
+    XCTAssertEqualObjects(NameWithDisposition(download, @"attachment", @"wav"), @"download.wav");
+    XCTAssertEqualObjects(NameWithDisposition(download, nil, @"wav"), @"download.wav");
     XCTAssertEqualObjects(NameWithDisposition(@"https://example.com/get.php?f=1", @"attachment; filename=song.mp3", @"mp3"),
                           @"song.mp3");
 
-    XCTAssertEqualObjects(NameWithDisposition(@"https://www.dropbox.com/scl/fi/abc/Song.aif?rlkey=x&dl=1",
+    XCTAssertEqualObjects(NameWithDisposition(@"https://example.com/share/abc/Song.aif?key=x&dl=1",
                                               @"attachment; filename=\"unspecified\"", @"aiff"), @"Song.aiff");
     XCTAssertEqualObjects(NameWithDisposition(@"https://example.com/music/Song.mp3",
                                               @"attachment; filename=\"other.mp3\"", @"mp3"), @"Song.mp3");
@@ -917,7 +829,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 - (void)testTheProbeDeadlineIsLongerOnTheLocalNetwork {
     XCTAssertEqual(kVibeLinkProbeTimeoutPublic, 15);
     XCTAssertEqual(kVibeLinkProbeTimeoutLocal, 30);
-    for (NSString *host in @[@"example.com", @"www.dropbox.com", @"8.8.8.8", @"134744072", @"[2001:db8::1]",
+    for (NSString *host in @[@"example.com", @"www.example.org", @"8.8.8.8", @"134744072", @"[2001:db8::1]",
                              @"pi%.example.com"]) {
         XCTAssertEqual(VibeLinkProbeTimeout(host), kVibeLinkProbeTimeoutPublic, @"%@", host);
     }
