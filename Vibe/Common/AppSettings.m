@@ -68,6 +68,7 @@ void VibeNotifyDisplaySettingsChanged(void) {
 #else
     appDefaults[SETTING_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
     appDefaults[SETTING_WAVEFORM_THEME] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+    appDefaults[SETTING_WAVEFORM_BAND_THEME] = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
     appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
     appDefaults[SETTING_WAVEFORM_CENTERED] = @(YES);
     appDefaults[SETTING_WIDGET_WAVEFORM_CENTERED] = @(YES);
@@ -145,6 +146,33 @@ void VibeNotifyDisplaySettingsChanged(void) {
 - (void)setWaveformCustomUnplayedColor:(VibeColor *)color forDark:(BOOL)isDark {
     [self setHexColor:color forKey:
             isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
+}
+
+- (NSString *)waveformBandTheme {
+    return VibeNormalizedWaveformBandTheme([[NSUserDefaults standardUserDefaults]
+            stringForKey:SETTING_WAVEFORM_BAND_THEME]);
+}
+
+- (void)setWaveformBandTheme:(NSString *)identifier {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_BAND_THEME];
+}
+
+static NSString *WaveformCustomBandKey(NSUInteger band, BOOL isDark) {
+    static NSString *const keys[2][3] = {
+        {SETTING_WAVEFORM_CUSTOM_LOW_LIGHT, SETTING_WAVEFORM_CUSTOM_MID_LIGHT, SETTING_WAVEFORM_CUSTOM_HIGH_LIGHT},
+        {SETTING_WAVEFORM_CUSTOM_LOW_DARK, SETTING_WAVEFORM_CUSTOM_MID_DARK, SETTING_WAVEFORM_CUSTOM_HIGH_DARK},
+    };
+    NSCParameterAssert(band < 3);
+    return keys[isDark ? 1 : 0][band];
+}
+
+- (VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults]
+            stringForKey:WaveformCustomBandKey(band, isDark)]);
+}
+
+- (void)setWaveformCustomBandColor:(VibeColor *)color band:(NSUInteger)band forDark:(BOOL)isDark {
+    [self setHexColor:[color colorWithAlphaComponent:1] forKey:WaveformCustomBandKey(band, isDark)];
 }
 
 - (NSNumber *)waveformPlayheadLine {

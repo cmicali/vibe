@@ -7,6 +7,7 @@
 * mac: Added a volume slider show setting to theme editor
 * mac: Added Cut and Paste to the Edit menu
 * ios: Added small waveform widgets, a large widget, and Lock Screen widgets
+* ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
 
 # v1.15
 
