@@ -3907,6 +3907,192 @@
       },
       "extractionState": "manual"
     },
+    "browser.open_url": {
+      "comment": "iOS Files tab: the row under Locations that asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отвори URL…"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otevřít URL…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åbn URL…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL öffnen…"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Άνοιγμα URL…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URL…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL…"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avaa URL…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir l’URL…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori URL…"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL megnyitása…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka URL…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri URL…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URLを開く…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL 열기…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åpne URL…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URL…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz URL…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deschideți URL…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть URL…"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvoriť URL…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öppna URL…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิด URL…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL’yi Aç…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити URL…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở URL…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 URL…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開 URL…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.other_files": {
       "comment": "iOS Files tab: the last row under Locations; opens the system file picker to choose a file or folder from anywhere, for one that is not in a listed location. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
@@ -5768,7 +5954,7 @@
       "extractionState": "manual"
     },
     "button.cancel": {
-      "comment": "iOS: the button that dismisses a confirmation alert without doing anything. Use the wording the system uses for this button in this language.",
+      "comment": "The button that dismisses an alert without doing anything: a confirmation alert on iOS, and the Open URL prompt on both platforms. Use the wording the system uses for this button in this language.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6326,7 +6512,7 @@
       "extractionState": "manual"
     },
     "button.open": {
-      "comment": "iOS: button on the empty playlist screen; it brings the Files tab forward so the user can browse for a folder or file to play.",
+      "comment": "Button that opens something. On iOS, the empty playlist screen's button, which brings the Files tab forward to browse for a folder or file to play. On both platforms, the Open URL prompt's button, which plays the address entered.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -12649,6 +12835,2424 @@
       },
       "extractionState": "manual"
     },
+    "link.error.denied": {
+      "comment": "Open URL error: the server refused to send the file (HTTP 401 or 403), for example a private or expired share link.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сървърът не разреши достъп до този файл. Връзката може да е лична или с изтекъл срок."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server nepovolil přístup k tomuto souboru. Odkaz může být soukromý nebo neplatný."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveren gav ikke adgang til filen. Linket er måske privat eller udløbet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat den Zugriff auf diese Datei nicht erlaubt. Der Link ist vielleicht privat oder abgelaufen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ο διακομιστής δεν επέτρεψε την πρόσβαση στο αρχείο. Ο σύνδεσμος ίσως είναι ιδιωτικός ή έχει λήξει."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server didn’t allow access to that file. The link may be private or expired."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor no ha permitido el acceso a ese archivo. Puede que el enlace sea privado o haya caducado."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palvelin ei sallinut pääsyä tiedostoon. Linkki voi olla yksityinen tai vanhentunut."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur n’a pas autorisé l’accès à ce fichier. Le lien est peut‑être privé ou expiré."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poslužitelj nije dopustio pristup toj datoteci. Poveznica je možda privatna ili je istekla."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A szerver nem engedélyezte a hozzáférést a fájlhoz. Lehet, hogy a link privát vagy lejárt."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server tidak mengizinkan akses ke file itu. Tautan mungkin pribadi atau sudah kedaluwarsa."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il server non ha consentito l’accesso al file. Il link potrebbe essere privato o scaduto."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバがこのファイルへのアクセスを許可しませんでした。リンクが非公開か、期限切れの可能性があります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버가 해당 파일에 대한 접근을 허용하지 않았습니다. 링크가 비공개이거나 만료되었을 수 있습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tjeneren ga ikke tilgang til filen. Lenken kan være privat eller utløpt."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De server gaf geen toegang tot dat bestand. De link is mogelijk privé of verlopen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serwer nie zezwolił na dostęp do tego pliku. Łącze może być prywatne lub wygasło."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor não permitiu o acesso a esse arquivo. O link pode ser privado ou ter expirado."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor não permitiu o acesso a esse ficheiro. A ligação pode ser privada ou ter expirado."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverul nu a permis accesul la acest fișier. Linkul poate fi privat sau expirat."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер не разрешил доступ к этому файлу. Возможно, ссылка закрытая или устарела."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server nepovolil prístup k tomuto súboru. Odkaz môže byť súkromný alebo neplatný."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Servern tillät inte åtkomst till filen. Länken kan vara privat eller ha gått ut."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เซิร์ฟเวอร์ไม่อนุญาตให้เข้าถึงไฟล์นี้ ลิงก์อาจเป็นแบบส่วนตัวหรือหมดอายุแล้ว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu bu dosyaya erişime izin vermedi. Bağlantı özel olabilir veya süresi dolmuş olabilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер не дозволив доступ до цього файлу. Можливо, посилання приватне або застаріле."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ không cho phép truy cập tệp đó. Liên kết có thể ở chế độ riêng tư hoặc đã hết hạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器不允许访问该文件。链接可能为私密链接或已过期。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器不允許取用此檔案。連結可能為私人連結或已過期。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.insecure": {
+      "comment": "Open URL error: the address starts with http://, which is not encrypted, and points outside the user's home or office network. Vibe is the app name. Keep http:// and https:// exactly as written.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe отваря обикновени http:// адреси само в локалната ви мрежа. Използвайте https://."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikace Vibe otevírá prosté adresy http:// jen v místní síti. Použijte místo toho https://."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe åbner kun almindelige http://-adresser på dit lokale netværk. Brug https:// i stedet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe öffnet einfache http://-Adressen nur in deinem lokalen Netzwerk. Verwende stattdessen https://."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Vibe ανοίγει απλές διευθύνσεις http:// μόνο στο τοπικό σας δίκτυο. Χρησιμοποιήστε https://."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe opens plain http:// addresses only on your local network. Use https:// instead."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe solo abre direcciones http:// sin cifrar en tu red local. Usa https:// en su lugar."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe avaa tavallisia http://-osoitteita vain paikallisverkossa. Käytä sen sijaan https://-osoitetta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe n’ouvre les adresses http:// non sécurisées que sur votre réseau local. Utilisez plutôt https://."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe otvara obične adrese http:// samo na vašoj lokalnoj mreži. Umjesto toga upotrijebite https://."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Vibe a sima http:// címeket csak a helyi hálózaton nyitja meg. Használj inkább https:// címet."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe hanya membuka alamat http:// biasa di jaringan lokal Anda. Gunakan https:// sebagai gantinya."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe apre gli indirizzi http:// semplici solo sulla tua rete locale. Usa invece https://."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibeが暗号化されていないhttp://アドレスを開くのは、ローカルネットワーク上だけです。代わりにhttps://を使用してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe는 암호화되지 않은 http:// 주소를 로컬 네트워크에서만 엽니다. 대신 https://를 사용하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe åpner vanlige http://-adresser bare på det lokale nettverket ditt. Bruk https:// i stedet."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe opent gewone http://-adressen alleen op je lokale netwerk. Gebruik in plaats daarvan https://."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe otwiera zwykłe adresy http:// tylko w sieci lokalnej. Zamiast tego użyj https://."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe só abre endereços http:// simples na sua rede local. Use https://."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe só abre endereços http:// simples na sua rede local. Em alternativa, utilize https://."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe deschide adrese http:// simple doar în rețeaua locală. Folosiți https:// în schimb."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe открывает обычные адреса http:// только в вашей локальной сети. Используйте https://."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikácia Vibe otvára obyčajné adresy http:// len v lokálnej sieti. Použite namiesto toho https://."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe öppnar vanliga http://-adresser bara på ditt lokala nätverk. Använd https:// i stället."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe เปิดที่อยู่ http:// แบบธรรมดาได้เฉพาะในเครือข่ายเฉพาะที่ของคุณ โปรดใช้ https:// แทน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe, düz http:// adreslerini yalnızca yerel ağınızda açar. Bunun yerine https:// kullanın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe відкриває звичайні адреси http:// лише у вашій локальній мережі. Використайте https://."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe chỉ mở địa chỉ http:// thông thường trong mạng cục bộ của bạn. Hãy dùng https:// thay thế."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 仅在本地网络中打开未加密的 http:// 地址。请改用 https://。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 只會在區域網路中打開未加密的 http:// 位址。請改用 https://。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.invalid": {
+      "comment": "Open URL error: what the user entered is not a web address. Keep https:// exactly as written.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Това не е уеб адрес. Въведете адрес, който започва с https://."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toto není webová adresa. Zadejte adresu, která začíná https://."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det er ikke en webadresse. Skriv en adresse, der starter med https://."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist keine Webadresse. Gib eine Adresse ein, die mit https:// beginnt."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αυτή δεν είναι διεύθυνση ιστού. Εισαγάγετε μια διεύθυνση που ξεκινά με https://."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That isn’t a web address. Enter an address that starts with https://."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eso no es una dirección web. Introduce una dirección que empiece por https://."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tämä ei ole verkko-osoite. Kirjoita osoite, joka alkaa https://."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce n’est pas une adresse web. Saisissez une adresse qui commence par https://."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To nije web-adresa. Unesite adresu koja počinje s https://."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ez nem webcím. Adj meg egy https:// kezdetű címet."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Itu bukan alamat web. Masukkan alamat yang diawali https://."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo non è un indirizzo web. Inserisci un indirizzo che inizia con https://."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webアドレスではありません。https://で始まるアドレスを入力してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "웹 주소가 아닙니다. https://로 시작하는 주소를 입력하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det er ikke en nettadresse. Skriv inn en adresse som begynner med https://."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dat is geen webadres. Voer een adres in dat begint met https://."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To nie jest adres internetowy. Wprowadź adres zaczynający się od https://."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isso não é um endereço web. Digite um endereço que comece com https://."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isso não é um endereço web. Introduza um endereço que comece por https://."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceasta nu este o adresă web. Introduceți o adresă care începe cu https://."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Это не веб-адрес. Введите адрес, который начинается с https://."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toto nie je webová adresa. Zadajte adresu, ktorá začína https://."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det är ingen webbadress. Ange en adress som börjar med https://."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "นี่ไม่ใช่ที่อยู่เว็บ โปรดป้อนที่อยู่ที่ขึ้นต้นด้วย https://"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu bir web adresi değil. https:// ile başlayan bir adres girin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Це не вебадреса. Введіть адресу, що починається з https://."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đây không phải là địa chỉ web. Hãy nhập một địa chỉ bắt đầu bằng https://."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这不是网址。请输入以 https:// 开头的地址。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這不是網址。請輸入以 https:// 開頭的位址。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.live_stream": {
+      "comment": "Open URL error: the address is a live broadcast that never ends, such as an internet radio station, rather than a file.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предавания на живо и интернет радио не се поддържат. Въведете адреса на аудиофайл."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Živé přenosy a internetová rádia nejsou podporovány. Zadejte adresu zvukového souboru."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Livestreams og internetradio understøttes ikke. Skriv adressen på en lydfil."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Livestreams und Internetradio werden nicht unterstützt. Gib die Adresse einer Audiodatei ein."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Οι ζωντανές μεταδόσεις και το διαδικτυακό ραδιόφωνο δεν υποστηρίζονται. Εισαγάγετε τη διεύθυνση ενός αρχείου ήχου."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live streams and internet radio aren’t supported. Enter the address of an audio file."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se admiten emisiones en directo ni radio por internet. Introduce la dirección de un archivo de audio."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suoria lähetyksiä ja nettiradiota ei tueta. Kirjoita äänitiedoston osoite."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les diffusions en direct et la radio sur Internet ne sont pas prises en charge. Saisissez l’adresse d’un fichier audio."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prijenosi uživo i internetski radio nisu podržani. Unesite adresu audiodatoteke."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az élő közvetítések és az internetes rádió nem támogatottak. Adj meg egy hangfájl címét."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siaran langsung dan radio internet tidak didukung. Masukkan alamat file audio."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le dirette e le radio su Internet non sono supportate. Inserisci l’indirizzo di un file audio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブストリームとインターネットラジオには対応していません。オーディオファイルのアドレスを入力してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "라이브 스트림과 인터넷 라디오는 지원되지 않습니다. 오디오 파일의 주소를 입력하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direktesendinger og nettradio støttes ikke. Skriv inn adressen til en lydfil."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Livestreams en internetradio worden niet ondersteund. Voer het adres van een audiobestand in."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transmisje na żywo i radio internetowe nie są obsługiwane. Wprowadź adres pliku audio."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transmissões ao vivo e rádio pela internet não são compatíveis. Digite o endereço de um arquivo de áudio."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As emissões em direto e a rádio na internet não são suportadas. Introduza o endereço de um ficheiro de áudio."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transmisiunile live și radioul pe internet nu sunt acceptate. Introduceți adresa unui fișier audio."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прямые трансляции и интернет-радио не поддерживаются. Введите адрес аудиофайла."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Živé prenosy a internetové rádiá nie sú podporované. Zadajte adresu zvukového súboru."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direktsändningar och internetradio stöds inte. Ange adressen till en ljudfil."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่รองรับการสตรีมสดและวิทยุอินเทอร์เน็ต โปรดป้อนที่อยู่ของไฟล์เสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canlı yayınlar ve internet radyosu desteklenmiyor. Bir ses dosyasının adresini girin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прямі трансляції й інтернет-радіо не підтримуються. Введіть адресу аудіофайлу."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không hỗ trợ phát trực tiếp và radio Internet. Hãy nhập địa chỉ của một tệp âm thanh."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持直播流和网络电台。请输入音频文件的地址。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援直播串流和網路電台。請輸入音訊檔案的位址。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.local_network": {
+      "comment": "Open URL error: the address points to a device on the user's home or office network, such as a music server, and no connection could be made. Privacy & Security and Local Network are the names of the system settings pages that list which apps may use the local network: use the names the system uses in this language. Settings is the system's settings app (System Settings on Mac). Vibe is the app name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устройството в локалната ви мрежа е недостъпно. Уверете се, че е включено. Проверете също дали Vibe е разрешено в Настройки > Поверителност и сигурност > Локална мрежа."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zařízení v místní síti není dostupné. Ujistěte se, že je zapnuté. Zkontrolujte také, zda má aplikace Vibe povolení v Nastavení > Soukromí a zabezpečení > Místní síť."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enheden på dit lokale netværk kunne ikke nås. Sørg for, at den er tændt. Tjek også, at Vibe har tilladelse under Indstillinger > Anonymitet & sikkerhed > Lokalt netværk."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Gerät in deinem lokalen Netzwerk ist nicht erreichbar. Stelle sicher, dass es eingeschaltet ist. Prüfe auch, ob Vibe unter Einstellungen > Datenschutz & Sicherheit > Lokales Netzwerk erlaubt ist."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατή η σύνδεση με τη συσκευή στο τοπικό σας δίκτυο. Βεβαιωθείτε ότι είναι ενεργοποιημένη. Ελέγξτε επίσης ότι το Vibe επιτρέπεται στις Ρυθμίσεις > Απόρρητο και ασφάλεια > Τοπικό δίκτυο."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t reach that device on your local network. Make sure it’s turned on. Also check that Vibe is allowed under Privacy & Security > Local Network in Settings."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido conectar con el dispositivo de tu red local. Asegúrate de que está encendido. Comprueba también que Vibe tiene permiso en Ajustes > Privacidad y seguridad > Red local."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paikallisverkon laitteeseen ei saatu yhteyttä. Varmista, että se on päällä. Tarkista myös, että Vibe on sallittu kohdassa Asetukset > Tietosuoja ja turvallisuus > Paikallisverkko."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de joindre cet appareil sur votre réseau local. Vérifiez qu’il est allumé. Vérifiez aussi que Vibe est autorisé dans Réglages > Confidentialité et sécurité > Réseau local."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uređaj na vašoj lokalnoj mreži nije dostupan. Provjerite je li uključen. Provjerite i je li Vibe dopušten u Postavke > Privatnost i sigurnost > Lokalna mreža."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nem sikerült elérni az eszközt a helyi hálózaton. Győződj meg róla, hogy be van kapcsolva. Azt is ellenőrizd, hogy a Vibe engedélyezve van-e a Beállítások > Adatvédelem és biztonság > Helyi hálózat részen."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat menjangkau perangkat di jaringan lokal Anda. Pastikan perangkat menyala. Periksa juga apakah Vibe diizinkan di Pengaturan > Privasi & Keamanan > Jaringan Lokal."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile raggiungere il dispositivo sulla tua rete locale. Assicurati che sia acceso. Controlla anche che Vibe sia consentito in Impostazioni > Privacy e sicurezza > Rete locale."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルネットワーク上のデバイスに接続できませんでした。デバイスの電源が入っていることを確認してください。また、「設定」>「プライバシーとセキュリティ」>「ローカルネットワーク」でVibeが許可されていることも確認してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로컬 네트워크의 기기에 연결할 수 없습니다. 기기가 켜져 있는지 확인하십시오. 또한 설정 > 개인정보 보호 및 보안 > 로컬 네트워크에서 Vibe가 허용되어 있는지 확인하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke nå enheten på det lokale nettverket ditt. Sørg for at den er slått på. Sjekk også at Vibe er tillatt under Innstillinger > Personvern og sikkerhet > Lokalt nettverk."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan het apparaat op je lokale netwerk niet bereiken. Zorg dat het is ingeschakeld. Controleer ook of Vibe is toegestaan in Instellingen > Privacy en beveiliging > Lokaal netwerk."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można połączyć się z urządzeniem w sieci lokalnej. Upewnij się, że jest włączone. Sprawdź też, czy Vibe ma pozwolenie w Ustawienia > Prywatność i ochrona > Sieć lokalna."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível acessar o dispositivo na sua rede local. Verifique se ele está ligado. Verifique também se o Vibe tem permissão em Ajustes > Privacidade e Segurança > Rede Local."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível contactar o dispositivo na sua rede local. Certifique-se de que está ligado. Verifique também se o Vibe tem permissão em Definições > Privacidade e segurança > Rede local."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispozitivul din rețeaua locală nu a putut fi accesat. Asigurați-vă că este pornit. Verificați și dacă Vibe are permisiune în Configurări > Confidențialitate și securitate > Rețea locală."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к устройству в вашей локальной сети. Убедитесь, что оно включено. Также проверьте, разрешен ли доступ для Vibe в разделе «Настройки» > «Конфиденциальность и безопасность» > «Локальная сеть»."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zariadenie v lokálnej sieti nie je dostupné. Uistite sa, že je zapnuté. Skontrolujte tiež, či má aplikácia Vibe povolenie v Nastavenia > Súkromie a bezpečnosť > Lokálna sieť."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att nå enheten på ditt lokala nätverk. Kontrollera att den är påslagen. Kontrollera också att Vibe är tillåten under Inställningar > Integritet och säkerhet > Lokalt nätverk."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถเชื่อมต่อกับอุปกรณ์ในเครือข่ายเฉพาะที่ของคุณได้ โปรดตรวจสอบให้แน่ใจว่าอุปกรณ์เปิดอยู่ และตรวจสอบว่าอนุญาต Vibe แล้วใน การตั้งค่า > ความเป็นส่วนตัวและความปลอดภัย > เครือข่ายเฉพาะที่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel ağınızdaki aygıta ulaşılamadı. Aygıtın açık olduğundan emin olun. Ayrıca Ayarlar > Gizlilik ve Güvenlik > Yerel Ağ bölümünde Vibe’a izin verildiğini denetleyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося зʼєднатися з пристроєм у вашій локальній мережі. Переконайтеся, що його ввімкнено. Також перевірте, чи дозволено Vibe у розділі «Параметри» > «Приватність і безпека» > «Локальна мережа»."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kết nối với thiết bị trong mạng cục bộ của bạn. Hãy đảm bảo thiết bị đang bật. Cũng hãy kiểm tra xem Vibe có được cho phép trong Cài đặt > Quyền riêng tư & Bảo mật > Mạng cục bộ hay không."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接到本地网络中的设备。请确保设备已开启。另请在“设置”>“隐私与安全性”>“本地网络”中检查是否已允许 Vibe。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線至區域網路中的裝置。請確定裝置已開啟。另請在「設定」>「隱私權與安全性」>「區域網路」中檢查是否已允許 Vibe。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.no_size": {
+      "comment": "Open URL error: the server sent the file without its size, which Vibe needs in order to stream and seek. Vibe is the app name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сървърът не посочва размера на файла. Vibe се нуждае от размера, за да го възпроизведе."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server neuvádí velikost souboru. Aplikace Vibe ji k přehrávání potřebuje."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveren oplyser ikke, hvor stor filen er. Vibe skal kende størrelsen for at afspille den."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server gibt die Größe der Datei nicht an. Vibe braucht die Größe, um sie abzuspielen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ο διακομιστής δεν αναφέρει το μέγεθος του αρχείου. Το Vibe χρειάζεται το μέγεθος για να το αναπαραγάγει."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server doesn’t say how big the file is. Vibe needs the size to play it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor no indica el tamaño del archivo. Vibe necesita el tamaño para reproducirlo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palvelin ei kerro tiedoston kokoa. Vibe tarvitsee koon toistaakseen sen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur n’indique pas la taille du fichier. Vibe en a besoin pour le lire."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poslužitelj ne navodi veličinu datoteke. Vibe treba veličinu da bi je reproducirao."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A szerver nem adja meg a fájl méretét. A Vibe-nak szüksége van a méretre a lejátszáshoz."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server tidak menyebutkan ukuran file. Vibe memerlukan ukurannya untuk memutar file."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il server non indica le dimensioni del file. Vibe ne ha bisogno per riprodurlo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバがファイルのサイズを示していません。Vibeで再生するにはサイズが必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버가 파일 크기를 알려 주지 않습니다. Vibe에서 재생하려면 크기가 필요합니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tjeneren oppgir ikke hvor stor filen er. Vibe trenger størrelsen for å spille den av."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De server geeft niet aan hoe groot het bestand is. Vibe heeft de grootte nodig om het af te spelen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serwer nie podaje rozmiaru pliku. Vibe potrzebuje rozmiaru, aby go odtworzyć."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor não informa o tamanho do arquivo. O Vibe precisa do tamanho para reproduzi-lo."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor não indica o tamanho do ficheiro. O Vibe precisa do tamanho para o reproduzir."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverul nu indică dimensiunea fișierului. Vibe are nevoie de dimensiune pentru a-l reda."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер не сообщает размер файла. Vibe нужен размер, чтобы воспроизвести файл."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server neuvádza veľkosť súboru. Aplikácia Vibe ju na prehrávanie potrebuje."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Servern anger inte hur stor filen är. Vibe behöver storleken för att spela upp den."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เซิร์ฟเวอร์ไม่ได้ระบุขนาดของไฟล์ Vibe ต้องทราบขนาดเพื่อเล่นไฟล์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu dosyanın boyutunu bildirmiyor. Vibe’ın dosyayı çalmak için boyutu bilmesi gerekir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер не повідомляє розмір файлу. Vibe потрібен розмір, щоб відтворити файл."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ không cho biết kích thước tệp. Vibe cần kích thước để phát tệp."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器未提供文件大小。Vibe 需要知道大小才能播放。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器未提供檔案大小。Vibe 需要知道大小才能播放。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.not_audio": {
+      "comment": "Open URL error: the address leads to something else, such as a web page. Vibe is the app name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Този адрес не води до аудиофайл, който Vibe може да възпроизведе."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tato adresa nevede ke zvukovému souboru, který aplikace Vibe umí přehrát."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adressen fører ikke til en lydfil, som Vibe kan afspille."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Adresse führt zu keiner Audiodatei, die Vibe abspielen kann."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αυτή η διεύθυνση δεν οδηγεί σε αρχείο ήχου που μπορεί να αναπαραγάγει το Vibe."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That address doesn’t lead to an audio file Vibe can play."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa dirección no lleva a un archivo de audio que Vibe pueda reproducir."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Osoite ei johda äänitiedostoon, jota Vibe voi toistaa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette adresse ne mène pas à un fichier audio que Vibe peut lire."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta adresa ne vodi do audiodatoteke koju Vibe može reproducirati."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ez a cím nem olyan hangfájlra mutat, amelyet a Vibe le tud játszani."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alamat itu tidak mengarah ke file audio yang dapat diputar Vibe."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo indirizzo non porta a un file audio che Vibe può riprodurre."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアドレスは、Vibeで再生できるオーディオファイルではありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해당 주소는 Vibe에서 재생할 수 있는 오디오 파일이 아닙니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adressen fører ikke til en lydfil som Vibe kan spille av."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dat adres leidt niet naar een audiobestand dat Vibe kan afspelen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten adres nie prowadzi do pliku audio, który Vibe może odtworzyć."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esse endereço não leva a um arquivo de áudio que o Vibe possa reproduzir."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esse endereço não leva a um ficheiro de áudio que o Vibe consiga reproduzir."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Această adresă nu duce la un fișier audio pe care Vibe îl poate reda."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот адрес не ведет к аудиофайлу, который может воспроизвести Vibe."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Táto adresa nevedie k zvukovému súboru, ktorý aplikácia Vibe dokáže prehrať."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adressen leder inte till en ljudfil som Vibe kan spela upp."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ที่อยู่นี้ไม่ได้นำไปยังไฟล์เสียงที่ Vibe เล่นได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu adres, Vibe’ın çalabileceği bir ses dosyasına yönlendirmiyor."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ця адреса не веде до аудіофайлу, який може відтворити Vibe."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Địa chỉ đó không dẫn đến tệp âm thanh mà Vibe có thể phát."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该地址指向的不是 Vibe 可以播放的音频文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此位址指向的不是 Vibe 可以播放的音訊檔案。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.not_found": {
+      "comment": "Open URL error: the server answered that nothing exists at the address (HTTP 404).",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На този адрес няма файл. Проверете адреса и опитайте отново."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na této adrese není žádný soubor. Zkontrolujte adresu a zkuste to znovu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der er ingen fil på den adresse. Tjek adressen, og prøv igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unter dieser Adresse gibt es keine Datei. Überprüfe die Adresse und versuche es erneut."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν υπάρχει αρχείο σε αυτή τη διεύθυνση. Ελέγξτε τη διεύθυνση και δοκιμάστε ξανά."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There’s no file at that address. Check the address and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ningún archivo en esa dirección. Comprueba la dirección y vuelve a intentarlo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Osoitteessa ei ole tiedostoa. Tarkista osoite ja yritä uudelleen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun fichier à cette adresse. Vérifiez l’adresse et réessayez."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na toj adresi nema datoteke. Provjerite adresu i pokušajte ponovno."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ezen a címen nincs fájl. Ellenőrizd a címet, és próbáld újra."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak ada file di alamat itu. Periksa alamat dan coba lagi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Non c’è nessun file a questo indirizzo. Controlla l’indirizzo e riprova."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "そのアドレスにファイルがありません。アドレスを確認して、もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "해당 주소에 파일이 없습니다. 주소를 확인하고 다시 시도하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det finnes ingen fil på den adressen. Sjekk adressen, og prøv igjen."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Er staat geen bestand op dat adres. Controleer het adres en probeer het opnieuw."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pod tym adresem nie ma pliku. Sprawdź adres i spróbuj ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não há nenhum arquivo nesse endereço. Verifique o endereço e tente novamente."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não existe nenhum ficheiro nesse endereço. Verifique o endereço e tente novamente."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu există niciun fișier la această adresă. Verificați adresa și încercați din nou."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "По этому адресу нет файла. Проверьте адрес и повторите попытку."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Na tejto adrese nie je žiadny súbor. Skontrolujte adresu a skúste to znova."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det finns ingen fil på den adressen. Kontrollera adressen och försök igen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่มีไฟล์ที่ที่อยู่นี้ โปรดตรวจสอบที่อยู่แล้วลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu adreste dosya yok. Adresi denetleyip yeniden deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "За цією адресою немає файлу. Перевірте адресу й повторіть спробу."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có tệp nào tại địa chỉ đó. Hãy kiểm tra địa chỉ và thử lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "该地址没有文件。请检查地址，然后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此位址沒有檔案。請檢查位址，然後再試一次。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.server": {
+      "comment": "Open URL error: the server answered with an error. %ld is the HTTP status code, a number such as 500. Keep %ld exactly as written.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сървърът върна грешка (%ld). Опитайте отново по-късно."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server ohlásil chybu (%ld). Zkuste to později."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveren rapporterede en fejl (%ld). Prøv igen senere."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server hat einen Fehler gemeldet (%ld). Versuche es später erneut."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ο διακομιστής ανέφερε σφάλμα (%ld). Δοκιμάστε ξανά αργότερα."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server reported an error (%ld). Try again later."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor ha devuelto un error (%ld). Vuelve a intentarlo más tarde."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palvelin ilmoitti virheestä (%ld). Yritä myöhemmin uudelleen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur a signalé une erreur (%ld). Réessayez plus tard."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poslužitelj je javio pogrešku (%ld). Pokušajte ponovno kasnije."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A szerver hibát jelzett (%ld). Próbáld újra később."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server melaporkan kesalahan (%ld). Coba lagi nanti."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il server ha segnalato un errore (%ld). Riprova più tardi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバがエラーを報告しました（%ld）。後でもう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버에서 오류를 보고했습니다(%ld). 나중에 다시 시도하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tjeneren rapporterte en feil (%ld). Prøv igjen senere."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De server meldde een fout (%ld). Probeer het later opnieuw."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serwer zgłosił błąd (%ld). Spróbuj ponownie później."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor relatou um erro (%ld). Tente novamente mais tarde."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O servidor comunicou um erro (%ld). Tente novamente mais tarde."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverul a raportat o eroare (%ld). Încercați din nou mai târziu."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер сообщил об ошибке (%ld). Повторите попытку позже."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server ohlásil chybu (%ld). Skúste to neskôr."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Servern rapporterade ett fel (%ld). Försök igen senare."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เซิร์ฟเวอร์รายงานข้อผิดพลาด (%ld) โปรดลองอีกครั้งในภายหลัง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucu bir hata bildirdi (%ld). Daha sonra yeniden deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер повідомив про помилку (%ld). Повторіть спробу пізніше."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy chủ đã báo lỗi (%ld). Hãy thử lại sau."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "服务器报告了错误（%ld）。请稍后再试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "伺服器回報了錯誤（%ld）。請稍後再試一次。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.title": {
+      "comment": "Title of the alert shown when a web address entered in the Open URL prompt could not be played. Title case, as an alert title. Uses a curly apostrophe (’).",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL адресът не може да се отвори"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL nelze otevřít"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke åbne URL"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL konnte nicht geöffnet werden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατό το άνοιγμα του URL"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t Open URL"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido abrir la URL"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL-osoitetta ei voitu avata"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible d’ouvrir l’URL"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvaranje URL-a nije uspjelo"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nem sikerült megnyitni az URL-t"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak Dapat Membuka URL"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile aprire l’URL"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URLを開けませんでした"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL을 열 수 없음"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke åpne URL"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan URL niet openen"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można otworzyć URL"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível abrir a URL"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível abrir o URL"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL-ul nu a putut fi deschis"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось открыть URL"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL sa nedá otvoriť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att öppna URL:en"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถเปิด URL ได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL Açılamadı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося відкрити URL"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở URL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开 URL"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法打開 URL"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.unreachable": {
+      "comment": "Open URL error: no connection could be made to the server, for example while offline or when the address is mistyped.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сървърът е недостъпен. Проверете адреса и интернет връзката си."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server není dostupný. Zkontrolujte adresu a připojení k internetu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serveren kunne ikke nås. Tjek adressen og din internetforbindelse."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Server ist nicht erreichbar. Überprüfe die Adresse und deine Internetverbindung."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατή η σύνδεση με τον διακομιστή. Ελέγξτε τη διεύθυνση και τη σύνδεσή σας στο διαδίκτυο."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t reach the server. Check the address and your internet connection."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido conectar con el servidor. Comprueba la dirección y tu conexión a internet."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palvelimeen ei saatu yhteyttä. Tarkista osoite ja internetyhteys."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de joindre le serveur. Vérifiez l’adresse et votre connexion Internet."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poslužitelj nije dostupan. Provjerite adresu i internetsku vezu."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nem sikerült elérni a szervert. Ellenőrizd a címet és az internetkapcsolatot."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat menjangkau server. Periksa alamat dan koneksi internet Anda."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile raggiungere il server. Controlla l’indirizzo e la connessione a Internet."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバに接続できませんでした。アドレスとインターネット接続を確認してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버에 연결할 수 없습니다. 주소와 인터넷 연결을 확인하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke nå tjeneren. Sjekk adressen og internettforbindelsen."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan de server niet bereiken. Controleer het adres en je internetverbinding."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można połączyć się z serwerem. Sprawdź adres i połączenie z internetem."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível acessar o servidor. Verifique o endereço e sua conexão com a internet."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível contactar o servidor. Verifique o endereço e a ligação à internet."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serverul nu a putut fi accesat. Verificați adresa și conexiunea la internet."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к серверу. Проверьте адрес и подключение к интернету."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server nie je dostupný. Skontrolujte adresu a pripojenie na internet."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att nå servern. Kontrollera adressen och internetanslutningen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ โปรดตรวจสอบที่อยู่และการเชื่อมต่ออินเทอร์เน็ตของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunucuya ulaşılamadı. Adresi ve internet bağlantınızı denetleyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося зʼєднатися із сервером. Перевірте адресу й підключення до інтернету."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kết nối với máy chủ. Hãy kiểm tra địa chỉ và kết nối Internet của bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接到服务器。请检查地址和互联网连接。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線至伺服器。請檢查位址和網際網路連線。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.prompt.message": {
+      "comment": "Message of the Open URL prompt, above the field where the user types or pastes a web address.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Въведете адреса на аудиофайл."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadejte adresu zvukového souboru."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skriv adressen på en lydfil."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib die Adresse einer Audiodatei ein."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Εισαγάγετε τη διεύθυνση ενός αρχείου ήχου."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter the address of an audio file."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce la dirección de un archivo de audio."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kirjoita äänitiedoston osoite."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez l’adresse d’un fichier audio."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unesite adresu audiodatoteke."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add meg egy hangfájl címét."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masukkan alamat file audio."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inserisci l’indirizzo di un file audio."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オーディオファイルのアドレスを入力してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오디오 파일의 주소를 입력하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skriv inn adressen til en lydfil."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voer het adres van een audiobestand in."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wprowadź adres pliku audio."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Digite o endereço de um arquivo de áudio."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduza o endereço de um ficheiro de áudio."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduceți adresa unui fișier audio."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите адрес аудиофайла."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zadajte adresu zvukového súboru."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ange adressen till en ljudfil."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ป้อนที่อยู่ของไฟล์เสียง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir ses dosyasının adresini girin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введіть адресу аудіофайлу."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập địa chỉ của một tệp âm thanh."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输入音频文件的地址。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸入音訊檔案的位址。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.prompt.title": {
+      "comment": "Title of the prompt that asks for the web address of an audio file to play, on Mac and on iPhone and iPad. URL is the usual term for a web address; keep it if this language's apps do.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отваряне на URL"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otevřít URL"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åbn URL"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL öffnen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Άνοιγμα URL"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URL"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avaa URL"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir l’URL"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori URL"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL megnyitása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka URL"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri URL"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URLを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL 열기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åpne URL"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URL"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz URL"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deschideți URL"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть URL"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvoriť URL"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öppna URL"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิด URL"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL’yi Aç"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити URL"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở URL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 URL"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開 URL"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.app.about": {
       "comment": "App menu item: opens the About window. %@ is the app name. Also the About window's title.",
       "localizations": {
@@ -16184,7 +18788,7 @@
       "extractionState": "manual"
     },
     "menu.edit": {
-      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, the two Copy items, Remove from Playlist and Select All.",
+      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist and Select All.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -16736,6 +19340,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "拷貝名稱"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.edit.cut": {
+      "comment": "Edit menu item: cuts the selected text in a text field, such as the Open URL address. macOS uses this same name in every app.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изрежи"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vyjmout"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klip"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausschneiden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αποκοπή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cut"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cortar"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leikkaa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couper"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izreži"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kivágás"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Potong"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taglia"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カット"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오려두기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klipp ut"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Knip"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wytnij"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recortar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cortar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tăiați"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вырезать"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vystrihnúť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klipp ut"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kes"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вирізати"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cắt"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪切"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪下"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.edit.paste": {
+      "comment": "Edit menu item: pastes text into a text field, such as the Open URL address. macOS uses this same name in every app.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Постави"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vložit"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indsæt"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einsetzen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Επικόλληση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pegar"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sijoita"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coller"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zalijepi"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beillesztés"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempel"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incolla"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ペースト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "붙여넣기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lim inn"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plak"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wklej"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lipiți"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставить"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vložiť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klistra in"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "วาง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yapıştır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставити"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dán"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上"
           }
         }
       },
@@ -18782,6 +21758,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "清除選單"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.file.open_url": {
+      "comment": "File menu item: asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отвори URL…"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otevřít URL…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åbn URL…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL öffnen…"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Άνοιγμα URL…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URL…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL…"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avaa URL…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir l’URL…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori URL…"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL megnyitása…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka URL…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri URL…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URLを開く…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL 열기…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åpne URL…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URL…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz URL…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir URL…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deschideți URL…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть URL…"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvoriť URL…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öppna URL…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิด URL…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL’yi Aç…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити URL…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở URL…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 URL…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開 URL…"
           }
         }
       },
