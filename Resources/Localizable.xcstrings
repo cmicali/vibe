@@ -14881,8 +14881,20 @@
       },
       "extractionState": "manual"
     },
+    "link.prompt.label": {
+      "comment": "Mac only: the label above the field of the Open URL window, where the user types or pastes a web address. URL is the usual term for a web address; keep it if this language's apps do. Keep the colon, or use the label punctuation this language's apps use.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL:"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "link.prompt.message": {
-      "comment": "Message of the Open URL prompt, above the field where the user types or pastes a web address.",
+      "comment": "iPhone and iPad only: the message of the Open URL prompt, above the field where the user types or pastes a web address.",
       "localizations": {
         "bg": {
           "stringUnit": {

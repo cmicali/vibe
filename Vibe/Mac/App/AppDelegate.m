@@ -15,6 +15,7 @@
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
 #import "MainMenuBuilder.h"
+#import "MenuValidationRules.h"
 #import "OpenBurstCoalescer.h"
 #import "OpenRequestCoordinator.h"
 #import "OpenRecentMenuController.h"
@@ -37,7 +38,7 @@
 #endif
 
 
-@interface AppDelegate ()
+@interface AppDelegate () <NSMenuItemValidation, NSWindowDelegate, NSTextFieldDelegate>
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
 @property (nonatomic, strong) SettingsWindowController *settingsWindowController;
@@ -55,9 +56,13 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
-    // Open URL's prompt while it is up. A second ⌘U re-fronts it.
-    NSAlert *_openLinkAlert;
-    // Cancels the prompt's link while it resolves.
+    // Open URL's window and its controls while it is up. A second ⌘U
+    // re-fronts it.
+    NSPanel *_openLinkWindow;
+    NSTextField *_openLinkField;
+    NSButton *_openLinkButton;
+    NSProgressIndicator *_openLinkSpinner;
+    // Cancels the window's link while it resolves.
     dispatch_block_t _cancelOpenLink;
     // One cancel per open still resolving its links, until it settles.
     NSMutableArray<dispatch_block_t> *_linkOpenCancels;
@@ -362,7 +367,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         if (completion) {
             completion(file, error);
         }
-        // After the completion, which closes the sheet. A newer open or
+        // After the completion, which closes the window. A newer open or
         // Close leaves the header alone.
         NSString *status = error ? [LinkStore messageForError:error brief:YES] : nil;
         if (status && [OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token]) {
@@ -496,6 +501,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSWindowLevel level = AppSettings.sharedInstance.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     self.aboutWindowController.window.level = level;
     self.settingsWindowController.window.level = level;
+    _openLinkWindow.level = level;
 }
 
 - (IBAction)openDocument:(id)sender {
@@ -531,97 +537,170 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }];
 }
 
+// Its own window, not a sheet, so the player keeps working while it is up.
+// It stays up when Vibe is not active, since the link is often copied from a
+// browser.
 - (IBAction)openLink:(id)sender {
-    NSWindow *window = self.mainPlayerController.window;
-    [window makeKeyAndOrderFront:sender];
-    if (_openLinkAlert) {
-        [_openLinkAlert.window makeKeyAndOrderFront:sender];
+    NSWindow *player = self.mainPlayerController.window;
+    [player makeKeyAndOrderFront:sender];
+    if (_openLinkWindow) {
+        [_openLinkWindow makeKeyAndOrderFront:sender];
+        [_openLinkWindow makeFirstResponder:_openLinkField];
         return;
     }
+    const CGFloat width = 480;
+    const CGFloat margin = 20;
+    NSTextField *label = [NSTextField labelWithString:STR_LINK_PROMPT_LABEL];
     NSTextField *field = [NSTextField textFieldWithString:@""];
     field.placeholderString = VibeNotLocalized(@"https://");
-    field.cell.scrollable = YES;
-    field.cell.wraps = NO;
-    field.usesSingleLineMode = YES;
+    field.usesSingleLineMode = NO;
+    field.cell.wraps = YES;
+    field.cell.scrollable = NO;
+    field.lineBreakMode = NSLineBreakByCharWrapping;
+    field.delegate = self;
+    NSButton *open = [NSButton buttonWithTitle:STR_BUTTON_OPEN target:self action:@selector(confirmOpenLink:)];
+    open.keyEquivalent = @"\r";
+    open.enabled = NO;
+    NSButton *cancel = [NSButton buttonWithTitle:STR_BUTTON_CANCEL target:self action:@selector(cancelOpenLink:)];
+    cancel.keyEquivalent = @"\e";
     NSProgressIndicator *spinner = [[NSProgressIndicator alloc] init];
     spinner.style = NSProgressIndicatorStyleSpinning;
     spinner.controlSize = NSControlSizeSmall;
     spinner.displayedWhenStopped = NO;
     [spinner sizeToFit];
-    // The field, then the spinner beside it: confirmOpenLink: finds them so.
-    CGFloat fieldHeight = field.intrinsicContentSize.height;
-    NSSize spin = spinner.frame.size;
-    NSView *accessory = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 380, MAX(fieldHeight, spin.height))];
-    field.frame = NSMakeRect(0, (NSHeight(accessory.frame) - fieldHeight) / 2, 380 - spin.width - 8, fieldHeight);
-    spinner.frame = NSMakeRect(380 - spin.width, (NSHeight(accessory.frame) - spin.height) / 2, spin.width, spin.height);
-    [accessory addSubview:field];
-    [accessory addSubview:spinner];
+    [open sizeToFit];
+    [cancel sizeToFit];
 
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = STR_LINK_PROMPT_TITLE;
-    alert.informativeText = STR_LINK_PROMPT_MESSAGE;
-    alert.accessoryView = accessory;
-    // The buttons act here, not on the alert. Open keeps the sheet up while
-    // the link resolves.
-    NSButton *open = [alert addButtonWithTitle:STR_BUTTON_OPEN];
-    open.target = self;
-    open.action = @selector(confirmOpenLink:);
-    NSButton *cancel = [alert addButtonWithTitle:STR_BUTTON_CANCEL];
-    // NSAlert assigns Escape by the button's title. Set here, it holds in
-    // every language.
-    cancel.keyEquivalent = @"\e";
-    cancel.target = self;
-    cancel.action = @selector(cancelOpenLink:);
-    [alert layout];
-    alert.window.initialFirstResponder = field;
-    _openLinkAlert = alert;
-    [alert beginSheetModalForWindow:window completionHandler:nil];
+    // Bottom up: the buttons at the right, the spinner beside them, a field
+    // three lines tall, and its label.
+    CGFloat buttonWidth = MAX(MAX(NSWidth(open.frame), NSWidth(cancel.frame)), 80);
+    CGFloat buttonHeight = NSHeight(open.frame);
+    open.frame = NSMakeRect(width - margin - buttonWidth, margin, buttonWidth, buttonHeight);
+    cancel.frame = NSOffsetRect(open.frame, -(buttonWidth + 12), 0);
+    NSSize spin = spinner.frame.size;
+    spinner.frame = NSMakeRect(NSMinX(cancel.frame) - 10 - spin.width,
+                               margin + (buttonHeight - spin.height) / 2, spin.width, spin.height);
+    CGFloat lineHeight = [[[NSLayoutManager alloc] init] defaultLineHeightForFont:field.font];
+    field.frame = NSMakeRect(margin, NSMaxY(open.frame) + margin, width - 2 * margin, ceil(3 * lineHeight) + 6);
+    [label sizeToFit];
+    label.frame = NSMakeRect(margin, NSMaxY(field.frame) + 6, NSWidth(label.frame), NSHeight(label.frame));
+
+    NSPanel *panel = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, width, NSMaxY(label.frame) + margin)
+                                                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
+                                                  backing:NSBackingStoreBuffered
+                                                    defer:YES];
+    panel.title = STR_LINK_PROMPT_TITLE;
+    panel.hidesOnDeactivate = NO;
+    panel.releasedWhenClosed = NO;
+    panel.delegate = self;
+    panel.initialFirstResponder = field;
+    for (NSView *view in @[label, field, spinner, cancel, open]) {
+        [panel.contentView addSubview:view];
+    }
+    NSRect frame = panel.frame;
+    frame.origin = NSMakePoint(round(NSMidX(player.frame) - NSWidth(frame) / 2),
+                               round(NSMidY(player.frame) - NSHeight(frame) / 2));
+    [panel setFrame:[panel constrainFrameRect:frame toScreen:player.screen] display:NO];
+    _openLinkWindow = panel;
+    _openLinkField = field;
+    _openLinkButton = open;
+    _openLinkSpinner = spinner;
+    [self applyAuxiliaryWindowLevels];
+    [panel makeKeyAndOrderFront:sender];
 }
 
-// Open with a blank field is Cancel. Otherwise the sheet stays up until the
-// link settles. Its field and Open are disabled, and its spinner turns.
-- (void)confirmOpenLink:(NSButton *)open {
-    NSView *accessory = _openLinkAlert.accessoryView;
-    NSTextField *field = accessory.subviews.firstObject;
-    NSProgressIndicator *spinner = accessory.subviews.lastObject;
-    NSString *text = field.stringValue;
-    if (VibeLinkTextIsBlank(text)) {
-        [self endOpenLinkSheet];
-        return;
-    }
-    field.enabled = NO;
-    open.enabled = NO;
-    [spinner startAnimation:nil];
+// Open is enabled only with a link in the field. The window stays up until
+// the link settles. Its field and Open are disabled, and its spinner turns.
+- (void)confirmOpenLink:(id)sender {
+    _openLinkField.enabled = NO;
+    _openLinkButton.enabled = NO;
+    [_openLinkSpinner startAnimation:nil];
     __weak AppDelegate *weakSelf = self;
-    _cancelOpenLink = [self openLinkString:text completion:^(NSURL *file, NSError *error) {
-        // A cancel's sheet is already gone.
-        if (file || [LinkStore messageForError:error brief:YES]) {
-            [weakSelf endOpenLinkSheet];
+    _cancelOpenLink = [self openLinkString:_openLinkField.stringValue completion:^(NSURL *file, NSError *error) {
+        AppDelegate *strongSelf = weakSelf;
+        // A cancel's window is already gone.
+        if (strongSelf && (file || [LinkStore messageForError:error brief:YES])) {
+            strongSelf->_cancelOpenLink = nil;
+            [strongSelf->_openLinkWindow close];
         }
     }];
 }
 
-// Cancel and Escape. The link stops resolving, and nothing opens.
+// Cancel, Escape, and ⌘.: the window closes, which cancels the resolve.
 - (void)cancelOpenLink:(id)sender {
+    [_openLinkWindow close];
+}
+
+// ⌘W while the window is key. As its delegate, this catches the nil-targeted
+// closeFile: ahead of the player's, which clears the playlist.
+- (IBAction)closeFile:(id)sender {
+    [_openLinkWindow performClose:sender];
+}
+
+// The player may have retitled the shared item "Close All Files".
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
+        menuItem.title = STR_MENU_FILE_CLOSE;
+        return _openLinkWindow.isKeyWindow;
+    }
+    return YES;
+}
+
+// Every way the window goes ends here. A link still resolving stops, and
+// nothing opens.
+- (void)windowWillClose:(NSNotification *)notification {
+    if (notification.object != _openLinkWindow) {
+        return;
+    }
     dispatch_block_t cancel = _cancelOpenLink;
+    _cancelOpenLink = nil;
+    _openLinkWindow = nil;
+    _openLinkField = nil;
+    _openLinkButton = nil;
+    _openLinkSpinner = nil;
     if (cancel) {
         cancel();
     }
-    [self endOpenLinkSheet];
 }
 
-- (void)endOpenLinkSheet {
-    NSAlert *alert = _openLinkAlert;
-    _openLinkAlert = nil;
-    _cancelOpenLink = nil;
-    if (alert) {
-        [self.mainPlayerController.window endSheet:alert.window];
+// A link has no line breaks, so a paste's are dropped.
+- (void)controlTextDidChange:(NSNotification *)notification {
+    NSText *editor = _openLinkField.currentEditor;
+    NSString *text = editor.string;
+    NSString *joined = [[text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
+            componentsJoinedByString:@""];
+    if (joined.length != text.length) {
+        editor.string = joined;
     }
+    _openLinkButton.enabled = !VibeLinkTextIsBlank(joined);
+}
+
+// Return presses Open, with or without a modifier, and never breaks the line.
+// Escape and ⌘. arrive as cancelOperation:, which would otherwise complete.
+- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)selector {
+    if (selector == @selector(insertNewline:) || selector == @selector(insertNewlineIgnoringFieldEditor:)
+            || selector == @selector(insertLineBreak:)) {
+        [_openLinkButton performClick:nil];
+        return YES;
+    }
+    if (selector == @selector(cancelOperation:)) {
+        [self cancelOpenLink:control];
+        return YES;
+    }
+    return NO;
 }
 
 #if DEBUG
 - (NSUInteger)debugQueuedOpenCount {
     return [_openBurstCoalescer debugQueuedURLCount];
+}
+
+- (NSWindow *)debugOpenLinkWindow {
+    return _openLinkWindow;
+}
+
+- (BOOL)debugOpenLinkResolving {
+    return _cancelOpenLink != nil;
 }
 #endif
 

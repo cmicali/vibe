@@ -20,13 +20,13 @@ In the player window every remappable item's equivalent is **display and fallbac
 
 ## File
 
-**Open… and Open URL… target the app delegate, which enables them always.** The player never validates them. Open URL… (`menu_open_link`, ⌘U) sits after Open… and asks for a link in a sheet on the player window (`Mac/App/AGENTS.md`).
+**Open… and Open URL… target the app delegate, which enables them always.** The player never validates them. Open URL… (`menu_open_link`, ⌘U) sits after Open… and asks for a link in a small window of its own (`Mac/App/AGENTS.md`).
 
 ## Edit
 
 **Copy Name, Copy File, and Remove from Playlist explicitly target the player controller. Undo, Redo (below), Cut, Paste, and Select All are nil-targeted.** Select All so ⌘A reaches whichever list has keyboard focus (the granted-folder list in Settings > Files). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar and `NSTableView` never claims it itself. A table reachable by the chain must answer honestly, since `NSTableView` responds to the selector whether or not it can act: `PlaylistTableView.validateMenuItem:` answers `allowsMultipleSelection`.
 
-**Cut and Paste exist for text fields**, such as the Open URL sheet and Settings' fields. They sit in Apple's order around the two Copy items. Being nil-targeted, they reach the focused field and stay disabled anywhere else. Nothing reads the pasteboard unless the user pastes.
+**Cut and Paste exist for text fields**, such as the Open URL window's field and Settings' fields. They sit in Apple's order around the two Copy items. Being nil-targeted, they reach the focused field and stay disabled anywhere else. Nothing reads the pasteboard unless the user pastes.
 
 **⌘C belongs to Copy File, which forwards to a focused text field.** While the key window's first responder is a text view, a field editor included, `copyFile:` sends `copy:` to it and returns. Validation then answers YES whatever the track (`VibeEditMenuEnabled`'s `textFocused`). This is also what makes ⌘C work in Settings' fields. The item keeps its title meanwhile.
 

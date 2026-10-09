@@ -15,7 +15,7 @@
 @property (nonatomic, readonly) SettingsWindowController *settingsWindowController;
 
 - (IBAction)openDocument:(id)sender;
-// File > Open URL…: asks for a link in a sheet on the player window.
+// File > Open URL…: asks for a link in a small window of its own.
 - (IBAction)openLink:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;
 - (IBAction)showSettingsWindow:(id)sender;
@@ -45,8 +45,8 @@
 - (dispatch_block_t)openLinkString:(NSString *)string
                         completion:(void (^)(NSURL *file, NSError *error))completion;
 
-// Re-levels the About and Settings windows to alwaysOnTop: at normal level
-// the floating player would bury them, Settings included.
+// Re-levels the About, Settings, and Open URL windows to alwaysOnTop: at
+// normal level the floating player would bury them.
 - (void)applyAuxiliaryWindowLevels;
 
 @end
