@@ -166,11 +166,6 @@ static inline BOOL VibeDropboxIsRevokedGrant(NSInteger status, NSDictionary *_Nu
     return status == 400 && [body[@"error"] isEqual:@"invalid_grant"];
 }
 
-// The shared rule, under the name DropboxRulesTests checks.
-static inline NSTimeInterval VibeDropboxRetryDelay(NSInteger status, NSString *_Nullable retryAfter) {
-    return VibeHTTPRetryDelay(status, retryAfter);
-}
-
 // The one line an API failure leaves in the log and the error.
 static inline NSString *VibeDropboxErrorSummary(NSInteger status, NSDictionary *_Nullable body) {
     NSString *summary = body[@"error_summary"];

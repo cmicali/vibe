@@ -134,10 +134,8 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // range straddling its window's start waits for the disk.
 //
 // With no part file, every Ready range below the size comes from blocks. A
-// wait before noteSize: waits, since nothing is known to be the end. It
-// sleeps in 0.25 s slices and asks `interrupted` again after each. An
-// interrupt then needs no wake. Only `deadline` ends it on time. A
-// transfer's wait sleeps until woken.
+// wait before noteSize: waits, since nothing is known to be the end. Either
+// writer's wait sleeps until woken or until `deadline`.
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
                                  windowInto:(void *_Nullable)buffer
@@ -207,9 +205,9 @@ typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *u
                  read:(nullable CloudFileRemoteRead)read
          availability:(nullable CloudFileRemoteAvailability)availability;
 
-// AudioTrackMetadata's parse reads a remote placeholder through it. Nil with
-// no root installed. Otherwise it reads through the backend holding the URL.
-@property (class, nonatomic, readonly, copy, nullable) CloudFileRemoteRead remoteRead;
+// The read of the backend holding url, nil under no root. AudioTrackMetadata's
+// parse reads a remote placeholder through it.
++ (nullable CloudFileRemoteRead)remoteReadForURL:(NSURL *)url;
 
 // AudioFileHandle opens a file being streamed through it; nil, and nothing
 // asked, when no backend streams.

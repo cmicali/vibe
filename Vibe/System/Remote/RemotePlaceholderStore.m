@@ -78,6 +78,13 @@ static NSError *VibePOSIXError(void) {
 }
 
 - (void)installAsRemoteBackend {
+    // TRAP: a nil root removes every backend, another store's too, once
+    // Release compiles setRemoteRoot:'s assert out. Application Support can
+    // fail to resolve.
+    if (!_rootURL) {
+        LogError(@"%@: no root, so no backend is installed", self.logName);
+        return;
+    }
     [CloudFileMaterializer setRemoteRoot:_rootURL
                                    fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
                                                void (^onCancel)(dispatch_block_t), NSError **error) {
@@ -151,22 +158,11 @@ static NSError *VibePOSIXError(void) {
     return nil;
 }
 
-- (dispatch_block_t)downloadTarget:(id)target
-                             toURL:(NSURL *)destination
-                          progress:(void (^)(uint64_t, int64_t, NSString *))progress
-                        completion:(void (^)(NSDictionary *, NSError *))completion {
-    return [_client downloadTarget:target toURL:destination progress:progress completion:completion];
-}
-
 - (dispatch_block_t)readTarget:(id)target
                         offset:(uint64_t)offset
                         length:(uint64_t)length
                     completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
     return [_client readTarget:target offset:offset length:length completion:completion];
-}
-
-- (NSString *)versionOfMetadata:(NSDictionary *)metadata {
-    return [_client versionOfMetadata:metadata];
 }
 
 - (time_t)modificationTimeOfMetadata:(NSDictionary *)metadata forURL:(NSURL *)url {
@@ -254,8 +250,8 @@ static NSError *VibePOSIXError(void) {
                           progress:(void (^)(uint64_t, int64_t, NSString *))progress
                         completion:(void (^)(NSError *))completion {
     NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
-    return [self downloadTarget:target toURL:part progress:progress completion:^(NSDictionary *metadata,
-                                                                                 NSError *error) {
+    return [_client downloadTarget:target toURL:part progress:progress completion:^(NSDictionary *metadata,
+                                                                                    NSError *error) {
         NSError *installError = nil;
         if (!error && ![RemotePlaceholderStore installPart:part atURL:url
                                                   modified:[self modificationTimeOfMetadata:metadata forURL:url]
@@ -458,7 +454,7 @@ static NSError *VibePOSIXError(void) {
     return [self readTarget:target offset:size - window length:window
                  completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         if (data.length == window) {
-            landed(data, [self versionOfMetadata:metadata]);
+            landed(data, [self.client versionOfMetadata:metadata]);
             return;
         }
         if (!([error.domain isEqualToString:cancelled.domain] && error.code == cancelled.code)) {
@@ -498,6 +494,14 @@ static NSError *VibePOSIXError(void) {
     CloudFileAvailability *availability = _streams[key];
     [_streamsCondition unlock];
     return availability;
+}
+
+- (BOOL)isFetchingURL:(NSURL *)url {
+    NSString *key = VibeComparablePath(url.path);
+    [_streamsCondition lock];
+    BOOL fetching = [_fetching containsObject:key];
+    [_streamsCondition unlock];
+    return fetching;
 }
 
 - (BOOL)fetchPlaceholderAtURL:(NSURL *)url

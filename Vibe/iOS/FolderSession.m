@@ -954,15 +954,15 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 opened = @[shared ?: opened.firstObject];
             }
             NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
-            // A link's record, read here off main: a link is named by its host.
-            NSMutableArray *linkRecords = [NSMutableArray arrayWithCapacity:opened.count];
+            // A link's host, read here off main: a link is named by it.
+            NSMutableArray *linkHosts = [NSMutableArray arrayWithCapacity:opened.count];
             for (NSURL *url in opened) {
                 NSMutableDictionary *item = [NSMutableDictionary dictionary];
                 item[@"path"] = VibeComparablePath(url.path);
                 item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
                 item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
                 [recents addObject:item];
-                [linkRecords addObject:[LinkStore.shared recordOfLinkFileURL:url] ?: NSNull.null];
+                [linkHosts addObject:[LinkStore.shared hostOfLinkFileURL:url] ?: NSNull.null];
             }
             run_on_main_thread({
                 // On main: the name asks the Dropbox mirror and UIDevice.
@@ -970,10 +970,9 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 // the app container it names.
                 [recents enumerateObjectsUsingBlock:^(NSMutableDictionary *item, NSUInteger index, BOOL *stop) {
                     NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
-                    id record = linkRecords[index];
-                    item[@"location"] = VibeRecentLocationName(
-                            record == NSNull.null ? nil : record,
-                            [SearchFolderStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]]);
+                    id host = linkHosts[index];
+                    item[@"location"] = host != NSNull.null
+                            ? host : [SearchFolderStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
                 }];
                 [self recordRecentItems:recents];
             });

@@ -388,14 +388,6 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqualObjects(rows, expected, @"a location's row is its index in the store");
 }
 
-// The row spins, and a tap cancels, only while its link resolves.
-- (void)testOnlyOpenURLSpinsAndOnlyWhileItsLinkResolves {
-    for (VibeBrowserRootRow row = VibeBrowserRootRowDevice; row <= VibeBrowserRootRowOpenURL; row++) {
-        XCTAssertFalse(VibeBrowserRootRowIsOpening(row, NO), @"%ld", (long)row);
-        XCTAssertEqual(VibeBrowserRootRowIsOpening(row, YES), row == VibeBrowserRootRowOpenURL, @"%ld", (long)row);
-    }
-}
-
 - (void)testConnectDropboxIsOfferedOnlyUntilLinked {
     NSArray *unlinked = VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 0);
     NSArray *expected = @[@(VibeBrowserRootRowConnectDropbox), @(VibeBrowserRootRowAddFolder),
@@ -415,22 +407,6 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
 
 #pragma mark - Recents
 
-- (void)testALinkIsNamedByItsHost {
-    NSDictionary *record = @{@"url": @"https://cdn.example.com/a/Song.mp3", @"host": @"cdn.example.com"};
-    XCTAssertEqualObjects(VibeRecentLocationName(record, @"0123456789abcdef"), @"cdn.example.com");
-}
-
-- (void)testARecordWithNoHostIsNamedByItsURL {
-    NSDictionary *record = @{@"url": @"https://Media.Example.org/Song.mp3"};
-    XCTAssertEqualObjects(VibeRecentLocationName(record, @"0123456789abcdef"), @"media.example.org");
-    XCTAssertEqualObjects(VibeRecentLocationName(@{@"host": @""}, @"0123456789abcdef"), @"0123456789abcdef");
-    XCTAssertEqualObjects(VibeRecentLocationName(@{@"url": @"not a url"}, @"Folder"), @"Folder");
-}
-
-- (void)testAnythingElseIsNamedByItsFolder {
-    XCTAssertEqualObjects(VibeRecentLocationName(nil, @"On My iPhone"), @"On My iPhone");
-}
-
 - (void)testTheRecentsURLsAreTheirPaths {
     NSArray *items = @[@{@"path": @"/a/Song.mp3", @"folder": @NO},
                        @{@"path": @"/b", @"folder": @YES},
@@ -441,7 +417,7 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqual(urls.count, 2u);
     XCTAssertEqualObjects(urls[0].path, @"/a/Song.mp3");
     XCTAssertEqualObjects(urls[1].path, @"/b");
-    XCTAssertTrue(urls[0].isFileURL, @"VibeLinkKeptURLs keeps only file URLs");
+    XCTAssertTrue(urls[0].isFileURL);
 }
 
 #pragma mark - The restored playlist

@@ -111,7 +111,6 @@ static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
 // set_slow_volume moves slowVolumeGeneration.
 static NSString *sSlowVolumeMode = @"off";
 static double sSlowVolumeBytesPerSecond;
-static BOOL sSlowVolumeStalled;
 static int sSlowVolumeErrno;
 static uint64_t sSlowVolumeGeneration;
 static CFAbsoluteTime sSlowVolumeNextDue;
@@ -136,7 +135,7 @@ static int VibeSlowVolumeBeforeRead(uint64_t length) {
         sSlowVolumeReads++;
         int failure = sSlowVolumeErrno;
         NSDate *until = nil;
-        if (sSlowVolumeStalled) {
+        if ([sSlowVolumeMode isEqualToString:@"stall"]) {
             until = NSDate.distantFuture;
         } else if (sSlowVolumeBytesPerSecond > 0) {
             sSlowVolumeNextDue = MAX(CFAbsoluteTimeGetCurrent(), sSlowVolumeNextDue)
@@ -157,14 +156,13 @@ static int VibeSlowVolumeBeforeRead(uint64_t length) {
 
 // Lets every held read go, then applies the new mode. Answers how many reads
 // it let go.
-static NSInteger VibeSetSlowVolume(NSString *mode, double bytesPerSecond, BOOL stalled, int failure) {
+static NSInteger VibeSetSlowVolume(NSString *mode, double bytesPerSecond, int failure) {
     NSCondition *condition = VibeSlowVolumeCondition();
     [condition lock];
     NSInteger released = sSlowVolumeHeldReads;
     sSlowVolumeGeneration++;
     sSlowVolumeMode = mode;
     sSlowVolumeBytesPerSecond = bytesPerSecond;
-    sSlowVolumeStalled = stalled;
     sSlowVolumeErrno = failure;
     sSlowVolumeNextDue = 0;
     sSlowVolumeReads = 0;
@@ -208,10 +206,22 @@ static NSDictionary *VibeSlowVolumeReply(NSNumber *released) {
 
 // A VibeLinkError by its link.error key's last part. A script reads the
 // failure the shell would show.
-static NSString *VibeLinkErrorName(NSInteger code) {
-    NSArray<NSString *> *names = @[@"none", @"invalid", @"insecure", @"unreachable", @"local_network",
-                                   @"not_found", @"denied", @"not_audio", @"no_size", @"live_stream", @"server"];
-    return code >= 0 && (NSUInteger)code < names.count ? names[(NSUInteger)code] : @"unknown";
+static NSString *VibeLinkErrorName(VibeLinkError code) {
+    switch (code) {
+        case VibeLinkErrorNone: return @"none";
+        case VibeLinkErrorInvalid: return @"invalid";
+        case VibeLinkErrorInsecure: return @"insecure";
+        case VibeLinkErrorUnreachable: return @"unreachable";
+        case VibeLinkErrorLocalNetwork: return @"local_network";
+        case VibeLinkErrorNotFound: return @"not_found";
+        case VibeLinkErrorDenied: return @"denied";
+        case VibeLinkErrorNotAudio: return @"not_audio";
+        case VibeLinkErrorNoSize: return @"no_size";
+        case VibeLinkErrorLiveStream: return @"live_stream";
+        case VibeLinkErrorServer: return @"server";
+        case VibeLinkErrorCancelled: return @"cancelled";
+    }
+    return @"unknown";
 }
 
 static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
@@ -222,24 +232,12 @@ static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
     NSError *cause = error.userInfo[NSUnderlyingErrorKey];
     return @{
         @"ok": @NO,
-        @"linkError": linkError ? VibeLinkErrorName(error.code) : [NSString stringWithFormat:@"%@ %ld",
+        @"linkError": linkError ? VibeLinkErrorName((VibeLinkError)error.code) : [NSString stringWithFormat:@"%@ %ld",
                                                                         error.domain, (long)error.code],
         @"code": @(error.code),
         @"status": error.userInfo[VibeHTTPErrorStatusCodeKey] ?: NSNull.null,
         @"cause": cause ? [NSString stringWithFormat:@"%@ %ld", cause.domain, (long)cause.code] : NSNull.null,
     };
-}
-
-// A byte count, with a K or M suffix for KiB or MiB.
-static BOOL VibeParseByteCount(NSString *token, uint64_t *bytes) {
-    double scale = [token hasSuffix:@"K"] ? 1024 : [token hasSuffix:@"M"] ? 1024 * 1024 : 1;
-    NSString *digits = scale > 1 ? [token substringToIndex:token.length - 1] : token;
-    double number = 0;
-    if (!VibeParseDouble(digits, &number) || number < 0) {
-        return NO;
-    }
-    *bytes = (uint64_t)(number * scale);
-    return YES;
 }
 
 // Each link's directory under the Links root, with its record and its file:
@@ -1134,7 +1132,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             }),
             // Every file opened from now on reads ahead, as if on a share. See
             // AudioFileHandle+Debug.h. No argument reports and changes nothing.
-            VibeDebugCmd(@"set_slow_volume [off|on|throttle <bytes-per-second>|stall|resume|fail [<errno>]]", 0,
+            VibeDebugCmd(@"set_slow_volume [off|on|throttle <bytes-per-second>|stall|fail [<errno>]]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 if (tokens.count == 1) {
@@ -1143,7 +1141,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 NSString *mode = tokens[1].lowercaseString;
                 double bytesPerSecond = 0;
                 NSUInteger failure = EIO;
-                BOOL valid = tokens.count == 2 && [@[@"off", @"on", @"stall", @"resume"] containsObject:mode];
+                BOOL valid = tokens.count == 2 && [@[@"off", @"on", @"stall"] containsObject:mode];
                 if ([mode isEqualToString:@"throttle"]) {
                     valid = tokens.count == 3 && VibeParseDouble(tokens[2], &bytesPerSecond) && bytesPerSecond > 0;
                 }
@@ -1152,15 +1150,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                             && failure > 0 && failure <= ELAST);
                 }
                 if (!valid) {
-                    return VibeErrorJSON(@"usage: set_slow_volume [off|on|throttle <bytes-per-second>|stall|resume"
+                    return VibeErrorJSON(@"usage: set_slow_volume [off|on|throttle <bytes-per-second>|stall"
                                          @"|fail [<errno 1-%d>]]", ELAST);
                 }
-                if ([mode isEqualToString:@"resume"]) {
-                    mode = @"on";
-                }
-                BOOL fails = [mode isEqualToString:@"fail"];
-                NSInteger released = VibeSetSlowVolume(mode, bytesPerSecond, [mode isEqualToString:@"stall"],
-                                                       fails ? (int)failure : 0);
+                NSInteger released = VibeSetSlowVolume(mode, bytesPerSecond,
+                                                       [mode isEqualToString:@"fail"] ? (int)failure : 0);
                 return VibeJSONString(VibeSlowVolumeReply(@(released)));
             }),
             // Every recent waveform decode, playback's or file_cache's. See

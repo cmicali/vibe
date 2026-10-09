@@ -20,15 +20,6 @@
 
 static const char *const kVersionAttribute = "com.commonwealthrecordings.Vibe.rev";
 
-static NSData *PatternBytes(NSUInteger count) {
-    NSMutableData *data = [NSMutableData dataWithLength:count];
-    uint8_t *bytes = data.mutableBytes;
-    for (NSUInteger i = 0; i < count; i++) {
-        bytes[i] = (uint8_t)((i * 7 + i / 251) & 0xff);
-    }
-    return data;
-}
-
 // A client whose request hook waits for `hookGate` before answering, and
 // signals `hookDone` once the base has taken the answer.
 @interface HTTPTransferHeldClient : HTTPTransferClient

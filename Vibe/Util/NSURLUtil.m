@@ -196,10 +196,6 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     os_unfair_lock_unlock(&sRemoteRootLock);
 }
 
-+ (void)setRemotePlaceholderRoot:(NSURL *)root {
-    [self setRemotePlaceholderRoots:root ? @[root] : @[]];
-}
-
 // The path first: a file under no root, as most are, pays no stat.
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url {
     if (!VibePathIsUnderRemotePlaceholderRoot(url.path)) {

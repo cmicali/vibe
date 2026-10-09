@@ -162,26 +162,7 @@ static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection se
     return rows;
 }
 
-// Whether a root row spins in its icon slot. Only Open URL… does, while its
-// link resolves. A tap on a spinning row cancels the resolve.
-static inline BOOL VibeBrowserRootRowIsOpening(VibeBrowserRootRow row, BOOL resolvingLink) {
-    return row == VibeBrowserRootRowOpenURL && resolvingLink;
-}
-
 #pragma mark - Recents
-
-// A recent's second line. A link is named by its host, from its record, else
-// from the record's URL. Anything else, and a link with neither, by its
-// folder's name.
-static inline NSString *VibeRecentLocationName(NSDictionary *_Nullable linkRecord, NSString *folderName) {
-    id host = linkRecord[@"host"];
-    if ([host isKindOfClass:NSString.class] && [host length] > 0) {
-        return host;
-    }
-    id url = linkRecord[@"url"];
-    NSString *urlHost = [url isKindOfClass:NSString.class] ? [NSURL URLWithString:url].host.lowercaseString : nil;
-    return urlHost.length > 0 ? urlHost : folderName;
-}
 
 // The recents' file URLs, from the paths they recorded. A launch's pruning
 // keeps every link these name.

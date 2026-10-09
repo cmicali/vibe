@@ -52,6 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
                                                       NSString *_Nullable version))progress
                         completion:(void (^)(NSError *_Nullable error))completion;
 
+// Whether a fetch of url runs now, from its start to its end. It covers the
+// wait for the first response, before availabilityForURL: answers. Any thread.
+- (BOOL)isFetchingURL:(NSURL *)url;
+
 // Every downloaded song under root, oldest download first, each as {url,
 // size, modified, downloaded}. A playlist file is not one. The disk queue.
 - (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root;
@@ -66,21 +70,13 @@ NS_ASSUME_NONNULL_BEGIN
 // error for a file the store cannot fetch. The default has none: every
 // subclass overrides it.
 - (nullable id)remoteTargetForURL:(NSURL *)url error:(NSError *__autoreleasing _Nullable *_Nullable)error;
-// The client's download and ranged read of a target. The defaults call the
-// client's downloadTarget:… and readTarget:….
-- (dispatch_block_t)downloadTarget:(id)target
-                             toURL:(NSURL *)destination
-                          progress:(nullable void (^)(uint64_t bytesWritten, int64_t size,
-                                                      NSString *_Nullable version))progress
-                        completion:(void (^)(NSDictionary *_Nullable metadata, NSError *_Nullable error))completion;
+// The client's ranged read of a target. The default calls the client's
+// readTarget:….
 - (dispatch_block_t)readTarget:(id)target
                         offset:(uint64_t)offset
                         length:(uint64_t)length
                     completion:(void (^)(NSData *_Nullable data, NSDictionary *_Nullable metadata,
                                          NSError *_Nullable error))completion;
-// What names the bytes a transfer's metadata describes. The default is the
-// client's versionOfMetadata:.
-- (nullable NSString *)versionOfMetadata:(nullable NSDictionary *)metadata;
 // The mtime downloaded bytes take at their install, negative for none. The
 // default is the mtime the placeholder at url has now. The cache key is made
 // from it, so it must not move across the install.

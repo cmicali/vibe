@@ -60,13 +60,8 @@
     if (!playback) {
         return;
     }
-    NSMutableArray<NSURL *> *rows = [NSMutableArray array];
-    for (AudioTrack *track in playback.playlist.tracks) {
-        if (track.url) {
-            [rows addObject:track.url];
-        }
-    }
-    [LinkStore.shared pruneKeepingURLs:VibeLinkKeptURLs(rows, VibeRecentItemURLs(playback.recentItems))];
+    [LinkStore.shared pruneKeepingTracks:playback.playlist.tracks
+                              recentURLs:VibeRecentItemURLs(playback.recentItems)];
 }
 
 // Foreground-inactive is off: views stay attached under Control Center and the

@@ -24,6 +24,7 @@
 #import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
+#import "VibeReadAheadScript.h"
 #include <float.h>
 #include <stdatomic.h>
 
@@ -1461,101 +1462,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 
 @end
 
-#pragma mark - A network share's reads
-
-// The read-ahead's block (AudioFileHandle.m).
-static const uint64_t kReadAheadBlock = 256 * 1024;
-
-// What a read-ahead's reads do, as a test scripts them through the debug
-// seam's hook: each counted by file and offset, then slept, stalled until
-// released, or failed. A stalled read holds its thread as a dead mount's
-// syscall does. The shape of AudioFileHandleStreamingTests' script, which
-// another target compiles.
-@interface VibeReadAheadScript : NSObject
-// Signalled once per read that stalls, and per read that fails.
-@property (nonatomic, readonly) dispatch_semaphore_t stalled;
-@property (nonatomic, readonly) dispatch_semaphore_t failed;
-@property (atomic) useconds_t throttle;
-- (void)stallFrom:(uint64_t)offset;
-- (void)releaseStalls;
-// Every read at or past `offset` fails with `code`, until stopFailing.
-- (void)fail:(int)code from:(uint64_t)offset;
-- (void)stopFailing;
-- (NSUInteger)readsOf:(NSString *)name at:(uint64_t)offset;
-- (int)beforeReadOf:(NSString *)name at:(uint64_t)offset;
-@end
-
-@implementation VibeReadAheadScript {
-    NSCondition *_condition;
-    NSCountedSet<NSString *> *_reads;
-    uint64_t _stallFrom, _failFrom;
-    int _failCode;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _condition = [[NSCondition alloc] init];
-        _reads = [NSCountedSet set];
-        _stalled = dispatch_semaphore_create(0);
-        _failed = dispatch_semaphore_create(0);
-        _stallFrom = _failFrom = UINT64_MAX;
-    }
-    return self;
-}
-
-- (void)stallFrom:(uint64_t)offset {
-    [_condition lock];
-    _stallFrom = offset;
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (void)releaseStalls {
-    [self stallFrom:UINT64_MAX];
-}
-
-- (void)fail:(int)code from:(uint64_t)offset {
-    [_condition lock];
-    _failCode = code;
-    _failFrom = offset;
-    [_condition unlock];
-}
-
-- (void)stopFailing {
-    [self fail:0 from:UINT64_MAX];
-}
-
-- (NSUInteger)readsOf:(NSString *)name at:(uint64_t)offset {
-    [_condition lock];
-    NSUInteger reads = [_reads countForObject:[NSString stringWithFormat:@"%@@%llu", name, offset]];
-    [_condition unlock];
-    return reads;
-}
-
-- (int)beforeReadOf:(NSString *)name at:(uint64_t)offset {
-    useconds_t throttle = self.throttle;
-    if (throttle) {
-        usleep(throttle);
-    }
-    [_condition lock];
-    [_reads addObject:[NSString stringWithFormat:@"%@@%llu", name, offset]];
-    if (offset >= _stallFrom) {
-        dispatch_semaphore_signal(_stalled);
-        while (offset >= _stallFrom) {
-            [_condition wait];
-        }
-    }
-    int code = offset >= _failFrom ? _failCode : 0;
-    [_condition unlock];
-    if (code) {
-        dispatch_semaphore_signal(_failed);
-    }
-    return code;
-}
-
-@end
-
 // Transport edges, declick, gapless handoffs and successor cancellation.
 @interface AudioPlayerRenderTransportTests : AudioPlayerRenderTests
 @end
@@ -1573,13 +1479,9 @@ static const uint64_t kReadAheadBlock = 256 * 1024;
     if (_script) {
         self.continueAfterFailure = YES;
         [_player debugShutdown]; _player = nil;
-        [AudioFileHandle debugSetMountRule:nil];
-        [_script stopFailing];
-        [_script releaseStalls];
-        [self settleUntil:^BOOL {
-            return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
-        }];
-        [AudioFileHandle debugSetBeforeRead:nil];
+        [_script releaseEverything];
+        [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
+        [VibeReadAheadScript removeHook];
         _script = nil;
     }
     [super tearDown];
@@ -2664,16 +2566,9 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
         _network = [_temporary URLByAppendingPathComponent:@"network" isDirectory:YES];
         XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_network withIntermediateDirectories:YES
                                                               attributes:nil error:NULL]);
-        _script = [[VibeReadAheadScript alloc] init];
-        VibeReadAheadScript *script = _script;
         // Either spelling of the temporary directory.
-        NSString *marker = [NSString stringWithFormat:@"/%@/network/", _temporary.lastPathComponent];
-        [AudioFileHandle debugSetMountRule:^NSNumber *(NSURL *url) {
-            return [url.path containsString:marker] ? @YES : nil;
-        }];
-        [AudioFileHandle debugSetBeforeRead:^int(NSURL *url, uint64_t offset, uint64_t length) {
-            return [url.path containsString:marker] ? [script beforeReadOf:url.lastPathComponent at:offset] : 0;
-        }];
+        _script = [[VibeReadAheadScript alloc] initForPathsContaining:
+                           [NSString stringWithFormat:@"/%@/network/", _temporary.lastPathComponent]];
     }
     return _script;
 }
@@ -2686,16 +2581,9 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
 }
 
 // `seconds` of nonperiodic float32 stereo noise at 48 kHz on the network
-// share, 384000 bytes a second after a 44-byte header, never a silent frame.
+// share, 384000 bytes a second after a 44-byte header.
 - (NSURL *)networkNoiseOfSeconds:(NSUInteger)seconds name:(NSString *)name {
-    NSUInteger samples = seconds * 48000 * 2;
-    NSMutableData *pcm = [NSMutableData dataWithLength:samples * sizeof(float)];
-    float *p = pcm.mutableBytes;
-    uint32_t state = 0x9E3779B9u;
-    for (NSUInteger i = 0; i < samples; i++) {
-        state = state * 1664525u + 1013904223u;
-        p[i] = (float)((int32_t)(state | 1u) >> 8) / 16777216.0f;
-    }
+    NSData *pcm = UniqueNoise(seconds * 48000, 0x9E3779B9u);
     [self readAhead];
     return VibeWriteWAV([_network URLByAppendingPathComponent:name], pcm, 48000, 2, 32, (uint32_t)pcm.length);
 }
@@ -2727,10 +2615,6 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
         [player runSyncOnQueue:^{ dispatch_semaphore_signal(answered); }];
     });
     XCTAssertTrue([self await:answered], @"the player queue waited on a stalled read: %@", context);
-}
-
-- (BOOL)readAheadsSettle {
-    return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
 }
 
 // A read-ahead throttled behind the audio plays the file exactly: the whole
@@ -2832,7 +2716,7 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 1; }],
                   @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
     [_script releaseStalls];
-    [self settleUntil:^BOOL { return [self readAheadsSettle]; }];
+    [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
     _playError = nil;
     [_player playPause];
     [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
@@ -2848,7 +2732,7 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
     NSData *reference = PCM([self read:source]);
     NSURL *url = [self networkCopyOf:source];
-    [_script fail:EIO from:kReadAheadBlock];
+    [_script fail:EIO from:kReadAheadBlock always:YES];
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
         [self shortenTheOpenDeadline];
@@ -2857,7 +2741,7 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertTrue([self await:_script.failed]);
     NSTimeInterval held = [self stallTheStream];
     [_script stopFailing];
-    XCTAssertTrue([self renderUntil:^BOOL { return [self readAheadsSettle]; }],
+    XCTAssertTrue([self renderUntil:^BOOL { return VibeReadAheadScript.threadsGone; }],
                   @"live %ld", (long)AudioFileHandle.debugLiveReadAheads);
     _playError = nil;
     [_player playPause];
@@ -2872,7 +2756,7 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
     NSData *reference = PCM([self read:source]);
     NSURL *url = [self networkCopyOf:source];
-    [_script fail:EIO from:kReadAheadBlock];
+    [_script fail:EIO from:kReadAheadBlock always:YES];
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
         [self play:url paused:NO position:0];
@@ -2927,7 +2811,7 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertEqual([self count:@"finish"], 0u);
     XCTAssertNil(_playError);
     [_script releaseStalls];
-    [self settleUntil:^BOOL { return [self readAheadsSettle]; }];
+    [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
 }
 
 // An open whose read-ahead stalls on its first block: the deadline cancels
@@ -2953,7 +2837,7 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     }];
     XCTAssertEqual([self count:@"start"], 0u);
     [_script releaseStalls];
-    [self settleUntil:^BOOL { return [self readAheadsSettle]; }];
+    [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
     _playError = nil;
     [self play:[self fixture:@"noise-48000-16-2.wav"] paused:NO position:0];
     XCTAssertEqual([self count:@"start"], 1u, @"an unrelated file still opens");

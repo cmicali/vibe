@@ -36,11 +36,6 @@ static NSData *VibeRandomBytes(size_t count) {
     return data;
 }
 
-BOOL VibeDropboxKeepsPart(NSError *error) {
-    return ([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)
-            || VibeHTTPIsConnectionError(error);
-}
-
 // A transfer's state: the access token its attempt was sent with, that
 // token's account generation, and whether an expired token was refreshed.
 static NSString *const kStateToken = @"token";
@@ -489,12 +484,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         fail(VibeDropboxMakeError(VibeDropboxErrorNotLinked, summary));
         return;
     }
-    NSTimeInterval delay = VibeHTTPRetryDelay(status, retryAfter);
-    if (delay >= 0 && attempt < kVibeHTTPMaximumAttempts) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * self.retryDelayScale * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            resend(attempt + 1);
-        });
+    if ([self resendAfterStatus:status retryAfter:retryAfter attempt:attempt resend:resend]) {
         return;
     }
     LogWarn(@"Dropbox: call failed: %@", summary);
@@ -676,20 +666,6 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 #pragma mark - Transfers
 
-- (dispatch_block_t)downloadPath:(NSString *)path
-                           toURL:(NSURL *)destination
-                        progress:(void (^)(uint64_t, int64_t, NSString *))progress
-                      completion:(void (^)(NSDictionary *, NSError *))completion {
-    return [self downloadTarget:path toURL:destination progress:progress completion:completion];
-}
-
-- (dispatch_block_t)readPath:(NSString *)path
-                      offset:(uint64_t)offset
-                      length:(uint64_t)length
-                  completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
-    return [self readTarget:path offset:offset length:length completion:completion];
-}
-
 // files/download by the target path, as the account. A transfer waiting on
 // the refresh is settled at once by its cancel (HTTPTransferClient).
 - (void)makeRequestForTarget:(id)target
@@ -727,10 +703,6 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         default:
             return VibeDropboxMakeError(VibeDropboxErrorAPI, description);
     }
-}
-
-- (BOOL)keepsPartAfterError:(NSError *)error {
-    return VibeDropboxKeepsPart(error);
 }
 
 - (NSString *)logName {

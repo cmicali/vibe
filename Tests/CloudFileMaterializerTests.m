@@ -239,10 +239,24 @@
 - (dispatch_semaphore_t)wait:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
                  interrupted:(BOOL (^)(void))interrupted result:(CloudFileAvailabilityWait *)result
                        error:(NSError *__strong *)error {
+    return [self read:availability at:offset length:length into:nil copied:NULL interrupted:interrupted result:result
+                error:error];
+}
+
+// The same wait, copying what blocks hold into `buffer` when one is given.
+- (dispatch_semaphore_t)read:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
+                        into:(NSMutableData *)buffer copied:(uint64_t *)copied
+                 interrupted:(BOOL (^)(void))interrupted result:(CloudFileAvailabilityWait *)result
+                       error:(NSError *__strong *)error {
     dispatch_semaphore_t returned = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        uint64_t got = 0;
         NSError *waitError = nil;
-        *result = [availability waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:interrupted deadline:nil error:&waitError];
+        *result = [availability waitForBytesAt:offset length:length windowInto:buffer.mutableBytes capacity:buffer.length
+                                        copied:&got interrupted:interrupted deadline:nil error:&waitError];
+        if (copied) {
+            *copied = got;
+        }
         if (error) {
             *error = waitError;
         }
@@ -604,7 +618,8 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
 }
 
 - (NSString *)remoteReadOf:(NSURL *)url {
-    NSData *bytes = CloudFileMaterializer.remoteRead(url, 0, 1, NULL);
+    CloudFileRemoteRead read = [CloudFileMaterializer remoteReadForURL:url];
+    NSData *bytes = read ? read(url, 0, 1, NULL) : nil;
     return bytes ? [[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] : nil;
 }
 
@@ -665,54 +680,29 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
 
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
-    XCTAssertNil(CloudFileMaterializer.remoteRead);
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:innerFile]);
     XCTAssertNil([CloudFileMaterializer availabilityForURL:innerFile]);
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:innerFile]);
     XCTAssertFalse([NSURLUtil isDatalessFile:innerFile]);
     XCTAssertEqualObjects(log, (@[@"read outer", @"read other"]));
 }
 
-// The read is nil with no root. Otherwise it is one block that asks the
-// backend holding each URL, and fails for a URL under no root.
-- (void)testTheRemoteReadDispatchesPerURL {
-    XCTAssertNil(CloudFileMaterializer.remoteRead);
+// Each URL's read is its own backend's, and nil under no root.
+- (void)testTheRemoteReadIsPerURL {
     NSURL *first = [self makeTemporaryRoot];
     NSURL *second = [self makeTemporaryRoot];
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[first URLByAppendingPathComponent:@"x.flac"]]);
     NSMutableArray<NSString *> *log = [NSMutableArray array];
     [self installBackendNamed:@"first" at:first availability:nil log:log];
-    CloudFileRemoteRead read = CloudFileMaterializer.remoteRead;
-    XCTAssertNotNil(read);
     [self installBackendNamed:@"second" at:second availability:nil log:log];
 
-    // A block taken before the second install still reaches it.
-    NSData *bytes = read([second URLByAppendingPathComponent:@"x.flac"], 0, 1, NULL);
-    XCTAssertEqualObjects(bytes, [@"second" dataUsingEncoding:NSUTF8StringEncoding]);
+    XCTAssertEqualObjects([self remoteReadOf:[second URLByAppendingPathComponent:@"x.flac"]], @"second");
     XCTAssertEqualObjects([self remoteReadOf:[first URLByAppendingPathComponent:@"x.flac"]], @"first");
-
-    NSError *error = nil;
-    XCTAssertNil(read([NSURL fileURLWithPath:@"/nowhere/x.flac"], 0, 1, &error));
-    XCTAssertEqualObjects(error.domain, NSPOSIXErrorDomain);
-    XCTAssertEqual(error.code, EACCES);
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[NSURL fileURLWithPath:@"/nowhere/x.flac"]]);
     XCTAssertEqualObjects(log, (@[@"read second", @"read first"]));
 }
 
 #pragma mark - Blocks, and a writer with no part file
-
-// Runs a read on a worker, its bytes copied into `buffer`, signalling when it
-// returns.
-- (dispatch_semaphore_t)read:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
-                        into:(NSMutableData *)buffer copied:(uint64_t *)copied
-                 interrupted:(BOOL (^)(void))interrupted result:(CloudFileAvailabilityWait *)result {
-    dispatch_semaphore_t returned = dispatch_semaphore_create(0);
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        uint64_t got = 0;
-        *result = [availability waitForBytesAt:offset length:length windowInto:buffer.mutableBytes capacity:buffer.length
-                                        copied:&got interrupted:interrupted deadline:nil error:NULL];
-        *copied = got;
-        dispatch_semaphore_signal(returned);
-    });
-    return returned;
-}
 
 // The writer's wait for work on a worker, signalling when it returns. Its
 // deadline outlasts every guard the test waits on, so only news returns it.
@@ -764,7 +754,7 @@ static void TakeNews(CloudFileAvailability *availability) {
     NSMutableData *read = [NSMutableData dataWithLength:64];
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self read:availability at:190 length:20 into:read copied:&copied
-                                   interrupted:nil result:&result];
+                                   interrupted:nil result:&result error:NULL];
     [self assertStillWaiting:returned];
     [availability installBlock:[file subdataWithRange:NSMakeRange(200, 50)] atOffset:200];
     [self awaitReturn:returned];
@@ -809,7 +799,7 @@ static void TakeNews(CloudFileAvailability *availability) {
     uint64_t copied = 99;
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self read:availability at:1000 length:10 into:read copied:&copied
-                                   interrupted:nil result:&result];
+                                   interrupted:nil result:&result error:NULL];
     [self assertStillWaiting:returned];
     [availability noteSize:500];
     [self awaitReturn:returned];
@@ -837,7 +827,7 @@ static void TakeNews(CloudFileAvailability *availability) {
     uint64_t copied = 99;
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self read:availability at:500 length:10 into:read copied:&copied
-                                   interrupted:nil result:&result];
+                                   interrupted:nil result:&result error:NULL];
     [self assertStillWaiting:returned];
     [availability noteShortenedEnd:400];
     [self awaitReturn:returned];
@@ -961,7 +951,7 @@ static void TakeNews(CloudFileAvailability *availability) {
     uint64_t copied = 0;
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self read:availability at:190 length:20 into:read copied:&copied
-                                   interrupted:nil result:&result];
+                                   interrupted:nil result:&result error:NULL];
     [self awaitReturn:woken];
     XCTAssertEqual(wanted, 190u);
     XCTAssertEqual(length, 20u);
@@ -995,7 +985,7 @@ static void TakeNews(CloudFileAvailability *availability) {
     uint64_t copied = 0;
     CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
     dispatch_semaphore_t returned = [self read:availability at:200 length:50 into:read copied:&copied
-                                   interrupted:nil result:&result];
+                                   interrupted:nil result:&result error:NULL];
     [self awaitReturn:woken];
     XCTAssertTrue(open);
     XCTAssertEqual(wanted, 200u);
@@ -1071,53 +1061,34 @@ static void TakeNews(CloudFileAvailability *availability) {
                                   wanted:&wanted length:&length readerPosition:&position]);
 }
 
-// With no part file a wait asks its interrupt again each slice, so a flag set
-// with no wake ends it, and a slice alone never does.
-- (void)testWithNoPartFileAnInterruptNeedsNoWake {
-    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
-    [availability noteSize:100];
-    __block _Atomic bool interrupted = false;
-    dispatch_semaphore_t asked = dispatch_semaphore_create(0);
-    BOOL (^isInterrupted)(void) = ^BOOL{
-        dispatch_semaphore_signal(asked);
-        return atomic_load(&interrupted);
-    };
-    CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
-    dispatch_semaphore_t returned = [self wait:availability at:10 length:10 interrupted:isInterrupted
-                                        result:&result error:NULL];
-    for (int ask = 0; ask < 3; ask++) {
+// Either writer's wait sleeps until woken: a flag set with no wake ends
+// nothing.
+- (void)testAWaitNeedsAWakeToSeeAnInterrupt {
+    CloudFileAvailability *withoutPart = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [withoutPart noteSize:100];
+    for (CloudFileAvailability *availability in @[
+             [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100], withoutPart]) {
+        __block _Atomic bool interrupted = false;
+        dispatch_semaphore_t asked = dispatch_semaphore_create(0);
+        BOOL (^isInterrupted)(void) = ^BOOL{
+            dispatch_semaphore_signal(asked);
+            return atomic_load(&interrupted);
+        };
+        CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
+        dispatch_semaphore_t returned = [self wait:availability at:10 length:10 interrupted:isInterrupted
+                                            result:&result error:NULL];
         [self awaitReturn:asked];
+        atomic_store(&interrupted, true);
+        XCTAssertNotEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC))), 0,
+                          @"%@: no wake, still waiting", availability.partURL ? @"transfer" : @"no part file");
+        [availability wakeWaiters];
+        [self awaitReturn:returned];
+        XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
     }
-    XCTAssertNotEqual(dispatch_semaphore_wait(returned, DISPATCH_TIME_NOW), 0, @"two slices passed, still waiting");
-    atomic_store(&interrupted, true);
-    [self awaitReturn:returned];
-    XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
 }
 
-// A transfer's wait sleeps until woken, as it always has: a flag set with no
-// wake ends nothing.
-- (void)testATransfersWaitNeedsAWakeToSeeAnInterrupt {
-    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
-    __block _Atomic bool interrupted = false;
-    dispatch_semaphore_t asked = dispatch_semaphore_create(0);
-    BOOL (^isInterrupted)(void) = ^BOOL{
-        dispatch_semaphore_signal(asked);
-        return atomic_load(&interrupted);
-    };
-    CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
-    dispatch_semaphore_t returned = [self wait:availability at:10 length:10 interrupted:isInterrupted
-                                        result:&result error:NULL];
-    [self awaitReturn:asked];
-    atomic_store(&interrupted, true);
-    XCTAssertNotEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC))), 0,
-                      @"longer than two slices");
-    [availability wakeWaiters];
-    [self awaitReturn:returned];
-    XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
-}
-
-// With no part file the slices never shorten a deadline: shorter or longer
-// than a slice, the wait ends Interrupted, never before it.
+// With no part file the deadline is honored: short or long, the wait ends
+// Interrupted, never before it.
 - (void)testWithNoPartFileTheDeadlineIsHonored {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
     [availability noteSize:100];

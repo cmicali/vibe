@@ -7,6 +7,7 @@
 
 #include <sys/stat.h>
 
+#import "AudioTrack.h"
 #import "HTTPTransferClientInternal.h"
 #import "NSURLUtil.h"
 #import "PlayableExtensions.h"
@@ -33,15 +34,11 @@ static NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underly
     return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
 }
 
-// The probe's failure as the link's. A status the session did not take as
-// a file is the server's, 2xx included.
+// The probe's failure as the link's.
 static NSError *VibeLinkErrorOfProbe(NSError *error, NSString *_Nullable host) {
     VibeLinkError code;
     if ([error.domain isEqualToString:VibeHTTPErrorDomain] && error.code == VibeHTTPErrorStatus) {
         code = VibeLinkErrorOfStatus([error.userInfo[VibeHTTPErrorStatusCodeKey] integerValue]);
-        if (code == VibeLinkErrorNone) {
-            code = VibeLinkErrorServer;
-        }
     }
     else if ([error.domain isEqualToString:VibeHTTPErrorDomain] && error.code == VibeHTTPErrorRefusedURL) {
         // Only a redirect can be refused here: the link itself passed.
@@ -49,9 +46,6 @@ static NSError *VibeLinkErrorOfProbe(NSError *error, NSString *_Nullable host) {
     }
     else {
         code = VibeLinkErrorOfNetworkError(error, host);
-        if (code == VibeLinkErrorNone) {
-            code = VibeLinkErrorUnreachable;
-        }
     }
     return VibeLinkMakeError(code, error);
 }
@@ -147,7 +141,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     record[@"url"] = link.absoluteString;
     record[@"etag"] = VibeLinkString(metadata[@"etag"]);
     record[@"lastModified"] = VibeLinkString(metadata[@"lastModified"]);
-    record[@"version"] = [self versionOfMetadata:metadata];
+    record[@"version"] = [self.client versionOfMetadata:metadata];
     record[@"size"] = @([self.client sizeOfMetadata:metadata]);
     record[@"modified"] = @(modified);
     record[@"contentType"] = VibeLinkString(metadata[@"contentType"]);
@@ -158,9 +152,9 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 }
 
 // Whether an answer is of the file the record describes, a checked record
-// (recordOfDirectory:): the same size, and the record's version. Under another ETag, the same Last-Modified will do
-// (the CDN case, VibeHTTPIsSameFileUnderAnotherETag). A record with no
-// version matches on its size alone.
+// (recordOfDirectory:): the same size, and the record's version. Under
+// another ETag, the same Last-Modified will do (the CDN case). A record with
+// no version matches on its size alone.
 - (BOOL)record:(NSDictionary *)record matchesMetadata:(NSDictionary *)metadata {
     int64_t size = [self.client sizeOfMetadata:metadata];
     NSNumber *recorded = record[@"size"];
@@ -168,13 +162,12 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
         return NO;
     }
     NSString *version = record[@"version"];
-    if (!version || [[self versionOfMetadata:metadata] isEqualToString:version]) {
+    if (!version || [[self.client versionOfMetadata:metadata] isEqualToString:version]) {
         return YES;
     }
-    if (VibeHTTPIsSameFileUnderAnotherETag(recorded.longLongValue, record[@"lastModified"], size,
-                                           VibeLinkString(metadata[@"lastModified"]))) {
+    if ([self.client isSameFileUnderAnotherETag:metadata asMetadata:record]) {
         LogInfo(@"Links: %@ answered another ETag with the same size and date (version %@, now %@)",
-                record[@"host"], version, [self versionOfMetadata:metadata]);
+                record[@"host"], version, [self.client versionOfMetadata:metadata]);
         return YES;
     }
     return NO;
@@ -209,8 +202,9 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     [self writeIndex:touched ofDirectory:directory];
 }
 
-- (nullable NSDictionary *)recordOfLinkFileURL:(NSURL *)url {
-    return [self containsURL:url] ? [self recordOfDirectory:url.URLByDeletingLastPathComponent] : nil;
+- (nullable NSString *)hostOfLinkFileURL:(NSURL *)url {
+    NSString *host = [self containsURL:url] ? [self recordOfDirectory:url.URLByDeletingLastPathComponent][@"host"] : nil;
+    return host.length > 0 ? host : nil;
 }
 
 #pragma mark - Hooks
@@ -237,7 +231,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
         NSDictionary *record = [self recordOfDirectory:directory];
         if (data && record && ![self record:record matchesMetadata:metadata]) {
             LogWarn(@"Links: a read of %@ answered another file than its record's (version %@, now %@)",
-                    record[@"host"], record[@"version"], [self versionOfMetadata:metadata]);
+                    record[@"host"], record[@"version"], [self.client versionOfMetadata:metadata]);
             completion(nil, nil, [self.client errorWithCode:VibeHTTPErrorVersionChanged
                                                 description:@"the link's file changed since it was opened"]);
             return;
@@ -422,12 +416,14 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     }
     time_t modified = VibeLinkModificationTime(metadata, probed);
     NSDictionary *fresh = [self recordOfLink:link metadata:metadata ranges:ranges modified:modified opened:probed];
-    // TRAP: a file streaming now keeps its placeholder. The fetch's install
-    // renames the bytes it downloaded over whatever stands at the URL, and
-    // its readers hold the part file. Only the record changes, and the
-    // install's mtime hook sets it back to what was downloaded.
-    if (existing && [self availabilityForURL:existing]) {
-        LogInfo(@"Links: %@ changed while it streams; updating its record only", link.host);
+    // TRAP: a file being fetched now keeps its placeholder, from the fetch's
+    // start, before its first response. The fetch's install renames the bytes
+    // it downloaded over whatever stands at the URL, and its readers hold the
+    // part file. A new name would leave that install a second file. Only the
+    // record changes, and the install's mtime hook sets it back to what was
+    // downloaded.
+    if (existing && [self isFetchingURL:existing]) {
+        LogInfo(@"Links: %@ changed while it is fetched; updating its record only", link.host);
         [self writeIndex:fresh ofDirectory:directory];
         return existing;
     }
@@ -475,22 +471,35 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 
 #pragma mark - Pruning
 
-- (void)pruneKeepingURLs:(NSSet<NSURL *> *)kept {
+- (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents {
     dispatch_async(self.diskQueue, ^{
-        // A kept URL names its link by the component below the root.
-        NSUInteger depth = VibeComparablePath(self.rootURL.path).pathComponents.count;
-        NSMutableSet<NSString *> *keptNames = [NSMutableSet set];
-        for (NSURL *url in kept) {
-            NSArray<NSString *> *components = VibeComparablePath(url.path).pathComponents;
-            if ([self containsURL:url] && components.count > depth) {
-                [keptNames addObject:components[depth]];
-            }
-        }
-        NSMutableDictionary<NSString *, id> *records = [NSMutableDictionary dictionary];
         NSArray<NSURL *> *directories = [NSFileManager.defaultManager contentsOfDirectoryAtURL:self.rootURL
                                                                     includingPropertiesForKeys:nil
                                                                                        options:NSDirectoryEnumerationSkipsHiddenFiles
                                                                                          error:NULL];
+        // Most launches hold no link, and need not look at the playlist.
+        if (directories.count == 0) {
+            return;
+        }
+        // A kept URL names its link by the component below the root.
+        NSUInteger depth = VibeComparablePath(self.rootURL.path).pathComponents.count;
+        NSMutableSet<NSString *> *keptNames = [NSMutableSet set];
+        void (^keep)(NSURL *) = ^(NSURL *url) {
+            if (![self containsURL:url]) {
+                return;
+            }
+            NSArray<NSString *> *components = VibeComparablePath(url.path).pathComponents;
+            if (components.count > depth) {
+                [keptNames addObject:components[depth]];
+            }
+        };
+        for (AudioTrack *track in tracks) {
+            keep(track.url);
+        }
+        for (NSURL *url in recents) {
+            keep(url);
+        }
+        NSMutableDictionary<NSString *, id> *records = [NSMutableDictionary dictionary];
         for (NSURL *directory in directories) {
             struct stat st;
             if (lstat(directory.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)) {

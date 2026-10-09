@@ -334,21 +334,24 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                         NSString *key = equals.location == NSNotFound ? token : [token substringToIndex:equals.location];
                         NSString *value = equals.location == NSNotFound ? @"" : [token substringFromIndex:equals.location + 1];
                         double number = 0;
-                        double scale = [value hasSuffix:@"K"] ? 1024 : [value hasSuffix:@"M"] ? 1024 * 1024 : 1;
-                        NSString *digits = scale > 1 ? [value substringToIndex:value.length - 1] : value;
+                        BOOL valid = YES;
                         if ([key isEqualToString:@"file"] && value.length > 0) {
                             file = value;
                         }
-                        else if ([key isEqualToString:@"after"] && VibeParseDouble(digits, &number) && number >= 0) {
-                            after = (uint64_t)(number * scale);
+                        else if ([key isEqualToString:@"after"]) {
+                            valid = VibeParseByteCount(value, &after);
                         }
-                        else if ([key isEqualToString:@"rate"] && VibeParseDouble(digits, &number) && number > 0) {
-                            rate = (uint64_t)(number * scale);
+                        else if ([key isEqualToString:@"rate"]) {
+                            valid = VibeParseByteCount(value, &rate) && rate > 0;
                         }
-                        else if ([key isEqualToString:@"seconds"] && VibeParseDouble(value, &number) && number >= 0) {
+                        else if ([key isEqualToString:@"seconds"]) {
+                            valid = VibeParseDouble(value, &number) && number >= 0;
                             seconds = number;
                         }
                         else {
+                            valid = NO;
+                        }
+                        if (!valid) {
                             return VibeErrorJSON(@"bad argument: %@", token);
                         }
                     }

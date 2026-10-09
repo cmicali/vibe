@@ -71,10 +71,8 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 // remote file's: size, mtime, and the cache key. Any direct open fails instead
 // of reading zeros. Anywhere else an unreadable file is merely unreadable.
 // CloudFileMaterializer's setRemoteRoot:fetch:read:availability: keeps the
-// roots in step with its backends. The single-root setter installs exactly
-// that root, or none for nil.
+// roots in step with its backends.
 + (void)setRemotePlaceholderRoots:(NSArray<NSURL *> *)roots;
-+ (void)setRemotePlaceholderRoot:(nullable NSURL *)root;
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url;
 
 // A remote placeholder whose tags and art TagLib reads by range

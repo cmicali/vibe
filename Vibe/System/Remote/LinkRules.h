@@ -46,9 +46,13 @@ typedef NS_ENUM(NSInteger, VibeLinkError) {
 
 #pragma mark - Acceptance
 
+// TRAP: 0.0.0.0/8 and :: are the unspecified addresses, and a connection to
+// one reaches this machine. Left public, a public page could redirect Vibe to
+// a service on the Mac itself.
 static inline BOOL VibeLinkIPv4IsLocal(struct in_addr address) {
     uint32_t a = ntohl(address.s_addr);
-    return (a >> 24) == 10                   // 10/8
+    return (a >> 24) == 0                    // 0/8
+        || (a >> 24) == 10                   // 10/8
         || (a >> 24) == 127                  // 127/8
         || (a >> 20) == ((172u << 4) | 1)    // 172.16/12
         || (a >> 16) == ((192u << 8) | 168)  // 192.168/16
@@ -57,6 +61,7 @@ static inline BOOL VibeLinkIPv4IsLocal(struct in_addr address) {
 
 static inline BOOL VibeLinkIPv6IsLocal(struct in6_addr address) {
     const uint8_t *b = address.s6_addr;
+    if (IN6_IS_ADDR_UNSPECIFIED(&address)) return YES;  // ::
     if (IN6_IS_ADDR_LOOPBACK(&address)) return YES;   // ::1
     if ((b[0] & 0xFE) == 0xFC) return YES;           // fc00::/7
     if (b[0] == 0xFE && (b[1] & 0xC0) == 0x80) return YES;  // fe80::/10
@@ -70,7 +75,7 @@ static inline BOOL VibeLinkIPv6IsLocal(struct in6_addr address) {
 
 // Whether a host is on the local network: localhost, a name ending in .local,
 // .localhost, or .test, an unqualified name, or an address in a private,
-// loopback, or link-local range. Takes NSURL.host as it comes, with or without
+// loopback, link-local, or unspecified range. Takes NSURL.host as it comes, with or without
 // an IPv6 literal's brackets. It also picks the local-network error message.
 //
 // TRAP: an IPv4 address is parsed as the resolver parses it (inet_aton).
@@ -540,21 +545,6 @@ static inline NSArray<NSURL *> *VibeDropOpenOrder(NSArray<NSURL *> *urls,
 // still names it.
 static const NSTimeInterval kVibeLinkPruneAgeSeconds = 30 * 24 * 60 * 60;
 
-// The URLs that keep their links from the launch's pruning: the playlist's
-// rows as the launch restored them, and the recent items. Each shell passes
-// its own lists. Only file URLs count.
-static inline NSSet<NSURL *> *VibeLinkKeptURLs(NSArray<NSURL *> *rows, NSArray<NSURL *> *recents) {
-    NSMutableSet<NSURL *> *kept = [NSMutableSet set];
-    for (NSArray<NSURL *> *list in @[rows, recents]) {
-        for (NSURL *url in list) {
-            if (url.isFileURL) {
-                [kept addObject:url];
-            }
-        }
-    }
-    return kept;
-}
-
 // The link directories to delete, by name, sorted. records maps each
 // directory's name to its record, NSNull for a directory with none. One
 // opened more than 30 days before now goes, unless kept names it. A record
@@ -577,24 +567,21 @@ static inline NSArray<NSString *> *VibeLinkDirectoriesToPrune(NSDictionary<NSStr
 
 #pragma mark - Failures
 
-// An HTTP status. A 2xx is no failure. A redirect the session did not follow
-// is the server's failure, like every other status not named here.
+// A status the session did not take as a file. A redirect it did not follow
+// is the server's failure, and so is a 2xx, like every other status not
+// named here.
 static inline VibeLinkError VibeLinkErrorOfStatus(NSInteger status) {
-    if (status >= 200 && status < 300) return VibeLinkErrorNone;
     if (status == 401 || status == 403) return VibeLinkErrorDenied;
     if (status == 404 || status == 410) return VibeLinkErrorNotFound;
     return VibeLinkErrorServer;
 }
 
 // A request that got no response. App Transport Security's refusal is the
-// insecure failure. A cancel is the caller's own and shows nothing. Any other
-// failure to reach a local host is the local-network one. A denied
-// local-network permission fails that way.
-static inline VibeLinkError VibeLinkErrorOfNetworkError(NSError *_Nullable error, NSString *_Nullable host) {
-    if (error == nil) return VibeLinkErrorNone;
+// insecure failure. Any other failure to reach a local host is the
+// local-network one. A denied local-network permission fails that way.
+static inline VibeLinkError VibeLinkErrorOfNetworkError(NSError *error, NSString *_Nullable host) {
     if ([error.domain isEqualToString:NSURLErrorDomain]) {
         switch (error.code) {
-            case NSURLErrorCancelled: return VibeLinkErrorNone;
             case NSURLErrorAppTransportSecurityRequiresSecureConnection: return VibeLinkErrorInsecure;
             case NSURLErrorBadURL:
             case NSURLErrorUnsupportedURL: return VibeLinkErrorInvalid;

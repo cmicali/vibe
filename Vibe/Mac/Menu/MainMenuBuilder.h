@@ -45,6 +45,12 @@ NS_ASSUME_NONNULL_BEGIN
 // equivalent is set, from the effective shortcuts under the current layout.
 + (void)applyShortcuts;
 
+// The shortcut identifier's command carries under the current layout, the
+// one the menu shows and the Shortcuts settings list. None when its effective
+// shortcut lands on a reserved key, or on a key an earlier command holds
+// (VibeShortcutForMenuItem). A hidden menu is not considered.
++ (VibeShortcut)carriedShortcutForIdentifier:(NSString *)identifier overrides:(nullable NSDictionary *)overrides;
+
 + (nullable NSMenuItem *)mainMenuItemWithIdentifier:(NSString *)identifier;
 
 // The key's lowercase character under the current layout, in Command's layer

@@ -18,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)revealInFinder:(NSArray<AudioTrack *> *)tracks;
 
 // The file URLs, so a Finder paste copies the files. A remote placeholder is
-// left out (handsOutURL:).
+// left out (handsOutURL:). Tracks that leave nothing to copy beep.
 + (void)copyFiles:(NSArray<AudioTrack *> *)tracks;
 
 // Whether another app may be given this file, by Copy Files or a drag out of

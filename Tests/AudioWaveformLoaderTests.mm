@@ -22,6 +22,7 @@
 #import "AudioWaveformCache+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "NSURL+Hash.h"
+#import "VibeReadAheadScript.h"
 
 #include <fcntl.h>
 #include <atomic>
@@ -126,8 +127,8 @@
     // The streams the remote backend answers, by path; set only by a test
     // that streams, and uninstalled in tearDown.
     NSMutableDictionary<NSString *, WaveformStreamAvailability *> *_streams;
-    // The read-ahead test's stalled reads wait on it. tearDown opens it.
-    dispatch_semaphore_t _readAheadGate;
+    // The read-ahead test's script. tearDown releases its stalled reads.
+    VibeReadAheadScript *_readAhead;
 }
 
 - (void)setUp {
@@ -151,15 +152,12 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     if (_streams) {
         [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     }
-    if (_readAheadGate) {
+    if (_readAhead) {
         // The read-ahead counts are process-wide: every parked thread is
         // released and gone before the next test counts.
-        dispatch_semaphore_signal(_readAheadGate);
-        [AudioFileHandle debugSetMountRule:nil];
-        XCTAssertTrue([self eventually:^BOOL {
-            return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
-        }]);
-        [AudioFileHandle debugSetBeforeRead:nil];
+        [_readAhead releaseEverything];
+        XCTAssertTrue([self eventually:^BOOL { return VibeReadAheadScript.threadsGone; }]);
+        [VibeReadAheadScript removeHook];
     }
     [NSFileManager.defaultManager removeItemAtURL:_tempDirectory error:nil];
     _loader = nil;
@@ -802,21 +800,9 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
 // waits. A cancel then ends that wait.
 - (void)testAReadAheadLoadPublishesItsFirstBlockBeforeAStalledRead {
     NSURL *url = [self writeNoiseWAVNamed:@"network.wav" seconds:6.0 seed:17];
-    dispatch_semaphore_t gate = _readAheadGate = dispatch_semaphore_create(0);
-    dispatch_semaphore_t stalled = dispatch_semaphore_create(0);
-    [AudioFileHandle debugSetMountRule:^NSNumber *(NSURL *candidate) {
-        return [candidate.path isEqualToString:url.path] ? @YES : nil;
-    }];
+    _readAhead = [[VibeReadAheadScript alloc] initForPathsContaining:url.path];
     // The first decode read takes blocks 0 and 1; the second waits on block 2.
-    [AudioFileHandle debugSetBeforeRead:^int(NSURL *candidate, uint64_t offset, uint64_t length) {
-        if ([candidate.path isEqualToString:url.path] && offset >= 2 * 256 * 1024) {
-            dispatch_semaphore_signal(stalled);
-            // Passed on once open, so every later read passes too.
-            dispatch_semaphore_wait(gate, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC)));
-            dispatch_semaphore_signal(gate);
-        }
-        return 0;
-    }];
+    [_readAhead stallFrom:2 * kReadAheadBlock];
     WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:recorder];
     __block CodableAudioWaveform *result = nil;
@@ -825,7 +811,7 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
         result = [loader load:url.path];
         dispatch_semaphore_signal(done);
     });
-    XCTAssertTrue([self await:stalled], @"the read-ahead stalled on block 2");
+    XCTAssertTrue([self await:_readAhead.stalled], @"the read-ahead stalled on block 2");
     XCTAssertTrue([self eventually:^BOOL { return recorder.snapshots.count >= 1; }],
                   @"the first block published while the next read waits");
     XCTAssertLessThan(recorder.fractions.firstObject.floatValue, 1.0f);

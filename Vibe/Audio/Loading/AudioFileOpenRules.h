@@ -6,7 +6,6 @@
 #import <Foundation/Foundation.h>
 #import "NSURLUtil.h"
 
-#include <string.h>
 #include <sys/mount.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -72,53 +71,41 @@ static inline uint64_t VibeAudioFileTailWindowBytes(NSString *extension, uint64_
     return size > 2 * window ? window : 0;
 }
 
-// One spelling for a mount and a path, made without asking the disk. A
-// leading /System/Volumes/Data is dropped. The data volume's firmlinks make
-// that prefix and the root one place. A path that then starts with /var or
-// /tmp is spelled under /private. Those two are symlinks into it. Truncated
-// to `capacity`.
-static inline void VibeMountSpelling(const char *path, char *spelled, size_t capacity) {
-    static const char kData[] = "/System/Volumes/Data";
-    const size_t data = sizeof(kData) - 1;
-    if (strncmp(path, kData, data) == 0 && (path[data] == '/' || path[data] == '\0')) {
-        path = path[data] == '\0' ? "/" : path + data;
+// A spelling for comparing a mount's name and a path, from the string alone:
+// VibeAliasFreePath's, ending in exactly one slash. The slash makes a prefix
+// whole components. It also spells the data volume's own mount as the root.
+static inline NSString *VibeMountSpelling(NSString *path) {
+    NSUInteger end = path.length;
+    while (end > 0 && [path characterAtIndex:end - 1] == '/') {
+        end--;
     }
-    BOOL aliased = (strncmp(path, "/var", 4) == 0 || strncmp(path, "/tmp", 4) == 0)
-            && (path[4] == '/' || path[4] == '\0');
-    snprintf(spelled, capacity, "%s%s", aliased ? "/private" : "", path);
+    return VibeAliasFreePath([[path substringToIndex:end] stringByAppendingString:@"/"]);
 }
 
 // The index of the mount holding `path` in a getfsstat table: the longest
 // mount name that is a whole-component prefix of it. -1 for none.
-static inline int VibeMountHoldingPath(const struct statfs *_Nullable mounts, int count, const char *path) {
-    char spelledPath[MNAMELEN + 16], spelledMount[MNAMELEN + 16];
-    VibeMountSpelling(path, spelledPath, sizeof(spelledPath));
+static inline int VibeMountHoldingPath(const struct statfs *_Nullable mounts, int count, NSString *path) {
+    NSString *spelledPath = VibeMountSpelling(path);
     int best = -1;
-    size_t bestLength = 0;
+    NSUInteger bestLength = 0;
     for (int i = 0; i < count; i++) {
-        VibeMountSpelling(mounts[i].f_mntonname, spelledMount, sizeof(spelledMount));
-        size_t length = strlen(spelledMount);
-        while (length > 1 && spelledMount[length - 1] == '/') {
-            length--;
-        }
-        BOOL root = length == 1 && spelledMount[0] == '/';
-        BOOL holds = root ? spelledPath[0] == '/'
-                          : strncmp(spelledPath, spelledMount, length) == 0
-                                    && (spelledPath[length] == '/' || spelledPath[length] == '\0');
-        if (holds && (best < 0 || length > bestLength)) {
+        NSString *name = [NSString stringWithUTF8String:mounts[i].f_mntonname];
+        NSString *mount = name ? VibeMountSpelling(name) : nil;
+        if (mount && [spelledPath hasPrefix:mount] && (best < 0 || mount.length > bestLength)) {
             best = i;
-            bestLength = length;
+            bestLength = mount.length;
         }
     }
     return best;
 }
 
-// Whether a file reads ahead: YES when the mount holding it is a network one.
-// A network mount is any mount not flagged MNT_LOCAL. No mount, or an empty
-// table, is NO: the direct road.
-static inline BOOL VibeMountReadsAhead(const struct statfs *_Nullable mounts, int count, const char *path) {
+// The network mount a file reads ahead from: the mount holding it, when that
+// is a network one. A network mount is any mount not flagged MNT_LOCAL. NULL
+// is the direct road, as is no mount or an empty table.
+static inline const struct statfs *_Nullable VibeMountReadsAhead(const struct statfs *_Nullable mounts, int count,
+                                                                 NSString *path) {
     int index = VibeMountHoldingPath(mounts, count, path);
-    return index >= 0 && (mounts[index].f_flags & MNT_LOCAL) == 0;
+    return index >= 0 && (mounts[index].f_flags & MNT_LOCAL) == 0 ? &mounts[index] : NULL;
 }
 
 NS_ASSUME_NONNULL_END

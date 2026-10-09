@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/xattr.h>
 
+#import "AudioTrack.h"
 #import "CloudFileMaterializer.h"
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
@@ -38,19 +39,9 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
 // A FLAC's signature, then a pattern: audio to the probe, distinct bytes to
 // every range.
 static NSData *FlacBytes(NSUInteger count) {
-    NSMutableData *data = [NSMutableData dataWithLength:count];
-    uint8_t *bytes = data.mutableBytes;
-    for (NSUInteger i = 0; i < count; i++) {
-        bytes[i] = (uint8_t)((i * 7 + i / 251) & 0xff);
-    }
-    memcpy(bytes, "fLaC", MIN(count, (NSUInteger)4));
+    NSMutableData *data = [PatternBytes(count) mutableCopy];
+    memcpy(data.mutableBytes, "fLaC", MIN(count, (NSUInteger)4));
     return data;
-}
-
-static struct stat StatOf(NSURL *url) {
-    struct stat st = {0};
-    lstat(url.fileSystemRepresentation, &st);
-    return st;
 }
 
 static BOOL IsPlaceholder(NSURL *url) {
@@ -458,8 +449,8 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects(stored, [self recordOf:file]);
     LinkStore *other = [[LinkStore alloc] initWithClient:_client rootURL:_root];
     XCTAssertEqualObjects([other indexOfDirectory:directory], stored, @"read back by a new store");
-    XCTAssertEqualObjects([_store recordOfLinkFileURL:file], stored, @"a shell reads it by the file");
-    XCTAssertNil([_store recordOfLinkFileURL:[_base URLByAppendingPathComponent:@"a.flac"]], @"outside the root");
+    XCTAssertEqualObjects([_store hostOfLinkFileURL:file], stored[@"host"], @"a shell reads it by the file");
+    XCTAssertNil([_store hostOfLinkFileURL:[_base URLByAppendingPathComponent:@"a.flac"]], @"outside the root");
     NSSet *keys = [NSSet setWithArray:@[@"url", @"etag", @"lastModified", @"version", @"size", @"modified", @"ranges",
                                         @"host", @"opened"]];
     XCTAssertEqualObjects([NSSet setWithArray:stored.allKeys], keys, @"no Content-Type, so none recorded");
@@ -524,14 +515,14 @@ static BOOL IsDownloaded(NSURL *url) {
     record[@"size"] = @"4000";
     [_store writeIndex:record ofDirectory:file.URLByDeletingLastPathComponent];
     ino_t inode = StatOf(file).st_ino;
-    XCTAssertNil([_store recordOfLinkFileURL:file]);
+    XCTAssertNil([_store hostOfLinkFileURL:file]);
     NSError *error = nil;
     XCTAssertNil([_store readPlaceholderAtURL:file offset:0 length:16 error:&error], @"no record names no target");
 
     XCTAssertEqualObjects([self resolvePath:@"/a.flac"], file);
     XCTAssertNotEqual(StatOf(file).st_ino, inode, @"a fresh placeholder");
     XCTAssertEqualObjects([self recordOf:file][@"size"], @4000);
-    XCTAssertNotNil([_store recordOfLinkFileURL:file]);
+    XCTAssertNotNil([_store hostOfLinkFileURL:file]);
 }
 
 - (void)testALinkWithNoVersionIsFetchedAgain {
@@ -777,6 +768,55 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects([self recordOf:file][@"version"], @"\"v1\"", @"the record follows what was downloaded");
 }
 
+// The fetch waits on a 503's retry, so it has no stream yet. A change that
+// renames the file must still leave the placeholder the fetch installs at.
+// Otherwise the install would make a second file beside the new one.
+- (void)testAChangeBeforeTheFetchsFirstAnswerKeepsItsPlaceholder {
+    HTTPStubFile *served = [self serve:FlacBytes(4000) at:@"/track"
+                               headers:@{@"ETag": @"\"v1\"",
+                                         @"Content-Disposition": @"attachment; filename=\"One.flac\""}];
+    NSURL *file = [self resolvePath:@"/track"];
+    XCTAssertEqualObjects(file.lastPathComponent, @"One.flac");
+    ino_t inode = StatOf(file).st_ino;
+    // Retry-After's cap, stretched past the gate timeout: the retry never
+    // comes before the cancel.
+    _client.retryDelayScale = VIBE_TEST_GATE_TIMEOUT / 10.0;
+    [_stub queueStep:[HTTPStubStep status:503 headers:@{@"Retry-After": @"10"} body:nil] forPath:@"/track"];
+    NSUInteger requests = [_stub requestsToPath:@"/track"].count;
+    XCTestExpectation *returned = [self expectationWithDescription:@"fetched"];
+    __block dispatch_block_t cancelFetch = nil;
+    LinkStore *store = _store;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
+            @synchronized (self) {
+                cancelFetch = cancel;
+            }
+        } error:NULL];
+        [returned fulfill];
+    });
+    [self waitUntil:^BOOL {
+        return [self->_store isFetchingURL:file] && [self->_stub requestsToPath:@"/track"].count > requests;
+    }];
+    XCTAssertNil([_store availabilityForURL:file], @"no answer has made a stream");
+
+    served.headers = @{@"ETag": @"\"v2\"", @"Content-Disposition": @"attachment; filename=\"Two.flac\""};
+    XCTAssertEqualObjects([self resolvePath:@"/track"], file);
+    XCTAssertEqual(StatOf(file).st_ino, inode, @"the placeholder under the fetch stands");
+    XCTAssertEqualObjects([self recordOf:file][@"version"], @"\"v2\"");
+
+    dispatch_block_t cancel = nil;
+    @synchronized (self) {
+        cancel = cancelFetch;
+    }
+    XCTAssertNotNil(cancel);
+    cancel();
+    [self waitForExpectations:@[returned] timeout:VIBE_TEST_HANG_TIMEOUT];
+    NSArray<NSString *> *entries = [NSFileManager.defaultManager
+            contentsOfDirectoryAtPath:file.URLByDeletingLastPathComponent.path error:NULL];
+    XCTAssertEqualObjects([entries filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"NOT SELF BEGINSWITH '.'"]],
+                          @[@"One.flac"]);
+}
+
 // The record moved to another version while the placeholder streamed. The
 // stream is cancelled and keeps its part. The next open must not reuse the
 // placeholder of the old size under the new record.
@@ -1001,8 +1041,8 @@ static BOOL IsDownloaded(NSURL *url) {
     if ([keptPath hasPrefix:@"/private/"]) {
         keptPath = [keptPath substringFromIndex:8];
     }
-    [_store pruneKeepingURLs:[NSSet setWithObjects:[NSURL fileURLWithPath:keptPath],
-                              [NSURL fileURLWithPath:@"/elsewhere/song.flac"], nil]];
+    [_store pruneKeepingTracks:@[[[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/elsewhere/song.flac"]]]
+                    recentURLs:@[[NSURL fileURLWithPath:keptPath], [NSURL URLWithString:@"https://example.com/a.mp3"]]];
     [self settleDiskQueue];
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:files[0].URLByDeletingLastPathComponent.path]);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:stray.path], @"no record: as old as can be");
@@ -1039,10 +1079,10 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertTrue([NSURLUtil isDatalessFile:otherFile]);
 
     NSError *error = nil;
-    XCTAssertEqualObjects(CloudFileMaterializer.remoteRead(file, 16, 32, &error),
+    XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:file](file, 16, 32, &error),
                           [bytes subdataWithRange:NSMakeRange(16, 32)]);
     XCTAssertEqual(atomic_load(&otherReads), 0u);
-    XCTAssertEqualObjects(CloudFileMaterializer.remoteRead(otherFile, 0, 5, &error), otherBytes);
+    XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:otherFile](otherFile, 0, 5, &error), otherBytes);
     XCTAssertEqual(atomic_load(&otherReads), 1u);
 
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
