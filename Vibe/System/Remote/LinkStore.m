@@ -314,21 +314,22 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
                           head:(NSData *)head
                       probedAt:(NSTimeInterval)probed
                          error:(NSError **)error {
+    NSSet<NSString *> *playable = PlayableExtensions.lookup;
+    NSString *disposition = VibeLinkString(metadata[@"contentDisposition"]);
+    // The link's own URL, not the redirect's: a CDN's path carries no name.
+    // Not audio outranks no size. A sign-in page is often sent with no length.
+    NSString *extension = VibeLinkAudioExtension(head ?: [NSData data], link, disposition,
+                                                 VibeLinkString(metadata[@"contentType"]), playable);
+    if (!extension) {
+        if (error) *error = VibeLinkMakeError(VibeLinkErrorNotAudio, nil);
+        LogInfo(@"Links: %@ is not audio (%@)", link.host, metadata[@"contentType"]);
+        return nil;
+    }
     int64_t size = [self.client sizeOfMetadata:metadata];
     if (size < 0) {
         VibeLinkError code = VibeLinkErrorOfMissingSize(response.allHeaderFields);
         if (error) *error = VibeLinkMakeError(code, nil);
         LogInfo(@"Links: %@ states no size (%ld)", link.host, (long)code);
-        return nil;
-    }
-    NSSet<NSString *> *playable = PlayableExtensions.lookup;
-    // The link's own URL, not the redirect's: a CDN's path carries no name.
-    NSString *extension = VibeLinkAudioExtension(head ?: [NSData data], link,
-                                                 VibeLinkString(metadata[@"contentDisposition"]),
-                                                 VibeLinkString(metadata[@"contentType"]), playable);
-    if (!extension) {
-        if (error) *error = VibeLinkMakeError(VibeLinkErrorNotAudio, nil);
-        LogInfo(@"Links: %@ is not audio (%@)", link.host, metadata[@"contentType"]);
         return nil;
     }
     NSURL *directory = [self directoryOfLink:link];
@@ -360,7 +361,7 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
         [self writeIndex:fresh ofDirectory:directory];
         return existing;
     }
-    NSURL *file = [directory URLByAppendingPathComponent:VibeLinkFileName(link, extension, playable) isDirectory:NO];
+    NSURL *file = [directory URLByAppendingPathComponent:VibeLinkFileName(link, disposition, extension, playable) isDirectory:NO];
     if (existing && ![existing.lastPathComponent isEqualToString:file.lastPathComponent]) {
         [NSFileManager.defaultManager removeItemAtURL:existing error:NULL];
         [NSFileManager.defaultManager removeItemAtURL:[NSURLUtil remotePlaceholderPartURL:existing] error:NULL];

@@ -368,6 +368,51 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects([self resolvePath:@"/stream"].lastPathComponent, @"stream.flac");
 }
 
+// The headers Google answered for a shared WAV: no ETag, and the name only in
+// Content-Disposition.
+- (void)testAGoogleDriveLinkAsksForTheFileAndTakesItsName {
+    [_stub answerHost:@"drive.usercontent.google.com"];
+    NSMutableData *bytes = [FlacBytes(4000) mutableCopy];
+    memcpy(bytes.mutableBytes, "RIFF\x01\x02\x03\x04WAVE", 12);
+    [self serve:bytes at:@"/download" headers:@{
+        @"Content-Type": @"audio/wav",
+        @"Content-Disposition": @"attachment; filename=\"07A - Greg Benz Remix 0710.wav\"",
+        @"Last-Modified": kModified,
+    }];
+    NSError *error = nil;
+    NSURL *file = [self resolve:@"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/view?usp=sharing" error:&error];
+    XCTAssertNotNil(file, @"%@", error);
+    XCTAssertEqualObjects(file.lastPathComponent, @"07A - Greg Benz Remix 0710.wav");
+    NSURLComponents *sent = [NSURLComponents componentsWithURL:_stub.requests.firstObject.URL resolvingAgainstBaseURL:NO];
+    XCTAssertEqualObjects(sent.query, @"id=1k_kSNfbzdX-Ab&export=download&confirm=t");
+    NSDictionary *record = [self recordOf:file];
+    XCTAssertEqualObjects(record[@"url"],
+                          @"https://drive.usercontent.google.com/download?id=1k_kSNfbzdX-Ab&export=download&confirm=t");
+    XCTAssertEqualObjects(record[@"version"], kModified, @"no ETag: the version is Last-Modified");
+    XCTAssertEqualObjects(record[@"ranges"], @YES);
+    XCTAssertEqual(StatOf(file).st_size, 4000);
+}
+
+// A private or over-quota file answers a sign-in or quota page instead.
+- (void)testAGooglePageInsteadOfTheFileFailsClearly {
+    [_stub answerHost:@"drive.usercontent.google.com"];
+    NSString *link = @"https://drive.google.com/file/d/1abc/view?usp=sharing";
+    NSData *page = [@"<!DOCTYPE html><html><head><title>Sign in</title></head></html>"
+                    dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *html = @{@"Content-Type": @"text/html; charset=utf-8"};
+    HTTPStubFile *served = [self serve:page at:@"/download" headers:html];
+
+    [_stub queueStep:[HTTPStubStep status:403 headers:html body:page] forPath:@"/download"];
+    XCTAssertEqual([self failureOf:link], VibeLinkErrorDenied);
+
+    XCTAssertEqual([self failureOf:link], VibeLinkErrorNotAudio, @"a page with its length");
+
+    served.ignoresRanges = YES;
+    served.omitsLength = YES;
+    XCTAssertEqual([self failureOf:link], VibeLinkErrorNotAudio, @"a page with no length");
+    XCTAssertEqualObjects([self linkDirectories], @[]);
+}
+
 #pragma mark The record
 
 - (void)testTheRecordRoundTripsThroughItsAttribute {

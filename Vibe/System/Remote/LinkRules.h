@@ -124,14 +124,55 @@ static inline BOOL VibeLinkTextIsBlank(NSString *_Nullable text) {
     return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length == 0;
 }
 
-#pragma mark - Dropbox share links
+#pragma mark - Share links
 
-// A Dropbox share link to a file (/scl/fi/… or /s/…) with dl=1. That form
-// answers a redirect to the bytes. Every other URL comes back unchanged. The
-// other query items, rlkey among them, are kept. docs/future/share-links.md
-// has the probe.
+// A Google Drive link to a file as Google's download address. The file's id
+// comes from /file/d/<id>/…, or from the id item of /open or /uc. A folder
+// link, or an id with characters an id never has, is not a file link. It
+// answers nil. confirm=t skips the virus-scan page a large file gets. A
+// resourcekey item is kept. Older shares need it.
+static inline NSURL *_Nullable VibeLinkGoogleDriveDownloadURL(NSURL *url) {
+    NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+    // Split before decoding: an encoded '/' stays inside its part and fails
+    // the id check.
+    NSArray<NSString *> *parts = [components.percentEncodedPath componentsSeparatedByString:@"/"];
+    NSString *fileID = nil;
+    NSString *resourceKey = nil;
+    for (NSURLQueryItem *item in components.queryItems) {
+        if ([item.name isEqualToString:@"resourcekey"]) resourceKey = item.value;
+    }
+    if (parts.count >= 4 && [parts[1] isEqualToString:@"file"] && [parts[2] isEqualToString:@"d"]) {
+        fileID = parts[3];
+    } else if (parts.count == 2 && ([parts[1] isEqualToString:@"open"] || [parts[1] isEqualToString:@"uc"])) {
+        for (NSURLQueryItem *item in components.queryItems) {
+            if ([item.name isEqualToString:@"id"]) fileID = item.value;
+        }
+    }
+    NSCharacterSet *idCharacters =
+        [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"];
+    if (fileID.length == 0 || [fileID rangeOfCharacterFromSet:idCharacters.invertedSet].location != NSNotFound) {
+        return nil;
+    }
+    NSURLComponents *download = [NSURLComponents componentsWithString:@"https://drive.usercontent.google.com/download"];
+    NSMutableArray<NSURLQueryItem *> *items = [NSMutableArray arrayWithObjects:
+        [NSURLQueryItem queryItemWithName:@"id" value:fileID],
+        [NSURLQueryItem queryItemWithName:@"export" value:@"download"],
+        [NSURLQueryItem queryItemWithName:@"confirm" value:@"t"], nil];
+    if (resourceKey.length > 0) {
+        [items addObject:[NSURLQueryItem queryItemWithName:@"resourcekey" value:resourceKey]];
+    }
+    download.queryItems = items;
+    return download.URL;
+}
+
+// A share link to a file as the address that answers its bytes. A Dropbox
+// link (/scl/fi/… or /s/…) gets dl=1, which answers a redirect to the bytes.
+// Its other query items, rlkey among them, are kept. A Google Drive file link
+// becomes Google's download address (above). Every other URL comes back
+// unchanged. docs/future/share-links.md has the probes.
 static inline NSURL *VibeLinkDirectDownloadURL(NSURL *url) {
     NSString *host = url.host.lowercaseString;
+    if ([host isEqualToString:@"drive.google.com"]) return VibeLinkGoogleDriveDownloadURL(url) ?: url;
     if (!([host isEqualToString:@"dropbox.com"] || [host isEqualToString:@"www.dropbox.com"])) return url;
     NSString *path = url.path;
     if (!([path hasPrefix:@"/scl/fi/"] || [path hasPrefix:@"/s/"])) return url;
@@ -286,12 +327,18 @@ static inline NSString *_Nullable VibeLinkAudioExtension(NSData *head,
 
 static const NSUInteger kVibeLinkNameMaxBytes = 200;
 
-// The link's file name: the URL's last path component, percent-decoded and
-// cleaned, with extension forced on. A playable extension it already carries
-// is replaced. Cleaning swaps '/' and ':' for '-' and drops C0 and C1 control
-// characters and leading dots. The whole name is cut to 200 UTF-8 bytes on a
-// character boundary. "Link.<extension>" when nothing survives.
-static inline NSString *VibeLinkFileName(NSURL *url, NSString *extension, NSSet<NSString *> *playable) {
+// The link's file name, cleaned, with extension forced on. It is the URL's
+// last path component, percent-decoded, when that carries a playable
+// extension. Otherwise the Content-Disposition file name wins when there is
+// one. Google Drive's path ends in "view" or "download" and names nothing.
+// A playable extension the name already carries is replaced. Cleaning swaps
+// '/' and ':' for '-' and drops C0 and C1 control characters and leading
+// dots. The whole name is cut to 200 UTF-8 bytes on a character boundary.
+// "Link.<extension>" when nothing survives.
+static inline NSString *VibeLinkFileName(NSURL *url,
+                                         NSString *_Nullable contentDisposition,
+                                         NSString *extension,
+                                         NSSet<NSString *> *playable) {
     // The encoded path, split before decoding: a %2F belongs to the name.
     NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
     NSString *name = @"";
@@ -299,6 +346,10 @@ static inline NSString *VibeLinkFileName(NSURL *url, NSString *extension, NSSet<
         if (component.length > 0) name = component;
     }
     name = name.stringByRemovingPercentEncoding ?: name;
+    NSString *disposition = VibeLinkFilenameOfContentDisposition(contentDisposition);
+    if (disposition != nil && ![playable containsObject:name.pathExtension.lowercaseString]) {
+        name = disposition;
+    }
     // Cc only. NSCharacterSet.controlCharacterSet also holds Cf, and that
     // takes the joiner out of an emoji sequence or a Persian word.
     NSMutableCharacterSet *controls = [NSMutableCharacterSet characterSetWithRange:NSMakeRange(0x00, 0x20)];
