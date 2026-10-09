@@ -472,6 +472,10 @@ static NSAttributedString *symbolRun(NSString *symbolName, NSFont *font) {
     [_waveformView hideLoadingIndicator];
 }
 
+- (BOOL)waveformLoadingIndicatorShown {
+    return _waveformView.loadingIndicatorShown;
+}
+
 - (void)setWaveformLoadingProgress:(float)fraction {
     [_waveformView setLoadingProgress:fraction];
 }

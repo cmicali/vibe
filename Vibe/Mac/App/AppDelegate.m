@@ -223,7 +223,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }
     OpenRequestToken *token = [self beginOpenRequestAppending:append fromURLs:urls];
     if (VibeDropHasLinks(urls)) {
-        [self openLinksAmongURLs:urls token:token];
+        [self openLinksAmongURLs:urls appending:append token:token];
     }
     else {
         [self openFiles:urls token:token];
@@ -242,8 +242,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // The files and the links' files open as one open, in drop order. A link
 // that fails drops out, and the first failure's alert shows. A cancel, or a
 // newer replacing open, opens nothing.
-- (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
+- (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append token:(OpenRequestToken *)token {
     __weak AppDelegate *weakSelf = self;
+    [self.mainPlayerController beginLinkResolveFeedbackAppending:append];
     __block BOOL cancelled = NO;
     __block dispatch_block_t cancelResolve = nil;
     dispatch_block_t cancel = ^{
@@ -308,6 +309,14 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             first(0);
         });
     });
+}
+
+// After the last link drop settles. A delivery while another drop resolves
+// leaves its shimmer up.
+- (void)endLinkResolveFeedbackIfIdle {
+    if (_linkOpenCancels.count == 0) {
+        [self.mainPlayerController endLinkResolveFeedback];
+    }
 }
 
 - (BOOL)cancelLinkOpens {
@@ -385,14 +394,16 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             }
         }
         [self.mainPlayerController revealEmptyStateNamingPlaylist:playlist];
-        return;
     }
-    if (append) {
+    else if (append) {
         [self.mainPlayerController addTracks:rows];
     }
     else {
         [self.mainPlayerController play:rows];
     }
+    // After the play, which takes the strip for its own open. A drop
+    // superseded by this open ends here too.
+    [self endLinkResolveFeedbackIfIdle];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {

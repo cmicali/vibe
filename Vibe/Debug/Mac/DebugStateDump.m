@@ -98,6 +98,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
                                @"knob": VibeHexStringFromColor(controller.playerContentView.volumeSlider.knobColor) ?: @""},
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
+            @"waveformLoading": @(controller.trackDisplay.waveformLoadingIndicatorShown),
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),

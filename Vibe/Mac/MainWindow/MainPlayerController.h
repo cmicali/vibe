@@ -45,6 +45,13 @@ NS_ASSUME_NONNULL_BEGIN
 // shows until the next load or Close; nil for none. Idempotent.
 - (void)revealEmptyStateNamingPlaylist:(nullable NSString *)name;
 
+// A dropped link's resolve shows the waveform's loading shimmer. An append
+// over a shown track shows nothing, since that track's waveform stays. The
+// end puts back what the header shows. It leaves the strip to a track's open
+// still in flight.
+- (void)beginLinkResolveFeedbackAppending:(BOOL)append;
+- (void)endLinkResolveFeedback;
+
 // YES when the mirror came back, parked on its last current row; NO when the
 // setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).
 - (BOOL)restoreLastPlaylist;

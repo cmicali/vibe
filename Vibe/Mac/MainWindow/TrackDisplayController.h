@@ -94,6 +94,7 @@ unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
 // Slow-open playback and the debug channel's set_loading drive this directly.
 - (void)showWaveformLoadingIndicator;
 - (void)hideWaveformLoadingIndicator;
+@property (readonly) BOOL waveformLoadingIndicatorShown;
 // Determinate download fill; negative reverts to the indeterminate shimmer.
 - (void)setWaveformLoadingProgress:(float)fraction;
 // Convert to FLAC's sweep; 0 resets it. The getter serves the debug dump.

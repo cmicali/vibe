@@ -553,6 +553,35 @@
     [self updateUI];
 }
 
+- (void)beginLinkResolveFeedbackAppending:(BOOL)append {
+    if (append && [self displayedTrack]) {
+        return;
+    }
+    [self.trackDisplay showWaveformLoadingIndicator];
+}
+
+// The shimmer cleared the waveform it covered, so a shown track loads it again.
+- (void)endLinkResolveFeedback {
+    if (!self.trackDisplay.waveformLoadingIndicatorShown) {
+        return;
+    }
+    AudioTrack *track = self.playlistController.currentTrack;
+    switch ([self displayStateForTrack:track]) {
+        case TrackDisplayStateLoading:
+            return;
+        case TrackDisplayStateTrack:
+            [self.trackDisplay prepareForWaveformLoad];
+            [self.waveformCache loadWaveformForTrack:track];
+            return;
+        case TrackDisplayStateEmpty:
+        case TrackDisplayStateLaunchGrace:
+        case TrackDisplayStateError:
+            [self.trackDisplay hideWaveformLoadingIndicator];
+            [self updateUI];
+            return;
+    }
+}
+
 - (void)play:(NSArray<AudioTrack *> *)tracks {
     [self loadTracks:tracks selectingIndex:NSNotFound startPaused:NO];
 }
