@@ -249,6 +249,14 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformTheme(@"sonic_cirrus"), @"mono");
 }
 
+- (void)testWaveformBandThemeNormalizesUnknownsToRekordBin {
+    XCTAssertEqualObjects(VibeNormalizedWaveformBandTheme(@"rekord_bin"), @"rekord_bin");
+    XCTAssertEqualObjects(VibeNormalizedWaveformBandTheme(@"dengine"), @"dengine");
+    XCTAssertEqualObjects(VibeNormalizedWaveformBandTheme(@"custom"), @"custom");
+    XCTAssertEqualObjects(VibeNormalizedWaveformBandTheme(nil), @"rekord_bin");
+    XCTAssertEqualObjects(VibeNormalizedWaveformBandTheme(@"mono"), @"rekord_bin");
+}
+
 - (void)testDockIconNormalizesUnknownsToAlbumArt {
     XCTAssertEqualObjects(VibeNormalizedDockIcon(@"album_art"), @"album_art");
     XCTAssertEqualObjects(VibeNormalizedDockIcon(@"app_icon"), @"app_icon");

@@ -238,6 +238,32 @@ static AppTheme *ThreeBandRecord(NSDictionary *fields) {
     }
 }
 
+// iOS's palettes reproduce the mac's built-in 3-Band themes in dark, where
+// Dengine is drawn; an unknown identifier is Rekord Bin, and custom is shaded.
+- (void)testBandThemesMatchTheMacThemes {
+    NSArray<VibeColor *> *(^mac)(NSString *) = ^NSArray<VibeColor *> *(NSString *identifier) {
+        AppTheme *theme = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:identifier]];
+        return [WaveformTheme themeForAppTheme:theme isDark:YES artworkColor:nil].bandColors;
+    };
+    NSArray<VibeColor *> *rekordBin = [WaveformTheme bandColorsForIdentifier:SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN
+                                                                       isDark:YES customBands:@[]];
+    NSArray<VibeColor *> *dengine = [WaveformTheme bandColorsForIdentifier:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE
+                                                                     isDark:YES customBands:@[]];
+    NSArray<VibeColor *> *unknown = [WaveformTheme bandColorsForIdentifier:@"cdj" isDark:YES customBands:@[]];
+    for (NSUInteger layer = 0; layer < 7; layer++) {
+        XCTAssertEqual(RGBOf(rekordBin[layer]), RGBOf(mac(@"rekord_bin")[layer]), @"layer %lu", (unsigned long)layer);
+        XCTAssertEqual(RGBOf(dengine[layer]), RGBOf(mac(@"dengine")[layer]), @"layer %lu", (unsigned long)layer);
+        XCTAssertEqual(RGBOf(unknown[layer]), RGBOf(rekordBin[layer]), @"layer %lu", (unsigned long)layer);
+    }
+    NSArray<VibeColor *> *custom = @[[NSColor colorWithSRGBRed:1 green:0 blue:0 alpha:1],
+                                     [NSColor colorWithSRGBRed:0 green:200 / 255.0 blue:0 alpha:1],
+                                     [NSColor colorWithSRGBRed:0 green:0 blue:1 alpha:1]];
+    NSArray<VibeColor *> *bands = [WaveformTheme bandColorsForIdentifier:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM
+                                                                   isDark:YES customBands:custom];
+    XCTAssertEqual(RGBOf(bands[0]), 0xff0000u);
+    XCTAssertEqual(RGBOf(bands[3]), 0x008c00u, @"the mid shaded");
+}
+
 // The wells' colors as the bands, stored opaque whatever their alpha, since
 // the layers stack; the overlaps blend them.
 - (void)testBandWellsStoreOpaque {
