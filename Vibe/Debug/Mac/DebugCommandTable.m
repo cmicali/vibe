@@ -248,6 +248,12 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // The rest of the tokens, so titles with spaces work unquoted.
                 return VibeClickMenuItem(controller, VibeRestArgument(tokens));
             }),
+            VibeDebugCmd(@"open_url_window <text> | open | cancel | close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: open_url_window <text> | open | cancel | close");
+                }
+                return VibeDriveOpenURLWindow(tokens);
+            }),
             VibeTransportCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
             VibeTransportCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
             VibeTransportCmd(@"skip_forward_most", ^(MainPlayerController *controller) { [controller skipForwardMost:nil]; }),

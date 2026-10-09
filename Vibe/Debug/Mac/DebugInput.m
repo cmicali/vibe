@@ -47,7 +47,7 @@ static NSDictionary<NSString *, NSNumber *> *VibeKeyCodeMap(void) {
             @"1": @18, @"2": @19, @"3": @20, @"4": @21, @"6": @22, @"5": @23,
             @"9": @25, @"7": @26, @"8": @28, @"0": @29,
             @"o": @31, @"u": @32, @"i": @34, @"p": @35, @"l": @37, @"j": @38,
-            @"k": @40, @"n": @45, @"m": @46,
+            @"k": @40, @"n": @45, @"m": @46, @"period": @47,
             @"return": @36, @"tab": @48, @"space": @49, @"delete": @51, @"esc": @53,
             @"forward_delete": @117,
             @"left": @123, @"right": @124, @"down": @125, @"up": @126,
@@ -61,7 +61,7 @@ static NSString *VibeKeyCharacters(NSString *name) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         special = @{
-            @"return": @"\r", @"tab": @"\t", @"space": @" ",
+            @"return": @"\r", @"tab": @"\t", @"space": @" ", @"period": @".",
             @"delete": @"\x7f", @"esc": @"\x1b",
             // Backspace and Forward Delete are different characters and reach
             // different code, so `key delete` does not cover both.
@@ -150,7 +150,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     NSString *name = tokens[1].lowercaseString;
     NSNumber *code = VibeKeyCodeMap()[name];
     if (code == nil) {
-        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, space, tab, return, esc, delete, forward_delete, up, down, left, right)",
+        return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, period, space, tab, return, esc, delete, forward_delete, up, down, left, right)",
                 tokens[1]);
     }
     NSEventModifierFlags flags = 0;
@@ -173,7 +173,9 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     // matching reads it — a lowercase char there makes ⇧⌘C match a plain ⌘C
     // equivalent instead of the ⇧⌘C one.
     NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? VibeShiftedKeyCharacters(chars) : chars;
-    NSWindow *window = controller.window;
+    // Into the key window, as a real press goes, so a press reaches Open URL's
+    // window while it is key. The player's when no window is key.
+    NSWindow *window = NSApp.keyWindow ?: controller.window;
     void (^post)(NSEventType) = ^(NSEventType type) {
         NSEvent *event = [NSEvent keyEventWithType:type
                                           location:NSZeroPoint
