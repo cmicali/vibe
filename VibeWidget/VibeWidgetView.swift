@@ -13,13 +13,14 @@
 //
 //  The waveform kinds are SMALL only. They are the medium without its header
 //  row: the two text lines across the top and the envelope below. A tap on
-//  the waveform seeks, and anywhere else opens the app. The second kind puts
-//  the play/pause disc top-right, after the text, as the first small tile does.
+//  the waveform seeks, and anywhere else opens the app. The play kind
+//  (VibeNowPlayingWaveformPlay) puts the play/pause disc top-right, after the
+//  text, as the first small tile does.
 //
 //  The Lock Screen families draw in the system's one tint, so they use no
 //  artwork and no colour. CIRCULAR is a progress ring around play/pause.
-//  RECTANGULAR is the two text lines over a waveform strip. INLINE is one line
-//  of text.
+//  RECTANGULAR is one line of text over a waveform strip. INLINE is the same
+//  line of text.
 //
 //  It is an ADAPTATION of the desktop window, not a copy. The glass, the live
 //  art-tint wash and the scrolling waveform all need a live view; a widget gets
@@ -45,15 +46,16 @@ private let kSmallArtworkSide: CGFloat = 67
 // The play/pause disc, measured off Spotify's at 39pt.
 private let kSmallPlayDiameter: CGFloat = 39
 private let kSmallMinGap: CGFloat = 4
-// That measured type size, and not the small family's alone: BOTH families set
-// both their lines at it, so a track reads identically in either tile. At 1pt
+// That measured type size, and not the small family's alone. The medium and
+// the small tiles without a disc set both their lines at it, so a track reads
+// identically in each. At 1pt
 // spacing the pair needs ~53pt, which is what keeps it inside the medium
 // header's 54 — widen that spacing and the artist loses its descenders.
 private let kTextSize: CGFloat = 22
 // Where the text shares a row, both lines take the largest of these sizes at
 // which both fit (fittedTextLines).
 private let kSmallPlayTextSizes: [CGFloat] = [17, 15, 13]
-private let kLargeTextSizes: [CGFloat] = [22, 19, 17, 15]
+private let kLargeTextSizes: [CGFloat] = [kTextSize, 19, 17, 15]
 // Large: the top half is the header, the bottom half the waveform. The
 // artwork is this share of the header's height, so it sits centred in it.
 private let kLargeArtworkShare: CGFloat = 0.85
@@ -65,6 +67,14 @@ struct VibeWidgetView: View {
     // The small family's layout; every other family has only one.
     var waveformTile = false
     var playButton = false
+
+    private var progress: Double {
+        state.map { $0.progress(at: entry.date) } ?? 0
+    }
+
+    private var playGlyph: String {
+        state?.playing == true ? "pause.fill" : "play.fill"
+    }
 
     private var state: VibeWidgetState? {
         guard let state = entry.state, state.hasTrack else { return nil }
@@ -177,19 +187,24 @@ struct VibeWidgetView: View {
         .padding(.vertical, kSmallPadding)
     }
 
-    // Same inset all round as the other small tile. Without the disc the type
-    // is the other tile's too, so a track reads identically in both. The text
-    // takes the top, and the waveform gets everything below.
+    // Inset on all four sides, unlike the other small tile. Without the disc
+    // the type is the other tile's, so a track reads identically in both. With
+    // it, the text shares the row and takes a fitted size. The text takes the
+    // top, and the waveform gets everything below.
     private var smallWaveform: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let showsPlay = playButton && state != nil
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                if playButton && state != nil {
-                    fittedTextLines(sizes: kSmallPlayTextSizes)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                Group {
+                    if showsPlay {
+                        fittedTextLines(sizes: kSmallPlayTextSizes)
+                    } else {
+                        textLines()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if showsPlay {
                     playPauseButton(diameter: kSmallPlayDiameter)
-                } else {
-                    textLines()
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             waveform()
@@ -234,13 +249,12 @@ struct VibeWidgetView: View {
     // MARK: - Lock Screen
 
     private var circular: some View {
-        let progress = state.map { $0.progress(at: entry.date) } ?? 0
-        return Gauge(value: progress) {
+        Gauge(value: progress) {
             EmptyView()
         } currentValueLabel: {
             if state != nil {
                 Button(intent: VibePlayPauseIntent()) {
-                    Image(systemName: state?.playing == true ? "pause.fill" : "play.fill")
+                    Image(systemName: playGlyph)
                         .font(.system(size: 20))
                 }
                 .buttonStyle(.plain)
@@ -336,14 +350,14 @@ struct VibeWidgetView: View {
         .clipShape(RoundedRectangle(cornerRadius: kCornerRadius, style: .continuous))
     }
 
-    // Play/pause is a filled disc and next a bare glyph: one primary action per
-    // widget, which is what makes the row readable at a glance rather than a
-    // strip of equal controls.
+    // Play/pause is a filled disc and the skips bare glyphs: one primary
+    // action per widget, which is what makes the row readable at a glance
+    // rather than a strip of equal controls.
     private func playPauseButton(diameter: CGFloat) -> some View {
         Button(intent: VibePlayPauseIntent()) {
             ZStack {
                 Circle().fill(.white.opacity(0.92))
-                Image(systemName: entry.state?.playing == true ? "pause.fill" : "play.fill")
+                Image(systemName: playGlyph)
                     .font(.system(size: diameter * 0.4))
                     .foregroundStyle(.black.opacity(0.85))
             }
@@ -377,7 +391,6 @@ struct VibeWidgetView: View {
     // strip that narrow they are too small to aim at.
     private func waveform(lockScreen: Bool = false) -> some View {
         GeometryReader { geometry in
-            let progress = state.map { $0.progress(at: entry.date) } ?? 0
             ZStack(alignment: .leading) {
                 if lockScreen, let played = entry.played {
                     Image(uiImage: played)

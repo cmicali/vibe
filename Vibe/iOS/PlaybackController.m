@@ -170,8 +170,12 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)notifyDidRenderCurrentTrack {
     // Every path that changes which track is current comes through here, so
-    // it is where the delay taps learn the new track's tempo.
+    // it is where the delay taps learn the new track's tempo. It is also where
+    // the lock screen and the widgets learn the track, before its file opens.
+    // In the background no tick publishes sooner, and a widget's skip showed
+    // the old track for as long as the open took.
     [self refreshTempoFeed];
+    [self publishNowPlaying];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidRenderCurrentTrack:)]) {
             [observer playbackDidRenderCurrentTrack:self];
@@ -392,11 +396,6 @@ static const NSUInteger kUIUpdateHz = 3;
     [self notifyDidMoveToCurrentTrackAnimated:YES];
     [_metadataCache loadMetadataNow:track];
     [self notifyDidChangePlayState];
-    // Published here as well as at didStartPlaying. A widget button's intent
-    // returns here, and the system redraws the widget then. Published only
-    // after the open, the widget kept the old track for as long as the open
-    // took. In the background no tick republishes it sooner.
-    [self publishNowPlaying];
 }
 
 // The twin of the mac's closeFile:. TRAP: stop fires no transport or
