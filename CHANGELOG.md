@@ -1,8 +1,10 @@
 # v1.16
 
+* Added Open URL… to play an audio file from a web address
 * Fixed playback from a network share going silent when the server stops answering; it now pauses with "Connection lost"
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
+* mac: Added Cut and Paste to the Edit menu
 
 # v1.15
 

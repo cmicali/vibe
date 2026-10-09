@@ -48,7 +48,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **Each directory carries an index in an xattr**, named at init. It is on the directory, because a placeholder's attributes are as unreadable as its bytes. Its contents are the subclass's. The store caches parsed indexes in memory, since a ranged read asks for one per block, and rewrites one only when it changed. A removed directory takes its cached index with it (`forgetCachedIndexes`).
 
-**The hooks say which remote file a placeholder stands for and how to read its answers** (`RemotePlaceholderStoreInternal.h`). `remoteTargetForURL:error:` is the target the client fetches. The download and the ranged read go through `downloadTarget:…` and `readTarget:…`, which call the client by default. `versionOfMetadata:` is the client's by default. `readsByRangeAtURL:` NO means no tail read and no ranged read: the tags come once the file is local. `budgetRootURL` is where the budget counts. `downloadsDidChangeWithTotal:` is told each new total.
+**The hooks say which remote file a placeholder stands for and how to read its answers** (`RemotePlaceholderStoreInternal.h`). `remoteTargetForURL:error:` is the target the client fetches. The download and the ranged read go through `downloadTarget:…` and `readTarget:…`, which call the client by default. `versionOfMetadata:` is the client's by default. `readsByRangeAtURL:` NO means no tail read. A ranged read then answers only from a live stream that holds the whole range. Any other fails with `ENOTSUP` and sends no request. The tags come once the file is local. `budgetRootURL` is where the budget counts. `downloadsDidChangeWithTotal:` is told each new total.
 
 **The fetch streams into a hidden part file** (`NSURLUtil remotePlaceholderPartURL:`). The part file's own rules are the client's (above). The fetch publishes it while it writes it (`availabilityForURL:`, the streaming lookup, `System/AGENTS.md`): a `CloudFileAvailability` per transfer, keyed by the file's comparable path. It is made at the first accepted response, with that response's size. That is the version being downloaded, which may differ from the placeholder's. It is kept across every resend. A response naming no size streams nothing and downloads whole. The fetch's `onReadable` fires once, past 256 KB of head and short of the size. A file that completes first never fires it.
 
@@ -68,26 +68,43 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 ## Links
 
-**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). It uses the plain client, with no subclass. Its root is `<Application Support>/Links`, kept out of backups. Both apps install it as a remote backend at launch, before anything can open a file under it. The mac installs it in `applicationWillFinishLaunching:`, before the restore. iOS installs it beside the Dropbox mirror. Each root has its own backend (`System/AGENTS.md`).
+**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). It uses the plain client, with no subclass. Its root is `<Application Support>/Links`, kept out of backups. Each root has its own backend (`System/AGENTS.md`).
 
-**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`, and `open_url` resolves through each shell's own road.
+**Both apps install it at launch, before anything can open a file under it.** The mac installs it first in `applicationWillFinishLaunching:`, before the restore. iOS installs it in `application:didFinishLaunchingWithOptions:`, after the Dropbox mirror and before the scene restores a playlist.
 
 **The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkURLAcceptance`, on the link and on every redirect. A redirect can leave the local network, and a stub cannot test App Transport Security.
 
-**One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). It holds one file, the placeholder or the download, named by `VibeLinkFileName`. The name is the link's last path component when that has a playable extension, else the Content-Disposition file name. The same link opened again reuses the directory and its file. Two links never share a name.
+**The address rule is `VibeLinkURLAcceptance`.** https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost` or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7 or fe80::/10. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
+
+**TRAP: an IPv4 address is parsed as the resolver parses it** (`inet_aton`). `134744072` and `0x8.8.8.8` are 8.8.8.8, not unqualified names. Read as a name, a bare number would let plain http reach any public address.
+
+**One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). Normalized means the scheme and host lowercased and the fragment dropped. The directory holds one file, the placeholder or the download. The same link opened again reuses the directory and its file. Two links never share a name.
+
+**The file name is `VibeLinkFileName`.** It is the link's last path component, percent-decoded, when that has a playable extension. Otherwise the Content-Disposition file name wins, when there is one. The extension the audio check chose is forced on. Cleaning swaps `/` and `:` for `-`, and drops control characters and leading dots. The name is cut to 200 UTF-8 bytes. It is `Link.<extension>` when nothing survives.
 
 **The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. A shell reads a link's record by its file (`recordOfLinkFileURL:`). iOS names a link in Recents by its host.
 
 **`resolveURLString:completion:` opens a link in five steps.** It runs off main and completes on main.
-1. The address rule (`VibeLinkURLAcceptance`). A refusal fails before any request.
-2. The share-link rewrite (`VibeLinkDirectDownloadURL`). A Dropbox link gets `dl=1`. A Google Drive file link becomes `drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`, with its `resourcekey` kept.
-3. A probe of the first 16 bytes. It is a `GET`, since Dropbox answers `HEAD` with JSON. A 206 gives the size from its Content-Range, and `ranges` is YES. A 200 gives it from its Content-Length, and `ranges` is NO. With no size, icy headers or chunked audio are a live stream, and anything else has no size.
-4. The audio check and the extension (`VibeLinkAudioExtension`). It gets the link's own URL, not the redirect's, since a CDN's path carries no name. It runs before a missing size fails the link. A sign-in page often has no length, and it is still not audio.
+1. The address rule. A refusal fails before any request.
+2. The share-link rewrite (`VibeLinkDirectDownloadURL`, below).
+3. A probe of the first 16 bytes. It is a `GET`, since Dropbox answers `HEAD` with JSON. A 206 gives the size from its Content-Range, and `ranges` is YES. A 200 gives it from its Content-Length, and `ranges` is NO.
+4. The audio check and the extension (`VibeLinkAudioExtension`). The first bytes come first: `ID3` or an MPEG sync, ADTS, `fLaC`, `RIFF…WAVE`, `FORM…AIFF` or `AIFC`, the W64 GUID, `OggS`, `ftyp` or `caff`. Then the URL's extension, the Content-Disposition file name's, and the Content-Type. When the bytes name a family, such as Ogg, MP4 or WAV, the URL's or the file name's extension picks the member. HTML the bytes do not claim is not audio. The check gets the link's own URL, not the redirect's, since a CDN's path carries no name. It runs before a missing size fails the link. A sign-in page often has no length, and it is still not audio. With no size, icy headers or chunked audio are a live stream, and anything else has no size.
 5. The record and the placeholder. The size is the probe's. The mtime is Last-Modified, else the probe's time. The cache key then stays the same across the install.
 
-**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`.** A status failure carries its status under `VibeHTTPErrorStatusCodeKey`. Any other 2xx than 200 or 206 is the server's failure. A refused redirect is the insecure one. A connection failure is unreachable, or the local network's when the host is local. `+[LinkStore messageForError:]` turns the code into its `link.error` string for both shells. A disk failure is passed through as its POSIX error. Like any error outside the domain, it reads as unreachable.
+**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`** (`LinkStore.h`). The `VibeLinkErrorOf…` functions in `LinkRules.h` choose the code.
+- A refused address is insecure for plain http to a public host, and invalid otherwise.
+- A status of 401 or 403 is denied, and 404 or 410 is not found. Any other status is the server's failure, a 2xx other than 200 or 206 included. The status rides under `VibeHTTPErrorStatusCodeKey`.
+- A request with no response is insecure when App Transport Security refused it. A cancel shows nothing. Any other failure is the local network's when the host is local, and unreachable otherwise. A denied local-network permission fails as the local network's.
+- A refused redirect is insecure.
+- A missing size is a live stream or no size, and bytes that are not audio are not audio.
 
-**Google Drive answers what a link needs** (measured on a shared WAV). A range gets a 206 with Content-Range. It sends Last-Modified and no ETag. Last-Modified is then the version. The path ends in `download` and names nothing. The name comes from Content-Disposition. A private or over-quota file answers an HTML page. It fails as denied on a 403, and as not audio on a 200.
+The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through as its POSIX error. `+[LinkStore messageForError:]` turns the code into its `link.error` string for both shells, the server's with its status. An error outside the domain reads as unreachable.
+
+**Two hosts' share links are rewritten to their bytes** (`VibeLinkDirectDownloadURL`). A Dropbox link (`/scl/fi/…`, `/s/…`) gets `dl=1`, and keeps its other query items, `rlkey` among them. A Google Drive file link (`/file/d/<id>/…`, or the `id` item of `/open` or `/uc`) becomes `drive.usercontent.google.com/download?id=<id>&export=download&confirm=t` (`VibeLinkGoogleDriveDownloadURL`). `confirm=t` skips the virus-scan page a large file gets. Its `resourcekey` is kept, since older shares need it. A folder link, an empty id, or an id outside `[A-Za-z0-9_-]` is left as it is. The path is split before percent-decoding. An encoded `/` then cannot shorten an id. Every other link is fetched as typed. `docs/future/share-links.md` has the probes.
+
+**Dropbox answers what a link needs** (measured on a shared AIFF). `dl=1` answers one 302 to `<id>.dl.dropboxusercontent.com`. A range there gets a 206 with Content-Range and an ETag, and the ETag is the version. Its Content-Disposition says `filename=unspecified`. The name then comes from the link's own path, which has a playable extension.
+
+**Google Drive answers what a link needs** (measured on a shared WAV). A range gets a 206 with Content-Range. It sends Last-Modified and no ETag. Last-Modified is then the version. The path ends in `download` and names nothing. The name comes from Content-Disposition. A private or over-quota file answers an HTML page. It fails as denied on a 403, and as not audio on a 200. Drive's `/u/<n>/` paths and `docs.google.com` links are not rewritten.
 
 **An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
 
@@ -97,10 +114,12 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **A tag read checks the record.** An answer of another size, or of another version, fails with `VibeHTTPErrorVersionChanged`, and the parse is retried later. A record with no version is checked by its size alone.
 
-**The CDN case is one rule in three places** (`VibeHTTPIsSameFileUnderAnotherETag`). An answer under another ETag with the record's size and Last-Modified, both stated, is the same file. The client applies it to a resend, and the store to an open again and to a tag read. Each acceptance is logged. The tail window compares versions only. Under another ETag it is dropped, and reads there wait for the download.
+**The CDN case is one rule in three places** (`VibeHTTPIsSameFileUnderAnotherETag`). The client applies it to a resend (above). The store applies it to an open again and to a tag read. An answer under another ETag with the record's size and Last-Modified, both stated, is the same file. Each acceptance is logged. The tail window compares versions only. Under another ETag it is dropped, and reads there wait for the download.
 
 **A server without ranges downloads whole.** It gets no tail read and no ranged tag read. Its tags come once the file is local. A resend still asks for a range, and a 200 to it skips the bytes written.
 
-**The budget is `kVibeLinkDownloadBudgetBytes`, 2 GB, with no setting.** Past it the oldest downloads go back to placeholders, never the file just fetched.
+**The budget is `kVibeLinkDownloadBudgetBytes`, 2 GB, with no setting.** The store's eviction applies (above).
 
-**Pruning deletes each link not opened for 30 days that nothing keeps** (`pruneKeepingURLs:`, `VibeLinkDirectoriesToPrune`). A directory with no record counts as long unopened. A shell calls it once per launch, after the restore, off main. The mac keeps LastPlaylist and the recent documents. iOS keeps the FolderSession base, its additions and Recents. **A saved M3U naming a pruned link finds that entry missing.**
+**Pruning deletes each link not opened for 30 days that nothing keeps** (`pruneKeepingURLs:`, `VibeLinkDirectoriesToPrune`). A directory with no record counts as long unopened. A shell calls it once per launch, off main, after the launch's restore. It keeps the playlist's rows as the launch restored them and the recent items (`VibeLinkKeptURLs`). On the mac those are the recent documents. On iOS they are Recents. **A saved M3U naming a pruned link finds that entry missing.**
+
+**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`. `open_url` resolves a link through each shell's own Open URL road.

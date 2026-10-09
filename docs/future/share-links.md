@@ -1,6 +1,6 @@
 # Vibe links: share a remote track, open it in Vibe
 
-**Status: planned 2026-10-08. Phase 0 is done but for two probes, and its results are under Phases.** The SoundCloud token probe waits on decision 2, and Apple's CDN check waits on Phase 1's deploy. No app code is built. This is the plan and the decisions it needs.
+**Status: planned 2026-10-08. The app half of Phases 2 and 3 is built as Open URL, on both platforms.** It plays an http or https link through the shared HTTP transfer and a `Links` root. It rewrites Dropbox and Google Drive share links to their bytes (`System/Remote/AGENTS.md`). What remains is the link service and its landing page (Phase 1), the `vibe://` scheme and universal links, and SoundCloud (Phase 4). Phase 0 is done but for two probes, and its results are under Phases. The SoundCloud token probe waits on decision 2. Apple's CDN check waits on Phase 1's deploy. The rest of this doc is the plan and the decisions it needs.
 
 The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox share link, a direct file URL, or a SoundCloud track. The site answers a short link, `https://vibeplayer.app/p/<id>`. A person who taps it gets Vibe, open on that track, streaming it from where it lives. Nobody downloads a file first.
 

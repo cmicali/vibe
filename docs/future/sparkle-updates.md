@@ -19,7 +19,7 @@ Written to be executed phase by phase. Each phase builds, passes `make test`, an
 
 - Both Mac channels archive the same `Release` configuration with the same entitlements (`project.yml`'s `Vibe` target: `ENABLE_APP_SANDBOX: YES`, `Vibe/Mac/App/Vibe.entitlements`); `scripts/release.sh` and `scripts/release-appstore.sh` differ only in the export method. `asc_archive` (`scripts/asc-build-lib.sh`) hardcodes `-configuration Release`.
 - No compile-time or runtime marker separates the two channels.
-- The entitlements carry no network access. Sparkle will be the app's first network client.
+- Both channels carry `com.apple.security.network.client`, for Open URL. Sparkle will be the app's second network client.
 - `release.sh` produces, per architecture set (universal, arm64-only), a stapled app, a stapled zip made after stapling, and a stapled disk image. `github-release.sh` verifies and attaches them, and `--prerelease` already keeps a beta off the website.
 - Current direct-download users have no updater, so they reach the first Sparkle build by downloading it once by hand.
 
@@ -51,7 +51,7 @@ The split both plans need. No behavior change.
   - `SUPublicEDKey` = the public half of the signing key (Phase 4).
   - `SUEnableInstallerLauncherService` = `YES`. Required while the app is sandboxed.
 - A direct-only entitlements file (or per-configuration entitlements) adding, for the sandboxed direct build:
-  - `com.apple.security.network.client`, so the app fetches the feed and the update itself. This avoids Sparkle's separate Downloader XPC service.
+  - Nothing for the network. The shared entitlements already carry `com.apple.security.network.client`, for Open URL. The app fetches the feed and the update itself. This avoids Sparkle's separate Downloader XPC service.
   - `com.apple.security.temporary-exception.mach-lookup.global-name` with `$(PRODUCT_BUNDLE_IDENTIFIER)-spks` and `$(PRODUCT_BUNDLE_IDENTIFIER)-spki`, Sparkle's installer connection and status services.
   The App Store entitlements stay exactly as they are. Temporary exceptions are accepted for Developer ID; they are the reason this file must never reach the `AppStore` configuration.
 - **Signing.** The Developer ID export re-signs nested code. Confirm on the exported app that Sparkle's `Autoupdate`, `Updater.app`, and the Installer XPC service are signed with the Developer ID, hardened, and timestamped (`codesign -dvvv` on each), and that notarization accepts the app. If the export does not re-sign them correctly, `release.sh` signs them explicitly, inside out, before the app, as Sparkle's sandboxing guide lays out.
@@ -93,7 +93,7 @@ Zero new files and zero new types: the updater belongs to the application object
 - **A sandboxed Sparkle install is the fragile configuration.** The XPC services, their signatures, and the mach-lookup entitlements must all line up, and the failure is silent until an update is attempted. Phase 3's verification runs against the *exported, notarized* build at least once, not only a local Debug build.
 - **Translocation.** A quarantined app run from the mounted disk image or the Downloads folder is translocated and cannot be updated in place; Sparkle refuses and says so. Nothing to build, but support will see it.
 - **First adoption is manual.** The release that introduces Sparkle must be announced on the website, since no installed direct build can be told about it.
-- **App Store leakage.** The `release-appstore.sh` preflight (no Sparkle binary, no `SU*` keys, no network or temporary-exception entitlements) is what keeps a `project.yml` mistake from becoming a rejection.
+- **App Store leakage.** The `release-appstore.sh` preflight (no Sparkle binary, no `SU*` keys, no temporary-exception entitlements) is what keeps a `project.yml` mistake from becoming a rejection.
 
 ## Complexity report (expected)
 

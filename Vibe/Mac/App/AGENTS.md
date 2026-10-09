@@ -8,7 +8,7 @@ The bootstrap starts outside: `main.m` at the repo root creates the `AppDelegate
 
 ## Opening files is a funnel, not an event
 
-Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a drop on the window, argv — lands in `AppDelegate` and comes out as one playlist. Two pieces make that true, and they are two because the OS delivers opens in two different broken shapes. Both are tested.
+Every way a file can arrive lands in `AppDelegate` and comes out as one playlist: a Finder double-click, `⌘O`, Open Recent, Open URL, a drop on the window, argv. Two pieces make that true, and they are two because the OS delivers opens in two different broken shapes. Both are tested.
 
 - **`OpenBurstCoalescer`** — Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays immediately, because a double-clicked file must not wait out a delay; later batches inside a **0.3-second quiet period** are appended instead of replacing.
 - **`OpenRequestCoordinator`** — expansion (the folder walk, the CUE/M3U read) runs concurrently, so results come back out of order. One instance serves the whole app, shared with the window's drop funnel. It buffers appends within the surviving burst and lets a newer **deliberate** replacement supersede every unfinished older result. An expansion that never finishes — a mount that stops answering — holds a later finished batch at most **ten seconds** before it is abandoned, or one wedged batch would swallow every later batch in its burst.
@@ -16,6 +16,8 @@ Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a dr
 **Open URL starts from text.** `openLink:` (⌘U) shows an `NSAlert` with a text field as a sheet on the player window. A second ⌘U brings the same sheet forward. Nothing reads the pasteboard unless the user pastes. Open with a blank field does nothing (`VibeLinkTextIsBlank`), the same as Cancel. Otherwise `openLinkString:completion:` takes a replace request at once, then `LinkStore` resolves the link off main. The file opens through `openURLsWithRestoredAccess:token:` as a single-file replace. A failure finishes the request with no rows, and a loaded playlist stays as it is. The shell then shows an alert titled `link.error.title` whose message is `+[LinkStore messageForError:]`.
 
 **The Links backend is installed first in `applicationWillFinishLaunching:`**, before the menu, the restore and any open. A restored link row is then a streaming placeholder from the start (`System/Remote/AGENTS.md`).
+
+**The outgoing network entitlement is for Open URL alone** (`ENABLE_OUTGOING_NETWORK_CONNECTIONS`, `project.yml`). Nothing else in the mac app makes a request. App Transport Security allows plain http only on the local network (`NSAllowsLocalNetworking`). `VibeLinkURLAcceptance` draws the same line before any request. macOS 15 and later ask the user before the first request to a local host (`NSLocalNetworkUsageDescription`).
 
 `⌘O`, Open Recent and window drops enter through `openDeliberateURLs:appending:` and bypass the burst, so a deliberate action ends a Launch Services burst in progress rather than joining it. Drops are the one deliberate open that carries its own append decision.
 

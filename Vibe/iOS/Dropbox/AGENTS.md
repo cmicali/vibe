@@ -1,6 +1,6 @@
 # Dropbox (iOS)
 
-Dropbox through its HTTP API, not its Files provider: the provider lists a folder only once Dropbox has, so search and browsing came back empty or stalled. No SDK — six endpoints over `NSURLSession`, all Objective-C. The shell is `../AGENTS.md`; the materialization backend it plugs into is `System/AGENTS.md`'s remote fetch.
+Dropbox through its HTTP API, not its Files provider: the provider lists a folder only once Dropbox has, so search and browsing came back empty or stalled. No SDK — six endpoints over `NSURLSession`, all Objective-C. The shell is `../AGENTS.md`. The mirror is a remote fetch backend (`System/AGENTS.md`). `VibeiOSAppDelegate` installs it at launch with `installAsRemoteBackend`, beside the Links store.
 
 | File | Owns |
 | --- | --- |
