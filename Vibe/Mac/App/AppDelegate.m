@@ -244,6 +244,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 // a newer replacing open, opens nothing.
 - (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append token:(OpenRequestToken *)token {
     __weak AppDelegate *weakSelf = self;
+    // Held while the links resolve. A later open that finishes first must
+    // not give up on the drop at the straggler deadline.
+    [OpenRequestCoordinator.sharedCoordinator holdRequest:token];
     [self.mainPlayerController beginLinkResolveFeedbackAppending:append];
     __block BOOL cancelled = NO;
     __block dispatch_block_t cancelResolve = nil;
@@ -294,9 +297,16 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                     return;
                 }
                 [strongSelf->_linkOpenCancels removeObjectIdenticalTo:cancel];
-                if (!current || files.count == 0) {
+                OpenRequestCoordinator *coordinator = OpenRequestCoordinator.sharedCoordinator;
+                [coordinator releaseRequest:token];
+                if (![coordinator isRequestCurrent:token]) {
+                    // Superseded: nothing delivers for this drop, so its
+                    // shimmer ends here.
+                    [strongSelf endLinkResolveFeedbackIfIdle];
+                }
+                else if (!current || files.count == 0) {
                     // The empty delivery, as an Open URL failure's.
-                    [OpenRequestCoordinator.sharedCoordinator finishRequest:token rows:@[] folderCount:0];
+                    [coordinator finishRequest:token rows:@[] folderCount:0];
                 }
                 else {
                     [strongSelf openFiles:files token:token];
@@ -349,8 +359,11 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 - (dispatch_block_t)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
     OpenRequestToken *token = [self beginOpenRequestAppending:NO fromURLs:@[]];
+    // Held while the link resolves, as a drop's is.
+    [OpenRequestCoordinator.sharedCoordinator holdRequest:token];
     __weak AppDelegate *weakSelf = self;
     return [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
+        [OpenRequestCoordinator.sharedCoordinator releaseRequest:token];
         if (file) {
             [weakSelf openURLsWithRestoredAccess:@[file] token:token];
         }
