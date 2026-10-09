@@ -2,7 +2,7 @@
 //  VibeWidgetIntents.swift
 //  Vibe (iOS) and VibeWidget
 //
-//  The widget's three buttons, COMPILED INTO BOTH TARGETS: the extension names
+//  The widget's buttons, COMPILED INTO BOTH TARGETS: the extension names
 //  the types, the app owns the bodies. They are AudioPlaybackIntents, which
 //  the system performs in the APP's process (launching it in the background)
 //  and lets start audio; a plain AppIntent would run in the extension.
@@ -27,8 +27,8 @@ import AppIntents
 // TRAP: appintentsmetadataprocessor extracts a title STATICALLY and accepts
 // only a literal or a direct initializer, so these bypass VibeStrings.h's
 // macros. Keys and English defaults MUST match their STR_WIDGET_INTENT_*
-// entries, which put them in the catalog. supportedModes is read the same way,
-// hence three literals rather than one constant.
+// entries, which put them in the catalog. supportedModes is read the same way.
+// So each intent spells it out as a literal rather than sharing one constant.
 //
 // TRAP: inside the appex these resolve against the APPEX's bundle, hence
 // VibeWidget/Localizable.xcstrings, the widget.* subset `make strings`
@@ -39,9 +39,11 @@ import AppIntents
 // Noise: the extension logs "Failed to fetch metadata for <intent>" per button
 // per render; the intents still perform.
 
-// Widgets get discrete hits only, so seek zones replace a scrub; 32 is about
-// 6 seconds of a three-minute track.
-let kVibeSeekZoneCount = 32
+// Widgets get discrete hits only, so seek zones replace a scrub. 16 is about
+// 11 seconds of a three-minute track. TRAP: each zone is a button the system
+// archives with every timeline entry. On a phone, 32 zones cost a medium
+// widget about 40ms an entry, a second for its 24 entries, and 16 about 24ms.
+let kVibeSeekZoneCount = 16
 
 struct VibePlayPauseIntent: AudioPlaybackIntent {
     static var title: LocalizedStringResource =
@@ -64,6 +66,19 @@ struct VibeNextIntent: AudioPlaybackIntent {
     func perform() async throws -> some IntentResult {
         #if VIBE_APP
         try await VibeWidgetTransport.perform(self) { $0.next() }
+        #endif
+        return .result()
+    }
+}
+
+struct VibePreviousIntent: AudioPlaybackIntent {
+    static var title: LocalizedStringResource =
+        LocalizedStringResource("widget.intent.previous", defaultValue: "Previous Track")
+    static var supportedModes: IntentModes = [.background, .foreground(.dynamic)]
+
+    func perform() async throws -> some IntentResult {
+        #if VIBE_APP
+        try await VibeWidgetTransport.perform(self) { $0.previous() }
         #endif
         return .result()
     }
