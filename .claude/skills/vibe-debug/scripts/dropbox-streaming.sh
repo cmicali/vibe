@@ -115,7 +115,8 @@ fixture() {   # <transfer-seconds> <file...>
         cp -c "$FIX/source/$f" "$FIX/$name/$clone"
         F0="${F0:-$clone}"
     done
-    dbg set_fake_dropbox "$FIX" "$seconds" >/dev/null || { echo "set_fake_dropbox failed" >&2; exit 1; }
+    local reply
+    reply="$(dbg set_fake_dropbox "$FIX" "$seconds")" || { echo "set_fake_dropbox failed: $reply" >&2; exit 1; }
     ACCOUNT="$(dbg dump_dropbox | jq -r .accountPath)"
     # Earlier runs' mirror folders, once: never one a transfer may still write.
     [ "$FIXTURES" = 1 ] && rm -rf "$ACCOUNT"/run-*
@@ -480,7 +481,13 @@ scenario_scrub-buffering() {
 # no-progress deadline, paused in place; resume fetches afresh and plays on.
 # Then, in a fresh folder, a stall lifted inside the deadline, which releases.
 scenario_stall() {
-    dbg set_audio_loading timeout-baseline=6 timeout-silence=6 >/dev/null
+    # Unapplied, the 60 s default holds through every wait below.
+    local reply
+    if ! reply="$(dbg set_audio_loading timeout-baseline=6 timeout-silence=6)"; then
+        echo "    FAIL  set_audio_loading: $reply"
+        FAILED+=("$SCENARIO: set_audio_loading: $reply")
+        return
+    fi
     fixture 20 long.wav short.wav
     dbg fake_dropbox_fault stall after=3M file=$F0 >/dev/null
     open_folder "$FOLDER"
@@ -705,7 +712,10 @@ if [ -z "$CLAIMS" ] && [ "$JOBS" -gt 1 ]; then
     jq -s '{scenarios: (map(.scenarios) | add), failed: (map(.failed) | add)}' "$OUT"/summary-*.json > "$OUT/summary.json"
     echo "summary: $OUT/summary.json"
     MISSING="$(jq -r --arg all "$SCENARIOS" '($all | split(" ") | map(select(. != ""))) - (.scenarios | keys) | join(" ")' "$OUT/summary.json")"
-    [ -z "$MISSING" ] || echo "NOT RUN (a worker died): $MISSING"
+    for s in $MISSING; do
+        echo "NOT RUN (a worker died): $s"
+        [ -f "$OUT/$s.out" ] && sed 's/^/    /' "$OUT/$s.out"
+    done
     if [ "$(jq '.failed | length' "$OUT/summary.json")" -gt 0 ] || [ -n "$MISSING" ]; then
         jq -r '.failed[] | "FAILED: \(.)"' "$OUT/summary.json"
         exit 1
