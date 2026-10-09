@@ -251,18 +251,12 @@ struct VibeWidgetView: View {
         .gaugeStyle(.accessoryCircularCapacity)
     }
 
-    // The artist line is small so the waveform strip keeps some height.
+    // One small line of text, so the waveform gets most of the height.
     private var rectangular: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(state?.title ?? "Vibe")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 4) {
+            oneLine
+                .font(.footnote)
                 .lineLimit(1)
-            if let artist = state?.artist, !artist.isEmpty {
-                Text(artist)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
             if state != nil {
                 waveform(lockScreen: true)
                     .frame(maxHeight: .infinity)
@@ -273,14 +267,20 @@ struct VibeWidgetView: View {
 
     private var inline: some View {
         Label {
-            if let state, let artist = state.artist, !artist.isEmpty {
-                Text(verbatim: "\(state.title ?? "") – \(artist)")
-            } else {
-                Text(verbatim: state?.title ?? "Vibe")
-            }
+            oneLine
         } icon: {
             Image(systemName: "waveform")
         }
+    }
+
+    // The title, then the artist in the secondary style. The inline family
+    // draws it plain.
+    private var oneLine: Text {
+        guard let state else { return Text(verbatim: "Vibe") }
+        let title = Text(verbatim: state.title ?? "").bold()
+        guard let artist = state.artist, !artist.isEmpty else { return title }
+        let rest = Text(verbatim: " – \(artist)").foregroundStyle(.secondary)
+        return Text("\(title)\(rest)")
     }
 
     // MARK: - Shared pieces
@@ -370,25 +370,27 @@ struct VibeWidgetView: View {
     // the played one is revealed to the playhead. That is what lets the
     // playhead move without the app re-rendering anything per entry.
     //
-    // On the Lock Screen each image is only a shape. The system tints it, so
-    // the played half is primary and the unplayed half secondary. It has no
-    // seek zones there: 32 of them across a strip that narrow are too small to
-    // aim at.
+    // On the Lock Screen the image is only a shape, which the system tints.
+    // Both halves draw the PLAYED image, solid up to the playhead and dim after
+    // it. TRAP: the unplayed image carries its theme's low resting alpha, so as
+    // a shape it all but vanished. There are no seek zones there: 32 of them
+    // across a strip that narrow are too small to aim at.
     private func waveform(lockScreen: Bool = false) -> some View {
         GeometryReader { geometry in
             let progress = state.map { $0.progress(at: entry.date) } ?? 0
             ZStack(alignment: .leading) {
-                if let unplayed = entry.unplayed {
-                    Image(uiImage: unplayed)
+                if lockScreen, let played = entry.played {
+                    Image(uiImage: played)
                         .resizable()
-                        .renderingMode(lockScreen ? .template : .original)
-                        .foregroundStyle(.secondary)
+                        .renderingMode(.template)
+                        .opacity(0.35)
+                } else if let unplayed = entry.unplayed {
+                    Image(uiImage: unplayed).resizable()
                 }
                 if let played = entry.played {
                     Image(uiImage: played)
                         .resizable()
                         .renderingMode(lockScreen ? .template : .original)
-                        .foregroundStyle(.primary)
                         .mask(alignment: .leading) {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }
