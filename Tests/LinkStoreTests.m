@@ -1,11 +1,11 @@
 //
 //  LinkStoreTests.m
 //
-//  The Links backend over the plain HTTPTransferClient, HTTPStub and a
+//  The Links backend over the plain HTTPTransferClient, HTTPStub, and a
 //  per-test temp root: what each probe answer opens as, the address rule on
 //  the link and its redirects, the record and its reuse, the stream, the
 //  resends and kept parts, the server that ignores ranges, the budget, the
-//  pruning and the backend beside another root.
+//  pruning, and the backend beside another root.
 //
 
 #import <XCTest/XCTest.h>

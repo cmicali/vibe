@@ -75,7 +75,7 @@ static inline NSString *VibeAppName(void) {
 // ("Undo Convert to FLAC"), which draws the localized prefix from AppKit and
 // the action name from STR_MENU_CONVERT_TO_FLAC.
 
-#define STR_MENU_EDIT                      NSLS(@"menu.edit",                      @"Edit",                 @"Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist and Select All.")
+#define STR_MENU_EDIT                      NSLS(@"menu.edit",                      @"Edit",                 @"Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist, and Select All.")
 #define STR_MENU_EDIT_UNDO                 NSLS(@"menu.edit.undo",                 @"Undo",                 @"Edit menu item: undoes the last action. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_REDO                 NSLS(@"menu.edit.redo",                 @"Redo",                 @"Edit menu item: redoes the last undone action. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_CUT                  NSLS(@"menu.edit.cut",                  @"Cut",                  @"Edit menu item: cuts the selected text in a text field, such as the Open URL address. macOS uses this same name in every app.")

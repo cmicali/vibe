@@ -776,7 +776,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
 }
 
 // Copy Files and a drag out of the playlist hand no remote placeholder to
-// another app. A download under the root, a file elsewhere and an unreadable
+// another app. A download under the root, a file elsewhere, and an unreadable
 // file elsewhere are handed out.
 - (void)testOnlyARemotePlaceholderIsNeverHandedOut {
     NSURL *placeholder = [self makeFile:@"remote/aa/link.mp3"];

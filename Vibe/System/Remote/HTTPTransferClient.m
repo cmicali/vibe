@@ -37,7 +37,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 
 #pragma mark - Transfer state
 
-// A download, a ranged read or a probe in flight. The cancel flag, the task
+// A download, a ranged read, or a probe in flight. The cancel flag, the task,
 // and bytesWritten are under the client's transfer lock; the rest belongs to
 // whichever step runs, and attempts never overlap.
 @interface HTTPTransfer : NSObject
@@ -58,7 +58,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 @property (nonatomic, nullable) NSHTTPURLResponse *response;
 @property (nonatomic, nullable) NSMutableData *received;
 // A download's only: the file, made at the first accepted response, and that
-// response's metadata, version and size span every attempt; bytesWritten is
+// response's metadata, version, and size span every attempt; bytesWritten is
 // the resume offset. A read's metadata is its answer's. The rest is per
 // response.
 @property (nonatomic, copy, nullable) NSURL *destination;
@@ -726,7 +726,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
     completionHandler(nil);
 }
 
-// Each session's delegate queue is serial, so a transfer's response, data and
+// Each session's delegate queue is serial, so a transfer's response, data, and
 // completion callbacks never overlap, and it alone writes the file. A task
 // with no transfer is a subclass's own call, answered by its handler.
 - (void)URLSession:(NSURLSession *)session

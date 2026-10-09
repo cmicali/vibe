@@ -888,7 +888,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                                                            id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(VibeFakeHTTP.statistics);
             }),
-            // The value is the kind's own: drop, etag-change and stall take
+            // The value is the kind's own: drop, etag-change, and stall take
             // bytes (after=), rate bytes per second, latency seconds, status
             // a code. Byte counts take K and M.
             VibeDebugCmd(@"fake_http_fault <stall|drop|etag-change|rate|latency|no-range|no-length|icy|status|html"

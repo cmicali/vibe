@@ -67,8 +67,8 @@ static inline BOOL VibeLinkIPv6IsLocal(struct in6_addr address) {
 }
 
 // Whether a host is on the local network: localhost, a name ending in .local,
-// .localhost or .test, an unqualified name, or an address in a private,
-// loopback or link-local range. Takes NSURL.host as it comes, with or without
+// .localhost, or .test, an unqualified name, or an address in a private,
+// loopback, or link-local range. Takes NSURL.host as it comes, with or without
 // an IPv6 literal's brackets. It also picks the local-network error message.
 //
 // TRAP: an IPv4 address is parsed as the resolver parses it (inet_aton).
@@ -357,7 +357,7 @@ static const NSUInteger kVibeLinkNameMaxBytes = 200;
 // one. Google Drive's path ends in "view" or "download" and names nothing.
 // A playable extension the name already carries is replaced. Cleaning swaps
 // '/' and ':' for '-' and drops C0 and C1 control characters, the bidi
-// embeddings, overrides and isolates, and leading dots. An override would
+// embeddings, overrides, and isolates, and leading dots. An override would
 // show "mp3.exe" as "exe.3pm". The whole name is cut to 200 UTF-8 bytes on a character boundary.
 // "Link.<extension>" when nothing survives.
 static inline NSString *VibeLinkFileName(NSURL *url,

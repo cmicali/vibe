@@ -18788,7 +18788,7 @@
       "extractionState": "manual"
     },
     "menu.edit": {
-      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist and Select All.",
+      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist, and Select All.",
       "localizations": {
         "bg": {
           "stringUnit": {

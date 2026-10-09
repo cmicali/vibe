@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The hooks a subclass overrides, and what a subclass and the tests reach
-//  past the public calls: the disk queue, the directory index, the downloads
+//  past the public calls: the disk queue, the directory index, the downloads,
 //  and the budget.
 //
 
@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
               error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
 // Serial: every change to the store's directories, so two changes to one
-// directory never interleave. The downloads are counted, evicted and removed
+// directory never interleave. The downloads are counted, evicted, and removed
 // on it too.
 @property (nonatomic, readonly) dispatch_queue_t diskQueue;
 

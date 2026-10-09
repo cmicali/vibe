@@ -7,8 +7,8 @@
 //  Dropbox folder exists here only once something listed it, as a directory
 //  holding a placeholder per audio file (NSURLUtil's remote placeholders: the
 //  real size and mtime, no readable bytes) and the CUE sheets beside them.
-//  The placeholders, their fetch, the ranged read and the download budget
-//  are RemotePlaceholderStore's. This class lists, names and searches.
+//  The placeholders, their fetch, the ranged read, and the download budget
+//  are RemotePlaceholderStore's. This class lists, names, and searches.
 //
 //  Paths are resolved component by component, case-insensitively, against
 //  what is on disk, because Dropbox paths are case-insensitive and a

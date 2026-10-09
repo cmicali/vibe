@@ -5,7 +5,7 @@
 //  A stand-in web server for Open URL: a directory on disk answers as
 //  https://fake.vibe.test/<path> and http://fake.local/<path>, over the
 //  client's own HTTP boundary (an NSURLProtocol on its sessions). The link's
-//  probe, its stream, its tail and tag reads and every resend run unchanged
+//  probe, its stream, its tail and tag reads, and every resend run unchanged
 //  against it, with no network. Faults script what real servers do.
 //
 
@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 //
 // Each file answers as a server with ranges does: a 206 with Content-Range,
 // a 416 past its end, a 200 to a request with no Range. Content-Length,
-// a strong ETag and Last-Modified come from its size and mtime, and its
+// a strong ETag, and Last-Modified come from its size and mtime, and its
 // Content-Type from its extension. A body from an open range (none, or
 // `bytes=N-`) is paced in 64 KB pieces. The whole file takes about
 // transferSeconds (0: at once), or goes at a `rate` fault's bytes per
@@ -87,7 +87,7 @@ NS_ASSUME_NONNULL_BEGIN
 // {fake, directory, transferSeconds, requests (the count since install),
 // faults, transfers (the paced bodies delivering now), log (the last
 // requests: seq, t, host, path, range, status, etag, size, delivered,
-// firstByte, finished, faults, outcome)}. t, firstByte and finished are
+// firstByte, finished, faults, outcome)}. t, firstByte, and finished are
 // seconds since install, stamped where the fake runs.
 + (NSDictionary *)statistics;
 

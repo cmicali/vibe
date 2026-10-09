@@ -230,7 +230,7 @@ typedef struct {
         refusal = (VibeFakeHTTPAnswer){404, @{@"Content-Type": @"text/plain"},
                                        [@"Not Found" dataUsingEncoding:NSUTF8StringEncoding]};
     }
-    // A shape a server with no ranges, no length or a compressor answers in.
+    // A shape a server with no ranges, no length, or a compressor answers in.
     NSString *shape = nil;
     for (NSString *kind in @[@"icy", @"no-length", @"gzip", @"no-range"]) {
         if (!refusal.status && (fault = VibeFakeHTTPFault(kind, name))) {

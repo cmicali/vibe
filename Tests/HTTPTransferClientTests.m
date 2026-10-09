@@ -4,7 +4,7 @@
 //  The plain-HTTP client over HTTPStub and a per-test temp directory: the
 //  request defaults, the probe, the ranged read, the failure ladder, the
 //  allowsURL check on requests and redirects, and the download's resends,
-//  version pin, kept part and length check.
+//  version pin, kept part, and length check.
 //
 
 #import <XCTest/XCTest.h>

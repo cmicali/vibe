@@ -68,7 +68,7 @@ static inline int64_t VibeHTTPParseLength(NSString *_Nullable text) {
     return value;
 }
 
-// A Content-Range's parts: "bytes 0-15/4000" is 0, 15 and 4000, and
+// A Content-Range's parts: "bytes 0-15/4000" is 0, 15, and 4000, and
 // "bytes */4000" has no range, -1 for first and last. A total of "*" is -1.
 // NO when the header is absent or malformed, a range outside its own total
 // included.

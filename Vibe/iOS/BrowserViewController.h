@@ -53,7 +53,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Open URL: the typed link resolved (LinkStore), then its file opened alone
 // through confirmReplacing…, which asks when the playlist was built by hand.
 // It asks over what is on top of anchor's window when the link settles. The
-// prompt, the add sheet or the card may have come or gone by then. The
+// prompt, the add sheet, or the card may have come or gone by then. The
 // replace token is taken now, so a later open supersedes it. A link that
 // fails leaves the playlist as it is. Never the inbox road: it does not
 // persist. Completion on main, with exactly one of file and error.

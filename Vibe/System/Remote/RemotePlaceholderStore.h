@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  Remote files kept as local placeholders under one root, so everything
-//  that plays, tags, waveforms and caches a file works on them unchanged. A
+//  that plays, tags, waveforms, and caches a file works on them unchanged. A
 //  placeholder is NSURLUtil's remote placeholder: the real size and mtime,
 //  no readable bytes. Playing one downloads it through CloudFileMaterializer's
 //  remote fetch, which is fetchPlaceholderAtURL:… here, and the bytes replace
@@ -50,7 +50,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) long long downloadBudget;
 
 // Installs this store as CloudFileMaterializer's backend for rootURL: the
-// fetch, the ranged read and the streaming lookup below. Before anything
+// fetch, the ranged read, and the streaming lookup below. Before anything
 // opens a file under the root.
 - (void)installAsRemoteBackend;
 

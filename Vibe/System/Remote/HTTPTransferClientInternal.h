@@ -49,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
                        fail:(void (^)(NSError *error))fail;
 
 // An accepted response's metadata, as the completions carry it. The default
-// is etag, lastModified, contentType, contentDisposition and url, and size
+// is etag, lastModified, contentType, contentDisposition, and url, and size
 // (VibeHTTPSizeFromHeaders) when the headers state it.
 - (nullable NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response;
 // What names the metadata's bytes, nil for nothing: no resend continues a

@@ -24,7 +24,7 @@ In the player window every remappable item's equivalent is **display and fallbac
 
 ## Edit
 
-**Copy Name, Copy File and Remove from Playlist explicitly target the player controller. Undo, Redo (below), Cut, Paste and Select All are nil-targeted.** Select All so ⌘A reaches whichever list has keyboard focus (the granted-folder list in Settings > Files). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar and `NSTableView` never claims it itself. A table reachable by the chain must answer honestly, since `NSTableView` responds to the selector whether or not it can act: `PlaylistTableView.validateMenuItem:` answers `allowsMultipleSelection`.
+**Copy Name, Copy File, and Remove from Playlist explicitly target the player controller. Undo, Redo (below), Cut, Paste, and Select All are nil-targeted.** Select All so ⌘A reaches whichever list has keyboard focus (the granted-folder list in Settings > Files). Without a menu item carrying that key equivalent nothing sends `selectAll:` at all: AppKit dispatches ⌘A through the menu bar and `NSTableView` never claims it itself. A table reachable by the chain must answer honestly, since `NSTableView` responds to the selector whether or not it can act: `PlaylistTableView.validateMenuItem:` answers `allowsMultipleSelection`.
 
 **Cut and Paste exist for text fields**, such as the Open URL sheet and Settings' fields. They sit in Apple's order around the two Copy items. Being nil-targeted, they reach the focused field and stay disabled anywhere else. Nothing reads the pasteboard unless the user pastes.
 

@@ -182,7 +182,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     }];
 }
 
-// The resolver reads a bare number, a short form and hex as IPv4 addresses.
+// The resolver reads a bare number, a short form, and hex as IPv4 addresses.
 - (void)testANumericHostIsReadAsTheResolverReadsIt {
     XCTAssertEqual(Accept(@"http://134744072/a.mp3"), VibeLinkErrorInsecure);   // 8.8.8.8
     XCTAssertEqual(Accept(@"http://0x8.8.8.8/a.mp3"), VibeLinkErrorInsecure);
@@ -956,7 +956,7 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
 }
 
 // A disk failure is passed through as its POSIX error. It, a code from
-// another domain, a code no shell names and nil all read as unreachable.
+// another domain, a code no shell names, and nil all read as unreachable.
 - (void)testAnythingElseReadsAsUnreachable {
     NSError *posix = [NSError errorWithDomain:NSPOSIXErrorDomain code:VibeLinkErrorDenied userInfo:nil];
     XCTAssertEqualObjects([LinkStore messageForError:posix], STR_LINK_ERROR_UNREACHABLE);

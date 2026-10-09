@@ -4,13 +4,13 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 | File | Owns |
 | --- | --- |
-| `HTTPTransferClient` | the streamed download, the ranged read and the probe. The resends, the kept part and the version pin |
+| `HTTPTransferClient` | the streamed download, the ranged read, and the probe. The resends, the kept part, and the version pin |
 | `HTTPTransferClientInternal.h` | the hooks a subclass overrides, and the seams the tests and the debug channel use (`useSessionConfiguration:`, `retryDelayScale`) |
 | `HTTPTransferRules.h` | the retry delay, the connection errors, and the size and version a response's headers state. Tested (`HTTPTransferRulesTests`) |
 | `RemotePlaceholderStore` | remote files as local placeholders under one root: the placeholder and the install, the directory index, the fetch that streams, the ranged read, the download budget, and the backend it installs. Tested (`RemotePlaceholderStoreTests`) |
-| `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads and the budget |
+| `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads, and the budget |
 | `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
-| `LinkRules.h` | the address rule, the audio check, the names, the Dropbox and Google Drive share-link rewrites, the pruning choice and the failures. Tested (`LinkRulesTests`) |
+| `LinkRules.h` | the address rule, the audio check, the names, the Dropbox and Google Drive share-link rewrites, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
 
 `DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store over the plain client (below).
 
@@ -46,7 +46,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 ## The placeholder store
 
-**A placeholder is a sparse file of the remote size and mtime with no permissions** (`writePlaceholderAtURL:…`, `NSURLUtil`'s remote placeholder). Its stat is the real one, and a direct open fails rather than reading zeros. It is written whole and renamed into place. Downloaded bytes are renamed into place too (`installPart:…`). No reader ever sees either half made. **The install's mtime keeps the cache key.** The key is size, mtime and path (`NSURL+Hash`), so the cached tags and waveform match the downloaded file. The default mtime is the placeholder's. `DropboxMirror` takes its response's `server_modified`.
+**A placeholder is a sparse file of the remote size and mtime with no permissions** (`writePlaceholderAtURL:…`, `NSURLUtil`'s remote placeholder). Its stat is the real one, and a direct open fails rather than reading zeros. It is written whole and renamed into place. Downloaded bytes are renamed into place too (`installPart:…`). No reader ever sees either half made. **The install's mtime keeps the cache key.** The key is size, mtime, and path (`NSURL+Hash`), so the cached tags and waveform match the downloaded file. The default mtime is the placeholder's. `DropboxMirror` takes its response's `server_modified`.
 
 **The store makes its root once and keeps it out of backups** (`prepareRoot`). It is a cache of what the server holds. `containsURL:` says whether a file lies under the root, from its path alone.
 
@@ -68,7 +68,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **Past the download budget the oldest downloads go back to placeholders**, oldest first by download time, never the file just fetched. Size and mtime are kept, so the cache key still matches when the file comes back. A smaller budget applies at once. Remove Downloads does the same to every download. A player still reading an evicted file keeps its open descriptor. A playlist file is never counted as a download.
 
-**`installAsRemoteBackend` registers the store for its root** (`CloudFileMaterializer setRemoteRoot:…`): the fetch, the ranged read and the streaming lookup. A shell calls it at launch, before anything opens a file under the root.
+**`installAsRemoteBackend` registers the store for its root** (`CloudFileMaterializer setRemoteRoot:…`): the fetch, the ranged read, and the streaming lookup. A shell calls it at launch, before anything opens a file under the root.
 
 ## Links
 
@@ -78,7 +78,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkRequestIsAllowed`, on the link and on every redirect. It applies the address rule to each. A redirect from a public host never reaches the local network, whatever the scheme. A public page could otherwise send requests to a device at home. A redirect can also leave the local network, and a stub cannot test App Transport Security.
 
-**The address rule is `VibeLinkURLAcceptance`.** It answers the `VibeLinkError` a refusal fails with, and None for an address Vibe fetches. https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost` or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7 or fe80::/10. Plain http to any other host is insecure. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
+**The address rule is `VibeLinkURLAcceptance`.** It answers the `VibeLinkError` a refusal fails with, and None for an address Vibe fetches. https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost`, or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7, or fe80::/10. Plain http to any other host is insecure. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
 
 **TRAP: an IPv4 address is parsed as the resolver parses it** (`inet_aton`). `134744072` and `0x8.8.8.8` are 8.8.8.8, not unqualified names. Read as a name, a bare number would let plain http reach any public address.
 
@@ -86,7 +86,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). Normalized means the scheme and host lowercased and the fragment dropped. The directory holds one file, the placeholder or the download. The same link opened again reuses the directory and its file. Two links never share a name.
 
-**The file name is `VibeLinkFileName`.** It is the link's last path component, percent-decoded, when that has a playable extension. Otherwise the Content-Disposition file name wins, when there is one. The extension the audio check chose is forced on. Cleaning swaps `/` and `:` for `-`, and drops control characters, the bidi controls and leading dots. An override would show a name's end reversed. The name is cut to 200 UTF-8 bytes. It is `Link.<extension>` when nothing survives.
+**The file name is `VibeLinkFileName`.** It is the link's last path component, percent-decoded, when that has a playable extension. Otherwise the Content-Disposition file name wins, when there is one. The extension the audio check chose is forced on. Cleaning swaps `/` and `:` for `-`, and drops control characters, the bidi controls, and leading dots. An override would show a name's end reversed. The name is cut to 200 UTF-8 bytes. It is `Link.<extension>` when nothing survives.
 
 **The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. The xattr is read from disk, so each field is checked. A record with a field of the wrong type is no record (`recordOfDirectory:`). A shell reads a link's record by its file (`recordOfLinkFileURL:`), and asks the store whether a file is a link (`containsURL:`). iOS names a link in Recents by its host.
 
@@ -94,7 +94,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 1. The address rule. A refusal fails before any request.
 2. The share-link rewrite (`VibeLinkDirectDownloadURL`, below).
 3. A probe of the first 16 bytes. It is a `GET`, since Dropbox answers `HEAD` with JSON. A 206 gives the size from its Content-Range, and `ranges` is YES. A 200 gives it from its Content-Length, and `ranges` is NO.
-4. The audio check and the extension (`VibeLinkAudioExtension`). The first bytes come first: `ID3` or an MPEG sync, ADTS, `fLaC`, `RIFF…WAVE`, `FORM…AIFF` or `AIFC`, the W64 GUID, `OggS`, `ftyp` or `caff`. Then the URL's extension, the Content-Disposition file name's, and the Content-Type. When the bytes name a family, such as Ogg, MP4 or WAV, the URL's or the file name's extension picks the member. HTML the bytes do not claim is not audio. The check gets the link's own URL, not the redirect's, since a CDN's path carries no name. It runs before a missing size fails the link. A sign-in page often has no length, and it is still not audio. With no size, icy headers or chunked audio are a live stream, and anything else has no size.
+4. The audio check and the extension (`VibeLinkAudioExtension`). The first bytes come first: `ID3` or an MPEG sync, ADTS, `fLaC`, `RIFF…WAVE`, `FORM…AIFF` or `AIFC`, the W64 GUID, `OggS`, `ftyp`, or `caff`. Then the URL's extension, the Content-Disposition file name's, and the Content-Type. When the bytes name a family, such as Ogg, MP4, or WAV, the URL's or the file name's extension picks the member. HTML the bytes do not claim is not audio. The check gets the link's own URL, not the redirect's, since a CDN's path carries no name. It runs before a missing size fails the link. A sign-in page often has no length, and it is still not audio. With no size, icy headers or chunked audio are a live stream, and anything else has no size.
 5. The record and the placeholder. The size is the probe's. The mtime is Last-Modified, else the probe's time. The cache key then stays the same across the install.
 
 **A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`** (`LinkStore.h`). The `VibeLinkErrorOf…` functions in `LinkRules.h` choose the code.

@@ -15,7 +15,7 @@ Every way a file can arrive lands in `AppDelegate` and comes out as one playlist
 
 **Open URL starts from text.** `openLink:` (⌘U) shows an `NSAlert` with a text field as a sheet on the player window. A second ⌘U brings the same sheet forward. Nothing reads the pasteboard unless the user pastes. Open with a blank field does nothing (`VibeLinkTextIsBlank`), the same as Cancel. Otherwise `openLinkString:completion:` takes a replace request at once, then `LinkStore` resolves the link off main. The file opens through `openURLsWithRestoredAccess:token:` as a single-file replace. A failure finishes the request with no rows, and a loaded playlist stays as it is. The shell then shows an alert titled `link.error.title` whose message is `+[LinkStore messageForError:]`.
 
-**The Links backend is installed first in `applicationWillFinishLaunching:`**, before the menu, the restore and any open. A restored link row is then a streaming placeholder from the start (`System/Remote/AGENTS.md`).
+**The Links backend is installed first in `applicationWillFinishLaunching:`**, before the menu, the restore, and any open. A restored link row is then a streaming placeholder from the start (`System/Remote/AGENTS.md`).
 
 **The outgoing network entitlement is for Open URL alone** (`ENABLE_OUTGOING_NETWORK_CONNECTIONS`, `project.yml`). Nothing else in the mac app makes a request. App Transport Security allows plain http only on the local network (`NSAllowsLocalNetworking`). `VibeLinkURLAcceptance` draws the same line before any request. macOS 15 and later ask the user before the first request to a local host (`NSLocalNetworkUsageDescription`).
 

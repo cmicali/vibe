@@ -6471,8 +6471,8 @@ typedef struct {
 @end
 
 // A link opened through LinkStore over HTTPStub: the probe, the placeholder,
-// the coordinator's streaming open of the store's fetch and the client's
-// resends, all production. Played on the decode pool, Declick off and at the
+// the coordinator's streaming open of the store's fetch, and the client's
+// resends, all production. Played on the decode pool, Declick off, and at the
 // file's own rate, so every edge is a cut and the capture is the file's own
 // samples.
 @interface AudioPlayerRenderLinkTests : AudioPlayerRenderTests

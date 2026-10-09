@@ -135,7 +135,7 @@ typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
 // The rows of one root section. Sources: the device, and Dropbox once linked.
 // Recents, alone. Locations: the granted folders first, so a location's row
 // is its index in the store. Then Connect to Dropbox until an account is
-// linked, Add Folder…, Browse Files… and Open URL….
+// linked, Add Folder…, Browse Files…, and Open URL….
 static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection section,
                                                        BOOL dropboxLinked,
                                                        NSUInteger locations) {
