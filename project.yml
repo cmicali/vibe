@@ -893,6 +893,7 @@ targets:
       - path: Tests/TestFilesystemGuard.m
       - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
       - path: Vibe/Debug/VibeFakeHTTP.m       # HTTPStub's serving engine
+      - path: Tests/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m

@@ -111,7 +111,6 @@ static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
 // set_slow_volume moves slowVolumeGeneration.
 static NSString *sSlowVolumeMode = @"off";
 static double sSlowVolumeBytesPerSecond;
-static BOOL sSlowVolumeStalled;
 static int sSlowVolumeErrno;
 static uint64_t sSlowVolumeGeneration;
 static CFAbsoluteTime sSlowVolumeNextDue;
@@ -136,7 +135,7 @@ static int VibeSlowVolumeBeforeRead(uint64_t length) {
         sSlowVolumeReads++;
         int failure = sSlowVolumeErrno;
         NSDate *until = nil;
-        if (sSlowVolumeStalled) {
+        if ([sSlowVolumeMode isEqualToString:@"stall"]) {
             until = NSDate.distantFuture;
         } else if (sSlowVolumeBytesPerSecond > 0) {
             sSlowVolumeNextDue = MAX(CFAbsoluteTimeGetCurrent(), sSlowVolumeNextDue)
@@ -157,14 +156,13 @@ static int VibeSlowVolumeBeforeRead(uint64_t length) {
 
 // Lets every held read go, then applies the new mode. Answers how many reads
 // it let go.
-static NSInteger VibeSetSlowVolume(NSString *mode, double bytesPerSecond, BOOL stalled, int failure) {
+static NSInteger VibeSetSlowVolume(NSString *mode, double bytesPerSecond, int failure) {
     NSCondition *condition = VibeSlowVolumeCondition();
     [condition lock];
     NSInteger released = sSlowVolumeHeldReads;
     sSlowVolumeGeneration++;
     sSlowVolumeMode = mode;
     sSlowVolumeBytesPerSecond = bytesPerSecond;
-    sSlowVolumeStalled = stalled;
     sSlowVolumeErrno = failure;
     sSlowVolumeNextDue = 0;
     sSlowVolumeReads = 0;
@@ -1134,7 +1132,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             }),
             // Every file opened from now on reads ahead, as if on a share. See
             // AudioFileHandle+Debug.h. No argument reports and changes nothing.
-            VibeDebugCmd(@"set_slow_volume [off|on|throttle <bytes-per-second>|stall|resume|fail [<errno>]]", 0,
+            VibeDebugCmd(@"set_slow_volume [off|on|throttle <bytes-per-second>|stall|fail [<errno>]]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 if (tokens.count == 1) {
@@ -1143,7 +1141,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 NSString *mode = tokens[1].lowercaseString;
                 double bytesPerSecond = 0;
                 NSUInteger failure = EIO;
-                BOOL valid = tokens.count == 2 && [@[@"off", @"on", @"stall", @"resume"] containsObject:mode];
+                BOOL valid = tokens.count == 2 && [@[@"off", @"on", @"stall"] containsObject:mode];
                 if ([mode isEqualToString:@"throttle"]) {
                     valid = tokens.count == 3 && VibeParseDouble(tokens[2], &bytesPerSecond) && bytesPerSecond > 0;
                 }
@@ -1152,15 +1150,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                             && failure > 0 && failure <= ELAST);
                 }
                 if (!valid) {
-                    return VibeErrorJSON(@"usage: set_slow_volume [off|on|throttle <bytes-per-second>|stall|resume"
+                    return VibeErrorJSON(@"usage: set_slow_volume [off|on|throttle <bytes-per-second>|stall"
                                          @"|fail [<errno 1-%d>]]", ELAST);
                 }
-                if ([mode isEqualToString:@"resume"]) {
-                    mode = @"on";
-                }
-                BOOL fails = [mode isEqualToString:@"fail"];
-                NSInteger released = VibeSetSlowVolume(mode, bytesPerSecond, [mode isEqualToString:@"stall"],
-                                                       fails ? (int)failure : 0);
+                NSInteger released = VibeSetSlowVolume(mode, bytesPerSecond,
+                                                       [mode isEqualToString:@"fail"] ? (int)failure : 0);
                 return VibeJSONString(VibeSlowVolumeReply(@(released)));
             }),
             // Every recent waveform decode, playback's or file_cache's. See

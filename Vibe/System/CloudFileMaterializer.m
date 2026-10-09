@@ -69,10 +69,6 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 }
 #endif
 
-// A wait with no part file sleeps this long at most before it asks its
-// `interrupted` again.
-static const NSTimeInterval kInterruptPollSeconds = 0.25;
-
 // A contiguous copy of its own: a response's bytes can be dispatch data in
 // pieces, which reading them through .bytes would flatten into a second
 // buffer held beside the first.
@@ -159,10 +155,11 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
         // TRAP: dropped under the lock a reader copies under. A wait a block
         // answered has then copied before the block can go. A range in it
         // past the download's edge waits for the disk from here.
-        while (_blocks.count > 0 && _blockOffsets[0].unsignedLongLongValue <= _written) {
-            [_blocks removeObjectAtIndex:0];
-            [_blockOffsets removeObjectAtIndex:0];
+        NSUInteger passed = 0;
+        while (passed < _blocks.count && _blockOffsets[passed].unsignedLongLongValue <= _written) {
+            passed++;
         }
+        [self removeBlocksAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, passed)]];
         [_condition broadcast];
     }
     [_condition unlock];
@@ -190,8 +187,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     if (!_complete && !_failure) {
         _complete = error == nil;
         _failure = error;
-        [_blocks removeAllObjects];
-        [_blockOffsets removeAllObjects];
+        [self removeBlocksAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _blocks.count)]];
         [_condition broadcast];
     }
     [_condition unlock];
@@ -233,6 +229,12 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     }
 }
 
+// Under the lock: each block with its offset.
+- (void)removeBlocksAtIndexes:(NSIndexSet *)indexes {
+    [_blocks removeObjectsAtIndexes:indexes];
+    [_blockOffsets removeObjectsAtIndexes:indexes];
+}
+
 // Under the lock: the bytes at offset take the place of every block they
 // overlap.
 - (void)insertBlock:(NSData *)block atOffset:(uint64_t)offset {
@@ -247,8 +249,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
             [overlapped addIndex:i];
         }
     }
-    [_blocks removeObjectsAtIndexes:overlapped];
-    [_blockOffsets removeObjectsAtIndexes:overlapped];
+    [self removeBlocksAtIndexes:overlapped];
     [_blocks insertObject:block atIndex:at];
     [_blockOffsets insertObject:@(offset) atIndex:at];
     _installedBytes += block.length;
@@ -289,8 +290,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     }
     // TRAP: dropped under the lock a reader copies under. A wait a block
     // answered has then copied before the block can go.
-    [_blocks removeObjectsAtIndexes:dropped];
-    [_blockOffsets removeObjectsAtIndexes:dropped];
+    [self removeBlocksAtIndexes:dropped];
     [_condition unlock];
 }
 
@@ -366,25 +366,16 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
             result = CloudFileAvailabilityInterrupted;
             break;
         }
-        if (!noPartFile) {
-            if (!deadline) {
-                [_condition wait];
-            }
-            else if (![_condition waitUntilDate:deadline]) {
-                result = CloudFileAvailabilityInterrupted;
-                break;
-            }
-            continue;
-        }
-        if (_wantedOffset != offset || _wantedLength != last - offset) {
+        if (noPartFile && (_wantedOffset != offset || _wantedLength != last - offset)) {
             _wantedOffset = offset;
             _wantedLength = last - offset;
             wantedRecorded = YES;
             [self signalWriter];
         }
-        NSDate *slice = [NSDate dateWithTimeIntervalSinceNow:kInterruptPollSeconds];
-        if (![_condition waitUntilDate:deadline ? [deadline earlierDate:slice] : slice]
-                && deadline && deadline.timeIntervalSinceNow <= 0) {
+        if (!deadline) {
+            [_condition wait];
+        }
+        else if (![_condition waitUntilDate:deadline]) {
             result = CloudFileAvailabilityInterrupted;
             break;
         }
@@ -486,6 +477,9 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
 }
 
 - (void)setReadAheadPaused:(BOOL)readAheadPaused {
+    if (_partURL) {
+        return;
+    }
     [_condition lock];
     if (_readAheadPaused && !readAheadPaused) {
         [self signalWriter];
