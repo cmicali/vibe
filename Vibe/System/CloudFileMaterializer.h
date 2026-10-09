@@ -49,52 +49,90 @@ typedef NSData *_Nullable (^CloudFileRemoteRead)(NSURL *url, uint64_t offset, ui
 
 typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
     CloudFileAvailabilityReady,
-    CloudFileAvailabilityFailed,       // the transfer failed: every wait answers its error
-    CloudFileAvailabilityInterrupted,  // the waiter's own interrupt: neither the end nor a failure
+    CloudFileAvailabilityFailed,       // the writer failed: every wait answers its error
+    CloudFileAvailabilityInterrupted,  // the reader's own interrupt: neither the end nor a failure
 };
 
-// How much of a remote file is readable while its transfer writes it into a
-// part file from byte 0, the final size known before the first byte, plus at
-// most one window of bytes past the download's edge held in memory (the tail
-// a stream reads ahead by range). The writer writes before it notes, and
-// finishes once; a reader opens the part and waits for the bytes it is about
-// to read. Worker threads only: a wait blocks, and nothing here is reachable
-// from the render.
+// How much of a file is readable while a writer fetches it. A reader waits
+// for the bytes it is about to read. Worker threads only: a wait blocks, and
+// nothing here is reachable from the render.
+//
+// Two writers. A transfer writes a part file from byte 0, its size known
+// before the first byte. It notes the bytes written after writing them, and
+// may also install one tail window past them. A writer with no part file
+// fetches the file by range into blocks held in memory. It notes the size
+// once it knows it, and a wait waits for the blocks. Each writer finishes once.
+//
+// Blocks are offset-ordered and never overlap. A range held by contiguous
+// blocks is copied out of them across their boundaries.
 @interface CloudFileAvailability : NSObject
 
-- (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size;
+// A writer with no part file. The size is unknown (UINT64_MAX) until noteSize:.
+- (instancetype)initWithoutPartFile NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-@property (nonatomic, readonly) NSURL *partURL;
+// Nil for a writer with no part file.
+@property (nonatomic, readonly, nullable) NSURL *partURL;
+// UINT64_MAX while unknown. Read under the lock, since a writer with no part
+// file sets it and may lower it.
 @property (nonatomic, readonly) uint64_t size;
 
+// Once: sets an unknown size. Ignored once the size is known.
+- (void)noteSize:(uint64_t)size;
+// The file ends at `end`, short of the size: a read there found nothing. It
+// lowers a known size and never raises it. A wait at or past it is then the
+// end, Ready with nothing copied.
+- (void)noteShortenedEnd:(uint64_t)end;
 // [0, bytes) is on disk. A count below one already noted is ignored.
 - (void)noteWrittenBytes:(uint64_t)bytes;
 // The count noted so far: the transfer's progress (DownloadProgressMonitor),
 // and what tells a reader a stalled transfer from a slow one.
 @property (nonatomic, readonly) uint64_t writtenBytes;
-// Once: nil is complete, after which every range is ready; an error fails
-// every wait, since nothing already read can be trusted. Either drops the window.
+// The bytes noted plus every block byte ever installed. It only grows, so
+// any rise is movement, whichever writer it is.
+@property (nonatomic, readonly) uint64_t progressBytes;
+// Once. Nil is complete, after which every range is ready on disk. An error
+// fails every wait, since nothing already read can be trusted. Either drops
+// every block. A writer with no part file always finishes with an error,
+// since complete sends readers to a disk it never wrote. It is asserted.
 - (void)finishWithError:(nullable NSError *)error;
-// The file's bytes at [offset, offset + bytes.length), read ahead of the
-// download, held until the download reaches offset. Ignored once finished,
-// when the download is already there, when one is held, or past the size.
+// The transfer's tail window: the file's bytes at offset, read ahead of the
+// download and held until the download reaches offset. Ignored once
+// finished, when the download is already there, when any block is held, or
+// past the size.
 - (void)installWindow:(NSData *)bytes atOffset:(uint64_t)offset;
-// The bytes the window holds now; 0 when none is.
+// A writer with no part file: the file's bytes at offset, held until dropped.
+// Ignored once finished, past the size, or when blocks already hold the whole
+// range. Otherwise it replaces every block it overlaps.
+- (void)installBlock:(NSData *)bytes atOffset:(uint64_t)offset;
+// Drops every block wholly outside [offset, offset + length). Three are
+// always kept: the block at byte 0, the block that ends at the size, and any
+// block the range a blocked wait wants overlaps.
+- (void)dropBlocksOutsideRangeAt:(uint64_t)offset length:(uint64_t)length;
+// The bytes all blocks hold now; 0 when none is held.
 @property (nonatomic, readonly) uint64_t windowLength;
 
-// Blocks until [offset, offset + length) is held, the transfer finished,
-// `interrupted` answers YES, or `deadline` passes (Interrupted for both);
+// Blocks until [offset, offset + length) is held, the writer finished,
+// `interrupted` answers YES, or `deadline` passes (Interrupted for both).
 // `interrupted` is asked each time the wait would block, under the lock
-// wakeWaiters takes. A range is clipped to the size, and one at or past it is
-// the end, never a wait. A range already readable is Ready even when
-// interrupted: an interrupt ends waits, not reads. A range not on disk but
-// wholly inside the window is Ready too, and with a buffer up to `capacity`
-// bytes from offset are copied out of the window into it, their count in
-// *copied (0: read the disk); without one, readyBytesAt: hands them over. A
-// range straddling the window's start waits for the disk. The one range
-// question, so a source of bytes changes what answers it, not who asks.
+// wakeWaiters takes, so it must not call into this object. A range is
+// clipped to the size, and one at or past it is the end, never a wait.
+// A range already readable is Ready even when interrupted: an interrupt ends
+// waits, not reads.
+//
+// Below the bytes written, a range is Ready to read from the disk, and
+// *copied is 0. A range held by blocks is Ready too. With a buffer, up to
+// `capacity` bytes from offset are copied out of the blocks into it, their
+// count in *copied. Without one, readyBytesAt: hands them over. A transfer's
+// range straddling its window's start waits for the disk.
+//
+// With no part file, every Ready range below the size comes from blocks. A
+// wait before noteSize: waits, since nothing is known to be the end. It
+// sleeps in 0.25 s slices and asks `interrupted` again after each, so an
+// interrupt needs no wake. Only `deadline` ends it on time. A transfer's wait
+// sleeps until woken.
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
                                      length:(uint64_t)length
                                  windowInto:(void *_Nullable)buffer
@@ -104,14 +142,31 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
                                    deadline:(nullable NSDate *)deadline
                                       error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 // Never waits: the longest prefix of [offset, offset + length) readable now,
-// copied out of the window, or read from the part file below the bytes
-// noted, so never a byte not yet written; nil when none, and once finished,
-// when the part is renamed or deleted. Any thread; the disk read is outside
+// copied out of the blocks, or read from the part file below the bytes
+// noted, so never a byte not yet written. Nil when none, and once finished,
+// when the part is renamed or deleted. Any thread. The disk read is outside
 // the lock. A tag parse during a play reads what the stream holds this way.
 - (nullable NSData *)readyBytesAt:(uint64_t)offset length:(uint64_t)length;
 // Any thread: every wait asks its `interrupted` again. Call it after making
 // one answer YES.
 - (void)wakeWaiters;
+
+// The writer's wait for work, for a writer with no part file. A transfer
+// never calls it. It returns at once on news since its last call: a wait
+// began to block, the reader entered another block, or readAheadPaused was
+// cleared. Otherwise it returns at the deadline. It reports the range a
+// blocked wait wants, length 0 when none is blocked, and the reader's
+// position, the offset of the most recent wait. These are reported on every
+// return, so a writer that has just installed a block reads them afresh.
+// NO once finished, at once.
+- (BOOL)waitForWorkUntil:(NSDate *)deadline
+                  wanted:(uint64_t *)offset
+                  length:(uint64_t *)length
+          readerPosition:(uint64_t *)position;
+// Set while the reader's reads are interrupted. The writer then fetches only
+// a range a wait wants. Clearing it wakes the writer's wait for work. A
+// transfer ignores it.
+@property (nonatomic) BOOL readAheadPaused;
 
 // A holder: a reader, an AudioFileHandle open on the part file, counted from
 // its open to its dealloc, or an open about to become one, so whoever runs the
