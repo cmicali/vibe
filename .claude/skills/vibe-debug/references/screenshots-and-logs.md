@@ -36,6 +36,12 @@ xcrun devicectl device process launch --timeout 3600 --device <identifier> --con
 grep -E "AudioSession|AudioOutputUnit|idle stop|Scene:|no verdict" build/device.log
 ```
 
+**What a picked file is on the phone** (an SMB server or a USB drive in the Files app, any provider). Add `--dataless-diag` after `--log-stderr`. Each directory's first dataless check then logs one line: the directory's path, the verdict, the raw `st_flags`, the mount's filesystem type and mount point, and whether the mount is local. Pick the folder in Vibe and play one file from it.
+
+```bash
+grep "Dataless diag:" build/device.log
+```
+
 **An on-device pass runs only on an explicit request** (the simulator-only rule in `SKILL.md`), and it is a log-only loop: nothing can synthesize a call or a route change, so the user's hands and the log are the instruments. Install a Debug build, launch it as above with the log in a file, and hand the user the physical steps in numbered rounds (a call, AirPods in and out, the lock screen, Settings > Developer > Reset Media Services); they reply with what they saw, and each step is judged from the log. Installing replaces the user's installed Vibe (same bundle id, data kept), so say so. Ask for about ten seconds between steps so they separate in the log, and for the phone to stay plugged in and unlocked. When the log cannot attribute a result, add a log line and rerun rather than guess. Siri ducks and does not interrupt; a timer or a call is a real interruption.
 
 Two profiling traps on a device:

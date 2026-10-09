@@ -26,8 +26,11 @@ typedef BOOL (^VibeDatalessProbe)(NSURL *url);
 // the dataless test performs is tallied per directory (verdicts and the last
 // raw st_flags, capped in directories), to confirm or rule out a provider
 // whose placeholders carry no flag (see isDatalessFile:) without instrumenting
-// a release. Nothing is recorded while the fake probe is installed. Enabling
-// resets the record; off, the stat path pays one relaxed load.
+// a release. A directory's first stat also records its mount (fsType,
+// mountedOn, localMount) and logs one line, which is how a phone reports it:
+// iOS's --dataless-diag enables this at launch. Nothing is recorded while the
+// fake probe is installed. Enabling resets the record; off, the stat path pays
+// one relaxed load.
 + (void)setDatalessDiagnosticsEnabled:(BOOL)enabled;
 + (NSDictionary *)datalessDiagnostics;
 

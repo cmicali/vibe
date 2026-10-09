@@ -17,6 +17,7 @@
 #import "DropboxMirror.h"
 #import "VibeFakeDropbox.h"
 #import "NSURLUtil.h"
+#import "NSURLUtil+Debug.h"
 #import "Playlist.h"
 #import "FavoritesStore.h"
 #import "AppSettings.h"
@@ -560,11 +561,15 @@ static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSStrin
     return ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
 }
 
-// The device's road to the frame probe: no channel reaches a phone, so the
-// flag starts one that logs, and --log-stderr relays it.
-static void VibeiOSStartLaunchProbe(void) {
-    if ([NSProcessInfo.processInfo.arguments containsObject:@"--frame-rate-probe"]) {
+// The device's road to the probes: no channel reaches a phone, so each flag
+// starts one that logs, and --log-stderr relays it.
+static void VibeiOSStartLaunchProbes(void) {
+    NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
+    if ([arguments containsObject:@"--frame-rate-probe"]) {
         [RootViewController debugBeginFrameProbeForSeconds:0];
+    }
+    if ([arguments containsObject:@"--dataless-diag"]) {
+        [NSURLUtil setDatalessDiagnosticsEnabled:YES];
     }
 }
 
@@ -572,7 +577,7 @@ void VibeiOSInstallDebugCommandHook(void) {
     VibeInstallDebugCommandChannel(^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeiOSExecuteDebugCommand(args, commandId);
     });
-    VibeiOSStartLaunchProbe();
+    VibeiOSStartLaunchProbes();
 }
 
 #endif
