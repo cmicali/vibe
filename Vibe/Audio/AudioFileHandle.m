@@ -435,6 +435,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             readError = fstat(descriptor, &now) != 0 ? errno : (uint64_t)now.st_size > start + got ? EIO : 0;
             if (readError == 0) {
                 [availability noteShortenedEnd:start + got];
+                known = now;
             }
         }
         if (readError == 0) {
@@ -457,8 +458,22 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             break;
         }
         close(descriptor);
-        struct stat ignored;
-        VibeReadAheadOpen(path, name, &descriptor, &ignored); // -1 fails the next read. That pauses again.
+        // A failed reopen leaves -1. That fails the next read and pauses
+        // again. A file replaced while the share was away fails the
+        // availability. Its bytes would otherwise mix with the old file's
+        // blocks. Size and mtime tell the two apart. The inode and st_dev do
+        // not. Some SMB servers renumber a file across a reconnect, and a
+        // remount moves st_dev.
+        struct stat reopened;
+        if (VibeReadAheadOpen(path, name, &descriptor, &reopened) == nil
+                && (reopened.st_size != known.st_size || reopened.st_mtimespec.tv_sec != known.st_mtimespec.tv_sec
+                    || reopened.st_mtimespec.tv_nsec != known.st_mtimespec.tv_nsec)) {
+            LogWarn(@"Read-ahead: %@ changed while it failed: %lld bytes, was %lld", name, (long long)reopened.st_size,
+                    (long long)known.st_size);
+            [availability finishWithError:[NSError errorWithDomain:NSPOSIXErrorDomain code:ESTALE userInfo:@{
+                NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ changed while it was read", name]}]];
+            break;
+        }
     }
     if (descriptor >= 0) {
         close(descriptor);

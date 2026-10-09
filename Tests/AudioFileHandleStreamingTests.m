@@ -1511,6 +1511,40 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertEqual([script readsAt:256 * 1024], 2u, @"failed once, then read");
 }
 
+// A file replaced on the server while a read fails, with another size, is
+// never read on: the reopen finds it changed and fails the reads with
+// ESTALE. None of its bytes reach the decode beside the old file's.
+- (void)testAFileReplacedWhileAReadFailsFailsTheReads {
+    VibeReadAheadScript *script = [self readAhead];
+    [script fail:EIO from:256 * 1024 always:NO];
+    [script holdFailures];
+    NSURL *url = [self networkCopyOf:[self noiseWAVNamed:@"replaced.wav" frames:400000]];
+    AudioFileHandle *handle = VibeOpenInterruptibly(url, NULL);
+    XCTAssertNotNil(handle);
+    __block NSData *pcm = nil;
+    __block NSError *error = nil;
+    XCTestExpectation *done = [self expectationWithDescription:@"decode returned"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        pcm = VibeDecode(handle, 4096, INT64_MAX, &readError);
+        error = readError;
+        [done fulfill];
+    });
+    XCTAssertTrue([self await:script.failed], @"the read fails");
+    NSURL *replacement = [self noiseWAVNamed:@"replacement.wav" frames:300000];
+    XCTAssertEqual(rename(replacement.fileSystemRepresentation, url.fileSystemRepresentation), 0);
+    [script releaseStalls];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertNil(pcm, @"the decode never reads the new file's bytes");
+    XCTAssertFalse([AudioFileHandle isInterruption:error], @"%@", error);
+    NSError *cause = error;
+    while (cause && !(cause.domain == NSPOSIXErrorDomain && cause.code == ESTALE)) {
+        cause = cause.userInfo[NSUnderlyingErrorKey];
+    }
+    XCTAssertNotNil(cause, @"%@", error);
+    XCTAssertEqual([script readsAt:256 * 1024], 1u, @"failed, then never read again");
+}
+
 // A file cut short after its open ends there cleanly, with no error and no
 // wait, as the direct open of the cut file does. The read-ahead's thread has
 // opened it when its first read stalls, and the file is cut then.
@@ -1835,13 +1869,18 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertNotNil(handle);
     XCTAssertTrue([self await:script.stalled], @"block 1's read waits");
     // The file is short while that read runs: its first pread comes back
-    // partial, and the next one fails.
+    // partial, and the next one fails. It is whole again, with its mtime, by
+    // the retry's reopen, which then finds the same file.
+    struct stat whole;
+    XCTAssertEqual(stat(url.fileSystemRepresentation, &whole), 0);
     XCTAssertEqual(truncate(url.fileSystemRepresentation, (off_t)partial), 0);
     [script fail:EIO from:partial always:NO];
     [script holdFailures];
     [script stallFrom:UINT64_MAX];
     XCTAssertTrue([self await:script.failed]);
     XCTAssertTrue([bytes writeToURL:url atomically:NO]);
+    struct timespec times[2] = {{.tv_nsec = UTIME_OMIT}, whole.st_mtimespec};
+    XCTAssertEqual(utimensat(AT_FDCWD, url.fileSystemRepresentation, times, 0), 0);
     // A read straddling the partial end, asked before the failure lands.
     AVAudioFramePosition frame = (AVAudioFramePosition)(partial - 2048 - 44) / 4;
     __block NSData *pcm = nil;
