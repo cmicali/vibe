@@ -676,8 +676,10 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Home-screen widget
 
-#define STR_WIDGET_DESCRIPTION    NSLS(@"widget.description",    @"What Vibe is playing.", @"iOS widget gallery: the one-line description under the widget's name, shown while the user is choosing a widget to add. Vibe is the app name.")
+#define STR_WIDGET_DESCRIPTION    NSLS(@"widget.description",    @"What Vibe is currently playing.", @"iOS widget gallery: the one-line description under every Vibe widget's name, shown while the user is choosing a widget to add. Vibe is the app name.")
+#define STR_WIDGET_NAME_NOW_PLAYING NSLS(@"widget.name.now_playing", @"Now Playing", @"iOS widget gallery: the name every Vibe widget shares, Home Screen and Lock Screen alike. Each shows the track that is playing. Use the system's term for the track that is playing now.")
 #define STR_WIDGET_INTENT_PLAY    NSLS(@"widget.intent.play_pause", @"Play or Pause",      @"Name of the widget's play/pause action, as it appears in the Shortcuts app's action list. A command, not a label.")
+#define STR_WIDGET_INTENT_PREVIOUS NSLS(@"widget.intent.previous", @"Previous Track",     @"Name of the widget's skip-to-previous-track action, as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_WIDGET_INTENT_NEXT    NSLS(@"widget.intent.next",      @"Next Track",          @"Name of the widget's skip-to-next-track action, as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_WIDGET_INTENT_SEEK    NSLS(@"widget.intent.seek",      @"Seek",                @"Name of the widget's seek action — jump to a position in the current track — as it appears in the Shortcuts app's action list. A command, not a label.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"iOS settings: heading above the choice between total duration and remaining time; also the time readout's accessibility label on the iOS player.")
