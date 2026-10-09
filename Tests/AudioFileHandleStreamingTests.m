@@ -165,8 +165,9 @@
 // A failing read then waits after signalling `failed`, until releaseStalls.
 // Its errno reaches the thread only then.
 - (void)holdFailures;
-// Reads at or past `offset` find the file's end.
-- (void)cutAt:(uint64_t)offset;
+// The next read at or past `offset` reads nothing, as a share can while it
+// reconnects. The file on disk is unchanged.
+- (void)cutOnceAt:(uint64_t)offset;
 - (NSUInteger)readsAt:(uint64_t)offset;
 // Every read the hook was called for.
 @property (atomic, readonly) NSUInteger reads;
@@ -231,7 +232,7 @@
     [_condition unlock];
 }
 
-- (void)cutAt:(uint64_t)offset {
+- (void)cutOnceAt:(uint64_t)offset {
     [_condition lock];
     _cutAt = offset;
     [_condition unlock];
@@ -278,6 +279,9 @@
         }
     }
     BOOL cut = offset >= _cutAt;
+    if (cut) {
+        _cutAt = UINT64_MAX;
+    }
     if (code) {
         dispatch_semaphore_signal(_failed);
         while (_holdFailures) {
@@ -1632,8 +1636,43 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertEqual([script readsAt:256 * 1024], 2u, @"failed once, then read");
 }
 
+// A file replaced on the server while a read fails, with another size, is
+// never read on: the reopen finds it changed and fails the reads with
+// ESTALE. None of its bytes reach the decode beside the old file's.
+- (void)testAFileReplacedWhileAReadFailsFailsTheReads {
+    VibeReadAheadScript *script = [self readAhead];
+    [script fail:EIO from:256 * 1024 always:NO];
+    [script holdFailures];
+    NSURL *url = [self networkCopyOf:[self noiseWAVNamed:@"replaced.wav" frames:400000]];
+    AudioFileHandle *handle = VibeOpenInterruptibly(url, NULL);
+    XCTAssertNotNil(handle);
+    __block NSData *pcm = nil;
+    __block NSError *error = nil;
+    XCTestExpectation *done = [self expectationWithDescription:@"decode returned"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        pcm = VibeDecode(handle, 4096, INT64_MAX, &readError);
+        error = readError;
+        [done fulfill];
+    });
+    XCTAssertTrue([self await:script.failed], @"the read fails");
+    NSURL *replacement = [self noiseWAVNamed:@"replacement.wav" frames:300000];
+    XCTAssertEqual(rename(replacement.fileSystemRepresentation, url.fileSystemRepresentation), 0);
+    [script releaseStalls];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertNil(pcm, @"the decode never reads the new file's bytes");
+    XCTAssertFalse([AudioFileHandle isInterruption:error], @"%@", error);
+    NSError *cause = error;
+    while (cause && !(cause.domain == NSPOSIXErrorDomain && cause.code == ESTALE)) {
+        cause = cause.userInfo[NSUnderlyingErrorKey];
+    }
+    XCTAssertNotNil(cause, @"%@", error);
+    XCTAssertEqual([script readsAt:256 * 1024], 1u, @"failed, then never read again");
+}
+
 // A file cut short after its open ends there cleanly, with no error and no
-// wait, as the direct open of the cut file does.
+// wait, as the direct open of the cut file does. The read-ahead's thread has
+// opened it when its first read stalls, and the file is cut then.
 - (void)testAFileCutShortAfterItsOpenEndsCleanly {
     const uint64_t cut = 256 * 1024;
     AudioStreamBasicDescription flac = {.mSampleRate = 44100, .mFormatID = kAudioFormatFLAC,
@@ -1651,7 +1690,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
         NSData *reference = VibeDecode([self openWhole:shortened], 4096, INT64_MAX, &error);
         XCTAssertNotNil(reference, @"%@: %@", name, error);
 
-        [script cutAt:cut];
+        [script stallFrom:0];
         __block NSData *pcm = nil;
         __block NSError *readError = nil;
         XCTestExpectation *done = [self expectationWithDescription:name];
@@ -1663,11 +1702,28 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
             readError = failure;
             [done fulfill];
         });
+        XCTAssertTrue([self await:script.stalled], @"%@", name);
+        XCTAssertEqual(truncate(url.fileSystemRepresentation, (off_t)cut), 0, @"%@", name);
+        [script releaseStalls];
         [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
         XCTAssertNotNil(pcm, @"%@: %@", name, readError);
         [self assertPCM:pcm equals:reference context:name];
-        [script cutAt:UINT64_MAX];
     }
+}
+
+// A read that finds nothing short of the size while the file is whole, as a
+// share's can while it reconnects, is a failed read. It is retried, and the
+// decode completes exactly, never ending early.
+- (void)testANothingReadShortOfTheSizeIsRetriedWhenTheFileIsWhole {
+    VibeReadAheadScript *script = [self readAhead];
+    [script cutOnceAt:256 * 1024];
+    NSURL *source = [self noiseWAVNamed:@"reconnect.wav" frames:400000];
+    AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
+    NSError *error = nil;
+    NSData *pcm = VibeDecode(handle, 4096, INT64_MAX, &error);
+    XCTAssertNotNil(pcm, @"%@", error);
+    [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:@"read on"];
+    XCTAssertEqual([script readsAt:256 * 1024], 2u, @"read nothing once, then read");
 }
 
 // Eight handles gone while their threads are stuck in a read make a ninth
@@ -1938,13 +1994,18 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertNotNil(handle);
     XCTAssertTrue([self await:script.stalled], @"block 1's read waits");
     // The file is short while that read runs: its first pread comes back
-    // partial, and the next one fails.
+    // partial, and the next one fails. It is whole again, with its mtime, by
+    // the retry's reopen, which then finds the same file.
+    struct stat whole;
+    XCTAssertEqual(stat(url.fileSystemRepresentation, &whole), 0);
     XCTAssertEqual(truncate(url.fileSystemRepresentation, (off_t)partial), 0);
     [script fail:EIO from:partial always:NO];
     [script holdFailures];
     [script stallFrom:UINT64_MAX];
     XCTAssertTrue([self await:script.failed]);
     XCTAssertTrue([bytes writeToURL:url atomically:NO]);
+    struct timespec times[2] = {{.tv_nsec = UTIME_OMIT}, whole.st_mtimespec};
+    XCTAssertEqual(utimensat(AT_FDCWD, url.fileSystemRepresentation, times, 0), 0);
     // A read straddling the partial end, asked before the failure lands.
     AVAudioFramePosition frame = (AVAudioFramePosition)(partial - 2048 - 44) / 4;
     __block NSData *pcm = nil;

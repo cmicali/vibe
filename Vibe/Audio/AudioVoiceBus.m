@@ -1319,6 +1319,14 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 
 #pragma mark - Reading
 
+- (AudioFileHandle *)fileOfVoice:(VibeVoiceID)voice {
+    os_unfair_lock_lock(&_tableLock);
+    NSUInteger slot = voice ? [self slotForIdentifier:voice] : NSNotFound;
+    AudioFileHandle *file = slot != NSNotFound ? _records[slot]->file : nil;
+    os_unfair_lock_unlock(&_tableLock);
+    return file;
+}
+
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice {
     VibeVoiceSnapshot snapshot = {0};
     snapshot.boundary = kUnset;

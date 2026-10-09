@@ -319,24 +319,21 @@ static NSError *VibeReadAheadClosedError(NSURL *url) {
 
 // The direct road's flags, for the same reason (its TRAP: a FIFO with no
 // writer returns at once), then blocking reads. Nil, or the open's failure
-// as the direct road reports it.
-static NSError *VibeReadAheadOpen(const char *path, NSString *name, int *descriptor, uint64_t *size) {
+// as the direct road reports it. *info is the file's fstat.
+static NSError *VibeReadAheadOpen(const char *path, NSString *name, int *descriptor, struct stat *info) {
     *descriptor = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (*descriptor < 0) {
         return VibeCouldNotOpenError(name, errno);
     }
-    struct stat info;
     int flags = 0;
-    NSError *error = fstat(*descriptor, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ? VibeNoAudioError(name)
+    NSError *error = fstat(*descriptor, info) != 0 || !S_ISREG(info->st_mode) || info->st_size <= 0 ? VibeNoAudioError(name)
             : (flags = fcntl(*descriptor, F_GETFL)) < 0 || fcntl(*descriptor, F_SETFL, flags & ~O_NONBLOCK) != 0
                     ? VibeCouldNotOpenError(name, errno) : nil;
     if (error) {
         close(*descriptor);
         *descriptor = -1;
-        return error;
     }
-    *size = (uint64_t)info.st_size;
-    return nil;
+    return error;
 }
 
 // One pread, through the debug seam's hook. An error leaves errno set.
@@ -363,8 +360,10 @@ static ssize_t VibeReadAheadPread(int descriptor, NSURL *url, uint8_t *buffer, u
 // blocks, else the next block after the reader's up to the span ahead, unless
 // paused. It installs each in the availability and drops what lies outside
 // the reader's span. A failed read is tried again after a pause, reopened,
-// until the availability finishes. A read that finds nothing short of the
-// size is the end. TRAP: it retains the availability only, never its handle.
+// until the availability finishes. A reopened file that changed fails the
+// availability. A read that finds nothing short of the size is the end only
+// when the file is now that short. TRAP: it retains the availability only,
+// never its handle.
 // The handle's dealloc can then finish the availability and end it. TRAP:
 // nothing here holds the availability's lock across open, pread or close.
 // The player queue takes that lock through interruptReads and wakeWaiters.
@@ -374,8 +373,9 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
     NSString *name = url.lastPathComponent;
     char *path = strdup(url.fileSystemRepresentation);
     int descriptor = -1;
-    uint64_t size = 0;
-    NSError *failure = path ? VibeReadAheadOpen(path, name, &descriptor, &size) : VibeCouldNotOpenError(name, ENOMEM);
+    // The file as the read-ahead knows it. A reopen must find the same one.
+    struct stat known = {0};
+    NSError *failure = path ? VibeReadAheadOpen(path, name, &descriptor, &known) : VibeCouldNotOpenError(name, ENOMEM);
     if (failure) {
         free(path);
         // First. The handle the failed open lets go then never counts it.
@@ -383,8 +383,8 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
         [availability finishWithError:failure];
         return;
     }
-    [availability noteSize:size];
-    LogInfo(@"Read-ahead: %@ on %@, %llu bytes", name, mount, size);
+    [availability noteSize:(uint64_t)known.st_size];
+    LogInfo(@"Read-ahead: %@ on %@, %lld bytes", name, mount, (long long)known.st_size);
     NSUInteger errors = 0;
     BOOL failing = NO;
     NSDate *until = NSDate.distantPast;
@@ -426,10 +426,19 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             [availability dropBlocksOutsideRangeAt:behind length:position + kVibeReadAheadSpan - behind];
         }
         until = NSDate.distantPast;
+        // TRAP: a network mount can read 0 bytes short of the size while it
+        // reconnects. That is the end only when the file is now that short.
+        // Any other 0 is a failed read, logged as EIO and retried. Taken as
+        // the end, it ends the track early.
         if (count == 0) {
-            [availability noteShortenedEnd:start + got];
+            struct stat now;
+            readError = fstat(descriptor, &now) != 0 ? errno : (uint64_t)now.st_size > start + got ? EIO : 0;
+            if (readError == 0) {
+                [availability noteShortenedEnd:start + got];
+                known = now;
+            }
         }
-        if (count >= 0) {
+        if (readError == 0) {
             failing = NO;
             continue;
         }
@@ -449,8 +458,22 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             break;
         }
         close(descriptor);
-        uint64_t ignored = 0;
-        VibeReadAheadOpen(path, name, &descriptor, &ignored); // -1 fails the next read. That pauses again.
+        // A failed reopen leaves -1. That fails the next read and pauses
+        // again. A file replaced while the share was away fails the
+        // availability. Its bytes would otherwise mix with the old file's
+        // blocks. Size and mtime tell the two apart. The inode and st_dev do
+        // not. Some SMB servers renumber a file across a reconnect, and a
+        // remount moves st_dev.
+        struct stat reopened;
+        if (VibeReadAheadOpen(path, name, &descriptor, &reopened) == nil
+                && (reopened.st_size != known.st_size || reopened.st_mtimespec.tv_sec != known.st_mtimespec.tv_sec
+                    || reopened.st_mtimespec.tv_nsec != known.st_mtimespec.tv_nsec)) {
+            LogWarn(@"Read-ahead: %@ changed while it failed: %lld bytes, was %lld", name, (long long)reopened.st_size,
+                    (long long)known.st_size);
+            [availability finishWithError:[NSError errorWithDomain:NSPOSIXErrorDomain code:ESTALE userInfo:@{
+                NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ changed while it was read", name]}]];
+            break;
+        }
     }
     if (descriptor >= 0) {
         close(descriptor);
