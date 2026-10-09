@@ -97,11 +97,14 @@ struct VibeProvider: TimelineProvider {
         return UIImage(data: data)
     }
 
+    // The radius is a share of the image, so the background looks the same
+    // whatever size the app writes the art at. 40px suited the 256px art.
     private func blurred(_ artwork: UIImage) -> UIImage {
         guard let input = CIImage(image: artwork),
               let filter = CIFilter(name: "CIGaussianBlur",
                                     parameters: [kCIInputImageKey: input,
-                                                 kCIInputRadiusKey: 40]),
+                                                 kCIInputRadiusKey: max(input.extent.width,
+                                                                        input.extent.height) * 40 / 256]),
               let output = filter.outputImage,
               let cgImage = Self.blurContext.createCGImage(output, from: input.extent)
         else { return artwork }
@@ -123,11 +126,12 @@ struct VibeNowPlayingWidget: Widget {
         StaticConfiguration(kind: "VibeNowPlaying", provider: VibeProvider()) { entry in
             VibeWidgetView(entry: entry)
         }
-        .configurationDisplayName("Vibe")
-        // A literal for the same reason the intents' titles are (VibeWidgetIntents.swift's
-        // TRAP); it MUST match STR_WIDGET_DESCRIPTION, which is what puts the key in the catalog.
+        // Literals for the same reason the intents' titles are (VibeWidgetIntents.swift's
+        // TRAP). Each MUST match its STR_WIDGET_* entry, which is what puts the key in the catalog.
+        .configurationDisplayName(LocalizedStringResource("widget.name.now_playing", defaultValue: "Now Playing"))
         .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is playing."))
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge,
+                            .accessoryCircular, .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }
 }
@@ -144,9 +148,15 @@ struct VibeWaveformWidget: Widget {
                             provider: VibeProvider()) { entry in
             VibeWidgetView(entry: entry, waveformTile: true, playButton: playButton)
         }
-        .configurationDisplayName("Vibe")
-        // The same literal as VibeNowPlayingWidget's, under the same TRAP.
-        .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is playing."))
+        // Literals under VibeNowPlayingWidget's TRAP.
+        .configurationDisplayName(playButton
+            ? LocalizedStringResource("widget.name.waveform_player", defaultValue: "Waveform Player")
+            : LocalizedStringResource("widget.name.waveform", defaultValue: "Waveform"))
+        .description(playButton
+            ? LocalizedStringResource("widget.description.waveform_player",
+                                      defaultValue: "The track, its waveform, and play/pause.")
+            : LocalizedStringResource("widget.description.waveform",
+                                      defaultValue: "The track and its waveform. Tap the waveform to seek."))
         .supportedFamilies([.systemSmall])
         .contentMarginsDisabled()
     }

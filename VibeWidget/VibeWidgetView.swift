@@ -2,16 +2,24 @@
 //  VibeWidgetView.swift
 //  VibeWidget
 //
-//  Two families, one arrangement. MEDIUM is the desktop header over a full-
-//  width waveform: artwork, title and artist on one row with the transport
-//  right-aligned, and the whole bottom given to the envelope — the waveform is
-//  the thing this app is recognised by, so it gets the space rather than the
-//  chrome. SMALL follows Spotify's small widget: artwork top-left with one
-//  play/pause disc beside it, the two text lines across the whole bottom, and
-//  no waveform. The waveform kind's SMALL is the medium without its header
+//  MEDIUM is the desktop header over a full-width waveform: artwork, title and
+//  artist on one row with the transport right-aligned, and the whole bottom
+//  given to the envelope. The waveform is the thing this app is recognised by,
+//  so it gets the space rather than the chrome. SMALL follows Spotify's small
+//  widget: artwork top-left with one play/pause disc beside it, the two text
+//  lines across the whole bottom, and no waveform. LARGE gives its top half to
+//  the artwork, with the text and the transport beside it, and its bottom half
+//  to the waveform.
+//
+//  The waveform kinds are SMALL only. They are the medium without its header
 //  row: the two text lines across the top and the envelope below. A tap on
-//  the waveform seeks, and anywhere else opens the app. Its second kind puts
+//  the waveform seeks, and anywhere else opens the app. The second kind puts
 //  the play/pause disc top-right, after the text, as the first small tile does.
+//
+//  The Lock Screen families draw in the system's one tint, so they use no
+//  artwork and no colour. CIRCULAR is a progress ring around play/pause.
+//  RECTANGULAR is the two text lines over a waveform strip. INLINE is one line
+//  of text.
 //
 //  It is an ADAPTATION of the desktop window, not a copy. The glass, the live
 //  art-tint wash and the scrolling waveform all need a live view; a widget gets
@@ -42,15 +50,19 @@ private let kSmallMinGap: CGFloat = 4
 // spacing the pair needs ~53pt, which is what keeps it inside the medium
 // header's 54 — widen that spacing and the artist loses its descenders.
 private let kTextSize: CGFloat = 22
-// The waveform tile with the disc: both lines take the largest of these sizes
-// at which both fit, and truncate only at the last. TRAP: shrinking fits each
-// line on its own, so a long title came out smaller than its artist.
+// Where the text shares a row, both lines take the largest of these sizes at
+// which both fit (fittedTextLines).
 private let kSmallPlayTextSizes: [CGFloat] = [17, 15, 13]
+private let kLargeTextSizes: [CGFloat] = [22, 19, 17, 15]
+// Large: the top half is the header, the bottom half the waveform. The
+// artwork is this share of the header's height, so it sits centred in it.
+private let kLargeArtworkShare: CGFloat = 0.85
+private let kLargeGap: CGFloat = 12
 
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: VibeEntry
-    // The small family's layout; the medium has only one.
+    // The small family's layout; every other family has only one.
     var waveformTile = false
     var playButton = false
 
@@ -61,15 +73,23 @@ struct VibeWidgetView: View {
 
     var body: some View {
         Group {
-            if family != .systemSmall {
-                medium
-            } else if waveformTile {
-                smallWaveform
-            } else {
-                small
+            switch family {
+            case .systemSmall where waveformTile: smallWaveform
+            case .systemSmall: small
+            case .systemLarge: large
+            case .accessoryCircular: circular
+            case .accessoryRectangular: rectangular
+            case .accessoryInline: inline
+            default: medium
             }
         }
-        .containerBackground(for: .widget) { background }
+        .containerBackground(for: .widget) {
+            switch family {
+            case .accessoryCircular: AccessoryWidgetBackground()
+            case .accessoryRectangular, .accessoryInline: Color.clear
+            default: background
+            }
+        }
     }
 
     // The desktop's header tint is the artwork's dominant colour washed behind
@@ -95,7 +115,7 @@ struct VibeWidgetView: View {
     private var medium: some View {
         VStack(spacing: 8) {
             mediumHeader
-            waveform
+            waveform()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(12)
@@ -112,7 +132,7 @@ struct VibeWidgetView: View {
             Spacer(minLength: 4)
             if state != nil {
                 playPauseButton(diameter: 38)
-                nextButton(diameter: 34)
+                skipButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: 34)
             }
         }
         .frame(height: kMediumHeaderHeight)
@@ -164,22 +184,103 @@ struct VibeWidgetView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 if playButton && state != nil {
-                    ViewThatFits(in: .horizontal) {
-                        ForEach(kSmallPlayTextSizes, id: \.self) { size in
-                            textLines(size: size, shrinks: false)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    fittedTextLines(sizes: kSmallPlayTextSizes)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     playPauseButton(diameter: kSmallPlayDiameter)
                 } else {
                     textLines()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            waveform
+            waveform()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(kSmallPadding)
+    }
+
+    // MARK: - Large
+
+    private var large: some View {
+        GeometryReader { geometry in
+            let half = (geometry.size.height - kLargeGap) / 2
+            let side = half * kLargeArtworkShare
+            VStack(spacing: kLargeGap) {
+                // The column is the artwork's height. The text starts at its
+                // top, and the transport is centred in what the text leaves.
+                HStack(alignment: .top, spacing: 14) {
+                    artworkTile(side: side)
+                    VStack(alignment: .leading, spacing: 0) {
+                        fittedTextLines(sizes: kLargeTextSizes)
+                        if state != nil {
+                            HStack(spacing: 14) {
+                                skipButton(VibePreviousIntent(), systemName: "backward.end.fill", diameter: 40)
+                                playPauseButton(diameter: 48)
+                                skipButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: 40)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: side, alignment: .top)
+                }
+                .frame(height: half)
+                waveform()
+                    .frame(height: half)
+            }
+        }
+        .padding(kSmallPadding)
+    }
+
+    // MARK: - Lock Screen
+
+    private var circular: some View {
+        let progress = state.map { $0.progress(at: entry.date) } ?? 0
+        return Gauge(value: progress) {
+            EmptyView()
+        } currentValueLabel: {
+            if state != nil {
+                Button(intent: VibePlayPauseIntent()) {
+                    Image(systemName: state?.playing == true ? "pause.fill" : "play.fill")
+                        .font(.system(size: 20))
+                }
+                .buttonStyle(.plain)
+            } else {
+                Image(systemName: "waveform")
+            }
+        }
+        .gaugeStyle(.accessoryCircularCapacity)
+    }
+
+    // The artist line is small so the waveform strip keeps some height.
+    private var rectangular: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(state?.title ?? "Vibe")
+                .font(.headline)
+                .lineLimit(1)
+            if let artist = state?.artist, !artist.isEmpty {
+                Text(artist)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if state != nil {
+                waveform(lockScreen: true)
+                    .frame(maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var inline: some View {
+        Label {
+            if let state, let artist = state.artist, !artist.isEmpty {
+                Text(verbatim: "\(state.title ?? "") – \(artist)")
+            } else {
+                Text(verbatim: state?.title ?? "Vibe")
+            }
+        } icon: {
+            Image(systemName: "waveform")
+        }
     }
 
     // MARK: - Shared pieces
@@ -187,10 +288,9 @@ struct VibeWidgetView: View {
     // Title over artist, the same block in every tile. By default both lines
     // shrink to fit rather than truncating, which is what the card does on the
     // phone. At this type size a long title would otherwise lose its end to an
-    // ellipsis on most tracks. A tile that passes shrinks: false truncates
-    // instead (kSmallPlayTextSizes says why). A nil artist means the title is the filename-derived
-    // single line, and it still takes the TITLE's colour — the rule both apps
-    // draw by.
+    // ellipsis on most tracks. A nil artist means the title is the
+    // filename-derived single line, and it still takes the TITLE's colour.
+    // That is the rule both apps draw by.
     private func textLines(size: CGFloat = kTextSize, shrinks: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(state?.title ?? "Vibe")
@@ -204,6 +304,17 @@ struct VibeWidgetView: View {
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
                     .minimumScaleFactor(shrinks ? 0.7 : 1)
+            }
+        }
+    }
+
+    // Both lines at the largest of sizes at which both fit, truncating only at
+    // the last. TRAP: textLines' shrinking fits each line on its own, so a long
+    // title came out smaller than its artist.
+    private func fittedTextLines(sizes: [CGFloat]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            ForEach(sizes, id: \.self) { size in
+                textLines(size: size, shrinks: false)
             }
         }
     }
@@ -242,9 +353,10 @@ struct VibeWidgetView: View {
         .buttonStyle(.plain)
     }
 
-    private func nextButton(diameter: CGFloat) -> some View {
-        Button(intent: VibeNextIntent()) {
-            Image(systemName: "forward.end.fill")   // the mac's glyph, and the mini player's
+    // The glyphs are the mac's, and the mini player's.
+    private func skipButton(_ intent: some AppIntent, systemName: String, diameter: CGFloat) -> some View {
+        Button(intent: intent) {
+            Image(systemName: systemName)
                 .font(.system(size: diameter * 0.46))
                 .foregroundStyle(.white.opacity(0.85))
                 .frame(width: diameter, height: diameter)
@@ -257,21 +369,31 @@ struct VibeWidgetView: View {
     // envelope twice, once in each half of the waveform theme's palette, and
     // the played one is revealed to the playhead. That is what lets the
     // playhead move without the app re-rendering anything per entry.
-    private var waveform: some View {
+    //
+    // On the Lock Screen each image is only a shape. The system tints it, so
+    // the played half is primary and the unplayed half secondary. It has no
+    // seek zones there: 32 of them across a strip that narrow are too small to
+    // aim at.
+    private func waveform(lockScreen: Bool = false) -> some View {
         GeometryReader { geometry in
             let progress = state.map { $0.progress(at: entry.date) } ?? 0
             ZStack(alignment: .leading) {
                 if let unplayed = entry.unplayed {
-                    Image(uiImage: unplayed).resizable()
+                    Image(uiImage: unplayed)
+                        .resizable()
+                        .renderingMode(lockScreen ? .template : .original)
+                        .foregroundStyle(.secondary)
                 }
                 if let played = entry.played {
                     Image(uiImage: played)
                         .resizable()
+                        .renderingMode(lockScreen ? .template : .original)
+                        .foregroundStyle(.primary)
                         .mask(alignment: .leading) {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }
                 }
-                if state != nil {
+                if state != nil && !lockScreen {
                     seekZones
                 }
             }

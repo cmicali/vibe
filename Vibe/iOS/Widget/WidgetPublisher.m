@@ -24,8 +24,8 @@ static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC;
 // screen's, since a widget entry spans minutes.
 static const NSTimeInterval kWidgetPositionTolerance = 2.0;
 
-// Pixels; the widget draws it at 67pt.
-static const CGFloat kWidgetArtworkSide = 256;
+// Pixels. The large widget draws it at up to 190pt, at 3x.
+static const CGFloat kWidgetArtworkSide = 576;
 
 // Stretched to fit, so only the ASPECT matters. It is the medium widget's.
 // The small waveform tile draws the same images narrower and slightly taller.
