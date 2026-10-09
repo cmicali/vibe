@@ -116,6 +116,30 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self.audioPlayer play:track atPosition:intent.position startPaused:intent.paused];
 }
 
+// TRAP: noting a recent document reads the file's attributes on main.
+// NSDocumentController is main-thread only. On an SMB share one note held main
+// for up to 500 ms. A dead server would hold it for the SMB timeout. Locality
+// is read here, off main, and only a file on a local volume is noted. A file on
+// a network volume, or on a volume that does not answer, never reaches Open
+// Recent. The serial queue keeps the notes in play order.
+static void VibeNoteRecentDocumentOnLocalVolume(NSURL *url) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        queue = dispatch_queue_create("com.vibe.recentdocuments",
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+    });
+    dispatch_async(queue, ^{
+        NSNumber *local = nil;
+        [url getResourceValue:&local forKey:NSURLVolumeIsLocalKey error:NULL];
+        if (local.boolValue) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
+            });
+        }
+    });
+}
+
 // Callers own didStartPlaying:'s identity guard: the playlist must already
 // point at the started track.
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
@@ -128,7 +152,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self endLoadingProgress];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // A cue row reopens as its sheet, which names it.
-    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.cueSheetURL ?: track.url];
+    VibeNoteRecentDocumentOnLocalVolume(track.cueSheetURL ?: track.url);
     // The playing track jumps the scan queue. Again after didBeginLoading:'s
     // request, which skipped the parse while the file was dataless.
     [self.metadataCache loadMetadataNow:track];
