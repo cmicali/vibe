@@ -53,23 +53,19 @@ xcrun simctl launch "$UDID" "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 
 # Short per-attempt timeouts: a command written before the channel installs is
 # swept as stale, and a fresh one lands. A channel that never answers (a
-# non-debug build) gets a warning after 30 s.
-# TRAP: the poll names this device's container, resolved after the install,
-# and never an inherited VIBE_APP_TMP. That path is another caller's device,
-# or this one's before the install moved it. Inherited, another simulator's
-# app answered at once, so the launch returned before this app's channel was
-# up, and its first command was swept.
-TMP="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)/tmp"
+# non-debug build) falls back to a flat 2s.
+# TRAP: the poll names this device and never an inherited VIBE_APP_TMP. That
+# path is another caller's device, or this one's before the install moved it.
+# Inherited, another simulator's app answered at once, so the launch returned
+# before this app's channel was up, and its first command was swept.
 READY=""
-DEADLINE=$(( $(date +%s) + 30 ))
-while [ "$(date +%s)" -lt "$DEADLINE" ]; do
-    if VIBE_APP_TMP="$TMP" VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
+for _ in $(seq 1 15); do
+    if VIBE_SIM_UDID="$UDID" VIBE_APP_TMP="" VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
         READY=1
         break
     fi
-    sleep 0.2
 done
-[ -n "$READY" ] || echo "launch-ios.sh: the debug channel on $UDID did not answer in 30 s" >&2
+[ -n "$READY" ] || sleep 2
 
 # A live touch driver holds the process just killed: without a re-attach its
 # next gesture waits a minute and then relaunches the app itself (the TRAP in

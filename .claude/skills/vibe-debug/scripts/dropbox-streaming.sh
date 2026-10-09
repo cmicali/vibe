@@ -723,7 +723,7 @@ if [ -z "$CLAIMS" ] && [ "$JOBS" -gt 1 ]; then
     echo "summary: $OUT/summary.json"
     MISSING="$(jq -r --arg all "$SCENARIOS" '($all | split(" ") | map(select(. != ""))) - (.scenarios | keys) | join(" ")' "$OUT/summary.json")"
     for s in $MISSING; do
-        echo "NOT RUN (no simulator finished it): $s"
+        echo "NOT RUN (a worker died): $s"
         [ -f "$OUT/$s.out" ] && sed 's/^/    /' "$OUT/$s.out"
     done
     if [ "$(jq '.failed | length' "$OUT/summary.json")" -gt 0 ] || [ -n "$MISSING" ]; then
@@ -736,12 +736,6 @@ fi
 
 # A scenario's lines are printed whole once it ends, so workers' never mix.
 for SCENARIO in $SCENARIOS; do
-    # Asked before each claim. A worker whose app stopped answering leaves the
-    # rest to the others instead of failing every scenario it takes.
-    if ! dbg dump_state >/dev/null; then
-        echo "== $VIBE_SIM_UDID: the app does not answer the debug channel, so this simulator takes no more scenarios"
-        break
-    fi
     if [ -n "$CLAIMS" ]; then mkdir "$CLAIMS/$SCENARIO" 2>/dev/null || continue; fi
     FOLDER=""
     STARTED="$(date +%s)"
