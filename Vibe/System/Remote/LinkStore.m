@@ -422,12 +422,14 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     }
     time_t modified = VibeLinkModificationTime(metadata, probed);
     NSDictionary *fresh = [self recordOfLink:link metadata:metadata ranges:ranges modified:modified opened:probed];
-    // TRAP: a file streaming now keeps its placeholder. The fetch's install
-    // renames the bytes it downloaded over whatever stands at the URL, and
-    // its readers hold the part file. Only the record changes, and the
-    // install's mtime hook sets it back to what was downloaded.
-    if (existing && [self availabilityForURL:existing]) {
-        LogInfo(@"Links: %@ changed while it streams; updating its record only", link.host);
+    // TRAP: a file being fetched now keeps its placeholder, from the fetch's
+    // start, before its first response. The fetch's install renames the bytes
+    // it downloaded over whatever stands at the URL, and its readers hold the
+    // part file. A new name would leave that install a second file. Only the
+    // record changes, and the install's mtime hook sets it back to what was
+    // downloaded.
+    if (existing && [self isFetchingURL:existing]) {
+        LogInfo(@"Links: %@ changed while it is fetched; updating its record only", link.host);
         [self writeIndex:fresh ofDirectory:directory];
         return existing;
     }

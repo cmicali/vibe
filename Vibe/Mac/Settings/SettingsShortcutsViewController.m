@@ -169,7 +169,8 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSString *identifier = [self selectedIdentifier];
     BOOL recording = _recordingIdentifier != nil;
     NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
-    BOOL hasShortcut = identifier && VibeShortcutEffective(identifier, overrides) != kVibeShortcutNone;
+    BOOL hasShortcut = identifier
+            && [MainMenuBuilder carriedShortcutForIdentifier:identifier overrides:overrides] != kVibeShortcutNone;
     [SettingsRowView setControl:_recordButton enabled:identifier && !recording];
     [SettingsRowView setControl:_clearButton enabled:hasShortcut && !recording];
     [SettingsRowView setControl:_resetAllButton enabled:!recording && overrides.count > 0];
@@ -352,7 +353,10 @@ static const CGFloat kShortcutColumnWidth = 120;
         cell.textField.stringValue = [self labelForCommand:identifier];
         return cell;
     }
-    VibeShortcut shortcut = VibeShortcutEffective(identifier, AppSettings.sharedInstance.shortcutOverrides);
+    // What the menu carries: a key an earlier command holds, or a reserved
+    // one, shows as unassigned rather than twice.
+    VibeShortcut shortcut = [MainMenuBuilder carriedShortcutForIdentifier:identifier
+                                                                overrides:AppSettings.sharedInstance.shortcutOverrides];
     cell.textField.stringValue = [MainMenuBuilder displayStringForShortcut:shortcut];
     cell.textField.textColor = shortcut == kVibeShortcutNone ? NSColor.tertiaryLabelColor : NSColor.labelColor;
     return cell;

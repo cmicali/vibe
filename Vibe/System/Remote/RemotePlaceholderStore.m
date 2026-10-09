@@ -78,6 +78,13 @@ static NSError *VibePOSIXError(void) {
 }
 
 - (void)installAsRemoteBackend {
+    // TRAP: a nil root removes every backend, another store's too, once
+    // Release compiles setRemoteRoot:'s assert out. Application Support can
+    // fail to resolve.
+    if (!_rootURL) {
+        LogError(@"%@: no root, so no backend is installed", self.logName);
+        return;
+    }
     [CloudFileMaterializer setRemoteRoot:_rootURL
                                    fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
                                                void (^onCancel)(dispatch_block_t), NSError **error) {
@@ -498,6 +505,14 @@ static NSError *VibePOSIXError(void) {
     CloudFileAvailability *availability = _streams[key];
     [_streamsCondition unlock];
     return availability;
+}
+
+- (BOOL)isFetchingURL:(NSURL *)url {
+    NSString *key = VibeComparablePath(url.path);
+    [_streamsCondition lock];
+    BOOL fetching = [_fetching containsObject:key];
+    [_streamsCondition unlock];
+    return fetching;
 }
 
 - (BOOL)fetchPlaceholderAtURL:(NSURL *)url

@@ -573,4 +573,18 @@ typedef struct {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:url], bytes);
 }
 
+// Application Support that failed to resolve leaves a store with no root. It
+// installs nothing, and the backend already there stays.
+- (void)testAStoreWithNoRootLeavesTheOtherBackendsInstalled {
+    NSURL *url = [self placeholder:@"a.flac" bytes:PatternBytes(4096)];
+    [_store installAsRemoteBackend];
+    NSURL *noRoot = nil;
+    TestPlaceholderStore *rootless = [[TestPlaceholderStore alloc] initWithClient:_client rootURL:noRoot
+                                                                    indexAttribute:kIndexAttribute
+                                                                    downloadBudget:1LL << 40];
+    [rootless installAsRemoteBackend];
+    XCTAssertTrue([NSURLUtil isDatalessFile:url]);
+    XCTAssertNotNil(CloudFileMaterializer.remoteRead);
+}
+
 @end

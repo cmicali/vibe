@@ -777,6 +777,55 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects([self recordOf:file][@"version"], @"\"v1\"", @"the record follows what was downloaded");
 }
 
+// The fetch waits on a 503's retry, so it has no stream yet. A change that
+// renames the file must still leave the placeholder the fetch installs at.
+// Otherwise the install would make a second file beside the new one.
+- (void)testAChangeBeforeTheFetchsFirstAnswerKeepsItsPlaceholder {
+    HTTPStubFile *served = [self serve:FlacBytes(4000) at:@"/track"
+                               headers:@{@"ETag": @"\"v1\"",
+                                         @"Content-Disposition": @"attachment; filename=\"One.flac\""}];
+    NSURL *file = [self resolvePath:@"/track"];
+    XCTAssertEqualObjects(file.lastPathComponent, @"One.flac");
+    ino_t inode = StatOf(file).st_ino;
+    // Retry-After's cap, stretched past the gate timeout: the retry never
+    // comes before the cancel.
+    _client.retryDelayScale = VIBE_TEST_GATE_TIMEOUT / 10.0;
+    [_stub queueStep:[HTTPStubStep status:503 headers:@{@"Retry-After": @"10"} body:nil] forPath:@"/track"];
+    NSUInteger requests = [_stub requestsToPath:@"/track"].count;
+    XCTestExpectation *returned = [self expectationWithDescription:@"fetched"];
+    __block dispatch_block_t cancelFetch = nil;
+    LinkStore *store = _store;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
+            @synchronized (self) {
+                cancelFetch = cancel;
+            }
+        } error:NULL];
+        [returned fulfill];
+    });
+    [self waitUntil:^BOOL {
+        return [self->_store isFetchingURL:file] && [self->_stub requestsToPath:@"/track"].count > requests;
+    }];
+    XCTAssertNil([_store availabilityForURL:file], @"no answer has made a stream");
+
+    served.headers = @{@"ETag": @"\"v2\"", @"Content-Disposition": @"attachment; filename=\"Two.flac\""};
+    XCTAssertEqualObjects([self resolvePath:@"/track"], file);
+    XCTAssertEqual(StatOf(file).st_ino, inode, @"the placeholder under the fetch stands");
+    XCTAssertEqualObjects([self recordOf:file][@"version"], @"\"v2\"");
+
+    dispatch_block_t cancel = nil;
+    @synchronized (self) {
+        cancel = cancelFetch;
+    }
+    XCTAssertNotNil(cancel);
+    cancel();
+    [self waitForExpectations:@[returned] timeout:VIBE_TEST_HANG_TIMEOUT];
+    NSArray<NSString *> *entries = [NSFileManager.defaultManager
+            contentsOfDirectoryAtPath:file.URLByDeletingLastPathComponent.path error:NULL];
+    XCTAssertEqualObjects([entries filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"NOT SELF BEGINSWITH '.'"]],
+                          @[@"One.flac"]);
+}
+
 // The record moved to another version while the placeholder streamed. The
 // stream is cancelled and keeps its part. The next open must not reuse the
 // placeholder of the old size under the new record.

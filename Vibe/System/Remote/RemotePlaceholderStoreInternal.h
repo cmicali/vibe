@@ -52,6 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
                                                       NSString *_Nullable version))progress
                         completion:(void (^)(NSError *_Nullable error))completion;
 
+// Whether a fetch of url runs now, from its start to its end. It covers the
+// wait for the first response, before availabilityForURL: answers. Any thread.
+- (BOOL)isFetchingURL:(NSURL *)url;
+
 // Every downloaded song under root, oldest download first, each as {url,
 // size, modified, downloaded}. A playlist file is not one. The disk queue.
 - (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root;

@@ -46,9 +46,13 @@ typedef NS_ENUM(NSInteger, VibeLinkError) {
 
 #pragma mark - Acceptance
 
+// TRAP: 0.0.0.0/8 and :: are the unspecified addresses, and a connection to
+// one reaches this machine. Left public, a public page could redirect Vibe to
+// a service on the Mac itself.
 static inline BOOL VibeLinkIPv4IsLocal(struct in_addr address) {
     uint32_t a = ntohl(address.s_addr);
-    return (a >> 24) == 10                   // 10/8
+    return (a >> 24) == 0                    // 0/8
+        || (a >> 24) == 10                   // 10/8
         || (a >> 24) == 127                  // 127/8
         || (a >> 20) == ((172u << 4) | 1)    // 172.16/12
         || (a >> 16) == ((192u << 8) | 168)  // 192.168/16
@@ -57,6 +61,7 @@ static inline BOOL VibeLinkIPv4IsLocal(struct in_addr address) {
 
 static inline BOOL VibeLinkIPv6IsLocal(struct in6_addr address) {
     const uint8_t *b = address.s6_addr;
+    if (IN6_IS_ADDR_UNSPECIFIED(&address)) return YES;  // ::
     if (IN6_IS_ADDR_LOOPBACK(&address)) return YES;   // ::1
     if ((b[0] & 0xFE) == 0xFC) return YES;           // fc00::/7
     if (b[0] == 0xFE && (b[1] & 0xC0) == 0x80) return YES;  // fe80::/10
@@ -70,7 +75,7 @@ static inline BOOL VibeLinkIPv6IsLocal(struct in6_addr address) {
 
 // Whether a host is on the local network: localhost, a name ending in .local,
 // .localhost, or .test, an unqualified name, or an address in a private,
-// loopback, or link-local range. Takes NSURL.host as it comes, with or without
+// loopback, link-local, or unspecified range. Takes NSURL.host as it comes, with or without
 // an IPv6 literal's brackets. It also picks the local-network error message.
 //
 // TRAP: an IPv4 address is parsed as the resolver parses it (inet_aton).

@@ -575,18 +575,23 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
         // and Convert hide in place), so an item under a hidden menu gets
         // none. Not the item's own flag, which Convert's validation sets and
         // may not have cleared yet.
-        VibeShortcut shortcut = item.parentItem.isHiddenOrHasHiddenAncestor
-                ? kVibeShortcutNone : VibeShortcutEffective(identifier, overrides);
-        unsigned short key = VibeShortcutKey(shortcut);
-        NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
-        BOOL isCharacter = shortcut != kVibeShortcutNone && VibeShortcutIsCharacter(shortcut);
-        BOOL isKeyCode = shortcut != kVibeShortcutNone && !isCharacter;
-        unsigned short layoutKeyCode = isCharacter ? LayoutKeyCode(key, modifiers) : kVibeShortcutKeyMask;
-        unichar layoutCharacter = isKeyCode
-                ? [self characterForKeyCode:VibeShortcutCanonicalKeyCode(key) modifiers:modifiers] : 0;
-        ApplyShortcut(item, VibeShortcutForMenuItem(identifier, shortcut, layoutKeyCode, layoutCharacter,
-                                                    overrides));
+        ApplyShortcut(item, item.parentItem.isHiddenOrHasHiddenAncestor
+                ? kVibeShortcutNone : [self carriedShortcutForIdentifier:identifier overrides:overrides]);
     }
+}
+
++ (VibeShortcut)carriedShortcutForIdentifier:(NSString *)identifier overrides:(NSDictionary *)overrides {
+    VibeShortcut shortcut = VibeShortcutEffective(identifier, overrides);
+    if (shortcut == kVibeShortcutNone) {
+        return kVibeShortcutNone;
+    }
+    unsigned short key = VibeShortcutKey(shortcut);
+    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+    BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
+    unsigned short layoutKeyCode = isCharacter ? LayoutKeyCode(key, modifiers) : kVibeShortcutKeyMask;
+    unichar layoutCharacter = isCharacter
+            ? 0 : [self characterForKeyCode:VibeShortcutCanonicalKeyCode(key) modifiers:modifiers];
+    return VibeShortcutForMenuItem(identifier, shortcut, layoutKeyCode, layoutCharacter, overrides);
 }
 
 + (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

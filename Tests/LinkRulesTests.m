@@ -170,7 +170,8 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
         @"192.167.255.255": @NO, @"192.168.0.0": @YES,  @"192.168.1.5": @YES,
         @"192.168.255.255": @YES, @"192.169.0.0": @NO,
         @"169.253.255.255": @NO, @"169.254.0.0": @YES,  @"169.254.255.255": @YES, @"169.255.0.0": @NO,
-        @"0.0.0.0": @NO,         @"8.8.8.8": @NO,       @"100.64.0.1": @NO,      @"255.255.255.255": @NO,
+        @"0.0.0.0": @YES,        @"0.255.255.255": @YES, @"1.0.0.0": @NO,
+        @"8.8.8.8": @NO,         @"100.64.0.1": @NO,    @"255.255.255.255": @NO,
         @"1.1.1.1": @NO,         @"193.168.1.1": @NO,
     };
     [cases enumerateKeysAndObjectsUsingBlock:^(NSString *address, NSNumber *local, BOOL *stop) {
@@ -199,7 +200,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 
 - (void)testIPv6RangesAndTheirEdges {
     NSDictionary<NSString *, NSNumber *> *cases = @{
-        @"::1": @YES,          @"::": @NO,            @"::2": @NO,
+        @"::1": @YES,          @"::": @YES,           @"::2": @NO,       @"::ffff:0.0.0.0": @YES,
         @"fbff::1": @NO,       @"fc00::": @YES,       @"fc00::1": @YES,  @"fd12:3456::1": @YES,
         @"fdff:ffff::1": @YES, @"fe00::1": @NO,       @"fe7f::1": @NO,
         @"fe80::": @YES,       @"fe80::1": @YES,      @"febf::1": @YES,  @"fec0::1": @NO,
@@ -269,6 +270,11 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://192.168.1.1/a.mp3")));
     XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://nas.local/a.mp3")));
     XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://[::1]/a.mp3")));
+    // The unspecified addresses reach this machine.
+    for (NSString *host in @[@"0.0.0.0", @"0", @"0.0.0.1", @"[::]", @"[::ffff:0.0.0.0]"]) {
+        NSURL *to = u([NSString stringWithFormat:@"https://%@:8443/a.mp3", host]);
+        XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), to), @"%@", host);
+    }
     XCTAssertTrue(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://cdn.example.org/a.mp3")));
     XCTAssertTrue(VibeLinkRequestIsAllowed(u(@"http://nas.local/a"), u(@"http://192.168.1.1/a.mp3")));
     XCTAssertTrue(VibeLinkRequestIsAllowed(u(@"http://192.168.1.1/a"), u(@"https://cdn.example.org/a.mp3")));

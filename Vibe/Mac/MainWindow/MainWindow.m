@@ -195,8 +195,12 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *VibeDropItemsOfPasteboar
 // URLs a drop here would re-open. A drag holding no file and no web link is
 // refused.
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+    // A file drag is decided by its types alone. It can hold thousands of
+    // items, and the drop reads each one anyway.
+    NSPasteboard *pboard = sender.draggingPasteboard;
+    BOOL holdsFiles = [pboard.types containsObject:kVibeDropTypeFileURL];
     _dragOperation = !sender.draggingSource
-            && VibeDropURLsOfItems(VibeDropItemsOfPasteboard(sender.draggingPasteboard)).count > 0
+            && (holdsFiles || VibeDropURLsOfItems(VibeDropItemsOfPasteboard(pboard)).count > 0)
             ? NSDragOperationCopy : NSDragOperationNone;
     return [self draggingUpdated:sender];
 }

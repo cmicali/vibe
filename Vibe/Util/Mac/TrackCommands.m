@@ -38,6 +38,11 @@
     if (urls.count) {
         [self writeToPasteboard:urls];
     }
+    else if (tracks.count) {
+        // Validation reads no file, so the item stays enabled over a
+        // placeholder. The beep says nothing was copied.
+        NSBeep();
+    }
 }
 
 + (BOOL)handsOutURL:(NSURL *)url {

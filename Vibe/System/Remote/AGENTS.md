@@ -70,7 +70,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **Past the download budget the oldest downloads go back to placeholders**, oldest first by download time, never the file just fetched. Size and mtime are kept, so the cache key still matches when the file comes back. A smaller budget applies at once. Remove Downloads does the same to every download. A player still reading an evicted file keeps its open descriptor. A playlist file is never counted as a download.
 
-**`installAsRemoteBackend` registers the store for its root** (`CloudFileMaterializer setRemoteRoot:…`): the fetch, the ranged read, and the streaming lookup. A shell calls it at launch, before anything opens a file under the root.
+**`installAsRemoteBackend` registers the store for its root** (`CloudFileMaterializer setRemoteRoot:…`): the fetch, the ranged read, and the streaming lookup. A shell calls it at launch, before anything opens a file under the root. **TRAP: a store with no root installs nothing.** Application Support can fail to resolve. A nil root would remove every backend, another store's too, once Release compiles out `setRemoteRoot:`'s assert.
 
 ## Links
 
@@ -80,9 +80,11 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkRequestIsAllowed`, on the link and on every redirect. It applies the address rule to each. A redirect from a public host never reaches the local network, whatever the scheme. A public page could otherwise send requests to a device at home. A redirect can also leave the local network, and a stub cannot test App Transport Security.
 
-**The address rule is `VibeLinkURLAcceptance`.** It answers the `VibeLinkError` a refusal fails with, and None for an address Vibe fetches. https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost`, or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, ::1, fc00::/7, or fe80::/10. Plain http to any other host is insecure. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
+**The address rule is `VibeLinkURLAcceptance`.** It answers the `VibeLinkError` a refusal fails with, and None for an address Vibe fetches. https reaches any host. Plain http reaches only a local host (`VibeLinkHostIsLocal`). That is `localhost`, a name ending in `.local`, `.localhost`, or `.test`, an unqualified name, or an address in 10/8, 172.16/12, 192.168/16, 169.254/16, 127/8, 0/8, ::1, ::, fc00::/7, or fe80::/10. Plain http to any other host is insecure. Any other scheme, or no host, is invalid. App Transport Security's `NSAllowsLocalNetworking`, in both apps' Info.plist, draws the same line. Whether it lets a private IP literal through over plain http has not been measured on a real host.
 
 **TRAP: an IPv4 address is parsed as the resolver parses it** (`inet_aton`). `134744072` and `0x8.8.8.8` are 8.8.8.8, not unqualified names. Read as a name, a bare number would let plain http reach any public address.
+
+**TRAP: 0/8 and `::` are the unspecified addresses, and a connection to one reaches this machine.** They count as local. Counted as public, a public page could redirect Vibe to a service on the Mac itself.
 
 **TRAP: a zone id belongs only to an IPv6 literal** (`fe80::1%en0`). A `%` anywhere else, or a NUL, makes the host not local. Cut there like a zone id, `pi%.example.com` would pass as the unqualified name `pi`.
 
@@ -120,7 +122,7 @@ The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through a
 
 **An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. The file's own size and mtime must be the record's too. A record changed while its file streamed describes bytes the placeholder does not. Once the stream ends, the next open writes a fresh placeholder. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
 
-**TRAP: a file streaming now keeps its placeholder.** The fetch's install renames its bytes over whatever stands at the URL, and its readers hold the part file. Only the record changes. The install then sets the record back to what it downloaded.
+**TRAP: a file being fetched now keeps its placeholder** (`isFetchingURL:`). That holds from the fetch's start, before its first response makes a stream. The fetch's install renames its bytes over whatever stands at the URL, and its readers hold the part file. A placeholder under a new name would leave that install a second file in the directory. Only the record changes. The install then sets the record back to what it downloaded.
 
 **TRAP: the install keeps the record's mtime only while the download is the record's file** (`modificationTimeOfMetadata:forURL:`). The cache key is made from that mtime. A download of another version takes its own Last-Modified, else the time now, and the record follows it. A record left describing other bytes would send the download back to a placeholder at the next open, or fail its tag reads.
 
