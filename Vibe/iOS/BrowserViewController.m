@@ -256,6 +256,8 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     BOOL _swipingRow;
     // A subfolder walk is out; a second ask waits for it.
     BOOL _walkingSubfolders;
+    // Cancels the link Open URL… is resolving. Its row spins while it is set.
+    dispatch_block_t _cancelLinkResolve;
     UIBarButtonItem *_playItem;
     UIBarButtonItem *_addSelectedItem;
     UIBarButtonItem *_sortItem;
@@ -871,14 +873,14 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     [presenter presentViewController:alert animated:YES completion:nil];
 }
 
-+ (void)openLinkString:(NSString *)string
-    replacingPlaylistOf:(PlaybackController *)playback
-                   from:(UIViewController *)anchor
-             completion:(void (^)(NSURL *, NSError *))completion {
++ (dispatch_block_t)openLinkString:(NSString *)string
+                replacingPlaylistOf:(PlaybackController *)playback
+                               from:(UIViewController *)anchor
+                         completion:(void (^)(NSURL *, NSError *))completion {
     uint64_t token = [playback replaceRequestTokenOpening:nil];
     __weak UIWindow *window = anchor.viewIfLoaded.window;
     __weak UIViewController *weakAnchor = anchor;
-    [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
+    return [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
         UIViewController *root = window.rootViewController ?: weakAnchor;
         if (file && root) {
             [BrowserViewController confirmReplacingPlaylistOf:playback from:VibeTopmostPresenter(root)
@@ -918,38 +920,57 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     [self presentViewController:alert animated:YES completion:nil];
 }
 
-// The add sheet takes the Add token before the resolve, as Favorites does,
-// and closes at once, as every Add does. Never the inbox road: it does not
-// persist.
+// The row spins until the link settles, and a second tap cancels it. The
+// add sheet takes the Add token before the resolve, as Favorites does, and
+// closes once the link is added. Never the inbox road: it does not persist.
 - (void)openLinkText:(NSString *)text {
     if (VibeLinkTextIsBlank(text)) {
         return;
     }
-    // Found when the failure lands: the add sheet is gone by then, and the
-    // card may be up.
+    // Found when the failure lands: the add sheet may be gone by then, and
+    // the card may be up.
     __weak UIWindow *window = self.view.window;
-    void (^showFailure)(NSError *) = ^(NSError *error) {
+    __weak BrowserViewController *weakSelf = self;
+    void (^settled)(NSURL *, NSError *) = ^(NSURL *file, NSError *error) {
+        BrowserViewController *strongSelf = weakSelf;
+        if (strongSelf) {
+            strongSelf->_cancelLinkResolve = nil;
+            [strongSelf reloadOpenURLRow];
+            if (file && strongSelf->_appending) {
+                [strongSelf dismissSheet];
+            }
+        }
+        NSString *message = error ? [LinkStore messageForError:error] : nil;
         UIViewController *root = window.rootViewController;
-        if (error && root) {
-            VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, [LinkStore messageForError:error]);
+        if (message && root) {
+            VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, message);
         }
     };
     if (!_appending) {
-        [BrowserViewController openLinkString:text replacingPlaylistOf:_playback from:self
-                                   completion:^(NSURL *file, NSError *error) {
-            showFailure(error);
-        }];
-        return;
+        _cancelLinkResolve = [BrowserViewController openLinkString:text replacingPlaylistOf:_playback from:self
+                                                        completion:settled];
     }
-    PlaybackController *playback = _playback;
-    uint64_t token = [playback addRequestToken];
-    [LinkStore.shared resolveURLString:text completion:^(NSURL *file, NSError *error) {
-        if (file) {
-            [playback addURLs:@[file] token:token];
-        }
-        showFailure(error);
-    }];
-    [self dismissSheet];
+    else {
+        PlaybackController *playback = _playback;
+        uint64_t token = [playback addRequestToken];
+        _cancelLinkResolve = [LinkStore.shared resolveURLString:text completion:^(NSURL *file, NSError *error) {
+            if (file) {
+                [playback addURLs:@[file] token:token];
+            }
+            settled(file, error);
+        }];
+    }
+    [self reloadOpenURLRow];
+}
+
+- (void)reloadOpenURLRow {
+    NSUInteger row = [[self rootRowsInSection:VibeBrowserRootSectionLocations]
+            indexOfObject:@(VibeBrowserRootRowOpenURL)];
+    if (self.isRoot && self.viewIfLoaded.window && row != NSNotFound) {
+        [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:(NSInteger)row
+                                                                    inSection:VibeBrowserRootSectionLocations]]
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
 }
 
 // Every open is one of PlaybackController's roads.
@@ -1382,7 +1403,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     content.imageProperties.reservedLayoutSize = CGSizeMake(28, 28);
     BOOL action = NO;
     UIImage *dropboxGlyph = [UIImage imageNamed:@"dropbox-glyph"];
-    switch ([self rootRowAtIndexPath:indexPath]) {
+    VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
+    switch (row) {
         case VibeBrowserRootRowDevice:
             content.text = [SearchFolderStore displayNameForFolderURL:SearchFolderStore.containerDocumentsURL];
             content.image = [UIImage systemImageNamed:
@@ -1431,7 +1453,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     else {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
-    cell.contentConfiguration = content;
+    VibeApplyRowContent(cell, content, VibeBrowserRootRowIsOpening(row, _cancelLinkResolve != nil));
     return cell;
 }
 
@@ -1473,7 +1495,14 @@ didEndDisplayingCell:(UITableViewCell *)cell
 }
 
 - (void)selectSourceAtIndexPath:(NSIndexPath *)indexPath {
-    switch ([self rootRowAtIndexPath:indexPath]) {
+    VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
+    // A second tap on the row still opening gives it up.
+    dispatch_block_t cancel = _cancelLinkResolve;
+    if (cancel && VibeBrowserRootRowIsOpening(row, YES)) {
+        cancel();
+        return;
+    }
+    switch (row) {
         case VibeBrowserRootRowDevice:
             [self pushDirectory:SearchFolderStore.containerDocumentsURL];
             return;

@@ -565,6 +565,140 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertTrue(IsPlaceholder(placeholder));
 }
 
+#pragma mark The deadline and the cancel
+
+// A short window for what must not arrive.
+- (void)runMainLoopFor:(NSTimeInterval)seconds {
+    [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:seconds]];
+}
+
+- (void)testACancelledResolveCompletesOnceAndLeavesNothing {
+    [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    dispatch_semaphore_t gate = [self gate];
+    [_stub queueStep:[HTTPStubStep stallAfter:0 gate:gate] forPath:@"/a.flac"];
+    __block NSUInteger completions = 0;
+    __block NSError *failure = nil;
+    dispatch_block_t cancel = [_store resolveURLString:[_stub URLForPath:@"/a.flac"].absoluteString
+                                            completion:^(NSURL *file, NSError *error) {
+        XCTAssertNil(file);
+        completions++;
+        failure = error;
+    }];
+    [self waitUntil:^BOOL {
+        return [self->_stub requestsToPath:@"/a.flac"].count > 0;
+    }];
+    XCTAssertEqual([_stub requestsToPath:@"/a.flac"].count, 1u, @"the probe is held at the stub");
+    XCTAssertEqual(completions, 0u);
+
+    cancel();
+    XCTAssertEqual(completions, 1u, @"the cancel completes before it returns");
+    XCTAssertEqualObjects(failure.domain, VibeLinkErrorDomain);
+    XCTAssertEqual(failure.code, VibeLinkErrorCancelled);
+    XCTAssertNil([LinkStore messageForError:failure], @"a cancel shows nothing");
+
+    // The held answer goes on and finds its load stopped.
+    dispatch_semaphore_signal(gate);
+    cancel();
+    [self runMainLoopFor:0.3];
+    [self settleDiskQueue];
+    [self runMainLoopFor:0.05];
+    XCTAssertEqual(completions, 1u, @"nothing lands after the cancel");
+    XCTAssertEqual(_stub.requests.count, 1u, @"no request after the probe");
+    XCTAssertEqualObjects([self linkDirectories], @[], @"no record and no placeholder");
+}
+
+// A refused address completes on main later. A cancel before that is the
+// one completion.
+- (void)testACancelBeforeARefusalLandsIsTheOneCompletion {
+    __block NSUInteger completions = 0;
+    __block NSError *failure = nil;
+    dispatch_block_t cancel = [_store resolveURLString:@"ftp://8.8.8.8/a.flac" completion:^(NSURL *file, NSError *error) {
+        completions++;
+        failure = error;
+    }];
+    cancel();
+    [self runMainLoopFor:0.05];
+    XCTAssertEqual(completions, 1u);
+    XCTAssertEqual(failure.code, VibeLinkErrorCancelled);
+}
+
+- (void)testACancelAfterTheCompletionDoesNothing {
+    [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    __block NSUInteger completions = 0;
+    __block NSURL *file = nil;
+    XCTestExpectation *done = [self expectationWithDescription:@"resolved"];
+    dispatch_block_t cancel = [_store resolveURLString:[_stub URLForPath:@"/a.flac"].absoluteString
+                                            completion:^(NSURL *answer, NSError *error) {
+        XCTAssertNil(error);
+        completions++;
+        file = answer;
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    cancel();
+    [self runMainLoopFor:0.05];
+    XCTAssertEqual(completions, 1u);
+    XCTAssertTrue(IsPlaceholder(file), @"the opened link stays");
+    XCTAssertNotNil([self recordOf:file]);
+    XCTAssertEqual(_stub.requests.count, 1u);
+}
+
+// The probe's time is measured from before the resolve, on the clock its
+// timer uses, to the completion, where the code runs.
+- (NSError *)failureAtDeadlineOf:(NSString *)link elapsed:(NSTimeInterval *)elapsed {
+    _store.probeTimeoutScale = 0.01;
+    __block NSError *failure = nil;
+    __block uint64_t settledAt = 0;
+    XCTestExpectation *done = [self expectationWithDescription:@"timed out"];
+    uint64_t startedAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    [_store resolveURLString:link completion:^(NSURL *file, NSError *error) {
+        settledAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        XCTAssertNil(file);
+        failure = error;
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    *elapsed = (NSTimeInterval)(settledAt - startedAt) / NSEC_PER_SEC;
+    XCTAssertEqualObjects(failure.domain, VibeLinkErrorDomain);
+    NSError *cause = failure.userInfo[NSUnderlyingErrorKey];
+    XCTAssertEqualObjects(cause.domain, NSURLErrorDomain);
+    XCTAssertEqual(cause.code, NSURLErrorTimedOut);
+    return failure;
+}
+
+- (void)testAProbeThatSendsNothingFailsAtItsDeadline {
+    [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    [_stub queueStep:[HTTPStubStep stallAfter:0 gate:[self gate]] forPath:@"/a.flac"];
+    NSTimeInterval elapsed = 0;
+    // The stub's host ends in .test, a local name.
+    NSError *failure = [self failureAtDeadlineOf:[_stub URLForPath:@"/a.flac"].absoluteString elapsed:&elapsed];
+    XCTAssertEqual(failure.code, VibeLinkErrorLocalNetwork);
+    XCTAssertGreaterThanOrEqual(elapsed, kVibeLinkProbeTimeoutLocal * 0.01);
+    XCTAssertEqualObjects([self linkDirectories], @[], @"no record and no placeholder");
+    XCTAssertEqual(_stub.requests.count, 1u);
+
+    [_stub answerHost:@"example.com"];
+    [self serve:FlacBytes(4000) at:@"/b.flac" headers:@{@"ETag": @"\"v1\""}];
+    [_stub queueStep:[HTTPStubStep stallAfter:0 gate:[self gate]] forPath:@"/b.flac"];
+    failure = [self failureAtDeadlineOf:@"https://example.com/b.flac" elapsed:&elapsed];
+    XCTAssertEqual(failure.code, VibeLinkErrorUnreachable);
+    XCTAssertGreaterThanOrEqual(elapsed, kVibeLinkProbeTimeoutPublic * 0.01);
+}
+
+// A link past its deadline is as unreachable as one that refused the
+// connection, and still opens its download.
+- (void)testALinkPastItsDeadlineOpensItsDownload {
+    [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    NSURL *file = [self resolvePath:@"/a.flac"];
+    [self fetchExpectingSuccess:file];
+    [_stub queueStep:[HTTPStubStep stallAfter:0 gate:[self gate]] forPath:@"/a.flac"];
+    _store.probeTimeoutScale = 0.01;
+    NSError *error = nil;
+    XCTAssertEqualObjects([self resolve:[_stub URLForPath:@"/a.flac"].absoluteString error:&error], file);
+    XCTAssertNil(error);
+    XCTAssertTrue(IsDownloaded(file));
+}
+
 #pragma mark The stream
 
 - (void)testAStreamIsReadableWithItsTailWindowAndKeepsItsCacheKey {

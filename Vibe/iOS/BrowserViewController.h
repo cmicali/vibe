@@ -56,11 +56,12 @@ NS_ASSUME_NONNULL_BEGIN
 // prompt, the add sheet, or the card may have come or gone by then. The
 // replace token is taken now, so a later open supersedes it. A link that
 // fails leaves the playlist as it is. Never the inbox road: it does not
-// persist. Completion on main, with exactly one of file and error.
-+ (void)openLinkString:(NSString *)string
-    replacingPlaylistOf:(PlaybackController *)playback
-                   from:(UIViewController *)anchor
-             completion:(nullable void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+// persist. Completion on main, with exactly one of file and error. The
+// returned block cancels the resolve on main, as LinkStore's does.
++ (dispatch_block_t)openLinkString:(NSString *)string
+                replacingPlaylistOf:(PlaybackController *)playback
+                               from:(UIViewController *)anchor
+                         completion:(nullable void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
 
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them

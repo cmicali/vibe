@@ -897,6 +897,24 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqual(VibeLinkErrorOfNetworkError(otherCancel, @"example.com"), VibeLinkErrorUnreachable);
 }
 
+// A public host gets 15 s, and a local one, which may be waking or behind
+// the local-network prompt, gets 30 s. The host decides as the address rule's
+// does.
+- (void)testTheProbeDeadlineIsLongerOnTheLocalNetwork {
+    XCTAssertEqual(kVibeLinkProbeTimeoutPublic, 15);
+    XCTAssertEqual(kVibeLinkProbeTimeoutLocal, 30);
+    for (NSString *host in @[@"example.com", @"www.dropbox.com", @"8.8.8.8", @"134744072", @"[2001:db8::1]",
+                             @"pi%.example.com"]) {
+        XCTAssertEqual(VibeLinkProbeTimeout(host), kVibeLinkProbeTimeoutPublic, @"%@", host);
+    }
+    for (NSString *host in @[@"localhost", @"nas.local", @"pi", @"192.168.1.5", @"10.0.0.2", @"[fe80::1%en0]",
+                             @"x.stub.test"]) {
+        XCTAssertEqual(VibeLinkProbeTimeout(host), kVibeLinkProbeTimeoutLocal, @"%@", host);
+    }
+    XCTAssertEqual(VibeLinkProbeTimeout(nil), kVibeLinkProbeTimeoutPublic);
+    XCTAssertEqual(VibeLinkProbeTimeout(@""), kVibeLinkProbeTimeoutPublic);
+}
+
 - (void)testAMissingSizeIsALiveStreamOrNoSize {
     XCTAssertEqual(VibeLinkErrorOfMissingSize(@{@"icy-name": @"Radio"}), VibeLinkErrorLiveStream);
     XCTAssertEqual(VibeLinkErrorOfMissingSize(@{@"Icy-MetaInt": @"16000", @"Content-Type": @"text/plain"}),
@@ -966,6 +984,13 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
     XCTAssertEqualObjects([LinkStore messageForError:LinkError(99, nil)], STR_LINK_ERROR_UNREACHABLE);
     XCTAssertEqualObjects([LinkStore messageForError:LinkError(-1, nil)], STR_LINK_ERROR_UNREACHABLE);
     XCTAssertEqualObjects([LinkStore messageForError:nil], STR_LINK_ERROR_UNREACHABLE);
+}
+
+// The user's own cancel shows no alert. Only the link domain's code is one.
+- (void)testACancelShowsNothing {
+    XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil)]);
+    NSError *other = [NSError errorWithDomain:NSURLErrorDomain code:VibeLinkErrorCancelled userInfo:nil];
+    XCTAssertEqualObjects([LinkStore messageForError:other], STR_LINK_ERROR_UNREACHABLE);
 }
 
 // Open with nothing typed is Cancel, not an invalid address.

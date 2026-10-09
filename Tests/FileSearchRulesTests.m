@@ -388,6 +388,14 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqualObjects(rows, expected, @"a location's row is its index in the store");
 }
 
+// The row spins, and a tap cancels, only while its link resolves.
+- (void)testOnlyOpenURLSpinsAndOnlyWhileItsLinkResolves {
+    for (VibeBrowserRootRow row = VibeBrowserRootRowDevice; row <= VibeBrowserRootRowOpenURL; row++) {
+        XCTAssertFalse(VibeBrowserRootRowIsOpening(row, NO), @"%ld", (long)row);
+        XCTAssertEqual(VibeBrowserRootRowIsOpening(row, YES), row == VibeBrowserRootRowOpenURL, @"%ld", (long)row);
+    }
+}
+
 - (void)testConnectDropboxIsOfferedOnlyUntilLinked {
     NSArray *unlinked = VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 0);
     NSArray *expected = @[@(VibeBrowserRootRowConnectDropbox), @(VibeBrowserRootRowAddFolder),

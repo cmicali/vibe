@@ -27,7 +27,8 @@ NS_ASSUME_NONNULL_BEGIN
 static const NSInteger kVibeLinkDownloadBudgetBytes = 2000L * 1000 * 1000;
 
 // Why a link did not open. Each shell turns one into its link.error string.
-// The names follow the string keys.
+// The names follow the string keys. Cancelled has none: the user's own
+// cancel shows nothing.
 typedef NS_ENUM(NSInteger, VibeLinkError) {
     VibeLinkErrorNone,
     VibeLinkErrorInvalid,
@@ -40,6 +41,7 @@ typedef NS_ENUM(NSInteger, VibeLinkError) {
     VibeLinkErrorNoSize,
     VibeLinkErrorLiveStream,
     VibeLinkErrorServer,
+    VibeLinkErrorCancelled,
 };
 
 #pragma mark - Acceptance
@@ -502,6 +504,19 @@ static inline VibeLinkError VibeLinkErrorOfNetworkError(NSError *_Nullable error
         }
     }
     return VibeLinkHostIsLocal(host) ? VibeLinkErrorLocalNetwork : VibeLinkErrorUnreachable;
+}
+
+// The probe's deadline, from the request to its first bytes. Redirects and
+// resends count toward it. Past it the probe fails as its host's network
+// failure. A public server that sends nothing for 15 s is down for practical
+// purposes. A local host gets twice as long. It may be a NAS spinning up its
+// disks. It may sit behind the system's local-network prompt, which holds the
+// first request while the user reads it. The user can cancel sooner.
+static const NSTimeInterval kVibeLinkProbeTimeoutPublic = 15;
+static const NSTimeInterval kVibeLinkProbeTimeoutLocal = 30;
+
+static inline NSTimeInterval VibeLinkProbeTimeout(NSString *_Nullable host) {
+    return VibeLinkHostIsLocal(host) ? kVibeLinkProbeTimeoutLocal : kVibeLinkProbeTimeoutPublic;
 }
 
 // A response with no size. Icecast and SHOUTcast send icy- headers. An audio

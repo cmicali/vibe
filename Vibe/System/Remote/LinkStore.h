@@ -43,10 +43,18 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 
 // The typed link as a file to open: its placeholder, or its download when
 // that is still current. Any thread. The probe and the disk work run off
-// main. Completion on main, with exactly one of file and error. A refused
-// address fails before any request.
-- (void)resolveURLString:(NSString *)string
-              completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+// main. Completion on main, exactly once, with exactly one of file and
+// error. A refused address fails before any request. A probe past its
+// deadline (VibeLinkProbeTimeout) fails as unreachable or as the local
+// network's.
+// The returned block cancels, on main only. A resolve not yet completed
+// then completes before the block returns, with VibeLinkErrorCancelled, and
+// nothing lands after it. Past the completion it does nothing.
+- (dispatch_block_t)resolveURLString:(NSString *)string
+                          completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+
+// Multiplies the probe's deadline. 1 unless a test shortens it.
+@property (nonatomic) double probeTimeoutScale;
 
 // The record of the link whose file url is: {url, host, …}, as the Links
 // section of System/Remote/AGENTS.md lists it. Nil for a file outside the
@@ -55,8 +63,8 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 
 // What the shell shows for a failed open: the error's link.error string. A
 // Server error names its status. Any error outside the link domain reads as
-// unreachable. A disk failure is one.
-+ (NSString *)messageForError:(nullable NSError *)error;
+// unreachable. A disk failure is one. Nil for a cancel, which shows nothing.
++ (nullable NSString *)messageForError:(nullable NSError *)error;
 
 // Deletes each link not opened for 30 days that no URL in kept lies in. Once
 // per launch, after the restore, so kept holds what the shell restored. A

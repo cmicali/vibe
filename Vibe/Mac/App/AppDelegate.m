@@ -57,6 +57,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSOpenPanel *_openPanel;
     // Open URL's prompt while it is up. A second ⌘U re-fronts it.
     NSAlert *_openLinkAlert;
+    // Cancels the prompt's link while it resolves.
+    dispatch_block_t _cancelOpenLink;
 }
 
 - (instancetype)init {
@@ -233,10 +235,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                          }];
 }
 
-- (void)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
+- (dispatch_block_t)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
     OpenRequestToken *token = [self beginOpenRequestAppending:NO fromURLs:@[]];
     __weak AppDelegate *weakSelf = self;
-    [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
+    return [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
         if (file) {
             [weakSelf openURLsWithRestoredAccess:@[file] token:token];
         }
@@ -418,41 +420,94 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }
     NSTextField *field = [NSTextField textFieldWithString:@""];
     field.placeholderString = VibeNotLocalized(@"https://");
-    field.frame = NSMakeRect(0, 0, 380, field.intrinsicContentSize.height);
     field.cell.scrollable = YES;
     field.cell.wraps = NO;
     field.usesSingleLineMode = YES;
+    NSProgressIndicator *spinner = [[NSProgressIndicator alloc] init];
+    spinner.style = NSProgressIndicatorStyleSpinning;
+    spinner.controlSize = NSControlSizeSmall;
+    spinner.displayedWhenStopped = NO;
+    [spinner sizeToFit];
+    // The field, then the spinner beside it: confirmOpenLink: finds them so.
+    CGFloat fieldHeight = field.intrinsicContentSize.height;
+    NSSize spin = spinner.frame.size;
+    NSView *accessory = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 380, MAX(fieldHeight, spin.height))];
+    field.frame = NSMakeRect(0, (NSHeight(accessory.frame) - fieldHeight) / 2, 380 - spin.width - 8, fieldHeight);
+    spinner.frame = NSMakeRect(380 - spin.width, (NSHeight(accessory.frame) - spin.height) / 2, spin.width, spin.height);
+    [accessory addSubview:field];
+    [accessory addSubview:spinner];
 
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = STR_LINK_PROMPT_TITLE;
     alert.informativeText = STR_LINK_PROMPT_MESSAGE;
-    alert.accessoryView = field;
-    [alert addButtonWithTitle:STR_BUTTON_OPEN];
+    alert.accessoryView = accessory;
+    // The buttons act here, not on the alert. Open keeps the sheet up while
+    // the link resolves.
+    NSButton *open = [alert addButtonWithTitle:STR_BUTTON_OPEN];
+    open.target = self;
+    open.action = @selector(confirmOpenLink:);
+    NSButton *cancel = [alert addButtonWithTitle:STR_BUTTON_CANCEL];
     // NSAlert assigns Escape by the button's title. Set here, it holds in
     // every language.
-    [alert addButtonWithTitle:STR_BUTTON_CANCEL].keyEquivalent = @"\e";
+    cancel.keyEquivalent = @"\e";
+    cancel.target = self;
+    cancel.action = @selector(cancelOpenLink:);
     [alert layout];
     alert.window.initialFirstResponder = field;
     _openLinkAlert = alert;
-    [alert beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
-        self->_openLinkAlert = nil;
-        NSString *text = field.stringValue;
-        if (response != NSAlertFirstButtonReturn || VibeLinkTextIsBlank(text)) {
-            return;
+    [alert beginSheetModalForWindow:window completionHandler:nil];
+}
+
+// Open with a blank field is Cancel. Otherwise the sheet stays up until the
+// link settles. Its field and Open are disabled, and its spinner turns.
+- (void)confirmOpenLink:(NSButton *)open {
+    NSView *accessory = _openLinkAlert.accessoryView;
+    NSTextField *field = accessory.subviews.firstObject;
+    NSProgressIndicator *spinner = accessory.subviews.lastObject;
+    NSString *text = field.stringValue;
+    if (VibeLinkTextIsBlank(text)) {
+        [self endOpenLinkSheet];
+        return;
+    }
+    field.enabled = NO;
+    open.enabled = NO;
+    [spinner startAnimation:nil];
+    __weak AppDelegate *weakSelf = self;
+    _cancelOpenLink = [self openLinkString:text completion:^(NSURL *file, NSError *error) {
+        NSString *message = error ? [LinkStore messageForError:error] : nil;
+        // A cancel's sheet is already gone.
+        if (file || message) {
+            [weakSelf endOpenLinkSheet];
         }
-        [self openLinkString:text completion:^(NSURL *file, NSError *error) {
-            if (error) {
-                [self showLinkError:error];
-            }
-        }];
+        if (message) {
+            [weakSelf showLinkError:message];
+        }
     }];
 }
 
-- (void)showLinkError:(NSError *)error {
+// Cancel and Escape. The link stops resolving, and nothing opens.
+- (void)cancelOpenLink:(id)sender {
+    dispatch_block_t cancel = _cancelOpenLink;
+    if (cancel) {
+        cancel();
+    }
+    [self endOpenLinkSheet];
+}
+
+- (void)endOpenLinkSheet {
+    NSAlert *alert = _openLinkAlert;
+    _openLinkAlert = nil;
+    _cancelOpenLink = nil;
+    if (alert) {
+        [self.mainPlayerController.window endSheet:alert.window];
+    }
+}
+
+- (void)showLinkError:(NSString *)message {
     NSAlert *alert = [[NSAlert alloc] init];
     alert.alertStyle = NSAlertStyleWarning;
     alert.messageText = STR_LINK_ERROR_TITLE;
-    alert.informativeText = [LinkStore messageForError:error];
+    alert.informativeText = message;
     [alert beginSheetModalForWindow:self.mainPlayerController.window completionHandler:nil];
 }
 

@@ -33,10 +33,11 @@
 
 // Open URL: the typed link resolved (LinkStore), then its file opened as a
 // replace through the open funnel. The request is taken at the call. A
-// later open supersedes it. A link that fails leaves the playlist as it is.
-// Completion on main, with exactly one of file and error.
-- (void)openLinkString:(NSString *)string
-            completion:(void (^)(NSURL *file, NSError *error))completion;
+// later open supersedes it. A link that fails or is cancelled leaves the
+// playlist as it is. Completion on main, with exactly one of file and error.
+// The returned block cancels the resolve on main, as LinkStore's does.
+- (dispatch_block_t)openLinkString:(NSString *)string
+                        completion:(void (^)(NSURL *file, NSError *error))completion;
 
 // Re-levels the About and Settings windows to alwaysOnTop: at normal level
 // the floating player would bury them, Settings included.

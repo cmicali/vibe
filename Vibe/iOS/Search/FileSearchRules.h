@@ -162,6 +162,12 @@ static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection se
     return rows;
 }
 
+// Whether a root row spins in its icon slot. Only Open URL… does, while its
+// link resolves. A tap on a spinning row cancels the resolve.
+static inline BOOL VibeBrowserRootRowIsOpening(VibeBrowserRootRow row, BOOL resolvingLink) {
+    return row == VibeBrowserRootRowOpenURL && resolvingLink;
+}
+
 #pragma mark - Recents
 
 // A recent's second line. A link is named by its host, from its record, else

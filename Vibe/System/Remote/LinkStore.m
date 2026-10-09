@@ -102,6 +102,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     self = [super initWithClient:client rootURL:rootURL indexAttribute:kIndexAttribute
                   downloadBudget:kVibeLinkDownloadBudgetBytes];
     if (self) {
+        _probeTimeoutScale = 1;
         // Every request and every redirect: a redirect can leave the local
         // network, and a stub cannot test App Transport Security.
         client.allowsURL = ^BOOL(NSURL *from, NSURL *url) {
@@ -282,24 +283,43 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 
 #pragma mark - Resolve
 
-- (void)resolveURLString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
+- (dispatch_block_t)resolveURLString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
+    // Main only, so a cancel on main settles the resolve before it returns.
+    __block BOOL settled = NO;
+    void (^settle)(NSURL *, NSError *) = ^(NSURL *file, NSError *error) {
+        if (!settled) {
+            settled = YES;
+            completion(file, error);
+        }
+    };
     void (^finish)(NSURL *, NSError *) = ^(NSURL *file, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            completion(file, error);
+            settle(file, error);
         });
     };
+    NSError *cancelled = VibeLinkMakeError(VibeLinkErrorCancelled, nil);
     NSURL *typed = VibeLinkURLFromString(string);
     VibeLinkError refused = VibeLinkURLAcceptance(typed);
     if (refused != VibeLinkErrorNone) {
         LogInfo(@"Links: refused a link (%ld)", (long)refused);
         finish(nil, VibeLinkMakeError(refused, nil));
-        return;
+        return ^{
+            settle(nil, cancelled);
+        };
     }
     NSURL *link = VibeLinkDirectDownloadURL(typed);
     NSTimeInterval probed = NSDate.date.timeIntervalSince1970;
-    [self.client probeTarget:link length:kProbeBytes
-                  completion:^(NSDictionary *metadata, NSHTTPURLResponse *response, NSData *head, NSError *error) {
+    // The disk queue's: the first of the answer, the deadline, and the cancel
+    // wins. The others do nothing.
+    __block BOOL answered = NO;
+    dispatch_block_t cancelProbe = [self.client probeTarget:link length:kProbeBytes
+                                                 completion:^(NSDictionary *metadata, NSHTTPURLResponse *response,
+                                                              NSData *head, NSError *error) {
         dispatch_async(self.diskQueue, ^{
+            if (answered) {
+                return;
+            }
+            answered = YES;
             NSError *failure = nil;
             NSURL *file = error ? [self downloadOfLink:link afterProbeError:error failure:&failure]
                                 : [self settleLink:link metadata:metadata response:response head:head
@@ -307,6 +327,31 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
             finish(file, file ? nil : failure);
         });
     }];
+    NSTimeInterval timeout = VibeLinkProbeTimeout(link.host) * self.probeTimeoutScale;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC)), self.diskQueue, ^{
+        if (answered) {
+            return;
+        }
+        answered = YES;
+        cancelProbe();
+        LogInfo(@"Links: %@ sent nothing within %.0f s", link.host, timeout);
+        // The host's network failure, as a connection's own timeout would be.
+        NSError *timedOut = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil];
+        NSError *failure = nil;
+        NSURL *file = [self downloadOfLink:link afterProbeError:timedOut failure:&failure];
+        finish(file, file ? nil : failure);
+    });
+    return ^{
+        if (settled) {
+            return;
+        }
+        cancelProbe();
+        dispatch_async(self.diskQueue, ^{
+            answered = YES;
+        });
+        LogInfo(@"Links: cancelled the open of %@", link.host);
+        settle(nil, cancelled);
+    };
 }
 
 // The disk queue. A link that cannot be reached still opens its download.
@@ -420,6 +465,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
         case VibeLinkErrorServer:
             return [NSString stringWithFormat:STR_LINK_ERROR_SERVER,
                                               (long)[error.userInfo[VibeHTTPErrorStatusCodeKey] integerValue]];
+        case VibeLinkErrorCancelled:    return nil;
         case VibeLinkErrorNone:
         case VibeLinkErrorUnreachable:
             break;
