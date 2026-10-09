@@ -33,7 +33,7 @@ static NSString *const kChecksum = @"AQIDBAUGBwgJCgsMDQ4PEBESExQV";
 
 static NSMutableDictionary *Lookup(void) {
     return ICloudLookup(kChecksum, 526387929, @"Song One", @"flac",
-                        ICloudAddress(@"cvws.icloud-content.com", kChecksum, 1791587082, @"signature"));
+                        ICloudAddress(kChecksum, 1791587082, @"signature"));
 }
 
 static VibeLinkError FileOf(id answer, NSDictionary **file) {
@@ -96,7 +96,9 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertEqualObjects(file[@"size"], @526387929);
     XCTAssertEqualObjects(file[@"modified"], @(kICloudModified));
     XCTAssertEqualObjects(file[@"name"], @"Song One.flac");
-    XCTAssertEqualObjects(file[@"address"], ICloudAddress(@"cvws.icloud-content.com", kChecksum, 1791587082, @"signature"));
+    XCTAssertEqualObjects([file[@"url"] absoluteString],
+                          [ICloudAddress(kChecksum, 1791587082, @"signature")
+                           stringByReplacingOccurrencesOfString:@"${f}" withString:@"Song%20One.flac"]);
     XCTAssertEqualObjects(file[@"expiry"], @1791587082);
     XCTAssertEqual(file.count, 6u, @"nothing else, the owner least of all");
 }
@@ -281,7 +283,15 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
 @end
 
 static NSString *const kICloudLink = @"https://www.icloud.com/iclouddrive/0FakeShareID0000000000000#Song_One";
-static NSString *const kLookupPath = @"/database/1/com.apple.cloudkit/production/public/records/resolve";
+// The path the client posts its lookup to.
+static NSString *LookupPath(void) {
+    return [NSURL URLWithString:kVibeICloudLinkLookupURL].path;
+}
+
+// A version as the record keeps it: the checksum as a strong ETag.
+static NSString *ETag(NSString *checksum) {
+    return [NSString stringWithFormat:@"\"%@\"", checksum];
+}
 static NSString *const kOtherChecksum = @"AZaYl5aVlJOSkZCPjo2Mi4qJiIeG";
 
 static NSData *JSONData(id object) {
@@ -293,7 +303,7 @@ static NSData *JSONData(id object) {
 static NSData *LookupOf(NSData *bytes, NSString *checksum, NSString *signature) {
     long long expiry = (long long)NSDate.date.timeIntervalSince1970 + 900;
     return JSONData(ICloudLookup(checksum, (long long)bytes.length, @"Song One", @"flac",
-                                 ICloudAddress(@"cvws.icloud-content.com", checksum, expiry, signature)));
+                                 ICloudAddress(checksum, expiry, signature)));
 }
 
 // The path a checksum's file is served at, with the name iCloud's own
@@ -310,7 +320,8 @@ static NSString *ICloudPath(NSString *checksum) {
 - (void)serveICloud:(NSData *)bytes checksum:(NSString *)checksum {
     [_stub answerHost:@"ckdatabasews.icloud.com"];
     [_stub answerHost:@"cvws.icloud-content.com"];
-    [self serve:LookupOf(bytes, checksum, @"first") at:kLookupPath headers:@{@"Content-Type": @"application/json"}];
+    [self serve:LookupOf(bytes, checksum, @"first") at:LookupPath()
+        headers:@{@"Content-Type": @"application/json"}];
     [self serve:bytes at:ICloudPath(checksum) headers:@{
         @"Content-Type": @"audio/flac",
         @"Last-Modified": kModified,
@@ -320,7 +331,7 @@ static NSString *ICloudPath(NSString *checksum) {
 
 - (void)queueLookup:(NSData *)answer {
     [_stub queueStep:[HTTPStubStep status:200 headers:@{@"Content-Type": @"application/json"} body:answer]
-             forPath:kLookupPath];
+             forPath:LookupPath()];
 }
 
 - (NSURL *)resolveICloud {
@@ -328,13 +339,6 @@ static NSString *ICloudPath(NSString *checksum) {
     NSURL *file = [self resolve:kICloudLink error:&error];
     XCTAssertNotNil(file, @"%@", error);
     return file;
-}
-
-// The store as a relaunch has it: a new client, so no lookup is held.
-- (void)relaunch {
-    _client = [[LinkClient alloc] initWithConfiguration:_stub.configuration];
-    _client.retryDelayScale = 0.01;
-    _store = [[LinkStore alloc] initWithClient:_client rootURL:_root];
 }
 
 - (void)testAnICloudLinkIsLookedUpThenProbedThenStreamed {
@@ -348,7 +352,7 @@ static NSString *ICloudPath(NSString *checksum) {
 
     NSDictionary *record = [self recordOf:file];
     XCTAssertEqualObjects(record[@"url"], kICloudLink, @"the share link, never the signed address");
-    XCTAssertEqualObjects(record[@"version"], kChecksum);
+    XCTAssertEqualObjects(record[@"version"], ETag(kChecksum));
     XCTAssertEqualObjects(record[@"modified"], @(kICloudModified));
     XCTAssertNil(record[@"lastModified"], @"when the address was signed");
     XCTAssertEqualObjects(record[@"host"], @"www.icloud.com");
@@ -372,7 +376,7 @@ static NSString *ICloudPath(NSString *checksum) {
     [self fetchExpectingSuccess:file];
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], bytes);
     XCTAssertEqualObjects(file.cacheKey, key, @"the install keeps the record's mtime");
-    XCTAssertEqual([_stub requestsToPath:kLookupPath].count, 1u, @"every request reuses the probe's lookup");
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 1u, @"every request reuses the probe's lookup");
 }
 
 // An address can expire mid-download. Its refusal is looked up again, and
@@ -388,9 +392,9 @@ static NSString *ICloudPath(NSString *checksum) {
              forPath:ICloudPath(kChecksum)];
     [self fetchExpectingSuccess:file];
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], bytes);
-    XCTAssertEqualObjects([self recordOf:file][@"version"], kChecksum);
+    XCTAssertEqualObjects([self recordOf:file][@"version"], ETag(kChecksum));
 
-    XCTAssertEqual([_stub requestsToPath:kLookupPath].count, 2u, @"one lookup again");
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 2u, @"one lookup again");
     NSArray<NSURLRequest *> *fetches = [self requestsTo:ICloudPath(kChecksum) since:1];
     XCTAssertEqual(fetches.count, 3u, @"the download, the refused resend, and the resend");
     XCTAssertNil([fetches[0] valueForHTTPHeaderField:@"Range"]);
@@ -412,7 +416,7 @@ static NSString *ICloudPath(NSString *checksum) {
     NSError *error = nil;
     XCTAssertNil([_store readPlaceholderAtURL:file offset:0 length:64 error:&error]);
     XCTAssertEqualObjects(error.userInfo[VibeHTTPErrorStatusCodeKey], @403, @"%@", error);
-    XCTAssertEqual([_stub requestsToPath:kLookupPath].count, 2u, @"looked up again once, not twice");
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 2u, @"looked up again once, not twice");
 }
 
 // A refreshed lookup naming another checksum is another file. The bytes
@@ -453,7 +457,7 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertTrue(IsDownloaded(file));
     XCTAssertEqual(StatOf(file).st_ino, inode);
     XCTAssertEqualObjects(file.cacheKey, key);
-    XCTAssertEqual([_stub requestsToPath:kLookupPath].count, 2u);
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 2u);
     NSArray<NSURLRequest *> *sent = [self requestsTo:ICloudPath(kChecksum) since:fetched];
     XCTAssertEqual(sent.count, 1u, @"the probe alone");
     XCTAssertEqualObjects([sent.firstObject valueForHTTPHeaderField:@"Range"], @"bytes=0-15");
@@ -474,7 +478,7 @@ static NSString *ICloudPath(NSString *checksum) {
     [self queueLookup:LookupOf(changed, kOtherChecksum, @"second")];
     XCTAssertEqualObjects([self resolveICloud], file);
     XCTAssertTrue(IsPlaceholder(file));
-    XCTAssertEqualObjects([self recordOf:file][@"version"], kOtherChecksum);
+    XCTAssertEqualObjects([self recordOf:file][@"version"], ETag(kOtherChecksum));
     [self fetchExpectingSuccess:file];
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], changed);
 }
@@ -486,7 +490,7 @@ static NSString *ICloudPath(NSString *checksum) {
     NSURL *file = [self resolveICloud];
     [self relaunch];
     dispatch_semaphore_t gate = [self gate];
-    [_stub queueStep:[HTTPStubStep stallAfter:1 gate:gate] forPath:kLookupPath];
+    [_stub queueStep:[HTTPStubStep stallAfter:1 gate:gate] forPath:LookupPath()];
     dispatch_group_t reads = dispatch_group_create();
     __block atomic_int read = 0;
     LinkStore *store = _store;
@@ -499,21 +503,21 @@ static NSString *ICloudPath(NSString *checksum) {
         });
     }
     [self waitUntil:^BOOL {
-        return [self->_stub requestsToPath:kLookupPath].count == 2;
+        return [self->_stub requestsToPath:LookupPath()].count == 2;
     }];
     usleep(50000);
     dispatch_semaphore_signal(gate);
     XCTAssertEqual(dispatch_group_wait(reads, dispatch_time(DISPATCH_TIME_NOW,
                                                             (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
     XCTAssertEqual(atomic_load(&read), 4);
-    XCTAssertEqual([_stub requestsToPath:kLookupPath].count, 2u, @"the resolve's, then one for all four reads");
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 2u, @"the resolve's, then one for all four reads");
 }
 
 - (void)testAShareForInvitedPeopleSendsNothingToTheFile {
     NSData *bytes = FlacBytes(4000);
     [self serveICloud:bytes checksum:kChecksum];
     NSMutableDictionary *invited = ICloudLookup(kChecksum, 4000, @"Song One", @"flac",
-                                                ICloudAddress(@"cvws.icloud-content.com", kChecksum, 0, @"x"));
+                                                ICloudAddress(kChecksum, 0, @"x"));
     ICloudResult(invited)[@"requireAppleLogin"] = @YES;
     [self queueLookup:JSONData(invited)];
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorICloudPrivate);
@@ -525,7 +529,7 @@ static NSString *ICloudPath(NSString *checksum) {
     NSData *bytes = FlacBytes(4000);
     [self serveICloud:bytes checksum:kChecksum];
     NSMutableDictionary *folder = ICloudLookup(kChecksum, 4000, @"Songs", @"",
-                                               ICloudAddress(@"cvws.icloud-content.com", kChecksum, 0, @"x"));
+                                               ICloudAddress(kChecksum, 0, @"x"));
     ICloudResult(folder)[@"rootRecord"][@"recordType"] = @"folder";
     [self queueLookup:JSONData(folder)];
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorICloudFolder);
@@ -539,7 +543,7 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorNotFound);
     [self queueLookup:[@"<html>" dataUsingEncoding:NSUTF8StringEncoding]];
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorICloudUnreadable);
-    [_stub queueStep:[HTTPStubStep status:503 headers:nil body:nil] forPath:kLookupPath];
+    [_stub queueStep:[HTTPStubStep status:503 headers:nil body:nil] forPath:LookupPath()];
     NSError *error = nil;
     XCTAssertNil([self resolve:kICloudLink error:&error]);
     XCTAssertEqual(error.code, VibeLinkErrorServer);
@@ -554,11 +558,11 @@ static NSString *ICloudPath(NSString *checksum) {
     [self fetchExpectingSuccess:file];
     [self relaunch];
     NSError *offline = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNotConnectedToInternet userInfo:nil];
-    [_stub queueStep:[HTTPStubStep failWithError:offline] forPath:kLookupPath];
+    [_stub queueStep:[HTTPStubStep failWithError:offline] forPath:LookupPath()];
     XCTAssertEqualObjects([self resolveICloud], file);
 
     [self relaunch];
-    [_stub queueStep:[HTTPStubStep failWithError:offline] forPath:kLookupPath];
+    [_stub queueStep:[HTTPStubStep failWithError:offline] forPath:LookupPath()];
     [NSFileManager.defaultManager removeItemAtURL:_root error:NULL];
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorUnreachable);
 }

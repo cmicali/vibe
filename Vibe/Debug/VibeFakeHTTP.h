@@ -33,6 +33,9 @@ NSInteger VibeFakeHTTPRangeStatus(NSString *_Nullable range, uint64_t size,
                                   NSMutableDictionary<NSString *, NSString *> *headers,
                                   uint64_t *first, uint64_t *length);
 
+// A request's body. A protocol sees a POST's body as a stream.
+NSData *_Nullable VibeFakeHTTPBodyOfRequest(NSURLRequest *request);
+
 // One answer, made when its request arrives. A failure, a redirect, or a
 // response and its body. The body goes out in pieces after the latency, on
 // the fake's own queue, and the client is told on the loader's thread.

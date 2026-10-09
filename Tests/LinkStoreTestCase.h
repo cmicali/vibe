@@ -46,6 +46,9 @@ static inline BOOL IsDownloaded(NSURL *url) {
     NSURL *_root;
 }
 
+// A new client and store over the same root, as a relaunch has them. No
+// lookup is held.
+- (void)relaunch;
 // Signalled twice at tearDown, so a held stub delivery goes on.
 - (dispatch_semaphore_t)gate;
 - (HTTPStubFile *)serve:(NSData *)bytes at:(NSString *)path headers:(nullable NSDictionary<NSString *, NSString *> *)headers;

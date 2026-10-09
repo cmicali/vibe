@@ -127,17 +127,14 @@ static inline id _Nullable VibeICloudLinkField(id _Nullable fields, NSString *na
 // none.
 static inline long long VibeICloudLinkNumber(id _Nullable value) {
     if ([value isKindOfClass:NSNumber.class]) return [value longLongValue];
-    if (![value isKindOfClass:NSString.class] || [value length] == 0) return -1;
-    NSScanner *scanner = [NSScanner scannerWithString:value];
-    long long number = -1;
-    return [scanner scanLongLong:&number] && scanner.isAtEnd ? number : -1;
+    return [value isKindOfClass:NSString.class] ? VibeHTTPParseLength(value) : -1;
 }
 
 // The file a lookup's answer describes, or why it opens nothing. On None,
-// `file` is {checksum, size, modified, name, address, expiry}: the version,
-// the size, the mtime in Unix seconds (left out when none is stated), the
-// name with its extension, the download address with ${f} still in it, and
-// its expiry (0 for none).
+// `file` is {checksum, size, modified, name, url, expiry}: the version, the
+// size, the mtime in Unix seconds (left out when none is stated), the name
+// with its extension, the download address for that name, and the address's
+// expiry (0 for none).
 // A share that needs a sign-in is Private, and so is one with no anonymous
 // access. A share that is not one file is Folder. One that no longer exists
 // is NotFound. Any other answer is Unreadable, never a server error.
@@ -182,11 +179,12 @@ static inline VibeLinkError VibeICloudLinkFileOfLookup(id _Nullable answer,
     NSString *extension = VibeICloudLinkField(fields, @"extension", NSString.class);
     if (name.length == 0) name = @"Link";
     if (extension.length > 0) name = [name stringByAppendingFormat:@".%@", extension];
-    if (checksum.length == 0 || size < 0 || !VibeICloudLinkDownloadURL(address, name)) {
+    NSURL *url = VibeICloudLinkDownloadURL(address, name);
+    if (checksum.length == 0 || size < 0 || !url) {
         return VibeLinkErrorICloudUnreadable;
     }
     if (file != NULL) {
-        NSMutableDictionary *found = [@{@"checksum": checksum, @"size": @(size), @"name": name, @"address": address,
+        NSMutableDictionary *found = [@{@"checksum": checksum, @"size": @(size), @"name": name, @"url": url,
                                         @"expiry": @(VibeICloudLinkAddressExpiry(address))} mutableCopy];
         found[@"modified"] = modified >= 0 ? @(modified) : nil;
         *file = found;

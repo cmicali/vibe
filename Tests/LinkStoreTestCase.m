@@ -15,8 +15,6 @@
 - (void)setUp {
     [super setUp];
     _stub = [[HTTPStub alloc] init];
-    _client = [[LinkClient alloc] initWithConfiguration:_stub.configuration];
-    _client.retryDelayScale = 0.01;
     _gates = [NSMutableArray array];
     NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"LinkStoreTests-%@", NSUUID.UUID.UUIDString]];
@@ -24,6 +22,12 @@
     char resolved[PATH_MAX];
     _base = [NSURL fileURLWithPath:@(realpath(base.fileSystemRepresentation, resolved)) isDirectory:YES];
     _root = [_base URLByAppendingPathComponent:@"Links" isDirectory:YES];
+    [self relaunch];
+}
+
+- (void)relaunch {
+    _client = [[LinkClient alloc] initWithConfiguration:_stub.configuration];
+    _client.retryDelayScale = 0.01;
     _store = [[LinkStore alloc] initWithClient:_client rootURL:_root];
 }
 

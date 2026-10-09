@@ -137,9 +137,9 @@ static inline NSMutableDictionary *ICloudResult(NSMutableDictionary *lookup) {
 
 // A signed address as iCloud's lookup gives it: ${f} for the name, an
 // expiry, and a signature, which tells one lookup's address from another's.
-static inline NSString *ICloudAddress(NSString *host, NSString *checksum, long long expiry, NSString *signature) {
-    return [NSString stringWithFormat:@"https://%@/B/%@/${f}?o=AAAA&v=1&e=%lld&k=key&s=%@", host, checksum,
-                                      expiry, signature];
+static inline NSString *ICloudAddress(NSString *checksum, long long expiry, NSString *signature) {
+    return [NSString stringWithFormat:@"https://cvws.icloud-content.com/B/%@/${f}?o=AAAA&v=1&e=%lld&k=key&s=%@",
+                                      checksum, expiry, signature];
 }
 
 static inline struct stat StatOf(NSURL *url) {

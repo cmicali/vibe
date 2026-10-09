@@ -78,12 +78,10 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 
 #pragma mark - Client
 
-// A transfer's state: the lookup its attempt was sent with, a refused one
-// still to be replaced, and the lookup that replaced one. A refusal of that
-// last one fails.
+// A transfer's state: the lookup its attempt was sent with, and whether a
+// refused address was looked up again. A transfer does that once.
 static NSString *const kStateLookup = @"lookup";
-static NSString *const kStateStaleLookup = @"staleLookup";
-static NSString *const kStateRefreshedLookup = @"refreshedLookup";
+static NSString *const kStateRefreshed = @"refreshed";
 
 @implementation LinkClient {
     os_unfair_lock _lookupLock;
@@ -105,9 +103,9 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
     return self;
 }
 
-// A lookup the old sessions answered names that server's addresses. The
-// base's init calls this before the ivars are set, so the lock is still
-// zero, its initial value.
+// A lookup the old sessions answered names that server's addresses.
+// TRAP: the base's init calls this before the ivars are set. The lock is
+// then zero, which is its initial value, and the cache is nil.
 - (void)useSessionConfiguration:(NSURLSessionConfiguration *)configuration {
     [super useSessionConfiguration:configuration];
     os_unfair_lock_lock(&_lookupLock);
@@ -115,17 +113,15 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
     os_unfair_lock_unlock(&_lookupLock);
 }
 
-// The share's file: the last lookup while it is fresh and is not `stale`,
-// else a new one. Single-flight: a caller arriving during a lookup waits on
-// that one. Any thread.
+// The share's file: the last lookup while it is fresh, else a new one.
+// Single-flight: a caller arriving during a lookup waits on that one. Any
+// thread.
 - (void)lookUpShortGUID:(NSString *)shortGUID
-                 unlike:(nullable NSDictionary *)stale
              completion:(void (^)(NSDictionary *_Nullable file, NSError *_Nullable error))completion {
     os_unfair_lock_lock(&_lookupLock);
     NSDictionary *last = _lookups[shortGUID];
-    if (last && last != stale
-            && VibeICloudLinkAddressIsFresh([last[@"lookedUp"] doubleValue], [last[@"expiry"] doubleValue],
-                                            NSDate.date.timeIntervalSince1970)) {
+    if (last && VibeICloudLinkAddressIsFresh([last[@"lookedUp"] doubleValue], [last[@"expiry"] doubleValue],
+                                             NSDate.date.timeIntervalSince1970)) {
         os_unfair_lock_unlock(&_lookupLock);
         completion(last, nil);
         return;
@@ -181,9 +177,11 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class]
                 ? ((NSHTTPURLResponse *)response).statusCode : 0;
         if (status != 200) {
-            LogWarn(@"Links: the iCloud lookup answered HTTP %ld", (long)status);
+            NSString *summary = [NSString stringWithFormat:@"HTTP %ld", (long)status];
+            LogWarn(@"Links: the iCloud lookup answered %@", summary);
             completion(nil, [NSError errorWithDomain:VibeHTTPErrorDomain code:VibeHTTPErrorStatus
-                                            userInfo:@{VibeHTTPErrorStatusCodeKey: @(status)}]);
+                                            userInfo:@{NSLocalizedDescriptionKey: summary,
+                                                       VibeHTTPErrorStatusCodeKey: @(status)}]);
             return;
         }
         id answer = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
@@ -214,28 +212,19 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
         [super makeRequestForTarget:target state:state completion:completion];
         return;
     }
-    NSDictionary *stale = state[kStateStaleLookup];
-    [self lookUpShortGUID:shortGUID unlike:stale completion:^(NSDictionary *file, NSError *error) {
+    [self lookUpShortGUID:shortGUID completion:^(NSDictionary *file, NSError *error) {
         if (!file) {
             completion(nil, error);
             return;
         }
         state[kStateLookup] = file;
-        if (stale) {
-            state[kStateStaleLookup] = nil;
-            state[kStateRefreshedLookup] = file;
-        }
-        NSURL *address = VibeICloudLinkDownloadURL(file[@"address"], file[@"name"]);
-        if (!address) {
-            completion(nil, VibeLinkMakeError(VibeLinkErrorICloudUnreadable, nil));
-            return;
-        }
-        [super makeRequestForTarget:address state:state completion:completion];
+        [super makeRequestForTarget:file[@"url"] state:state completion:completion];
     }];
 }
 
-// An iCloud address refused may only have expired. It is looked up again
-// once, then sent again. The fresh address's own refusal fails.
+// An iCloud address refused may only have expired. Its lookup is forgotten,
+// unless another request already replaced it, and the request is sent again
+// on a fresh one. A transfer does that once. A second refusal fails.
 - (void)handleFailureStatus:(NSInteger)status
                        data:(NSData *)data
                  retryAfter:(NSString *)retryAfter
@@ -244,9 +233,12 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
                      resend:(void (^)(NSInteger))resend
                        fail:(void (^)(NSError *))fail {
     NSDictionary *lookup = state[kStateLookup];
-    if (lookup && lookup != state[kStateRefreshedLookup] && VibeICloudLinkStatusIsStaleAddress(status)) {
+    if (lookup && ![state[kStateRefreshed] boolValue] && VibeICloudLinkStatusIsStaleAddress(status)) {
         LogInfo(@"Links: an iCloud address was refused (HTTP %ld); looking it up again", (long)status);
-        state[kStateStaleLookup] = lookup;
+        os_unfair_lock_lock(&_lookupLock);
+        [_lookups removeObjectsForKeys:[_lookups allKeysForObject:lookup]];
+        os_unfair_lock_unlock(&_lookupLock);
+        state[kStateRefreshed] = @YES;
         resend(attempt);
         return;
     }
@@ -255,10 +247,11 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
 }
 
 // The lookup states the file: its version, its mtime, and its name.
-// TRAP: the version is the checksum, never a header. Last-Modified is when
-// the address was signed, and there is no ETag. Read as a version, every
-// lookup would be another one: a resend would fail and a kept download would
-// be fetched again.
+// TRAP: the version is the checksum, never a header. It stands as a strong
+// ETag, which the base takes as the version. Last-Modified is when the
+// address was signed, and there is no ETag. Read as a version, every lookup
+// would be another one: a resend would fail and a kept download would be
+// fetched again.
 - (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response
                                state:(NSMutableDictionary<NSString *, id> *)state {
     NSDictionary *metadata = [super metadataOfResponse:response state:state];
@@ -267,16 +260,11 @@ static NSString *const kStateRefreshedLookup = @"refreshedLookup";
         return metadata;
     }
     NSMutableDictionary *file = [metadata mutableCopy];
-    file[@"checksum"] = lookup[@"checksum"];
+    file[@"etag"] = [NSString stringWithFormat:@"\"%@\"", lookup[@"checksum"]];
     file[@"modified"] = lookup[@"modified"];
     file[@"contentDisposition"] = VibeICloudLinkContentDisposition(lookup[@"name"]);
     [file removeObjectForKey:@"lastModified"];
     return file;
-}
-
-- (NSString *)versionOfMetadata:(NSDictionary *)metadata {
-    NSString *checksum = metadata[@"checksum"];
-    return [checksum isKindOfClass:NSString.class] ? checksum : [super versionOfMetadata:metadata];
 }
 
 // An iCloud share's id is its key: anyone holding it reads the file.

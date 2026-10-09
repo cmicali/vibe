@@ -14,6 +14,7 @@
 #import "DropboxClientInternal.h"
 #import "DropboxRules.h"
 #import "NSURL+Hash.h"
+#import "VibeFakeHTTP.h"
 
 static NSString *const kFakeAccountID = @"dbid:fake";
 static NSString *const kFakeAccountName = @"Fake Dropbox";
@@ -201,29 +202,6 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     return request;
 }
 
-// The body, which a POST made with a stream carries as one.
-static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
-    if (request.HTTPBody) {
-        return request.HTTPBody;
-    }
-    NSInputStream *stream = request.HTTPBodyStream;
-    if (!stream) {
-        return nil;
-    }
-    NSMutableData *data = [NSMutableData data];
-    uint8_t buffer[4096];
-    [stream open];
-    while (stream.hasBytesAvailable) {
-        NSInteger read = [stream read:buffer maxLength:sizeof buffer];
-        if (read <= 0) {
-            break;
-        }
-        [data appendBytes:buffer length:(NSUInteger)read];
-    }
-    [stream close];
-    return data;
-}
-
 - (void)startLoading {
     NSURLRequest *request = self.request;
     NSString *endpoint = request.URL.path;
@@ -236,7 +214,7 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
         [self serveDownloadFrom:items];
         return;
     }
-    NSData *body = VibeFakeDropboxBody(request);
+    NSData *body = VibeFakeHTTPBodyOfRequest(request);
     NSDictionary *json = body ? [NSJSONSerialization JSONObjectWithData:body options:0 error:NULL] : nil;
     if (![json isKindOfClass:NSDictionary.class]) {
         json = nil;
