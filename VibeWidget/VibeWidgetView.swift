@@ -8,7 +8,10 @@
 //  the thing this app is recognised by, so it gets the space rather than the
 //  chrome. SMALL follows Spotify's small widget: artwork top-left with one
 //  play/pause disc beside it, the two text lines across the whole bottom, and
-//  no waveform — a square is too narrow to draw one as anything but texture.
+//  no waveform. The waveform kind's SMALL is the medium without its header
+//  row: the two text lines across the top and the envelope below. A tap on
+//  the waveform seeks, and anywhere else opens the app. Its second kind puts
+//  the play/pause disc top-right, after the text, as the first small tile does.
 //
 //  It is an ADAPTATION of the desktop window, not a copy. The glass, the live
 //  art-tint wash and the scrolling waveform all need a live view; a widget gets
@@ -39,10 +42,17 @@ private let kSmallMinGap: CGFloat = 4
 // spacing the pair needs ~53pt, which is what keeps it inside the medium
 // header's 54 — widen that spacing and the artist loses its descenders.
 private let kTextSize: CGFloat = 22
+// The waveform tile with the disc: both lines take the largest of these sizes
+// at which both fit, and truncate only at the last. TRAP: shrinking fits each
+// line on its own, so a long title came out smaller than its artist.
+private let kSmallPlayTextSizes: [CGFloat] = [17, 15, 13]
 
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: VibeEntry
+    // The small family's layout; the medium has only one.
+    var waveformTile = false
+    var playButton = false
 
     private var state: VibeWidgetState? {
         guard let state = entry.state, state.hasTrack else { return nil }
@@ -51,7 +61,13 @@ struct VibeWidgetView: View {
 
     var body: some View {
         Group {
-            if family == .systemSmall { small } else { medium }
+            if family != .systemSmall {
+                medium
+            } else if waveformTile {
+                smallWaveform
+            } else {
+                small
+            }
         }
         .containerBackground(for: .widget) { background }
     }
@@ -91,7 +107,7 @@ struct VibeWidgetView: View {
     private var mediumHeader: some View {
         HStack(spacing: 10) {
             artworkTile(side: kMediumHeaderHeight)
-            textLines
+            textLines()
                 .frame(maxHeight: .infinity, alignment: .center)
             Spacer(minLength: 4)
             if state != nil {
@@ -133,7 +149,7 @@ struct VibeWidgetView: View {
             }
             .frame(height: kSmallArtworkSide)
             Spacer(minLength: kSmallMinGap)
-            textLines
+            textLines()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.trailing, kSmallPadding)   // the side body does not inset
         }
@@ -141,27 +157,53 @@ struct VibeWidgetView: View {
         .padding(.vertical, kSmallPadding)
     }
 
+    // Same inset all round as the other small tile. Without the disc the type
+    // is the other tile's too, so a track reads identically in both. The text
+    // takes the top, and the waveform gets everything below.
+    private var smallWaveform: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                if playButton && state != nil {
+                    ViewThatFits(in: .horizontal) {
+                        ForEach(kSmallPlayTextSizes, id: \.self) { size in
+                            textLines(size: size, shrinks: false)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    playPauseButton(diameter: kSmallPlayDiameter)
+                } else {
+                    textLines()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            waveform
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(kSmallPadding)
+    }
+
     // MARK: - Shared pieces
 
-    // Title over artist, the same block in both families. Both lines shrink to
-    // fit rather than truncating, which is what the card does on the phone: at
-    // this type size a long title would otherwise lose its end to an ellipsis
-    // on most tracks. A nil artist means the title is the filename-derived
+    // Title over artist, the same block in every tile. By default both lines
+    // shrink to fit rather than truncating, which is what the card does on the
+    // phone. At this type size a long title would otherwise lose its end to an
+    // ellipsis on most tracks. A tile that passes shrinks: false truncates
+    // instead (kSmallPlayTextSizes says why). A nil artist means the title is the filename-derived
     // single line, and it still takes the TITLE's colour — the rule both apps
     // draw by.
-    private var textLines: some View {
+    private func textLines(size: CGFloat = kTextSize, shrinks: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(state?.title ?? "Vibe")
-                .font(.system(size: kTextSize, weight: .bold))
+                .font(.system(size: size, weight: .bold))
                 .foregroundStyle(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(shrinks ? 0.6 : 1)
             if let artist = state?.artist, !artist.isEmpty {
                 Text(artist)
-                    .font(.system(size: kTextSize))
+                    .font(.system(size: size))
                     .foregroundStyle(.white.opacity(0.7))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(shrinks ? 0.7 : 1)
             }
         }
     }

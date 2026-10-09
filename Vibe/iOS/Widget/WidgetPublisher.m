@@ -27,8 +27,8 @@ static const NSTimeInterval kWidgetPositionTolerance = 2.0;
 // Pixels; the widget draws it at 67pt.
 static const CGFloat kWidgetArtworkSide = 256;
 
-// Stretched to fit, so only the ASPECT matters: the medium widget's, the
-// taller, since scaling down is clean and scaling up stretches the amplitude.
+// Stretched to fit, so only the ASPECT matters. It is the medium widget's.
+// The small waveform tile draws the same images narrower and slightly taller.
 static const CGSize  kWidgetWaveformSize  = (CGSize){320, 64};
 static const CGFloat kWidgetWaveformScale = 3;
 

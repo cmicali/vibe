@@ -111,7 +111,11 @@ struct VibeProvider: TimelineProvider {
 
 @main
 struct VibeWidgetBundle: WidgetBundle {
-    var body: some Widget { VibeNowPlayingWidget() }
+    var body: some Widget {
+        VibeNowPlayingWidget()
+        VibeWaveformWidget()
+        VibeWaveformWidget(playButton: true)
+    }
 }
 
 struct VibeNowPlayingWidget: Widget {
@@ -124,6 +128,26 @@ struct VibeNowPlayingWidget: Widget {
         // TRAP); it MUST match STR_WIDGET_DESCRIPTION, which is what puts the key in the catalog.
         .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is playing."))
         .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+// Separate kinds, not configurations of the first: the gallery offers each
+// kind as its own tile, so every small layout can sit on one home screen. One
+// type serves two kinds, with and without the play/pause disc. The app's
+// reload is reloadAllTimelines, so it reaches these kinds unchanged.
+struct VibeWaveformWidget: Widget {
+    var playButton = false
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: playButton ? "VibeNowPlayingWaveformPlay" : "VibeNowPlayingWaveform",
+                            provider: VibeProvider()) { entry in
+            VibeWidgetView(entry: entry, waveformTile: true, playButton: playButton)
+        }
+        .configurationDisplayName("Vibe")
+        // The same literal as VibeNowPlayingWidget's, under the same TRAP.
+        .description(LocalizedStringResource("widget.description", defaultValue: "What Vibe is playing."))
+        .supportedFamilies([.systemSmall])
         .contentMarginsDisabled()
     }
 }
