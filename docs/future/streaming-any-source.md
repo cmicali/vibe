@@ -7,6 +7,7 @@
 - `CloudFileAvailability` takes any writer. It holds blocks instead of one window. A writer with no part file notes the size late and can shorten the end. The writer's wait for work reports a blocked range and the reader's position. `progressBytes` only grows. Dropbox's path is unchanged.
 - A file on a network mount reads ahead when its opener can be interrupted: the coordinator's opens and the waveform loader's. The kernel's mount table decides (`VibeMountReadsAhead`). A thread per handle fetches 256 KB blocks up to 8 MB ahead of the reader.
 - The waveform loader's read-ahead publishes its first snapshot at once, as a stream's does, and a cancel frees its slot on a dead mount. That is phase 3's first half.
+- A running-app debug verb for a slow volume, `set_slow_volume`, on both platforms. It makes every file opened from then on read ahead. It can throttle, stall or fail the read-ahead's reads.
 - A dropped server holds the play, then pauses it in place with "Connection lost" within the stall span. A server back within the span plays on. Seek, skip and stop stay responsive. The mac publishes rate 0 to Now Playing during a hold. It draws no buffering on screen.
 - Three changes from the plan below. A read error is retried until the handle goes and is never a failure. A dead server ends in the stall's pause. The bound counts orphaned threads, not live ones. At eight, a new read-ahead open waits until one exits. The open deadline still bounds that wait. An MP3 on a share is counted exactly at open, as a local file is. A headerless mix that takes longer than the open deadline to cross the wire fails to open.
 
@@ -15,7 +16,6 @@
 - Renaming `CloudFileAvailability`. It waits for the first writer that is not a file.
 - One shared table of live availabilities in place of `setRemoteRoot:`'s lookup block. A read-ahead is per handle and needs no lookup.
 - Deleting the two shells' open-deadline relays. The open deadline still hears only the transfer registry, so a read-ahead's open gets the 60 s no-progress span.
-- A running-app debug verb for a slow volume. The unit and render tests cover the read-ahead.
 - Metadata and TagLib reads on a share. They stay direct reads on sweep workers.
 - Read-ahead on local external volumes. It is unmeasured.
 - Skipping the dataless `stat` probe on network mounts. On a dead mount the probe and the thread's `open` still take the SMB timeout, about 30 s.
