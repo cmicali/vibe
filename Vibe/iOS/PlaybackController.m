@@ -392,6 +392,11 @@ static const NSUInteger kUIUpdateHz = 3;
     [self notifyDidMoveToCurrentTrackAnimated:YES];
     [_metadataCache loadMetadataNow:track];
     [self notifyDidChangePlayState];
+    // Published here as well as at didStartPlaying. A widget button's intent
+    // returns here, and the system redraws the widget then. Published only
+    // after the open, the widget kept the old track for as long as the open
+    // took. In the background no tick republishes it sooner.
+    [self publishNowPlaying];
 }
 
 // The twin of the mac's closeFile:. TRAP: stop fires no transport or

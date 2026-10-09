@@ -18,7 +18,10 @@
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
 
-static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC;
+// A track change makes two reloads. The title goes first, and the waveform's
+// bake follows a few hundred ms later. At one reload a second, the bake's
+// reload waited most of a second.
+static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;
 
 // A seek detector against the widget's own extrapolation; looser than the lock
 // screen's, since a widget entry spans minutes.
@@ -211,7 +214,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 // On _queue. One reload per burst of writes, each reload being an extension
-// launch, and at most one a second: a burst costs one trailing reload. The
+// launch, and at most four a second: a burst costs one trailing reload. The
 // first of a quiet period goes at once — the app may be suspended before a
 // timer fires — and the trailing one always goes.
 - (void)scheduleReload {
