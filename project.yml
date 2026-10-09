@@ -759,6 +759,7 @@ targets:
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
       - path: Vibe/System/Remote/HTTPTransferClient.m
+      - path: Vibe/System/Remote/RemotePlaceholderStore.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m

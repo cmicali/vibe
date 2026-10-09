@@ -7,8 +7,8 @@
 //  Dropbox folder exists here only once something listed it, as a directory
 //  holding a placeholder per audio file (NSURLUtil's remote placeholders: the
 //  real size and mtime, no readable bytes) and the CUE sheets beside them.
-//  Playing a placeholder downloads it through CloudFileMaterializer's remote
-//  fetch, which is fetchPlaceholderAtURL:… here, and the bytes replace it.
+//  The placeholders, their fetch, the ranged read and the download budget
+//  are RemotePlaceholderStore's. This class lists, names and searches.
 //
 //  Paths are resolved component by component, case-insensitively, against
 //  what is on disk, because Dropbox paths are case-insensitive and a
@@ -18,8 +18,7 @@
 #import <Foundation/Foundation.h>
 
 #import "DropboxClient.h"
-
-@class CloudFileAvailability;
+#import "RemotePlaceholderStore.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -35,10 +34,12 @@ extern NSString *const VibeDropboxDownloadsBytesKey;
 // downloadBudget.
 extern NSString *const VibeDropboxDownloadBudgetKey;
 
-@interface DropboxMirror : NSObject
+@interface DropboxMirror : RemotePlaceholderStore
 
-- (instancetype)init NS_UNAVAILABLE;
-+ (instancetype)new NS_UNAVAILABLE;
+- (instancetype)initWithClient:(HTTPTransferClient *)client
+                       rootURL:(NSURL *)rootURL
+                indexAttribute:(NSString *)indexAttribute
+                downloadBudget:(long long)downloadBudget NS_UNAVAILABLE;
 
 // The app's one mirror over the one client. A singleton because the remote
 // fetch, installed at launch, must reach the same instance every screen does.
@@ -51,13 +52,6 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
                 downloadBudget:(long long)downloadBudget NS_DESIGNATED_INITIALIZER;
 
 @property (nonatomic, readonly) DropboxClient *client;
-
-// Main thread; applied, not saved. A smaller one sends the oldest downloads
-// back to placeholders at once, posting the new total.
-@property (nonatomic) long long downloadBudget;
-
-// Every account's mirror lives under it; the remote placeholder root.
-@property (nonatomic, readonly) NSURL *rootURL;
 
 // The linked account's Dropbox root, nil while unlinked.
 @property (nonatomic, readonly, nullable) NSURL *accountURL;
@@ -90,35 +84,6 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 // its placeholder. Completion on main, nil when Dropbox could not be listed.
 - (void)localURLForEntry:(NSDictionary *)entry
               completion:(void (^)(NSURL *_Nullable url, NSError *_Nullable error))completion;
-
-// What the downloaded songs take on disk, counted on the mirror's queue.
-// Completion on main.
-- (void)measureDownloadsWithCompletion:(void (^)(long long bytes))completion;
-
-// Turns every downloaded song back into its placeholder; a player still
-// reading one keeps its open file. Completion on main.
-- (void)removeDownloadsWithCompletion:(dispatch_block_t)completion;
-
-// CloudFileMaterializer's remote fetch: blocks until url's bytes have
-// replaced its placeholder, the part file they stream into readable through
-// availabilityForURL: meanwhile. onReadable as CloudFileRemoteFetch says, on
-// the client's delivery queue. Background threads only.
-- (BOOL)fetchPlaceholderAtURL:(NSURL *)url
-                   onReadable:(nullable dispatch_block_t)onReadable
-                     onCancel:(void (^)(dispatch_block_t cancel))onCancel
-                        error:(NSError *__autoreleasing _Nullable *_Nullable)error;
-
-// CloudFileMaterializer's streaming lookup: the availability of url's fetch
-// from its first response until it has finished, after the install or the
-// failure; nil otherwise, and for a response naming no size. Any thread.
-- (nullable CloudFileAvailability *)availabilityForURL:(NSURL *)url;
-
-// CloudFileMaterializer's remote read: bytes of the file a placeholder stands
-// for, by range, blocking, for a tag parse. Background threads only.
-- (nullable NSData *)readPlaceholderAtURL:(NSURL *)url
-                                   offset:(uint64_t)offset
-                                   length:(uint64_t)length
-                                    error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
 @end
 
