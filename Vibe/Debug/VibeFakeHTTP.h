@@ -4,7 +4,10 @@
 //
 //  A stand-in web server for Open URL: a directory on disk answers as
 //  https://fake.vibe.test/<path> and http://fake.local/<path>, over the
-//  client's own HTTP boundary (an NSURLProtocol on its sessions). The link's
+//  client's own HTTP boundary (an NSURLProtocol on its sessions). It answers
+//  iCloud Drive's lookup too: https://www.icloud.com/iclouddrive/<name> is
+//  the root's entry named <name> without its extension, served at a signed
+//  address that expires. The link's
 //  probe, its stream, its tail and tag reads, and every resend run unchanged
 //  against it, with no network. Faults script what real servers do.
 //
@@ -123,6 +126,9 @@ NSInteger VibeFakeHTTPRangeStatus(NSString *_Nullable range, uint64_t size,
 //   gzip         a 200 with Content-Encoding: gzip. The body is the file's
 //                bytes. The client must refuse on the header alone, as no
 //                size can be trusted (persistent)
+//   expiry       an iCloud lookup's address lives `seconds`, not 15 minutes.
+//                0 hands out one already expired, which answers 410
+//                (persistent)
 + (BOOL)addFaultOfKind:(NSString *)kind
                   file:(nullable NSString *)file
                  after:(uint64_t)after

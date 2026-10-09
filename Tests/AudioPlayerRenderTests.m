@@ -6399,7 +6399,7 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
 - (void)setUp {
     [super setUp];
     _stub = [[HTTPStub alloc] init];
-    HTTPTransferClient *client = [[HTTPTransferClient alloc] initWithConfiguration:_stub.configuration];
+    LinkClient *client = [[LinkClient alloc] initWithConfiguration:_stub.configuration];
     client.retryDelayScale = 0.01;
     _links = [[LinkStore alloc] initWithClient:client rootURL:[_temporary URLByAppendingPathComponent:@"Links"
                                                                                            isDirectory:YES]];

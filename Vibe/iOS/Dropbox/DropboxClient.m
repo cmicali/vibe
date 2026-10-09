@@ -682,7 +682,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }];
 }
 
-- (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response {
+- (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response
+                               state:(NSMutableDictionary<NSString *, id> *)state {
     return VibeDropboxAPIResult(response);
 }
 

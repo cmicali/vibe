@@ -15,6 +15,7 @@
 #import "HTTPTransferClientInternal.h"
 #import "LinkStore.h"
 #import "NSURLUtil.h"
+#import "RemotePlaceholderStoreInternal.h"
 #import "VibeFakeHTTP.h"
 
 static const NSUInteger kSongBytes = 512 * 1024;
@@ -36,7 +37,7 @@ typedef struct {
 @end
 
 @implementation VibeFakeHTTPTests {
-    HTTPTransferClient *_client;
+    LinkClient *_client;
     NSURLSession *_session;
     NSURL *_base;
     NSURL *_served;
@@ -65,7 +66,7 @@ typedef struct {
     memcpy(flac.mutableBytes, "fLaC", 4);
     [flac writeToURL:[_served URLByAppendingPathComponent:@"tone.flac"] atomically:NO];
 
-    _client = [[HTTPTransferClient alloc] initWithConfiguration:NSURLSessionConfiguration.ephemeralSessionConfiguration];
+    _client = [[LinkClient alloc] initWithConfiguration:NSURLSessionConfiguration.ephemeralSessionConfiguration];
     _client.retryDelayScale = 0.01;
     [VibeFakeHTTP installWithDirectory:_served transferSeconds:0 client:_client];
     _session = [NSURLSession sessionWithConfiguration:VibeFakeHTTP.sessionConfiguration];
@@ -393,6 +394,53 @@ typedef struct {
     XCTAssertEqual(st.st_size, (off_t)kSongBytes);
     XCTAssertEqual(st.st_mtimespec.tv_sec, _songModified, @"the mtime is Last-Modified");
     XCTAssertEqualObjects(self.log.lastObject[@"range"], @"bytes=0-15", @"the probe");
+}
+
+// The fake answers iCloud's lookup for a share named after a file at its
+// root, and serves the file at the signed address the lookup names.
+- (void)testAnICloudLinkOpensFromTheFake {
+    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+    NSError *error = nil;
+    NSURL *file = [self resolve:store link:@"https://www.icloud.com/iclouddrive/tone#Tone" error:&error];
+    XCTAssertNotNil(file, @"%@", error);
+    XCTAssertEqualObjects(file.lastPathComponent, @"tone.flac");
+    NSArray<NSDictionary *> *log = self.log;
+    XCTAssertEqual(log.count, 2u);
+    XCTAssertEqualObjects(log[0][@"host"], @"ckdatabasews.icloud.com");
+    XCTAssertEqualObjects(log[1][@"host"], @"cvws.icloud-content.com");
+    XCTAssertEqualObjects(log[1][@"range"], @"bytes=0-15");
+    NSDictionary *record = [store indexOfDirectory:file.URLByDeletingLastPathComponent];
+    XCTAssertNotNil(record[@"version"]);
+
+    XCTAssertTrue([store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
+    } error:&error], @"%@", error);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file],
+                          [NSData dataWithContentsOfURL:[_served URLByAppendingPathComponent:@"tone.flac"]]);
+}
+
+// An expiry fault hands out an address already expired. Its refusal is
+// looked up again, and the fresh address answers.
+- (void)testAnExpiredAddressIsLookedUpAgain {
+    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+    XCTAssertTrue([VibeFakeHTTP addFaultOfKind:@"expiry" file:nil after:0 seconds:0 rate:0 status:0 once:@YES]);
+    NSError *error = nil;
+    XCTAssertNotNil([self resolve:store link:@"https://www.icloud.com/iclouddrive/tone" error:&error], @"%@", error);
+    NSArray<NSDictionary *> *log = self.log;
+    XCTAssertEqual(log.count, 4u);
+    XCTAssertEqualObjects(log[0][@"faults"], @[@"expiry"]);
+    XCTAssertEqualObjects(log[1][@"status"], @410);
+    XCTAssertEqualObjects(log[2][@"host"], @"ckdatabasews.icloud.com");
+    XCTAssertEqualObjects(log[3][@"status"], @206);
+}
+
+- (void)testAnICloudFolderOrMissingShareIsRefused {
+    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+    NSError *error = nil;
+    XCTAssertNil([self resolve:store link:@"https://www.icloud.com/iclouddrive/album" error:&error]);
+    XCTAssertEqual(error.code, VibeLinkErrorICloudFolder);
+    XCTAssertNil([self resolve:store link:@"https://www.icloud.com/iclouddrive/nothing" error:&error]);
+    XCTAssertEqual(error.code, VibeLinkErrorNotFound);
+    XCTAssertEqual([VibeFakeHTTP.statistics[@"requests"] integerValue], 2, @"two lookups, and no file asked for");
 }
 
 - (void)testAPublicPlainHTTPLinkSendsNothing {

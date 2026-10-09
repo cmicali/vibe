@@ -33,9 +33,16 @@ static NSUInteger sLogSequence;
 // the root.
 static NSMutableDictionary<NSString *, NSNumber *> *sVersions;
 
+// iCloud Drive's two hosts: the lookup, and the signed addresses it hands out.
+static NSString *const kVibeFakeHTTPLookupHost = @"ckdatabasews.icloud.com";
+static NSString *const kVibeFakeHTTPSignedHost = @"cvws.icloud-content.com";
+// How long a signed address lives unless an expiry fault says otherwise.
+// iCloud's own live about 15 minutes.
+static const NSTimeInterval kVibeFakeHTTPAddressLifetime = 15 * 60;
+
 static NSArray<NSString *> *VibeFakeHTTPFaultKinds(void) {
     return @[@"stall", @"drop", @"etag-change", @"rate", @"latency", @"no-range", @"no-length", @"icy",
-             @"status", @"html", @"gzip"];
+             @"status", @"html", @"gzip", @"expiry"];
 }
 
 // A held or throttled body is one state, not one change. It lasts.
@@ -48,7 +55,8 @@ static BOOL VibeFakeHTTPFaultIsOnce(NSString *kind, NSNumber *once) {
 
 static BOOL VibeFakeHTTPServesHost(NSString *host) {
     NSString *name = host.lowercaseString;
-    return [name isEqualToString:@"fake.vibe.test"] || [name isEqualToString:@"fake.local"];
+    return [name isEqualToString:@"fake.vibe.test"] || [name isEqualToString:@"fake.local"]
+        || [name isEqualToString:kVibeFakeHTTPLookupHost] || [name isEqualToString:kVibeFakeHTTPSignedHost];
 }
 
 static double VibeFakeHTTPNow(void) {
@@ -107,6 +115,7 @@ typedef struct {
     uint64_t size;
     NSString *etag;
     NSString *lastModified;
+    time_t modified;
 } VibeFakeHTTPVersion;
 
 // Under sLock.
@@ -118,7 +127,77 @@ static VibeFakeHTTPVersion VibeFakeHTTPVersionOf(NSString *relativePath, const s
         [NSString stringWithFormat:@"\"%llx-%lx-%lx\"", (unsigned long long)info->st_size, (long)modified,
                                    (unsigned long)moved],
         VibeFakeHTTPDate(modified),
+        modified,
     };
+}
+
+// The share a lookup's body names. A protocol sees the body as a stream.
+static NSString *VibeFakeHTTPShortGUIDOfLookup(NSURLRequest *request) {
+    NSData *body = request.HTTPBody;
+    if (!body && request.HTTPBodyStream) {
+        NSMutableData *read = [NSMutableData data];
+        NSInputStream *stream = request.HTTPBodyStream;
+        [stream open];
+        uint8_t buffer[4096];
+        NSInteger count;
+        while ((count = [stream read:buffer maxLength:sizeof buffer]) > 0) {
+            [read appendBytes:buffer length:(NSUInteger)count];
+        }
+        [stream close];
+        body = read;
+    }
+    id answer = body ? [NSJSONSerialization JSONObjectWithData:body options:0 error:NULL] : nil;
+    id shares = [answer isKindOfClass:NSDictionary.class] ? answer[@"shortGUIDs"] : nil;
+    id share = [shares isKindOfClass:NSArray.class] ? [shares firstObject] : nil;
+    id value = [share isKindOfClass:NSDictionary.class] ? share[@"value"] : nil;
+    return [value isKindOfClass:NSString.class] ? value : @"";
+}
+
+// The entry of the root a share names: its name without its extension.
+static NSString *VibeFakeHTTPEntryOfShare(NSString *root, NSString *shortGUID) {
+    for (NSString *entry in [NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:NULL]) {
+        if (shortGUID.length > 0 && [entry.stringByDeletingPathExtension isEqualToString:shortGUID]) {
+            return entry;
+        }
+    }
+    return nil;
+}
+
+// A lookup's answer in the shape iCloud sends, with no owner: one file, a
+// folder, or no share. The checksum is the file's version, which
+// etag-change moves.
+static NSData *VibeFakeHTTPLookup(NSString *shortGUID, NSString *entry, const struct stat *info,
+                                  VibeFakeHTTPVersion version, NSTimeInterval lifetime) {
+    NSMutableDictionary *result = [@{@"shortGUID": @{@"value": shortGUID}, @"requireAppleLogin": @NO,
+                                     @"minimallyResolved": @NO} mutableCopy];
+    if (!entry) {
+        result[@"reason"] = @"Cannot resolve shortGUID";
+        result[@"serverErrorCode"] = @"NOT_FOUND";
+        return [NSJSONSerialization dataWithJSONObject:@{@"results": @[result]} options:0 error:NULL];
+    }
+    result[@"anonymousPublicAccess"] = @{@"token": @"fake", @"tokenTTL": @1200000};
+    if (S_ISDIR(info->st_mode)) {
+        result[@"rootRecord"] = @{@"recordType": @"folder", @"fields": @{}};
+        return [NSJSONSerialization dataWithJSONObject:@{@"results": @[result]} options:0 error:NULL];
+    }
+    NSString *checksum = [version.etag stringByTrimmingCharactersInSet:
+                          [NSCharacterSet characterSetWithCharactersInString:@"\""]];
+    NSCharacterSet *unreserved = [NSCharacterSet characterSetWithCharactersInString:
+                                  @"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"];
+    NSString *address = [NSString stringWithFormat:@"https://%@/B/%@/${f}?p=%@&e=%lld&s=fake", kVibeFakeHTTPSignedHost,
+                         checksum, [entry stringByAddingPercentEncodingWithAllowedCharacters:unreserved],
+                         (long long)(NSDate.date.timeIntervalSince1970 + lifetime)];
+    NSString *basename = [[entry.stringByDeletingPathExtension dataUsingEncoding:NSUTF8StringEncoding]
+                          base64EncodedStringWithOptions:0];
+    result[@"rootRecord"] = @{@"recordType": @"content", @"fields": @{
+        @"extension": @{@"value": entry.pathExtension, @"type": @"STRING"},
+        @"size": @{@"value": @(version.size), @"type": @"NUMBER_INT64"},
+        @"encryptedBasename": @{@"value": basename, @"type": @"ENCRYPTED_BYTES"},
+        @"mtime": @{@"value": @(version.modified), @"type": @"NUMBER_INT64"},
+        @"fileContent": @{@"value": @{@"fileChecksum": checksum, @"size": @(version.size), @"downloadURL": address},
+                          @"type": @"ASSETID"},
+    }};
+    return [NSJSONSerialization dataWithJSONObject:@{@"results": @[result]} options:0 error:NULL];
 }
 
 // A request's line, as its body proceeds. A cancel marks only a line still
@@ -365,6 +444,25 @@ static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
     NSURL *url = request.URL;
     NSString *range = [request valueForHTTPHeaderField:@"Range"];
     VibeFakeHTTPAnswer *answer = [[VibeFakeHTTPAnswer alloc] init];
+    // A lookup serves the entry its share names. A signed address serves the
+    // entry in its p item until its e item has passed.
+    NSString *host = url.host.lowercaseString;
+    BOOL lookup = [host isEqualToString:kVibeFakeHTTPLookupHost];
+    BOOL signedAddress = [host isEqualToString:kVibeFakeHTTPSignedHost];
+    NSString *shortGUID = lookup ? VibeFakeHTTPShortGUIDOfLookup(request) : nil;
+    NSString *servedPath = url.path ?: @"";
+    BOOL expired = NO;
+    if (signedAddress) {
+        servedPath = @"";
+        for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems) {
+            if ([item.name isEqualToString:@"p"]) {
+                servedPath = item.value ?: @"";
+            }
+            if ([item.name isEqualToString:@"e"]) {
+                expired = item.value.longLongValue <= (long long)NSDate.date.timeIntervalSince1970;
+            }
+        }
+    }
 
     os_unfair_lock_lock(&sLock);
     sRequests++;
@@ -383,13 +481,41 @@ static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
         os_unfair_lock_unlock(&sLock);
         return nil;
     }
-    NSString *path = [root stringByAppendingPathComponent:url.path ?: @""].stringByStandardizingPath;
+    NSString *entryOfShare = lookup ? VibeFakeHTTPEntryOfShare(root, shortGUID) : nil;
+    if (lookup) {
+        servedPath = entryOfShare ?: @"";
+    }
+    NSString *path = [root stringByAppendingPathComponent:servedPath].stringByStandardizingPath;
     NSString *relativePath = [path hasPrefix:[root stringByAppendingString:@"/"]]
             ? [path substringFromIndex:root.length] : nil;
     NSString *name = path.lastPathComponent;
-    struct stat info;
-    BOOL found = relativePath && stat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode);
+    struct stat info = {0};
+    BOOL exists = relativePath && stat(path.fileSystemRepresentation, &info) == 0;
+    BOOL found = exists && S_ISREG(info.st_mode);
     VibeFakeHTTPVersion version = found ? VibeFakeHTTPVersionOf(relativePath, &info) : (VibeFakeHTTPVersion){0};
+    if (lookup) {
+        NSMutableDictionary *expiry = VibeFakeHTTPFault(@"expiry", entryOfShare);
+        NSTimeInterval lifetime = expiry ? [expiry[@"seconds"] doubleValue] : kVibeFakeHTTPAddressLifetime;
+        if (expiry) {
+            VibeFakeHTTPApply(expiry, entry);
+        }
+        entry[@"status"] = @200;
+        os_unfair_lock_unlock(&sLock);
+        NSData *body = VibeFakeHTTPLookup(shortGUID, exists ? entryOfShare : nil, &info, version, lifetime);
+        answer.response = [[NSHTTPURLResponse alloc] initWithURL:url statusCode:200 HTTPVersion:@"HTTP/1.1"
+                                                    headerFields:@{@"Content-Type": @"application/json; charset=UTF-8"}];
+        answer.length = body.length;
+        answer.piece = MAX(body.length, (NSUInteger)1);
+        answer.bytes = ^NSData *(uint64_t offset, uint64_t count) {
+            return [body subdataWithRange:NSMakeRange((NSUInteger)offset, (NSUInteger)count)];
+        };
+        answer.progress = ^(NSString *outcome, uint64_t delivered) {
+            os_unfair_lock_lock(&sLock);
+            VibeFakeHTTPNote(entry, [outcome isEqualToString:@"complete"] ? @"answered" : outcome, delivered);
+            os_unfair_lock_unlock(&sLock);
+        };
+        return answer;
+    }
     NSMutableDictionary *fault = VibeFakeHTTPFault(@"latency", name);
     if (fault) {
         answer.latency = [fault[@"seconds"] doubleValue];
@@ -413,6 +539,10 @@ static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
     else if (!found) {
         refusal = 404;
         refusalBody = [@"Not Found" dataUsingEncoding:NSUTF8StringEncoding];
+    }
+    else if (expired) {
+        refusal = 410;
+        refusalBody = [@"Gone" dataUsingEncoding:NSUTF8StringEncoding];
     }
     // A shape a server with no ranges, no length, or a compressor answers in.
     NSString *shape = nil;
@@ -473,6 +603,15 @@ static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
         }
         if ([shape isEqualToString:@"no-range"]) {
             [headers removeObjectForKey:@"Accept-Ranges"];
+        }
+        // iCloud sends no ETag, Last-Modified when it signed the address, and
+        // the name in the address back as the file's.
+        if (signedAddress) {
+            [headers removeObjectForKey:@"ETag"];
+            headers[@"Last-Modified"] = VibeFakeHTTPDate((time_t)NSDate.date.timeIntervalSince1970);
+            NSString *echo = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO]
+                    .percentEncodedPath.lastPathComponent;
+            headers[@"Content-Disposition"] = [NSString stringWithFormat:@"attachment; filename*=UTF-8''%@", echo];
         }
         answer.bytes = ^NSData *(uint64_t offset, uint64_t count) {
             return [file seekToOffset:first + offset error:NULL] ? [file readDataUpToLength:(NSUInteger)count error:NULL]

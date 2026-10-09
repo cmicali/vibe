@@ -1,6 +1,7 @@
 # v1.16
 
 * Added Open URL… to play an audio file from a web address
+* Added playing iCloud Drive share links with Open URL
 * mac: Added dropping a web link or a .webloc file on the player to play it
 * ios: Added playing a copied link from the Files tab
 * Fixed playback from a network share going silent when the server stops answering; it now pauses with "Connection lost"

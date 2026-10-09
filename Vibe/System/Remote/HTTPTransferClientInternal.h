@@ -56,7 +56,8 @@ NS_ASSUME_NONNULL_BEGIN
 // An accepted response's metadata, as the completions carry it. The default
 // is etag, lastModified, contentType, contentDisposition, and url, and size
 // (VibeHTTPSizeFromHeaders) when the headers state it.
-- (nullable NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response;
+- (nullable NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response
+                                       state:(NSMutableDictionary<NSString *, id> *)state;
 // What names the metadata's bytes, nil for nothing: no resend continues a
 // download it began. The default is VibeHTTPVersionFromHeaders.
 - (nullable NSString *)versionOfMetadata:(nullable NSDictionary *)metadata;

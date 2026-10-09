@@ -9,11 +9,11 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 | `HTTPTransferRules.h` | the retry delay, the connection errors, and the size and version a response's headers state. Tested (`HTTPTransferRulesTests`) |
 | `RemotePlaceholderStore` | remote files as local placeholders under one root: the placeholder and the install, the directory index, the fetch that streams, the ranged read, the download budget, and the backend it installs. Tested (`RemotePlaceholderStoreTests`) |
 | `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads, and the budget |
-| `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
+| `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Its `LinkClient` is the client every link goes through. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
 | `LinkRules.h` | the address rule, the audio check, the names, the share-link rewrite that asks each host's file, what a drop or a paste opens, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
-| `DropboxLinkRules.h`, `GoogleDriveLinkRules.h` | one host's share links each: the rewrite, and what that host answers. No other link code names a host. Tested (`DropboxLinkRulesTests`, `GoogleDriveLinkRulesTests`) |
+| `DropboxLinkRules.h`, `GoogleDriveLinkRules.h`, `ICloudLinkRules.h` | one host's share links each: the rewrite, or iCloud's lookup, and what that host answers. No other link code names a host. Tested (`DropboxLinkRulesTests`, `GoogleDriveLinkRulesTests`, `ICloudLinkRulesTests`) |
 
-`DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store over the plain client (below).
+`DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store, and `LinkClient` the client (below).
 
 **TRAP: a subclass's internal header imports `HTTPTransferClientInternal.h` and never redeclares its seams** (`DropboxClientInternal.h`). A redeclaration that cannot see the base's gets an ivar of its own. It starts at 0, not 1, and every retry wait would read it.
 
@@ -75,7 +75,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 ## Links
 
-**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). It uses the plain client, with no subclass. Its root is `<Application Support>/Links`, kept out of backups. Each root has its own backend (`System/AGENTS.md`).
+**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). Its client is `LinkClient`. That is the plain client for every link but an iCloud Drive share (below). Its root is `<Application Support>/Links`, kept out of backups. Each root has its own backend (`System/AGENTS.md`).
 
 **Both apps install it at launch, before anything can open a file under it.** The mac installs it first in `applicationWillFinishLaunching:`, before the restore. iOS installs it in `application:didFinishLaunchingWithOptions:`, after the Dropbox mirror and before the scene restores a playlist.
 
@@ -115,7 +115,16 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through as its POSIX error. `+[LinkStore messageForError:brief:]` turns the code into its string, the server's with its status. iOS shows the `link.error` sentence in an alert. The mac shows the short `link.status` string in its header (`brief`). An error outside the domain reads as unreachable.
 
-**A share link is rewritten to the address of its bytes** (`VibeLinkDirectDownloadURL`). **Each host's rules live in its own file, and no other link code names a host.** That file's header also says what the host answers and why. The rewrite asks each file in turn and fetches any other link as typed. A new host is a new file and one more step in the rewrite. `docs/future/share-links.md` has the probes.
+**A share link is rewritten to the address of its bytes** (`VibeLinkDirectDownloadURL`). **Each host's rules live in its own file, and no other link code names a host.** That file's header also says what the host answers and why. The rewrite asks each file in turn and fetches any other link as typed. A new host is a new file and one more step in the rewrite. An iCloud Drive link is no step in it, since it is looked up before each request (below). `docs/future/share-links.md` has the probes.
+
+**An iCloud Drive link is looked up before each request** (`LinkClient`, `ICloudLinkRules.h`). Its share page is a script, not the file, so the rewrite leaves it as typed. That file's header says what iCloud answers.
+- The lookup states the file's checksum, size, mtime, and name, and a signed download address. It needs no sign-in. `allowsURL` is asked of it too.
+- A lookup is reused for 10 minutes, and never within a minute of its address's expiry (`VibeICloudLinkAddressIsFresh`). One lookup per share is in flight at a time, the lookup claim. Every request arriving during it is a waiter on that one.
+- A refused address may only have expired (`VibeICloudLinkStatusIsStaleAddress`). It is looked up again once, and the request is sent again (`handleFailureStatus:`). A download's resend asks for the bytes past its part, as any resend does. The fresh address's own refusal fails.
+- **TRAP: the version is the lookup's checksum, never a header** (`metadataOfResponse:state:`). iCloud sends no ETag, and its Last-Modified is when it signed the address. Read as a version, every lookup would be another one. A resend after a fresh lookup would fail, and a kept download would be fetched again at every open. The metadata drops Last-Modified, so the CDN case never applies. A changed checksum is another version, as a changed ETag is. The mtime and the name are the lookup's too. The cache key then stays the same across a relaunch and a fresh lookup.
+- What opens nothing, before any request to the file: a share that needs a sign-in, or has no anonymous access, is `ICloudPrivate`. A folder is `ICloudFolder`. A share that no longer exists is not found. Any other answer is `ICloudUnreadable`, never the server's failure. A lookup that cannot connect is the link's network failure, so a downloaded share still opens offline.
+- The record holds the share link, never a signed address. A log line names neither the share's id nor the address's query, since either one reads the file. The answer also names the owner. Nothing reads that.
+- An open again within a lookup's 10 minutes sees the checksum that lookup saw.
 
 **An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. The file's own size and mtime must be the record's too. A record changed while its file streamed describes bytes the placeholder does not. Once the stream ends, the next open writes a fresh placeholder. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
 
@@ -137,4 +146,4 @@ The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through a
 
 **A link can arrive by a drop on the mac's window** (`Mac/App/AGENTS.md`). What a drop holds is decided here, as plain data, so the tests need no pasteboard. `VibeDropURLsOfItems` reads each pasteboard item's strings by type: a file URL wins, then a URL, then text. A URL or text counts only when it is one http or https link (`VibeLinkIsWebLink`). A `.webloc` is a file, and its link is the `URL` key of its property list, XML or binary (`VibeLinkURLOfWebloc`). `VibeDropOpenOrder` swaps each `.webloc` for its link and keeps each link once, by its normalized URL. Files are never merged. Files and links keep drop order. iOS has no drop target. Its paste row reads a paste's items the same way, and opens the first web link (`VibePasteLinkOfItems`).
 
-**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`. `open_url` resolves a link through each shell's own Open URL road. On the mac, `file_drag_drop` drops a link as a browser's text.
+**The debug channel serves links from a directory** (`VibeFakeHTTP`, `Debug/AGENTS.md`). It replaces the shared client's sessions through `useSessionConfiguration:`. It answers iCloud's lookup too. `https://www.icloud.com/iclouddrive/<name>` is the entry at its root named `<name>` without its extension, and a directory there is a folder share. The `expiry` fault shortens each address's life. `open_url` resolves a link through each shell's own Open URL road. On the mac, `file_drag_drop` drops a link as a browser's text.

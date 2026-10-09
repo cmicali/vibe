@@ -220,6 +220,9 @@ static NSString *VibeLinkErrorName(VibeLinkError code) {
         case VibeLinkErrorLiveStream: return @"live_stream";
         case VibeLinkErrorServer: return @"server";
         case VibeLinkErrorCancelled: return @"cancelled";
+        case VibeLinkErrorICloudPrivate: return @"icloud_private";
+        case VibeLinkErrorICloudFolder: return @"icloud_folder";
+        case VibeLinkErrorICloudUnreadable: return @"icloud_unreadable";
     }
     return @"unknown";
 }
@@ -887,10 +890,10 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(VibeFakeHTTP.statistics);
             }),
             // The value is the kind's own: drop, etag-change, and stall take
-            // bytes (after=), rate bytes per second, latency seconds, status
-            // a code. Byte counts take K and M.
+            // bytes (after=), rate bytes per second, latency and expiry
+            // seconds, status a code. Byte counts take K and M.
             VibeDebugCmd(@"fake_http_fault <stall|drop|etag-change|rate|latency|no-range|no-length|icy|status|html"
-                         @"|gzip|off> [<value>] [file=<basename>] [after=<bytes>] [once|always]", 0,
+                         @"|gzip|expiry|off> [<value>] [file=<basename>] [after=<bytes>] [once|always]", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 if (tokens.count < 2) {
@@ -916,7 +919,7 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                         if ([kind isEqualToString:@"rate"]) {
                             valid = VibeParseByteCount(token, &rate) && rate > 0;
                         }
-                        else if ([kind isEqualToString:@"latency"]) {
+                        else if ([kind isEqualToString:@"latency"] || [kind isEqualToString:@"expiry"]) {
                             valid = VibeParseDouble(token, &seconds) && seconds >= 0;
                         }
                         else if ([kind isEqualToString:@"status"]) {
