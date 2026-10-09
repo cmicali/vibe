@@ -73,8 +73,11 @@
     // B's first track is still opening.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
-    // Pairs a held link error with its own timer (showOpenError:naming:).
-    NSUInteger                  _openErrorGeneration;
+    // The header's notice (showOpenError:naming:), nil for none, and the
+    // generation that pairs it with its own timer.
+    NSString*                   _noticeStatus;
+    NSString*                   _noticeTitle;
+    NSUInteger                  _noticeGeneration;
     TransportKeyMonitor*        _keyMonitor;
     BOOL                        _folderArtRefreshScheduled;
     uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
@@ -438,20 +441,31 @@
         case TrackDisplayStateEmpty:
         case TrackDisplayStateLaunchGrace:
         case TrackDisplayStateError:
+        case TrackDisplayStateNotice:
             return nil;
     }
+}
+
+- (TrackDisplayState)headerState {
+    return _noticeStatus ? TrackDisplayStateNotice : [self displayState];
+}
+
+- (NSString *)noticeStatus {
+    return _noticeStatus;
 }
 
 - (void)renderTrackPresentationForState:(TrackDisplayState)state
                                   track:(AudioTrack *)track
                            displayTrack:(AudioTrack *)displayTrack {
+    BOOL notice = (_noticeStatus != nil);
+    TrackDisplayState header = notice ? TrackDisplayStateNotice : state;
     // renderState rewrites the codec line, so tempo/key and FX follow it.
-    [self.trackDisplay renderState:state
-                             track:(state == TrackDisplayStateError ? track : displayTrack)
+    [self.trackDisplay renderState:header
+                             track:(header == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                       errorStatus:(track && track == _erroredTrack ? _errorStatus : nil)
-            unplayablePlaylistName:_unplayablePlaylistName];
+                            status:(notice ? _noticeStatus : track && track == _erroredTrack ? _errorStatus : nil)
+                             title:(notice ? _noticeTitle : _unplayablePlaylistName)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];
@@ -511,7 +525,7 @@
     [self.trackDisplay renderPosition:position
                              duration:_currentTrackDuration
                                  rate:self.playbackRate
-                                state:[self displayState]];
+                                state:[self headerState]];
     [self.audioPlayer noteDisplayedPosition:position forTrack:self.playlistController.currentTrack];
 }
 
@@ -527,14 +541,17 @@
     // at the 16% extreme, and a flickering key would misread as a data change.
     // The notation applies to tagged keys too.
     AppSettings *settings = AppSettings.sharedInstance;
-    VibeMusicalKey key = track && settings.showKey ? track.key : VibeMusicalKeyNone;
+    // The label's track. A notice's header names none, and the audio above
+    // still follows the playing track.
+    AudioTrack *shown = _noticeStatus ? nil : track;
+    VibeMusicalKey key = shown && settings.showKey ? shown.key : VibeMusicalKeyNone;
     NSString *keyText = @"";
     if (VibeMusicalKeyIsValid(key)) {
         keyText = [settings.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
     }
-    float labelBPM = track && settings.showBPM ? scaledBPM : 0;
+    float labelBPM = shown && settings.showBPM ? scaledBPM : 0;
     [self.trackDisplay renderBPM:labelBPM
                          keyText:keyText
                         colorKey:(settings.keyColorsEnabled ? key : VibeMusicalKeyNone)];
@@ -571,29 +588,36 @@
 static const NSTimeInterval kOpenErrorSeconds = 4;
 
 - (void)showOpenError:(NSString *)status naming:(NSString *)name {
-    [self.trackDisplay showOpenError:status naming:name];
-    NSUInteger generation = ++_openErrorGeneration;
+    _noticeStatus = [status copy];
+    _noticeTitle = [name copy];
+    NSUInteger generation = ++_noticeGeneration;
+    [self updateUI];
     __weak MainPlayerController *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kOpenErrorSeconds * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         MainPlayerController *strongSelf = weakSelf;
-        if (strongSelf && strongSelf->_openErrorGeneration == generation) {
+        if (strongSelf && strongSelf->_noticeGeneration == generation) {
             [strongSelf endOpenError];
         }
     });
 }
 
 - (void)endOpenError {
-    _openErrorGeneration++;
-    if ([self.trackDisplay endOpenError]) {
-        [self restoreCoveredHeader];
+    _noticeGeneration++;
+    if (!_noticeStatus) {
+        return;
     }
+    _noticeStatus = nil;
+    _noticeTitle = nil;
+    [self restoreCoveredHeader];
 }
 
-// The header after the drop shimmer or a held link error. Either cleared the
-// waveform, so a shown track loads it again. A slow open gets back the
-// shimmer the error kept off. A track's open still in flight keeps the strip.
+// The header after the drop shimmer or a notice. Either cleared the waveform,
+// so a shown track loads it again. A slow open gets back the shimmer the
+// notice kept off. A track's open still in flight keeps the strip. The render
+// comes first: a notice's header takes no strip writes until it is gone.
 - (void)restoreCoveredHeader {
+    [self updateUI];
     AudioTrack *track = self.playlistController.currentTrack;
     switch ([self displayStateForTrack:track]) {
         case TrackDisplayStateLoading:
@@ -609,10 +633,10 @@ static const NSTimeInterval kOpenErrorSeconds = 4;
         case TrackDisplayStateEmpty:
         case TrackDisplayStateLaunchGrace:
         case TrackDisplayStateError:
+        case TrackDisplayStateNotice:
             [self.trackDisplay hideWaveformLoadingIndicator];
             break;
     }
-    [self updateUI];
 }
 
 - (void)play:(NSArray<AudioTrack *> *)tracks {
@@ -1081,7 +1105,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (void)updateRateDependentUI {
     [self.trackDisplay renderTotalDuration:self.audioPlayer.duration
                                       rate:self.playbackRate
-                                     state:[self displayState]];
+                                     state:[self headerState]];
     [self effectiveTempoDidChange];
     [self syncUITimerRate];
     [self updatePlaybackUI];

@@ -41,26 +41,20 @@ typedef struct {
 
 // track: the displayed track for Track and Loading, the errored track for
 // Error, nil otherwise. duration is file time; the labels divide it by rate.
-// errorStatus is the track's play error: in Error the artist line, where nil
-// reads as the generic playback error; in Track, a parked track's, it stands
-// in for the file info line. unplayablePlaylistName is an opened playlist
-// that listed nothing playable, which Empty says so over.
+// status goes on the artist line: in Error the track's play error, where nil
+// reads as the generic playback error, and in Notice the notice. In Track, a
+// parked track's play error stands in for the file info line. title is what
+// Empty and Notice name: an opened playlist that listed nothing playable, or
+// a link that failed to open.
+// While Notice is drawn, the track's waveform stays off the header: the
+// waveform and the playhead drop their writes until another state is
+// rendered. The caller then loads the waveform again.
 - (void)renderState:(TrackDisplayState)state
               track:(nullable AudioTrack *)track
            duration:(NSTimeInterval)duration
                rate:(double)rate
-        errorStatus:(nullable NSString *)errorStatus
-unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
-
-// A link that failed to open, over whatever the header showed: the Error look,
-// with status on the artist line and name on the title line. It holds until
-// endOpenError. Until then nothing else writes the labels, the times, the
-// BPM line, or the waveform. endOpenError answers whether one held, and the
-// caller then renders the header again.
-- (void)showOpenError:(NSString *)status naming:(NSString *)name;
-- (BOOL)endOpenError;
-// The held status, or nil. The debug channel's state dump reads it.
-@property (nonatomic, readonly, nullable, copy) NSString *openErrorStatus;
+             status:(nullable NSString *)status
+              title:(nullable NSString *)title;
 
 // The position tick. duration is the caller's cache: the live one reads 0
 // while Loading.

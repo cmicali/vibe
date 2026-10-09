@@ -27,6 +27,7 @@ static NSString *VibeDebugDisplayStateName(TrackDisplayState state) {
         case TrackDisplayStateEmpty: return @"empty";
         case TrackDisplayStateLaunchGrace: return @"launch-grace";
         case TrackDisplayStateError: return @"error";
+        case TrackDisplayStateNotice: return @"notice";
     }
     return @"unknown";
 }
@@ -175,11 +176,12 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"waveformLoading": @(controller.trackDisplay.waveformLoadingIndicatorShown),
-            @"openError": controller.trackDisplay.openErrorStatus ?: @"",
+            @"openError": controller.noticeStatus ?: @"",
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),
             @"displayState": VibeDebugDisplayStateName(controller.displayState),
+            @"headerState": VibeDebugDisplayStateName(controller.headerState),
             @"openURLWindow": VibeOpenURLWindowState(),
         },
         @"window": @{

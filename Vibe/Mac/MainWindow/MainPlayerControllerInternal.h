@@ -103,6 +103,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable AudioTrack *)displayedTrack;
 - (nullable AudioTrack *)displayedTrackForState:(TrackDisplayState)state
                                           track:(nullable AudioTrack *)track;
+// What the header draws: the display state, or Notice over it while one is
+// held. Only the header's writes read it. Playback, Now Playing, and the
+// delay's tempo read the display state.
+- (TrackDisplayState)headerState;
+// The held notice's status, nil for none.
+- (nullable NSString *)noticeStatus;
 
 #pragma mark - Settings live effects
 
