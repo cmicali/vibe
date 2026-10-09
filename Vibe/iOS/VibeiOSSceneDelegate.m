@@ -4,7 +4,11 @@
 //
 
 #import "VibeiOSSceneDelegate.h"
+#import "AudioTrack.h"
+#import "FilesTabRules.h"
+#import "LinkStore.h"
 #import "PlaybackController.h"
+#import "Playlist.h"
 #import "RootViewController.h"
 #import "SearchFolderStore.h"
 
@@ -43,6 +47,26 @@
     else {
         [_playback restorePersistedSession];
     }
+    // After the launch's open, so the playlist holds what it brought back.
+    __weak PlaybackController *weakPlayback = _playback;
+    [_playback performWhenLaunchOpenSettled:^{
+        [VibeiOSSceneDelegate pruneLinksKeptBy:weakPlayback];
+    }];
+}
+
+// The playlist is the session's base and its additions, as the launch
+// restored them. The prune itself runs on the store's queue.
++ (void)pruneLinksKeptBy:(PlaybackController *)playback {
+    if (!playback) {
+        return;
+    }
+    NSMutableArray<NSURL *> *rows = [NSMutableArray array];
+    for (AudioTrack *track in playback.playlist.tracks) {
+        if (track.url) {
+            [rows addObject:track.url];
+        }
+    }
+    [LinkStore.shared pruneKeepingURLs:VibeLinkKeptURLs(rows, VibeRecentItemURLs(playback.recentItems))];
 }
 
 // Foreground-inactive is off: views stay attached under Control Center and the

@@ -50,6 +50,17 @@ NS_ASSUME_NONNULL_BEGIN
                           inFolder:(BOOL)inFolder
                              token:(uint64_t)token;
 
+// Open URL: the typed link resolved (LinkStore), then its file opened alone
+// through confirmReplacing…, which asks over presenter when the playlist was
+// built by hand. The replace token is taken now, so a later open supersedes
+// it. A link that fails leaves the playlist as it is. Never the inbox road:
+// it does not persist. Completion on main, with exactly one of file and
+// error.
++ (void)openLinkString:(NSString *)string
+    replacingPlaylistOf:(PlaybackController *)playback
+                   from:(UIViewController *)presenter
+             completion:(nullable void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them
 // into the Playlist tab when the tracks land; this screen knows no tabs.

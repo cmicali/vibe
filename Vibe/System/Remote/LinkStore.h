@@ -48,6 +48,11 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 - (void)resolveURLString:(NSString *)string
               completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
 
+// The record of the link whose file url is: {url, host, …}, as the Links
+// section of System/Remote/AGENTS.md lists it. Nil for a file outside the
+// root, or a directory with no record. Any thread. Reads one cached xattr.
+- (nullable NSDictionary *)recordOfLinkFileURL:(NSURL *)url;
+
 // What the shell shows for a failed open: the error's link.error string. A
 // Server error names its status. Any error outside the link domain reads as
 // unreachable. A disk failure is one.

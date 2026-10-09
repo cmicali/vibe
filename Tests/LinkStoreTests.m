@@ -428,6 +428,8 @@ static BOOL IsDownloaded(NSURL *url) {
     XCTAssertEqualObjects(stored, [self recordOf:file]);
     LinkStore *other = [[LinkStore alloc] initWithClient:_client rootURL:_root];
     XCTAssertEqualObjects([other indexOfDirectory:directory], stored, @"read back by a new store");
+    XCTAssertEqualObjects([_store recordOfLinkFileURL:file], stored, @"a shell reads it by the file");
+    XCTAssertNil([_store recordOfLinkFileURL:[_base URLByAppendingPathComponent:@"a.flac"]], @"outside the root");
     NSSet *keys = [NSSet setWithArray:@[@"url", @"etag", @"lastModified", @"version", @"size", @"modified", @"ranges",
                                         @"host", @"opened"]];
     XCTAssertEqualObjects([NSSet setWithArray:stored.allKeys], keys, @"no Content-Type, so none recorded");

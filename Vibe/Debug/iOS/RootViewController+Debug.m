@@ -22,6 +22,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "BrowserViewController.h"
 #import "FavoritesStore.h"
 #import "LibraryViewController.h"
 #import "SearchViewController.h"
@@ -414,7 +415,8 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     while (presenter.presentedViewController) {
         presenter = presenter.presentedViewController;
     }
-    [self.playback openLinkString:link from:presenter completion:completion];
+    [BrowserViewController openLinkString:link replacingPlaylistOf:self.playback from:presenter
+                               completion:completion];
 }
 
 - (AudioTrackMetadataCache *)debugMetadataCache {

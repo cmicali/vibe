@@ -188,6 +188,15 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
     [self writeIndex:touched ofDirectory:directory];
 }
 
+- (nullable NSDictionary *)recordOfLinkFileURL:(NSURL *)url {
+    NSString *root = [VibeComparablePath(self.rootURL.path) stringByAppendingString:@"/"];
+    NSString *path = VibeComparablePath(url.path);
+    if (![path hasPrefix:root]) {
+        return nil;
+    }
+    return [self indexOfDirectory:url.URLByDeletingLastPathComponent];
+}
+
 #pragma mark - Hooks
 
 - (id)remoteTargetForURL:(NSURL *)url error:(NSError **)error {

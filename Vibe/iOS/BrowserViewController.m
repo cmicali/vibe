@@ -15,35 +15,14 @@
 #import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
-#import "FileSearchRules.h"
+#import "FilesTabRules.h"
+#import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "PlaybackController.h"
 #import "PlaylistFile.h"
 #import "SearchFolderStore.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
-
-typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
-    VibeBrowserRootSectionSources = 0,
-    // Its own group: a place to go back to, not a place files live.
-    VibeBrowserRootSectionRecents,
-    // Last: its footer needs the room a last section has.
-    VibeBrowserRootSectionLocations,
-    VibeBrowserRootSectionCount,
-};
-
-// What a row of the root is. Sources: the device, and Dropbox once linked.
-// Recents, alone. Locations: the granted folders, then the rows that add one,
-// with Connect to Dropbox among them until an account is linked.
-typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
-    VibeBrowserRootRowDevice = 0,
-    VibeBrowserRootRowDropbox,
-    VibeBrowserRootRowRecents,
-    VibeBrowserRootRowLocation,
-    VibeBrowserRootRowConnectDropbox,
-    VibeBrowserRootRowAddFolder,
-    VibeBrowserRootRowBrowseFiles,
-};
 
 typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     VibeBrowserSectionFolders = 0,
@@ -884,6 +863,82 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     [presenter presentViewController:alert animated:YES completion:nil];
 }
 
++ (void)openLinkString:(NSString *)string
+    replacingPlaylistOf:(PlaybackController *)playback
+                   from:(UIViewController *)presenter
+             completion:(void (^)(NSURL *, NSError *))completion {
+    uint64_t token = [playback replaceRequestTokenOpening:nil];
+    [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
+        if (file) {
+            [BrowserViewController confirmReplacingPlaylistOf:playback from:presenter openingURLs:@[file]
+                                                     inFolder:NO token:token];
+        }
+        if (completion) {
+            completion(file, error);
+        }
+    }];
+}
+
+// Open URL…: the typed address plays as the playlist, or in the add sheet is
+// added. A blank address is Cancel.
+- (void)promptForLink {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:STR_LINK_PROMPT_TITLE
+                                                                   message:STR_LINK_PROMPT_MESSAGE
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = VibeNotLocalized(@"https://");
+        field.keyboardType = UIKeyboardTypeURL;
+        field.textContentType = UITextContentTypeURL;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.spellCheckingType = UITextSpellCheckingTypeNo;
+        field.clearButtonMode = UITextFieldViewModeWhileEditing;
+    }];
+    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    __weak UIAlertController *weakAlert = alert;
+    __weak BrowserViewController *weakSelf = self;
+    UIAlertAction *open = [UIAlertAction actionWithTitle:STR_BUTTON_OPEN style:UIAlertActionStyleDefault
+                                                 handler:^(UIAlertAction *action) {
+        [weakSelf openLinkText:weakAlert.textFields.firstObject.text];
+    }];
+    [alert addAction:open];
+    alert.preferredAction = open;
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+// The add sheet takes the Add token before the resolve, as Favorites does,
+// and closes at once, as every Add does. Never the inbox road: it does not
+// persist.
+- (void)openLinkText:(NSString *)text {
+    if (VibeLinkTextIsBlank(text)) {
+        return;
+    }
+    // The add sheet is gone by the time a failure lands.
+    UIViewController *presenter = _appending ? self.navigationController.presentingViewController : self;
+    void (^showFailure)(NSError *) = ^(NSError *error) {
+        if (error && presenter.viewIfLoaded.window) {
+            VibePresentAlert(presenter, STR_LINK_ERROR_TITLE, [LinkStore messageForError:error]);
+        }
+    };
+    if (!_appending) {
+        [BrowserViewController openLinkString:text replacingPlaylistOf:_playback from:self
+                                   completion:^(NSURL *file, NSError *error) {
+            showFailure(error);
+        }];
+        return;
+    }
+    PlaybackController *playback = _playback;
+    uint64_t token = [playback addRequestToken];
+    [LinkStore.shared resolveURLString:text completion:^(NSURL *file, NSError *error) {
+        if (file) {
+            [playback addURLs:@[file] token:token];
+        }
+        showFailure(error);
+    }];
+    [self dismissSheet];
+}
+
 // Every open is one of PlaybackController's roads.
 - (void)addURLs:(NSArray<NSURL *> *)urls {
     if (urls.count == 0) {
@@ -1155,25 +1210,8 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
 #pragma mark - Table
 
 - (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
-    BOOL linked = DropboxMirror.shared.client.isLinked;
-    if (section == VibeBrowserRootSectionSources) {
-        return linked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox)] : @[@(VibeBrowserRootRowDevice)];
-    }
-    if (section == VibeBrowserRootSectionRecents) {
-        return @[@(VibeBrowserRootRowRecents)];
-    }
-    NSMutableArray<NSNumber *> *rows = [NSMutableArray array];
-    // First, so a location's row is its index in the store.
-    NSUInteger locations = SearchFolderStore.shared.folderURLs.count;
-    for (NSUInteger i = 0; i < locations; i++) {
-        [rows addObject:@(VibeBrowserRootRowLocation)];
-    }
-    if (!linked) {
-        [rows addObject:@(VibeBrowserRootRowConnectDropbox)];
-    }
-    [rows addObject:@(VibeBrowserRootRowAddFolder)];
-    [rows addObject:@(VibeBrowserRootRowBrowseFiles)];
-    return rows;
+    return VibeBrowserRootRows((VibeBrowserRootSection)section, DropboxMirror.shared.client.isLinked,
+                               SearchFolderStore.shared.folderURLs.count);
 }
 
 - (VibeBrowserRootRow)rootRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -1366,6 +1404,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
             content.image = [UIImage systemImageNamed:@"doc.badge.ellipsis"];
             action = YES;
             break;
+        case VibeBrowserRootRowOpenURL:
+            content.text = STR_BROWSER_OPEN_URL;
+            content.image = [UIImage systemImageNamed:@"link"];
+            action = YES;
+            break;
     }
     UITableViewCell *cell = [self cellWithIdentifier:action ? kActionCellIdentifier : kSourceCellIdentifier];
     if (action) {
@@ -1442,6 +1485,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
             return;
         case VibeBrowserRootRowBrowseFiles:
             [self presentPickerForLocation:NO];
+            return;
+        case VibeBrowserRootRowOpenURL:
+            [self promptForLink];
             return;
     }
 }
@@ -1732,6 +1778,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
                                             point:(CGPoint)point {
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
     BOOL folder = [item[@"folder"] boolValue];
+    BOOL folderActions = VibeRecentOffersFolderActions(item[@"path"],
+                                                       VibeComparablePath(LinkStore.shared.rootURL.path));
     BOOL appendingSheet = _appending;
     __weak RecentsViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
@@ -1742,7 +1790,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
                 [weakSelf openItem:item appending:NO inFolder:NO];
             })];
-            if (!folder && ![PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString]) {
+            if (!folder && folderActions
+                    && ![PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString]) {
                 [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                     [weakSelf openItem:item appending:NO inFolder:YES];
                 })];
@@ -1751,9 +1800,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
         [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
             [weakSelf openItem:item appending:YES inFolder:NO];
         })];
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
-            [weakSelf showFolderOfItem:item];
-        })];
+        if (folderActions) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+                [weakSelf showFolderOfItem:item];
+            })];
+        }
         return [UIMenu menuWithTitle:@"" children:items];
     }];
 }

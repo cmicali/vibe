@@ -244,16 +244,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (uint64_t)replaceRequestTokenOpening:(nullable NSURL *)url;
 - (BOOL)isCurrentReplaceRequest:(uint64_t)token;
 
-// Open URL: the typed link resolved (LinkStore), then its file opened as a
-// replace through the browser's confirmReplacing… funnel. The funnel asks
-// over presenter when the playlist was built by hand. The replace token is
-// taken now. A later open supersedes it. A link that fails leaves the
-// playlist as it is. Never the inbox road: it does not persist. Completion
-// on main, with exactly one of file and error.
-- (void)openLinkString:(NSString *)string
-                  from:(UIViewController *)presenter
-            completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
-
 // The comparable path (VibeComparablePath) of the row a replace the user
 // asked for is opening, until it lands, finds nothing, is superseded or is
 // given up; nil otherwise. The row draws a spinner. Main thread.

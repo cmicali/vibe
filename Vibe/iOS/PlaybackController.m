@@ -20,11 +20,9 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
-#import "BrowserViewController.h"
 #import "CloudTransferRegistry.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
-#import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
@@ -740,21 +738,6 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     _replaceRequestSerial++;
     [self beginOpening:url];
     return _replaceRequestSerial;
-}
-
-- (void)openLinkString:(NSString *)string
-                  from:(UIViewController *)presenter
-            completion:(void (^)(NSURL *, NSError *))completion {
-    uint64_t token = [self replaceRequestTokenOpening:nil];
-    [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
-        if (file) {
-            [BrowserViewController confirmReplacingPlaylistOf:self from:presenter openingURLs:@[file]
-                                                     inFolder:NO token:token];
-        }
-        if (completion) {
-            completion(file, error);
-        }
-    }];
 }
 
 #pragma mark - The row being opened

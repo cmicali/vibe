@@ -22,6 +22,8 @@ A playlist change re-*filters* — rows are indexes into a playlist that was jus
 
 **A playlist row selects and stays; a file row plays that file alone**, a one-track playlist (`openFileURL:inFolder:NO`). **A Dropbox folder row opens in the Files tab**, as a folder does in the browser: playing it landed nothing, silently, whenever its songs were in subfolders. A Dropbox hit that cannot be reached says so in an alert. Its long press is the rule Recents shares: Play, **Play in Folder** for a file (its directory as the playlist with it selected), Add to Playlist, and **Open Folder** (its directory in the Files tab). Every hit, file or folder, local or Dropbox, takes one road, and whether the open becomes the session bookmark is `FolderSession`'s call, not the screen's. The menu captures the hit, not the row, since a late answer can reload the section while it is up.
 
+**A recent that is a link offers neither Play in Folder nor Open Folder** (`VibeRecentOffersFolderActions`, `FilesTabRules.h`). Its folder is the Links store's, named by a hash and holding only the one file. Its second line is the link's host, where any other recent names its folder (`VibeRecentLocationName`). `FolderSession` reads the host from the link's record when the open lands (`LinkStore recordOfLinkFileURL:`). The name is recorded with the item, as a folder's is.
+
 **The table dismisses the keyboard on drag** (`OnDrag`, not `Interactive`, which tracks a field the scroll view contains; this field is in the tab bar). Otherwise nothing on the screen puts the keyboard away and the bottom of the list is unreachable. Picking a row resigns the field but keeps the query.
 
 ## FileSearchIndex

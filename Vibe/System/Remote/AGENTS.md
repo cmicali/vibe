@@ -76,7 +76,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). It holds one file, the placeholder or the download, named by `VibeLinkFileName`. The name is the link's last path component when that has a playable extension, else the Content-Disposition file name. The same link opened again reuses the directory and its file. Two links never share a name.
 
-**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out.
+**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out. A shell reads a link's record by its file (`recordOfLinkFileURL:`). iOS names a link in Recents by its host.
 
 **`resolveURLString:completion:` opens a link in five steps.** It runs off main and completes on main.
 1. The address rule (`VibeLinkURLAcceptance`). A refusal fails before any request.
