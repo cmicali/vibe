@@ -873,6 +873,7 @@ targets:
     sources:
       - path: Tests/AudioPlayerRenderTests.m
       - path: Tests/TestFilesystemGuard.m
+      - path: Tests/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m

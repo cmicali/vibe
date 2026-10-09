@@ -114,7 +114,10 @@ static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 // length once known. The stamp is the audio thread's timestamp for the first
 // frame consumed after a start or resume; hostTime is valid only on hardware.
 // `waitingForBytes` is its decoder blocked waiting for its file's bytes
-// (AudioFileHandle.waitingForBytes), `decoding` a decode turn queued or
+// (AudioFileHandle.waitingForBytes), and `bytesWritten` what that file's
+// writer has fetched (AudioFileHandle.bytesWritten). Both read the file the
+// decoder reads now: the voice's own, or the queued successor once the
+// decoder has switched into it. `decoding` is a decode turn queued or
 // running for it.
 typedef struct {
     VibeVoiceState state;
@@ -122,6 +125,7 @@ typedef struct {
     BOOL waitingForBytes;
     BOOL decoding;
     VibeVoiceEnd ended;
+    uint64_t bytesWritten;
     uint64_t consumed;
     uint64_t written;
     uint64_t boundary;
@@ -242,10 +246,6 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // voice is readable until the drain has reported it ended — read what its
 // end needs inside that handler, since the same drain recycles the slot.
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice;
-// Any thread. The file the voice's decoder reads now: its own, or the queued
-// successor once the decoder has switched into it. Nil for a voice with no
-// slot.
-- (nullable AudioFileHandle *)fileOfVoice:(VibeVoiceID)voice;
 // Detailed failure and exact handle identity, including for repeated URLs.
 // Read before the ended handler returns.
 - (nullable NSError *)errorOfVoice:(VibeVoiceID)voice

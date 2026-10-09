@@ -1319,14 +1319,6 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
 
 #pragma mark - Reading
 
-- (AudioFileHandle *)fileOfVoice:(VibeVoiceID)voice {
-    os_unfair_lock_lock(&_tableLock);
-    NSUInteger slot = voice ? [self slotForIdentifier:voice] : NSNotFound;
-    AudioFileHandle *file = slot != NSNotFound ? _records[slot]->file : nil;
-    os_unfair_lock_unlock(&_tableLock);
-    return file;
-}
-
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice {
     VibeVoiceSnapshot snapshot = {0};
     snapshot.boundary = kUnset;
@@ -1337,12 +1329,16 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
     os_unfair_lock_lock(&_tableLock);
     NSUInteger slot = [self slotForIdentifier:voice];
     BOOL pending = slot == NSNotFound && [self pendingRecordForIdentifier:voice] != nil;
+    AudioFileHandle *file = nil;
     if (slot != NSNotFound) {
         // Under the lock the decoder moves a record's file pair under.
-        snapshot.waitingForBytes = _records[slot]->file.waitingForBytes;
+        file = _records[slot]->file;
+        snapshot.waitingForBytes = file.waitingForBytes;
         snapshot.decoding = atomic_load_explicit(&_records[slot]->fillScheduled, memory_order_acquire) != 0;
     }
     os_unfair_lock_unlock(&_tableLock);
+    // Outside the table lock: a stream's count takes its availability's lock.
+    snapshot.bytesWritten = file.bytesWritten;
     if (slot == NSNotFound) {
         // A pending voice is armed; an unknown or cancelled identity is gone.
         snapshot.state = pending ? VibeVoiceStateArmed : VibeVoiceStateNone;

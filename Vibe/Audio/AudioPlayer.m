@@ -905,12 +905,21 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
             _deadlineArmedUptime = NSProcessInfo.processInfo.systemUptime;
             _deadlineMovedUptime = 0;
             _deadlineTimeouts = _loadingConfiguration.openTimeouts;
-            _bufferingStartBytes = _bufferingBytes = [self bufferedStreamBytesOnQueue];
+            _bufferingStartBytes = _bufferingBytes = snapshot.bytesWritten;
             // One not yet heard is cut, so none of its file is consumed in silence.
             [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:live ? kFadeDurationMilliseconds : 0
                                                 action:VibeVoiceActionPause] forVoice:_voice];
         }
         return;
+    }
+    // What the writer of the file the decoder reads has fetched. A successor
+    // not yet read never counts. Its download would hide a stall of the file
+    // the voice waits on. Any change is movement: a file's count only grows,
+    // and a switch to another file is movement too.
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (snapshot.bytesWritten != _bufferingBytes) {
+        _bufferingBytes = snapshot.bytesWritten;
+        _deadlineMovedUptime = now;
     }
     if (endKnown || buffered >= _voiceBus.ringFrames / 2 || !(snapshot.waitingForBytes || snapshot.decoding)) {
         [_voiceBus setRamp:[self rampOnQueueToGain:1 milliseconds:kFadeDurationMilliseconds action:VibeVoiceActionNone]
@@ -924,26 +933,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self setBufferingOnQueue:NO outcome:@"released"];
         return;
     }
-    uint64_t bytes = [self bufferedStreamBytesOnQueue];
-    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-    // Any change: a file's count only grows, and a switch to another file
-    // is movement too.
-    if (bytes != _bufferingBytes) {
-        _bufferingBytes = bytes;
-        _deadlineMovedUptime = now;
-    }
     if (VibeAudioOpenDeadlineRemaining(now, _deadlineArmedUptime, _deadlineMovedUptime, _deadlineTimeouts) <= 0) {
         [self stallOnQueue];
     }
-}
-
-// What the writer of the file the voice's decoder reads has fetched
-// (AudioFileHandle.bytesWritten), a transfer's or a read-ahead's. That file
-// is the voice's own, or the queued successor once the decoder has switched
-// into it. A successor not yet read never counts. Its download would hide a
-// stall of the file the voice waits on.
-- (uint64_t)bufferedStreamBytesOnQueue {
-    return [_voiceBus fileOfVoice:_voice].bytesWritten;
 }
 
 // Published under _stateLock beside the tuple, with the output-liveness fold
@@ -968,10 +960,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     os_unfair_lock_unlock(&_stateLock);
     AudioTrack *track = self.currentTrack;
     if (!buffering) {
-        uint64_t bytes = [self bufferedStreamBytesOnQueue];
         LogInfo(@"Buffering: %@ held %.2f s, %@; %llu bytes arrived meanwhile", track.url.lastPathComponent,
                 NSProcessInfo.processInfo.systemUptime - _deadlineArmedUptime, outcome,
-                bytes > _bufferingStartBytes ? bytes - _bufferingStartBytes : 0);
+                _bufferingBytes > _bufferingStartBytes ? _bufferingBytes - _bufferingStartBytes : 0);
     }
     [self refreshOutputAudioActiveOnQueue];
     if (!track) {

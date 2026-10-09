@@ -22,6 +22,7 @@
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistry.h"
 #import "NSURL+Hash.h"
+#import "VibeReadAheadScript.h"
 
 #pragma mark - A file written in step with its reader
 
@@ -139,156 +140,6 @@
     [self writeTo:_bytes.length];
     rename(_availability.partURL.fileSystemRepresentation, _url.fileSystemRepresentation);
     [_availability finishWithError:nil];
-}
-
-@end
-
-#pragma mark - A network mount's reads
-
-// What a read-ahead's reads do, as a test scripts them through the debug
-// seam's hook: each counted by offset, then slept, stalled until released,
-// failed or cut short. A stalled read holds its thread as a dead mount's
-// syscall does.
-@interface VibeReadAheadScript : NSObject
-// Signalled once per read that stalls, and per read that fails.
-@property (nonatomic, readonly) dispatch_semaphore_t stalled;
-@property (nonatomic, readonly) dispatch_semaphore_t failed;
-@property (atomic) useconds_t throttle;
-- (void)stallFrom:(uint64_t)offset;
-// Lets one stalled read through. The rest stay stalled.
-- (void)releaseOneStall;
-// Releases every stalled read and every held failure.
-- (void)releaseStalls;
-// Reads at or past `offset` fail with `code`, once or every time.
-- (void)fail:(int)code from:(uint64_t)offset always:(BOOL)always;
-// A failing read then waits after signalling `failed`, until releaseStalls.
-// Its errno reaches the thread only then.
-- (void)holdFailures;
-// The next read at or past `offset` reads nothing, as a share can while it
-// reconnects. The file on disk is unchanged.
-- (void)cutOnceAt:(uint64_t)offset;
-- (NSUInteger)readsAt:(uint64_t)offset;
-// Every read the hook was called for.
-@property (atomic, readonly) NSUInteger reads;
-- (int)beforeReadAt:(uint64_t)offset;
-@end
-
-@implementation VibeReadAheadScript {
-    NSCondition *_condition;
-    NSCountedSet<NSNumber *> *_reads;
-    uint64_t _stallFrom, _failFrom, _cutAt;
-    NSUInteger _stallPasses;
-    int _failCode;
-    BOOL _failAlways;
-    BOOL _holdFailures;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _condition = [[NSCondition alloc] init];
-        _reads = [NSCountedSet set];
-        _stalled = dispatch_semaphore_create(0);
-        _failed = dispatch_semaphore_create(0);
-        _stallFrom = _failFrom = _cutAt = UINT64_MAX;
-    }
-    return self;
-}
-
-- (void)stallFrom:(uint64_t)offset {
-    [_condition lock];
-    _stallFrom = offset;
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (void)releaseOneStall {
-    [_condition lock];
-    _stallPasses++;
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (void)releaseStalls {
-    [_condition lock];
-    _stallFrom = UINT64_MAX;
-    _holdFailures = NO;
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (void)holdFailures {
-    [_condition lock];
-    _holdFailures = YES;
-    [_condition unlock];
-}
-
-- (void)fail:(int)code from:(uint64_t)offset always:(BOOL)always {
-    [_condition lock];
-    _failCode = code;
-    _failFrom = offset;
-    _failAlways = always;
-    [_condition unlock];
-}
-
-- (void)cutOnceAt:(uint64_t)offset {
-    [_condition lock];
-    _cutAt = offset;
-    [_condition unlock];
-}
-
-- (NSUInteger)readsAt:(uint64_t)offset {
-    [_condition lock];
-    NSUInteger reads = [_reads countForObject:@(offset)];
-    [_condition unlock];
-    return reads;
-}
-
-- (NSUInteger)reads {
-    [_condition lock];
-    NSUInteger reads = 0;
-    for (NSNumber *offset in _reads) {
-        reads += [_reads countForObject:offset];
-    }
-    [_condition unlock];
-    return reads;
-}
-
-- (int)beforeReadAt:(uint64_t)offset {
-    useconds_t throttle = self.throttle;
-    if (throttle) {
-        usleep(throttle);
-    }
-    [_condition lock];
-    [_reads addObject:@(offset)];
-    if (offset >= _stallFrom) {
-        dispatch_semaphore_signal(_stalled);
-        while (offset >= _stallFrom && _stallPasses == 0) {
-            [_condition wait];
-        }
-        if (offset >= _stallFrom) {
-            _stallPasses--;
-        }
-    }
-    int code = 0;
-    if (offset >= _failFrom) {
-        code = _failCode;
-        if (!_failAlways) {
-            _failFrom = UINT64_MAX;
-        }
-    }
-    BOOL cut = offset >= _cutAt;
-    if (cut) {
-        _cutAt = UINT64_MAX;
-    }
-    if (code) {
-        dispatch_semaphore_signal(_failed);
-        while (_holdFailures) {
-            [_condition wait];
-        }
-    }
-    [_condition unlock];
-    return code ?: cut ? -1 : 0;
 }
 
 @end
@@ -415,12 +266,11 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     if (_script) {
         // The orphan count is process-wide: every stalled thread is released
         // and gone before the next test counts.
-        [AudioFileHandle debugSetMountRule:nil];
-        [_script releaseStalls];
-        XCTAssertTrue([self eventually:^BOOL {
-            return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
-        }], @"orphans %ld, live %ld", (long)AudioFileHandle.debugOrphanedReadAheads, (long)AudioFileHandle.debugLiveReadAheads);
-        [AudioFileHandle debugSetBeforeRead:nil];
+        [_script releaseEverything];
+        XCTAssertTrue([self eventually:^BOOL { return VibeReadAheadScript.threadsGone; }],
+                      @"orphans %ld, live %ld", (long)AudioFileHandle.debugOrphanedReadAheads,
+                      (long)AudioFileHandle.debugLiveReadAheads);
+        [VibeReadAheadScript removeHook];
     }
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     [NSFileManager.defaultManager removeItemAtURL:_directory error:NULL];
@@ -1309,15 +1159,7 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
         _network = [_directory URLByAppendingPathComponent:@"network" isDirectory:YES];
         XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_network withIntermediateDirectories:YES
                                                               attributes:nil error:NULL]);
-        _script = [[VibeReadAheadScript alloc] init];
-        VibeReadAheadScript *script = _script;
-        NSString *prefix = [_network.path stringByAppendingString:@"/"];
-        [AudioFileHandle debugSetMountRule:^NSNumber *(NSURL *url) {
-            return [url.path hasPrefix:prefix] ? @YES : nil;
-        }];
-        [AudioFileHandle debugSetBeforeRead:^int(NSURL *url, uint64_t offset, uint64_t length) {
-            return [url.path hasPrefix:prefix] ? [script beforeReadAt:offset] : 0;
-        }];
+        _script = [[VibeReadAheadScript alloc] initForPathsContaining:[_network.path stringByAppendingString:@"/"]];
     }
     return _script;
 }
@@ -1433,9 +1275,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertTrue([AudioFileHandle isInterruption:error], @"%@", error);
     XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 1, @"its thread is still in the read");
     [script releaseStalls];
-    XCTAssertTrue([self eventually:^BOOL {
-        return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
-    }]);
+    XCTAssertTrue([self eventually:^BOOL { return VibeReadAheadScript.threadsGone; }]);
 }
 
 // A read waiting on a stalled read-ahead returns on interruptReads, neither
@@ -1443,7 +1283,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // exactly, and once the server answers again the rest reads exactly too.
 - (void)testAStalledReadReturnsOnInterruptReadsAndASeekLandsExactly {
     VibeReadAheadScript *script = [self readAhead];
-    [script stallFrom:2 * 256 * 1024];
+    [script stallFrom:2 * kReadAheadBlock];
     NSURL *source = [self noiseWAVNamed:@"stall-read.wav" frames:400000];
     AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
     XCTAssertNotNil(handle);
@@ -1480,7 +1320,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // whole file, after allowReads.
 - (void)testProgressStaysFlatWhileReadsAreInterrupted {
     VibeReadAheadScript *script = [self readAhead];
-    const uint64_t block = 256 * 1024;
+    const uint64_t block = kReadAheadBlock;
     [script stallFrom:2 * block];
     NSURL *source = [self noiseWAVNamed:@"paused.wav" frames:400000];
     AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
@@ -1501,14 +1341,14 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // completes exactly, never seeing the failure.
 - (void)testAFailedReadIsRetriedAndTheDecodeCompletesExactly {
     VibeReadAheadScript *script = [self readAhead];
-    [script fail:EIO from:256 * 1024 always:NO];
+    [script fail:EIO from:kReadAheadBlock always:NO];
     NSURL *source = [self noiseWAVNamed:@"retried.wav" frames:400000];
     AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
     NSError *error = nil;
     NSData *pcm = VibeDecode(handle, 4096, INT64_MAX, &error);
     XCTAssertNotNil(pcm, @"%@", error);
     [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:@"retried"];
-    XCTAssertEqual([script readsAt:256 * 1024], 2u, @"failed once, then read");
+    XCTAssertEqual([script readsAt:kReadAheadBlock], 2u, @"failed once, then read");
 }
 
 // A file replaced on the server while a read fails, with another size, is
@@ -1516,7 +1356,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // ESTALE. None of its bytes reach the decode beside the old file's.
 - (void)testAFileReplacedWhileAReadFailsFailsTheReads {
     VibeReadAheadScript *script = [self readAhead];
-    [script fail:EIO from:256 * 1024 always:NO];
+    [script fail:EIO from:kReadAheadBlock always:NO];
     [script holdFailures];
     NSURL *url = [self networkCopyOf:[self noiseWAVNamed:@"replaced.wav" frames:400000]];
     AudioFileHandle *handle = VibeOpenInterruptibly(url, NULL);
@@ -1542,14 +1382,14 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
         cause = cause.userInfo[NSUnderlyingErrorKey];
     }
     XCTAssertNotNil(cause, @"%@", error);
-    XCTAssertEqual([script readsAt:256 * 1024], 1u, @"failed, then never read again");
+    XCTAssertEqual([script readsAt:kReadAheadBlock], 1u, @"failed, then never read again");
 }
 
 // A file cut short after its open ends there cleanly, with no error and no
 // wait, as the direct open of the cut file does. The read-ahead's thread has
 // opened it when its first read stalls, and the file is cut then.
 - (void)testAFileCutShortAfterItsOpenEndsCleanly {
-    const uint64_t cut = 256 * 1024;
+    const uint64_t cut = kReadAheadBlock;
     AudioStreamBasicDescription flac = {.mSampleRate = 44100, .mFormatID = kAudioFormatFLAC,
                                         .mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData, .mChannelsPerFrame = 2};
     NSError *error = nil;
@@ -1591,14 +1431,14 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // decode completes exactly, never ending early.
 - (void)testANothingReadShortOfTheSizeIsRetriedWhenTheFileIsWhole {
     VibeReadAheadScript *script = [self readAhead];
-    [script cutOnceAt:256 * 1024];
+    [script cutOnceAt:kReadAheadBlock];
     NSURL *source = [self noiseWAVNamed:@"reconnect.wav" frames:400000];
     AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
     NSError *error = nil;
     NSData *pcm = VibeDecode(handle, 4096, INT64_MAX, &error);
     XCTAssertNotNil(pcm, @"%@", error);
     [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:@"read on"];
-    XCTAssertEqual([script readsAt:256 * 1024], 2u, @"read nothing once, then read");
+    XCTAssertEqual([script readsAt:kReadAheadBlock], 2u, @"read nothing once, then read");
 }
 
 // Eight handles gone while their threads are stuck in a read make a ninth
@@ -1622,7 +1462,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertTrue([self eventually:^BOOL { return AudioFileHandle.debugLiveReadAheads == 0; }]);
     XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 0, @"idle threads exit with their handles");
 
-    [script stallFrom:256 * 1024];
+    [script stallFrom:kReadAheadBlock];
     @autoreleasepool {
         NSMutableArray<AudioFileHandle *> *stuck = [NSMutableArray array];
         for (int i = 0; i < 8; i++) {
@@ -1774,7 +1614,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // it, and one far behind reads its block again.
 - (void)testTheReadAheadKeepsOneBlockBehindTheReader {
     VibeReadAheadScript *script = [self readAhead];
-    const uint64_t block = 256 * 1024;
+    const uint64_t block = kReadAheadBlock;
     // 10.8 MB: more than the span ahead of a reader in block 6.
     NSURL *source = [self noiseWAVNamed:@"evicted.wav" frames:2700000];
     AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
@@ -1807,7 +1647,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // whatever the scheduling.
 - (void)testAHandleGoneDuringTheRetryPauseEndsItsThreadWithoutARetry {
     VibeReadAheadScript *script = [self readAhead];
-    [script fail:EIO from:256 * 1024 always:NO];
+    [script fail:EIO from:kReadAheadBlock always:NO];
     [script holdFailures];
     NSURL *url = [self networkCopyOf:[self noiseWAVNamed:@"pausing.wav" frames:400000]];
     @autoreleasepool {
@@ -1817,10 +1657,8 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     }
     XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 1, @"its thread holds the failed read");
     [script releaseStalls];
-    XCTAssertTrue([self eventually:^BOOL {
-        return AudioFileHandle.debugLiveReadAheads == 0 && AudioFileHandle.debugOrphanedReadAheads == 0;
-    }]);
-    XCTAssertEqual([script readsAt:256 * 1024], 1u, @"never retried");
+    XCTAssertTrue([self eventually:^BOOL { return VibeReadAheadScript.threadsGone; }]);
+    XCTAssertEqual([script readsAt:kReadAheadBlock], 1u, @"never retried");
     XCTAssertEqual(script.reads, 2u, @"block 0, then the failed read, and nothing after");
 }
 
@@ -1831,7 +1669,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // head.
 - (void)testAnOpenThatReadTheTailFetchesAheadOfTheHead {
     VibeReadAheadScript *script = [self readAhead];
-    const uint64_t block = 256 * 1024;
+    const uint64_t block = kReadAheadBlock;
     AudioStreamBasicDescription alac = {.mSampleRate = 44100, .mFormatID = kAudioFormatAppleLossless,
                                         .mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData,
                                         .mFramesPerPacket = 4096, .mChannelsPerFrame = 2};
@@ -1860,7 +1698,7 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 // is read twice.
 - (void)testARetryAfterAPartialReadStartsAtTheHeldEnd {
     VibeReadAheadScript *script = [self readAhead];
-    const uint64_t block = 256 * 1024, partial = block + 100 * 1024;
+    const uint64_t block = kReadAheadBlock, partial = block + 100 * 1024;
     NSURL *source = [self noiseWAVNamed:@"partial.wav" frames:400000];
     NSURL *url = [self networkCopyOf:source];
     NSData *bytes = [NSData dataWithContentsOfURL:source];

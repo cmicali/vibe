@@ -117,7 +117,7 @@ static NSData *VibeMountTable(NSDictionary<NSString *, NSNumber *> *mounts) {
 }
 
 static BOOL VibeReadsAheadIn(NSData *table, NSString *path) {
-    return VibeMountReadsAhead(table.bytes, (int)(table.length / sizeof(struct statfs)), path.fileSystemRepresentation);
+    return VibeMountReadsAhead(table.bytes, (int)(table.length / sizeof(struct statfs)), path) != NULL;
 }
 
 // The longest mount name that is a whole-component prefix decides, and
@@ -132,7 +132,7 @@ static BOOL VibeReadsAheadIn(NSData *table, NSString *path) {
     XCTAssertFalse(VibeReadsAheadIn(table, @"/Volumes/Disk/a.flac"));
     XCTAssertFalse(VibeReadsAheadIn(table, @"/Users/me/Music/a.flac"), @"root holds it, and root is local");
     int count = (int)(table.length / sizeof(struct statfs));
-    int index = VibeMountHoldingPath(table.bytes, count, "/Volumes/Media/Albums/a.flac");
+    int index = VibeMountHoldingPath(table.bytes, count, @"/Volumes/Media/Albums/a.flac");
     XCTAssertEqual(strcmp(((const struct statfs *)table.bytes)[index].f_mntonname, "/Volumes/Media"), 0);
 }
 
@@ -168,10 +168,10 @@ static BOOL VibeReadsAheadIn(NSData *table, NSString *path) {
 
 // No table, or no mount holding the path, is the direct road.
 - (void)testNoMountIsTheDirectRoad {
-    XCTAssertFalse(VibeMountReadsAhead(NULL, 0, "/Volumes/Media/a.flac"));
+    XCTAssertTrue(VibeMountReadsAhead(NULL, 0, @"/Volumes/Media/a.flac") == NULL);
     NSData *table = VibeMountTable(@{@"/Volumes/Media": @NO});
     XCTAssertFalse(VibeReadsAheadIn(table, @"/Users/me/a.flac"));
-    XCTAssertEqual(VibeMountHoldingPath(table.bytes, 1, "/Users/me/a.flac"), -1);
+    XCTAssertEqual(VibeMountHoldingPath(table.bytes, 1, @"/Users/me/a.flac"), -1);
     XCTAssertTrue(VibeReadsAheadIn(VibeMountTable(@{@"/": @NO}), @"/Users/me/a.flac"), @"a network root holds every path");
 }
 

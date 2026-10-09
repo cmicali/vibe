@@ -83,10 +83,11 @@ static const uint64_t kVibeReadAheadSpan = 8 * 1024 * 1024;
 static const NSTimeInterval kVibeReadAheadRetrySeconds = 1;
 // Read-ahead threads whose handle is gone while they are still inside a read,
 // a dead mount's or a slow one's. At this many, a new read-ahead open waits
-// for one to exit before it makes a thread. It asks its `interrupted` block
-// again each slice, the slice the availability's waits use.
+// for one to exit before it makes a thread.
 static const NSInteger kVibeReadAheadOrphanLimit = 8;
-static const NSTimeInterval kVibeReadAheadOrphanPollSeconds = 0.25;
+// How often a read-ahead's open asks its `interrupted` block again. Its
+// canceller wakes only a transfer (availabilityForURL:), never a read-ahead.
+static const NSTimeInterval kVibeReadAheadOpenPollSeconds = 0.25;
 
 // TRAP: both edges of a read-ahead's end run under this lock: its handle's
 // dealloc and its thread's exit. A thread still running at the dealloc is an
@@ -232,6 +233,15 @@ static NSError *VibeCouldNotOpenError(NSString *name, int code) {
                            userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Could not open %@: %s", name, strerror(code)]}];
 }
 
+// A pread that a signal never cuts short. An error leaves errno set.
+static ssize_t VibePread(int descriptor, void *buffer, size_t count, off_t offset) {
+    ssize_t got;
+    do {
+        got = pread(descriptor, buffer, count, offset);
+    } while (got < 0 && errno == EINTR);
+    return got;
+}
+
 static NSError *VibeNoAudioError(NSString *name) {
     return VibeHandleError(kAudioFileUnsupportedFileTypeError, [NSString stringWithFormat:@"%@ holds no audio data", name]);
 }
@@ -255,13 +265,12 @@ static BOOL VibeReadsAhead(NSURL *url, NSString **mount) {
     int count = getfsstat(NULL, 0, MNT_NOWAIT);
     struct statfs *mounts = count > 0 ? calloc((size_t)count, sizeof(*mounts)) : NULL;
     count = mounts ? getfsstat(mounts, count * (int)sizeof(*mounts), MNT_NOWAIT) : -1;
-    const char *path = url.fileSystemRepresentation;
-    BOOL reads = count > 0 && path && VibeMountReadsAhead(mounts, count, path);
-    if (reads) {
-        *mount = @(mounts[VibeMountHoldingPath(mounts, count, path)].f_mntonname);
+    const struct statfs *share = count > 0 ? VibeMountReadsAhead(mounts, count, url.path) : NULL;
+    if (share) {
+        *mount = @(share->f_mntonname);
     }
     free(mounts);
-    return reads;
+    return share != NULL;
 }
 
 static NSInteger VibeOrphanedReadAheads(void) {
@@ -283,7 +292,7 @@ static BOOL VibeAwaitReadAheadRoom(NSString *name, BOOL (^interrupted)(void)) {
             LogWarn(@"Read-ahead: %@ waits: %ld reads of closed files are stuck", name, (long)kVibeReadAheadOrphanLimit);
             logged = YES;
         }
-        [NSThread sleepForTimeInterval:kVibeReadAheadOrphanPollSeconds];
+        [NSThread sleepForTimeInterval:kVibeReadAheadOpenPollSeconds];
     }
     return YES;
 }
@@ -325,10 +334,14 @@ static NSError *VibeReadAheadOpen(const char *path, NSString *name, int *descrip
     if (*descriptor < 0) {
         return VibeCouldNotOpenError(name, errno);
     }
-    int flags = 0;
-    NSError *error = fstat(*descriptor, info) != 0 || !S_ISREG(info->st_mode) || info->st_size <= 0 ? VibeNoAudioError(name)
-            : (flags = fcntl(*descriptor, F_GETFL)) < 0 || fcntl(*descriptor, F_SETFL, flags & ~O_NONBLOCK) != 0
-                    ? VibeCouldNotOpenError(name, errno) : nil;
+    NSError *error = nil;
+    int flags;
+    if (fstat(*descriptor, info) != 0 || !S_ISREG(info->st_mode) || info->st_size <= 0) {
+        error = VibeNoAudioError(name);
+    }
+    else if ((flags = fcntl(*descriptor, F_GETFL)) < 0 || fcntl(*descriptor, F_SETFL, flags & ~O_NONBLOCK) != 0) {
+        error = VibeCouldNotOpenError(name, errno);
+    }
     if (error) {
         close(*descriptor);
         *descriptor = -1;
@@ -348,11 +361,7 @@ static ssize_t VibeReadAheadPread(int descriptor, NSURL *url, uint8_t *buffer, u
         return injected < 0 ? 0 : -1;
     }
 #endif
-    ssize_t got;
-    do {
-        got = pread(descriptor, buffer, (size_t)count, (off_t)offset);
-    } while (got < 0 && errno == EINTR);
-    return got;
+    return VibePread(descriptor, buffer, (size_t)count, (off_t)offset);
 }
 
 // The read-ahead's thread: the one thread that enters the kernel for its
@@ -497,20 +506,26 @@ static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 cou
     _Atomic bool *waiting = &handle->_waitingForBytes;
     BOOL (^openInterrupted)(void) = handle->_openInterrupted;
     NSError *error = nil;
-    // Asked only when the wait is about to block, so the flag is up for a
-    // wait and never for bytes already readable.
-    CloudFileAvailabilityWait wait = [handle->_availability waitForBytesAt:(uint64_t)MAX(0, position)
-                                                                    length:(uint64_t)MAX(0, count)
-                                                                windowInto:window
-                                                                  capacity:capacity
-                                                                    copied:copied
-                                                               interrupted:^BOOL{
-        if (atomic_load(interrupted) || (openInterrupted && openInterrupted())) {
-            return YES;
-        }
-        atomic_store(waiting, true);
-        return NO;
-    } deadline:nil error:&error];
+    // A read-ahead's open waits in slices. Every later interrupt comes with a
+    // wake (interruptReads).
+    BOOL slices = openInterrupted && !handle->_availability.partURL;
+    CloudFileAvailabilityWait wait;
+    do {
+        // Asked only when the wait is about to block, so the flag is up for a
+        // wait and never for bytes already readable.
+        wait = [handle->_availability waitForBytesAt:(uint64_t)MAX(0, position)
+                                              length:(uint64_t)MAX(0, count)
+                                          windowInto:window
+                                            capacity:capacity
+                                              copied:copied
+                                         interrupted:^BOOL{
+            if (atomic_load(interrupted) || (openInterrupted && openInterrupted())) {
+                return YES;
+            }
+            atomic_store(waiting, true);
+            return NO;
+        } deadline:slices ? [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadOpenPollSeconds] : nil error:&error];
+    } while (slices && wait == CloudFileAvailabilityInterrupted && !atomic_load(interrupted) && !openInterrupted());
     atomic_store(waiting, false);
     if (wait == CloudFileAvailabilityReady) {
         return YES;
@@ -550,11 +565,7 @@ static ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 
     if (fromWindow || handle->_descriptor < 0) {
         return (ssize_t)fromWindow;
     }
-    ssize_t got;
-    do {
-        got = pread(handle->_descriptor, buffer, capacity, position);
-    } while (got < 0 && errno == EINTR);
-    return got;
+    return VibePread(handle->_descriptor, buffer, capacity, position);
 }
 
 // The status of a fetch that answered -1: a lost wait is no I/O error.
@@ -767,17 +778,13 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 // skipped away from then stops pulling its file over the network.
 - (void)interruptReads {
     atomic_store(&_readsInterrupted, true);
-    if (_readAheadEnd) {
-        _availability.readAheadPaused = YES;
-    }
+    _availability.readAheadPaused = YES;
     [_availability wakeWaiters];
 }
 
 - (void)allowReads {
     atomic_store(&_readsInterrupted, false);
-    if (_readAheadEnd) {
-        _availability.readAheadPaused = NO;
-    }
+    _availability.readAheadPaused = NO;
 }
 
 - (BOOL)waitsForBytes {
@@ -1375,9 +1382,7 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     if (_waitError) {
         return [self failWithError:error status:noErr description:@""];
     }
-    if (_readAheadEnd) {
-        [_availability noteReaderPosition:0];
-    }
+    [_availability noteReaderPosition:0];
     return self;
 }
 
