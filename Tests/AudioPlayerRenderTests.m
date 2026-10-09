@@ -16,6 +16,7 @@
 #import "OutputFormatRules.h"
 #import <objc/runtime.h>
 #import "AudioFileMaterializationCoordinatorInternal.h"
+#import "AudioFileHandle+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
@@ -1456,10 +1457,129 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 
 @end
 
+#pragma mark - A network share's reads
+
+// The read-ahead's block (AudioFileHandle.m).
+static const uint64_t kReadAheadBlock = 256 * 1024;
+
+// What a read-ahead's reads do, as a test scripts them through the debug
+// seam's hook: each counted by file and offset, then slept, stalled until
+// released, or failed. A stalled read holds its thread as a dead mount's
+// syscall does. The shape of AudioFileHandleStreamingTests' script, which
+// another target compiles.
+@interface VibeReadAheadScript : NSObject
+// Signalled once per read that stalls, and per read that fails.
+@property (nonatomic, readonly) dispatch_semaphore_t stalled;
+@property (nonatomic, readonly) dispatch_semaphore_t failed;
+@property (atomic) useconds_t throttle;
+- (void)stallFrom:(uint64_t)offset;
+- (void)releaseStalls;
+// Every read at or past `offset` fails with `code`, until stopFailing.
+- (void)fail:(int)code from:(uint64_t)offset;
+- (void)stopFailing;
+- (NSUInteger)readsOf:(NSString *)name at:(uint64_t)offset;
+- (int)beforeReadOf:(NSString *)name at:(uint64_t)offset;
+@end
+
+@implementation VibeReadAheadScript {
+    NSCondition *_condition;
+    NSCountedSet<NSString *> *_reads;
+    uint64_t _stallFrom, _failFrom;
+    int _failCode;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _condition = [[NSCondition alloc] init];
+        _reads = [NSCountedSet set];
+        _stalled = dispatch_semaphore_create(0);
+        _failed = dispatch_semaphore_create(0);
+        _stallFrom = _failFrom = UINT64_MAX;
+    }
+    return self;
+}
+
+- (void)stallFrom:(uint64_t)offset {
+    [_condition lock];
+    _stallFrom = offset;
+    [_condition broadcast];
+    [_condition unlock];
+}
+
+- (void)releaseStalls {
+    [self stallFrom:UINT64_MAX];
+}
+
+- (void)fail:(int)code from:(uint64_t)offset {
+    [_condition lock];
+    _failCode = code;
+    _failFrom = offset;
+    [_condition unlock];
+}
+
+- (void)stopFailing {
+    [self fail:0 from:UINT64_MAX];
+}
+
+- (NSUInteger)readsOf:(NSString *)name at:(uint64_t)offset {
+    [_condition lock];
+    NSUInteger reads = [_reads countForObject:[NSString stringWithFormat:@"%@@%llu", name, offset]];
+    [_condition unlock];
+    return reads;
+}
+
+- (int)beforeReadOf:(NSString *)name at:(uint64_t)offset {
+    useconds_t throttle = self.throttle;
+    if (throttle) {
+        usleep(throttle);
+    }
+    [_condition lock];
+    [_reads addObject:[NSString stringWithFormat:@"%@@%llu", name, offset]];
+    if (offset >= _stallFrom) {
+        dispatch_semaphore_signal(_stalled);
+        while (offset >= _stallFrom) {
+            [_condition wait];
+        }
+    }
+    int code = offset >= _failFrom ? _failCode : 0;
+    [_condition unlock];
+    if (code) {
+        dispatch_semaphore_signal(_failed);
+    }
+    return code;
+}
+
+@end
+
 // Transport edges, declick, gapless handoffs and successor cancellation.
 @interface AudioPlayerRenderTransportTests : AudioPlayerRenderTests
 @end
-@implementation AudioPlayerRenderTransportTests
+@implementation AudioPlayerRenderTransportTests {
+    // The read-ahead tests' network share: files under it read ahead, their
+    // reads as the script says.
+    NSURL *_network;
+    VibeReadAheadScript *_script;
+}
+
+// The read-ahead counts are process-wide. The player and its handles go
+// first, then every stalled read is released, so every thread is gone before
+// the next test counts.
+- (void)tearDown {
+    if (_script) {
+        self.continueAfterFailure = YES;
+        [_player debugShutdown]; _player = nil;
+        [AudioFileHandle debugSetMountRule:nil];
+        [_script stopFailing];
+        [_script releaseStalls];
+        [self settleUntil:^BOOL {
+            return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
+        }];
+        [AudioFileHandle debugSetBeforeRead:nil];
+        _script = nil;
+    }
+    [super tearDown];
+}
 
 - (void)testAStalledDatalessProbeDoesNotBlockStopOrTheOpenDeadline {
     for (NSNumber *timeout in @[@NO, @YES]) {
@@ -2528,6 +2648,341 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertEqual(_player.currentTrack, other, @"the play, submitted last, wins");
     XCTAssertEqual([self count:@"start"], starts + 1, @"no replay after it");
     XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:local])] inCapture:_capture rampFrames:0 ramped:NULL], 1u);
+}
+
+#pragma mark - A network share's read-ahead
+
+// Files on the test's network share read ahead, as a file on a network mount
+// does when the coordinator opens it. Every other file asks the real rule,
+// which sends a local temporary directory down the direct road.
+- (VibeReadAheadScript *)readAhead {
+    if (!_script) {
+        _network = [_temporary URLByAppendingPathComponent:@"network" isDirectory:YES];
+        XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_network withIntermediateDirectories:YES
+                                                              attributes:nil error:NULL]);
+        _script = [[VibeReadAheadScript alloc] init];
+        VibeReadAheadScript *script = _script;
+        // Either spelling of the temporary directory.
+        NSString *marker = [NSString stringWithFormat:@"/%@/network/", _temporary.lastPathComponent];
+        [AudioFileHandle debugSetMountRule:^NSNumber *(NSURL *url) {
+            return [url.path containsString:marker] ? @YES : nil;
+        }];
+        [AudioFileHandle debugSetBeforeRead:^int(NSURL *url, uint64_t offset, uint64_t length) {
+            return [url.path containsString:marker] ? [script beforeReadOf:url.lastPathComponent at:offset] : 0;
+        }];
+    }
+    return _script;
+}
+
+- (NSURL *)networkCopyOf:(NSURL *)source {
+    [self readAhead];
+    NSURL *url = [_network URLByAppendingPathComponent:source.lastPathComponent];
+    XCTAssertTrue([NSFileManager.defaultManager copyItemAtURL:source toURL:url error:NULL], @"%@", source);
+    return url;
+}
+
+// `seconds` of nonperiodic float32 stereo noise at 48 kHz on the network
+// share, 384000 bytes a second after a 44-byte header, never a silent frame.
+- (NSURL *)networkNoiseOfSeconds:(NSUInteger)seconds name:(NSString *)name {
+    NSUInteger samples = seconds * 48000 * 2;
+    NSMutableData *pcm = [NSMutableData dataWithLength:samples * sizeof(float)];
+    float *p = pcm.mutableBytes;
+    uint32_t state = 0x9E3779B9u;
+    for (NSUInteger i = 0; i < samples; i++) {
+        state = state * 1664525u + 1013904223u;
+        p[i] = (float)((int32_t)(state | 1u) >> 8) / 16777216.0f;
+    }
+    [self readAhead];
+    return VibeWriteWAV([_network URLByAppendingPathComponent:name], pcm, 48000, 2, 32, (uint32_t)pcm.length);
+}
+
+// The noise fixture, its read-ahead stalled at its second block, about 0.9 s
+// in, playing on the decode pool with Declick off.
+- (NSURL *)playStalledReadAheadShortDeadline:(BOOL)shortDeadline {
+    NSURL *url = [self networkCopyOf:[self fixture:@"noise-48000-24-2.wav"]];
+    [[self readAhead] stallFrom:kReadAheadBlock];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        if (shortDeadline) [self shortenTheOpenDeadline];
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:_script.stalled], @"the read-ahead stalls");
+    return url;
+}
+
+- (BOOL)await:(dispatch_semaphore_t)semaphore {
+    return dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) == 0;
+}
+
+// The player queue answers another thread within the hang guard.
+- (void)assertTheQueueAnswers:(NSString *)context {
+    dispatch_semaphore_t answered = dispatch_semaphore_create(0);
+    AudioPlayer *player = _player;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+        [player runSyncOnQueue:^{ dispatch_semaphore_signal(answered); }];
+    });
+    XCTAssertTrue([self await:answered], @"the player queue waited on a stalled read: %@", context);
+}
+
+- (BOOL)readAheadsSettle {
+    return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
+}
+
+// A read-ahead throttled behind the audio plays the file exactly: the whole
+// capture, silences taken out, is the direct open's decode.
+- (void)testAThrottledReadAheadPlaysExactlyAsTheDirectOpen {
+    NSURL *url = [self networkNoiseOfSeconds:4 name:@"throttled.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self readAhead].throttle = 100000;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == [self count:@"buffering"]; }];
+    XCTAssertNil(_playError);
+    XCTAssertEqual([_script readsOf:url.lastPathComponent at:0], 1u, @"it read ahead");
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// Seeks beyond, inside and behind the blocks a read-ahead holds each land on
+// their frame. Beyond waits for a block never read, inside reads nothing,
+// and behind reads again a block the read-ahead dropped.
+- (void)testSeeksAroundAReadAheadsBlocksLandExactly {
+    NSURL *url = [self networkNoiseOfSeconds:8 name:@"seeks.wav"];
+    NSString *name = url.lastPathComponent;
+    NSData *reference = PCM([self read:url]);
+    VibeReadAheadScript *script = [self readAhead];
+    [script stallFrom:6 * kReadAheadBlock];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:script.stalled]);
+    [self render:48000];
+    // Each seek lands on its frame. 6.0 s is in block 8, 7.5 s in block 10,
+    // the last but one, and 1.0 s in block 1. A seek whose bytes are not yet
+    // here holds until a drain sees them.
+    void (^land)(double, NSUInteger) = ^(double seconds, NSUInteger seeks) {
+        [self settleUntil:^BOOL { return [self count:@"seek"] == seeks; }];
+        [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+        XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }]);
+        [self->_capture setLength:0];
+        [self render:3200];
+        NSUInteger frame = (NSUInteger)llround(seconds * 48000);
+        [self assertReference:[reference subdataWithRange:NSMakeRange(frame * 8, 3200 * 8)] capture:self->_capture
+                         skip:0 tolerance:0];
+    };
+    [_player seekToPosition:6.0];
+    XCTAssertEqual([script readsOf:name at:8 * kReadAheadBlock], 0u, @"beyond what is held");
+    [script releaseStalls];
+    land(6.0, 1);
+    [self settleUntil:^BOOL { return [script readsOf:name at:11 * kReadAheadBlock] == 1; }];
+    XCTAssertEqual([script readsOf:name at:10 * kReadAheadBlock], 1u);
+    [_player seekToPosition:7.5];
+    land(7.5, 2);
+    XCTAssertEqual([script readsOf:name at:10 * kReadAheadBlock], 1u, @"inside what is held");
+    XCTAssertEqual([script readsOf:name at:kReadAheadBlock], 1u);
+    [_player seekToPosition:1.0];
+    land(1.0, 3);
+    XCTAssertEqual([script readsOf:name at:kReadAheadBlock], 2u, @"behind, dropped and read again");
+    XCTAssertNil(_playError);
+}
+
+// A read-ahead stalled ahead of the decode holds the voice silent in place,
+// still Playing, and plays on once at the frame it stopped at once the read
+// returns. The whole capture, silences taken out, is the file.
+- (void)testAStalledReadAheadHoldsAndPlaysOnOnceExactly {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    [self playStalledReadAheadShortDeadline:NO];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    XCTAssertEqual([_player.debugRenderCounts[@"underrunFrames"] unsignedIntegerValue], 0u, @"held before the ring ran dry");
+    NSTimeInterval held = _player.position;
+    NSUInteger before = _capture.length / 8;
+    [self render:48000];
+    XCTAssertEqual(_player.position, held, @"the hold keeps its place");
+    XCTAssertEqual(RMS(_capture, 2, 0, NSMakeRange(before, _capture.length / 8 - before)), 0);
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertTrue(_player.isBuffering);
+    XCTAssertFalse(_player.outputAudioActive, @"a held voice is not output");
+    [self settleUntil:^BOOL { return [self count:@"buffering"] == 1; }];
+    [_script releaseStalls];
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }]);
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == 1; }];
+    XCTAssertEqual([self count:@"buffering"], 1u, @"one hold, and one resume");
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// A read-ahead stalled past the deadline pauses in place with the stall's
+// error, never a track end. Its handle goes, leaving the thread inside its
+// read. Play then replays from there on a new read-ahead.
+- (void)testAReadAheadStalledPastTheDeadlinePausesAndPlayReplaysFromThere {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    [self playStalledReadAheadShortDeadline:YES];
+    NSTimeInterval held = [self stallTheStream];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 1; }],
+                  @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
+    [_script releaseStalls];
+    [self settleUntil:^BOOL { return [self readAheadsSettle]; }];
+    _playError = nil;
+    [_player playPause];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
+    XCTAssertNil(_playError);
+    XCTAssertTrue(_player.isPlaying);
+    [self assertTheReplayOf:reference startsAt:held];
+}
+
+// A server that fails every read for longer than the deadline ends in the
+// same pause. Its thread, pausing between retries, ends with its handle.
+// Play then replays from there.
+- (void)testAReadErrorPastTheDeadlinePausesAndPlayReplaysFromThere {
+    NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:source]);
+    NSURL *url = [self networkCopyOf:source];
+    [_script fail:EIO from:kReadAheadBlock];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self shortenTheOpenDeadline];
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:_script.failed]);
+    NSTimeInterval held = [self stallTheStream];
+    [_script stopFailing];
+    XCTAssertTrue([self renderUntil:^BOOL { return [self readAheadsSettle]; }],
+                  @"live %ld", (long)AudioFileHandle.debugLiveReadAheads);
+    _playError = nil;
+    [_player playPause];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
+    XCTAssertNil(_playError);
+    [self assertTheReplayOf:reference startsAt:held];
+}
+
+// A server back within the span: reads that fail long enough to hold the
+// voice, then answer again, release the hold, and the file plays on exactly.
+- (void)testABriefReadErrorHoldsAndPlaysOnExactly {
+    NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:source]);
+    NSURL *url = [self networkCopyOf:source];
+    [_script fail:EIO from:kReadAheadBlock];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:_script.failed]);
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    [_script stopFailing];
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }], @"the retry releases the hold");
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == 1; }];
+    XCTAssertEqual([self count:@"buffering"], 1u);
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// A seek, a stop and a skip, each while the read-ahead's read is stalled: the
+// player queue answers at once, the seek lands, and the stop and the skip let
+// the handle go with its thread still inside the read. Released, every
+// thread ends.
+- (void)testASeekStopOrSkipDuringAStalledReadAheadKeepsTheQueueResponsive {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSURL *url = [self playStalledReadAheadShortDeadline:NO];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    [_player seekToPosition:0.5];
+    [self assertTheQueueAnswers:@"seek"];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:3200];
+    [self assertReference:[reference subdataWithRange:NSMakeRange(24000 * 8, 3200 * 8)] capture:_capture skip:0 tolerance:0];
+
+    [_player stop];
+    [self assertTheQueueAnswers:@"stop"];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 1; }],
+                  @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
+    XCTAssertTrue(_player.isStopped);
+    XCTAssertFalse(_player.isBuffering);
+
+    [self play:url paused:NO position:0];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    NSURL *local = [self fixture:@"noise-48000-16-2.wav"];
+    [self play:local paused:NO position:0];
+    [self assertTheQueueAnswers:@"skip"];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 2; }],
+                  @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:4800];
+    XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:local])] inCapture:_capture rampFrames:0 ramped:NULL], 1u,
+                   @"the next track plays its own samples, from its start");
+    XCTAssertEqual([self count:@"finish"], 0u);
+    XCTAssertNil(_playError);
+    [_script releaseStalls];
+    [self settleUntil:^BOOL { return [self readAheadsSettle]; }];
+}
+
+// An open whose read-ahead stalls on its first block: the deadline cancels
+// it, the player times out, the run leaves the ceiling and the queue answers.
+// The thread, orphaned inside its read, ends once the read returns.
+- (void)testTheOpenDeadlineStopsAnOpenParkedInAReadAhead {
+    NSURL *url = [self networkCopyOf:[self fixture:@"noise-48000-24-2.wav"]];
+    [_script stallFrom:0];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self shortenTheOpenDeadline];
+    AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+    uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
+    [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+    XCTAssertTrue([self await:_script.stalled]);
+    [self settleUntil:^BOOL { return self->_playError != nil; }];
+    XCTAssertEqual(_playError.code, VibeAudioErrorFileOpenTimedOut, @"%@", _playError);
+    [self assertTheQueueAnswers:@"the open deadline"];
+    XCTAssertEqual(coordinator.stateSnapshotForTesting.handleOpensStarted, started + 1);
+    [self settleUntil:^BOOL {
+        VibeAudioFileMaterializationCoordinatorSnapshot snapshot = coordinator.stateSnapshotForTesting;
+        return snapshot.handleOpensCompleted == snapshot.handleOpensStarted && snapshot.handleRunCount == 0
+                && snapshot.claimCount == 0 && AudioFileHandle.debugOrphanedReadAheads == 1;
+    }];
+    XCTAssertEqual([self count:@"start"], 0u);
+    [_script releaseStalls];
+    [self settleUntil:^BOOL { return [self readAheadsSettle]; }];
+    _playError = nil;
+    [self play:[self fixture:@"noise-48000-16-2.wav"] paused:NO position:0];
+    XCTAssertEqual([self count:@"start"], 1u, @"an unrelated file still opens");
+}
+
+// A parked prefetch reads ahead as the playing file does: both threads live,
+// and the park's file read past its first block, before the first track
+// ends. The splice is exact.
+- (void)testAParkedPrefetchReadsAheadAndSplicesExactly {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSUInteger split = 48001;
+    NSURL *first = [self networkCopyOf:[self write:[reference subdataWithRange:NSMakeRange(0, split * 8)]
+                                              rate:48000 channels:2 name:@"first.wav"]];
+    NSURL *second = [self networkCopyOf:[self write:[reference subdataWithRange:NSMakeRange(split * 8, reference.length - split * 8)]
+                                               rate:48000 channels:2 name:@"second.wav"]];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:first paused:NO position:0];
+    }];
+    // Named once the first track decodes: a successor queued before its first
+    // drain leaves the pool idle until a render.
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_player prefetchTrack:[AudioTrack withURL:second]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self settleUntil:^BOOL {
+        return AudioFileHandle.debugLiveReadAheads == 2 && [self->_script readsOf:@"second.wav" at:kReadAheadBlock] == 1;
+    }];
+    XCTAssertEqual([self count:@"advance"], 0u);
+    XCTAssertEqualObjects(_player.currentTrack.url, first);
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:0 tolerance:0];
+    XCTAssertEqual([self count:@"advance"], 1u);
+    XCTAssertEqual([self count:@"finish"], 1u);
+    XCTAssertNil(_playError);
 }
 
 #pragma mark - An estimated length

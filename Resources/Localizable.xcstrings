@@ -6512,7 +6512,7 @@
       "extractionState": "manual"
     },
     "error.connection_lost": {
-      "comment": "Inline playback error: a track playing while it downloads (from Dropbox) stopped receiving data for too long, so playback paused where it was. Pressing play tries again.",
+      "comment": "Inline playback error: a track playing from a network share or while it downloads from a cloud service stopped receiving data for too long, so playback paused where it was. Pressing play tries again.",
       "localizations": {
         "bg": {
           "stringUnit": {

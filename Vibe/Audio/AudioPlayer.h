@@ -178,8 +178,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) BOOL outputIdle;
 
 // The current track is Playing but held silent in place, waiting for its
-// stream's bytes: a download that fell behind. Never on a whole file, so
-// never on macOS today.
+// file's bytes: a download or a network share's read-ahead that fell behind.
+// Never on a file read directly.
 @property (readonly, getter=isBuffering) BOOL buffering;
 
 // Exactly one is true. During Loading, whether the open will land playing or
@@ -259,9 +259,10 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeOutputAudioActive:(BOOL)outputAudioActive;
 
-// Main thread, when isBuffering changes for the current play. The transport
-// stays Playing throughout; a hold that outlives the stall deadline ends in
-// didPausePlaying: and error: with VibeAudioErrorConnectionLost.
+// Main thread, when isBuffering changes for the current play, whichever
+// source the bytes come from. The transport stays Playing throughout. A hold
+// that outlives the stall deadline ends in didPausePlaying: and error: with
+// VibeAudioErrorConnectionLost.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track;
