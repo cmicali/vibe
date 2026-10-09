@@ -2,6 +2,8 @@
 
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
+* ios: Added album art for songs in iCloud and Dropbox that are not downloaded
+* ios: Improved Add Folder: it names iCloud Drive and opens the folder once added
 
 # v1.15
 
