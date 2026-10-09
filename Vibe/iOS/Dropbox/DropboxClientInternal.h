@@ -6,6 +6,7 @@
 //
 
 #import "DropboxClient.h"
+#import "HTTPTransferClientInternal.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -25,14 +26,10 @@ BOOL VibeDropboxKeepsPart(NSError *_Nullable error);
 // account's name and ID and stamps them, if the account is still the one asked.
 - (void)refreshAccountNameWithCompletion:(dispatch_block_t)completion;
 
-// Rebuilds both sessions over `configuration` — nil for the one the client
-// was made with — finishing what is in flight on the old ones: how the debug
-// channel puts a fake Dropbox under the client and takes it away again.
-- (void)useSessionConfiguration:(nullable NSURLSessionConfiguration *)configuration;
-
-// Multiplies every retry's wait, a resume's and a throttle's; 1 unless a test
-// scripting drops and 429s shortens them, which would each wait real seconds.
-@property (nonatomic) double retryDelayScale;
+// TRAP: useSessionConfiguration: and retryDelayScale come from the import of
+// HTTPTransferClientInternal.h above. Never redeclare them here. A
+// redeclaration that cannot see the base's gets an ivar of its own. It
+// starts at 0, not 1, and every retry wait would read it.
 
 @end
 

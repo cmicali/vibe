@@ -5,14 +5,18 @@
 //  The Dropbox account and the HTTP calls made as it: PKCE sign-in, the
 //  refresh token in the Keychain, the access token in memory, and a JSON call
 //  and a download that refresh an expired token and retry a throttled request
-//  on their own, the download resuming a dropped connection too. Knows nothing
-//  of files on disk; DropboxMirror does.
+//  on their own. The download and the ranged read are HTTPTransferClient's,
+//  which resumes a dropped connection too; this class makes their requests
+//  and reads Dropbox's answers. Knows nothing of files on disk; DropboxMirror
+//  does.
 //
 //  Thread-safe. Completions run on an arbitrary queue unless stated.
 //
 
 #import <Foundation/Foundation.h>
 #import <AuthenticationServices/AuthenticationServices.h>
+
+#import "HTTPTransferClient.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -40,10 +44,11 @@ static inline NSError *VibeDropboxMakeError(VibeDropboxError code, NSString *des
 // Posted on main when the account is linked, unlinked or renamed.
 extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 
-@interface DropboxClient : NSObject
+@interface DropboxClient : HTTPTransferClient
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
+- (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration NS_UNAVAILABLE;
 
 // keychainService nil keeps the account in memory only (the tests).
 - (instancetype)initWithAppKey:(NSString *)appKey

@@ -758,6 +758,7 @@ targets:
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/System/Remote/HTTPTransferClient.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -831,6 +832,7 @@ targets:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
           - "$(SRCROOT)/Vibe/System"
+          - "$(SRCROOT)/Vibe/System/Remote"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
