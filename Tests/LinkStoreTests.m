@@ -17,17 +17,12 @@
 
 #import "AudioTrack.h"
 #import "CloudFileMaterializer.h"
-#import "HTTPStub.h"
-#import "HTTPTransferClientInternal.h"
-#import "LinkStore.h"
+#import "LinkStoreTestCase.h"
 #import "NSURL+Hash.h"
 #import "NSURLUtil.h"
-#import "RemotePlaceholderStoreInternal.h"
 
 static const char *const kRecordAttribute = "com.commonwealthrecordings.vibe.link";
 static const char *const kVersionAttribute = "com.commonwealthrecordings.Vibe.rev";
-static NSString *const kModified = @"Wed, 21 Oct 2015 07:28:00 GMT";
-static const time_t kModifiedTime = 1445412480;
 // RemotePlaceholderStore's kStreamReadableBytes.
 static const uint64_t kReadableBytes = 256 * 1024;
 // Where a streaming download is held: past readable, short of the end.
@@ -35,14 +30,6 @@ static const NSUInteger kStallBytes = 5 * 64 * 1024;
 // A small format's window (AudioFileOpenRules.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 static const NSTimeInterval kDay = 24 * 60 * 60;
-
-// A FLAC's signature, then a pattern: audio to the probe, distinct bytes to
-// every range.
-static NSData *FlacBytes(NSUInteger count) {
-    NSMutableData *data = [PatternBytes(count) mutableCopy];
-    memcpy(data.mutableBytes, "fLaC", MIN(count, (NSUInteger)4));
-    return data;
-}
 
 static BOOL IsPlaceholder(NSURL *url) {
     struct stat st = StatOf(url);
@@ -54,90 +41,12 @@ static BOOL IsDownloaded(NSURL *url) {
     return S_ISREG(st.st_mode) && !VibeFileModeIsRemotePlaceholder(st.st_mode);
 }
 
-@interface LinkStoreTests : XCTestCase
+@interface LinkStoreTests : LinkStoreTestCase
 @end
 
-@implementation LinkStoreTests {
-    HTTPStub *_stub;
-    HTTPTransferClient *_client;
-    LinkStore *_store;
-    NSURL *_base;
-    NSURL *_root;
-    NSMutableArray<dispatch_semaphore_t> *_gates;
-}
-
-- (void)setUp {
-    [super setUp];
-    _stub = [[HTTPStub alloc] init];
-    _client = [[HTTPTransferClient alloc] initWithConfiguration:_stub.configuration];
-    _client.retryDelayScale = 0.01;
-    _gates = [NSMutableArray array];
-    NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:
-            [NSString stringWithFormat:@"LinkStoreTests-%@", NSUUID.UUID.UUIDString]];
-    [NSFileManager.defaultManager createDirectoryAtPath:base withIntermediateDirectories:YES attributes:nil error:NULL];
-    char resolved[PATH_MAX];
-    _base = [NSURL fileURLWithPath:@(realpath(base.fileSystemRepresentation, resolved)) isDirectory:YES];
-    _root = [_base URLByAppendingPathComponent:@"Links" isDirectory:YES];
-    _store = [[LinkStore alloc] initWithClient:_client rootURL:_root];
-}
-
-- (void)tearDown {
-    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
-    // A held stub delivery goes on to find its load stopped.
-    for (dispatch_semaphore_t gate in _gates) {
-        dispatch_semaphore_signal(gate);
-        dispatch_semaphore_signal(gate);
-    }
-    [NSFileManager.defaultManager removeItemAtURL:_base error:NULL];
-    [super tearDown];
-}
+@implementation LinkStoreTests
 
 #pragma mark Helpers
-
-- (dispatch_semaphore_t)gate {
-    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
-    [_gates addObject:gate];
-    return gate;
-}
-
-- (HTTPStubFile *)serve:(NSData *)bytes at:(NSString *)path headers:(NSDictionary<NSString *, NSString *> *)headers {
-    return [_stub serveData:bytes atPath:path headers:headers];
-}
-
-- (NSURL *)resolve:(NSString *)link error:(NSError **)error {
-    __block NSURL *file = nil;
-    __block NSError *failure = nil;
-    XCTestExpectation *done = [self expectationWithDescription:@"resolved"];
-    [_store resolveURLString:link completion:^(NSURL *answer, NSError *answerError) {
-        XCTAssertTrue(NSThread.isMainThread);
-        XCTAssertTrue((answer == nil) != (answerError == nil), @"exactly one of file and error");
-        file = answer;
-        failure = answerError;
-        [done fulfill];
-    }];
-    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
-    if (error) *error = failure;
-    return file;
-}
-
-- (NSURL *)resolvePath:(NSString *)path {
-    NSError *error = nil;
-    NSURL *file = [self resolve:[_stub URLForPath:path].absoluteString error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    return file;
-}
-
-// The link's failure, which must be one of the store's own.
-- (VibeLinkError)failureOf:(NSString *)link {
-    NSError *error = nil;
-    XCTAssertNil([self resolve:link error:&error]);
-    XCTAssertEqualObjects(error.domain, VibeLinkErrorDomain);
-    return (VibeLinkError)error.code;
-}
-
-- (NSDictionary *)recordOf:(NSURL *)file {
-    return [_store indexOfDirectory:file.URLByDeletingLastPathComponent];
-}
 
 - (void)setRecordOf:(NSURL *)file opened:(NSTimeInterval)opened {
     NSMutableDictionary *record = [[self recordOf:file] mutableCopy];
@@ -153,11 +62,6 @@ static BOOL IsDownloaded(NSURL *url) {
 - (void)fetchExpectingSuccess:(NSURL *)url {
     NSError *error = nil;
     XCTAssertTrue([self fetch:url error:&error], @"%@", error);
-}
-
-- (NSArray<NSString *> *)linkDirectories {
-    return [[NSFileManager.defaultManager contentsOfDirectoryAtPath:_root.path error:NULL]
-            sortedArrayUsingSelector:@selector(compare:)] ?: @[];
 }
 
 - (void)settleDiskQueue {
@@ -369,69 +273,9 @@ static BOOL IsDownloaded(NSURL *url) {
     }
 }
 
-- (void)testADropboxShareLinkAsksForTheFile {
-    [_stub answerHost:@"www.dropbox.com"];
-    NSMutableData *bytes = [FlacBytes(4000) mutableCopy];
-    memcpy(bytes.mutableBytes, "ID3", 3);
-    [self serve:bytes at:@"/scl/fi/abc123/Song.mp3" headers:@{@"ETag": @"\"v1\""}];
-    NSError *error = nil;
-    NSURL *file = [self resolve:@"https://www.dropbox.com/scl/fi/abc123/Song.mp3?rlkey=k1&dl=0" error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertEqualObjects(file.lastPathComponent, @"Song.mp3");
-    NSURLComponents *sent = [NSURLComponents componentsWithURL:_stub.requests.firstObject.URL resolvingAgainstBaseURL:NO];
-    XCTAssertEqualObjects(sent.query, @"rlkey=k1&dl=1");
-    XCTAssertEqualObjects([self recordOf:file][@"url"],
-                          @"https://www.dropbox.com/scl/fi/abc123/Song.mp3?rlkey=k1&dl=1");
-}
-
 - (void)testTheBytesNameAFileWhoseURLDoesNot {
     [self serve:FlacBytes(4000) at:@"/stream" headers:@{@"Content-Type": @"application/octet-stream"}];
     XCTAssertEqualObjects([self resolvePath:@"/stream"].lastPathComponent, @"stream.flac");
-}
-
-// The headers Google answered for a shared WAV: no ETag, and the name only in
-// Content-Disposition.
-- (void)testAGoogleDriveLinkAsksForTheFileAndTakesItsName {
-    [_stub answerHost:@"drive.usercontent.google.com"];
-    NSMutableData *bytes = [FlacBytes(4000) mutableCopy];
-    memcpy(bytes.mutableBytes, "RIFF\x01\x02\x03\x04WAVE", 12);
-    [self serve:bytes at:@"/download" headers:@{
-        @"Content-Type": @"audio/wav",
-        @"Content-Disposition": @"attachment; filename=\"07A - Greg Benz Remix 0710.wav\"",
-        @"Last-Modified": kModified,
-    }];
-    NSError *error = nil;
-    NSURL *file = [self resolve:@"https://drive.google.com/file/d/1k_kSNfbzdX-Ab/view?usp=sharing" error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertEqualObjects(file.lastPathComponent, @"07A - Greg Benz Remix 0710.wav");
-    NSURLComponents *sent = [NSURLComponents componentsWithURL:_stub.requests.firstObject.URL resolvingAgainstBaseURL:NO];
-    XCTAssertEqualObjects(sent.query, @"id=1k_kSNfbzdX-Ab&export=download&confirm=t");
-    NSDictionary *record = [self recordOf:file];
-    XCTAssertEqualObjects(record[@"url"],
-                          @"https://drive.usercontent.google.com/download?id=1k_kSNfbzdX-Ab&export=download&confirm=t");
-    XCTAssertEqualObjects(record[@"version"], kModified, @"no ETag: the version is Last-Modified");
-    XCTAssertEqualObjects(record[@"ranges"], @YES);
-    XCTAssertEqual(StatOf(file).st_size, 4000);
-}
-
-// A private or over-quota file answers a sign-in or quota page instead.
-- (void)testAGooglePageInsteadOfTheFileFailsClearly {
-    [_stub answerHost:@"drive.usercontent.google.com"];
-    NSString *link = @"https://drive.google.com/file/d/1abc/view?usp=sharing";
-    NSData *page = [@"<!DOCTYPE html><html><head><title>Sign in</title></head></html>"
-                    dataUsingEncoding:NSUTF8StringEncoding];
-    NSDictionary *html = @{@"Content-Type": @"text/html; charset=utf-8"};
-    HTTPStubFile *served = [self serve:page at:@"/download" headers:html];
-
-    [_stub queueStep:[HTTPStubStep status:403 headers:html body:page] forPath:@"/download"];
-    XCTAssertEqual([self failureOf:link], VibeLinkErrorDenied);
-
-    XCTAssertEqual([self failureOf:link], VibeLinkErrorNotAudio, @"a page with its length");
-
-    served.ignoresRanges = YES;
-    served.omitsLength = YES;
-    XCTAssertEqual([self failureOf:link], VibeLinkErrorNotAudio, @"a page with no length");
-    XCTAssertEqualObjects([self linkDirectories], @[]);
 }
 
 #pragma mark The record
@@ -1054,7 +898,7 @@ static BOOL IsDownloaded(NSURL *url) {
 
 #pragma mark The backend
 
-// Another store's root, Dropbox's on iOS, keeps its own backend.
+// Another store's root keeps its own backend.
 - (void)testTheBackendSitsBesideAnotherRoot {
     NSURL *other = [_base URLByAppendingPathComponent:@"Other" isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:other withIntermediateDirectories:YES attributes:nil error:NULL];
