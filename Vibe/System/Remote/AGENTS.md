@@ -11,7 +11,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 | `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads, and the budget |
 | `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
 | `LinkRules.h` | the address rule, the audio check, the names, the share-link rewrite that asks each host's file, what a drop opens, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
-| `DropboxLinkRules.h`, `GoogleDriveLinkRules.h` | one host's share links each. No other link code names a host. Tested (`DropboxLinkRulesTests`, `GoogleDriveLinkRulesTests`) |
+| `DropboxLinkRules.h`, `GoogleDriveLinkRules.h` | one host's share links each: the rewrite, and what that host answers. No other link code names a host. Tested (`DropboxLinkRulesTests`, `GoogleDriveLinkRulesTests`) |
 
 `DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store over the plain client (below).
 
@@ -98,7 +98,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 **`resolveURLString:completion:` opens a link in five steps.** It runs off main and completes on main.
 1. The address rule. A refusal fails before any request.
 2. The share-link rewrite (`VibeLinkDirectDownloadURL`, below).
-3. A probe of the first 16 bytes. It is a `GET`, since Dropbox answers `HEAD` with JSON. A 206 gives the size from its Content-Range, and `ranges` is YES. A 200 gives it from its Content-Length, and `ranges` is NO.
+3. A probe of the first 16 bytes. It is a `GET`, never a `HEAD`, since a host can answer `HEAD` with something other than the file. A 206 gives the size from its Content-Range, and `ranges` is YES. A 200 gives it from its Content-Length, and `ranges` is NO.
 4. The audio check and the extension (`VibeLinkAudioExtension`). The first bytes come first: `ID3` or an MPEG sync, ADTS, `fLaC`, `RIFF…WAVE`, `FORM…AIFF` or `AIFC`, the W64 GUID, `OggS`, `ftyp`, or `caff`. Then the URL's extension, the Content-Disposition file name's, and the Content-Type. When the bytes name a family, such as Ogg, MP4, or WAV, the URL's or the file name's extension picks the member. HTML the bytes do not claim is not audio. The check gets the link's own URL, not the redirect's, since a CDN's path carries no name. It runs before a missing size fails the link. A sign-in page often has no length, and it is still not audio. With no size, icy headers or chunked audio are a live stream, and anything else has no size.
 5. The record and the placeholder. The size is the probe's. The mtime is Last-Modified, else the probe's time. The cache key then stays the same across the install.
 
@@ -115,11 +115,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 The cause rides under `NSUnderlyingErrorKey`. A disk failure is passed through as its POSIX error. `+[LinkStore messageForError:brief:]` turns the code into its string, the server's with its status. iOS shows the `link.error` sentence in an alert. The mac shows the short `link.status` string in its header (`brief`). An error outside the domain reads as unreachable.
 
-**Two hosts' share links are rewritten to their bytes** (`VibeLinkDirectDownloadURL`). **Each host's rules live in its own file, and no other link code names a host.** The rewrite asks each file in turn and fetches any other link as typed. `DropboxLinkRules.h` gives a Dropbox file link (`/scl/fi/…`, `/s/…`) `dl=1`, and keeps its other query items, `rlkey` among them. `GoogleDriveLinkRules.h` makes a Google Drive file link (`/file/d/<id>/…`, or the `id` item of `/open` or `/uc`) into `drive.usercontent.google.com/download?id=<id>&export=download&confirm=t`. `confirm=t` skips the virus-scan page a large file gets. Its `resourcekey` is kept, since older shares need it. A folder link, an empty id, or an id outside `[A-Za-z0-9_-]` is left as it is. The path is split before percent-decoding. An encoded `/` then cannot shorten an id. A new host is a new file and one more step in the rewrite. `docs/future/share-links.md` has the probes.
-
-**Dropbox answers what a link needs** (measured on a shared AIFF). `dl=1` answers one 302 to `<id>.dl.dropboxusercontent.com`. A range there gets a 206 with Content-Range and an ETag, and the ETag is the version. Its Content-Disposition says `filename=unspecified`. The name then comes from the link's own path, which has a playable extension.
-
-**Google Drive answers what a link needs** (measured on a shared WAV). A range gets a 206 with Content-Range. It sends Last-Modified and no ETag. Last-Modified is then the version. The path ends in `download` and names nothing. The name comes from Content-Disposition. A private or over-quota file answers an HTML page. It fails as denied on a 403, and as not audio on a 200. Drive's `/u/<n>/` paths and `docs.google.com` links are not rewritten.
+**A share link is rewritten to the address of its bytes** (`VibeLinkDirectDownloadURL`). **Each host's rules live in its own file, and no other link code names a host.** That file's header also says what the host answers and why. The rewrite asks each file in turn and fetches any other link as typed. A new host is a new file and one more step in the rewrite. `docs/future/share-links.md` has the probes.
 
 **An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. The file's own size and mtime must be the record's too. A record changed while its file streamed describes bytes the placeholder does not. Once the stream ends, the next open writes a fresh placeholder. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
 

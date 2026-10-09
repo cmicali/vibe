@@ -6,6 +6,13 @@
 //  asks this file. No other link code knows Dropbox. Header-only and
 //  Foundation-only, so the macOS suite tests it.
 //
+//  What Dropbox answers a link, measured on a shared AIFF. dl=1 answers one
+//  302 to <id>.dl.dropboxusercontent.com. A range there gets a 206 with
+//  Content-Range and an ETag, and the ETag is the version. Its
+//  Content-Disposition says filename=unspecified. The name then comes from
+//  the link's own path, which has a playable extension. Dropbox answers HEAD
+//  with JSON, which is one reason the probe is a GET.
+//
 
 #ifndef DropboxLinkRules_h
 #define DropboxLinkRules_h

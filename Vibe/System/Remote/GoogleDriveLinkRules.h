@@ -6,6 +6,13 @@
 //  VibeLinkDirectDownloadURL asks this file. No other link code knows Google
 //  Drive. Header-only and Foundation-only, so the macOS suite tests it.
 //
+//  What Google Drive answers a link, measured on a shared WAV. A range gets a
+//  206 with Content-Range. It sends Last-Modified and no ETag. Last-Modified
+//  is then the version. The path ends in "download" and names nothing. The
+//  name comes from Content-Disposition. A private or over-quota file answers
+//  an HTML page. It fails as denied on a 403, and as not audio on a 200.
+//  Drive's /u/<n>/ paths and docs.google.com links are not rewritten.
+//
 
 #ifndef GoogleDriveLinkRules_h
 #define GoogleDriveLinkRules_h
