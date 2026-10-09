@@ -45,7 +45,7 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 
 ## Updates
 
-**The direct download updates itself through Sparkle; the Mac App Store build has no updater at all.** `VIBE_DIRECT_DISTRIBUTION` (`project.yml`) is the one channel marker: 1 in Debug and Release, 0 in `AppStore`. Nothing else may infer the channel. Everything Sparkle is inside `#if VIBE_DIRECT_DISTRIBUTION`: the import, the controller, the menu item, the Settings row and the debug report's feed line. The `AppStore` configuration also unlinks the framework and strips its Info.plist keys, and `release-appstore.sh` and CI check the result (the `vibe-release` skill).
+**The direct download updates itself through Sparkle; the Mac App Store build has no updater at all.** `VIBE_DIRECT_DISTRIBUTION` (`project.yml`) is the one channel marker: 1 in Debug and Release, 0 in `AppStore`. Nothing else may infer the channel. Everything Sparkle is inside `#if VIBE_DIRECT_DISTRIBUTION`: the import, the controller, the menu item, the beta setting and its Settings row, and the debug report's feed line. The `AppStore` configuration also unlinks the framework and strips its Info.plist keys, and `release-appstore.sh` and CI check the result (the `vibe-release` skill).
 
 `AppDelegate` owns one `SPUStandardUpdaterController`, started in `applicationDidFinishLaunching:` after the window is up. Sparkle's standard UI does the rest, its first-run prompt included. Vibe adds two things. **Check for Updates…** targets `AppDelegate.checkForUpdates:`, which validates through the updater's `canCheckForUpdates`. `allowedChannelsForUpdater:` adds the feed's `beta` channel while `AppSettings.receiveBetaUpdates` is on. Sparkle asks it at every check, so the setting needs no live effect.
 
