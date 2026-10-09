@@ -9,6 +9,8 @@
 
 #import <XCTest/XCTest.h>
 
+#include <fcntl.h>
+#include <sched.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
@@ -45,6 +47,48 @@ static NSData *PatternBytes(NSUInteger count) {
         [super makeRequestForTarget:target state:state completion:completion];
         dispatch_semaphore_signal(self.hookDone);
     });
+}
+
+@end
+
+// How many of this process's descriptors are open on `url`.
+static NSUInteger OpenDescriptorsOn(NSURL *url) {
+    char wanted[PATH_MAX], path[PATH_MAX];
+    if (!realpath(url.fileSystemRepresentation, wanted)) {
+        return 0;
+    }
+    NSUInteger count = 0;
+    for (int fd = 0; fd < getdtablesize(); fd++) {
+        if (fcntl(fd, F_GETPATH, path) == 0 && strcmp(path, wanted) == 0) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// A client whose failure ladder parks its resend for the test, as a hung
+// token refresh does. `_entered` is relaxed, so it orders nothing. `parked`
+// hands the resend over once the test has acted.
+@interface HTTPTransferParkedClient : HTTPTransferClient {
+@public
+    atomic_bool _entered;
+}
+@property (nonatomic) dispatch_semaphore_t parked;
+@property (nonatomic, copy) void (^resend)(NSInteger attempt);
+@end
+
+@implementation HTTPTransferParkedClient
+
+- (void)handleFailureStatus:(NSInteger)status
+                       data:(NSData *)data
+                 retryAfter:(NSString *)retryAfter
+                      state:(NSMutableDictionary<NSString *, id> *)state
+                    attempt:(NSInteger)attempt
+                     resend:(void (^)(NSInteger))resend
+                       fail:(void (^)(NSError *))fail {
+    self.resend = resend;
+    atomic_store_explicit(&_entered, true, memory_order_relaxed);
+    dispatch_semaphore_signal(self.parked);
 }
 
 @end
@@ -557,6 +601,52 @@ typedef struct {
     XCTAssertEqualObjects(failure.domain, VibeHTTPErrorDomain);
     XCTAssertEqual(failure.code, VibeHTTPErrorCancelled);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], [file subdataWithRange:NSMakeRange(0, 131072)]);
+    XCTAssertEqualObjects([self versionOfPart], @"\"v1\"");
+}
+
+// A cancel racing the step that ended a download's last task, as Dropbox's
+// does when the token refresh after a 401 hangs. The file is the steps'
+// alone: the cancel settles at once without touching it, and the step that
+// runs next closes it. Before, the cancel closed it while the delegate's
+// step could still read it. The test sees the step parked through a relaxed
+// atomic, which orders nothing, so ThreadSanitizer sees the two threads as
+// concurrent.
+- (void)testACancelWhileAStepHoldsTheFileSettlesAtOnceAndLeavesTheFileToTheStep {
+    NSData *file = PatternBytes(500000);
+    NSURL *part = [self partURL];
+    HTTPTransferParkedClient *client = [[HTTPTransferParkedClient alloc] initWithConfiguration:_stub.configuration];
+    client.parked = dispatch_semaphore_create(0);
+    client.retryDelayScale = 0.01;
+    [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
+    [_stub queueStep:[HTTPStubStep dropAfter:131072 ready:^BOOL {
+        struct stat st;
+        return stat(part.fileSystemRepresentation, &st) == 0 && st.st_size >= 131072;
+    }] forPath:@"/a.flac"];
+    [_stub queueStep:[HTTPStubStep status:503 headers:nil body:nil] forPath:@"/a.flac"];
+    __block NSError *failure = nil;
+    XCTestExpectation *done = [self expectationWithDescription:@"cancelled"];
+    dispatch_block_t cancel = [client downloadTarget:[_stub URLForPath:@"/a.flac"] toURL:part progress:nil
+                                          completion:^(NSDictionary *metadata, NSError *error) {
+        failure = error;
+        [done fulfill];
+    }];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!atomic_load_explicit(&client->_entered, memory_order_relaxed) && deadline.timeIntervalSinceNow > 0) {
+        sched_yield();
+    }
+    XCTAssertTrue(atomic_load_explicit(&client->_entered, memory_order_relaxed), @"the 503's step parked");
+    cancel();
+    // Settled with the step still parked.
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual(failure.code, VibeHTTPErrorCancelled);
+    XCTAssertEqual(OpenDescriptorsOn(part), 1u, @"the step still holds the file");
+    XCTAssertEqual(dispatch_semaphore_wait(client.parked, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
+    // The step resends, finds the cancel, and closes the file. Nothing is sent.
+    client.resend(2);
+    XCTAssertEqual(OpenDescriptorsOn(part), 0u);
+    XCTAssertEqual(_stub.requests.count, 2u);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:part], [file subdataWithRange:NSMakeRange(0, 131072)]);
     XCTAssertEqualObjects([self versionOfPart], @"\"v1\"");
 }
 

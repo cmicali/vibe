@@ -28,7 +28,9 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **`allowsURL` is asked of every request and every redirect.** It gets the URL that redirected, nil for a request, and the URL to be requested. A request it refuses is never sent. A redirect it refuses completes its task with the 3xx itself, and the transfer fails with `VibeHTTPErrorRefusedURL`.
 
-**A cancel settles a transfer at once when no task is in flight for it** (`cancelTransfer:`). That covers a transfer waiting on the request hook, such as Dropbox's token refresh, or on a retry's delay. The lane the caller holds is freed now (`System/AGENTS.md`).
+**A cancel settles a transfer at once when no task is in flight for it** (`cancelTransfer:`). A task is in flight until its completion has reached the delegate. That covers a transfer waiting on the request hook, such as Dropbox's token refresh, or on a retry's delay. The lane the caller holds is freed now (`System/AGENTS.md`).
+
+**TRAP: a cancel never touches a download's file.** The step that ended the last task may still be reading it. The next step sees the cancel and closes the file. A cancel that closed it raced that step.
 
 **TRAP: a transfer is adopted and entered in the delegate's table under one lock** (`adoptTask:forTransfer:`). A cancel between the two left a task whose completion found no transfer, so the download never finished. The table is keyed by the task object, because the two sessions number their tasks apart.
 

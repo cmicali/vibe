@@ -39,7 +39,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 
 // A download, a ranged read, or a probe in flight. The cancel flag, the task,
 // and bytesWritten are under the client's transfer lock; the rest belongs to
-// whichever step runs, and attempts never overlap.
+// whichever step runs, and attempts never overlap. A cancel is no step.
 @interface HTTPTransfer : NSObject
 @property (nonatomic) id target;
 @property (nonatomic) NSMutableDictionary<NSString *, id> *state;
@@ -269,36 +269,54 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 }
 
 // Any thread. A transfer with a task in flight completes through that task's
-// cancel. One with none — waiting on the request hook, or on a retry's delay
+// cancel. In flight means in the delegate's table: its completion is still
+// to come. One with none — waiting on the request hook, or on a retry's delay
 // after a task that already ended — settles here, at once: a cancel frees
 // the caller's lane now, never when the hook or the delay comes back
-// (System/AGENTS.md). Whichever step runs next sees the flag.
+// (System/AGENTS.md). Whichever step runs next sees the flag and closes the
+// file.
+//
+// TRAP: the cancel never touches the file. The step that ended the last task
+// may still be reading it. A cancel that closed it raced that step.
 - (void)cancelTransfer:(HTTPTransfer *)transfer {
     os_unfair_lock_lock(&_transferLock);
     transfer.cancelled = YES;
     NSURLSessionDataTask *task = transfer.task;
+    BOOL inFlight = task && [_transfers objectForKey:task] == transfer;
     os_unfair_lock_unlock(&_transferLock);
-    if (task && task.state != NSURLSessionTaskStateCompleted) {
+    if (inFlight) {
         [task cancel];
         return;
     }
-    [self finishTransfer:transfer result:nil error:[self cancelledError]];
+    if ([self markFinished:transfer]) {
+        [self settleTransfer:transfer result:nil error:[self cancelledError]];
+    }
 }
 
-// Exactly once per transfer, whichever path gets here first.
+// A step's end of the transfer. The step closes the file, which only steps
+// touch, even after a cancel settled the transfer.
 - (void)finishTransfer:(HTTPTransfer *)transfer result:(id)result error:(NSError *)error {
-    os_unfair_lock_lock(&_transferLock);
-    BOOL first = !transfer.finished;
-    transfer.finished = YES;
-    os_unfair_lock_unlock(&_transferLock);
-    if (!first) {
-        return;
-    }
+    BOOL first = [self markFinished:transfer];
     NSError *closeError = nil;
     if (transfer.file && ![transfer.file closeAndReturnError:&closeError] && !error) {
         error = closeError;
     }
     transfer.file = nil;
+    if (first) {
+        [self settleTransfer:transfer result:result error:error];
+    }
+}
+
+// YES for whichever path gets here first, exactly once per transfer.
+- (BOOL)markFinished:(HTTPTransfer *)transfer {
+    os_unfair_lock_lock(&_transferLock);
+    BOOL first = !transfer.finished;
+    transfer.finished = YES;
+    os_unfair_lock_unlock(&_transferLock);
+    return first;
+}
+
+- (void)settleTransfer:(HTTPTransfer *)transfer result:(id)result error:(NSError *)error {
     if (error && transfer.destination && ![self keepsPartAfterError:error]) {
         [NSFileManager.defaultManager removeItemAtURL:transfer.destination error:NULL];
     }
