@@ -1,5 +1,6 @@
 # v1.16
 
+* Fixed playback from a network share going silent when the server stops answering; it now pauses with "Connection lost"
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
 

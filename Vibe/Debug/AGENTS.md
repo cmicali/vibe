@@ -8,10 +8,12 @@ Read the `vibe-debug` skill first if the goal is to *use* the channel. Read this
 
 `project.yml` lists `Vibe/Debug` as an ordinary shared subsystem — recursive, with the usual `Mac/**` or `iOS/**` exclude — so the layout rule needs no exception for it. What keeps it out of the product is that **every file is wrapped in `#if DEBUG`**, which a Release build compiles to an empty object. The one header with anything outside it is `AudioLoadTiming.h`: its phase struct and a clock that reads 0 in Release, so the shipping loader's call sites need no `#if`.
 
-That is also why root `AGENTS.md`'s vocabulary rule 4 exists: a *shipping* header may not carry `#if DEBUG`, because the surface a debug build adds to a shipping class belongs here instead, as a declaration-only category (`AudioPlayer+Debug.h`, `AudioWaveformCache+Debug.h`, and the rest of the `+Debug` headers at this level). Two shapes cover what a category cannot add:
+That is also why root `AGENTS.md`'s vocabulary rule 4 exists: a *shipping* header may not carry `#if DEBUG`, because the surface a debug build adds to a shipping class belongs here instead, as a declaration-only category (`AudioPlayer+Debug.h`, `AudioWaveformCache+Debug.h`, `AudioFileHandle+Debug.h`, and the rest of the `+Debug` headers at this level). Two shapes cover what a category cannot add:
 
 - **debug-only state** becomes a debug-only *object* the shipping class holds — `VibeManualRenderPump`;
 - **a debug-only hook** ships as a plain block pointer with no conditional around it (`MainPlayerControllerInternal.h`'s `conversionUndoRedoSettledHandler`, and the converter's source-Trash result filter).
+
+**`AudioFileHandle+Debug.h` is the network-mount read-ahead's seam** (`Audio/AGENTS.md`), so a test plays a local file as if it were on a share. `debugSetMountRule:` forces the mount rule per URL. `debugSetBeforeRead:` runs a hook on the read-ahead thread before each `pread`, outside every lock. The hook can throttle a read, stall it until the test releases it, fail it with an errno, or end the file there. Two counts are read back: the read-ahead threads alive, and those orphaned inside a read. The rule, the hook and both counts are process-wide. A test sets the rule and the hook for its own URLs and clears them in `tearDown`. **TRAP: the rule and the hook are set on a test's thread and read on opens and read-ahead threads. Both are read under a lock.** An unlocked read of a block global is a retain racing a release. The seam's statics live in `AudioFileHandle.m` under `#if DEBUG`, as `CloudFileMaterializer.m`'s fake-transfer hooks do.
 
 ## The transport, and the two ends of it
 
