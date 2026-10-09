@@ -113,6 +113,10 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 - (void)dropBlocksOutsideRangeAt:(uint64_t)offset length:(uint64_t)length;
 // The bytes all blocks hold now; 0 when none is held.
 @property (nonatomic, readonly) uint64_t windowLength;
+// Where the bytes held contiguously from offset end: on disk below the bytes
+// written, then in blocks. Offset itself when none is held. It never waits
+// and records nothing, so the writer asks it rather than a wait.
+- (uint64_t)heldEndAt:(uint64_t)offset;
 
 // Blocks until [offset, offset + length) is held, the writer finished,
 // `interrupted` answers YES, or `deadline` passes (Interrupted for both).

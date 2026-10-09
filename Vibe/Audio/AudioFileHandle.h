@@ -50,11 +50,23 @@
 //  readers until its dealloc (CloudFileAvailability's addReader); one that
 //  was not reads what the transfer writes and fails with it.
 //
+//  A file on a network mount reads ahead, when its opener can be
+//  interrupted: a thread of the handle's own reads it into an availability
+//  with no part file, and every read waits for its bytes there, as a
+//  stream's does. The handle then holds no descriptor. A read the server
+//  fails is retried until the handle goes, so a dead server is a wait, never
+//  a failure. Its dealloc ends the thread once the thread's read returns.
+//
 
 #import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
 
 NS_ASSUME_NONNULL_BEGIN
+
+// An `interrupted` that answers YES: an open that must never wait for a
+// file's bytes. It fails at once where it would wait, and never reads ahead.
+// Compared by identity.
+FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 
 @interface AudioFileHandle : NSObject
 
@@ -66,6 +78,8 @@ NS_ASSUME_NONNULL_BEGIN
 // an interruption. A caller ends a blocked open from another thread by making
 // it answer YES, then waking the file's waiters
 // ([[CloudFileMaterializer availabilityForURL:url] wakeWaiters]).
+// Only an open with an `interrupted` block reads ahead. A nil block, or
+// VibeNeverWaitsForAStream, reads a network file directly.
 - (nullable instancetype)initParserForReading:(NSURL *)url
                                   interrupted:(nullable BOOL (^)(void))interrupted
                                         error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
@@ -151,26 +165,31 @@ NS_ASSUME_NONNULL_BEGIN
 // readIntoBuffer:frameCount:error: for the buffer's whole capacity.
 - (BOOL)readIntoBuffer:(AVAudioPCMBuffer *)buffer error:(NSError * _Nullable __autoreleasing * _Nullable)error;
 
-// A streaming handle's waits, from any thread: interruptReads ends every wait
-// for bytes in flight and to come, though not a read the bytes on disk serve.
-// The read or seek it ends answers NO with an interruption, the cursor is
+// A handle's waits, from any thread: interruptReads ends every wait for bytes
+// in flight and to come, though not a read the bytes already here serve. The
+// read or seek it ends answers NO with an interruption, the cursor is
 // undefined, and reads answer the same until a seek after allowReads, which
-// is called once that operation has returned. A whole file never waits.
+// is called once that operation has returned. A read-ahead fetches only what
+// a wait asks for in between. A whole file never waits.
 - (void)interruptReads;
 - (void)allowReads;
 // YES for the error an interrupted read, seek or open answers.
 + (BOOL)isInterruption:(nullable NSError *)error;
-// Any thread, lock-free: YES while a read is blocked waiting for a streaming
-// file's bytes, never for bytes on disk.
+// YES while the handle's reads wait for bytes a writer fetches: a stream's
+// transfer or its own read-ahead. Fixed once open.
+@property (nonatomic, readonly) BOOL waitsForBytes;
+// Any thread, lock-free: YES while a read is blocked waiting for bytes, never
+// for bytes already here.
 @property (atomic, readonly) BOOL waitingForBytes;
-// How much of a streaming file its transfer has written so far; the size of
-// a whole file. Any thread.
+// What the handle's writer has fetched so far, which only grows: the
+// transfer's progress or the read-ahead's. The size of a whole file. Any
+// thread.
 @property (nonatomic, readonly) uint64_t bytesWritten;
 // Once, on the opening thread before the handle is shared: makes it one of
 // its transfer's readers until dealloc, which keeps the transfer from being
 // abandoned. The coordinator sends it to every handle it serves; the waveform
 // loader's never is, so a waveform rides the play's stream and never holds it.
-// A whole file ignores it.
+// A whole file and a read-ahead ignore it.
 - (void)holdStream;
 
 // Writing only: appends the buffer's frameLength frames, whose format must be

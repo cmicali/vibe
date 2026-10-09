@@ -4,7 +4,11 @@
 //
 
 #import "AudioFileHandle.h"
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
+#if DEBUG
+#import "AudioFileHandle+Debug.h"
+#endif
 
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
@@ -15,7 +19,9 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <os/lock.h>
 #include <stdatomic.h>
+#include <sys/mount.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -66,6 +72,38 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 // The status of an interrupted read, seek or open (+isInterruption:).
 static const OSStatus kVibeReadInterrupted = 'intr';
 
+BOOL (^const VibeNeverWaitsForAStream)(void) = ^BOOL { return YES; };
+
+// The read-ahead (VibeReadAheadRun) fetches 256 KB blocks up to 8 MB ahead of
+// the reader. It keeps one block behind the reader's, which an MP3 seek's
+// preroll and dr_flac's bisection read back over.
+enum { kVibeReadAheadBlock = 256 * 1024 };
+static const uint64_t kVibeReadAheadSpan = 8 * 1024 * 1024;
+// A failed read is tried again this long after, until the handle goes.
+static const NSTimeInterval kVibeReadAheadRetrySeconds = 1;
+// Read-ahead threads whose handle is gone while they are still inside a read,
+// a dead mount's. At this many, a new read-ahead open fails with the status
+// below before it makes a thread.
+static const NSInteger kVibeReadAheadOrphanLimit = 8;
+static const OSStatus kVibeReadAheadRefused = 'rdah';
+
+// TRAP: both edges of a read-ahead's end run under this lock: its handle's
+// dealloc and its thread's exit. A thread still running at the dealloc is an
+// orphan until it exits, and no other thread ever is. The two share one
+// flags cell, which the second edge frees.
+static os_unfair_lock sReadAheadLock = OS_UNFAIR_LOCK_INIT;
+static NSInteger sOrphanedReadAheads;
+enum { kVibeReadAheadExited = 1, kVibeReadAheadCounted = 2 };
+
+#if DEBUG
+// TRAP: set on a test's thread, read on opens and read-ahead threads. An
+// unlocked read of a block global is a retain racing a release.
+static os_unfair_lock sDebugLock = OS_UNFAIR_LOCK_INIT;
+static NSNumber *(^sDebugMountRule)(NSURL *);
+static int (^sDebugBeforeRead)(NSURL *, uint64_t, uint64_t);
+static _Atomic NSInteger sDebugLiveReadAheads;
+#endif
+
 // An ID3v2 tag's whole length from the file's first 10 bytes: the syncsafe
 // size in bytes 6-9 excludes the header and a footer. 0 for no tag.
 static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
@@ -78,8 +116,9 @@ static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
 
 @implementation AudioFileHandle {
     // What the parser's callbacks read, and dr_flac's and dr_wav's: valid from open until
-    // dealloc has closed both. -1 once closed, or for a QuickTime container
-    // (below), whose parser reads through its own descriptor.
+    // dealloc has closed both. -1 once closed, for a read-ahead, which reads
+    // through its availability, or for a QuickTime container (below), whose
+    // parser reads through its own descriptor.
     int _descriptor;
     SInt64 _size;
     // Written by the decode of a stream counting its MPEG packets as it
@@ -128,9 +167,10 @@ static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     drwav _wavState;
     SInt64 _streamCursor;
     BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
-    // A file still streaming: every read past the bytes written waits for
-    // them. Set by the open and fixed from then on; nil for a whole file.
+    // A file still streaming, or reading ahead: every read waits for its
+    // bytes. Set by the open and fixed from then on; nil for a whole file.
     CloudFileAvailability *_availability;
+    uint8_t *_readAheadEnd; // the flags cell a read-ahead shares with its thread
     BOOL _holdsStream; // one of _availability's readers (holdStream)
     _Atomic bool _readsInterrupted;
     _Atomic bool _waitingForBytes;
@@ -179,6 +219,229 @@ static uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
 static NSError *VibeHandleError(OSStatus status, NSString *description) {
     return [NSError errorWithDomain:NSOSStatusErrorDomain code:status
                            userInfo:@{NSLocalizedDescriptionKey: description}];
+}
+
+// An open's own two failures, the same on the direct road and the read-ahead's.
+static NSError *VibeCouldNotOpenError(NSString *name, int code) {
+    return [NSError errorWithDomain:NSPOSIXErrorDomain code:code
+                           userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Could not open %@: %s", name, strerror(code)]}];
+}
+
+static NSError *VibeNoAudioError(NSString *name) {
+    return VibeHandleError(kAudioFileUnsupportedFileTypeError, [NSString stringWithFormat:@"%@ holds no audio data", name]);
+}
+
+#pragma mark - The read-ahead
+
+// Whether `url` reads ahead: the kernel's mount table says its mount is a
+// network one. Never a stat of the path, which a dead mount holds for its
+// timeout. A table that cannot be read is the direct road.
+static BOOL VibeReadsAhead(NSURL *url, NSString **mount) {
+#if DEBUG
+    os_unfair_lock_lock(&sDebugLock);
+    NSNumber *(^rule)(NSURL *) = sDebugMountRule;
+    os_unfair_lock_unlock(&sDebugLock);
+    NSNumber *forced = rule ? rule(url) : nil;
+    if (forced) {
+        *mount = @"a mount the debug rule chose";
+        return forced.boolValue;
+    }
+#endif
+    int count = getfsstat(NULL, 0, MNT_NOWAIT);
+    struct statfs *mounts = count > 0 ? calloc((size_t)count, sizeof(*mounts)) : NULL;
+    count = mounts ? getfsstat(mounts, count * (int)sizeof(*mounts), MNT_NOWAIT) : -1;
+    const char *path = url.fileSystemRepresentation;
+    BOOL reads = count > 0 && path && VibeMountReadsAhead(mounts, count, path);
+    if (reads) {
+        *mount = @(mounts[VibeMountHoldingPath(mounts, count, path)].f_mntonname);
+    }
+    free(mounts);
+    return reads;
+}
+
+static NSInteger VibeOrphanedReadAheads(void) {
+    os_unfair_lock_lock(&sReadAheadLock);
+    NSInteger orphans = sOrphanedReadAheads;
+    os_unfair_lock_unlock(&sReadAheadLock);
+    return orphans;
+}
+
+// The handle's edge of a read-ahead's end, at its dealloc.
+static void VibeReadAheadHandleGone(uint8_t *flags) {
+    os_unfair_lock_lock(&sReadAheadLock);
+    BOOL exited = (*flags & kVibeReadAheadExited) != 0;
+    if (!exited) {
+        *flags |= kVibeReadAheadCounted;
+        sOrphanedReadAheads++;
+    }
+    os_unfair_lock_unlock(&sReadAheadLock);
+    if (exited) {
+        free(flags);
+    }
+}
+
+// The thread's edge, after its last syscall.
+static void VibeReadAheadThreadGone(uint8_t *flags) {
+    os_unfair_lock_lock(&sReadAheadLock);
+    BOOL counted = (*flags & kVibeReadAheadCounted) != 0;
+    *flags |= kVibeReadAheadExited;
+    if (counted) {
+        sOrphanedReadAheads--;
+    }
+    os_unfair_lock_unlock(&sReadAheadLock);
+    if (counted) {
+        free(flags);
+    }
+#if DEBUG
+    atomic_fetch_sub(&sDebugLiveReadAheads, 1);
+#endif
+}
+
+// What ends a read-ahead's availability when its handle lets it go.
+static NSError *VibeReadAheadClosedError(NSURL *url) {
+    return [NSError errorWithDomain:NSPOSIXErrorDomain code:ECANCELED
+                           userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"%@ was closed", url.lastPathComponent]}];
+}
+
+// The direct road's flags, for the same reason (its TRAP: a FIFO with no
+// writer returns at once), then blocking reads. Nil, or the open's failure
+// as the direct road reports it.
+static NSError *VibeReadAheadOpen(const char *path, NSString *name, int *descriptor, uint64_t *size) {
+    *descriptor = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (*descriptor < 0) {
+        return VibeCouldNotOpenError(name, errno);
+    }
+    struct stat info;
+    int flags = 0;
+    NSError *error = fstat(*descriptor, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ? VibeNoAudioError(name)
+            : (flags = fcntl(*descriptor, F_GETFL)) < 0 || fcntl(*descriptor, F_SETFL, flags & ~O_NONBLOCK) != 0
+                    ? VibeCouldNotOpenError(name, errno) : nil;
+    if (error) {
+        close(*descriptor);
+        *descriptor = -1;
+        return error;
+    }
+    *size = (uint64_t)info.st_size;
+    return nil;
+}
+
+// One pread, through the debug seam's hook. An error leaves errno set.
+static ssize_t VibeReadAheadPread(int descriptor, NSURL *url, uint8_t *buffer, uint64_t count, uint64_t offset) {
+#if DEBUG
+    os_unfair_lock_lock(&sDebugLock);
+    int (^beforeRead)(NSURL *, uint64_t, uint64_t) = sDebugBeforeRead;
+    os_unfair_lock_unlock(&sDebugLock);
+    int injected = beforeRead ? beforeRead(url, offset, count) : 0;
+    if (injected != 0) {
+        errno = MAX(injected, 0);
+        return injected < 0 ? 0 : -1;
+    }
+#endif
+    ssize_t got;
+    do {
+        got = pread(descriptor, buffer, (size_t)count, (off_t)offset);
+    } while (got < 0 && errno == EINTR);
+    return got;
+}
+
+// The read-ahead's thread: the one thread that enters the kernel for its
+// file. It fetches a range a blocked wait wants first, rounded out to whole
+// blocks, else the next block after the reader's up to the span ahead, unless
+// paused. It installs each in the availability and drops what lies outside
+// the reader's span. A failed read is tried again after a pause, reopened,
+// until the availability finishes. A read that finds nothing short of the
+// size is the end. TRAP: it retains the availability only, never its handle,
+// so the handle's dealloc can finish the availability and end it. TRAP:
+// nothing here holds the availability's lock across open, pread or close,
+// which the player queue takes through interruptReads and wakeWaiters. TRAP:
+// a no-part-file availability is never finished with nil, which sends its
+// readers to a disk it never wrote.
+static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NSString *mount, uint8_t *flags) {
+    NSString *name = url.lastPathComponent;
+    char *path = strdup(url.fileSystemRepresentation);
+    int descriptor = -1;
+    uint64_t size = 0;
+    NSError *failure = path ? VibeReadAheadOpen(path, name, &descriptor, &size) : VibeCouldNotOpenError(name, ENOMEM);
+    if (failure) {
+        free(path);
+        // First, so the handle the failed open lets go never counts it.
+        VibeReadAheadThreadGone(flags);
+        [availability finishWithError:failure];
+        return;
+    }
+    [availability noteSize:size];
+    LogInfo(@"Read-ahead: %@ on %@, %llu bytes", name, mount, size);
+    NSUInteger errors = 0;
+    BOOL failing = NO;
+    NSDate *until = NSDate.distantPast;
+    for (;;) @autoreleasepool {
+        uint64_t wantedOffset = 0, wantedLength = 0, position = 0;
+        if (![availability waitForWorkUntil:until wanted:&wantedOffset length:&wantedLength readerPosition:&position]) {
+            break;
+        }
+        until = NSDate.distantFuture;
+        uint64_t end = availability.size;
+        uint64_t wantedEnd = MIN(wantedOffset + wantedLength, end);
+        uint64_t start = 0, stop = 0;
+        uint64_t held = wantedLength > 0 ? [availability heldEndAt:wantedOffset] : end;
+        if (held < wantedEnd) {
+            start = held / kVibeReadAheadBlock * kVibeReadAheadBlock;
+            stop = MIN((wantedEnd + kVibeReadAheadBlock - 1) / kVibeReadAheadBlock * kVibeReadAheadBlock, end);
+        } else if (!availability.readAheadPaused) {
+            start = [availability heldEndAt:position / kVibeReadAheadBlock * kVibeReadAheadBlock];
+            stop = start < position + kVibeReadAheadSpan ? MIN((start / kVibeReadAheadBlock + 1) * kVibeReadAheadBlock, end) : 0;
+        }
+        if (stop <= start) {
+            continue;
+        }
+        NSMutableData *bytes = [NSMutableData dataWithLength:(NSUInteger)(stop - start)];
+        uint64_t got = 0;
+        ssize_t count = 0;
+        while (got < stop - start
+                && (count = VibeReadAheadPread(descriptor, url, (uint8_t *)bytes.mutableBytes + got, stop - start - got, start + got)) > 0) {
+            got += (uint64_t)count;
+        }
+        int readError = count < 0 ? errno : 0;
+        if (got > 0) {
+            bytes.length = (NSUInteger)got;
+            [availability installBlock:bytes atOffset:start];
+            uint64_t behind = position / kVibeReadAheadBlock * kVibeReadAheadBlock;
+            behind = behind >= kVibeReadAheadBlock ? behind - kVibeReadAheadBlock : 0;
+            [availability dropBlocksOutsideRangeAt:behind length:position + kVibeReadAheadSpan - behind];
+        }
+        until = NSDate.distantPast;
+        if (count == 0) {
+            [availability noteShortenedEnd:start + got];
+        }
+        if (count >= 0) {
+            failing = NO;
+            continue;
+        }
+        errors++;
+        if (!failing) {
+            LogWarn(@"Read-ahead: reading %@ at %llu failed: %s; retrying every %.0f s", name, start + got,
+                    strerror(readError), kVibeReadAheadRetrySeconds);
+            failing = YES;
+        }
+        // A timed wait on the availability, so a finish ends the pause at once.
+        NSDate *retry = [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadRetrySeconds];
+        BOOL running = YES;
+        while (running && retry.timeIntervalSinceNow > 0) {
+            running = [availability waitForWorkUntil:retry wanted:&wantedOffset length:&wantedLength readerPosition:&position];
+        }
+        if (!running) {
+            break;
+        }
+        close(descriptor);
+        uint64_t ignored = 0;
+        VibeReadAheadOpen(path, name, &descriptor, &ignored); // -1 fails the next read, which pauses again
+    }
+    if (descriptor >= 0) {
+        close(descriptor);
+    }
+    free(path);
+    LogInfo(@"Read-ahead: %@ ended after %lu failed reads", name, (unsigned long)errors);
+    VibeReadAheadThreadGone(flags);
 }
 
 // A streaming handle's wait for the bytes a read asked for, before it reads
@@ -236,13 +499,14 @@ static BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait) {
 // holds them past the download's edge, else the disk, where the part file
 // ends at the bytes written (appended to, never extended, so a read comes up
 // short there rather than reading zeros). -1 for a wait that answered no,
-// latched on the handle, or a failed pread.
+// latched on the handle, or a failed pread. A read-ahead's bytes all come
+// from its blocks, so one answering none is the end.
 static ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 requested, void *buffer, size_t capacity) {
     uint64_t fromWindow = 0;
     if (handle->_availability && !VibeHandleAwait(handle, position, requested, buffer, capacity, &fromWindow)) {
         return -1;
     }
-    if (fromWindow) {
+    if (fromWindow || handle->_descriptor < 0) {
         return (ssize_t)fromWindow;
     }
     ssize_t got;
@@ -458,13 +722,25 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return error.code == kVibeReadInterrupted && [error.domain isEqualToString:NSOSStatusErrorDomain];
 }
 
+// A read-ahead also stops fetching ahead while reads are interrupted, so a
+// voice skipped away from stops pulling its file over the network.
 - (void)interruptReads {
     atomic_store(&_readsInterrupted, true);
+    if (_readAheadEnd) {
+        _availability.readAheadPaused = YES;
+    }
     [_availability wakeWaiters];
 }
 
 - (void)allowReads {
     atomic_store(&_readsInterrupted, false);
+    if (_readAheadEnd) {
+        _availability.readAheadPaused = NO;
+    }
+}
+
+- (BOOL)waitsForBytes {
+    return _availability != nil;
 }
 
 - (BOOL)waitingForBytes {
@@ -472,11 +748,11 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 
 - (uint64_t)bytesWritten {
-    return _availability ? _availability.writtenBytes : (uint64_t)MAX(0, _size);
+    return _availability ? _availability.progressBytes : (uint64_t)MAX(0, _size);
 }
 
 - (void)holdStream {
-    if (_availability && !_holdsStream) {
+    if (_availability.partURL && !_holdsStream) {
         _holdsStream = YES;
         [_availability addReader]; // removed by dealloc
     }
@@ -495,37 +771,50 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         return [self failWithError:error status:kAudioFileUnsupportedFileTypeError
                        description:[NSString stringWithFormat:@"%@ is not a file", name]];
     }
-    // TRAP: nonblocking, so a FIFO with no writer returns at once for fstat
-    // to refuse, instead of parking an uncancellable open worker. A regular
-    // file's pread ignores the flag.
-    int flags = O_RDONLY | O_NONBLOCK | O_CLOEXEC;
     _availability = [CloudFileMaterializer availabilityForURL:url];
-    _descriptor = open((_availability ? _availability.partURL : url).fileSystemRepresentation, flags);
-    if (_descriptor < 0 && _availability && errno == ENOENT) {
-        // TRAP: the transfer can finish and rename its part over url between
-        // the lookup and the open. Once it has finished, url is the whole file.
-        if (!VibeHandleAwaitWhole(self, YES)) {
+    NSString *mount = nil;
+    if (!_availability && interrupted && interrupted != VibeNeverWaitsForAStream && VibeReadsAhead(url, &mount)) {
+        if (VibeOrphanedReadAheads() >= kVibeReadAheadOrphanLimit) {
+            return [self failWithError:error status:kVibeReadAheadRefused
+                           description:[NSString stringWithFormat:@"%@ cannot read ahead: %ld reads of closed files are stuck",
+                                                                  name, (long)kVibeReadAheadOrphanLimit]];
+        }
+        [self readAheadOnMount:mount];
+        // The thread's open and its first block, waited for as any read is.
+        if (!VibeHandleAwait(self, 0, 1, NULL, 0, NULL)) {
             return [self failWithError:error status:noErr description:@""];
         }
-        _availability = nil;
-        _descriptor = open(url.fileSystemRepresentation, flags);
-    }
-    if (_descriptor < 0) {
-        int code = errno;
-        if (error) {
-            *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:code
-                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Could not open %@: %s", name, strerror(code)]}];
+        _size = (SInt64)_availability.size;
+    } else {
+        // TRAP: nonblocking, so a FIFO with no writer returns at once for
+        // fstat to refuse, instead of parking an uncancellable open worker. A
+        // regular file's pread ignores the flag. The read-ahead's thread opens
+        // with the same flags for the same reason.
+        int flags = O_RDONLY | O_NONBLOCK | O_CLOEXEC;
+        _descriptor = open((_availability ? _availability.partURL : url).fileSystemRepresentation, flags);
+        if (_descriptor < 0 && _availability && errno == ENOENT) {
+            // TRAP: the transfer can finish and rename its part over url
+            // between the lookup and the open. Once it has finished, url is
+            // the whole file.
+            if (!VibeHandleAwaitWhole(self, YES)) {
+                return [self failWithError:error status:noErr description:@""];
+            }
+            _availability = nil;
+            _descriptor = open(url.fileSystemRepresentation, flags);
         }
-        return nil;
+        // A part file is the size it will have, not the size it has.
+        struct stat info;
+        NSError *failure = _descriptor < 0 ? VibeCouldNotOpenError(name, errno)
+                : fstat(_descriptor, &info) != 0 || !S_ISREG(info.st_mode)
+                        || (_availability ? _availability.size : (uint64_t)info.st_size) == 0 ? VibeNoAudioError(name) : nil;
+        if (failure) {
+            if (error) {
+                *error = failure;
+            }
+            return nil;
+        }
+        _size = _availability ? (SInt64)_availability.size : info.st_size;
     }
-    // A part file is the size it will have, not the size it has.
-    struct stat info;
-    if (fstat(_descriptor, &info) != 0 || !S_ISREG(info.st_mode)
-            || (_availability ? _availability.size : (uint64_t)info.st_size) == 0) {
-        return [self failWithError:error status:kAudioFileUnsupportedFileTypeError
-                       description:[NSString stringWithFormat:@"%@ holds no audio data", name]];
-    }
-    _size = _availability ? (SInt64)_availability.size : info.st_size;
     // TRAP: parse as the extension's type first, as AudioFileOpenURL does:
     // sniffing alone refuses an MP3 with stray bytes between its ID3 tag and
     // first frame, which the hinted parse plays. A refusal falls back to
@@ -539,16 +828,24 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         [self closeParser];
         status = AudioFileOpenWithCallbacks(context, VibeHandleRead, NULL, VibeHandleSize, NULL, 0, &_parser);
     }
-    if (status != noErr && !_availability
+    if (status != noErr && !_availability.partURL && !_waitError
             && (status == kAudio_UnimplementedError || hinted == kAudio_UnimplementedError)) {
         // TRAP: CoreAudio's QuickTime reader (MooV, Voice Memos' .qta) has no
         // callback open and answers kAudio_UnimplementedError, so this parse
         // goes through the URL. Safe: the URL open leaks only on the empty
         // files and directories already refused above. iOS has no such
-        // reader, and a streaming file's URL is not yet the file.
+        // reader. A transfer's URL is not yet the file, so a transfer never
+        // takes this road. A read-ahead's URL is the file, so its
+        // availability is finished first, which ends its thread.
         [self closeParser];
-        close(_descriptor);
-        _descriptor = -1;
+        if (_readAheadEnd) {
+            [_availability finishWithError:VibeReadAheadClosedError(url)];
+            _availability = nil;
+        }
+        if (_descriptor >= 0) {
+            close(_descriptor);
+            _descriptor = -1;
+        }
         status = AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, hint, &_parser);
     }
     if (status != noErr) {
@@ -624,8 +921,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // Before the client format below, which Apple's FLAC codec refuses for
     // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
     // past 655 kHz, 32-bit samples.
-    if (_descriptor >= 0 && ((formatID == kAudioFormatFLAC && [self openFLAC])
-                             || [self openWAV])) {
+    // Both read through the callbacks, so not after the QuickTime road.
+    if ((_descriptor >= 0 || _availability) && ((formatID == kAudioFormatFLAC && [self openFLAC])
+                                                || [self openWAV])) {
         return [self openedWithError:error];
     }
     status = [self decodeToProcessingFormatInLayout:layout];
@@ -815,7 +1113,9 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
             || AudioFileGetProperty(_parser, kAudioFilePropertyPacketSizeUpperBound, &boundSize, &upperBound) != noErr) {
         return NO;
     }
-    SInt64 estimate = _availability ? VibeUncountedMPEGPackets(self, description) : 0;
+    // A read-ahead counts at open, as a whole file does, its waits reading
+    // the frame headers.
+    SInt64 estimate = _availability.partURL ? VibeUncountedMPEGPackets(self, description) : 0;
     if (estimate > 0) {
         packets = kVibeMPEGPacketsUncounted;
         _mpegEstimate = estimate;
@@ -995,6 +1295,27 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     }
 }
 
+// Starts the file's read-ahead: an availability with no part file, and a
+// thread that fills it (VibeReadAheadRun).
+- (void)readAheadOnMount:(NSString *)mount {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    uint8_t *flags = calloc(1, sizeof(*flags));
+    NSURL *url = _url;
+    NSThread *thread = [[NSThread alloc] initWithBlock:^{
+        VibeReadAheadRun(availability, url, mount, flags);
+    }];
+    thread.name = @"com.vibe.readahead";
+    // Fixed, not the opener's: a prefetch opens at utility and then becomes
+    // the voice the decode reads.
+    thread.qualityOfService = NSQualityOfServiceUserInitiated;
+    _availability = availability;
+    _readAheadEnd = flags;
+#if DEBUG
+    atomic_fetch_add(&sDebugLiveReadAheads, 1);
+#endif
+    [thread start];
+}
+
 - (instancetype)failWithError:(NSError **)error status:(OSStatus)status description:(NSString *)description {
     if (error) {
         // A wait that answered no says why better than what CoreAudio made of
@@ -1019,9 +1340,14 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     }
 }
 
-// The decoder before the parser, the parser before the descriptor its
-// callbacks read.
+// A read-ahead's availability first, with a real error, which ends its
+// thread once its read returns. Then the decoder before the parser, the
+// parser before the descriptor its callbacks read.
 - (void)dealloc {
+    if (_readAheadEnd) {
+        [_availability finishWithError:VibeReadAheadClosedError(_url)];
+        VibeReadAheadHandleGone(_readAheadEnd);
+    }
     if (_codec) {
         ExtAudioFileDispose(_codec);
         _codec = NULL;
@@ -1389,3 +1715,33 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 }
 
 @end
+
+#if DEBUG
+
+@implementation AudioFileHandle (Debug)
+
++ (void)debugSetMountRule:(NSNumber *(^)(NSURL *))rule {
+    NSNumber *(^copied)(NSURL *) = [rule copy];
+    os_unfair_lock_lock(&sDebugLock);
+    sDebugMountRule = copied;
+    os_unfair_lock_unlock(&sDebugLock);
+}
+
++ (void)debugSetBeforeRead:(int (^)(NSURL *, uint64_t, uint64_t))beforeRead {
+    int (^copied)(NSURL *, uint64_t, uint64_t) = [beforeRead copy];
+    os_unfair_lock_lock(&sDebugLock);
+    sDebugBeforeRead = copied;
+    os_unfair_lock_unlock(&sDebugLock);
+}
+
++ (NSInteger)debugLiveReadAheads {
+    return atomic_load(&sDebugLiveReadAheads);
+}
+
++ (NSInteger)debugOrphanedReadAheads {
+    return VibeOrphanedReadAheads();
+}
+
+@end
+
+#endif

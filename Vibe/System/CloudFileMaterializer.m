@@ -273,6 +273,14 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     [_condition unlock];
 }
 
+- (uint64_t)heldEndAt:(uint64_t)offset {
+    NSUInteger index;
+    [_condition lock];
+    uint64_t end = [self heldEndAt:MAX(offset, _written) block:&index];
+    [_condition unlock];
+    return end;
+}
+
 - (uint64_t)windowLength {
     [_condition lock];
     uint64_t length = 0;

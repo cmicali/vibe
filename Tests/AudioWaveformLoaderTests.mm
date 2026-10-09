@@ -13,6 +13,7 @@
 
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioFileHandle.h"
+#import "AudioFileHandle+Debug.h"
 #import "AudioFixtures.h"
 #import "AudioLoadTiming.h"
 #import "AudioTrack.h"
@@ -781,6 +782,58 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     [self abandon:stream as:url];
     XCTAssertTrue([self await:done]);
     XCTAssertFalse(loader.isComplete, @"a partial decode is never complete, so never persisted");
+}
+
+// A load on a network mount reads ahead, its handle waiting for bytes as a
+// stream's does, so it publishes its first block at once, before a read
+// stalled on the server can hold it: a snapshot arrives while the decode
+// waits. A cancel then ends that wait.
+- (void)testAReadAheadLoadPublishesItsFirstBlockBeforeAStalledRead {
+    NSURL *url = [self writeNoiseWAVNamed:@"network.wav" seconds:6.0 seed:17];
+    NSCondition *gate = [[NSCondition alloc] init];
+    __block BOOL released = NO;
+    dispatch_semaphore_t stalled = dispatch_semaphore_create(0);
+    [AudioFileHandle debugSetMountRule:^NSNumber *(NSURL *candidate) {
+        return [candidate.path isEqualToString:url.path] ? @YES : nil;
+    }];
+    // The first decode read takes blocks 0 and 1; the second waits on block 2.
+    [AudioFileHandle debugSetBeforeRead:^int(NSURL *candidate, uint64_t offset, uint64_t length) {
+        if ([candidate.path isEqualToString:url.path] && offset >= 2 * 256 * 1024) {
+            dispatch_semaphore_signal(stalled);
+            [gate lock];
+            while (!released) {
+                [gate wait];
+            }
+            [gate unlock];
+        }
+        return 0;
+    }];
+    WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:recorder];
+    __block CodableAudioWaveform *result = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        result = [loader load:url.path];
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertTrue([self await:stalled], @"the read-ahead stalled on block 2");
+    XCTAssertTrue([self eventually:^BOOL { return recorder.snapshots.count >= 1; }],
+                  @"the first block published while the next read waits");
+    XCTAssertLessThan(recorder.fractions.firstObject.floatValue, 1.0f);
+    XCTAssertFalse(loader.isComplete);
+    [loader cancel];
+    XCTAssertTrue([self await:done], @"the cancel ended the wait");
+    XCTAssertNil(result);
+
+    [gate lock];
+    released = YES;
+    [gate broadcast];
+    [gate unlock];
+    [AudioFileHandle debugSetMountRule:nil];
+    XCTAssertTrue([self eventually:^BOOL {
+        return AudioFileHandle.debugOrphanedReadAheads == 0 && AudioFileHandle.debugLiveReadAheads == 0;
+    }]);
+    [AudioFileHandle debugSetBeforeRead:nil];
 }
 
 #pragma mark - Through the cache

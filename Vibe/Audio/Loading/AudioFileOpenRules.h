@@ -6,6 +6,9 @@
 #import <Foundation/Foundation.h>
 #import "NSURLUtil.h"
 
+#include <string.h>
+#include <sys/mount.h>
+
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSInteger, VibeAudioFileOpenDeliveryState) {
@@ -62,6 +65,48 @@ static inline uint64_t VibeAudioFileTailWindowBytes(NSString *extension, uint64_
     BOOL mp4 = [@[@"m4a", @"m4b", @"m4r", @"mp4", @"qta"] containsObject:extension.lowercaseString];
     uint64_t window = mp4 ? MIN(kMP4Cap, MAX(kMP4Floor, size / 32)) : kSmall;
     return size > 2 * window ? window : 0;
+}
+
+// A path's spelling under /private when it starts with /var or /tmp, the two
+// symlinks into it, so a mount and a path compare as one spelling without
+// asking the disk. Truncated to `capacity`.
+static inline void VibeMountSpelling(const char *path, char *spelled, size_t capacity) {
+    BOOL aliased = (strncmp(path, "/var", 4) == 0 || strncmp(path, "/tmp", 4) == 0)
+            && (path[4] == '/' || path[4] == '\0');
+    snprintf(spelled, capacity, "%s%s", aliased ? "/private" : "", path);
+}
+
+// The index of the mount holding `path` in a getfsstat table: the longest
+// mount name that is a whole-component prefix of it. -1 for none.
+static inline int VibeMountHoldingPath(const struct statfs *_Nullable mounts, int count, const char *path) {
+    char spelledPath[MNAMELEN + 16], spelledMount[MNAMELEN + 16];
+    VibeMountSpelling(path, spelledPath, sizeof(spelledPath));
+    int best = -1;
+    size_t bestLength = 0;
+    for (int i = 0; i < count; i++) {
+        VibeMountSpelling(mounts[i].f_mntonname, spelledMount, sizeof(spelledMount));
+        size_t length = strlen(spelledMount);
+        while (length > 1 && spelledMount[length - 1] == '/') {
+            length--;
+        }
+        BOOL root = length == 1 && spelledMount[0] == '/';
+        BOOL holds = root ? spelledPath[0] == '/'
+                          : strncmp(spelledPath, spelledMount, length) == 0
+                                    && (spelledPath[length] == '/' || spelledPath[length] == '\0');
+        if (holds && (best < 0 || length > bestLength)) {
+            best = i;
+            bestLength = length;
+        }
+    }
+    return best;
+}
+
+// Whether a file reads ahead: YES when the mount holding it is a network one,
+// which is any mount not flagged MNT_LOCAL. No mount, or an empty table, is
+// NO: the direct road.
+static inline BOOL VibeMountReadsAhead(const struct statfs *_Nullable mounts, int count, const char *path) {
+    int index = VibeMountHoldingPath(mounts, count, path);
+    return index >= 0 && (mounts[index].f_flags & MNT_LOCAL) == 0;
 }
 
 NS_ASSUME_NONNULL_END

@@ -731,6 +731,42 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(transfer.progressBytes, 105u);
 }
 
+// What is held from an offset ends where the contiguous bytes do, the disk's
+// below the bytes written and then the blocks'; asking records no reader
+// position and raises no news for the writer.
+- (void)testHeldEndIsTheContiguousBytesAndRecordsNothing {
+    NSData *file = WindowPattern(1000);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 100)] atOffset:0];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(100, 100)] atOffset:100];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(500, 100)] atOffset:500];
+    TakeNews(availability);
+    uint8_t buffer[8];
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 550, 1, buffer, 8, &copied), CloudFileAvailabilityReady);
+    TakeNews(availability);
+    XCTAssertEqual([availability heldEndAt:0], 200u, @"across the boundary");
+    XCTAssertEqual([availability heldEndAt:150], 200u);
+    XCTAssertEqual([availability heldEndAt:200], 200u, @"a gap: the offset itself");
+    XCTAssertEqual([availability heldEndAt:300], 300u);
+    XCTAssertEqual([availability heldEndAt:520], 600u);
+    uint64_t offset = 0, length = 0, position = 0;
+    NSDate *soon = [NSDate dateWithTimeIntervalSinceNow:0.05];
+    XCTAssertTrue([availability waitForWorkUntil:soon wanted:&offset length:&length readerPosition:&position]);
+    XCTAssertGreaterThan(-soon.timeIntervalSinceNow, -0.01, @"no news, so the writer's wait ran to its deadline");
+    XCTAssertEqual(position, 550u, @"the last wait's offset, not the queries'");
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:1000];
+    [transfer noteWrittenBytes:300];
+    [transfer installWindow:[file subdataWithRange:NSMakeRange(600, 400)] atOffset:600];
+    XCTAssertEqual([transfer heldEndAt:10], 300u, @"the disk below the bytes written");
+    XCTAssertEqual([transfer heldEndAt:300], 300u);
+    XCTAssertEqual([transfer heldEndAt:700], 1000u, @"the tail window");
+    [transfer noteWrittenBytes:600];
+    XCTAssertEqual([transfer heldEndAt:10], 600u, @"the window is dropped once the disk reaches it");
+}
+
 // A drop keeps the block at byte 0, the block ending at the size, and a block
 // a blocked wait wants; with no wait blocked, that one goes too.
 - (void)testADropKeepsTheFirstTheLastAndTheWantedBlocks {
