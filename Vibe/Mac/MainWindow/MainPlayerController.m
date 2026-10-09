@@ -1058,6 +1058,12 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (IBAction) copyFile:(id)sender {
+    // ⌘C is this item's, so a focused text field copies its own text.
+    NSTextView *text = [self focusedTextView];
+    if (text) {
+        [NSApp sendAction:@selector(copy:) to:text from:sender];
+        return;
+    }
     [TrackCommands copyFiles:[self currentTrackAsList]];
 }
 

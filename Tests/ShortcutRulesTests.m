@@ -96,7 +96,7 @@ static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modi
 }
 
 - (void)testReservedShortcutsAreTheSystemOnesTheArrowsEscapeAndTheKeypad {
-    for (NSString *key in @[@",", @"h", @"q", @"w", @"z", @"c", @"a"]) {
+    for (NSString *key in @[@",", @"h", @"q", @"w", @"z", @"x", @"c", @"v", @"a"]) {
         XCTAssertTrue(VibeShortcutIsReserved(0, [key characterAtIndex:0], kCmd), @"⌘%@", key);
     }
     XCTAssertTrue(VibeShortcutIsReserved(4, 'h', kCmd | NSEventModifierFlagOption));
@@ -116,6 +116,38 @@ static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modi
     XCTAssertFalse(VibeShortcutIsReserved(12, 'q', kCmd | kShift));
     XCTAssertFalse(VibeShortcutIsReserved(0, 0x0444, kCmd), @"a Cyrillic ⌘ф is free");
     XCTAssertFalse(VibeShortcutIsReserved(46, 'm', 0), @"M is an ordinary key");
+}
+
+// Cut and Paste own ⌘X and ⌘V. Neither can be recorded, and an override
+// stored before they existed reaches neither the key monitor nor a menu item.
+- (void)testCutAndPasteKeysAreReservedAndAStoredOverrideOnThemIsInert {
+    XCTAssertTrue(VibeShortcutIsReserved(7, 'x', kCmd));
+    XCTAssertTrue(VibeShortcutIsReserved(9, 'v', kCmd));
+    XCTAssertTrue(VibeShortcutIsReserved(47, 'v', kCmd), @"Dvorak's V key types v under ⌘");
+    XCTAssertFalse(VibeShortcutIsReserved(7, 'x', 0), @"bare X stays Skip Back More");
+    XCTAssertFalse(VibeShortcutIsReserved(9, 'v', kCmd | kShift));
+    XCTAssertFalse(VibeShortcutIsReserved(9, 'v', kCmd | kOption));
+
+    VibeShortcut pasteKey = VibeShortcutMake(9, kCmd);
+    NSDictionary *overrides = @{kVibeMenuNextTrack: @(pasteKey)};
+    XCTAssertEqual(VibeShortcutEffective(kVibeMenuNextTrack, overrides), pasteKey, @"kept as stored");
+    XCTAssertNil(VibeShortcutCommandForPress(9, kCmd, 'v', 'v', overrides), @"the press passes on to Paste");
+    XCTAssertEqual(VibeShortcutForMenuItem(pasteKey, 'v'), kVibeShortcutNone, @"no shadowing equivalent");
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutMake(7, kCmd), 'x'), kVibeShortcutNone);
+    // The same key under a layout that types another letter there is free.
+    XCTAssertEqual(VibeShortcutForMenuItem(pasteKey, 0x043C), pasteKey, @"Russian ⌘м");
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(9, kCmd, 0x043C, 0x043C, overrides), kVibeMenuNextTrack);
+}
+
+- (void)testAMenuItemCarriesEveryShortcutButAReservedOne {
+    for (NSString *identifier in VibeShortcutIdentifiers()) {
+        VibeShortcut shortcut = VibeShortcutDefault(identifier);
+        XCTAssertEqual(VibeShortcutForMenuItem(shortcut, 0), shortcut, @"%@", identifier);
+    }
+    XCTAssertEqual(VibeShortcutForMenuItem(kVibeShortcutNone, 'v'), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutMake(12, kCmd), 'q'), kVibeShortcutNone, @"⌘Q");
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutMake(126, kCmd), 0), kVibeShortcutNone, @"an arrow");
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutMake(40, kCmd), 'k'), VibeShortcutMake(40, kCmd));
 }
 
 - (void)testAssigningTakesTheShortcutFromItsOwnerAndStaysSparse {

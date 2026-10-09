@@ -22,11 +22,12 @@
 #import "VibeStrings.h"
 
 // TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
-// any menu it takes for Edit, all inert here. No public opt-out covers
-// AutoFill, so this delegate drops every item without a menu_edit* identifier,
-// separators included. It deliberately does not implement
-// menuHasKeyEquivalent:…: Edit carries real key equivalents, which that
-// override would answer for instead of letting AppKit walk the items.
+// any menu it takes for Edit, of no use in the app's few short text fields.
+// No public opt-out covers AutoFill, so this delegate drops every item
+// without a menu_edit* identifier, separators included. It deliberately
+// does not implement menuHasKeyEquivalent:…: Edit carries real key
+// equivalents, which that override would answer for instead of letting
+// AppKit walk the items.
 @interface VibeEditMenuCleaner : NSObject <NSMenuDelegate>
 @end
 
@@ -34,7 +35,7 @@
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     for (NSMenuItem *item in [menu.itemArray copy]) {
-        if (![item.identifier hasPrefix:@"menu_edit"]) {
+        if (!VibeEditMenuKeepsItem(item.identifier)) {
             [menu removeItem:item];
         }
     }
@@ -232,11 +233,18 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), nil, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
     AddSeparator(editMenu).identifier = @"menu_edit_separator";
 
+    // Cut and Paste are nil-targeted, so they reach the focused text field
+    // and stay disabled anywhere else. ⌘C is Copy File's, which forwards to
+    // a focused text field itself.
+    AddSymbolItem(editMenu, STR_MENU_EDIT_CUT, @"scissors", @selector(cut:), nil,
+                  @"x", NSEventModifierFlagCommand, kVibeMenuEditCut);
     [editMenu addItem:[self copyNameItemWithTarget:player]];
     NSMenuItem *copyFileItem = [self copyFileItemWithTarget:player];
     copyFileItem.keyEquivalent = @"c";
     copyFileItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [editMenu addItem:copyFileItem];
+    AddSymbolItem(editMenu, STR_MENU_EDIT_PASTE, @"doc.on.clipboard", @selector(paste:), nil,
+                  @"v", NSEventModifierFlagCommand, kVibeMenuEditPaste);
 
     AddSeparator(editMenu).identifier = @"menu_edit_separator_remove";
     // minus.circle, not trash: the file stays on disk.
@@ -552,8 +560,12 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
         // and Convert hide in place), so an item under a hidden menu gets
         // none. Not the item's own flag, which Convert's validation sets and
         // may not have cleared yet.
-        ApplyShortcut(item, item.parentItem.isHiddenOrHasHiddenAncestor
-                ? kVibeShortcutNone : VibeShortcutEffective(identifier, overrides));
+        VibeShortcut shortcut = item.parentItem.isHiddenOrHasHiddenAncestor
+                ? kVibeShortcutNone : VibeShortcutEffective(identifier, overrides);
+        unichar character = shortcut == kVibeShortcutNone || VibeShortcutIsCharacter(shortcut) ? 0
+                : [self characterForKeyCode:VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut))
+                                  modifiers:VibeShortcutModifiers(shortcut)];
+        ApplyShortcut(item, VibeShortcutForMenuItem(shortcut, character));
     }
 }
 

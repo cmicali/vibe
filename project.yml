@@ -294,6 +294,12 @@ targets:
 
         ITSAppUsesNonExemptEncryption: false
 
+        # Open URL: https to any host, plain http only on the local network.
+        # InfoPlist.xcstrings localizes the usage text.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
+
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
 
@@ -397,6 +403,7 @@ targets:
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_APP_SANDBOX: YES
         ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES    # Open URL; nothing else reaches the network
         ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
@@ -506,6 +513,11 @@ targets:
         LSApplicationCategoryType: "public.app-category.music"
         ITSAppUsesNonExemptEncryption: false
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
+        # Open URL: https to any host, plain http only on the local network.
+        # InfoPlist.xcstrings localizes the usage text.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
         UILaunchScreen: {}                    # system launch screen; no storyboard
         UIBackgroundModes: [audio]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

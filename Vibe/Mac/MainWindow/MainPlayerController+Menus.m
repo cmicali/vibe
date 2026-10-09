@@ -206,7 +206,13 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) menuItem.title = manager.redoMenuItemTitle;
     return VibeEditMenuEnabled(menuItem.identifier, self.isConversionUndoRedoInFlight,
             manager.canUndo, manager.canRedo, [self hasVisiblePlaylistSelection],
-            self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil);
+            self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil,
+            [self focusedTextView] != nil);
+}
+
+- (nullable NSTextView *)focusedTextView {
+    NSResponder *responder = NSApp.keyWindow.firstResponder;
+    return [responder isKindOfClass:NSTextView.class] ? (NSTextView *)responder : nil;
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {

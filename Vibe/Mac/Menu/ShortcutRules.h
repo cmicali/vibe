@@ -197,7 +197,7 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
     NSEventModifierFlags cmd = NSEventModifierFlagCommand;
     if (modifiers == cmd) {
         switch (character) {
-            case ',': case 'h': case 'q': case 'w': case 'z': case 'c': case 'a':
+            case ',': case 'h': case 'q': case 'w': case 'z': case 'x': case 'c': case 'v': case 'a':
                 return YES;
         }
         return NO;
@@ -209,6 +209,21 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
         return character == 'z';
     }
     return NO;
+}
+
+// What a command's menu item carries: none when its effective shortcut lands
+// on a reserved one. An override stored before a key was reserved, such as a
+// ⌘V from before Edit > Paste, must not shadow the system's item. character
+// is the key's lowercase character under the current layout, 0 when it has
+// none; a character shortcut supplies its own.
+static inline VibeShortcut VibeShortcutForMenuItem(VibeShortcut shortcut, unichar character) {
+    if (shortcut == kVibeShortcutNone) {
+        return kVibeShortcutNone;
+    }
+    BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
+    unsigned short keyCode = isCharacter ? kVibeShortcutKeyMask : VibeShortcutKey(shortcut);
+    unichar typed = isCharacter ? VibeShortcutKey(shortcut) : character;
+    return VibeShortcutIsReserved(keyCode, typed, VibeShortcutModifiers(shortcut)) ? kVibeShortcutNone : shortcut;
 }
 
 // The command a key performs, or a recorded one would collide with, nil for
