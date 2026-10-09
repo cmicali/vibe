@@ -20,6 +20,7 @@
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
+#import "NSURLUtil.h"
 #import "VibeStrings.h"
 
 // Validation runs on every menu open and every bound keypress, a held skip
@@ -223,7 +224,9 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     }
     // Shared with the window-body context menu. Hiding it here is how the
     // context menus follow the Convert setting live.
-    menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
+    NSString *path = self.playlistController.currentTrack.url.path;
+    menuItem.hidden = VibeConvertMenuItemHidden(AppSettings.sharedInstance.convertEnabled,
+                                                path && VibePathIsUnderRemotePlaceholderRoot(path));
     if (menuItem.hidden) {
         return NO;
     }

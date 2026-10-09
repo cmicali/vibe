@@ -17,6 +17,7 @@
 #import "OpenBurstCoalescer.h"
 #import "OpenRequestCoordinator.h"
 #import "OpenRecentMenuController.h"
+#import "PlaylistController.h"
 #import "PlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
@@ -24,6 +25,7 @@
 #import "DocumentTypes.h"
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
+#import "AudioTrack.h"
 #import "FolderArtResolver.h"
 #import "LinkStore.h"
 #import "VibeStrings.h"
@@ -53,6 +55,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
+    // Open URL's prompt while it is up. A second ⌘U re-fronts it.
+    NSAlert *_openLinkAlert;
 }
 
 - (instancetype)init {
@@ -142,7 +146,23 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         } revealEmpty:^{
             [self.mainPlayerController revealEmptyStateNamingPlaylist:nil];
         }];
+        [self pruneLinks];
     }];
+}
+
+// Once per launch, after the restore, so the playlist holds what it brought
+// back. A launch-time open may still be expanding, so its rows are not kept.
+// A link it names was opened within 30 days, unless a saved playlist names an
+// older one.
+- (void)pruneLinks {
+    NSMutableArray<NSURL *> *rows = [NSMutableArray array];
+    for (AudioTrack *track in self.mainPlayerController.playlistController.playlist) {
+        if (track.url) {
+            [rows addObject:track.url];
+        }
+    }
+    NSArray<NSURL *> *recents = NSDocumentController.sharedDocumentController.recentDocumentURLs;
+    [LinkStore.shared pruneKeepingURLs:VibeLinkKeptURLs(rows, recents)];
 }
 
 // Dash-prefixed flags are skipped. Under the sandbox only paths it already
@@ -387,6 +407,53 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             [self->_openBurstCoalescer openDeliberateURLs:panel.URLs appending:NO];
         }
     }];
+}
+
+- (IBAction)openLink:(id)sender {
+    NSWindow *window = self.mainPlayerController.window;
+    [window makeKeyAndOrderFront:sender];
+    if (_openLinkAlert) {
+        [_openLinkAlert.window makeKeyAndOrderFront:sender];
+        return;
+    }
+    NSTextField *field = [NSTextField textFieldWithString:@""];
+    field.placeholderString = VibeNotLocalized(@"https://");
+    field.frame = NSMakeRect(0, 0, 380, field.intrinsicContentSize.height);
+    field.cell.scrollable = YES;
+    field.cell.wraps = NO;
+    field.usesSingleLineMode = YES;
+
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = STR_LINK_PROMPT_TITLE;
+    alert.informativeText = STR_LINK_PROMPT_MESSAGE;
+    alert.accessoryView = field;
+    [alert addButtonWithTitle:STR_BUTTON_OPEN];
+    // NSAlert assigns Escape by the button's title. Set here, it holds in
+    // every language.
+    [alert addButtonWithTitle:STR_BUTTON_CANCEL].keyEquivalent = @"\e";
+    [alert layout];
+    alert.window.initialFirstResponder = field;
+    _openLinkAlert = alert;
+    [alert beginSheetModalForWindow:window completionHandler:^(NSModalResponse response) {
+        self->_openLinkAlert = nil;
+        NSString *text = field.stringValue;
+        if (response != NSAlertFirstButtonReturn || VibeLinkTextIsBlank(text)) {
+            return;
+        }
+        [self openLinkString:text completion:^(NSURL *file, NSError *error) {
+            if (error) {
+                [self showLinkError:error];
+            }
+        }];
+    }];
+}
+
+- (void)showLinkError:(NSError *)error {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.alertStyle = NSAlertStyleWarning;
+    alert.messageText = STR_LINK_ERROR_TITLE;
+    alert.informativeText = [LinkStore messageForError:error];
+    [alert beginSheetModalForWindow:self.mainPlayerController.window completionHandler:nil];
 }
 
 #if DEBUG

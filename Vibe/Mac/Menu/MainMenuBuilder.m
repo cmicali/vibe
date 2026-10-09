@@ -155,7 +155,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Main Menu")];
 
     [self buildAppMenuIn:mainMenu appDelegate:appDelegate];
-    [self buildFileMenuIn:mainMenu player:player openRecentMenuController:openRecentMenuController];
+    [self buildFileMenuIn:mainMenu appDelegate:appDelegate player:player
+            openRecentMenuController:openRecentMenuController];
     [self buildEditMenuIn:mainMenu player:player];
     [self buildPlaybackMenuIn:mainMenu player:player];
     [self buildFXMenuIn:mainMenu player:player];
@@ -207,10 +208,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
             @selector(terminate:), nil, @"q", NSEventModifierFlagCommand, nil);
 }
 
-+ (void)buildFileMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player
++ (void)buildFileMenuIn:(NSMenu *)mainMenu appDelegate:(AppDelegate *)appDelegate
+                 player:(MainPlayerController *)player
         openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
     AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"", 0, kVibeMenuOpen);
+    AddItem(fileMenu, STR_MENU_FILE_OPEN_URL, @selector(openLink:), appDelegate, @"", 0, kVibeMenuOpenLink);
     NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
     AddSeparator(fileMenu);
@@ -460,6 +463,18 @@ static NSString *_Nullable LayoutCharacter(unsigned short keyCode, NSEventModifi
     return LayoutCharacters(state)[@(keyCode)].lowercaseString;
 }
 
+// The key that types character in that layer, kVibeShortcutKeyMask when no
+// key does. The lowest key code wins, so the answer is the same every time.
+static unsigned short LayoutKeyCode(unichar character, NSEventModifierFlags modifiers) {
+    for (unsigned short keyCode = 0; keyCode < 128; keyCode++) {
+        NSString *typed = LayoutCharacter(keyCode, modifiers);
+        if (typed.length == 1 && [typed characterAtIndex:0] == character) {
+            return keyCode;
+        }
+    }
+    return kVibeShortcutKeyMask;
+}
+
 static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     unsigned short key = VibeShortcutKey(shortcut);
     NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
@@ -562,10 +577,15 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
         // may not have cleared yet.
         VibeShortcut shortcut = item.parentItem.isHiddenOrHasHiddenAncestor
                 ? kVibeShortcutNone : VibeShortcutEffective(identifier, overrides);
-        unichar character = shortcut == kVibeShortcutNone || VibeShortcutIsCharacter(shortcut) ? 0
-                : [self characterForKeyCode:VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut))
-                                  modifiers:VibeShortcutModifiers(shortcut)];
-        ApplyShortcut(item, VibeShortcutForMenuItem(shortcut, character));
+        unsigned short key = VibeShortcutKey(shortcut);
+        NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+        BOOL isCharacter = shortcut != kVibeShortcutNone && VibeShortcutIsCharacter(shortcut);
+        BOOL isKeyCode = shortcut != kVibeShortcutNone && !isCharacter;
+        unsigned short layoutKeyCode = isCharacter ? LayoutKeyCode(key, modifiers) : kVibeShortcutKeyMask;
+        unichar layoutCharacter = isKeyCode
+                ? [self characterForKeyCode:VibeShortcutCanonicalKeyCode(key) modifiers:modifiers] : 0;
+        ApplyShortcut(item, VibeShortcutForMenuItem(identifier, shortcut, layoutKeyCode, layoutCharacter,
+                                                    overrides));
     }
 }
 

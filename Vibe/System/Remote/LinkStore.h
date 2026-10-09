@@ -48,6 +48,11 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 - (void)resolveURLString:(NSString *)string
               completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
 
+// What the shell shows for a failed open: the error's link.error string. A
+// Server error names its status. Any error outside the link domain reads as
+// unreachable. A disk failure is one.
++ (NSString *)messageForError:(nullable NSError *)error;
+
 // Deletes each link not opened for 30 days that no URL in kept lies in. Once
 // per launch, after the restore, so kept holds what the shell restored. A
 // saved playlist naming a deleted link finds its entry missing. Off main, on

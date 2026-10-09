@@ -80,8 +80,10 @@ static NSString *const kVibeMenuPitchRange8 = @"pitch_range_8";
 static NSString *const kVibeMenuPitchRange16 = @"pitch_range_16";
 
 static NSString *const kVibeMenuPlay = @"menu_play";
-// Absent from the domains below: File > Open targets the app delegate.
+// Absent from the domains below: File > Open and Open URL target the app
+// delegate, which enables them always.
 static NSString *const kVibeMenuOpen = @"menu_open";
+static NSString *const kVibeMenuOpenLink = @"menu_open_link";
 static NSString *const kVibeMenuSavePlaylist = @"menu_save_playlist";
 static NSString *const kVibeMenuClose = @"menu_close";
 static NSString *const kVibeMenuShowInFinder = @"show_in_finder";
@@ -239,6 +241,15 @@ static inline NSString *_Nullable VibeFileMenuTitle(NSString *identifier, NSUInt
     if ([identifier isEqualToString:kVibeMenuPlay]) return playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
     if ([identifier isEqualToString:kVibeMenuClose]) return count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
     return nil;
+}
+
+// Convert to FLAC shows only with Convert switched on, and never for a file
+// under a remote root: an Open URL link's file belongs to the store, and a
+// FLAC beside it would land in the store's directory. underRemoteRoot is
+// VibePathIsUnderRemotePlaceholderRoot, a spelling test, since validation
+// never stats.
+static inline BOOL VibeConvertMenuItemHidden(BOOL convertEnabled, BOOL underRemoteRoot) {
+    return !convertEnabled || underRemoteRoot;
 }
 
 static inline NSString *VibeConvertMenuTitle(BOOL converting) {

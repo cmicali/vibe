@@ -85,7 +85,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 4. The audio check and the extension (`VibeLinkAudioExtension`). It gets the link's own URL, not the redirect's, since a CDN's path carries no name.
 5. The record and the placeholder. The size is the probe's. The mtime is Last-Modified, else the probe's time. The cache key then stays the same across the install.
 
-**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`.** A status failure carries its status under `VibeHTTPErrorStatusCodeKey`. Any other 2xx than 200 or 206 is the server's failure. A refused redirect is the insecure one. A connection failure is unreachable, or the local network's when the host is local. Each shell turns the code into its `link.error` string. A disk failure is passed through as its POSIX error.
+**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`.** A status failure carries its status under `VibeHTTPErrorStatusCodeKey`. Any other 2xx than 200 or 206 is the server's failure. A refused redirect is the insecure one. A connection failure is unreachable, or the local network's when the host is local. `+[LinkStore messageForError:]` turns the code into its `link.error` string for both shells. A disk failure is passed through as its POSIX error. Like any error outside the domain, it reads as unreachable.
 
 **An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
 

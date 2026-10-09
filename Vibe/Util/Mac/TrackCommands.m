@@ -5,6 +5,7 @@
 
 #import "TrackCommands.h"
 #import "AudioTrack.h"
+#import "NSURLUtil.h"
 
 @implementation TrackCommands
 
@@ -28,10 +29,19 @@
 }
 
 + (void)copyFiles:(NSArray<AudioTrack *> *)tracks {
-    NSArray<NSURL *> *urls = [self urlsOfTracks:tracks];
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSURL *url in [self urlsOfTracks:tracks]) {
+        if ([self handsOutURL:url]) {
+            [urls addObject:url];
+        }
+    }
     if (urls.count) {
         [self writeToPasteboard:urls];
     }
+}
+
++ (BOOL)handsOutURL:(NSURL *)url {
+    return url.isFileURL && ![NSURLUtil isRemotePlaceholderFile:url];
 }
 
 + (void)copyNames:(NSArray<AudioTrack *> *)tracks {

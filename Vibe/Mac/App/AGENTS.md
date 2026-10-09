@@ -13,6 +13,10 @@ Every way a file can arrive — a Finder double-click, `⌘O`, Open Recent, a dr
 - **`OpenBurstCoalescer`** — Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays immediately, because a double-clicked file must not wait out a delay; later batches inside a **0.3-second quiet period** are appended instead of replacing.
 - **`OpenRequestCoordinator`** — expansion (the folder walk, the CUE/M3U read) runs concurrently, so results come back out of order. One instance serves the whole app, shared with the window's drop funnel. It buffers appends within the surviving burst and lets a newer **deliberate** replacement supersede every unfinished older result. An expansion that never finishes — a mount that stops answering — holds a later finished batch at most **ten seconds** before it is abandoned, or one wedged batch would swallow every later batch in its burst.
 
+**Open URL starts from text.** `openLink:` (⌘U) shows an `NSAlert` with a text field as a sheet on the player window. A second ⌘U brings the same sheet forward. Nothing reads the pasteboard unless the user pastes. Open with a blank field does nothing (`VibeLinkTextIsBlank`), the same as Cancel. Otherwise `openLinkString:completion:` takes a replace request at once, then `LinkStore` resolves the link off main. The file opens through `openURLsWithRestoredAccess:token:` as a single-file replace. A failure finishes the request with no rows, and a loaded playlist stays as it is. The shell then shows an alert titled `link.error.title` whose message is `+[LinkStore messageForError:]`.
+
+**The Links backend is installed first in `applicationWillFinishLaunching:`**, before the menu, the restore and any open. A restored link row is then a streaming placeholder from the start (`System/Remote/AGENTS.md`).
+
 `⌘O`, Open Recent and window drops enter through `openDeliberateURLs:appending:` and bypass the burst, so a deliberate action ends a Launch Services burst in progress rather than joining it. Drops are the one deliberate open that carries its own append decision.
 
 **Close invalidates the open coordinator before unloading the playlist.** A pending folder walk or buffered append cannot reopen files after the user closed them; replacement opens share the same invalidation method.
@@ -50,6 +54,8 @@ Restoration has three utility workers plus one user-initiated lane reserved for 
 ## The last playlist
 
 Launch order is grants → drain → restore → empty state: inside `restoreGrantedAccessWithCompletion:`, the tested `OpenBurstCoalescer.finishLaunchRestoring:revealEmpty:` calls `startAndDrainQueue` first, and only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and only when that finds nothing does `revealEmptyStateNamingPlaylist:nil` end the launch grace. **A launch-time open outranks the remembered playlist, and the restore is not an open**: it enters neither the coalescer — an empty drain arms no burst, so a Finder open a beat later replaces rather than appends — nor `openURLs:appending:`, so it records no stats and mints no bookmarks; what its parked start refreshes, Open Recent included, is the ordinary per-track refresh. `applicationWillTerminate:` calls `saveLastPlaylist` beside the stats flush, and it runs on every quit: the app does not opt into sudden termination, under which an idle quit is a SIGKILL with no callback.
+
+**Links are pruned once per launch, after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`VibeLinkKeptURLs`). The store deletes each other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
 
 ## Quitting
 

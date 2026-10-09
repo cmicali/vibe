@@ -19,6 +19,7 @@
 #import "NSURLUtil+Debug.h"
 #import "NSURLUtilInternal.h"
 #import "PlayableExtensions.h"
+#import "TrackCommands.h"
 
 @interface NSURLUtilTests : XCTestCase
 @end
@@ -772,6 +773,30 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     [NSURLUtil setRemotePlaceholderRoots:@[]];
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:first]);
     XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(first.path));
+}
+
+// Copy Files and a drag out of the playlist hand no remote placeholder to
+// another app. A download under the root, a file elsewhere and an unreadable
+// file elsewhere are handed out.
+- (void)testOnlyARemotePlaceholderIsNeverHandedOut {
+    NSURL *placeholder = [self makeFile:@"remote/aa/link.mp3"];
+    NSURL *download = [self makeFile:@"remote/bb/kept.mp3"];
+    NSURL *local = [self makeFile:@"music/local.mp3"];
+    NSURL *unreadable = [self makeFile:@"music/locked.mp3"];
+    chmod(placeholder.fileSystemRepresentation, 0000);
+    chmod(unreadable.fileSystemRepresentation, 0000);
+    [NSURLUtil setRemotePlaceholderRoot:[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]];
+
+    XCTAssertFalse([TrackCommands handsOutURL:placeholder]);
+    XCTAssertTrue([TrackCommands handsOutURL:download]);
+    XCTAssertTrue([TrackCommands handsOutURL:local]);
+    XCTAssertTrue([TrackCommands handsOutURL:unreadable]);
+    XCTAssertFalse([TrackCommands handsOutURL:[NSURL URLWithString:@"https://example.com/a.mp3"]]);
+    XCTAssertFalse([TrackCommands handsOutURL:nil]);
+
+    // With no root, nothing is a placeholder.
+    [NSURLUtil setRemotePlaceholderRoot:nil];
+    XCTAssertTrue([TrackCommands handsOutURL:placeholder]);
 }
 
 - (void)testAMaterializedFileIsNotDataless {

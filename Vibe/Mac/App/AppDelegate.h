@@ -15,6 +15,8 @@
 @property (nonatomic, readonly) SettingsWindowController *settingsWindowController;
 
 - (IBAction)openDocument:(id)sender;
+// File > Open URL…: asks for a link in a sheet on the player window.
+- (IBAction)openLink:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;
 - (IBAction)showSettingsWindow:(id)sender;
 // View > Theme > Edit Themes…: opens Settings on the theme editor.

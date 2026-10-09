@@ -117,6 +117,13 @@ static inline NSURL *_Nullable VibeLinkURLFromString(NSString *_Nullable text) {
     return trimmed.length > 0 ? [NSURL URLWithString:trimmed] : nil;
 }
 
+// Whether the prompt's Open does nothing: the text is empty, or only spaces
+// and newlines. Nothing typed is the same as Cancel. It is no address to
+// refuse.
+static inline BOOL VibeLinkTextIsBlank(NSString *_Nullable text) {
+    return [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].length == 0;
+}
+
 #pragma mark - Dropbox share links
 
 // A Dropbox share link to a file (/scl/fi/… or /s/…) with dl=1. That form
@@ -370,6 +377,21 @@ static inline NSString *_Nullable VibeLinkStrongETag(NSString *_Nullable etag) {
 // A link not opened for this long is deleted at launch, unless something
 // still names it.
 static const NSTimeInterval kVibeLinkPruneAgeSeconds = 30 * 24 * 60 * 60;
+
+// The URLs that keep their links from the launch's pruning: the playlist's
+// rows as the launch restored them, and the recent items. Each shell passes
+// its own lists. Only file URLs count.
+static inline NSSet<NSURL *> *VibeLinkKeptURLs(NSArray<NSURL *> *rows, NSArray<NSURL *> *recents) {
+    NSMutableSet<NSURL *> *kept = [NSMutableSet set];
+    for (NSArray<NSURL *> *list in @[rows, recents]) {
+        for (NSURL *url in list) {
+            if (url.isFileURL) {
+                [kept addObject:url];
+            }
+        }
+    }
+    return kept;
+}
 
 // The link directories to delete, by name, sorted. records maps each
 // directory's name to its record, NSNull for a directory with none. One

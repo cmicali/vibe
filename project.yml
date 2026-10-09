@@ -786,6 +786,7 @@ targets:
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/Mac/TrackCommands.m
       - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m

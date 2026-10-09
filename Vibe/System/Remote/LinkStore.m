@@ -11,6 +11,7 @@
 #import "NSURLUtil.h"
 #import "PlayableExtensions.h"
 #import "RemotePlaceholderStoreInternal.h"
+#import "VibeStrings.h"
 
 NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
 
@@ -388,6 +389,29 @@ static time_t VibeLinkTimeOfHTTPDate(NSString *_Nullable text) {
 }
 
 #pragma mark - Pruning
+
++ (NSString *)messageForError:(NSError *)error {
+    if (![error.domain isEqualToString:VibeLinkErrorDomain]) {
+        return STR_LINK_ERROR_UNREACHABLE;
+    }
+    switch ((VibeLinkError)error.code) {
+        case VibeLinkErrorInvalid:      return STR_LINK_ERROR_INVALID;
+        case VibeLinkErrorInsecure:     return STR_LINK_ERROR_INSECURE;
+        case VibeLinkErrorLocalNetwork: return STR_LINK_ERROR_LOCAL_NETWORK;
+        case VibeLinkErrorNotFound:     return STR_LINK_ERROR_NOT_FOUND;
+        case VibeLinkErrorDenied:       return STR_LINK_ERROR_DENIED;
+        case VibeLinkErrorNotAudio:     return STR_LINK_ERROR_NOT_AUDIO;
+        case VibeLinkErrorNoSize:       return STR_LINK_ERROR_NO_SIZE;
+        case VibeLinkErrorLiveStream:   return STR_LINK_ERROR_LIVE_STREAM;
+        case VibeLinkErrorServer:
+            return [NSString stringWithFormat:STR_LINK_ERROR_SERVER,
+                                              (long)[error.userInfo[VibeHTTPErrorStatusCodeKey] integerValue]];
+        case VibeLinkErrorNone:
+        case VibeLinkErrorUnreachable:
+            break;
+    }
+    return STR_LINK_ERROR_UNREACHABLE;
+}
 
 - (void)pruneKeepingURLs:(NSSet<NSURL *> *)kept {
     dispatch_async(self.diskQueue, ^{

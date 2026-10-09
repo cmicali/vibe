@@ -125,6 +125,9 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuEditRemoveFromPlaylist, @(VibeShortcutMake(kVibeKeyCodeDelete, 0))],
             @[kVibeMenuConvertToFLAC,     @(kVibeShortcutNone)],
             @[kVibeMenuConvertDeleteOriginal, @(kVibeShortcutNone)],
+            // Last: a default added later loses its key to an override stored
+            // before it. A duplicate resolves in table order.
+            @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('u', cmd))],
         ];
     });
     return table;
@@ -211,21 +214,6 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
     return NO;
 }
 
-// What a command's menu item carries: none when its effective shortcut lands
-// on a reserved one. An override stored before a key was reserved, such as a
-// ⌘V from before Edit > Paste, must not shadow the system's item. character
-// is the key's lowercase character under the current layout, 0 when it has
-// none; a character shortcut supplies its own.
-static inline VibeShortcut VibeShortcutForMenuItem(VibeShortcut shortcut, unichar character) {
-    if (shortcut == kVibeShortcutNone) {
-        return kVibeShortcutNone;
-    }
-    BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
-    unsigned short keyCode = isCharacter ? kVibeShortcutKeyMask : VibeShortcutKey(shortcut);
-    unichar typed = isCharacter ? VibeShortcutKey(shortcut) : character;
-    return VibeShortcutIsReserved(keyCode, typed, VibeShortcutModifiers(shortcut)) ? kVibeShortcutNone : shortcut;
-}
-
 // The command a key performs, or a recorded one would collide with, nil for
 // none: a key-code shortcut matched by physical key, a character default by
 // character (the key's lowercase character, 0 when unknown), each with the
@@ -253,6 +241,31 @@ static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unich
         }
     }
     return nil;
+}
+
+// What a command's menu item carries: none when its shortcut lands on a
+// reserved key, or on a key a command earlier in table order holds. The first
+// keeps an override stored before its key was reserved, such as a ⌘V from
+// before Edit > Paste, from shadowing the system's item. The second resolves a
+// duplicate as the key monitor does, so an override stored before a default
+// arrived on its key keeps the key: Open URL's ⌘U. Each layout argument is
+// read for one kind only. layoutKeyCode is the key a character shortcut's
+// letter is on, kVibeShortcutKeyMask for none. layoutCharacter is the
+// lowercase character a key-code shortcut types, 0 for none.
+static inline VibeShortcut VibeShortcutForMenuItem(NSString *identifier, VibeShortcut shortcut,
+        unsigned short layoutKeyCode, unichar layoutCharacter, NSDictionary *_Nullable overrides) {
+    if (shortcut == kVibeShortcutNone) {
+        return kVibeShortcutNone;
+    }
+    BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
+    unsigned short keyCode = isCharacter ? layoutKeyCode : VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
+    unichar character = isCharacter ? VibeShortcutKey(shortcut) : layoutCharacter;
+    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+    if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
+        return kVibeShortcutNone;
+    }
+    NSString *owner = VibeShortcutOwner(VibeShortcutMake(keyCode, modifiers), character, overrides, nil);
+    return owner == nil || [owner isEqualToString:identifier] ? shortcut : kVibeShortcutNone;
 }
 
 // The command a press performs, nil to pass it on. Under Command a layout's

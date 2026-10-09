@@ -17,8 +17,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)revealInFinder:(NSArray<AudioTrack *> *)tracks;
 
-// The file URLs, so a Finder paste copies the files.
+// The file URLs, so a Finder paste copies the files. A remote placeholder is
+// left out (handsOutURL:).
 + (void)copyFiles:(NSArray<AudioTrack *> *)tracks;
+
+// Whether another app may be given this file, by Copy Files or a drag out of
+// the playlist. A remote placeholder may not: its bytes are not there, and no
+// other app can read it. The path is tested before any stat.
++ (BOOL)handsOutURL:(nullable NSURL *)url;
 
 // One name per line.
 + (void)copyNames:(NSArray<AudioTrack *> *)tracks;

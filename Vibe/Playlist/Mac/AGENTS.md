@@ -67,6 +67,8 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController` (data source an
 
 **The private type plus the live token is the whole proof a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`: same source, the type, a matching token) — a file URL alone is what an external file drag carries too. The table registers only the private type, so an external file drag still falls to the window's wells, and `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open.
 
+**A remote placeholder is never dragged out** (`TrackCommands.handsOutURL:`, the path tested before any stat). No other app could read its bytes. Its item carries only the reorder type, so its row still reorders. Copy Files skips it by the same answer.
+
 **`willBeginAtPoint:` starts the security scope on each dragged URL and `endedAtPoint:` — always called, drop or cancel — balances it**, since a receiver outside the app reads the files long after the session. Only URLs whose start answered YES are recorded: an unbalanced stop over-releases the sandbox extension, and a URL covered by a folder grant answers NO and drags fine. Token, tracks and scopes all clear at session end.
 
 **A row number captured at mouse-down is never trusted.** The payload is the retained array of exact `AudioTrack`s, re-resolved through `rowsForTracks:` at every validation and at the drop: a replaced playlist resolves all to nothing and rejects the drag; a row converted away drops out alone and its companions still move. One qualification (`reorderDestinationForInfo:`) serves both the insertion line and the accept, so the line never promises a move the drop refuses. Hover is O(1) in playlist size; an accepted drop is one O(n) model rebuild.

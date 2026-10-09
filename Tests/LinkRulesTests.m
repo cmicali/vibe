@@ -8,8 +8,11 @@
 
 #import <XCTest/XCTest.h>
 
+#import "HTTPTransferClient.h"
 #import "LinkRules.h"
+#import "LinkStore.h"
 #import "PlayableExtensions.h"
+#import "VibeStrings.h"
 
 @interface LinkRulesTests : XCTestCase
 @end
@@ -788,6 +791,79 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqual(VibeLinkErrorOfMissingSize(@{@1: @"icy-", @"Content-Type": @2}), VibeLinkErrorNoSize);
     XCTAssertEqual(VibeLinkErrorOfMissingSize(@{}), VibeLinkErrorNoSize);
     XCTAssertEqual(VibeLinkErrorOfMissingSize(nil), VibeLinkErrorNoSize);
+}
+
+#pragma mark - What the shells show
+
+static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
+    return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
+}
+
+- (void)testEachFailureShowsItsOwnString {
+    NSDictionary<NSNumber *, NSString *> *expected = @{
+        @(VibeLinkErrorInvalid): STR_LINK_ERROR_INVALID,
+        @(VibeLinkErrorInsecure): STR_LINK_ERROR_INSECURE,
+        @(VibeLinkErrorUnreachable): STR_LINK_ERROR_UNREACHABLE,
+        @(VibeLinkErrorLocalNetwork): STR_LINK_ERROR_LOCAL_NETWORK,
+        @(VibeLinkErrorNotFound): STR_LINK_ERROR_NOT_FOUND,
+        @(VibeLinkErrorDenied): STR_LINK_ERROR_DENIED,
+        @(VibeLinkErrorNotAudio): STR_LINK_ERROR_NOT_AUDIO,
+        @(VibeLinkErrorNoSize): STR_LINK_ERROR_NO_SIZE,
+        @(VibeLinkErrorLiveStream): STR_LINK_ERROR_LIVE_STREAM,
+    };
+    for (NSNumber *code in expected) {
+        XCTAssertEqualObjects([LinkStore messageForError:LinkError(code.integerValue, nil)], expected[code], @"%@", code);
+    }
+    NSMutableSet<NSString *> *distinct = [NSMutableSet setWithArray:expected.allValues];
+    [distinct addObject:STR_LINK_ERROR_SERVER];
+    XCTAssertEqual(distinct.count, expected.count + 1, @"no two failures share a message");
+}
+
+// The status goes into the message. A server error with no status still
+// shows the server's message.
+- (void)testAServerFailureNamesItsStatus {
+    NSError *error = LinkError(VibeLinkErrorServer, @{VibeHTTPErrorStatusCodeKey: @503});
+    NSString *with503 = [NSString stringWithFormat:STR_LINK_ERROR_SERVER, 503L];
+    NSString *withNone = [NSString stringWithFormat:STR_LINK_ERROR_SERVER, 0L];
+    XCTAssertEqualObjects([LinkStore messageForError:error], with503);
+    XCTAssertTrue([[LinkStore messageForError:error] containsString:@"503"]);
+    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorServer, nil)], withNone);
+}
+
+// A disk failure is passed through as its POSIX error. It, a code from
+// another domain, a code no shell names and nil all read as unreachable.
+- (void)testAnythingElseReadsAsUnreachable {
+    NSError *posix = [NSError errorWithDomain:NSPOSIXErrorDomain code:VibeLinkErrorDenied userInfo:nil];
+    XCTAssertEqualObjects([LinkStore messageForError:posix], STR_LINK_ERROR_UNREACHABLE);
+    NSError *network = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil];
+    XCTAssertEqualObjects([LinkStore messageForError:network], STR_LINK_ERROR_UNREACHABLE);
+    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorNone, nil)], STR_LINK_ERROR_UNREACHABLE);
+    XCTAssertEqualObjects([LinkStore messageForError:LinkError(99, nil)], STR_LINK_ERROR_UNREACHABLE);
+    XCTAssertEqualObjects([LinkStore messageForError:LinkError(-1, nil)], STR_LINK_ERROR_UNREACHABLE);
+    XCTAssertEqualObjects([LinkStore messageForError:nil], STR_LINK_ERROR_UNREACHABLE);
+}
+
+// Open with nothing typed is Cancel, not an invalid address.
+- (void)testABlankEntryOpensNothing {
+    for (NSString *text in @[@"", @" ", @"\t", @"\n", @" \r\n\t ", @"\u00A0\u2003"]) {
+        XCTAssertTrue(VibeLinkTextIsBlank(text), @"%@", text.debugDescription);
+    }
+    XCTAssertTrue(VibeLinkTextIsBlank(nil));
+    for (NSString *text in @[@"h", @" https://example.com/a.mp3 ", @"not a link", @"."]) {
+        XCTAssertFalse(VibeLinkTextIsBlank(text), @"%@", text);
+    }
+    // What is not blank but parses as nothing is the invalid address's.
+    XCTAssertEqual(Accept(@"not a link"), VibeLinkRefusedInvalid);
+}
+
+- (void)testPruningKeepsEveryRowAndRecentFile {
+    NSURL *row = [NSURL fileURLWithPath:@"/links/aa/One.mp3"];
+    NSURL *cueRow = [NSURL fileURLWithPath:@"/links/bb/Image.flac"];
+    NSURL *recent = [NSURL fileURLWithPath:@"/links/cc/Two.mp3"];
+    NSURL *web = [NSURL URLWithString:@"https://example.com/a.mp3"];
+    NSSet *kept = VibeLinkKeptURLs(@[row, cueRow, cueRow, web], @[recent, row]);
+    XCTAssertEqualObjects(kept, ([NSSet setWithObjects:row, cueRow, recent, nil]));
+    XCTAssertEqualObjects(VibeLinkKeptURLs(@[], @[]), [NSSet set]);
 }
 
 @end
