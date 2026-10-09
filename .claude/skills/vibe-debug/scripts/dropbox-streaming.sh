@@ -179,8 +179,9 @@ window_of() {   # <fixture file>
     python3 - "$FIX/source/$1" <<'PY'
 import os, sys
 path = sys.argv[1]; size = os.path.getsize(path)
-mp4 = path.rsplit('.', 1)[-1].lower() in ('m4a', 'm4b', 'm4r', 'mp4', 'qta')
-window = min(1536 * 1024, max(512 * 1024, size // 32)) if mp4 else 128 * 1024
+chunked = path.rsplit('.', 1)[-1].lower() in ('m4a', 'm4b', 'm4r', 'mp4', 'qta',
+                                               'aif', 'aiff', 'wav', 'wave', 'bwf', 'w64', 'caf')
+window = min(1536 * 1024, max(512 * 1024, size // 32)) if chunked else 128 * 1024
 print(window if size > 2 * window else 0)
 PY
 }

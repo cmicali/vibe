@@ -17,6 +17,7 @@
 #import <objc/runtime.h>
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioFileHandle+Debug.h"
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
@@ -6528,13 +6529,20 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
     return kLinkHeaderBytes + (NSUInteger)(seconds * 48000) * kLinkFrameBytes;
 }
 
+// The fetch's requests: the download, and its tail read when the fixture
+// takes a window.
+- (int)requestsPerFetch {
+    uint64_t size = [NSData dataWithContentsOfURL:[self fixture:kLinkFixture]].length;
+    return VibeAudioFileTailWindowBytes(kLinkFixture.pathExtension, size) > 0 ? 2 : 1;
+}
+
 // The fetch's download and its tail read arrive in either order. Each takes
 // a stall past the tail's whole length, so only the download is held.
 - (dispatch_semaphore_t)stallAt:(double)seconds {
     dispatch_semaphore_t gate = dispatch_semaphore_create(0);
     [_gates addObject:gate];
     NSString *path = [@"/" stringByAppendingString:kLinkFixture];
-    for (int request = 0; request < 2; request++) {
+    for (int request = 0; request < [self requestsPerFetch]; request++) {
         [_stub queueStep:[HTTPStubStep stallAfter:[self offsetOfSecond:seconds] gate:gate] forPath:path];
     }
     return gate;
@@ -6586,8 +6594,7 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:url], [NSData dataWithContentsOfURL:[self fixture:kLinkFixture]]);
 }
 
-// A seek past the download's edge, short of the tail window, lands once the
-// bytes come. A seek back into what has arrived lands at once. Both play the
+// A seek past the download's edge lands once the bytes come. A seek back into what has arrived lands at once. Both play the
 // file's own samples from their targets.
 - (void)testALinkSeeksAheadAndBehindExactly {
     NSURL *url = [self link];
@@ -6620,7 +6627,7 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
     NSUInteger drop = [self offsetOfSecond:1.2];
     NSString *part = [NSURLUtil remotePlaceholderPartURL:url].path;
     NSString *path = [@"/" stringByAppendingString:kLinkFixture];
-    for (int request = 0; request < 2; request++) {
+    for (int request = 0; request < [self requestsPerFetch]; request++) {
         [_stub queueStep:[HTTPStubStep dropAfter:drop ready:^BOOL {
             struct stat st;
             return stat(part.fileSystemRepresentation, &st) == 0 && (NSUInteger)st.st_size >= drop;
