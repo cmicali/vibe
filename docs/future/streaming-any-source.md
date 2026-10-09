@@ -38,7 +38,8 @@ Measured on macOS 27 with a probe that opens a dataless file, reads 64 KB with a
 - **iOS File Providers cannot.** The iOS 27 SDK marks the protocol `API_UNAVAILABLE(ios)`, and Apple's developer support says the same on the forums (thread 776780): macOS only, "no alternative on iOS". A provider there hands over whole files.
 - **Apple's sample provider (FruitBasket) implements it**, so a provider written from the sample streams. OneDrive, Box, and Google Drive are not installed here and are unverified.
 - **A network filesystem already reads by range.** An SMB, NFS, AFP, or WebDAV mount holds ordinary files, not dataless ones, and each `pread` fetches its bytes over the wire. No whole-file transfer happens, so nothing needs downloading: what is missing is the four rows above. Not measured here, since no share was mounted.
-- **Unverified: what the Files app's SMB and USB volumes are on iOS.** They may be live mounts read in place (paths under `LiveFiles/`) rather than provider copies. Phase 0 settles it with the probe on a device, and the design below needs no answer: a mount is read ahead, a dataless file takes the provider road.
+- **The Files app's SMB volume on iOS is a live network mount.** Measured 2026-10-08 on an iPhone 17 Pro with the `--dataless-diag` probe. A folder picked from an SMB server lives under `/private/var/mobile/Library/LiveFiles/com.apple.filesystems.smbclientd/<server>/`. Its mount is a `lifs` filesystem without `MNT_LOCAL`. Its files carry no dataless flag. So a read fetches its bytes over the wire, as on the Mac, and the read-ahead applies to iOS too. A 44.1 kHz FLAC opened in 87 ms and played 98 ms after the play was submitted. A sleeping or dropped server was not tried.
+- **Unverified: what a USB drive is on iOS.** It is probably a live local mount under `LiveFiles/` too. The same probe settles it. The design below needs no answer: a network mount is read ahead, and a dataless file takes the provider road.
 
 ## Recorded decoder probes (2026-10-02)
 
@@ -141,7 +142,7 @@ Nothing is built until these are in hand. Each decides something.
 - **A real share and a slow disk** (SMB over gigabit and over Wi-Fi, a USB spinning disk): time from tap to audio per format today, underruns during play, and what hangs for how long when the cable is pulled or the disk sleeps. Decides whether phases 2 and 3 are worth building, and the read-ahead's sizes.
 - **The read-ahead's cost on a fast volume** (`make bench-components`, the open, decode, and seek benchmarks with the rule forced on). Decides how wide the rule is, and whether one road for every file is affordable.
 - **iOS, on a device:** what a file picked from the Files app's SMB server and from a USB drive is: its path, its mount, and whether it is dataless. Decides whether iOS gains anything.
-- **The probe, kept as a script** beside the vibe-debug skill's, so a new provider or OS release is one command to re-check.
+- **The probe is the dataless diagnostics, not a new script.** On the Mac, `set_dataless_diag on` and then `dump_dataless_diag` report each directory's verdicts and its mount. On a phone, a Debug build launched with `--dataless-diag` logs the same thing, one line per directory (the `vibe-debug` skill's on-device log section). So a new provider or OS release is one run to re-check.
 
 ### Phase 1: the availability takes any writer
 
@@ -168,7 +169,7 @@ Done when a throttled file plays through the render pump sample-identical to the
 
 - **Dropbox seeks ahead by range.** A ranged read answers the wanted range into a block, by the pinned `rev`. It helps M4A, WAV, and FLAC with a seek table, and offers little benefit for the MP3 and seek-table-less FLAC behavior in the [recorded decoder probes](#recorded-decoder-probes-2026-10-02). Compare the in-memory approach with sparse storage below before adding another mechanism.
 - **A File Provider that delivers ranges.** The file read-ahead over a dataless file, skipping the `NSFileCoordinator` download, which is the only way the system hands out a range. Only for a provider the probe has shown to stream, since on any other the first read downloads the whole file with no cancel. Dropbox's Mac extension is the likeliest first: the code is shipped and gated off. Build it when a provider in users' hands passes the probe, not before, and re-run the probe on each Dropbox release until then.
-- **Another service's own client** is a separate product decision. [Google Drive](ios-google-drive.md) is under research; its authorization and version-consistency probes must be resolved before assuming it can publish a stream safely. A sequential client can use today's availability without waiting for this generalization.
+- **Another service's own client** is a separate product decision. [Google Drive](ios-google-drive.md) is under research. Its version-consistency probe must pass before it can publish a stream safely. A sequential client can use today's availability without waiting for this generalization.
 
 ## Further options, only on evidence
 

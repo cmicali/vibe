@@ -6,11 +6,12 @@ Researched 2026-10-04 against repository revision `0ee9e8bc` and the official do
 
 **Google Drive is technically feasible as another native Files-tab source, using the same local-file playback model as Dropbox.** The work is chiefly account authorization, remote identity, mirror reconciliation, and shell integration. It should not require another decoder, player, or audio transport.
 
-Proceed with a short feasibility spike before committing to full Dropbox parity. Three decisions determine the scope:
+Proceed with a short feasibility spike before committing to full Dropbox parity.
 
-1. **Permission:** full library browsing points to `drive.readonly`, which requires Google's restricted-scope review. Establish whether Google accepts Vibe's use case. Also probe the newly documented mobile Picker as a narrower alternative; selecting a folder must not be assumed to authorize its descendants.
-2. **Identity:** Drive permits duplicate names within one folder. The current Dropbox mirror cannot represent that safely without changes.
-3. **Streaming:** byte ranges are supported, but separately fetched head, tail, and resumed bytes need a proven way to belong to the same content version. Whole-file playback is a viable first milestone if that proof is unavailable.
+**This plan assumes Google approves `drive.readonly` for Vibe.** That scope gives full library browsing and account-wide search. The inquiry has not been sent yet. Verification still has to pass before release. Two questions decide the rest of the scope:
+
+1. **Identity:** Drive permits duplicate names within one folder. The current Dropbox mirror cannot represent that safely without changes.
+2. **Streaming:** byte ranges are supported, but separately fetched head, tail, and resumed bytes need a proven way to belong to the same content version. Whole-file playback is a viable first milestone if that proof is unavailable.
 
 The scope and API facts behind these conclusions are documented in [Drive authorization](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), the [file resource](https://developers.google.com/workspace/drive/api/reference/rest/v3/files), and [downloads](https://developers.google.com/workspace/drive/api/guides/manage-downloads). The implementation recommendations are deductions from those facts and Vibe's code.
 
@@ -33,27 +34,23 @@ Dropbox currently uses no SDK. Its client and mirror alone total 2,145 implement
 
 ### Existing Files-provider route
 
-Apple documents Google Drive as a service users can enable in Files after installing its app. Vibe's existing Browse Files route is therefore the first thing to test on a device. Folder selection, retained access, cold listings and lock-screen behavior need separate verification; appearing in Files does not establish all of them. [Apple's Files instructions](https://support.apple.com/en-us/102238)
+Apple documents Google Drive as a service users can enable in Files after installing its app. So Vibe's Browse Files route can reach it. [Apple's Files instructions](https://support.apple.com/en-us/102238)
 
-This is useful as a baseline and fallback. It does not give Vibe control of Drive's remote search, transfer progress, or ranged downloads. The Dropbox integration was built precisely because its Files provider did not reliably enumerate unseen folders; that history warrants testing Google's provider, not assuming it has the same defect.
+**It does not work.** On 2026-10-08 the probe in [the cloud services order](cloud-services-order.md) (item 0) ran on the maintainer's iPhone. Picking from Google's provider kept showing an error message, and files and folders would not open. It behaved much worse than Dropbox's provider, whose gaps are why Vibe has a Dropbox client. So the Files route is no fallback, and a native client is the only way to play from Drive on iOS.
 
 ### Full browsing through Drive API v3
 
 For an in-app browser over an existing music library, the relevant scope is `https://www.googleapis.com/auth/drive.readonly`. `drive.metadata.readonly` cannot supply audio bytes; full `drive` would grant unnecessary writes. `drive.file` grants access to app-created or individually authorized items, not a documented account-wide read grant. Both broad read scopes are restricted. [Scope definitions](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
 
-Google limits restricted scopes to specified application categories, including backup/sync and productivity/education. **A music player is not explicitly listed.** Vibe can explain its user-directed browsing and local playback, but approval is unresolved. Ask Google to assess the actual workflow before treating public distribution as feasible. [Eligible application types](https://developers.google.com/workspace/drive/api/guides/api-specific-auth#qualifications_for_restricted_scopes)
+Google limits restricted scopes to specified application categories, including backup/sync and productivity/education. **A music player is not explicitly listed.** This plan assumes Google approves Vibe's user-directed browsing and local playback anyway. Send the inquiry early. Verification takes weeks. [Eligible application types](https://developers.google.com/workspace/drive/api/guides/api-specific-auth#qualifications_for_restricted_scopes)
 
 Google's minimum-scope guidance specifically allows a justification for `drive.readonly` when an app's file browser cannot reasonably use per-file selection. Document the concrete limitation: opening an album folder, resolving its playlists, and discovering later additions. A preference for custom UI alone is a weaker case. [Minimum-scope guidance](https://support.google.com/cloud/answer/13807380?hl=en)
 
 Prepare a public homepage, privacy policy, verified domain, scope justification, and a demonstration of connection, browsing, playback and disconnection. Google's restricted-scope guide ties annual security assessment to access through a third-party server; its Help Center describes the requirement more broadly. **Do not promise either a mandatory paid audit or an automatic device-only exemption.** Seek a determination for the proposed architecture. Keep tokens, filenames, tags, art and audio between Google and the device; a future proxy, analytics payload or uploaded diagnostic may change that assessment. Review can take weeks, separately from engineering. [Verification guide](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification), [security-assessment overview](https://support.google.com/cloud/answer/13465431)
 
-### Selected files through the mobile Picker
+### The mobile Picker, only if Google refuses
 
-Google now documents a browser-based desktop/mobile Picker, with a page updated September 29, 2026. The authorization request adds `prompt=consent` and `trigger_onepick=true`; options include multiple selection and folder selection. The callback carries selected file IDs. This flow permits only `drive.file`, without additional scopes in that request. It is no longer accurate to dismiss Picker as only a JavaScript widget for websites. [Mobile Picker integration](https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker)
-
-**Folder selection is not a documented promise of recursive authorization.** Probe an existing folder, its existing children, nested folders, and a file added after consent, using a fresh grant that has never held a broader scope. Also verify the iOS callback and cancellation flow. Until demonstrated and confirmed, describe this option as selected-file access, with CUE/M3U dependencies requiring their own access. The consent scope can allow modification of selected files even though Vibe would only read them. [Picker overview](https://developers.google.com/workspace/drive/picker/guides/overview), [per-file scope](https://support.google.com/cloud/answer/13807380?hl=en)
-
-A successful folder-access probe could make a user-selected Music folder preferable to full-account access. Otherwise Picker is a smaller import/select product, and does not satisfy full Dropbox-style browsing and account-wide search.
+The plan does not pursue Google's desktop/mobile Picker. It is the fallback if Google refuses `drive.readonly`. It grants only `drive.file`, for the files the user picks. Google does not document that picking a folder authorizes the files inside it. A probe would have to settle that before the Picker could serve an album folder or its CUE and M3U references. [Mobile Picker integration](https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker)
 
 ## Account integration
 
@@ -155,7 +152,7 @@ Retain Dropbox's distinction between active background audio and an idle suspend
 
 ## Proposed sequence and acceptance checks
 
-1. **Resolve the external gates.** Obtain a test iOS client; compare Files-provider behavior, restricted-scope browsing, and a clean Picker grant. Capture the folder-descendant result and request Google's determination of scope eligibility and assessment requirements. Recheck project quotas. Deliver a permission/product decision, not a partially wired sign-in button.
+1. **Set up the Google side.** Create the Cloud project and a test iOS client. Send the scope inquiry and start verification, which runs alongside the engineering. Recheck project quotas.
 2. **Prove content and identity.** Exercise range responses and replacement races; test duplicate and normalized names, CUE/M3U dependencies, same-size edits with preserved dates, and moves/renames. Decide the local mapping, cache stamp and whole-file-versus-streaming boundary before broad shell changes.
 3. **Unify the existing owners and ship the smaller path.** Keep Dropbox behavior covered while adding a Drive instance, exact-root dispatch, native browsing, verified downloads, restore and settings. Add remote search with its documented matching limits. No account-wide sync or new audio path.
 4. **Add streaming when justified by the probe.** Port only the verified consistency mechanism into the existing transfer path. Measure latency and egress against whole-file playback and Dropbox, using the same files and network conditions.
@@ -166,4 +163,4 @@ Running-app checks belong in the debug channel: browse an unseen nested folder, 
 
 For implementation, run the applicable unit/audio suites, both platform builds, layout/vocabulary/string checks and Release analysis, with the repository's debug and performance skills for live checks and cost measurements. For this research-only change, code compilation and audio tests provide no additional evidence: validate the document's links, source claims and repository references instead.
 
-**Decision after the spike:** proceed with full native browsing if Google accepts the scope and identity/cache behavior is sound; prefer selected-folder access if the new Picker can demonstrably supply it; offer whole-file playback first if safe streaming remains unresolved. None of those choices needs a second player.
+**Decision after the spike:** proceed with full native browsing if identity and cache behavior are sound. Offer whole-file playback first if safe streaming remains unresolved. Neither choice needs a second player.

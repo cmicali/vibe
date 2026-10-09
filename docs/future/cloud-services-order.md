@@ -1,6 +1,6 @@
 # Future: which cloud file services to handle next, in order
 
-**Status: planned 2026-10-08, nothing started.** This is the order for the other file sources, with the reason for each place. The plans it points at are the detail: [iCloud Drive](ios-icloud-improvements.md), [streaming from any source](streaming-any-source.md), [Dropbox shared links](dropbox-shared-links.md), [Vibe links](share-links.md) and [Google Drive](ios-google-drive.md). Current behavior is in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md) and [System](../../Vibe/System/AGENTS.md) docs.
+**Status: planned 2026-10-08. Item 0 is partly done, and its results are under item 0.** The only app code built is item 0's debug-only probe log. This is the order for the other file sources, with the reason for each place. The plans it points at are the detail: [iCloud Drive](ios-icloud-improvements.md), [streaming from any source](streaming-any-source.md), [Dropbox shared links](dropbox-shared-links.md), [Vibe links](share-links.md) and [Google Drive](ios-google-drive.md). Current behavior is in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md) and [System](../../Vibe/System/AGENTS.md) docs.
 
 ## Where things stand
 
@@ -14,9 +14,23 @@
 
 One afternoon on a device decides which services need native work at all.
 
-- Pick a folder from the Google Drive, OneDrive and Box apps through the Files picker. Check whether an unseen nested folder enumerates, whether the grant survives a relaunch, and whether lock-screen playback works. A provider that passes needs nothing more than item 1's polish.
-- Check what the Files app's SMB and USB volumes are on iOS: a live mount read in place, or a provider copy. The streaming plan's phase 0 asks the same question.
-- Send Google the restricted-scope inquiry for `drive.readonly` now. The answer takes weeks of calendar time and no engineering. Item 5 cannot start without it.
+- Pick a folder from the Google Drive app through the Files picker. Check whether an unseen nested folder enumerates, whether the grant survives a relaunch, and whether lock-screen playback works. A provider that passes needs nothing more than item 1's polish.
+- Check what the Files app's SMB and USB volumes are on iOS: a live mount read in place, or a provider copy. The streaming plan's phase 0 asks the same question. A Debug build launched with `--dataless-diag` logs each picked directory's mount and dataless verdict (the `vibe-debug` skill's on-device log section).
+- Send Google the restricted-scope inquiry for `drive.readonly` now. Item 4 assumes Google approves it. Verification still takes weeks of calendar time, so start it early. It needs no engineering.
+
+**Results, 2026-10-08.** The Files-picker probe ran on the maintainer's iPhone. Each provider got a `Probe` folder made from a computer, so the phone had never listed it.
+
+| Probe | Result |
+| --- | --- |
+| Google Drive | Failed every check. Picking from it kept showing an error message, and files and folders would not open. So nothing listed, played, survived a relaunch, or played on the lock screen. The playlist check was never reached. It behaved much worse than Dropbox's own provider. |
+| OneDrive and Box | Deferred. They are the lowest priority (Deferred, below). |
+| SMB on iOS | A live network mount, not a provider copy. The folder listed and played. The open took 87 ms. Detail in the [streaming plan](streaming-any-source.md)'s measured facts. |
+| USB on iOS | Not run, since no drive was at hand. Rerun with `--dataless-diag`. |
+| Google scope inquiry | Not sent. |
+
+**What the results change.** Google Drive on iOS has no Files route to fall back on. A native client (item 4) is the only way to play from it. So item 4's scope assumption carries the whole feature.
+
+SMB on iOS reads in place over the wire, as it does on the Mac. So item 2's read-ahead serves both platforms, not only the Mac. A sleeping server probably hangs an iOS seek today, as it does on the Mac. That was not tried.
 
 ### 1. iCloud Drive on iOS
 
@@ -30,35 +44,30 @@ This is infrastructure, not only a feature. Each native client below is then a w
 
 ### 3. Links
 
-Two plans, one shape. [Vibe links](share-links.md) plays a single file reached by a plain HTTP URL, with no account, on both platforms. It moves the streamed download and the ranged read out of `DropboxClient` into one shared HTTP transfer, and turns the remote backend from one root into a registration. Items 4 and 6 need both of those and have no home for them today, so this plan goes first. [Dropbox shared links](dropbox-shared-links.md) is folder links through a signed-in account. Its phase 1 is zero new files and folds the client's two path lookups into one. Defer its phase 2, the share extension, until someone asks for it. It is a new target with no offsetting removal.
+Two plans, one shape. [Vibe links](share-links.md) plays a single file reached by a plain HTTP URL, with no account, on both platforms. It moves the streamed download and the ranged read out of `DropboxClient` into one shared HTTP transfer, and turns the remote backend from one root into a registration. Items 4 and 5 need both of those and have no home for them today, so this plan goes first. [Dropbox shared links](dropbox-shared-links.md) is folder links through a signed-in account. Its phase 1 is zero new files and folds the client's two path lookups into one. Defer its phase 2, the share extension, until someone asks for it. It is a new target with no offsetting removal.
 
-### 4. OneDrive, a native client on iOS
+### 4. Google Drive, a native client on iOS
 
-The cheapest second service, from Microsoft's Graph documentation as read, not probed:
+[Study](ios-google-drive.md). It assumes Google approves `drive.readonly` (item 0), so the client browses the whole account. The cost is the identity change the study names: file IDs instead of paths, duplicate names in one folder, and no version pin on a media response. Whole-file playback first. Streaming only once a head, a tail and a resumed download can be proven to belong to one revision.
 
-- `Files.Read` is a delegated permission with no restricted-scope review.
-- Names are unique within a folder, so the mirror's path lookup holds.
-- Each item carries an ETag and a content tag that moves only with the bytes. That is the version check.
-- The download URL honors `Range`, so tags read by range as Dropbox's do.
+This is the place to turn `DropboxClient` and `DropboxMirror` into one client and one mirror parameterized by service. The wire encodings and the failure ladder differ. The listing reconciliation, placeholders, budget and eviction do not. Google is the harder second service for this, since its identity is a file ID and Dropbox's is a path. So the shared mirror keys on a remote ID, and Dropbox's path is its ID.
 
-That maps onto `DropboxClient` and `DropboxMirror` nearly as they are. This is the right place to turn them into one client and one mirror parameterized by service: the wire encodings and the failure ladder differ, the listing reconciliation, placeholders, budget and eviction do not. Build it before Google Drive even though Google has more users. The model cost is a fraction.
+### 5. WebDAV, a native client on iOS
 
-A device probe before any code: sign in, list a nested folder, read a tag by range, download a file, replace it remotely and confirm the content tag moved.
+Covers Nextcloud, ownCloud, Synology and most self-hosted NAS setups. The Files app does not reach them on iOS. A listing is one `PROPFIND`, a version is an ETag, a read is an HTTP range, and there is no OAuth. It reuses item 4's shared client and mirror. Order it by demand.
 
-### 5. Google Drive, a native client on iOS
+## Deferred
 
-[Study](ios-google-drive.md). Gated on Google's scope answer from item 0. The cost is the identity change the study names: file IDs instead of paths, duplicate names in one folder, and no version pin on a media response. If the Picker's folder grant probe passes, the scope shrinks to a selected Music folder. Whole-file playback first. Streaming only once a head, a tail and a resumed download can be proven to belong to one revision.
+OneDrive and Box are the maintainer's lowest priority, so their probes and clients wait until after item 5.
 
-### 6. WebDAV, a native client on iOS
-
-Covers Nextcloud, ownCloud, Synology and most self-hosted NAS setups. The Files app does not reach them on iOS. A listing is one `PROPFIND`, a version is an ETag, a read is an HTTP range, and there is no OAuth. It reuses item 4's shape. Order it against item 5 by demand.
+- **OneDrive.** The cheapest service to add once item 4's shared client and mirror exist. From Microsoft's Graph documentation as read, not probed: `Files.Read` is a delegated permission with no restricted-scope review. Names are unique within a folder. Each item carries a content tag that moves only with the bytes. The download URL honors `Range`. Before any code, run item 0's Files-picker checks on its app. If it fails them, probe the API on a device: sign in, list a nested folder, read a tag by range, download a file, replace it remotely and confirm the content tag moved.
+- **Box.** Enterprise-skewed. It fits item 4's shape if ever asked for.
 
 ## Not recommended
 
-- **Box.** Enterprise-skewed. It fits item 4's shape if ever asked for.
 - **Plex, Jellyfin, Subsonic.** Media servers with their own transcoding APIs. A different product.
 - **A native client on the Mac for any of these.** The File Provider path covers them.
 
 ## The budget, across the list
 
-Items 1 and 2 plan zero new files and zero new types. Item 3's budget is in each of its two plans. Item 4 adds a service's client and mirror, and must give back the Dropbox-specific shape of both. Items 5 and 6 reuse item 4's shape and add no second cloud stack. Each item reports its own net lines, new files and new types when it lands.
+Items 1 and 2 plan zero new files and zero new types. Item 3's budget is in each of its two plans. Item 4 adds a service's client and mirror, and must give back the Dropbox-specific shape of both. Item 5 and the deferred services reuse item 4's shape and add no second cloud stack. Each item reports its own net lines, new files and new types when it lands.
