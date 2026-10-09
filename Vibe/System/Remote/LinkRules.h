@@ -13,6 +13,7 @@
 
 #import <Foundation/Foundation.h>
 
+#import "HTTPTransferRules.h"
 #import "NSURL+Hash.h"
 
 #include <arpa/inet.h>
@@ -351,31 +352,43 @@ static inline NSString *VibeLinkDirectoryName(NSURL *url) {
 
 // The total of a Content-Range header. "bytes 0-15/12345" and "bytes */12345"
 // are both 12345. -1 when the total is unknown ("*") or the header does not
-// parse.
+// parse. The transfer's own rule (HTTPTransferRules.h).
 static inline long long VibeLinkContentRangeTotal(NSString *_Nullable header) {
-    NSString *value = [header stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-    if (![value.lowercaseString hasPrefix:@"bytes"]) return -1;
-    NSRange slash = [value rangeOfString:@"/" options:NSBackwardsSearch];
-    if (slash.location == NSNotFound) return -1;
-    NSString *total = [[value substringFromIndex:NSMaxRange(slash)]
-                       stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-    // 18 digits fit a long long. A longer total would scan as LLONG_MAX.
-    if (total.length == 0 || total.length > 18
-        || [total rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"0123456789"].invertedSet].location != NSNotFound) {
-        return -1;
-    }
-    NSScanner *scanner = [NSScanner scannerWithString:total];
-    long long size = -1;
-    return [scanner scanLongLong:&size] && scanner.isAtEnd && size >= 0 ? size : -1;
+    return VibeHTTPContentRangeTotal(header);
 }
 
 // An ETag that names exact bytes. A weak one (W/"…") says only that two
 // responses mean the same. It counts as absent. A strong one is kept as sent,
-// quotes included. It is compared as an opaque string.
+// quotes included. It is compared as an opaque string. The transfer's own
+// rule (HTTPTransferRules.h).
 static inline NSString *_Nullable VibeLinkStrongETag(NSString *_Nullable etag) {
-    NSString *value = [etag stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-    if (value.length == 0 || [value hasPrefix:@"W/"] || [value hasPrefix:@"w/"]) return nil;
-    return value;
+    return VibeHTTPVersionFromHeaders(etag, nil);
+}
+
+#pragma mark - Pruning
+
+// A link not opened for this long is deleted at launch, unless something
+// still names it.
+static const NSTimeInterval kVibeLinkPruneAgeSeconds = 30 * 24 * 60 * 60;
+
+// The link directories to delete, by name, sorted. records maps each
+// directory's name to its record, NSNull for a directory with none. One
+// opened more than 30 days before now goes, unless kept names it. A record
+// with no opened time counts as opened long ago.
+static inline NSArray<NSString *> *VibeLinkDirectoriesToPrune(NSDictionary<NSString *, id> *records,
+                                                             NSSet<NSString *> *kept,
+                                                             NSTimeInterval now) {
+    NSMutableArray<NSString *> *pruned = [NSMutableArray array];
+    for (NSString *name in records) {
+        id record = records[name];
+        id opened = [record isKindOfClass:NSDictionary.class] ? record[@"opened"] : nil;
+        NSTimeInterval at = [opened isKindOfClass:NSNumber.class] ? [opened doubleValue] : 0;
+        if (![kept containsObject:name] && now - at > kVibeLinkPruneAgeSeconds) {
+            [pruned addObject:name];
+        }
+    }
+    [pruned sortUsingSelector:@selector(compare:)];
+    return pruned;
 }
 
 #pragma mark - Failures

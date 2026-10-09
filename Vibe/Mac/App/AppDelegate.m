@@ -25,6 +25,7 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
+#import "LinkStore.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -71,6 +72,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // Before the restore, which may name a link. From here a link's
+    // placeholder is dataless, and opening it streams it.
+    [LinkStore.shared installAsRemoteBackend];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
     [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {

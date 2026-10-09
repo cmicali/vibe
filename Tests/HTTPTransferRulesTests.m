@@ -110,6 +110,20 @@
     XCTAssertNil(VibeHTTPVersionFromHeaders(@"W/\"abc\"", nil));
     XCTAssertNil(VibeHTTPVersionFromHeaders(nil, @" "));
     XCTAssertNil(VibeHTTPVersionFromHeaders(nil, nil));
+    XCTAssertNil(VibeHTTPVersionFromHeaders(@"w/\"abc\"", nil), @"weak in either case");
+    XCTAssertEqualObjects(VibeHTTPVersionFromHeaders(@"\"W/abc\"", nil), @"\"W/abc\"", @"a quoted W/ is strong");
+}
+
+- (void)testTheSameSizeAndDateUnderAnotherETagIsTheSameFile {
+    NSString *modified = @"Wed, 21 Oct 2015 07:28:00 GMT";
+    XCTAssertTrue(VibeHTTPIsSameFileUnderAnotherETag(4000, modified, 4000, modified));
+    XCTAssertTrue(VibeHTTPIsSameFileUnderAnotherETag(4000, modified, 4000, @" Wed, 21 Oct 2015 07:28:00 GMT "));
+    XCTAssertFalse(VibeHTTPIsSameFileUnderAnotherETag(4000, modified, 4001, modified));
+    XCTAssertFalse(VibeHTTPIsSameFileUnderAnotherETag(4000, modified, 4000, @"Thu, 22 Oct 2015 07:28:00 GMT"));
+    XCTAssertFalse(VibeHTTPIsSameFileUnderAnotherETag(4000, nil, 4000, nil), @"no date proves nothing");
+    XCTAssertFalse(VibeHTTPIsSameFileUnderAnotherETag(4000, modified, 4000, nil));
+    XCTAssertFalse(VibeHTTPIsSameFileUnderAnotherETag(4000, @" ", 4000, @" "));
+    XCTAssertFalse(VibeHTTPIsSameFileUnderAnotherETag(-1, modified, -1, modified), @"no size proves nothing");
 }
 
 @end

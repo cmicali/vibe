@@ -9,14 +9,16 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 | `HTTPTransferRules.h` | the retry delay, the connection errors, and the size and version a response's headers state. Tested (`HTTPTransferRulesTests`) |
 | `RemotePlaceholderStore` | remote files as local placeholders under one root: the placeholder and the install, the directory index, the fetch that streams, the ranged read, the download budget, and the backend it installs. Tested (`RemotePlaceholderStoreTests`) |
 | `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads and the budget |
+| `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
+| `LinkRules.h` | the address rule, the audio check, the names, the Dropbox share-link rewrite, the pruning choice and the failures. Tested (`LinkRulesTests`) |
 
-`DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`).
+`DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store over the plain client (below).
 
 **TRAP: a subclass's internal header imports `HTTPTransferClientInternal.h` and never redeclares its seams** (`DropboxClientInternal.h`). A redeclaration that cannot see the base's gets an ivar of its own. It starts at 0, not 1, and every retry wait would read it.
 
 ## The client
 
-**The defaults are plain HTTP.** A target is an `NSURL`, fetched with a `GET`. The size is a 206's Content-Range total, or a 200's Content-Length when no Content-Encoding is set. The version is a strong ETag, else Last-Modified. A weak ETag (`W/`) counts as absent, since it promises equivalent bytes, not the same ones. A subclass changes any of this through the hooks in `HTTPTransferClientInternal.h`. Each hook gets the transfer's own `state` dictionary, which lives across its attempts and which the base never reads. `DropboxClient` keeps its access token and the refresh flag there.
+**The defaults are plain HTTP.** A target is an `NSURL`, fetched with a `GET`. The size is a 206's Content-Range total, or a 200's Content-Length when no Content-Encoding is set. The version is a strong ETag, else Last-Modified. A weak ETag (`W/` or `w/`) counts as absent, since it promises equivalent bytes, not the same ones. `VibeHTTPVersionFromHeaders` is the one weak-ETag rule. `LinkRules.h`'s `VibeLinkStrongETag` calls it, and its `VibeLinkContentRangeTotal` calls the client's Content-Range rule. A subclass changes any of this through the hooks in `HTTPTransferClientInternal.h`. Each hook gets the transfer's own `state` dictionary, which lives across its attempts and which the base never reads. `DropboxClient` keeps its access token and the refresh flag there.
 
 **TRAP: every default request asks for `Accept-Encoding: identity`.** With no such header, `NSURLSession` asks for gzip and inflates the answer. A range's offsets then stop matching the file's bytes.
 
@@ -32,7 +34,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **A part file is made once per transfer, at its first accepted response, and only ever appended to.** A descriptor opened on it keeps seeing one inode grow. A resend asks for `Range: bytes=<written>-` and appends. A 200 to that is the whole file, and its prefix is skipped. A dropped connection is resent at most twice in a row with no byte between.
 
-**TRAP: a resend answers whatever version is current.** Every response's version must therefore equal the first one's. A first response with no version is never resumed. A mismatch fails the transfer with `VibeHTTPErrorVersionChanged` and deletes the part.
+**TRAP: a resend answers whatever version is current.** Every response's version must therefore equal the first one's. A first response with no version is never resumed. A mismatch fails the transfer with `VibeHTTPErrorVersionChanged` and deletes the part. One answer is the same file under another ETag: the first response's size and Last-Modified, both stated (`VibeHTTPIsSameFileUnderAnotherETag`). A CDN's edges can each tag one file with an ETag of their own. The resend then continues, and the client logs it. Only the default metadata carries `lastModified`, so the Dropbox client never meets this case. A kept part holds only its version, so another ETag starts it over.
 
 **A transfer the link ended keeps its part** (`keepsPartAfterError:`: a cancel, or a connection lost past the resend bound). The part is tagged with its version in the xattr `com.commonwealthrecordings.Vibe.rev`. The name stays, so parts kept by the Dropbox client still resume. The next download of that destination continues from its last byte. An answer naming another version, or a 416 because the current version is shorter than the part, starts the transfer over, whole (`restart`). A part with no version tag is replaced. Anything the transfer's own answer ended deletes the part, since the same bytes would only fail again.
 
@@ -63,3 +65,38 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 **Past the download budget the oldest downloads go back to placeholders**, oldest first by download time, never the file just fetched. Size and mtime are kept, so the cache key still matches when the file comes back. A smaller budget applies at once. Remove Downloads does the same to every download. A player still reading an evicted file keeps its open descriptor. A playlist file is never counted as a download.
 
 **`installAsRemoteBackend` registers the store for its root** (`CloudFileMaterializer setRemoteRoot:…`): the fetch, the ranged read and the streaming lookup. A shell calls it at launch, before anything opens a file under the root.
+
+## Links
+
+**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). It uses the plain client, with no subclass. Its root is `<Application Support>/Links`, kept out of backups. Both apps install it as a remote backend at launch, before anything can open a file under it. The mac installs it in `applicationWillFinishLaunching:`, before the restore. iOS installs it beside the Dropbox mirror. Each root has its own backend (`System/AGENTS.md`).
+
+**The shared client's session is ephemeral.** It has no URL cache and ignores local cache data. `waitsForConnectivity` is off, since a waiting request holds a materialization lane. `allowsURL` is `VibeLinkURLAcceptance`, on the link and on every redirect. A redirect can leave the local network, and a stub cannot test App Transport Security.
+
+**One directory per link.** Its name is the first 16 hex digits of the SHA-1 of the normalized URL (`VibeLinkDirectoryName`). It holds one file, the placeholder or the download, named by `VibeLinkFileName`. The same link opened again reuses the directory and its file. Two links never share a name.
+
+**The record is the directory's index** (`com.commonwealthrecordings.vibe.link`). It is JSON: `{url, etag, lastModified, version, size, modified, contentType, ranges, host, opened}`. `url` is what the client fetches, after the Dropbox share-link rewrite. `modified` is the mtime the file takes. `ranges` says whether the server answers a Range. `opened` is when the link was last opened. A header the answer lacked is left out.
+
+**`resolveURLString:completion:` opens a link in five steps.** It runs off main and completes on main.
+1. The address rule (`VibeLinkURLAcceptance`). A refusal fails before any request.
+2. The Dropbox share-link rewrite (`VibeLinkDirectDownloadURL`).
+3. A probe of the first 16 bytes. It is a `GET`, since Dropbox answers `HEAD` with JSON. A 206 gives the size from its Content-Range, and `ranges` is YES. A 200 gives it from its Content-Length, and `ranges` is NO. With no size, icy headers or chunked audio are a live stream, and anything else has no size.
+4. The audio check and the extension (`VibeLinkAudioExtension`). It gets the link's own URL, not the redirect's, since a CDN's path carries no name.
+5. The record and the placeholder. The size is the probe's. The mtime is Last-Modified, else the probe's time. The cache key then stays the same across the install.
+
+**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`.** A status failure carries its status under `VibeHTTPErrorStatusCodeKey`. Any other 2xx than 200 or 206 is the server's failure. A refused redirect is the insecure one. A connection failure is unreachable, or the local network's when the host is local. Each shell turns the code into its `link.error` string. A disk failure is passed through as its POSIX error.
+
+**An open again keeps what is still current.** The same version and size keep the file, placeholder or download, and touch `opened`. Another version writes a new placeholder. A link with no version is fetched again, since nothing proves its download current. A link that cannot be reached still opens its download, when it has one.
+
+**TRAP: a file streaming now keeps its placeholder.** The fetch's install renames its bytes over whatever stands at the URL, and its readers hold the part file. Only the record changes. The install then sets the record back to what it downloaded.
+
+**TRAP: the install keeps the record's mtime only while the download is the record's file** (`modificationTimeOfMetadata:forURL:`). The cache key is made from that mtime. A download of another version takes its own Last-Modified, else the time now, and the record follows it. A record left describing other bytes would send the download back to a placeholder at the next open, or fail its tag reads.
+
+**A tag read checks the record.** An answer of another size, or of another version, fails with `VibeHTTPErrorVersionChanged`, and the parse is retried later. A record with no version is checked by its size alone.
+
+**The CDN case is one rule in three places** (`VibeHTTPIsSameFileUnderAnotherETag`). An answer under another ETag with the record's size and Last-Modified, both stated, is the same file. The client applies it to a resend, and the store to an open again and to a tag read. Each acceptance is logged. The tail window compares versions only. Under another ETag it is dropped, and reads there wait for the download.
+
+**A server without ranges downloads whole.** It gets no tail read and no ranged tag read. Its tags come once the file is local. A resend still asks for a range, and a 200 to it skips the bytes written.
+
+**The budget is `kVibeLinkDownloadBudgetBytes`, 2 GB, with no setting.** Past it the oldest downloads go back to placeholders, never the file just fetched.
+
+**Pruning deletes each link not opened for 30 days that nothing keeps** (`pruneKeepingURLs:`, `VibeLinkDirectoriesToPrune`). A directory with no record counts as long unopened. A shell calls it once per launch, after the restore, off main. The mac keeps LastPlaylist and the recent documents. iOS keeps the FolderSession base, its additions and Recents. **A saved M3U naming a pruned link finds that entry missing.**

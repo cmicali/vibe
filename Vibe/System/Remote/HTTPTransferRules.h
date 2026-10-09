@@ -116,16 +116,31 @@ static inline int64_t VibeHTTPSizeFromHeaders(NSInteger status,
 }
 
 // What names a response's bytes: a strong ETag, else Last-Modified, nil for
-// neither. A weak ETag (W/"…") promises equivalent content, not the same
-// bytes, so it counts as absent.
+// neither. A weak ETag (W/"…", in either case) promises equivalent content,
+// not the same bytes, so it counts as absent. The one weak-ETag rule:
+// LinkRules.h's VibeLinkStrongETag calls this.
 static inline NSString *_Nullable VibeHTTPVersionFromHeaders(NSString *_Nullable etag,
                                                              NSString *_Nullable lastModified) {
     NSString *tag = [etag stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-    if (tag.length > 0 && ![tag hasPrefix:@"W/"]) {
+    if (tag.length > 0 && ![tag hasPrefix:@"W/"] && ![tag hasPrefix:@"w/"]) {
         return tag;
     }
     NSString *modified = [lastModified stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
     return modified.length > 0 ? modified : nil;
+}
+
+// Whether a response naming another version than the one pinned still
+// carries the same file. A CDN's edges can each tag one file with an ETag of
+// their own. The same size and the same Last-Modified, both stated, are taken
+// as the same file.
+static inline BOOL VibeHTTPIsSameFileUnderAnotherETag(int64_t pinnedSize,
+                                                      NSString *_Nullable pinnedLastModified,
+                                                      int64_t size,
+                                                      NSString *_Nullable lastModified) {
+    NSCharacterSet *spaces = NSCharacterSet.whitespaceCharacterSet;
+    NSString *pinned = [pinnedLastModified stringByTrimmingCharactersInSet:spaces];
+    NSString *modified = [lastModified stringByTrimmingCharactersInSet:spaces];
+    return pinnedSize >= 0 && size == pinnedSize && pinned.length > 0 && [modified isEqualToString:pinned];
 }
 
 NS_ASSUME_NONNULL_END

@@ -760,6 +760,7 @@ targets:
       - path: Vibe/System/DownloadProgressSourceAdapters.m
       - path: Vibe/System/Remote/HTTPTransferClient.m
       - path: Vibe/System/Remote/RemotePlaceholderStore.m
+      - path: Vibe/System/Remote/LinkStore.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -876,6 +877,7 @@ targets:
     sources:
       - path: Tests/AudioPlayerRenderTests.m
       - path: Tests/TestFilesystemGuard.m
+      - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
@@ -917,6 +919,9 @@ targets:
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/System/Remote/HTTPTransferClient.m
+      - path: Vibe/System/Remote/RemotePlaceholderStore.m
+      - path: Vibe/System/Remote/LinkStore.m
       - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m

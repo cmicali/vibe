@@ -695,6 +695,25 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqual(kVibeLinkDownloadBudgetBytes, 2000000000);
 }
 
+#pragma mark - Pruning
+
+- (void)testPruningTakesOldLinksNothingKeeps {
+    NSTimeInterval now = 2000000000, day = 24 * 60 * 60;
+    NSDictionary<NSString *, id> *records = @{
+        @"old": @{@"opened": @(now - 31 * day)},
+        @"kept": @{@"opened": @(now - 31 * day)},
+        @"recent": @{@"opened": @(now - 29 * day)},
+        @"edge": @{@"opened": @(now - 30 * day)},
+        @"none": NSNull.null,
+        @"unopened": @{@"url": @"https://example.com/a.mp3"},
+        @"garbled": @{@"opened": @"yesterday"},
+    };
+    XCTAssertEqualObjects(VibeLinkDirectoriesToPrune(records, [NSSet setWithObject:@"kept"], now),
+                          (@[@"garbled", @"none", @"old", @"unopened"]));
+    XCTAssertEqualObjects(VibeLinkDirectoriesToPrune(@{}, [NSSet set], now), @[]);
+    XCTAssertEqual(kVibeLinkPruneAgeSeconds, 30 * day);
+}
+
 #pragma mark - Failures
 
 - (void)testEachAcceptanceNamesItsFailure {

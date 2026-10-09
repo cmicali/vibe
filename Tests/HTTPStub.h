@@ -46,6 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Merges `headers` into the file's for this and every later answer, then
 // answers as the file: a new ETag or Last-Modified.
 + (instancetype)changeHeaders:(NSDictionary<NSString *, NSString *> *)headers;
+// No answer: the load fails with `error`, as a refused or unreachable
+// connection does.
++ (instancetype)failWithError:(NSError *)error;
 @end
 
 @interface HTTPStub : NSObject
@@ -56,6 +59,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSURL *)URLForPath:(NSString *)path;
 - (NSURL *)URLForPath:(NSString *)path scheme:(NSString *)scheme;
+// This stub also answers `host`, by the same paths, so a test can see that
+// nothing was sent to a public address. Per process, until the stub goes.
+- (void)answerHost:(NSString *)host;
 
 - (HTTPStubFile *)serveData:(NSData *)data
                      atPath:(NSString *)path

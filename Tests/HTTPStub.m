@@ -13,6 +13,7 @@ typedef NS_ENUM(NSInteger, HTTPStubStepKind) {
     HTTPStubStepKindDrop,
     HTTPStubStepKindStall,
     HTTPStubStepKindChangeHeaders,
+    HTTPStubStepKindFail,
 };
 
 @implementation HTTPStubFile
@@ -27,6 +28,7 @@ typedef NS_ENUM(NSInteger, HTTPStubStepKind) {
 @property (nonatomic) NSUInteger bytes;
 @property (nonatomic, copy, nullable) BOOL (^ready)(void);
 @property (nonatomic, nullable) dispatch_semaphore_t gate;
+@property (nonatomic, nullable) NSError *error;
 @end
 
 @implementation HTTPStubStep
@@ -70,6 +72,13 @@ typedef NS_ENUM(NSInteger, HTTPStubStepKind) {
     return step;
 }
 
++ (instancetype)failWithError:(NSError *)error {
+    HTTPStubStep *step = [[self alloc] init];
+    step.kind = HTTPStubStepKindFail;
+    step.error = error;
+    return step;
+}
+
 @end
 
 // One answer, decided on the loader's thread and delivered from it.
@@ -78,6 +87,7 @@ typedef NS_ENUM(NSInteger, HTTPStubStepKind) {
 @property (nonatomic, nullable) NSData *body;
 @property (nonatomic) NSUInteger chunk;
 @property (nonatomic, nullable) NSURLRequest *redirect;
+@property (nonatomic, nullable) NSError *error;
 // Body bytes after which the delivery drops or stalls; NSNotFound for neither.
 @property (nonatomic) NSUInteger dropAt;
 @property (nonatomic, copy, nullable) BOOL (^ready)(void);
@@ -135,6 +145,10 @@ static NSArray<NSString *> *HTTPStubModes(void) {
     if (!answer) {
         [self.client URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain
                                                                            code:NSURLErrorCannotFindHost userInfo:nil]];
+        return;
+    }
+    if (answer.error) {
+        [self.client URLProtocol:self didFailWithError:answer.error];
         return;
     }
     if (answer.redirect) {
@@ -218,6 +232,7 @@ static NSArray<NSString *> *HTTPStubModes(void) {
     NSMutableDictionary<NSString *, NSMutableArray<HTTPStubStep *> *> *_steps;
     NSMutableArray<NSURLRequest *> *_requests;
     NSMutableArray<NSNumber *> *_requestTimes;
+    NSMutableArray<NSString *> *_hosts;
 }
 
 - (instancetype)init {
@@ -229,6 +244,7 @@ static NSArray<NSString *> *HTTPStubModes(void) {
         _steps = [NSMutableDictionary dictionary];
         _requests = [NSMutableArray array];
         _requestTimes = [NSMutableArray array];
+        _hosts = [NSMutableArray arrayWithObject:_host];
         NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
         configuration.protocolClasses = @[HTTPStubProtocol.class];
         _configuration = configuration;
@@ -244,7 +260,21 @@ static NSArray<NSString *> *HTTPStubModes(void) {
 
 - (void)dealloc {
     os_unfair_lock_lock(&sHostsLock);
-    [sHosts removeObjectForKey:_host];
+    // Weak entries read nil once dealloc begins. An alias another stub took
+    // since is that stub's.
+    for (NSString *host in _hosts) {
+        HTTPStub *current = [sHosts objectForKey:host];
+        if (!current || current == self) {
+            [sHosts removeObjectForKey:host];
+        }
+    }
+    os_unfair_lock_unlock(&sHostsLock);
+}
+
+- (void)answerHost:(NSString *)host {
+    os_unfair_lock_lock(&sHostsLock);
+    [sHosts setObject:self forKey:host.lowercaseString];
+    [_hosts addObject:host.lowercaseString];
     os_unfair_lock_unlock(&sHostsLock);
 }
 
@@ -334,6 +364,10 @@ static BOOL HTTPStubParseRange(NSString *header, long long *first, long long *la
     answer.chunk = file.chunk ?: 64 * 1024;
     answer.dropAt = NSNotFound;
     answer.stallAt = NSNotFound;
+    if (step.kind == HTTPStubStepKindFail) {
+        answer.error = step.error;
+        return answer;
+    }
     if (step.kind == HTTPStubStepKindStatus) {
         answer.response = [[NSHTTPURLResponse alloc] initWithURL:request.URL statusCode:step.status
                                                      HTTPVersion:@"HTTP/1.1" headerFields:step.headers];

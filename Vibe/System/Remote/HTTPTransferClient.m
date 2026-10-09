@@ -205,6 +205,19 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
                                       [lastModified isKindOfClass:NSString.class] ? lastModified : nil);
 }
 
+// The CDN case (VibeHTTPIsSameFileUnderAnotherETag), on the default
+// metadata's Last-Modified. A subclass whose metadata carries none never
+// meets it.
+- (BOOL)isSameFileUnderAnotherETag:(NSDictionary *)metadata asMetadata:(NSDictionary *)pinned {
+    NSString *lastModified = metadata[@"lastModified"];
+    NSString *pinnedLastModified = pinned[@"lastModified"];
+    return VibeHTTPIsSameFileUnderAnotherETag(
+            [self sizeOfMetadata:pinned],
+            [pinnedLastModified isKindOfClass:NSString.class] ? pinnedLastModified : nil,
+            [self sizeOfMetadata:metadata],
+            [lastModified isKindOfClass:NSString.class] ? lastModified : nil);
+}
+
 - (int64_t)sizeOfMetadata:(NSDictionary *)metadata {
     id size = metadata[@"size"];
     return [size isKindOfClass:NSNumber.class] && [size longLongValue] >= 0 ? [size longLongValue] : -1;
@@ -579,8 +592,17 @@ didReceiveResponse:(NSURLResponse *)response
     // two versions splice into one; with no version to compare, nothing
     // proves they match. A resend of another version fails the transfer; a
     // kept part's starts it over, whole, from the completion (restart).
+    // A resend under another ETag with the first response's size and
+    // Last-Modified continues: a CDN's edges can each tag one file with an
+    // ETag of their own. A kept part holds only its version, so it starts over.
     NSString *pinned = download.file ? download.version : download.resumeVersion;
-    if ((download.file || download.resumeVersion) && ![version isEqualToString:pinned]) {
+    BOOL continues = !(download.file || download.resumeVersion) || [version isEqualToString:pinned];
+    if (!continues && download.file && [self isSameFileUnderAnotherETag:metadata asMetadata:download.metadata]) {
+        LogInfo(@"%@: %@ answered another ETag with the same size and date (version %@, now %@); continuing",
+                self.logName, download.target, pinned, version);
+        continues = YES;
+    }
+    if (!continues) {
         if (download.file) {
             LogWarn(@"%@: %@ changed during its download (version %@, now %@)",
                     self.logName, download.target, pinned, version);
