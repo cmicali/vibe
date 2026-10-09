@@ -80,6 +80,15 @@ jobs:
           codesign --verify --deep --strict --verbose=2 \
             build/AnalyzeDD/Build/Products/Release/Vibe.app
 
+      # The configuration the Mac App Store archive uses, which nothing else
+      # builds, so it cannot rot. It must carry no trace of the updater.
+      - name: Build AppStore and check it has no updater
+        if: matrix.leg == 'macos'
+        run: |
+          make build CONFIG=AppStore
+          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/asc-build-lib.sh;
+            asc_require_no_updater build/DerivedData/Build/Products/AppStore/Vibe.app'
+
   # Everything Debug: both apps' Debug builds (Vibe/Debug compiles only here,
   # and the iOS one is the check that catches an AppKit leak into a shared
   # directory), then both test suites. Nothing downstream uses these products,

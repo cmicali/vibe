@@ -1,5 +1,6 @@
 # v1.16
 
+* mac: Added automatic updates and Check for Updates to the downloaded version
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
 * ios: Added small waveform widgets, a large widget, and Lock Screen widgets

@@ -120,6 +120,13 @@ static NSDictionary *VibeAppDictionary(void) {
         @"launched": launched.description ?: @"",
         @"runningSeconds": @(launched ? (NSInteger)-launched.timeIntervalSinceNow : 0),
         @"verboseLogging": @((BOOL)VIBE_VERBOSE_LOGGING),
+#if VIBE_DIRECT_DISTRIBUTION
+        @"channel": @"direct",
+        // The last check is the settings dump's SULastCheckTime.
+        @"updateFeed": [bundle objectForInfoDictionaryKey:@"SUFeedURL"] ?: @"",
+#else
+        @"channel": @"app store",
+#endif
     };
 }
 

@@ -185,6 +185,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *appMenu = Submenu(mainMenu, appName).submenu;
     AddItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_ABOUT, appName],
             @selector(showAboutWindow:), appDelegate, @"", 0, nil);
+#if VIBE_DIRECT_DISTRIBUTION
+    // Compiled out of the Mac App Store build, never hidden: App Review
+    // rejects an app that updates itself (guideline 2.4.5).
+    AddItem(appMenu, STR_MENU_APP_CHECK_FOR_UPDATES, @selector(checkForUpdates:), appDelegate,
+            @"", 0, @"menu_check_for_updates");
+#endif
     AddSeparator(appMenu);
 
     AddSymbolItem(appMenu, STR_MENU_APP_SETTINGS, @"gearshape",

@@ -16,7 +16,8 @@ asc_require_translations() {
     "$(dirname "${BASH_SOURCE[0]}")/check-translations.sh"
 }
 
-# Archive Release into $ARCHIVE.
+# Archive $ASC_CONFIGURATION (default Release, the direct download; the Mac
+# App Store path sets AppStore) into $ARCHIVE.
 #   $1   progress label
 #   ...  xcodebuild arguments placed before `archive` (callers pin ARCHS and
 #        the destination, so neither follows the host)
@@ -30,19 +31,53 @@ asc_archive() {
     shift
 
     echo "🔊 archive ($label)"
-    xcodebuild -project "$PRODUCT.xcodeproj" -scheme "$SCHEME" -configuration Release \
+    xcodebuild -project "$PRODUCT.xcodeproj" -scheme "$SCHEME" \
+        -configuration "${ASC_CONFIGURATION:-Release}" \
         -archivePath "$ARCHIVE" "${ASC_XCODEBUILD_AUTH[@]}" "$@" \
         archive
 }
 
-# Wipe $BUILD_DIR, regenerate the project, then asc_archive "Release" "$@".
+# Wipe $BUILD_DIR, regenerate the project, then asc_archive "$@".
 asc_generate_and_archive() {
     rm -rf "$BUILD_DIR"
 
     echo "🔊 xcodegen generate"
     xcodegen generate
 
-    asc_archive "Release" "$@"
+    asc_archive "${ASC_CONFIGURATION:-Release}" "$@"
+}
+
+# Fail unless the macOS app carries no updater: no Sparkle file, no link to
+# it, no SU* Info.plist key, and none of the direct download's entitlements.
+# App Review rejects a Mac App Store app that updates itself (guideline
+# 2.4.5), and a linked but unused framework is enough.
+asc_require_no_updater() {
+    local app="$1"
+    local found
+    local entitlements
+
+    found="$(find "$app" -iname '*sparkle*')"
+    [[ -z "$found" ]] || {
+        echo "error: $app carries Sparkle, beginning with:" >&2
+        head -3 <<<"$found" >&2
+        exit 1
+    }
+    found="$(otool -L "$app/Contents/MacOS/$PRODUCT")"
+    if grep -qi sparkle <<<"$found"; then
+        echo "error: $app links Sparkle" >&2
+        exit 1
+    fi
+    found="$(plutil -convert xml1 -o - "$app/Contents/Info.plist")"
+    if grep -q '<key>SU' <<<"$found"; then
+        echo "error: $app's Info.plist carries Sparkle keys" >&2
+        exit 1
+    fi
+    entitlements="$(codesign -d --entitlements - --xml "$app" 2>/dev/null)"
+    if grep -q 'network.client\|temporary-exception' <<<"$entitlements"; then
+        echo "error: $app is signed with the direct download's entitlements" >&2
+        exit 1
+    fi
+    echo "🔊 no updater  : $app"
 }
 
 # Require exactly the given architecture set. Not `lipo -verify_arch`, which

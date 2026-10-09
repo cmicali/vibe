@@ -11,6 +11,8 @@ privacy/index.html      the privacy policy (a directory; see below)
 styles.css              the pages' styles
 img/                    app icon renditions and screenshots, PNG and WebP
 _headers, _redirects    Cloudflare Pages rules; GitHub Pages ignores both
+appcast.xml             the update feed for the universal direct download
+appcast-arm64.xml       the same for the arm64-only one; github-release.sh writes both
 robots.txt, sitemap.xml, llms.txt
 ```
 

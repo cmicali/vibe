@@ -3,7 +3,8 @@
 Vibe itself is licensed under Apache 2.0 (see `LICENSE`). It has no package
 manager: every third-party component is vendored under `Vibe/ThirdParty/` and
 compiled directly into both app targets, so all of it ships inside each binary and
-all of it is covered here.
+all of it is covered here. Sparkle is the exception: a prebuilt framework that
+ships only inside the direct-download Mac app.
 
 ## Summary
 
@@ -18,6 +19,7 @@ all of it is covered here.
 | dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | dr_flac | `Vibe/ThirdParty/dr_flac/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | dr_wav | `Vibe/ThirdParty/dr_wav/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
+| Sparkle | `Vibe/ThirdParty/Sparkle/` | MIT, with its bundled components' permissive notices |
 
 ## TagLib — and why the election matters
 
@@ -122,3 +124,14 @@ the recipient's choice; Vibe uses it under MIT No Attribution. Both texts are
 at the end of `Vibe/ThirdParty/dr_wav/dr_wav.h`. The vendored copy carries
 Vibe's own fixes and additions (`Vibe/ThirdParty/AGENTS.md`), which that
 license permits without condition.
+
+## Sparkle
+
+The software update framework, embedded only in the direct-download Mac app;
+the Mac App Store build does not contain it. Copyright 2006-2013 Andy
+Matuschak, 2009-2013 Elgato Systems GmbH, 2011-2014 Kornel Lesiński,
+2015-2017 Mayur Pawashe, 2014 C.W. Betts, 2014 Petroules Corporation, and
+2014 Big Nerd Ranch. MIT license. Vendored unmodified as the prebuilt
+release. It bundles bsdiff 4.3 (Colin Percival, BSD 2-clause), sais-lite
+(Yuta Mori, MIT) and orlp/ed25519 (Orson Peters, zlib). Sparkle's license and
+all three notices are `Vibe/ThirdParty/Sparkle/LICENSE.txt`.

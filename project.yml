@@ -12,9 +12,13 @@ options:
     icon:                     # Icon Composer AppIcon.icon: treat the .icon package as a single
       file: true              # file reference (not a group to recurse into) so actool compiles it.
 
+# Release is the direct download (Developer ID, `make release`); AppStore is
+# the Mac App Store archive, the one configuration without the updater. The
+# iOS App Store path archives Release.
 configs:
   Debug: debug
   Release: release
+  AppStore: release
 
 # Shared between the app targets so a second platform cannot drift from the
 # first on where TagLib, PINCache and the generated git-info header live.
@@ -126,7 +130,7 @@ settings:
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
       ONLY_ACTIVE_ARCH: YES
-    Release:
+    Release: &release-project-settings
       DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
       # Only `archive` turns this on by itself, so without it a local Release
       # `build` (and `make install`) keeps its symbol table and is not what
@@ -140,6 +144,7 @@ settings:
         - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
+    AppStore: *release-project-settings
 
 targets:
   Vibe:
@@ -184,6 +189,7 @@ targets:
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
+          - "Sparkle/**"                      # prebuilt; the Vibe target re-adds it as a dependency
           - "**/*.inc"                        # r8brain's filter tables, #included by its headers: keep UNbundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flags
           - "**/r8bsrc.cpp"                   # same
@@ -279,6 +285,20 @@ targets:
         basedOnDependencyAnalysis: false
         outputFiles:
           - "$(SRCROOT)/build/generated/VibeGitInfo.h"
+    postBuildScripts:
+      # The Mac App Store build carries no updater (App Review guideline
+      # 2.4.5): EXCLUDED_SOURCE_FILE_NAMES keeps the framework out, and this
+      # takes Sparkle's keys out of its Info.plist. release-appstore.sh checks
+      # both.
+      - script: |
+          [ "$VIBE_DIRECT_DISTRIBUTION" = 1 ] && exit 0
+          for key in SUFeedURL SUPublicEDKey SUEnableInstallerLauncherService SUVerifyUpdateBeforeExtraction; do
+              /usr/libexec/PlistBuddy -c "Delete :$key" "$TARGET_BUILD_DIR/$INFOPLIST_PATH" 2>/dev/null || true
+          done
+        name: Remove Updater Keys
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)"
     info:
       path: Vibe/Mac/App/Info.plist
       properties:
@@ -293,6 +313,14 @@ targets:
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
 
         ITSAppUsesNonExemptEncryption: false
+
+        # Sparkle's. The AppStore configuration strips all four from the built
+        # Info.plist (the script below). The feed and the key are permanent:
+        # every shipped build trusts them.
+        SUFeedURL: "$(VIBE_SPARKLE_FEED_URL)"
+        SUPublicEDKey: "$(VIBE_SPARKLE_PUBLIC_KEY)"
+        SUEnableInstallerLauncherService: true   # required under the App Sandbox
+        SUVerifyUpdateBeforeExtraction: true
 
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
@@ -390,13 +418,22 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CLANG_ENABLE_MODULES: YES
-        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
+        # The direct download's: the App Store's plus Sparkle's network access
+        # and installer connection. Temporary exceptions pass Developer ID
+        # review, not App Review, so the AppStore configuration signs with
+        # Vibe.entitlements instead.
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe-Direct.entitlements"
         CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert; the release
                                             # scripts re-sign for distribution.
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_APP_SANDBOX: YES
-        ENABLE_HARDENED_RUNTIME: YES
+        # TRAP: off in a local direct build. Under the hardened runtime, library
+        # validation refuses an ad-hoc-signed Sparkle in an ad-hoc-signed app
+        # ("different Team IDs"), so it would die at launch. release.sh's
+        # archives turn it on, and the Developer ID export re-signs both under
+        # one team; notarization rejects a build without it.
+        ENABLE_HARDENED_RUNTIME: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
@@ -406,7 +443,30 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited)"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
+        # The one channel marker: 1 for the direct download (Debug, Release),
+        # 0 for the Mac App Store. Nothing else may infer the channel.
+        VIBE_DIRECT_DISTRIBUTION: 1
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "VIBE_DIRECT_DISTRIBUTION=$(VIBE_DIRECT_DISTRIBUTION)"
+        # release.sh's arm64-only archive passes appcast-arm64.xml, so an
+        # arm64-only install stays arm64-only.
+        VIBE_SPARKLE_FEED_URL: "https://vibeplayer.app/appcast.xml"
+        # The public half of the EdDSA key `generate_keys` keeps in the
+        # releaser's login keychain. release.sh refuses to ship without it.
+        VIBE_SPARKLE_PUBLIC_KEY: "HUolDn2S16W1lsK6ibAmHxeFprgzPCFWzEXQF/QoFIg="
+      configs:
+        AppStore:
+          VIBE_DIRECT_DISTRIBUTION: 0
+          ENABLE_HARDENED_RUNTIME: YES
+          CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
+          # Unlinks and unembeds the framework the dependency below adds.
+          EXCLUDED_SOURCE_FILE_NAMES: Sparkle.framework
     dependencies:
+      # The updater, direct download only (the AppStore configuration above).
+      - framework: Vibe/ThirdParty/Sparkle/Sparkle.framework
+        embed: true
+        codeSign: true
       - sdk: AVFAudio.framework             # AVAudioFormat/PCMBuffer/ChannelLayout; MediaPlayer loads AVFoundation regardless
       - sdk: Accelerate.framework
       - sdk: ApplicationServices.framework
@@ -454,6 +514,7 @@ targets:
           - "**/*.xcprivacy"
           - "**/*.txt"
           - "**/LICENSE.MPL"
+          - "Sparkle/**"
           - "**/*.inc"
           - "**/PINDiskCache.m"
           - "**/r8bsrc.cpp"

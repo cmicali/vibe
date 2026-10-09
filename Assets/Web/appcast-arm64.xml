@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sparkle's update feed for the direct download (Vibe for Mac, Apple silicon only). Written by
+     scripts/github-release.sh, newest item first; never edited by hand. -->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<channel>
+<title>Vibe</title>
+<link>https://vibeplayer.app/</link>
+<language>en</language>
+</channel>
+</rss>

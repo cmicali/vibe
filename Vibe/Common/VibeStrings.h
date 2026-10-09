@@ -51,6 +51,7 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - Application menu
 
 #define STR_MENU_APP_ABOUT       NSLS(@"menu.app.about",       @"About %@",    @"App menu item: opens the About window. %@ is the app name. Also the About window's title.")
+#define STR_MENU_APP_CHECK_FOR_UPDATES NSLS(@"menu.app.check_for_updates", @"Check for Updates…", @"App menu item: checks the internet for a newer version of the app and offers to install it. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_APP_SETTINGS    NSLS(@"menu.app.settings",    @"Settings…",   @"App menu item: opens the Settings window. macOS uses this same name in every app. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_APP_SERVICES    NSLS(@"menu.app.services",    @"Services",    @"App menu: submenu of system Services. macOS uses this same name in every app.")
 #define STR_MENU_APP_HIDE        NSLS(@"menu.app.hide",        @"Hide %@",     @"App menu item: hides the app. %@ is the app name.")
@@ -573,6 +574,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_DEBUG_INFO_LABEL     NSLS(@"settings.advanced.debug_info_label",           @"Debug info",               @"Settings, Advanced pane, Build group: row label beside the button that saves a debug report file to attach to a bug report.")
 #define STR_SETTINGS_DEBUG_INFO_CAPTION   NSLS(@"settings.advanced.debug_info_caption",         @"Save settings, audio devices, and this session's log for a bug report", @"Settings, Advanced pane, Build group: hint below Debug info saying what the saved file contains. No trailing period.")
 #define STR_SETTINGS_DEBUG_INFO_SAVE      NSLS(@"settings.advanced.debug_info_save",            @"Save…",                    @"Settings, Advanced pane, Build group: button that opens a save panel for the debug report file. Ends with an ellipsis because it opens a panel.")
+#define STR_SETTINGS_BETA_UPDATES_LABEL   NSLS(@"settings.advanced.beta_updates_label",         @"Beta updates",             @"Settings, Advanced pane, Build group: switch that lets the app's update check also offer test versions released before the final one. Only in the version downloaded from the website, not the App Store one.")
+#define STR_SETTINGS_BETA_UPDATES_CAPTION NSLS(@"settings.advanced.beta_updates_caption",       @"Also offer test versions when checking for updates", @"Settings, Advanced pane, Build group: hint below the Beta updates switch.")
 
 #define STR_SETTINGS_ABOUT                NSLS(@"settings.about",                               @"About",                    @"Settings window: the About pane's sidebar item, and the window's title while that pane is selected; also the About row and screen title on iOS. It shows the app icon, version, project links and lifetime statistics. Use the word Apple uses for an app's About screen in this language.")
 #define STR_SETTINGS_ABOUT_WEB            NSLS(@"settings.about.web",                           @"Website",                  @"Settings, About pane on both platforms: row title beside the link to the app's website. Keep it to one word.")

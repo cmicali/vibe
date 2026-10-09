@@ -37,6 +37,7 @@
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
 #define SETTING_APPLE_MPEG_DECODER                  @"AudioPlayer.appleMPEGDecoder"
+#define SETTING_RECEIVE_BETA_UPDATES                @"Updates.receiveBetas"
 // { device UID: { mode: YES } }, holding only the modes that are on.
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
@@ -107,6 +108,8 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_UI_UPDATE_HZ_CAP:               @(60),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
             SETTING_APPLE_MPEG_DECODER:             @(NO),
+            // A beta build keeps its tester on the beta train.
+            SETTING_RECEIVE_BETA_UPDATES:           @((BOOL)VIBE_VERBOSE_LOGGING),
             SETTING_DECLICK:                        @(YES),
             SETTING_VOLUME_CONTROL:                 @(NO),
             SETTING_VOLUME:                         @(1.0),
@@ -1005,6 +1008,14 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (void)setAppleMPEGDecoder:(BOOL)apple {
     [NSUserDefaults.standardUserDefaults setBool:apple forKey:SETTING_APPLE_MPEG_DECODER];
+}
+
+- (BOOL)receiveBetaUpdates {
+    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_RECEIVE_BETA_UPDATES];
+}
+
+- (void)setReceiveBetaUpdates:(BOOL)receive {
+    [NSUserDefaults.standardUserDefaults setBool:receive forKey:SETTING_RECEIVE_BETA_UPDATES];
 }
 
 // Shape-checked only; which entries mean anything is ShortcutRules.h's.

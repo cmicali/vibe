@@ -28,6 +28,10 @@
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+#if VIBE_DIRECT_DISTRIBUTION
+#import <Sparkle/Sparkle.h>
+#endif
+
 #if DEBUG
 #import "DebugUtil.h"
 #import "OpenBurstCoalescer+Debug.h"
@@ -41,6 +45,11 @@
 
 @end
 
+#if VIBE_DIRECT_DISTRIBUTION
+@interface AppDelegate () <SPUUpdaterDelegate, NSMenuItemValidation>
+@end
+#endif
+
 
 // Long enough to absorb a split multi-file open, short enough that a
 // deliberate second open replaces rather than appends.
@@ -52,6 +61,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
+#if VIBE_DIRECT_DISTRIBUTION
+    // nil in a Debug build launched without --update-feed.
+    SPUStandardUpdaterController *_updaterController;
+#endif
 }
 
 - (instancetype)init {
@@ -121,6 +134,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [self.mainPlayerController showWindow:self];
 
+#if VIBE_DIRECT_DISTRIBUTION
+    [self startUpdater];
+#endif
+
     [self openCommandLineArguments];
 
     // A launch-time open may need a restored grant, so the coalescer's queue
@@ -159,6 +176,51 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         });
     });
 }
+
+#if VIBE_DIRECT_DISTRIBUTION
+#pragma mark - Updates
+
+#if DEBUG
+// A Debug build checks only the feed this names, so the debug channel, stress
+// runs and screenshots never raise an update dialog.
+static NSString *DebugUpdateFeed(void) {
+    NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+    NSUInteger index = [args indexOfObject:@"--update-feed"];
+    return index != NSNotFound && index + 1 < args.count ? args[index + 1] : nil;
+}
+
+- (NSString *)feedURLStringForUpdater:(SPUUpdater *)updater {
+    return DebugUpdateFeed();
+}
+#endif
+
+- (void)startUpdater {
+#if DEBUG
+    if (!DebugUpdateFeed()) {
+        return;
+    }
+#endif
+    _updaterController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:YES
+                                                                       updaterDelegate:self
+                                                                    userDriverDelegate:nil];
+}
+
+- (IBAction)checkForUpdates:(id)sender {
+    [_updaterController checkForUpdates:sender];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (item.action == @selector(checkForUpdates:)) {
+        return _updaterController.updater.canCheckForUpdates;
+    }
+    return YES;
+}
+
+// Asked at every check. A stable item carries no channel and always qualifies.
+- (NSSet<NSString *> *)allowedChannelsForUpdater:(SPUUpdater *)updater {
+    return AppSettings.sharedInstance.receiveBetaUpdates ? [NSSet setWithObject:@"beta"] : [NSSet set];
+}
+#endif
 
 - (void)cleanupLegacyCaches {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{

@@ -43,6 +43,20 @@ The walk itself is `NSURLUtil` (`Vibe/Util/`), on a four-wide queue, so an unrea
 
 Restoration has three utility workers plus one user-initiated lane reserved for a queued grant an open is waiting on. Four concurrent launch bookmark resolutions is the ceiling, while a relevant grant does not sit behind unrelated blocked restores. When remembered grants nest, the most-specific sufficient one takes that lane; once an active grant covers each requested URL, a still-resolving overlapping parent no longer holds the open. It posts its change notification **coalesced to one per run-loop turn**, because it settles one bookmark at a time and each observer does real work; the user-driven add and remove post directly, so the pane redraws in the same turn as the click.
 
+## Updates
+
+**The direct download updates itself through Sparkle; the Mac App Store build has no updater at all.** `VIBE_DIRECT_DISTRIBUTION` (`project.yml`) is the one channel marker: 1 in Debug and Release, 0 in `AppStore`. Nothing else may infer the channel. Everything Sparkle is inside `#if VIBE_DIRECT_DISTRIBUTION`: the import, the controller, the menu item, the Settings row and the debug report's feed line. The `AppStore` configuration also unlinks the framework and strips its Info.plist keys, and `release-appstore.sh` and CI check the result (the `vibe-release` skill).
+
+`AppDelegate` owns one `SPUStandardUpdaterController`, started in `applicationDidFinishLaunching:` after the window is up. Sparkle's standard UI does the rest, its first-run prompt included. Vibe adds two things. **Check for Updates…** targets `AppDelegate.checkForUpdates:`, which validates through the updater's `canCheckForUpdates`. `allowedChannelsForUpdater:` adds the feed's `beta` channel while `AppSettings.receiveBetaUpdates` is on. Sparkle asks it at every check, so the setting needs no live effect.
+
+**A Debug build starts no updater** unless launched with `--update-feed <url>`, which `feedURLStringForUpdater:` then answers. So the debug channel, stress runs and screenshots never raise an update dialog. The menu item is disabled without it.
+
+**The app stays sandboxed.** Sparkle's installer runs as its XPC service (`SUEnableInstallerLauncherService`). `Vibe-Direct.entitlements` adds the network client entitlement and the two mach-lookup exceptions for the installer's connection. Temporary exceptions are fine under Developer ID and are rejected by App Review, so the `AppStore` configuration signs with `Vibe.entitlements`.
+
+**TRAP: a local direct build runs without the hardened runtime.** Under it, library validation refuses an ad-hoc-signed Sparkle in an ad-hoc-signed app, so the app dies at launch with "different Team IDs". `release.sh`'s archives turn it back on, and the Developer ID export signs both under one team.
+
+Sparkle's dialogs come in its own languages. It ships none for Bulgarian or Indonesian, so those users read its dialogs in English.
+
 ## Stats
 
 `AppStats` lives in `Vibe/Common/` and counts for **both** platforms; this shell feeds it from `deliverExpandedRows:` (the open funnel) and from the player's output-audio activity event, and `applicationWillTerminate:` folds the in-progress listening run. See `Common/AGENTS.md` for the store and for what the two platforms do differently about keeping a running clock honest.

@@ -14,14 +14,23 @@
 #
 # A stable release then points the Homebrew tap at itself (brew-set-version.sh).
 #
+# Every published release also adds an item to Sparkle's feeds,
+# Assets/Web/appcast.xml (the universal zip) and appcast-arm64.xml, with the
+# signature release.sh made. The feeds are committed and pushed before the
+# tag, like the web page, and go live with `make deploy-web`, which must come
+# after the release: the items name its assets.
+#
 # The version is the built app's, never git's, so the tag names what the image
 # contains. Notes are Assets/app-store/copy/en/macos/whats-new.txt, which the
 # Mac App Store upload also takes, so the two channels cannot drift.
 #
-#   --draft        create it unpublished; the web page and tap are left alone.
+#   --draft        create it unpublished; the web page, the feeds and the tap
+#                  are left alone.
 #   --prerelease   publish a beta: not marked Latest, and neither the web page
 #                  nor the Homebrew tap is repointed, so neither hands out a
-#                  test build.
+#                  test build. Its feed items carry the beta channel, which
+#                  only a build with Settings > Advanced > Beta updates on
+#                  accepts.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -34,6 +43,9 @@ ARM64_APP="$BUILD_DIR/arm64/export/Vibe.app"
 ARM64_DMG="$BUILD_DIR/arm64/Vibe.dmg"
 ARM64_ZIP="$BUILD_DIR/arm64/Vibe.zip"
 NOTES="Assets/app-store/copy/en/macos/whats-new.txt"
+UNIVERSAL_FEED="Assets/Web/appcast.xml"
+ARM64_FEED="Assets/Web/appcast-arm64.xml"
+SPARKLE_BIN="Vibe/ThirdParty/Sparkle/bin"
 
 # shellcheck source=scripts/asc-build-lib.sh
 source scripts/asc-build-lib.sh
@@ -66,6 +78,23 @@ gh auth status >/dev/null 2>&1 || {
     echo "error: $NOTES is missing or empty — write the release notes first" >&2
     exit 1
 }
+if grep -q ']]>' "$NOTES"; then
+    echo "error: $NOTES contains ']]>', which would end the feed's CDATA" >&2
+    exit 1
+fi
+
+# The signature must be over the zip as it is now: sign_update --verify checks
+# it against the keychain's key, which release.sh checked the app trusts.
+for zip in "$UNIVERSAL_ZIP" "$ARM64_ZIP"; do
+    [[ -s "$zip.sig" ]] || {
+        echo "error: $zip.sig is missing — re-run 'make release'" >&2
+        exit 1
+    }
+    "$SPARKLE_BIN/sign_update" --verify "$zip" "$(cat "$zip.sig")" >/dev/null || {
+        echo "error: $zip.sig does not verify against $zip — re-run 'make release'" >&2
+        exit 1
+    }
+done
 
 # Verify each variant as a recipient gets it. The app and the image are
 # notarized separately and either missing staple forces an online Gatekeeper
@@ -162,6 +191,22 @@ IFS=$'\t' read -r ARM64_VERSION ARM64_BUILD <<< "$ARM64_METADATA"
 }
 TAG="v$VERSION"
 
+# Sparkle offers an item only when its build number is higher than the running
+# app's, and the feeds list newest first.
+newest_feed_build() {
+    awk -F '</?sparkle:version>' 'NF == 3 { print $2; exit }' "$1"
+}
+if [[ -z "$DRAFT" ]]; then
+    for feed in "$UNIVERSAL_FEED" "$ARM64_FEED"; do
+        newest="$(newest_feed_build "$feed")"
+        if [[ -n "$newest" ]] && (( BUILD <= newest )); then
+            echo "error: build $BUILD is not newer than $feed's newest item, build $newest" >&2
+            echo "       bump CURRENT_PROJECT_VERSION in project.yml and rebuild" >&2
+            exit 1
+        fi
+    done
+fi
+
 # The tag is created on HEAD, so HEAD must be what the remote will see.
 if [[ -n "$(git status --porcelain)" ]]; then
     echo "warning: working tree is dirty — the release tags HEAD, not these changes" >&2
@@ -185,33 +230,87 @@ cp "$UNIVERSAL_ZIP" "$ASSET_UNIVERSAL_ZIP"
 cp "$ARM64_DMG" "$ASSET_ARM64_DMG"
 cp "$ARM64_ZIP" "$ASSET_ARM64_ZIP"
 
-# Repoint the web page and push it BEFORE the tag, so v<version> names a tree
-# whose page links that release. Only the two web files are committed, so a
-# dirty tree cannot ride along, and a failed commit or push is fatal: the tag
-# would dangle. A draft is skipped: its download is not public, and it creates
-# no tag until published.
+# Prepends one item to a feed, before its first <item> or, in an empty feed,
+# before </channel>. Markdown notes need macOS 12, below the app's minimum.
+#   $1 feed   $2 zip asset   $3 the zip release.sh signed
+add_feed_item() {
+    local feed="$1"
+    local asset="$2"
+    local zip="$3"
+    local url="https://github.com/cmicali/vibe/releases/download/$TAG/$(basename "$asset")"
+    local channel=""
+    local minimum
+    local item
+
+    if [[ -n "$PRERELEASE" ]]; then
+        channel="<sparkle:channel>beta</sparkle:channel>"
+    fi
+    minimum="$(/usr/libexec/PlistBuddy -c 'Print LSMinimumSystemVersion' \
+        "$UNIVERSAL_APP/Contents/Info.plist")"
+    item="$(mktemp)"
+    cat > "$item" <<XML
+<item>
+<title>Vibe $VERSION</title>
+<pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
+<sparkle:version>$BUILD</sparkle:version>
+<sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>$minimum</sparkle:minimumSystemVersion>
+$channel
+<description sparkle:format="markdown"><![CDATA[
+$(cat "$NOTES")
+]]></description>
+<enclosure url="$url" length="$(stat -f%z "$zip")" type="application/octet-stream" sparkle:edSignature="$(cat "$zip.sig")"/>
+</item>
+XML
+    awk -v item="$item" '
+        !done && (/^<item>/ || /^<\/channel>/) {
+            while ((getline line < item) > 0) print line
+            done = 1
+        }
+        { print }
+    ' "$feed" > "$feed.new"
+    mv "$feed.new" "$feed"
+    rm -f "$item"
+    xmllint --noout "$feed" || {
+        echo "error: $feed is no longer valid XML — nothing has been published" >&2
+        git checkout -- "$feed"
+        exit 1
+    }
+}
+
+# Repoint the web page, add the feed items, and push BEFORE the tag, so
+# v<version> names a tree whose page and feeds name that release. Only these
+# files are committed, so a dirty tree cannot ride along, and a failed commit
+# or push is fatal: the tag would dangle. A draft is skipped: its download is
+# not public, and it creates no tag until published.
 if [[ -n "$DRAFT" ]]; then
-    echo "🔊 draft — leaving the web page pointing at the previous release"
+    echo "🔊 draft — leaving the web page and the update feeds on the previous release"
     echo "   once published: scripts/web-set-version.sh $VERSION && make deploy-web"
     echo "                   scripts/brew-set-version.sh $VERSION"
-elif [[ -n "$PRERELEASE" ]]; then
-    echo "🔊 prerelease — leaving the web page on the last stable release"
-    echo "   a beta must not become vibeplayer.app/download/latest"
+    echo "   a draft writes no feed item, so updates will not offer it"
 else
-    scripts/web-set-version.sh "$VERSION"
-    WEB_FILES=(Assets/Web/index.html Assets/Web/_redirects)
-    if [[ -n "$(git status --porcelain -- "${WEB_FILES[@]}")" ]]; then
-        git commit -q -m "web: point the download at v$VERSION" -- "${WEB_FILES[@]}" || {
-            echo "error: could not commit the web page update — nothing has been published" >&2
-            exit 1
-        }
-        git push -q origin HEAD || {
-            echo "error: could not push the web page update — the tag would dangle." >&2
-            echo "       Nothing has been published. Push, then re-run." >&2
-            exit 1
-        }
-        echo "🔊 web page repointed and pushed — the release will tag it"
+    WEB_FILES=("$UNIVERSAL_FEED" "$ARM64_FEED")
+    add_feed_item "$UNIVERSAL_FEED" "$ASSET_UNIVERSAL_ZIP" "$UNIVERSAL_ZIP"
+    add_feed_item "$ARM64_FEED" "$ASSET_ARM64_ZIP" "$ARM64_ZIP"
+    if [[ -n "$PRERELEASE" ]]; then
+        echo "🔊 prerelease — leaving the web page on the last stable release"
+        echo "   a beta must not become vibeplayer.app/download/latest"
+        MESSAGE="web: offer v$VERSION to beta updates"
+    else
+        scripts/web-set-version.sh "$VERSION"
+        WEB_FILES+=(Assets/Web/index.html Assets/Web/_redirects)
+        MESSAGE="web: point the download and updates at v$VERSION"
     fi
+    git commit -q -m "$MESSAGE" -- "${WEB_FILES[@]}" || {
+        echo "error: could not commit the web update — nothing has been published" >&2
+        exit 1
+    }
+    git push -q origin HEAD || {
+        echo "error: could not push the web update — the tag would dangle." >&2
+        echo "       Nothing has been published. Push, then re-run." >&2
+        exit 1
+    }
+    echo "🔊 web update pushed — the release will tag it"
 fi
 
 # Checked only now that HEAD has stopped moving.
@@ -243,4 +342,4 @@ fi
 
 echo "🔊 done"
 gh release view "$TAG" --json url -q .url
-[[ -n "$DRAFT$PRERELEASE" ]] || echo "🔊 next: make deploy-web    (publishes the page to Cloudflare)"
+[[ -n "$DRAFT" ]] || echo "🔊 next: make deploy-web    (publishes the page and the update feeds to Cloudflare)"

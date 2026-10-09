@@ -20,6 +20,10 @@
 // View > Theme > Edit Themes…: opens Settings on the theme editor.
 - (IBAction)showThemeSettings:(id)sender;
 - (IBAction)showSupportPage:(id)sender;
+#if VIBE_DIRECT_DISTRIBUTION
+// Vibe > Check for Updates…, the direct download's only.
+- (IBAction)checkForUpdates:(id)sender;
+#endif
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;

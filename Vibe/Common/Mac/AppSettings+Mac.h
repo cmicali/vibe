@@ -256,6 +256,12 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)appleMPEGDecoder;
 - (void)setAppleMPEGDecoder:(BOOL)apple;
 
+// Whether the updater also offers the feed's beta channel. Direct download
+// only. Default YES in a beta build (VIBE_VERBOSE_LOGGING), NO in a stable
+// one. Read at each check, so a change needs no live effect.
+- (BOOL)receiveBetaUpdates;
+- (void)setReceiveBetaUpdates:(BOOL)receive;
+
 // The Keyboard Shortcuts pane's remaps, sparse over the defaults: absent
 // means every default. Read per keypress by the key monitor. Writers request
 // VibeSettingsLiveEffectShortcuts.

@@ -1,10 +1,10 @@
 # Future: An unsandboxed direct-download Mac build
 
-**Status: planned, not implemented (verified 2026-10-01).** Issue #125, with `sparkle-updates.md`.
+**Status: planned, not implemented (verified 2026-10-09).** Issue #125. The Sparkle updater it builds on (issue #124) is implemented: `Vibe/Mac/App/AGENTS.md`, Updates.
 
 Written to be executed phase by phase. Each phase builds, passes `make test`, and is verifiable on its own. Read the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Audio/Mac/Convert/AGENTS.md` ("Getting the output past the sandbox"), `Vibe/Audio/Metadata/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md`, and `Tests/AGENTS.md` first; the release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, verification the `vibe-debug` and `vibe-stress` skills.
 
-**Build `sparkle-updates.md` first.** Its Phase 1 adds the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker this plan stands on, and an updater is what lets the data migration here (Phase 4) reach existing users without a manual download. This plan then removes the pieces that plan needs only because the direct build is sandboxed.
+**The updater is built.** It added the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker this plan stands on, and an updater is what lets the data migration here (Phase 4) reach existing users without a manual download. This plan then removes the pieces that plan needs only because the direct build is sandboxed.
 
 ## The feature
 
@@ -32,7 +32,7 @@ Written to be executed phase by phase. Each phase builds, passes `make test`, an
 
 ## Phase 1 — The sandbox becomes a per-configuration setting
 
-Requires the `AppStore` configuration from `sparkle-updates.md` Phase 1.
+Uses the `AppStore` configuration the updater added.
 
 - `project.yml`, `Vibe` target: `ENABLE_APP_SANDBOX` and `CODE_SIGN_ENTITLEMENTS` move under `configs`. `AppStore` and `Debug` keep the sandbox and today's entitlements; `Release` drops the sandbox and signs with a direct entitlements file that carries nothing sandbox-specific (`com.apple.security.assets.music.read-write`, `files.bookmarks.app-scope`, `ENABLE_USER_SELECTED_FILES`, and Sparkle's `network.client` and mach-lookup exceptions all mean nothing without the sandbox).
 - **Debug stays sandboxed by default**, because the sandbox is the stricter mode and the one the App Store ships, and the debug channel, the stress suites, and `reset-state.sh` are built around the container. Add `SANDBOX=0` to `make build` (an `ENABLE_APP_SANDBOX=NO` plus entitlements override passed through `build.sh`) so the unsandboxed behavior is drivable by the debug channel. Without this, the shipping direct build would be the one variant nothing automated can exercise.
@@ -99,7 +99,7 @@ Assuming the read is silent:
 
 ## Phase 5 — Remove what Sparkle needed only for the sandbox
 
-In the `Release` configuration: `SUEnableInstallerLauncherService`, the mach-lookup temporary exceptions, and `network.client` go, with `sparkle-updates.md` Phase 2's signing checks for the Installer XPC service relaxed accordingly. A sandboxed `Debug` build that still links Sparkle keeps them, or Debug stops starting the updater when sandboxed; pick the one that leaves less configuration.
+In the `Release` configuration: `SUEnableInstallerLauncherService`, the mach-lookup temporary exceptions, and `network.client` go, with `release.sh`'s `require_updater` signing checks for the Installer XPC service relaxed accordingly. A sandboxed `Debug` build that still links Sparkle keeps them, or Debug stops starting the updater when sandboxed; pick the one that leaves less configuration.
 
 Sparkle updates a sandboxed build to an unsandboxed one without special handling. The update that crosses the boundary is the one Phase 4's verification runs.
 
@@ -123,6 +123,6 @@ Sparkle updates a sandboxed build to an unsandboxed one without special handling
 ## Complexity report (expected)
 
 - New source files: 0. New types: 0.
-- New non-source files: one direct entitlements file (shared with `sparkle-updates.md` if that plan created it).
+- New non-source files: none. `Vibe/Mac/App/Vibe-Direct.entitlements` exists already.
 - Removes: Sparkle's sandbox-only keys and entitlements from the shipping direct build; the grant panel, the grant list, and the converter's fallbacks from the direct-download user's experience.
 - Consolidates nothing in the source. `FolderAccessManager` and `AudioFileConverter+Sandbox` stay whole, because the App Store build needs every line. That is this feature's cost stated plainly: it adds a second mode to a subsystem without shrinking the first.

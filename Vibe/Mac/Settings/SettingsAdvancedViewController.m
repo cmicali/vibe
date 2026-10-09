@@ -31,6 +31,9 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
     NSButton *_debugInfoButton;
+#if VIBE_DIRECT_DISTRIBUTION
+    VibeSwitch *_betaUpdatesSwitch;
+#endif
     // Drops an older, larger reply landing after Clear Cache.
     NSUInteger _usageRequestGeneration;
     // Keyed by the player's stage name.
@@ -77,6 +80,9 @@ static const CGFloat kAdvancedPopUpWidth = 200;
                                            target:self action:@selector(clearCache:)];
     _debugInfoButton = [NSButton buttonWithTitle:STR_SETTINGS_DEBUG_INFO_SAVE
                                           target:self action:@selector(saveDebugInfo:)];
+#if VIBE_DIRECT_DISTRIBUTION
+    _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
+#endif
     NSArray<NSArray<NSString *> *> *audioStages = @[
         @[@"source", STR_SETTINGS_AUDIO_PATH_SOURCE], @[@"decode", STR_SETTINGS_AUDIO_PATH_DECODE],
         @[@"bus", STR_SETTINGS_AUDIO_PATH_BUS], @[@"varispeed", STR_SETTINGS_AUDIO_PATH_PITCH],
@@ -106,6 +112,11 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BUILD_SECTION rows:@[
             versionRow,
+#if VIBE_DIRECT_DISTRIBUTION
+            // Compiled out of the Mac App Store build, which has no updater.
+            [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL
+                                  caption:STR_SETTINGS_BETA_UPDATES_CAPTION control:_betaUpdatesSwitch],
+#endif
             [SettingsRowView rowWithTitle:STR_SETTINGS_GIT_LABEL
                                   control:[self valueLabelWithString:NSBundle.mainBundle.vibeGitString]],
             [SettingsRowView rowWithTitle:STR_SETTINGS_LANGUAGE_LABEL
@@ -450,6 +461,10 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     _allowBitPerfectAnyDeviceSwitch.state = AppSettings.sharedInstance.allowBitPerfectOnAnyDevice
             ? NSControlStateValueOn : NSControlStateValueOff;
     [_mp3DecoderPopUp selectItemWithTag:AppSettings.sharedInstance.appleMPEGDecoder];
+#if VIBE_DIRECT_DISTRIBUTION
+    _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates
+            ? NSControlStateValueOn : NSControlStateValueOff;
+#endif
     [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
     [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
             || AppSettings.sharedInstance.welcomeTrackLoaded
@@ -546,6 +561,12 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     AppSettings.sharedInstance.allowBitPerfectOnAnyDevice = _allowBitPerfectAnyDeviceSwitch.state == NSControlStateValueOn;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
 }
+
+#if VIBE_DIRECT_DISTRIBUTION
+- (void)betaUpdatesChanged:(id)sender {
+    AppSettings.sharedInstance.receiveBetaUpdates = _betaUpdatesSwitch.state == NSControlStateValueOn;
+}
+#endif
 
 - (void)mp3DecoderChanged:(id)sender {
     AppSettings.sharedInstance.appleMPEGDecoder = _mp3DecoderPopUp.selectedTag == YES;
