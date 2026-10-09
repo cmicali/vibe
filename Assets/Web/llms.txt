@@ -24,16 +24,20 @@ Apache 2.0, and available on the Mac App Store or as a direct download.
   seconds when the tempo is known, and performance FX on the keyboard — a
   low-kill filter, a reverb wash, and delays locked to the track's BPM.
 - Localized into 30 languages.
-- Collects nothing, and has no network access of its own: the macOS sandbox
-  carries no network-client entitlement, so the operating system will not
-  permit an outbound connection. Cloud files are fetched by the provider's
-  own system extension, not by Vibe.
+- Open URL… plays an audio file from a web address. Plain http is allowed
+  only to the local network. The download is kept for replay.
+- Collects nothing. Vibe goes online only to fetch an address the user types
+  into Open URL…, and on iPhone and iPad to reach Dropbox if connected. It
+  sends nothing else and has no analytics and no servers of its own. On the
+  Mac the outgoing network entitlement is used only to fetch the addresses
+  the user opens. Cloud files are fetched by the provider's own system
+  extension, not by Vibe.
 
 ## Links
 
 - [Home](https://vibeplayer.app/): what the app is, with screenshots.
 - [Privacy policy](https://vibeplayer.app/privacy): what Vibe stores locally,
-  and why it cannot send anything anywhere.
+  and the one kind of request it makes.
 - [Download (.dmg)](https://vibeplayer.app/download/latest): always the
   current notarized universal disk image — a redirect to the release asset on
   GitHub, where an arm64-only alternate is also available.

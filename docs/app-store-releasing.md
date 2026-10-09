@@ -297,17 +297,17 @@ is the same content the App Store reviewer needs (below).
 
 ### What the reviewer sees
 
-Worth stating because it is the likeliest rejection: Vibe bundles no music and
-streams nothing, so a reviewer opening the iOS app for the first time sees an
-empty playlist and no obvious way forward.
+This is the likeliest rejection. Vibe bundles no music. A reviewer opening the
+iOS app for the first time sees an empty playlist and no obvious way forward.
+Open URL can play a web address, but only one the reviewer types.
 
 **`Assets/app-store/review-notes.txt` is that explanation**, tracked because
 it is needed twice per release — App Review Information → Notes, and
 TestFlight's Beta App Review Information want the same text. **Nothing uploads
 it**; paste it in. It covers what the empty first launch means and that it is
-correct, the three ways to get audio in, the formats, why the widget draws a
-placeholder until the app has played once, background audio, and the privacy
-answer.
+correct, the four ways to get audio in (Open URL with a public https sample
+among them), the formats, why the widget draws a placeholder until the app has
+played once, background audio, and the privacy answer.
 
 **`Assets/app-store/Vibe-sample-track.mp4` is the attachment it promises**, so
 a reviewer never has to find audio of their own. MP4 because that is the only

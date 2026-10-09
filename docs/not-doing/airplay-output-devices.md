@@ -90,7 +90,7 @@ Note what this piece does and does not buy: it groups AirPlay devices **that alr
 
 Costs:
 
-- `com.apple.security.network.client` in `Vibe/Mac/App/Vibe.entitlements`, which today holds only `com.apple.security.assets.music.read-write` and `com.apple.security.files.bookmarks.app-scope`.
+- `com.apple.security.network.client` is no longer a cost. Open URL added it to the Mac app, and its only use there is fetching the address the user types. Discovery would be a second use, and the privacy policy would have to say so.
 - The macOS 15+ **Local Network** prompt — "Vibe would like to find devices on your local network".
 - A new framework dependency in `project.yml`.
 
