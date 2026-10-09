@@ -14,7 +14,7 @@
 
 static const uint64_t kPieceBytes = 64 * 1024;
 static const NSUInteger kLogLimit = 200;
-static const NSTimeInterval kStallPollSeconds = 0.1;
+static const NSTimeInterval kStallPollSeconds = 0.02;
 static const NSTimeInterval kLostConnectionPollSeconds = 0.005;
 static const NSTimeInterval kLostConnectionWaitSeconds = 2;
 
@@ -32,10 +32,6 @@ static NSUInteger sLogSequence;
 // How many times etag-change moved each file's version, by its path under
 // the root.
 static NSMutableDictionary<NSString *, NSNumber *> *sVersions;
-// Pieces of a body are delivered here, never on CFNetwork's protocol thread:
-// a wait there would queue every other request behind it and hold a cancel
-// until the whole file had gone out.
-static dispatch_queue_t sDeliveryQueue;
 
 static NSArray<NSString *> *VibeFakeHTTPFaultKinds(void) {
     return @[@"stall", @"drop", @"etag-change", @"rate", @"latency", @"no-range", @"no-length", @"icy",
@@ -125,16 +121,82 @@ static VibeFakeHTTPVersion VibeFakeHTTPVersionOf(NSString *relativePath, const s
     };
 }
 
-typedef struct {
-    NSInteger status;
-    NSDictionary<NSString *, NSString *> *headers;
-    NSData *body;
-} VibeFakeHTTPAnswer;
+// A request's line, as its body proceeds. A cancel marks only a line still
+// running. Under sLock.
+static void VibeFakeHTTPNote(NSMutableDictionary *entry, NSString *outcome, uint64_t delivered) {
+    NSString *was = entry[@"outcome"];
+    if ([outcome isEqualToString:@"cancelled"]) {
+        if ([was isEqualToString:@"running"] || [was isEqualToString:@"stalled"]) {
+            entry[@"outcome"] = outcome;
+            entry[@"finished"] = @(VibeFakeHTTPNow());
+        }
+        return;
+    }
+    if (!entry[@"firstByte"]) {
+        entry[@"firstByte"] = @(VibeFakeHTTPNow());
+    }
+    entry[@"delivered"] = @(delivered);
+    entry[@"outcome"] = outcome;
+    if (![outcome isEqualToString:@"running"] && ![outcome isEqualToString:@"stalled"]) {
+        entry[@"finished"] = @(VibeFakeHTTPNow());
+    }
+}
 
-@interface VibeFakeHTTPProtocol : NSURLProtocol
+NSInteger VibeFakeHTTPRangeStatus(NSString *range, uint64_t size, NSMutableDictionary<NSString *, NSString *> *headers,
+                                  uint64_t *first, uint64_t *length) {
+    unsigned long long from = 0, last = ULLONG_MAX;
+    if (!range || sscanf(range.UTF8String, "bytes=%llu-%llu", &from, &last) < 1) {
+        *first = 0;
+        *length = size;
+        headers[@"Content-Length"] = @(size).stringValue;
+        return 200;
+    }
+    if (from >= size) {
+        *first = 0;
+        *length = 0;
+        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes */%llu", size];
+        headers[@"Content-Length"] = @"0";
+        return 416;
+    }
+    last = MIN(last, size - 1);
+    *first = from;
+    *length = last >= from ? last - from + 1 : 0;
+    headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes %llu-%llu/%llu", from, last, size];
+    headers[@"Content-Length"] = @(*length).stringValue;
+    return 206;
+}
+
+@implementation VibeFakeHTTPAnswer
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _piece = kPieceBytes;
+        _holdAt = UINT64_MAX;
+        _cutAt = UINT64_MAX;
+    }
+    return self;
+}
+
+@end
+
+// Pieces of a body are delivered here, never on CFNetwork's protocol thread:
+// a wait there would queue every other request behind it and hold a cancel
+// until the whole file had gone out. HTTPStub's bodies too.
+static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.fake-http", DISPATCH_QUEUE_SERIAL);
+    });
+    return queue;
+}
+
+@interface VibeFakeHTTPProtocol ()
 @property (atomic) BOOL cancelled;
-// This request's log line. Mutated under sLock.
-@property (nonatomic) NSMutableDictionary *entry;
+// The last step is on its way. A stop after it is no cancel.
+@property (atomic) BOOL ended;
+@property (nonatomic, nullable) VibeFakeHTTPAnswer *answer;
 @end
 
 @implementation VibeFakeHTTPProtocol {
@@ -142,7 +204,7 @@ typedef struct {
     NSArray<NSRunLoopMode> *_modes;
 }
 
-// Installed on sessions the client alone owns. Every request is the fake's.
+// Installed on sessions their owner alone uses. Every request is the fake's.
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
     return YES;
 }
@@ -172,233 +234,86 @@ typedef struct {
         [modes addObject:mode];
     }
     _modes = modes;
-    NSURL *url = self.request.URL;
-    NSString *range = [self.request valueForHTTPHeaderField:@"Range"];
-    unsigned long long first = 0, last = ULLONG_MAX;
-    BOOL ranged = range && sscanf(range.UTF8String, "bytes=%llu-%llu", &first, &last) >= 1;
-    BOOL closed = ranged && ![range hasSuffix:@"-"];
-
-    os_unfair_lock_lock(&sLock);
-    sRequests++;
-    NSMutableDictionary *entry = [@{@"seq": @(++sLogSequence), @"t": @(VibeFakeHTTPNow()),
-                                    @"host": url.host ?: @"", @"path": url.path ?: @"",
-                                    @"range": range ?: NSNull.null, @"status": @0, @"delivered": @0,
-                                    @"faults": [NSMutableArray array], @"outcome": @"running"} mutableCopy];
-    [sLog addObject:entry];
-    if (sLog.count > kLogLimit) {
-        [sLog removeObjectAtIndex:0];
+    VibeFakeHTTPAnswer *answer = [self answerForRequest:self.request];
+    self.answer = answer;
+    if (!answer || answer.error) {
+        self.ended = YES;
+        [self.client URLProtocol:self didFailWithError:answer.error ?: [NSError errorWithDomain:NSURLErrorDomain
+                                                                                           code:NSURLErrorCannotFindHost
+                                                                                       userInfo:nil]];
+        return;
     }
-    self.entry = entry;
-    NSString *root = sRootPath;
-    if (!root || !VibeFakeHTTPServesHost(url.host)) {
-        entry[@"outcome"] = @"unknown-host";
-        entry[@"finished"] = @(VibeFakeHTTPNow());
-        os_unfair_lock_unlock(&sLock);
+    if (answer.redirect) {
+        // Followed, the session loads the new request through a new instance.
+        // Refused, it answers the task with this response. Either way this
+        // load is over.
+        self.ended = YES;
+        [self.client URLProtocol:self wasRedirectedToRequest:answer.redirect redirectResponse:answer.response];
         [self.client URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain
-                                                                           code:NSURLErrorCannotFindHost
-                                                                       userInfo:nil]];
+                                                                           code:NSURLErrorCancelled userInfo:nil]];
         return;
     }
-    NSString *path = [root stringByAppendingPathComponent:url.path ?: @""].stringByStandardizingPath;
-    NSString *relativePath = [path hasPrefix:[root stringByAppendingString:@"/"]]
-            ? [path substringFromIndex:root.length] : nil;
-    NSString *name = path.lastPathComponent;
-    struct stat info;
-    BOOL found = relativePath && stat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode);
-    VibeFakeHTTPVersion version = found ? VibeFakeHTTPVersionOf(relativePath, &info) : (VibeFakeHTTPVersion){0};
-    NSTimeInterval latency = 0;
-    NSMutableDictionary *fault = VibeFakeHTTPFault(@"latency", name);
-    if (fault) {
-        latency = [fault[@"seconds"] doubleValue];
-        VibeFakeHTTPApply(fault, entry);
-    }
-    VibeFakeHTTPAnswer refusal = {0, nil, nil};
-    if ((fault = VibeFakeHTTPFault(@"status", name))) {
-        NSInteger status = [fault[@"status"] integerValue];
-        refusal = (VibeFakeHTTPAnswer){status, @{@"Content-Type": @"text/plain"},
-                                       [[NSString stringWithFormat:@"HTTP %ld", (long)status]
-                                               dataUsingEncoding:NSUTF8StringEncoding]};
-        VibeFakeHTTPApply(fault, entry);
-    }
-    else if ((fault = VibeFakeHTTPFault(@"html", name))) {
-        refusal = (VibeFakeHTTPAnswer){200, @{@"Content-Type": @"text/html; charset=utf-8"},
-                                       [@"<!doctype html><html><head><title>Vibe</title></head>"
-                                        @"<body>Not a song.</body></html>" dataUsingEncoding:NSUTF8StringEncoding]};
-        VibeFakeHTTPApply(fault, entry);
-    }
-    else if (!found) {
-        refusal = (VibeFakeHTTPAnswer){404, @{@"Content-Type": @"text/plain"},
-                                       [@"Not Found" dataUsingEncoding:NSUTF8StringEncoding]};
-    }
-    // A shape a server with no ranges, no length, or a compressor answers in.
-    NSString *shape = nil;
-    for (NSString *kind in @[@"icy", @"no-length", @"gzip", @"no-range"]) {
-        if (!refusal.status && (fault = VibeFakeHTTPFault(kind, name))) {
-            shape = kind;
-            VibeFakeHTTPApply(fault, entry);
-            break;
-        }
-    }
-    NSTimeInterval transferSeconds = sTransferSeconds;
-    entry[@"size"] = @(version.size);
-    entry[@"etag"] = version.etag ?: NSNull.null;
-    os_unfair_lock_unlock(&sLock);
-
-    if (refusal.status) {
-        [self answer:refusal after:latency];
-        return;
-    }
-    NSMutableDictionary<NSString *, NSString *> *headers = [@{
-        @"ETag": version.etag,
-        @"Last-Modified": version.lastModified,
-        @"Content-Type": VibeFakeHTTPContentType(name.pathExtension),
-        @"Accept-Ranges": @"bytes",
-    } mutableCopy];
-    uint64_t size = version.size;
-    if (!shape && ranged && first >= size) {
-        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes */%llu", size];
-        [headers removeObjectForKey:@"Content-Type"];
-        [self answer:(VibeFakeHTTPAnswer){416, headers, nil} after:latency];
-        return;
-    }
-    NSFileHandle *file = [NSFileHandle fileHandleForReadingFromURL:[NSURL fileURLWithPath:path] error:NULL];
-    if (!file) {
-        [self answer:(VibeFakeHTTPAnswer){500, @{@"Content-Type": @"text/plain"}, nil} after:latency];
-        return;
-    }
-    if (!shape && closed) {
-        last = MIN(last, size - 1);
-        NSData *slice = [NSData data];
-        if (first <= last && [file seekToOffset:first error:NULL]) {
-            slice = [file readDataUpToLength:(NSUInteger)(last - first + 1) error:NULL] ?: slice;
-        }
-        headers[@"Content-Length"] = @(slice.length).stringValue;
-        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes %llu-%llu/%llu", first, last, size];
-        [self answer:(VibeFakeHTTPAnswer){206, headers, slice} after:latency];
-        return;
-    }
-    // A paced body: the whole file, or the rest of it from an open range.
-    uint64_t from = shape ? 0 : first;
-    NSInteger status = !shape && ranged ? 206 : 200;
-    if (status == 206) {
-        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes %llu-%llu/%llu", from, size - 1, size];
-    }
-    headers[@"Content-Length"] = @(size - from).stringValue;
-    if ([shape isEqualToString:@"no-length"] || [shape isEqualToString:@"icy"]) {
-        [headers removeObjectForKey:@"Content-Length"];
-        [headers removeObjectForKey:@"Accept-Ranges"];
-    }
-    if ([shape isEqualToString:@"icy"]) {
-        headers[@"icy-name"] = @"Vibe Fake Radio";
-        headers[@"icy-genre"] = @"Test";
-        headers[@"icy-br"] = @"128";
-    }
-    if ([shape isEqualToString:@"gzip"]) {
-        headers[@"Content-Encoding"] = @"gzip";
-    }
-    if ([shape isEqualToString:@"no-range"]) {
-        [headers removeObjectForKey:@"Accept-Ranges"];
-    }
-    if (from > 0 && ![file seekToOffset:from error:NULL]) {
-        [self answer:(VibeFakeHTTPAnswer){500, @{@"Content-Type": @"text/plain"}, nil} after:latency];
-        return;
-    }
-    os_unfair_lock_lock(&sLock);
-    entry[@"status"] = @(status);
-    entry[@"paced"] = @YES;
-    os_unfair_lock_unlock(&sLock);
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:url
-                                                              statusCode:status
-                                                             HTTPVersion:@"HTTP/1.1"
-                                                            headerFields:headers];
-    NSTimeInterval interval = transferSeconds > 0 && size > 0 ? transferSeconds * kPieceBytes / size : 0;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(latency * NSEC_PER_SEC)), sDeliveryQueue, ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(answer.latency * NSEC_PER_SEC)),
+                   VibeFakeHTTPDeliveryQueue(), ^{
         if (self.cancelled) {
             return;
         }
-        os_unfair_lock_lock(&sLock);
-        entry[@"firstByte"] = @(VibeFakeHTTPNow());
-        os_unfair_lock_unlock(&sLock);
+        if (answer.progress) {
+            answer.progress(@"running", 0);
+        }
         [self tellClient:^{
-            [self.client URLProtocol:self didReceiveResponse:response
+            [self.client URLProtocol:self didReceiveResponse:answer.response
                   cacheStoragePolicy:NSURLCacheStorageNotAllowed];
         }];
-        [self deliverPieceOf:file path:relativePath at:from from:from size:size every:interval after:interval];
+        [self deliverFrom:0 after:answer.interval];
     });
 }
 
 // One piece per step. The bytes written grow as a real transfer's do, and
-// the loading bar reads them. A cancel lands between pieces. The faults are
-// read at every step. One set mid-transfer applies to it. Offsets are the
-// file's.
-- (void)deliverPieceOf:(NSFileHandle *)file
-                  path:(NSString *)relativePath
-                    at:(uint64_t)offset
-                  from:(uint64_t)from
-                  size:(uint64_t)size
-                 every:(NSTimeInterval)interval
-                 after:(NSTimeInterval)wait {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), sDeliveryQueue, ^{
+// the loading bar reads them. A cancel lands between pieces. beforePiece is
+// asked at every step, so a fault set mid-transfer applies to it.
+- (void)deliverFrom:(uint64_t)delivered after:(NSTimeInterval)wait {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), VibeFakeHTTPDeliveryQueue(), ^{
         if (self.cancelled) {
             return;
         }
-        NSString *name = relativePath.lastPathComponent;
-        uint64_t piece = MIN(kPieceBytes, size - offset);
-        NSTimeInterval next = interval;
-        os_unfair_lock_lock(&sLock);
-        NSMutableDictionary *stall = VibeFakeHTTPFault(@"stall", name);
-        BOOL stalled = stall && offset >= [stall[@"after"] unsignedLongLongValue];
-        NSMutableDictionary *cut = stalled ? nil
-                : (VibeFakeHTTPFault(@"drop", name) ?: VibeFakeHTTPFault(@"etag-change", name));
-        uint64_t cutAt = [cut[@"after"] unsignedLongLongValue];
-        if (cut && offset + piece < cutAt) {
-            cut = nil;
+        VibeFakeHTTPAnswer *answer = self.answer;
+        if (answer.beforePiece) {
+            answer.beforePiece(answer, delivered);
         }
-        if (cut) {
-            piece = cutAt > offset ? cutAt - offset : 0;
-            if ([cut[@"kind"] isEqualToString:@"etag-change"]) {
-                sVersions[relativePath] = @(sVersions[relativePath].unsignedIntegerValue + 1);
+        uint64_t length = answer.length;
+        if (delivered < length && delivered >= answer.holdAt) {
+            if (answer.progress) {
+                answer.progress(@"stalled", delivered);
             }
-            VibeFakeHTTPApply(cut, self.entry);
-        }
-        else if (stall && !stalled) {
-            // A stall not reached yet stops this piece at its offset.
-            piece = MIN(piece, [stall[@"after"] unsignedLongLongValue] - offset);
-        }
-        if (stalled && ![self.entry[@"faults"] containsObject:@"stall"]) {
-            VibeFakeHTTPApply(stall, self.entry);
-        }
-        NSMutableDictionary *rate = VibeFakeHTTPFault(@"rate", name);
-        if (rate) {
-            next = (double)kPieceBytes / [rate[@"rate"] unsignedLongLongValue];
-            if (![self.entry[@"faults"] containsObject:@"rate"]) {
-                VibeFakeHTTPApply(rate, self.entry);
-            }
-        }
-        self.entry[@"outcome"] = stalled ? @"stalled" : @"running";
-        os_unfair_lock_unlock(&sLock);
-        if (stalled) {
-            [self deliverPieceOf:file path:relativePath at:offset from:from size:size every:interval
-                           after:kStallPollSeconds];
+            [self deliverFrom:delivered after:kStallPollSeconds];
             return;
         }
-        NSData *bytes = piece > 0 ? [file readDataUpToLength:(NSUInteger)piece error:NULL] : [NSData data];
+        uint64_t piece = MIN(answer.piece, length - MIN(delivered, length));
+        BOOL cut = answer.cutAt != UINT64_MAX && delivered + piece >= answer.cutAt;
+        if (cut) {
+            piece = answer.cutAt > delivered ? answer.cutAt - delivered : 0;
+        }
+        else if (answer.holdAt > delivered && answer.holdAt != UINT64_MAX) {
+            // A hold not reached yet stops this piece at its offset.
+            piece = MIN(piece, answer.holdAt - delivered);
+        }
+        NSData *bytes = piece > 0 ? answer.bytes(delivered, piece) ?: [NSData data] : [NSData data];
         if (bytes.length > 0) {
             [self tellClient:^{
                 [self.client URLProtocol:self didLoadData:bytes];
             }];
         }
-        uint64_t reached = offset + bytes.length;
-        BOOL complete = !cut && (reached >= size || (piece > 0 && bytes.length == 0));
-        os_unfair_lock_lock(&sLock);
-        self.entry[@"delivered"] = @(reached - from);
+        uint64_t reached = delivered + bytes.length;
+        BOOL complete = !cut && (reached >= length || (piece > 0 && bytes.length == 0));
         if (cut || complete) {
-            self.entry[@"outcome"] = cut ? @"dropped" : @"complete";
-            self.entry[@"finished"] = @(VibeFakeHTTPNow());
+            self.ended = YES;
         }
-        os_unfair_lock_unlock(&sLock);
+        if (answer.progress) {
+            answer.progress(cut ? @"dropped" : complete ? @"complete" : @"running", reached);
+        }
         if (cut) {
-            [self loseConnectionOnceTaskHolds:reached - from waited:0];
+            [self loseConnectionOnceTaskHolds:reached waited:0];
             return;
         }
         if (complete) {
@@ -407,7 +322,7 @@ typedef struct {
             }];
             return;
         }
-        [self deliverPieceOf:file path:relativePath at:reached from:from size:size every:interval after:next];
+        [self deliverFrom:reached after:answer.interval];
     });
 }
 
@@ -419,9 +334,11 @@ typedef struct {
     if (self.cancelled) {
         return;
     }
-    if (self.task.countOfBytesReceived < (int64_t)delivered && waited < kLostConnectionWaitSeconds) {
+    BOOL (^ready)(void) = self.answer.ready;
+    BOOL held = self.task.countOfBytesReceived >= (int64_t)delivered || waited >= kLostConnectionWaitSeconds;
+    if (!held || (ready && !ready())) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kLostConnectionPollSeconds * NSEC_PER_SEC)),
-                       sDeliveryQueue, ^{
+                       VibeFakeHTTPDeliveryQueue(), ^{
             [self loseConnectionOnceTaskHolds:delivered waited:waited + kLostConnectionPollSeconds];
         });
         return;
@@ -433,49 +350,188 @@ typedef struct {
     }];
 }
 
-// A whole answer, after the first byte's latency.
-- (void)answer:(VibeFakeHTTPAnswer)answer after:(NSTimeInterval)latency {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(latency * NSEC_PER_SEC)), sDeliveryQueue, ^{
-        if (self.cancelled) {
-            return;
-        }
-        NSMutableDictionary *headers = [answer.headers mutableCopy] ?: [NSMutableDictionary dictionary];
-        if (!headers[@"Content-Length"]) {
-            headers[@"Content-Length"] = @(answer.body.length).stringValue;
-        }
-        os_unfair_lock_lock(&sLock);
-        self.entry[@"status"] = @(answer.status);
-        self.entry[@"delivered"] = @(answer.body.length);
-        self.entry[@"firstByte"] = @(VibeFakeHTTPNow());
-        self.entry[@"finished"] = self.entry[@"firstByte"];
-        self.entry[@"outcome"] = @"answered";
-        os_unfair_lock_unlock(&sLock);
-        NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
-                                                                  statusCode:answer.status
-                                                                 HTTPVersion:@"HTTP/1.1"
-                                                                headerFields:headers];
-        [self tellClient:^{
-            [self.client URLProtocol:self didReceiveResponse:response
-                  cacheStoragePolicy:NSURLCacheStorageNotAllowed];
-            if (answer.body.length > 0) {
-                [self.client URLProtocol:self didLoadData:answer.body];
-            }
-            [self.client URLProtocolDidFinishLoading:self];
-        }];
-    });
-}
-
-// Also sent after a load that finished. Only a line still running was
-// cancelled.
+// Also sent after a load that finished. Only one still running was cancelled.
 - (void)stopLoading {
     self.cancelled = YES;
-    os_unfair_lock_lock(&sLock);
-    NSString *outcome = self.entry[@"outcome"];
-    if ([outcome isEqualToString:@"running"] || [outcome isEqualToString:@"stalled"]) {
-        self.entry[@"outcome"] = @"cancelled";
-        self.entry[@"finished"] = @(VibeFakeHTTPNow());
+    VibeFakeHTTPAnswer *answer = self.answer;
+    if (!self.ended && answer.progress) {
+        answer.progress(@"cancelled", 0);
     }
+}
+
+#pragma mark The directory
+
+- (VibeFakeHTTPAnswer *)answerForRequest:(NSURLRequest *)request {
+    NSURL *url = request.URL;
+    NSString *range = [request valueForHTTPHeaderField:@"Range"];
+    VibeFakeHTTPAnswer *answer = [[VibeFakeHTTPAnswer alloc] init];
+
+    os_unfair_lock_lock(&sLock);
+    sRequests++;
+    NSMutableDictionary *entry = [@{@"seq": @(++sLogSequence), @"t": @(VibeFakeHTTPNow()),
+                                    @"host": url.host ?: @"", @"path": url.path ?: @"",
+                                    @"range": range ?: NSNull.null, @"status": @0, @"delivered": @0,
+                                    @"faults": [NSMutableArray array], @"outcome": @"running"} mutableCopy];
+    [sLog addObject:entry];
+    if (sLog.count > kLogLimit) {
+        [sLog removeObjectAtIndex:0];
+    }
+    NSString *root = sRootPath;
+    if (!root || !VibeFakeHTTPServesHost(url.host)) {
+        entry[@"outcome"] = @"unknown-host";
+        entry[@"finished"] = @(VibeFakeHTTPNow());
+        os_unfair_lock_unlock(&sLock);
+        return nil;
+    }
+    NSString *path = [root stringByAppendingPathComponent:url.path ?: @""].stringByStandardizingPath;
+    NSString *relativePath = [path hasPrefix:[root stringByAppendingString:@"/"]]
+            ? [path substringFromIndex:root.length] : nil;
+    NSString *name = path.lastPathComponent;
+    struct stat info;
+    BOOL found = relativePath && stat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode);
+    VibeFakeHTTPVersion version = found ? VibeFakeHTTPVersionOf(relativePath, &info) : (VibeFakeHTTPVersion){0};
+    NSMutableDictionary *fault = VibeFakeHTTPFault(@"latency", name);
+    if (fault) {
+        answer.latency = [fault[@"seconds"] doubleValue];
+        VibeFakeHTTPApply(fault, entry);
+    }
+    NSInteger refusal = 0;
+    NSDictionary<NSString *, NSString *> *refusalHeaders = @{@"Content-Type": @"text/plain"};
+    NSData *refusalBody = nil;
+    if ((fault = VibeFakeHTTPFault(@"status", name))) {
+        refusal = [fault[@"status"] integerValue];
+        refusalBody = [[NSString stringWithFormat:@"HTTP %ld", (long)refusal] dataUsingEncoding:NSUTF8StringEncoding];
+        VibeFakeHTTPApply(fault, entry);
+    }
+    else if ((fault = VibeFakeHTTPFault(@"html", name))) {
+        refusal = 200;
+        refusalHeaders = @{@"Content-Type": @"text/html; charset=utf-8"};
+        refusalBody = [@"<!doctype html><html><head><title>Vibe</title></head>"
+                       @"<body>Not a song.</body></html>" dataUsingEncoding:NSUTF8StringEncoding];
+        VibeFakeHTTPApply(fault, entry);
+    }
+    else if (!found) {
+        refusal = 404;
+        refusalBody = [@"Not Found" dataUsingEncoding:NSUTF8StringEncoding];
+    }
+    // A shape a server with no ranges, no length, or a compressor answers in.
+    NSString *shape = nil;
+    for (NSString *kind in @[@"icy", @"no-length", @"gzip", @"no-range"]) {
+        if (!refusal && (fault = VibeFakeHTTPFault(kind, name))) {
+            shape = kind;
+            VibeFakeHTTPApply(fault, entry);
+            break;
+        }
+    }
+    NSTimeInterval transferSeconds = sTransferSeconds;
+    entry[@"size"] = @(version.size);
+    entry[@"etag"] = version.etag ?: NSNull.null;
     os_unfair_lock_unlock(&sLock);
+
+    NSFileHandle *file = refusal ? nil : [NSFileHandle fileHandleForReadingFromURL:[NSURL fileURLWithPath:path]
+                                                                            error:NULL];
+    if (!refusal && !file) {
+        refusal = 500;
+    }
+    NSMutableDictionary<NSString *, NSString *> *headers = nil;
+    NSInteger status = refusal;
+    uint64_t first = 0, length = 0;
+    BOOL paced = NO;
+    if (refusal) {
+        headers = [refusalHeaders mutableCopy];
+        length = refusalBody.length;
+        headers[@"Content-Length"] = @(length).stringValue;
+        answer.bytes = ^NSData *(uint64_t offset, uint64_t count) {
+            return [refusalBody subdataWithRange:NSMakeRange((NSUInteger)offset, (NSUInteger)count)];
+        };
+    }
+    else {
+        headers = [@{
+            @"ETag": version.etag,
+            @"Last-Modified": version.lastModified,
+            @"Content-Type": VibeFakeHTTPContentType(name.pathExtension),
+            @"Accept-Ranges": @"bytes",
+        } mutableCopy];
+        status = VibeFakeHTTPRangeStatus(shape ? nil : range, version.size, headers, &first, &length);
+        if (status == 416) {
+            [headers removeObjectForKey:@"Content-Type"];
+        }
+        // An open range is the rest of the file, paced. A closed one, the
+        // probe, a tag read, or the tail window, answers at once.
+        paced = status == 200 || (status == 206 && [range hasSuffix:@"-"]);
+        if ([shape isEqualToString:@"no-length"] || [shape isEqualToString:@"icy"]) {
+            [headers removeObjectForKey:@"Content-Length"];
+            [headers removeObjectForKey:@"Accept-Ranges"];
+        }
+        if ([shape isEqualToString:@"icy"]) {
+            headers[@"icy-name"] = @"Vibe Fake Radio";
+            headers[@"icy-genre"] = @"Test";
+            headers[@"icy-br"] = @"128";
+        }
+        if ([shape isEqualToString:@"gzip"]) {
+            headers[@"Content-Encoding"] = @"gzip";
+        }
+        if ([shape isEqualToString:@"no-range"]) {
+            [headers removeObjectForKey:@"Accept-Ranges"];
+        }
+        answer.bytes = ^NSData *(uint64_t offset, uint64_t count) {
+            return [file seekToOffset:first + offset error:NULL] ? [file readDataUpToLength:(NSUInteger)count error:NULL]
+                                                                 : nil;
+        };
+    }
+    answer.response = [[NSHTTPURLResponse alloc] initWithURL:url statusCode:status HTTPVersion:@"HTTP/1.1"
+                                                headerFields:headers];
+    answer.length = length;
+    os_unfair_lock_lock(&sLock);
+    entry[@"status"] = @(status);
+    entry[@"paced"] = @(paced);
+    os_unfair_lock_unlock(&sLock);
+    if (!paced) {
+        answer.piece = MAX(length, (uint64_t)1);
+    }
+    else {
+        answer.interval = transferSeconds > 0 && version.size > 0 ? transferSeconds * kPieceBytes / version.size : 0;
+        NSTimeInterval paceInterval = answer.interval;
+        // The fault that cuts this body, should the next piece reach it.
+        __block NSMutableDictionary *cut = nil;
+        answer.beforePiece = ^(VibeFakeHTTPAnswer *body, uint64_t delivered) {
+            os_unfair_lock_lock(&sLock);
+            NSMutableDictionary *stall = VibeFakeHTTPFault(@"stall", name);
+            uint64_t stallAt = [stall[@"after"] unsignedLongLongValue];
+            body.holdAt = stall ? (stallAt > first ? stallAt - first : 0) : UINT64_MAX;
+            BOOL stalled = stall && delivered >= body.holdAt;
+            if (stalled && ![entry[@"faults"] containsObject:@"stall"]) {
+                VibeFakeHTTPApply(stall, entry);
+            }
+            cut = stalled ? nil : (VibeFakeHTTPFault(@"drop", name) ?: VibeFakeHTTPFault(@"etag-change", name));
+            uint64_t cutAt = [cut[@"after"] unsignedLongLongValue];
+            body.cutAt = cut ? (cutAt > first ? cutAt - first : 0) : UINT64_MAX;
+            NSMutableDictionary *rate = VibeFakeHTTPFault(@"rate", name);
+            body.interval = rate ? (double)kPieceBytes / [rate[@"rate"] unsignedLongLongValue] : paceInterval;
+            if (rate && ![entry[@"faults"] containsObject:@"rate"]) {
+                VibeFakeHTTPApply(rate, entry);
+            }
+            os_unfair_lock_unlock(&sLock);
+        };
+        answer.progress = ^(NSString *outcome, uint64_t delivered) {
+            os_unfair_lock_lock(&sLock);
+            if ([outcome isEqualToString:@"dropped"] && cut) {
+                if ([cut[@"kind"] isEqualToString:@"etag-change"]) {
+                    sVersions[relativePath] = @(sVersions[relativePath].unsignedIntegerValue + 1);
+                }
+                VibeFakeHTTPApply(cut, entry);
+            }
+            VibeFakeHTTPNote(entry, outcome, delivered);
+            os_unfair_lock_unlock(&sLock);
+        };
+        return answer;
+    }
+    answer.progress = ^(NSString *outcome, uint64_t delivered) {
+        os_unfair_lock_lock(&sLock);
+        VibeFakeHTTPNote(entry, [outcome isEqualToString:@"complete"] ? @"answered" : outcome, delivered);
+        os_unfair_lock_unlock(&sLock);
+    };
+    return answer;
 }
 
 @end
@@ -495,9 +551,6 @@ typedef struct {
     sFaults = [NSMutableArray array];
     sLog = [NSMutableArray array];
     sVersions = [NSMutableDictionary dictionary];
-    if (!sDeliveryQueue) {
-        sDeliveryQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.fake-http", DISPATCH_QUEUE_SERIAL);
-    }
     os_unfair_lock_unlock(&sLock);
     if (!installed) {
         [client useSessionConfiguration:[self sessionConfiguration]];

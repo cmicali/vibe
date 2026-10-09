@@ -7,10 +7,12 @@
 //  session only through `configuration`'s protocolClasses, never through
 //  +[NSURLProtocol registerClass:].
 //
-//  A path serves its bytes with Range support: 206 with Content-Range for a
-//  range inside the file, 416 for one starting at or past its end, and 200
-//  whole when the file ignores ranges. Steps queued on a path script the next
-//  requests to it, one step each, in order.
+//  The serving is the debug channel's fake web server's (VibeFakeHTTP.h).
+//  This class scripts its answers. A path serves its bytes by the fake's
+//  Range rule: 206 with Content-Range for a range inside the file, 416 for
+//  one starting at or past its end, and 200 whole when the file ignores
+//  ranges. Steps queued on a path script the next requests to it, one step
+//  each, in order.
 //
 
 #import <Foundation/Foundation.h>
@@ -37,8 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 // A 302 to url, which the session follows unless a delegate refuses it.
 + (instancetype)redirectTo:(NSURL *)url;
 // The file's answer, ended by NSURLErrorNetworkConnectionLost after `bytes`
-// of its body. The failure waits until `ready` answers YES, if set: a failure
-// sent straight after the bytes overtakes them on the client's side.
+// of its body. The failure waits until the task holds those bytes, and until
+// `ready` answers YES, if set.
 + (instancetype)dropAfter:(NSUInteger)bytes ready:(nullable BOOL (^)(void))ready;
 // The file's answer, held after `bytes` of its body until `gate` is
 // signalled, without holding the loader's thread.
