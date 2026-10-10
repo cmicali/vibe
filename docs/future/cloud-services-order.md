@@ -35,7 +35,9 @@ SMB on iOS reads in place over the wire, as it does on the Mac. So item 2's read
 
 ### 1. iCloud Drive on iOS
 
-[Plan](ios-icloud-improvements.md). It already works through the picker. The plan adds a setup entry in the Files tab, cached artwork for files no longer downloaded, and the browser follow-ups. Zero new files and zero new types. The artwork rule applies to every provider folder and to Dropbox placeholders too. This is the largest iPhone audience for the least code.
+[Plan](ios-icloud-improvements.md). It already works through the picker. The plan adds a setup step in the Files tab, cached artwork for files no longer downloaded, and the browser follow-ups. Zero new files and zero new types. The artwork rule applies to every provider folder and to Dropbox placeholders too. This is the largest iPhone audience for the least code.
+
+**Built 2026-10-08: Add Folder… names iCloud Drive and opens the granted folder, and cached artwork shows for files not downloaded.** Each landed with zero new files and zero new types. A real iCloud eviction is still to check on a device. The browser follow-ups wait on product decisions.
 
 ### 2. Network shares, and the availability that takes any writer
 

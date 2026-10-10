@@ -2605,6 +2605,192 @@
       },
       "extractionState": "manual"
     },
+    "browser.add_folder.caption": {
+      "comment": "iOS Files tab: smaller second line under the Add Folder… row in the Locations list. It says where the folder can come from. The user picks it once and can then browse and search it in the app. iCloud Drive is an Apple product name: use the name Apple's Files app uses in this language.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "От iCloud Drive, от диск или от друго приложение."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Z iCloud Drive, disku nebo jiné aplikace."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fra iCloud Drive, et drev eller en anden app."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus iCloud Drive, von einem Laufwerk oder aus einer anderen App."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Από το iCloud Drive, έναν δίσκο ή μια άλλη εφαρμογή."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From iCloud Drive, a drive, or another app."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De iCloud Drive, de una unidad o de otra app."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud Drivesta, asemalta tai toisesta apista."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D’iCloud Drive, d’un disque ou d’une autre app."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "S iCloud Drivea, diska ili iz druge aplikacije."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az iCloud Drive-ról, egy meghajtóról vagy egy másik appból."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dari iCloud Drive, drive, atau app lain."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Da iCloud Drive, da un disco o da un’altra app."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud Drive、ドライブ、またはほかのアプリから。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud Drive, 드라이브 또는 다른 앱에서."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fra iCloud Drive, en disk eller en annen app."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uit iCloud Drive, van een schijf of uit een andere app."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Z iCloud Drive, dysku lub innej aplikacji."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do iCloud Drive, de um disco ou de outro app."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do iCloud Drive, de uma unidade ou de outra app."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Din iCloud Drive, de pe o unitate sau din altă aplicație."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Из iCloud Drive, с диска или из другого приложения."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Z iCloud Drive, disku alebo inej aplikácie."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Från iCloud Drive, en enhet eller en annan app."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "จาก iCloud Drive ไดรฟ์ หรือแอปอื่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud Drive’dan, bir sürücüden veya başka bir uygulamadan."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "З iCloud Drive, диска чи іншої програми."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Từ iCloud Drive, ổ đĩa hoặc ứng dụng khác."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "来自 iCloud 云盘、驱动器或其他 App。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "來自 iCloud 雲碟、磁碟或其他 App。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.add_subfolders": {
       "comment": "iOS add-to-playlist sheet: the item under a long press on a folder's add button. Adds every song in the folder and in the folders inside it to the playlist, where a plain tap adds only the songs directly in the folder.",
       "localizations": {
@@ -3530,192 +3716,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "位置"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "browser.locations_footer": {
-      "comment": "iOS Files tab: explanation under the Locations list. On My iPhone and Dropbox are always available; this list is for any other folder the user gives the app permission to read. iCloud Drive is an Apple product name.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавете папка от iCloud Drive, от диск или от друго приложение, за да я разглеждате и търсите в нея тук."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Přidejte složku z iCloud Drive, disku nebo jiné aplikace a můžete ji tady procházet a prohledávat."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilføj en mappe fra iCloud Drive, et drev eller en anden app for at gennemse og søge i den her."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Füge einen Ordner aus iCloud Drive, von einem Laufwerk oder aus einer anderen App hinzu, um ihn hier zu durchblättern und zu durchsuchen."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Προσθέστε έναν φάκελο από το iCloud Drive, έναν δίσκο ή μια άλλη εφαρμογή για περιήγηση και αναζήτηση εδώ."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a folder from iCloud Drive, a drive, or another app to browse and search it here."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añade una carpeta de iCloud Drive, de una unidad o de otra app para explorarla y buscar en ella aquí."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lisää kansio iCloud Drivesta, asemalta tai toisesta apista, niin voit selata ja etsiä sitä täällä."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajoutez un dossier d’iCloud Drive, d’un disque ou d’une autre app pour le parcourir et y effectuer des recherches ici."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodajte mapu s iCloud Drivea, diska ili iz druge aplikacije da biste je ovdje pregledavali i pretraživali."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adj hozzá egy mappát az iCloud Drive-ról, egy meghajtóról vagy egy másik appból, hogy itt böngészhess és kereshess benne."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tambahkan folder dari iCloud Drive, drive, atau app lain untuk menelusuri dan mencarinya di sini."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiungi una cartella da iCloud Drive, da un disco o da un’altra app per sfogliarla e cercare al suo interno da qui."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud Drive、ドライブ、またはほかのアプリからフォルダを追加すると、ここでブラウズや検索ができます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "iCloud Drive, 드라이브 또는 다른 앱에서 폴더를 추가하면 여기에서 탐색하고 검색할 수 있습니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Legg til en mappe fra iCloud Drive, en disk eller en annen app for å bla gjennom og søke i den her."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voeg een map uit iCloud Drive, van een schijf of uit een andere app toe om er hier doorheen te bladeren en in te zoeken."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dodaj folder z iCloud Drive, dysku lub innej aplikacji, aby przeglądać go i przeszukiwać tutaj."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicione uma pasta do iCloud Drive, de um disco ou de outro app para navegar e buscar nela aqui."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicione uma pasta do iCloud Drive, de uma unidade ou de outra app para a explorar e pesquisar aqui."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adăugați un dosar din iCloud Drive, de pe o unitate sau din altă aplicație pentru a-l răsfoi și a căuta în el aici."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавьте папку из iCloud Drive, с диска или из другого приложения, чтобы просматривать её и искать в ней здесь."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pridajte priečinok z iCloud Drive, disku alebo inej aplikácie a môžete ho tu prehliadať a prehľadávať."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lägg till en mapp från iCloud Drive, en enhet eller en annan app för att bläddra och söka i den här."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพิ่มโฟลเดอร์จาก iCloud Drive ไดรฟ์ หรือแอปอื่น เพื่อเลือกดูและค้นหาได้ที่นี่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Burada göz atmak ve arama yapmak için iCloud Drive’dan, bir sürücüden veya başka bir uygulamadan klasör ekleyin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Додайте папку з iCloud Drive, диска чи іншої програми, щоб переглядати її та шукати в ній тут."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thêm thư mục từ iCloud Drive, ổ đĩa hoặc ứng dụng khác để duyệt và tìm kiếm tại đây."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "从 iCloud 云盘、驱动器或其他 App 添加文件夹，即可在此浏览和搜索。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "從 iCloud 雲碟、磁碟或其他 App 加入檔案夾，即可在這裡瀏覽和搜尋。"
           }
         }
       },
