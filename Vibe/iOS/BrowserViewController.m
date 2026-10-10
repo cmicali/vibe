@@ -49,8 +49,15 @@ static const NSUInteger kMaximumSubfolders = 500;
 static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
-// The system's Paste control, in the paste row and in Open URL's sheet.
+// The system's Paste control in the paste row.
 static const CGSize kPasteControlSize = {112, 36};
+// TRAP: the system draws its Paste control blank, and ignores taps on it,
+// when its content does not fit the frame. A fixed size fits only the default
+// text size. So Open URL's control scales with Dynamic Type, and it spans the
+// field so every language's label fits.
+static CGFloat VibePasteControlHeight(void) {
+    return ceil([UIFontMetrics.defaultMetrics scaledValueForValue:44]);
+}
 
 @interface BrowserViewController () <UIDocumentPickerDelegate, UISearchResultsUpdating, PlaybackObserver,
         AudioTrackMetadataCacheDelegate, UIAdaptivePresentationControllerDelegate, UITextViewDelegate>
@@ -1016,6 +1023,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
     UILayoutGuide *margins = content.view.layoutMarginsGuide;
     CGFloat fieldHeight = ceil(3 * font.lineHeight) + 16;
+    CGFloat pasteHeight = VibePasteControlHeight();
     [NSLayoutConstraint activateConstraints:@[
         [field.topAnchor constraintEqualToAnchor:content.view.safeAreaLayoutGuide.topAnchor constant:8],
         [field.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
@@ -1023,16 +1031,17 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         [field.heightAnchor constraintEqualToConstant:fieldHeight],
         [paste.topAnchor constraintEqualToAnchor:field.bottomAnchor constant:12],
         [paste.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
-        [paste.widthAnchor constraintEqualToConstant:kPasteControlSize.width],
-        [paste.heightAnchor constraintEqualToConstant:kPasteControlSize.height],
-        [spinner.centerYAnchor constraintEqualToAnchor:paste.centerYAnchor],
-        [spinner.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
+        [paste.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
+        [paste.heightAnchor constraintEqualToConstant:pasteHeight],
+        // In the field's corner, so the Paste spans the field.
+        [spinner.bottomAnchor constraintEqualToAnchor:field.bottomAnchor constant:-8],
+        [spinner.trailingAnchor constraintEqualToAnchor:field.trailingAnchor constant:-8],
     ]];
 
     UINavigationController *sheet = [[UINavigationController alloc] initWithRootViewController:content];
     sheet.modalPresentationStyle = UIModalPresentationFormSheet;
     // The bar, the field, and the Paste row, with a margin under it.
-    CGFloat height = 56 + 8 + fieldHeight + 12 + kPasteControlSize.height + 20;
+    CGFloat height = 56 + 8 + fieldHeight + 12 + pasteHeight + 20;
     sheet.preferredContentSize = CGSizeMake(540, height);
     sheet.sheetPresentationController.detents = @[[UISheetPresentationControllerDetent
             customDetentWithIdentifier:nil
@@ -1735,8 +1744,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
     }
     UITableViewCell *cell = [self cellWithIdentifier:action ? kActionCellIdentifier : kSourceCellIdentifier];
     if (action) {
-        content.textProperties.color = self.view.tintColor ?: UIColor.systemBlueColor;
-        content.imageProperties.tintColor = self.view.tintColor ?: UIColor.systemBlueColor;
+        // TRAP: the dynamic tint, never self.view.tintColor's value. That
+        // value is gray while a sheet or alert dims the tint, and a row made
+        // then kept it after the dimming ended.
+        content.textProperties.color = UIColor.tintColor;
+        content.imageProperties.tintColor = UIColor.tintColor;
     }
     else {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -1922,7 +1934,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         completion(YES);
     }];
     add.image = [UIImage systemImageNamed:@"text.badge.plus"];
-    add.backgroundColor = self.view.tintColor;
+    add.backgroundColor = UIColor.tintColor;
     UISwipeActionsConfiguration *config = [UISwipeActionsConfiguration configurationWithActions:@[add]];
     config.performsFirstActionWithFullSwipe = YES;
     return config;

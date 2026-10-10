@@ -202,7 +202,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
     if (client.isLinked && [self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowRemoveDownloads) {
         content.text = STR_SETTINGS_DROPBOX_REMOVE_DOWNLOADS;
-        content.textProperties.color = self.view.tintColor ?: UIColor.systemBlueColor;
+        content.textProperties.color = UIColor.tintColor;
         content.secondaryText = [NSByteCountFormatter stringFromByteCount:_downloadBytes
                                                                countStyle:NSByteCountFormatterCountStyleFile];
     }
@@ -212,7 +212,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     }
     else {
         content.text = STR_SETTINGS_DROPBOX_CONNECT;
-        content.textProperties.color = self.view.tintColor ?: UIColor.systemBlueColor;
+        content.textProperties.color = UIColor.tintColor;
         content.image = [UIImage imageNamed:@"dropbox-glyph"];
     }
     cell.contentConfiguration = content;
