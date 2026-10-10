@@ -6,6 +6,8 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController` (data source an
 
 **Structure in `PlaylistTableView`, content in `PlaylistController`.** Nothing outside the table file defines a column, a cell layout or a font; the controller fills cells through `cellViewForColumn:` and the `+*CellString` helpers. The column identifiers key the column set, the prototypes and the reuse queue, so a literal misspelled on either side renders an empty cell.
 
+**TRAP: the vertical scroller is `PlaylistScroller`, which sets no cursor.** A borderless window resizes only from a 3pt strip inside its edge. A stock scroller's arrow cursor rect borders that strip on the right. Leaving a cursor rect clears whatever cursor override is up, so a move into the strip could drop the resize cursor.
+
 **TRAP: cell content is an *attributed* string, and its own paragraph style overrides the cell's `lineBreakMode` — the default wraps.** Every column's attributes must carry a truncating paragraph style, or a long title wraps into a clipped second line; `PlaylistTextCell`'s own truncation is not enough. Its `drawingRectForBounds:` centers the line, unconditionally because the cell is never editable, so no field editor is misplaced.
 
 **Cell attributes are cached and invalidated by the `PlaylistAppearance` effect** (`+invalidateCellAttributes` + `reloadData`), never cached forever: `ensureCellAttributes` reads the theme's per-column colors (`resolvedPlaylistColorForBase:`, `Common/Mac/Theme/AGENTS.md`) and the playlist font slot.
