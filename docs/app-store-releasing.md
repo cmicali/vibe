@@ -226,10 +226,12 @@ make appstore-upload-metadata ARGS="--skip-text"                 # screenshots o
 
 `make appstore-validate-copy` runs first automatically. The tool
 (`scripts/asc-upload/`, Swift + Bagbutik, built on demand) PATCHes text
-fields only when they differ; screenshots replace the locale's desktop set
-wholesale, ordered by file name. No build is involved, so this can run at any
-point before submission, in either order relative to §5 — the version created
-here is the same record the §5 build attaches to.
+fields only when they differ. It uploads a screenshot only when no processed
+screenshot in its set has the same checksum. It then waits for App Store
+Connect to process every upload. The vibe-release skill explains the stall it
+works around, and when to pass `--skip-screenshots`. No build is involved, so
+this can run at any point before submission, in either order relative to §5 —
+the version created here is the same record the §5 build attaches to.
 
 ## 5. Deploy the build
 
