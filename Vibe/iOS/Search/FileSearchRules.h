@@ -130,15 +130,18 @@ typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
     VibeBrowserRootRowAddFolder,
     VibeBrowserRootRowBrowseFiles,
     VibeBrowserRootRowOpenURL,
+    VibeBrowserRootRowPasteURL,
 };
 
 // The rows of one root section. Sources: the device, and Dropbox once linked.
 // Recents, alone. Locations: the granted folders first, so a location's row
 // is its index in the store. Then Connect to Dropbox until an account is
-// linked, Add Folder…, Browse Files…, and Open URL….
+// linked, Add Folder…, Browse Files…, and Open URL…. The paste row follows
+// Open URL… only while the clipboard probably holds a web link.
 static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection section,
                                                        BOOL dropboxLinked,
-                                                       NSUInteger locations) {
+                                                       NSUInteger locations,
+                                                       BOOL clipboardHasLink) {
     if (section == VibeBrowserRootSectionSources) {
         return dropboxLinked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox)]
                              : @[@(VibeBrowserRootRowDevice)];
@@ -159,6 +162,9 @@ static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection se
     [rows addObject:@(VibeBrowserRootRowAddFolder)];
     [rows addObject:@(VibeBrowserRootRowBrowseFiles)];
     [rows addObject:@(VibeBrowserRootRowOpenURL)];
+    if (clipboardHasLink) {
+        [rows addObject:@(VibeBrowserRootRowPasteURL)];
+    }
     return rows;
 }
 

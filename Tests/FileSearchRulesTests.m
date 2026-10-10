@@ -382,27 +382,40 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
 #pragma mark - The root's rows
 
 - (void)testOpenURLIsTheLastLocationsRowAfterBrowseFiles {
-    NSArray *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 2);
+    NSArray *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 2, NO);
     NSArray *expected = @[@(VibeBrowserRootRowLocation), @(VibeBrowserRootRowLocation), @(VibeBrowserRootRowAddFolder),
                           @(VibeBrowserRootRowBrowseFiles), @(VibeBrowserRootRowOpenURL)];
     XCTAssertEqualObjects(rows, expected, @"a location's row is its index in the store");
 }
 
+- (void)testThePasteRowFollowsOpenURLOnlyWithALinkOnTheClipboard {
+    NSArray *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 1, YES);
+    NSArray *expected = @[@(VibeBrowserRootRowLocation), @(VibeBrowserRootRowAddFolder),
+                          @(VibeBrowserRootRowBrowseFiles), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)];
+    XCTAssertEqualObjects(rows, expected);
+    XCTAssertFalse([VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 1, NO)
+            containsObject:@(VibeBrowserRootRowPasteURL)]);
+    for (NSInteger section = VibeBrowserRootSectionSources; section < VibeBrowserRootSectionLocations; section++) {
+        XCTAssertFalse([VibeBrowserRootRows((VibeBrowserRootSection)section, YES, 1, YES)
+                containsObject:@(VibeBrowserRootRowPasteURL)]);
+    }
+}
+
 - (void)testConnectDropboxIsOfferedOnlyUntilLinked {
-    NSArray *unlinked = VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 0);
+    NSArray *unlinked = VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 0, NO);
     NSArray *expected = @[@(VibeBrowserRootRowConnectDropbox), @(VibeBrowserRootRowAddFolder),
                           @(VibeBrowserRootRowBrowseFiles), @(VibeBrowserRootRowOpenURL)];
     XCTAssertEqualObjects(unlinked, expected);
-    XCTAssertFalse([VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 0)
+    XCTAssertFalse([VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 0, NO)
             containsObject:@(VibeBrowserRootRowConnectDropbox)]);
 }
 
 - (void)testTheSourcesAndRecentsSections {
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionSources, NO, 3), @[@(VibeBrowserRootRowDevice)]);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionSources, NO, 3, NO), @[@(VibeBrowserRootRowDevice)]);
     NSArray *linked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionSources, YES, 3), linked);
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionRecents, YES, 3), @[@(VibeBrowserRootRowRecents)]);
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionCount, YES, 3), @[]);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionSources, YES, 3, NO), linked);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionRecents, YES, 3, NO), @[@(VibeBrowserRootRowRecents)]);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionCount, YES, 3, NO), @[]);
 }
 
 #pragma mark - Recents

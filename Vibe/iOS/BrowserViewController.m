@@ -33,6 +33,7 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
 static NSString *const kSourceCellIdentifier = @"source";
 static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kItemCellIdentifier = @"item";
+static NSString *const kPasteCellIdentifier = @"paste";
 
 // Going back to a folder relists it only this long after its last listing;
 // pull to refresh always does.
@@ -48,9 +49,11 @@ static const NSUInteger kMaximumSubfolders = 500;
 static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
+// The system's Paste control, in the paste row and in Open URL's sheet.
+static const CGSize kPasteControlSize = {112, 36};
 
 @interface BrowserViewController () <UIDocumentPickerDelegate, UISearchResultsUpdating, PlaybackObserver,
-        AudioTrackMetadataCacheDelegate>
+        AudioTrackMetadataCacheDelegate, UIAdaptivePresentationControllerDelegate, UITextViewDelegate>
 @end
 
 // Every file and folder played or added, newest first (FolderSession). A file
@@ -126,13 +129,15 @@ void VibeApplyRowContent(UITableViewCell *cell, UIListContentConfiguration *cont
                 initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
         indicator.tag = kOpeningSpinnerTag;
         indicator.translatesAutoresizingMaskIntoConstraints = NO;
-        [indicator startAnimating];
         [cell.contentView addSubview:indicator];
         [NSLayoutConstraint activateConstraints:@[
             [indicator.centerXAnchor constraintEqualToAnchor:slot.centerXAnchor],
             [indicator.centerYAnchor constraintEqualToAnchor:slot.centerYAnchor],
         ]];
+        spinner = indicator;
     }
+    // A reload can stop a kept spinner, which then hides.
+    [(UIActivityIndicatorView *)spinner startAnimating];
 }
 
 BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView) {
@@ -199,6 +204,45 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     content.imageProperties.cornerRadius = kFileTileCornerRadius;
 }
 
+// Each pasted item's URL and text, by the pasteboard types a drop is read
+// for (VibeDropURLsOfItems). The providers load off main. Completes on main.
+static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
+                                void (^completion)(NSArray<NSDictionary<NSString *, NSString *> *> *items)) {
+    NSMutableArray<NSMutableDictionary<NSString *, NSString *> *> *items = [NSMutableArray array];
+    dispatch_group_t group = dispatch_group_create();
+    for (NSItemProvider *provider in providers) {
+        NSMutableDictionary<NSString *, NSString *> *item = [NSMutableDictionary dictionary];
+        [items addObject:item];
+        if ([provider canLoadObjectOfClass:NSURL.class]) {
+            dispatch_group_enter(group);
+            [provider loadObjectOfClass:NSURL.class completionHandler:^(id<NSItemProviderReading> object, NSError *error) {
+                NSURL *url = [(NSObject *)object isKindOfClass:NSURL.class] ? (NSURL *)object : nil;
+                @synchronized (item) {
+                    if (url) {
+                        item[url.isFileURL ? kVibeDropTypeFileURL : kVibeDropTypeURL] = url.absoluteString;
+                    }
+                }
+                dispatch_group_leave(group);
+            }];
+        }
+        if ([provider canLoadObjectOfClass:NSString.class]) {
+            dispatch_group_enter(group);
+            [provider loadObjectOfClass:NSString.class completionHandler:^(id<NSItemProviderReading> object, NSError *error) {
+                NSString *text = [(NSObject *)object isKindOfClass:NSString.class] ? (NSString *)object : nil;
+                @synchronized (item) {
+                    if (text) {
+                        item[kVibeDropTypeText] = text;
+                    }
+                }
+                dispatch_group_leave(group);
+            }];
+        }
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        completion(items);
+    });
+}
+
 @implementation BrowserViewController {
     PlaybackController *_playback;
     NSURL *_directoryURL;
@@ -256,8 +300,18 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     BOOL _swipingRow;
     // A subfolder walk is out; a second ask waits for it.
     BOOL _walkingSubfolders;
-    // Cancels the link Open URL… is resolving. Its row spins while it is set.
+    // Cancels the link Open URL's sheet or the paste row is resolving. The
+    // paste row spins while it is set and no sheet is up.
     dispatch_block_t _cancelLinkResolve;
+    // The clipboard's change count when it was last checked, and whether it
+    // then probably held a web link. The paste row shows only while it does.
+    NSInteger _clipboardChangeCount;
+    BOOL _clipboardHasLink;
+    // Open URL's sheet while it is up, with its field, Open, and spinner.
+    UINavigationController *_linkSheet;
+    UITextView *_linkField;
+    UIBarButtonItem *_linkOpenItem;
+    UIActivityIndicatorView *_linkSpinner;
     UIBarButtonItem *_playItem;
     UIBarButtonItem *_addSelectedItem;
     UIBarButtonItem *_sortItem;
@@ -289,6 +343,7 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
         _standardizedPath = VibeComparablePath(directoryURL.path);
         _title = directoryURL ? [SearchFolderStore displayNameForFolderURL:directoryURL] : nil;
         _playingPath = VibeComparablePath(playback.currentTrack.url.path);
+        _clipboardChangeCount = NSIntegerMin;
     }
     return self;
 }
@@ -325,6 +380,20 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
         if (_appending && self.navigationController.viewControllers.firstObject == self) {
             self.navigationItem.leftBarButtonItem = _closeItem;
         }
+        // The paste row's control pastes into this screen (pasteItemProviders:).
+        self.pasteConfiguration = [[UIPasteConfiguration alloc] initWithAcceptableTypeIdentifiers:
+                @[UTTypeURL.identifier, UTTypePlainText.identifier]];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(clipboardMayHaveChanged:)
+                                                   name:UIPasteboardChangedNotification
+                                                 object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(clipboardMayHaveChanged:)
+                                                   name:UISceneDidActivateNotification
+                                                 object:nil];
+        // The paste row's control takes its colors resolved (pasteCell).
+        [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class]
+                           withAction:@selector(reloadPasteRow)];
     }
     else {
         self.navigationItem.title = _title;
@@ -402,6 +471,7 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     _viewPresentationVisible = YES;
     [self syncEqualizer];
     if (self.isRoot) {
+        [self refreshClipboardLink];
         [self.tableView reloadData];
         return;
     }
@@ -881,50 +951,188 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     __weak UIWindow *window = anchor.viewIfLoaded.window;
     __weak UIViewController *weakAnchor = anchor;
     return [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
+        // First, so the caller can close what it showed before the replace
+        // question goes over the top.
+        if (completion) {
+            completion(file, error);
+        }
         UIViewController *root = window.rootViewController ?: weakAnchor;
         if (file && root) {
             [BrowserViewController confirmReplacingPlaylistOf:playback from:VibeTopmostPresenter(root)
                                                   openingURLs:@[file] inFolder:NO token:token];
         }
-        if (completion) {
-            completion(file, error);
-        }
     }];
 }
 
-// Open URL…: the typed address plays as the playlist, or in the add sheet is
-// added. A blank address is Cancel.
-- (void)promptForLink {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:STR_LINK_PROMPT_TITLE
-                                                                   message:STR_LINK_PROMPT_MESSAGE
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = VibeNotLocalized(@"https://");
-        field.keyboardType = UIKeyboardTypeURL;
-        field.textContentType = UITextContentTypeURL;
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-        field.autocorrectionType = UITextAutocorrectionTypeNo;
-        field.spellCheckingType = UITextSpellCheckingTypeNo;
-        field.clearButtonMode = UITextFieldViewModeWhileEditing;
+#pragma mark - Open URL
+
+// Open URL's sheet, modeled on the mac's window: a field three lines tall that
+// wraps, the system's Paste under it, and Cancel and Open. Open is disabled
+// while the field is blank. Return is Open and never breaks the line. The
+// sheet stays up while the link resolves. Every way it closes cancels that.
+- (void)presentLinkSheet {
+    UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+    UITextView *field = [[UITextView alloc] init];
+    field.font = font;
+    field.adjustsFontForContentSizeCategory = YES;
+    field.keyboardType = UIKeyboardTypeURL;
+    field.textContentType = UITextContentTypeURL;
+    field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    field.autocorrectionType = UITextAutocorrectionTypeNo;
+    field.spellCheckingType = UITextSpellCheckingTypeNo;
+    field.returnKeyType = UIReturnKeyGo;
+    field.backgroundColor = UIColor.tertiarySystemFillColor;
+    field.layer.cornerRadius = 10;
+    field.textContainerInset = UIEdgeInsetsMake(8, 4, 8, 4);
+    field.accessibilityLabel = STR_LINK_PROMPT_TITLE;
+    field.delegate = self;
+    field.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIPasteControlConfiguration *configuration = [[UIPasteControlConfiguration alloc] init];
+    configuration.displayMode = UIPasteControlDisplayModeIconAndLabel;
+    configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+    UIPasteControl *paste = [[UIPasteControl alloc] initWithConfiguration:configuration];
+    paste.target = field;
+    paste.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc]
+            initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+    spinner.hidesWhenStopped = YES;
+    spinner.translatesAutoresizingMaskIntoConstraints = NO;
+
+    UIViewController *content = [[UIViewController alloc] init];
+    content.view.backgroundColor = UIColor.systemBackgroundColor;
+    content.navigationItem.title = STR_LINK_PROMPT_TITLE;
+    content.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
+            initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(cancelLinkSheet)];
+    UIBarButtonItem *open = [[UIBarButtonItem alloc] initWithTitle:STR_BUTTON_OPEN
+                                                             style:UIBarButtonItemStyleProminent
+                                                            target:self
+                                                            action:@selector(openLinkFromSheet)];
+    open.enabled = NO;
+    content.navigationItem.rightBarButtonItem = open;
+    for (UIView *view in @[field, paste, spinner]) {
+        [content.view addSubview:view];
+    }
+    UILayoutGuide *margins = content.view.layoutMarginsGuide;
+    CGFloat fieldHeight = ceil(3 * font.lineHeight) + 16;
+    [NSLayoutConstraint activateConstraints:@[
+        [field.topAnchor constraintEqualToAnchor:content.view.safeAreaLayoutGuide.topAnchor constant:8],
+        [field.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
+        [field.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
+        [field.heightAnchor constraintEqualToConstant:fieldHeight],
+        [paste.topAnchor constraintEqualToAnchor:field.bottomAnchor constant:12],
+        [paste.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
+        [paste.widthAnchor constraintEqualToConstant:kPasteControlSize.width],
+        [paste.heightAnchor constraintEqualToConstant:kPasteControlSize.height],
+        [spinner.centerYAnchor constraintEqualToAnchor:paste.centerYAnchor],
+        [spinner.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
+    ]];
+
+    UINavigationController *sheet = [[UINavigationController alloc] initWithRootViewController:content];
+    sheet.modalPresentationStyle = UIModalPresentationFormSheet;
+    // The bar, the field, and the Paste row, with a margin under it.
+    CGFloat height = 56 + 8 + fieldHeight + 12 + kPasteControlSize.height + 20;
+    sheet.preferredContentSize = CGSizeMake(540, height);
+    sheet.sheetPresentationController.detents = @[[UISheetPresentationControllerDetent
+            customDetentWithIdentifier:nil
+                              resolver:^CGFloat(id<UISheetPresentationControllerDetentResolutionContext> context) {
+        return height;
+    }]];
+    sheet.presentationController.delegate = self;
+    _linkSheet = sheet;
+    _linkField = field;
+    _linkOpenItem = open;
+    _linkSpinner = spinner;
+    [self presentViewController:sheet animated:YES completion:^{
+        [field becomeFirstResponder];
     }];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel
-                                            handler:nil]];
-    __weak UIAlertController *weakAlert = alert;
-    __weak BrowserViewController *weakSelf = self;
-    UIAlertAction *open = [UIAlertAction actionWithTitle:STR_BUTTON_OPEN style:UIAlertActionStyleDefault
-                                                 handler:^(UIAlertAction *action) {
-        [weakSelf openLinkText:weakAlert.textFields.firstObject.text];
-    }];
-    [alert addAction:open];
-    alert.preferredAction = open;
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
-// The row spins until the link settles, and a second tap cancels it. The
-// add sheet takes the Add token before the resolve, as Favorites does, and
-// closes once the link is added. Never the inbox road: it does not persist.
+- (void)openLinkFromSheet {
+    if (_linkOpenItem.isEnabled) {
+        [self openLinkText:_linkField.text];
+    }
+}
+
+// Cancel: the sheet closes, and a link still resolving stops.
+- (void)cancelLinkSheet {
+    dispatch_block_t cancel = _cancelLinkResolve;
+    [self closeLinkSheetThen:nil];
+    if (cancel) {
+        cancel();
+    }
+}
+
+// A swipe down closed the sheet.
+- (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {
+    if (presentationController.presentedViewController == _linkSheet) {
+        [self cancelLinkSheet];
+    }
+}
+
+// Closes the sheet, then runs then. With no sheet up, then runs at once.
+// TRAP: dismissed by its presenter. Asked of the sheet itself, a dismiss
+// closes only an alert it presents.
+- (void)closeLinkSheetThen:(nullable dispatch_block_t)then {
+    UINavigationController *sheet = _linkSheet;
+    _linkSheet = nil;
+    _linkField = nil;
+    _linkOpenItem = nil;
+    _linkSpinner = nil;
+    UIViewController *presenter = sheet.presentingViewController;
+    if (presenter && !sheet.isBeingDismissed) {
+        [presenter dismissViewControllerAnimated:YES completion:then];
+    }
+    else if (then) {
+        then();
+    }
+}
+
+// Open needs a link in the field. While the link resolves, the field and
+// Open are disabled and the spinner turns.
+- (void)syncLinkSheet {
+    BOOL resolving = _cancelLinkResolve != nil;
+    _linkField.editable = !resolving;
+    _linkField.textColor = resolving ? UIColor.secondaryLabelColor : UIColor.labelColor;
+    _linkOpenItem.enabled = !resolving && !VibeLinkTextIsBlank(_linkField.text);
+    if (resolving) {
+        [_linkSpinner startAnimating];
+    }
+    else {
+        [_linkSpinner stopAnimating];
+    }
+}
+
+- (BOOL)textView:(UITextView *)textView
+        shouldChangeTextInRanges:(NSArray<NSValue *> *)ranges
+                 replacementText:(NSString *)text {
+    if ([text isEqualToString:@"\n"]) {
+        [self openLinkFromSheet];
+        return NO;
+    }
+    return YES;
+}
+
+// A link has no line breaks, so a paste's are dropped. The resolve trims the
+// ends.
+- (void)textViewDidChange:(UITextView *)textView {
+    NSString *text = textView.text;
+    NSString *joined = [[text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
+            componentsJoinedByString:@""];
+    if (joined.length != text.length) {
+        textView.text = joined;
+    }
+    [self syncLinkSheet];
+}
+
+// The sheet's Open and the paste row both come here, and only while no link
+// resolves. The add sheet takes the Add token before the resolve, as
+// Favorites does, and closes once the link is added. A failure closes Open
+// URL's sheet first, then shows its alert. Never the inbox road: it does not
+// persist.
 - (void)openLinkText:(NSString *)text {
-    if (VibeLinkTextIsBlank(text)) {
+    if (VibeLinkTextIsBlank(text) || _cancelLinkResolve) {
         return;
     }
     // Found when the failure lands: the add sheet may be gone by then, and
@@ -932,19 +1140,27 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     __weak UIWindow *window = self.view.window;
     __weak BrowserViewController *weakSelf = self;
     void (^settled)(NSURL *, NSError *) = ^(NSURL *file, NSError *error) {
-        BrowserViewController *strongSelf = weakSelf;
-        if (strongSelf) {
-            strongSelf->_cancelLinkResolve = nil;
-            [strongSelf reloadOpenURLRow];
-            if (file && strongSelf->_appending) {
-                [strongSelf dismissSheet];
-            }
-        }
         NSString *message = error ? [LinkStore messageForError:error brief:NO] : nil;
-        UIViewController *root = window.rootViewController;
-        if (message && root) {
-            VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, message);
+        dispatch_block_t alert = ^{
+            UIViewController *root = window.rootViewController;
+            if (message && root) {
+                VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, message);
+            }
+        };
+        BrowserViewController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            alert();
+            return;
         }
+        strongSelf->_cancelLinkResolve = nil;
+        [strongSelf reloadPasteRow];
+        if (file && strongSelf->_appending) {
+            // The add sheet takes Open URL's sheet with it.
+            strongSelf->_linkSheet = nil;
+            [strongSelf dismissSheet];
+            return;
+        }
+        [strongSelf closeLinkSheetThen:alert];
     };
     if (!_appending) {
         _cancelLinkResolve = [BrowserViewController openLinkString:text replacingPlaylistOf:_playback from:self
@@ -960,12 +1176,75 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
             settled(file, error);
         }];
     }
-    [self reloadOpenURLRow];
+    [self reloadPasteRow];
+    [self syncLinkSheet];
 }
 
-- (void)reloadOpenURLRow {
+#pragma mark - The paste row
+
+// Neither question reads the clipboard, so neither raises the paste prompt:
+// pattern detection, and whether it holds a URL at all. A change count
+// already checked asks nothing.
+- (void)refreshClipboardLink {
+    UIPasteboard *pasteboard = UIPasteboard.generalPasteboard;
+    NSInteger changeCount = pasteboard.changeCount;
+    if (!self.isRoot || changeCount == _clipboardChangeCount) {
+        return;
+    }
+    _clipboardChangeCount = changeCount;
+    BOOL hasURLs = pasteboard.hasURLs;
+    __weak BrowserViewController *weakSelf = self;
+    [pasteboard detectPatternsForPatterns:[NSSet setWithObject:UIPasteboardDetectionPatternProbableWebURL]
+                        completionHandler:^(NSSet<UIPasteboardDetectionPattern> *patterns, NSError *error) {
+        BOOL hasLink = hasURLs || [patterns containsObject:UIPasteboardDetectionPatternProbableWebURL];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf clipboardHasLink:hasLink changeCount:changeCount];
+        });
+    }];
+}
+
+- (void)clipboardMayHaveChanged:(NSNotification *)notification {
+    [self refreshClipboardLink];
+}
+
+- (void)clipboardHasLink:(BOOL)hasLink changeCount:(NSInteger)changeCount {
+    if (changeCount != _clipboardChangeCount || hasLink == _clipboardHasLink) {
+        return;
+    }
+    _clipboardHasLink = hasLink;
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeBrowserRootSectionLocations]
+                      withRowAnimation:UITableViewRowAnimationFade];
+    }
+}
+
+// The paste row's control. Its first web link opens as the sheet's Open does.
+// Anything else fails as an address that is no link. A paste while a link
+// resolves gives that link up, as a second tap on a spinning row does.
+- (void)pasteItemProviders:(NSArray<NSItemProvider *> *)itemProviders {
+    dispatch_block_t cancel = _cancelLinkResolve;
+    if (cancel) {
+        cancel();
+        return;
+    }
+    __weak BrowserViewController *weakSelf = self;
+    VibeLoadPastedItems(itemProviders, ^(NSArray<NSDictionary<NSString *, NSString *> *> *items) {
+        BrowserViewController *strongSelf = weakSelf;
+        NSURL *link = VibePasteLinkOfItems(items);
+        if (link) {
+            [strongSelf openLinkText:link.absoluteString];
+        }
+        else if (strongSelf.viewIfLoaded.window) {
+            NSError *invalid = [NSError errorWithDomain:VibeLinkErrorDomain code:VibeLinkErrorInvalid userInfo:nil];
+            VibePresentAlert(VibeTopmostPresenter(strongSelf), STR_LINK_ERROR_TITLE,
+                             [LinkStore messageForError:invalid brief:NO]);
+        }
+    });
+}
+
+- (void)reloadPasteRow {
     NSUInteger row = [[self rootRowsInSection:VibeBrowserRootSectionLocations]
-            indexOfObject:@(VibeBrowserRootRowOpenURL)];
+            indexOfObject:@(VibeBrowserRootRowPasteURL)];
     if (self.isRoot && self.viewIfLoaded.window && row != NSNotFound) {
         [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:(NSInteger)row
                                                                     inSection:VibeBrowserRootSectionLocations]]
@@ -1136,8 +1415,9 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
     [self addURLs:urls];
 }
 
+// By its presenter, so Open URL's sheet over it closes with it.
 - (void)dismissSheet {
-    [self.navigationController dismissViewControllerAnimated:YES completion:nil];
+    [self.navigationController.presentingViewController dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (BrowserViewController *)browserForDirectory:(NSURL *)url {
@@ -1245,7 +1525,7 @@ void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL
 
 - (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
     return VibeBrowserRootRows((VibeBrowserRootSection)section, DropboxMirror.shared.client.isLinked,
-                               SearchFolderStore.shared.folderURLs.count);
+                               SearchFolderStore.shared.folderURLs.count, _clipboardHasLink);
 }
 
 - (VibeBrowserRootRow)rootRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -1444,6 +1724,14 @@ didEndDisplayingCell:(UITableViewCell *)cell
             content.image = [UIImage systemImageNamed:@"link"];
             action = YES;
             break;
+        case VibeBrowserRootRowPasteURL: {
+            content.text = _appending ? STR_BROWSER_PASTE_ADD : STR_BROWSER_PASTE_OPEN;
+            content.image = [UIImage systemImageNamed:@"doc.on.clipboard"];
+            // The paste row spins while its link resolves; the sheet shows its own.
+            UITableViewCell *cell = [self pasteCell];
+            VibeApplyRowContent(cell, content, _cancelLinkResolve != nil && _linkSheet == nil);
+            return cell;
+        }
     }
     UITableViewCell *cell = [self cellWithIdentifier:action ? kActionCellIdentifier : kSourceCellIdentifier];
     if (action) {
@@ -1453,9 +1741,48 @@ didEndDisplayingCell:(UITableViewCell *)cell
     else {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
-    // Only Open URL… spins, while its link resolves.
-    VibeApplyRowContent(cell, content, row == VibeBrowserRootRowOpenURL && _cancelLinkResolve != nil);
+    VibeApplyRowContent(cell, content, NO);
     return cell;
+}
+
+// The system's Paste, drawn by the system and never covered, at the row's
+// trailing edge. The row's title says what it does. A tap elsewhere on the
+// row does nothing: anything but the control would ask to read the clipboard.
+- (UITableViewCell *)pasteCell {
+    UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:kPasteCellIdentifier];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:kPasteCellIdentifier];
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    }
+    // TRAP: the system draws the control out of process. It sees no trait
+    // collection, so a dynamic color draws its light half, and a translucent
+    // one draws as solid gray. The colors are resolved here, and the control
+    // is made again for the other appearance.
+    UITraitCollection *traits = self.traitCollection;
+    if (cell.accessoryView.tag == traits.userInterfaceStyle) {
+        return cell;
+    }
+    // The row's own background and the action rows' tint, so it reads as a
+    // row's button.
+    UIPasteControlConfiguration *configuration = [[UIPasteControlConfiguration alloc] init];
+    configuration.displayMode = UIPasteControlDisplayModeIconAndLabel;
+    configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
+    configuration.baseBackgroundColor =
+            [UIColor.secondarySystemGroupedBackgroundColor resolvedColorWithTraitCollection:traits];
+    configuration.baseForegroundColor =
+            [(self.view.tintColor ?: UIColor.systemBlueColor) resolvedColorWithTraitCollection:traits];
+    UIPasteControl *paste = [[UIPasteControl alloc] initWithConfiguration:configuration];
+    paste.target = self;
+    paste.tag = traits.userInterfaceStyle;
+    // It has no size of its own. Its label fits the frame it is given.
+    paste.frame = CGRectMake(0, 0, kPasteControlSize.width, kPasteControlSize.height);
+    cell.accessoryView = paste;
+    return cell;
+}
+
+- (BOOL)tableView:(UITableView *)tableView shouldHighlightRowAtIndexPath:(NSIndexPath *)indexPath {
+    return !self.isRoot || [self rootRowAtIndexPath:indexPath] != VibeBrowserRootRowPasteURL;
 }
 
 #pragma mark - Selection
@@ -1497,12 +1824,6 @@ didEndDisplayingCell:(UITableViewCell *)cell
 
 - (void)selectSourceAtIndexPath:(NSIndexPath *)indexPath {
     VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
-    // A second tap on the row still opening gives it up.
-    dispatch_block_t cancel = _cancelLinkResolve;
-    if (cancel && row == VibeBrowserRootRowOpenURL) {
-        cancel();
-        return;
-    }
     switch (row) {
         case VibeBrowserRootRowDevice:
             [self pushDirectory:SearchFolderStore.containerDocumentsURL];
@@ -1530,7 +1851,14 @@ didEndDisplayingCell:(UITableViewCell *)cell
             [self presentPickerForLocation:NO];
             return;
         case VibeBrowserRootRowOpenURL:
-            [self promptForLink];
+            // A newer link supersedes the pasted one still resolving.
+            if (_cancelLinkResolve) {
+                _cancelLinkResolve();
+            }
+            [self presentLinkSheet];
+            return;
+        case VibeBrowserRootRowPasteURL:
+            // Only its paste control acts.
             return;
     }
 }
@@ -1693,6 +2021,27 @@ didEndDisplayingCell:(UITableViewCell *)cell
         VibePresentAlert(self, STR_BROWSER_LOCATIONS, STR_SETTINGS_SEARCH_FOLDERS_COVERED);
     }
 }
+
+#if DEBUG
+- (NSDictionary *)debugLinkState {
+    NSDictionary *sheet = _linkSheet ? @{
+        @"shown": @YES,
+        @"text": _linkField.text ?: @"",
+        @"resolving": @((BOOL)(_cancelLinkResolve != nil)),
+        @"openEnabled": @(_linkOpenItem.isEnabled),
+    } : @{@"shown": @NO};
+    return @{
+        @"pasteRowShown": @([[self rootRowsInSection:VibeBrowserRootSectionLocations]
+                containsObject:@(VibeBrowserRootRowPasteURL)]),
+        @"pasteRowResolving": @((BOOL)(_cancelLinkResolve != nil && _linkSheet == nil)),
+        @"linkSheet": sheet,
+    };
+}
+
+- (UITextView *)debugLinkField {
+    return _linkField;
+}
+#endif
 
 @end
 
@@ -1913,3 +2262,4 @@ didEndDisplayingCell:(UITableViewCell *)cell
 }
 
 @end
+

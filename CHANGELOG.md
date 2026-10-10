@@ -2,6 +2,7 @@
 
 * Added Open URL… to play an audio file from a web address
 * mac: Added dropping a web link or a .webloc file on the player to play it
+* ios: Added playing a copied link from the Files tab
 * Fixed playback from a network share going silent when the server stops answering; it now pauses with "Connection lost"
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor

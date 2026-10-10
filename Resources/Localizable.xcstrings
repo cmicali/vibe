@@ -4279,6 +4279,30 @@
       },
       "extractionState": "manual"
     },
+    "browser.paste_add": {
+      "comment": "iOS Add to Playlist sheet: a row under Locations, shown only while the clipboard holds a web link. The system's Paste button sits beside it, and tapping that button adds the copied link to the playlist. Title case, as the rows beside it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Copied Link"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.paste_open": {
+      "comment": "iOS Files tab: a row under Locations, shown only while the clipboard holds a web link. The system's Paste button sits beside it, and tapping that button plays the copied link. Title case, as the rows beside it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Copied Link"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.play_subfolders": {
       "comment": "iOS Files tab: the item under a long press on a folder's play button. Plays every song in the folder and in the folders inside it, where a plain tap plays only the songs directly in the folder.",
       "localizations": {
@@ -15067,194 +15091,8 @@
       },
       "extractionState": "manual"
     },
-    "link.prompt.message": {
-      "comment": "iPhone and iPad only: the message of the Open URL prompt, above the field where the user types or pastes a web address.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Въведете адреса на аудиофайл."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zadejte adresu zvukového souboru."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skriv adressen på en lydfil."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gib die Adresse einer Audiodatei ein."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Εισαγάγετε τη διεύθυνση ενός αρχείου ήχου."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enter the address of an audio file."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Introduce la dirección de un archivo de audio."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kirjoita äänitiedoston osoite."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saisissez l’adresse d’un fichier audio."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unesite adresu audiodatoteke."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add meg egy hangfájl címét."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Masukkan alamat file audio."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inserisci l’indirizzo di un file audio."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オーディオファイルのアドレスを入力してください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "오디오 파일의 주소를 입력하십시오."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skriv inn adressen til en lydfil."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voer het adres van een audiobestand in."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wprowadź adres pliku audio."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Digite o endereço de um arquivo de áudio."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Introduza o endereço de um ficheiro de áudio."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Introduceți adresa unui fișier audio."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Введите адрес аудиофайла."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zadajte adresu zvukového súboru."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ange adressen till en ljudfil."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ป้อนที่อยู่ของไฟล์เสียง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bir ses dosyasının adresini girin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Введіть адресу аудіофайлу."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nhập địa chỉ của một tệp âm thanh."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输入音频文件的地址。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輸入音訊檔案的位址。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "link.prompt.title": {
-      "comment": "Title of the prompt that asks for the web address of an audio file to play, on Mac and on iPhone and iPad. URL is the usual term for a web address; keep it if this language's apps do.",
+      "comment": "Title of the window on Mac, and of the sheet on iPhone and iPad, that asks for the web address of an audio file to play. URL is the usual term for a web address; keep it if this language's apps do.",
       "localizations": {
         "bg": {
           "stringUnit": {
