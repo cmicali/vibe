@@ -8,6 +8,7 @@
 #if DEBUG
 
 #import <UIKit/UIKit.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "DebugChannel.h"
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
@@ -27,6 +28,17 @@
 #import "PlayerViewController+Debug.h"
 #import "SearchFolderStore.h"
 #import "WaveformRendererRegistry.h"
+
+// What the system's Paste hands its target for copied text. Text that
+// parses as a URL with a scheme is offered as a URL too, as a copied link is.
+static NSItemProvider *VibeDebugPasteProvider(NSString *text) {
+    NSItemProvider *provider = [[NSItemProvider alloc] initWithObject:text];
+    NSURL *url = [NSURL URLWithString:text];
+    if (url.scheme.length > 0) {
+        [provider registerObject:url visibility:NSItemProviderRepresentationVisibilityAll];
+    }
+    return provider;
+}
 
 static UIWindow *VibeDebugKeyWindow(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -535,6 +547,81 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     return VibeErrorJSON(@"no such file hit (run `search <query>` first)");
                 }
                 return VibeJSONString(@{@"ok": @YES});
+            }),
+            // Open URL's sheet, as the mac's open_url_window drives its window,
+            // on the add sheet's browser while it is up, else the Files tab's.
+            // type replaces the field's text through its own input, so the
+            // line-break rule and Open's state run. paste hands the field what
+            // the system's Paste would. open and cancel are the bar's buttons.
+            // Read dump_state.ui.linkSheet after.
+            VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                BrowserViewController *browser = controller.debugActiveBrowser;
+                if (!browser) {
+                    return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
+                }
+                NSString *action = tokens.count > 1 ? tokens[1] : @"";
+                NSString *text = tokens.count > 2
+                        ? [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] componentsJoinedByString:@" "]
+                        : @"";
+                UITextView *field = browser.debugLinkField;
+                if ([action isEqualToString:@"show"]) {
+                    if (!field) {
+                        [browser presentLinkSheet];
+                    }
+                    return VibeJSONString(@{@"ok": @YES});
+                }
+                if (![@[@"type", @"paste", @"open", @"cancel"] containsObject:action]) {
+                    return VibeErrorJSON(@"usage: open_url_sheet show | type <text> | paste <text> | open | cancel");
+                }
+                if (!field) {
+                    return VibeErrorJSON(@"the sheet is not up (open_url_sheet show first)");
+                }
+                if ([action isEqualToString:@"type"]) {
+                    field.selectedRange = NSMakeRange(0, field.text.length);
+                    if (text.length > 0) {
+                        [field insertText:text];
+                    }
+                    else {
+                        [field deleteBackward];
+                    }
+                }
+                else if ([action isEqualToString:@"paste"]) {
+                    [field pasteItemProviders:@[VibeDebugPasteProvider(text)]];
+                }
+                else if ([action isEqualToString:@"open"]) {
+                    [browser openLinkFromSheet];
+                }
+                else {
+                    [browser cancelLinkSheet];
+                }
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            // The paste row's control without the clipboard: the browser's own
+            // pasteItemProviders:, handed what the system's Paste would. The
+            // system checks a real tap on the control, so nothing can fake one.
+            VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                BrowserViewController *browser = controller.debugActiveBrowser;
+                if (!browser) {
+                    return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
+                }
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: paste_link <text>");
+                }
+                [browser pasteItemProviders:@[VibeDebugPasteProvider(VibeRestArgument(tokens))]];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
+            // Writes the clipboard from inside the app, which never asks. The
+            // paste row's check still only detects. simctl pbcopy left the
+            // iOS 27 simulator's clipboard empty.
+            VibeDebugCmd(@"set_clipboard <text> | clear", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: set_clipboard <text> | clear");
+                }
+                NSString *text = VibeRestArgument(tokens);
+                UIPasteboard.generalPasteboard.items = [text isEqualToString:@"clear"] ? @[] : @[@{
+                    UTTypeUTF8PlainText.identifier: text,
+                }];
+                return VibeJSONString(@{@"ok": @YES, @"changeCount": @(UIPasteboard.generalPasteboard.changeCount)});
             }),
             VibeDebugCmd(@"select_tab <playlist|favorites|files|search>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;

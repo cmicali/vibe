@@ -101,6 +101,10 @@ static NSString *const kTabSearch = @"search";
     return _library;
 }
 
+- (BrowserViewController *)filesBrowser {
+    return _filesController;
+}
+
 - (FavoritesViewController *)favorites {
     return _favorites;
 }

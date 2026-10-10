@@ -407,9 +407,10 @@ static inline NSString *VibeLinkDirectoryName(NSURL *url) {
 
 #pragma mark - Drops
 
-// The pasteboard types a drop on the mac's window is read for. Finder writes
-// a file URL. A browser's link or address-bar drag writes a URL, and often
-// the same link as text. Text from anywhere else may hold one link.
+// The pasteboard types a drop on the mac's window, or a paste on iOS, is read
+// for. Finder writes a file URL. A browser's link or address-bar drag writes
+// a URL, and often the same link as text. Text from anywhere else may hold
+// one link.
 static NSString *const kVibeDropTypeFileURL = @"public.file-url";
 static NSString *const kVibeDropTypeURL = @"public.url";
 static NSString *const kVibeDropTypeText = @"public.utf8-plain-text";
@@ -445,6 +446,15 @@ static inline NSArray<NSURL *> *VibeDropURLsOfItems(NSArray<NSDictionary<NSStrin
         if (VibeLinkIsWebLink(link)) [urls addObject:link];
     }
     return urls;
+}
+
+// What a paste on iOS opens: the first web link among its items, read as a
+// drop's are. A file is no link. nil when no item holds one link.
+static inline NSURL *_Nullable VibePasteLinkOfItems(NSArray<NSDictionary<NSString *, NSString *> *> *items) {
+    for (NSURL *url in VibeDropURLsOfItems(items)) {
+        if (!url.isFileURL) return url;
+    }
+    return nil;
 }
 
 // Whether a drop takes the link road: it holds a web link or a .webloc.
