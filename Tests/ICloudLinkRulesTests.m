@@ -2,10 +2,11 @@
 //  ICloudLinkRulesTests.m
 //
 //  Open URL's iCloud Drive share links: which links are iCloud's, what a
-//  lookup's answer says, the download address and its expiry, and what
-//  LinkStore makes of iCloud's answers over HTTPStub (ICloudLinkStoreTests):
-//  the lookup before each request, a lookup again for an expired address,
-//  the checksum as the version, and the shares that open nothing.
+//  lookup's answer says, the download address, and how long a lookup is
+//  reused. Then what LinkStore makes of iCloud's answers over HTTPStub
+//  (ICloudLinkStoreTests): the lookup before each request and its resends, a
+//  lookup again for an expired address, the checksum as the version, and the
+//  shares that open nothing.
 //
 
 #import <XCTest/XCTest.h>
@@ -99,8 +100,7 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertEqualObjects([file[@"url"] absoluteString],
                           [ICloudAddress(kChecksum, 1791587082, @"signature")
                            stringByReplacingOccurrencesOfString:@"${f}" withString:@"Song%20One.flac"]);
-    XCTAssertEqualObjects(file[@"expiry"], @1791587082);
-    XCTAssertEqual(file.count, 6u, @"nothing else, the owner least of all");
+    XCTAssertEqual(file.count, 5u, @"nothing else, the owner least of all");
 }
 
 // The size as a string, as one probe saw it. A missing mtime is left out. A
@@ -244,26 +244,13 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
                           @"Café; a=b \"x\".flac", @"a separator in the name stays encoded");
 }
 
-- (void)testTheAddressStatesItsExpiry {
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(@"https://h/B/x/${f}?o=1&e=1791587082&s=y"), 1791587082);
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(@"https://h/B/x/${f}?e=17&s=y"), 17);
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(@"https://h/B/x/${f}?se=17&s=y"), 0, @"another item ending in e");
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(@"https://h/B/x/${f}?e=&s=y"), 0);
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(@"https://h/B/x/${f}?e=-5"), 0);
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(@"https://h/B/x/${f}"), 0);
-    XCTAssertEqual(VibeICloudLinkAddressExpiry(nil), 0);
-}
-
-- (void)testAnAddressIsSentForTenMinutesAndNeverAtItsExpiry {
+// By age alone, never by the address's expiry: that is in iCloud's clock.
+- (void)testAnAddressIsSentForTenMinutes {
     NSTimeInterval at = 1000000;
-    XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, at + 900, at));
-    XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, at + 900, at + 599));
-    XCTAssertFalse(VibeICloudLinkAddressIsFresh(at, at + 900, at + 600), @"ten minutes old");
-    XCTAssertFalse(VibeICloudLinkAddressIsFresh(at, at + 120, at + 60), @"a minute short of its expiry");
-    XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, at + 120, at + 59));
-    XCTAssertFalse(VibeICloudLinkAddressIsFresh(at, at - 1, at), @"expired at its lookup: a clock off");
-    XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, 0, at + 599), @"no expiry: the age alone");
-    XCTAssertFalse(VibeICloudLinkAddressIsFresh(at, at + 900, at - 1), @"a clock set back");
+    XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, at));
+    XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, at + 599));
+    XCTAssertFalse(VibeICloudLinkAddressIsFresh(at, at + 600), @"ten minutes old");
+    XCTAssertFalse(VibeICloudLinkAddressIsFresh(at, at - 1), @"from before its lookup");
 }
 
 // Measured: an expired address answers 410 Gone, and a signature that does
@@ -543,28 +530,86 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorNotFound);
     [self queueLookup:[@"<html>" dataUsingEncoding:NSUTF8StringEncoding]];
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorICloudUnreadable);
-    [_stub queueStep:[HTTPStubStep status:503 headers:nil body:nil] forPath:LookupPath()];
+    [_stub queueStep:[HTTPStubStep status:500 headers:nil body:nil] forPath:LookupPath()];
     NSError *error = nil;
     XCTAssertNil([self resolve:kICloudLink error:&error]);
     XCTAssertEqual(error.code, VibeLinkErrorServer);
-    XCTAssertEqualObjects(error.userInfo[VibeHTTPErrorStatusCodeKey], @503);
+    XCTAssertEqualObjects(error.userInfo[VibeHTTPErrorStatusCodeKey], @500);
     XCTAssertEqual([_stub requestsToPath:ICloudPath(kChecksum)].count, 0u);
 }
 
-// Offline, a downloaded share still opens. The lookup is what fails.
+- (void)failNextLookups:(NSUInteger)count code:(NSInteger)code {
+    NSError *error = [NSError errorWithDomain:NSURLErrorDomain code:code userInfo:nil];
+    for (NSUInteger i = 0; i < count; i++) {
+        [_stub queueStep:[HTTPStubStep failWithError:error] forPath:LookupPath()];
+    }
+}
+
+// Offline, a downloaded share still opens. The lookup is what fails, once
+// its two resends have failed too.
 - (void)testAnUnreachableLookupOpensTheDownload {
     [self serveICloud:FlacBytes(4000) checksum:kChecksum];
     NSURL *file = [self resolveICloud];
     [self fetchExpectingSuccess:file];
     [self relaunch];
-    NSError *offline = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorNotConnectedToInternet userInfo:nil];
-    [_stub queueStep:[HTTPStubStep failWithError:offline] forPath:LookupPath()];
+    [self failNextLookups:3 code:NSURLErrorNotConnectedToInternet];
     XCTAssertEqualObjects([self resolveICloud], file);
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 4u, @"the first open's, then three");
 
     [self relaunch];
-    [_stub queueStep:[HTTPStubStep failWithError:offline] forPath:LookupPath()];
+    [self failNextLookups:3 code:NSURLErrorNotConnectedToInternet];
     [NSFileManager.defaultManager removeItemAtURL:_root error:NULL];
     XCTAssertEqual([self failureOf:kICloudLink], VibeLinkErrorUnreachable);
+}
+
+// A dropped connection and a throttle are sent again, as a request's are.
+// A download's resend waiting on its lookup then goes on.
+- (void)testALookupThatDropsOrIsThrottledIsSentAgain {
+    NSData *bytes = FlacBytes(200000);
+    [self serveICloud:bytes checksum:kChecksum];
+    [self failNextLookups:2 code:NSURLErrorNetworkConnectionLost];
+    NSURL *file = [self resolveICloud];
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 3u);
+
+    // The download's resend after a drop needs a lookup again, which is
+    // throttled, then answered.
+    [self relaunch];
+    [self queueLookup:LookupOf(bytes, kChecksum, @"first")];
+    [_stub queueStep:[HTTPStubStep status:503 headers:@{@"Retry-After": @"1"} body:nil] forPath:LookupPath()];
+    NSUInteger lookups = [_stub requestsToPath:LookupPath()].count;
+    [self dropNextAnswerTo:ICloudPath(kChecksum) after:100000 partOf:file];
+    [_stub queueStep:[HTTPStubStep status:410 headers:nil body:nil] forPath:ICloudPath(kChecksum)];
+    [self fetchExpectingSuccess:file];
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], bytes);
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, lookups + 3, @"the first, the throttled, and its resend");
+}
+
+// A lookup the replaced sessions answer is handed to its waiters, and not
+// kept: it names the old server's address.
+- (void)testALookupFromReplacedSessionsIsNotKept {
+    NSData *bytes = FlacBytes(4000);
+    [self serveICloud:bytes checksum:kChecksum];
+    NSURL *file = [self resolveICloud];
+    [self relaunch];
+    dispatch_semaphore_t gate = [self gate];
+    [_stub queueStep:[HTTPStubStep stallAfter:1 gate:gate] forPath:LookupPath()];
+    LinkStore *store = _store;
+    __block NSData *read = nil;
+    XCTestExpectation *done = [self expectationWithDescription:@"read"];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        read = [store readPlaceholderAtURL:file offset:0 length:64 error:NULL];
+        [done fulfill];
+    });
+    [self waitUntil:^BOOL {
+        return [self->_stub requestsToPath:LookupPath()].count == 2;
+    }];
+    [_client useSessionConfiguration:_stub.configuration];
+    dispatch_semaphore_signal(gate);
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqualObjects(read, [bytes subdataWithRange:NSMakeRange(0, 64)], @"its waiter still has it");
+
+    XCTAssertNotNil([_store readPlaceholderAtURL:file offset:64 length:64 error:NULL]);
+    XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 3u, @"the next request looks up again");
 }
 
 @end

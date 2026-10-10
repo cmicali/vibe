@@ -82,15 +82,24 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 // refused address was looked up again. A transfer does that once.
 static NSString *const kStateLookup = @"lookup";
 static NSString *const kStateRefreshed = @"refreshed";
+// A lookup that lost its connection is sent again this many times, this far
+// apart, as a download's dropped connection is (HTTPTransferClient). A
+// download waiting on it would otherwise fail on one blip.
+static const NSInteger kLookupNetworkRetries = 2;
+static const NSTimeInterval kLookupNetworkRetryDelay = 1;
 
 @implementation LinkClient {
     os_unfair_lock _lookupLock;
-    // Each share's last lookup, by its short GUID, with `lookedUp`: when it
-    // was sent. Under the lock.
+    // Each share's last lookup, by its short GUID, with `lookedUp`: the
+    // system's uptime when it was sent. Under the lock.
     NSMutableDictionary<NSString *, NSDictionary *> *_lookups;
     // The lookup claim: each share's waiters while its lookup is in flight.
     // Under the lock.
     NSMutableDictionary<NSString *, NSMutableArray *> *_lookupWaiters;
+    // Moved by each session swap. A lookup the old sessions answer names the
+    // old server's address, so it is handed to its waiters but not kept.
+    // Under the lock.
+    uint64_t _lookupsGeneration;
 }
 
 - (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration {
@@ -110,6 +119,7 @@ static NSString *const kStateRefreshed = @"refreshed";
     [super useSessionConfiguration:configuration];
     os_unfair_lock_lock(&_lookupLock);
     [_lookups removeAllObjects];
+    _lookupsGeneration++;
     os_unfair_lock_unlock(&_lookupLock);
 }
 
@@ -120,8 +130,7 @@ static NSString *const kStateRefreshed = @"refreshed";
              completion:(void (^)(NSDictionary *_Nullable file, NSError *_Nullable error))completion {
     os_unfair_lock_lock(&_lookupLock);
     NSDictionary *last = _lookups[shortGUID];
-    if (last && VibeICloudLinkAddressIsFresh([last[@"lookedUp"] doubleValue], [last[@"expiry"] doubleValue],
-                                             NSDate.date.timeIntervalSince1970)) {
+    if (last && VibeICloudLinkAddressIsFresh([last[@"lookedUp"] doubleValue], NSProcessInfo.processInfo.systemUptime)) {
         os_unfair_lock_unlock(&_lookupLock);
         completion(last, nil);
         return;
@@ -132,15 +141,16 @@ static NSString *const kStateRefreshed = @"refreshed";
         waiters = _lookupWaiters[shortGUID] = [NSMutableArray array];
     }
     [waiters addObject:[completion copy]];
+    uint64_t generation = _lookupsGeneration;
     os_unfair_lock_unlock(&_lookupLock);
     if (!owner) {
         return;
     }
-    [self sendLookupOfShortGUID:shortGUID completion:^(NSDictionary *file, NSError *error) {
+    [self sendLookupOfShortGUID:shortGUID attempt:1 completion:^(NSDictionary *file, NSError *error) {
         os_unfair_lock_lock(&self->_lookupLock);
         NSArray *settled = self->_lookupWaiters[shortGUID];
         [self->_lookupWaiters removeObjectForKey:shortGUID];
-        if (file) {
+        if (file && generation == self->_lookupsGeneration) {
             self->_lookups[shortGUID] = file;
         }
         os_unfair_lock_unlock(&self->_lookupLock);
@@ -150,10 +160,13 @@ static NSString *const kStateRefreshed = @"refreshed";
     }];
 }
 
-// A network failure passes through as itself: a download keeps its part,
-// and a probe fails as unreachable. A status fails as the server's. Any
-// answer that is not one file shared with anyone fails with its link error.
+// A lost connection is sent again, twice at most. A throttle waits and is
+// sent again, as a request's does (resendAfterStatus:). Past those, a
+// network failure passes through as itself: a download keeps its part, and
+// a probe fails as unreachable. A status fails as the server's. Any answer
+// that is not one file shared with anyone fails with its link error.
 - (void)sendLookupOfShortGUID:(NSString *)shortGUID
+                      attempt:(NSInteger)attempt
                    completion:(void (^)(NSDictionary *_Nullable file, NSError *_Nullable error))completion {
     NSURL *url = [NSURL URLWithString:kVibeICloudLinkLookupURL];
     BOOL (^allows)(NSURL *, NSURL *) = self.allowsURL;
@@ -166,16 +179,34 @@ static NSString *const kStateRefreshed = @"refreshed";
     [request setValue:@"text/plain" forHTTPHeaderField:@"Content-Type"];
     [request setValue:@"https://www.icloud.com" forHTTPHeaderField:@"Origin"];
     request.HTTPBody = VibeICloudLinkLookupBody(shortGUID);
-    NSTimeInterval sent = NSDate.date.timeIntervalSince1970;
+    NSTimeInterval sent = NSProcessInfo.processInfo.systemUptime;
+    void (^again)(NSInteger) = ^(NSInteger nextAttempt) {
+        [self sendLookupOfShortGUID:shortGUID attempt:nextAttempt completion:completion];
+    };
     [[self.callSession dataTaskWithRequest:request
                          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (error && VibeHTTPIsConnectionError(error) && attempt <= kLookupNetworkRetries) {
+            LogInfo(@"Links: the iCloud lookup failed (%@); sending it again", error.localizedDescription);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                         (int64_t)(kLookupNetworkRetryDelay * self.retryDelayScale * NSEC_PER_SEC)),
+                           dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+                again(attempt + 1);
+            });
+            return;
+        }
         if (error) {
             LogInfo(@"Links: the iCloud lookup failed: %@", error.localizedDescription);
             completion(nil, error);
             return;
         }
-        NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class]
-                ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class]
+                ? (NSHTTPURLResponse *)response : nil;
+        NSInteger status = http.statusCode;
+        if (status != 200 && [self resendAfterStatus:status retryAfter:[http valueForHTTPHeaderField:@"Retry-After"]
+                                             attempt:attempt resend:again]) {
+            LogInfo(@"Links: the iCloud lookup answered HTTP %ld; sending it again", (long)status);
+            return;
+        }
         if (status != 200) {
             NSString *summary = [NSString stringWithFormat:@"HTTP %ld", (long)status];
             LogWarn(@"Links: the iCloud lookup answered %@", summary);
@@ -194,9 +225,7 @@ static NSString *const kStateRefreshed = @"refreshed";
         }
         NSMutableDictionary *looked = [file mutableCopy];
         looked[@"lookedUp"] = @(sent);
-        NSTimeInterval expiry = [file[@"expiry"] doubleValue];
-        LogInfo(@"Links: looked up an iCloud file of %@ bytes, its address valid for %.0f s", file[@"size"],
-                expiry > 0 ? expiry - sent : -1);
+        LogInfo(@"Links: looked up an iCloud file of %@ bytes", file[@"size"]);
         completion(looked, nil);
     }] resume];
 }

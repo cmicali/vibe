@@ -34,10 +34,9 @@ static NSString *const kVibeICloudLinkLookupURL =
     @"https://ckdatabasews.icloud.com/database/1/com.apple.cloudkit/production/public/records/resolve";
 
 // A looked-up address is sent for this long. iCloud signs one for about 15
-// minutes.
+// minutes. Its own expiry is in iCloud's clock, so it is never compared with
+// this device's: a clock 15 minutes fast would find every address expired.
 static const NSTimeInterval kVibeICloudLinkAddressLifetime = 10 * 60;
-// An address this close to its own expiry is not sent.
-static const NSTimeInterval kVibeICloudLinkAddressMargin = 60;
 
 // The share id of an iCloud Drive file link: https://www.icloud.com/
 // iclouddrive/<id>, or icloud.com. The fragment holds a display name and is
@@ -62,18 +61,6 @@ static inline NSString *_Nullable VibeICloudLinkShortGUID(NSURL *_Nullable url) 
 // origin, as iCloud's own page sends it.
 static inline NSData *VibeICloudLinkLookupBody(NSString *shortGUID) {
     return [NSJSONSerialization dataWithJSONObject:@{@"shortGUIDs": @[@{@"value": shortGUID}]} options:0 error:NULL];
-}
-
-// The Unix time a signed address expires: its `e` item. 0 when it states
-// none. The address still holds ${f}, which no URL parser takes, so its
-// query is split by hand.
-static inline NSTimeInterval VibeICloudLinkAddressExpiry(NSString *_Nullable address) {
-    NSRange query = [address rangeOfString:@"?"];
-    if (query.location == NSNotFound) return 0;
-    for (NSString *item in [[address substringFromIndex:NSMaxRange(query)] componentsSeparatedByString:@"&"]) {
-        if ([item hasPrefix:@"e="]) return MAX([item substringFromIndex:2].longLongValue, 0);
-    }
-    return 0;
 }
 
 // A file name with every character but the unreserved ones percent-encoded.
@@ -101,11 +88,11 @@ static inline NSString *VibeICloudLinkContentDisposition(NSString *name) {
 }
 
 // Whether a looked-up address may still be sent: looked up under 10 minutes
-// ago, and more than a minute short of its expiry when it states one. A
-// clock set back makes it stale too.
-static inline BOOL VibeICloudLinkAddressIsFresh(NSTimeInterval lookedUp, NSTimeInterval expiry, NSTimeInterval now) {
-    if (now < lookedUp || now - lookedUp >= kVibeICloudLinkAddressLifetime) return NO;
-    return expiry <= 0 || now + kVibeICloudLinkAddressMargin < expiry;
+// ago. Both times are the system's uptime, which no clock change moves. An
+// address that expires sooner is refused, and looked up again
+// (VibeICloudLinkStatusIsStaleAddress).
+static inline BOOL VibeICloudLinkAddressIsFresh(NSTimeInterval lookedUp, NSTimeInterval now) {
+    return now >= lookedUp && now - lookedUp < kVibeICloudLinkAddressLifetime;
 }
 
 // Whether a download address's refusal may mean only that it expired, which
@@ -131,10 +118,9 @@ static inline long long VibeICloudLinkNumber(id _Nullable value) {
 }
 
 // The file a lookup's answer describes, or why it opens nothing. On None,
-// `file` is {checksum, size, modified, name, url, expiry}: the version, the
-// size, the mtime in Unix seconds (left out when none is stated), the name
-// with its extension, the download address for that name, and the address's
-// expiry (0 for none).
+// `file` is {checksum, size, modified, name, url}: the version, the size,
+// the mtime in Unix seconds (left out when none is stated), the name with
+// its extension, and the download address for that name.
 // A share that needs a sign-in is Private, and so is one with no anonymous
 // access. A share that is not one file is Folder. One that no longer exists
 // is NotFound. Any other answer is Unreadable, never a server error.
@@ -184,8 +170,8 @@ static inline VibeLinkError VibeICloudLinkFileOfLookup(id _Nullable answer,
         return VibeLinkErrorICloudUnreadable;
     }
     if (file != NULL) {
-        NSMutableDictionary *found = [@{@"checksum": checksum, @"size": @(size), @"name": name, @"url": url,
-                                        @"expiry": @(VibeICloudLinkAddressExpiry(address))} mutableCopy];
+        NSMutableDictionary *found = [@{@"checksum": checksum, @"size": @(size), @"name": name, @"url": url}
+                                      mutableCopy];
         found[@"modified"] = modified >= 0 ? @(modified) : nil;
         *file = found;
     }
