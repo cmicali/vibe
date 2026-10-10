@@ -113,58 +113,50 @@ static inline BOOL VibeSearchPendingRestoreShouldBeSuppressed(
 #pragma mark - The root's rows
 
 typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
-    VibeBrowserRootSectionSources = 0,
+    VibeBrowserRootSectionLocations = 0,
     // Its own group: a place to go back to, not a place files live.
     VibeBrowserRootSectionRecents,
-    VibeBrowserRootSectionLocations,
+    VibeBrowserRootSectionActions,
     VibeBrowserRootSectionCount,
 };
 
 typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
     VibeBrowserRootRowDevice = 0,
     VibeBrowserRootRowDropbox,
-    VibeBrowserRootRowRecents,
     VibeBrowserRootRowLocation,
-    VibeBrowserRootRowConnectDropbox,
-    VibeBrowserRootRowAddFolder,
-    VibeBrowserRootRowBrowseFiles,
+    VibeBrowserRootRowRecents,
+    VibeBrowserRootRowChooseFile,
     VibeBrowserRootRowOpenURL,
     VibeBrowserRootRowPasteURL,
 };
 
-// The rows of one root section. Sources: the device, and Dropbox once linked.
-// Recents, alone. Locations: the granted folders first, so a location's row
-// is its index in the store. Then Connect to Dropbox until an account is
-// linked, Add Folder…, Browse Files…, and Open URL…. The paste row follows
-// Open URL… only while the clipboard probably holds a web link.
+// The rows of one root section. Locations: the device, Dropbox once linked,
+// then the granted folders in the store's order. Recents, alone. Actions:
+// Choose File… and Open URL…. The paste row follows Open URL… only while the
+// clipboard probably holds a web link. Adding a location is the bar's plus.
 static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection section,
                                                        BOOL dropboxLinked,
                                                        NSUInteger locations,
                                                        BOOL clipboardHasLink) {
-    if (section == VibeBrowserRootSectionSources) {
-        return dropboxLinked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox)]
-                             : @[@(VibeBrowserRootRowDevice)];
+    if (section == VibeBrowserRootSectionLocations) {
+        NSMutableArray<NSNumber *> *rows = [NSMutableArray arrayWithObject:@(VibeBrowserRootRowDevice)];
+        if (dropboxLinked) {
+            [rows addObject:@(VibeBrowserRootRowDropbox)];
+        }
+        for (NSUInteger i = 0; i < locations; i++) {
+            [rows addObject:@(VibeBrowserRootRowLocation)];
+        }
+        return rows;
     }
     if (section == VibeBrowserRootSectionRecents) {
         return @[@(VibeBrowserRootRowRecents)];
     }
-    if (section != VibeBrowserRootSectionLocations) {
+    if (section != VibeBrowserRootSectionActions) {
         return @[];
     }
-    NSMutableArray<NSNumber *> *rows = [NSMutableArray array];
-    for (NSUInteger i = 0; i < locations; i++) {
-        [rows addObject:@(VibeBrowserRootRowLocation)];
-    }
-    if (!dropboxLinked) {
-        [rows addObject:@(VibeBrowserRootRowConnectDropbox)];
-    }
-    [rows addObject:@(VibeBrowserRootRowAddFolder)];
-    [rows addObject:@(VibeBrowserRootRowBrowseFiles)];
-    [rows addObject:@(VibeBrowserRootRowOpenURL)];
-    if (clipboardHasLink) {
-        [rows addObject:@(VibeBrowserRootRowPasteURL)];
-    }
-    return rows;
+    return clipboardHasLink
+            ? @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)]
+            : @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL)];
 }
 
 #pragma mark - Recents

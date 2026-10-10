@@ -3,11 +3,11 @@
 //  Vibe (iOS)
 //
 //  The Files tab, and the Playlist tab's add sheet: one browser over every
-//  place the app can list. The root lists the sources — Dropbox through its
-//  mirror, the app's own Documents, and each location the user granted — and
-//  a directory lists its folders and playable files. The system folder
-//  picker's one remaining job is granting a location; the system file picker
-//  stays behind Browse Files… for a one-off pick outside them.
+//  place the app can list. The root's Locations are the app's own Documents,
+//  Dropbox through its mirror, and each folder the user granted. A directory
+//  lists its folders and playable files. The system folder picker's one
+//  remaining job is granting a location, from the root's plus. The system
+//  file picker stays behind Choose File… for a one-off pick outside them.
 //
 //  Every open goes through PlaybackController's roads, so nothing about
 //  opening is reimplemented here.

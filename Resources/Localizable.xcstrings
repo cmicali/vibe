@@ -2606,7 +2606,7 @@
       "extractionState": "manual"
     },
     "browser.add_clipboard_link": {
-      "comment": "iOS Add to Playlist sheet: a row under Locations, shown only while the clipboard holds a web link. A tap adds the copied link to the playlist. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
+      "comment": "iOS Add to Playlist sheet: a row below Recents, shown only while the clipboard holds a web link. A tap adds the copied link to the playlist. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2792,7 +2792,7 @@
       "extractionState": "manual"
     },
     "browser.add_folder.caption": {
-      "comment": "iOS Files tab: smaller second line under the Add Folder… row in the Locations list. It says where the folder can come from. The user picks it once and can then browse and search it in the app. iCloud Drive is an Apple product name: use the name Apple's Files app uses in this language.",
+      "comment": "iOS Files tab: smaller second line under Add Folder… in the menu of the plus button beside the Locations list. It says where the folder can come from. The user picks it once and can then browse and search it in the app. iCloud Drive is an Apple product name: use the name Apple's Files app uses in this language.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -2972,6 +2972,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "來自 iCloud 雲碟、磁碟或其他 App。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.add_location": {
+      "comment": "iOS Files tab: accessibility label of the plus button at the top right. Its menu adds a place to the Locations list: a folder, or the user's Dropbox.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавяне на място"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat umístění"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj lokalitet"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ort hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη τοποθεσίας"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Location"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir ubicación"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää sijainti"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter un emplacement"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj lokaciju"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hely hozzáadása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambah Lokasi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi posizione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "場所を追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위치 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til sted"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg locatie toe"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj miejsce"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar localização"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar localização"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adăugați o locație"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить место"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať umiestnenie"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till plats"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มตำแหน่งที่ตั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konum Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати місце"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vị trí"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加位置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入位置"
           }
         }
       },
@@ -3722,7 +3908,7 @@
       "extractionState": "manual"
     },
     "browser.locations": {
-      "comment": "iOS Files tab: heading above the folders the user has given the app permission to read (on the device, an external drive, a cloud service's folder), plus the rows that add one.",
+      "comment": "iOS Files tab: heading above the places the user can browse: the files on the device, their Dropbox, and the folders they have given the app permission to read (on the device, an external drive, a cloud service's folder).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4094,7 +4280,7 @@
       "extractionState": "manual"
     },
     "browser.open_clipboard_link": {
-      "comment": "iOS Files tab: a row under Locations, shown only while the clipboard holds a web link. A tap plays the copied link. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
+      "comment": "iOS Files tab: a row below Recents, shown only while the clipboard holds a web link. A tap plays the copied link. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4280,7 +4466,7 @@
       "extractionState": "manual"
     },
     "browser.open_url": {
-      "comment": "iOS Files tab: the row under Locations that asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "iOS Files tab: the row below Recents that asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -4466,186 +4652,186 @@
       "extractionState": "manual"
     },
     "browser.other_files": {
-      "comment": "iOS Files tab: the last row under Locations; opens the system file picker to choose a file or folder from anywhere, for one that is not in a listed location. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "iOS Files tab: the row below Recents that opens the system file picker. The user chooses files or a folder from anywhere, for one that is not in a listed location. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Преглед на файлове…"
+            "value": "Избор на файл…"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Procházet soubory…"
+            "value": "Vybrat soubor…"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gennemse filer…"
+            "value": "Vælg fil…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dateien durchsuchen…"
+            "value": "Datei auswählen…"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Περιήγηση στα αρχεία…"
+            "value": "Επιλογή αρχείου…"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Browse Files…"
+            "value": "Choose File…"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Explorar archivos…"
+            "value": "Elegir archivo…"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selaa tiedostoja…"
+            "value": "Valitse tiedosto…"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Parcourir les fichiers…"
+            "value": "Choisir un fichier…"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pregledaj datoteke…"
+            "value": "Odaberi datoteku…"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fájlok böngészése…"
+            "value": "Fájl kiválasztása…"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Telusuri File…"
+            "value": "Pilih File…"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sfoglia file…"
+            "value": "Scegli file…"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイルをブラウズ…"
+            "value": "ファイルを選択…"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일 탐색…"
+            "value": "파일 선택…"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bla gjennom filer…"
+            "value": "Velg fil…"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Blader door bestanden…"
+            "value": "Kies bestand…"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przeglądaj pliki…"
+            "value": "Wybierz plik…"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Explorar arquivos…"
+            "value": "Escolher arquivo…"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Explorar ficheiros…"
+            "value": "Escolher ficheiro…"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Răsfoiți fișierele…"
+            "value": "Alegeți un fișier…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обзор файлов…"
+            "value": "Выбрать файл…"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prehliadať súbory…"
+            "value": "Vybrať súbor…"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bläddra bland filer…"
+            "value": "Välj fil…"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เลือกดูไฟล์…"
+            "value": "เลือกไฟล์…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dosyalara Göz At…"
+            "value": "Dosya Seç…"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Огляд файлів…"
+            "value": "Вибрати файл…"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Duyệt tệp…"
+            "value": "Chọn tệp…"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "浏览文件…"
+            "value": "选择文件…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "瀏覽檔案…"
+            "value": "選擇檔案…"
           }
         }
       },
@@ -82958,7 +83144,7 @@
       "extractionState": "manual"
     },
     "settings.dropbox.connect": {
-      "comment": "iOS settings screen, Files: the row that signs in to the user's Dropbox account, opening Dropbox's own sign-in page. Dropbox is a product name: keep it untranslated. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "iOS: signs in to the user's Dropbox account, opening Dropbox's own sign-in page. A row in Settings, Files, and an item in the menu of the plus button on the Files tab. Dropbox is a product name: keep it untranslated. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -97838,7 +98024,7 @@
       "extractionState": "manual"
     },
     "settings.permissions.add_folder": {
-      "comment": "Button that opens a folder chooser to give the app access to one more folder: in the Mac's Settings, Files pane, and as the row under the iOS Files tab's Locations list. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Button that opens a folder chooser to give the app access to one more folder: in the Mac's Settings, Files pane, and in the menu of the plus button on the iOS Files tab. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
