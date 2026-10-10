@@ -16,6 +16,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
+// Rows whose audio is not on the device: the disk cache alone, so a hit
+// delivers as loadMetadata:'s do and a miss reads nothing and downloads
+// nothing. Apart from the scan, so loadMetadata: and cancelScan never drop
+// it. Main thread only.
+- (void)loadCachedMetadata:(NSArray<AudioTrack *> *)tracks;
+
 // Cancels the scan and releases its loader, which holds every queued track.
 // File > Close. Main thread only.
 - (void)cancelScan;

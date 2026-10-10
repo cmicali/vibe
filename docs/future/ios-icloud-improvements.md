@@ -1,6 +1,8 @@
 # iCloud Drive on iOS: folder setup, cached artwork and browser follow-ups
 
-Two proposed improvements to make an iCloud music folder feel at home in Vibe: make the system picker a setup step, and keep showing previously cached artwork when the audio is no longer downloaded. Neither change is implemented by this document.
+**Status: the folder setup and the cached artwork are built, 2026-10-08. The browser follow-ups below are still open.** The setup is not the separate row proposed below. Add Folder… gained the caption "From iCloud Drive, a drive, or another app.", which replaced the Locations footer, and a granted folder now opens in the browser. A separate iCloud row opened the same picker under a second name, so it was dropped. Current behavior is in [the iOS subsystem doc](../../Vibe/iOS/AGENTS.md) and [the metadata doc](../../Vibe/Audio/Metadata/AGENTS.md). One check is still to run on a device: whether a real iCloud eviction keeps the size and modification date the cache key reads. The simulator proved the rest with the fake cloud provider.
+
+Two improvements make an iCloud music folder feel at home in Vibe. The system picker becomes a setup step. Previously cached artwork stays visible when the audio is no longer downloaded.
 
 The same Files browser also owns the unresolved usability follow-ups below. They apply across local folders, Dropbox and granted provider folders; they do not depend on the two iCloud improvements.
 

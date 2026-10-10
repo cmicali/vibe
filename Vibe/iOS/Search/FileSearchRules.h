@@ -116,7 +116,6 @@ typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
     VibeBrowserRootSectionSources = 0,
     // Its own group: a place to go back to, not a place files live.
     VibeBrowserRootSectionRecents,
-    // Last: its footer needs the room a last section has.
     VibeBrowserRootSectionLocations,
     VibeBrowserRootSectionCount,
 };

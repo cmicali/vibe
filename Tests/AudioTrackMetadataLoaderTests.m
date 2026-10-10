@@ -1311,6 +1311,47 @@ materializationCoordinator:coordinator
     XCTAssertEqual(controller.startedURLs.count, 0u);
 }
 
+// The browser's road for a song not on the device: a miss must not read the
+// file, which for a dataless one is a download.
+- (void)testCacheOnlyHitPublishesAndMissReadsNothing {
+    AudioTrack *hit = [self trackNamed:@"cache-only-hit.wav"];
+    AudioTrack *miss = [self trackNamed:@"cache-only-miss.wav"];
+    AudioTrackMetadata *cached = VibeLoaderTestMetadataResult(YES, @"cache-only");
+    VibeMetadataLoaderOperationController *controller =
+            [[VibeMetadataLoaderOperationController alloc] init];
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation =
+            [self expectationWithDescription:@"cache-only hit published"];
+    NSMutableArray<AudioTrack *> *lookups = [NSMutableArray array];
+    AudioTrackMetadataLoader *loader = [self loaderWithController:controller
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) {
+        @synchronized (lookups) {
+            [lookups addObject:candidate];
+        }
+        return candidate == hit ? cached : nil;
+    }
+            fileParser:^AudioTrackMetadata *(NSURL *url) {
+        XCTFail(@"a cache-only lookup must not parse the file");
+        return VibeLoaderTestMetadataResult(NO, @"unexpected");
+    }];
+
+    [loader loadFromCacheOnly:@[miss, hit]];
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self waitForCondition:^BOOL{
+        @synchronized (lookups) {
+            return lookups.count == 2;
+        }
+    } description:@"both cache-only lookups ran"];
+
+    XCTAssertEqual(hit.metadata, cached);
+    XCTAssertNil(miss.metadata, @"a miss installs nothing, not even a fallback");
+    XCTAssertEqualObjects(delegate.deliveredTracks, (@[hit]));
+    XCTAssertTrue(delegate.allDeliveriesOnMain);
+    XCTAssertEqual(controller.startedURLs.count, 0u);
+}
+
 - (void)testRowsOfOneFileShareOneStageOneCacheRead {
     NSURL *image = [self URLNamed:@"cue-image.flac"];
     NSMutableArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 40);

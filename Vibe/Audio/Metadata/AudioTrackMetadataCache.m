@@ -29,6 +29,8 @@
 
 @implementation AudioTrackMetadataCache {
     AudioTrackMetadataLoader*   _currentLoader;
+    // loadCachedMetadata:'s, never cancelled: a miss is not asked again.
+    AudioTrackMetadataLoader*   _cacheOnlyLoader;
     // Serializes construction, invalidation and disk usage at utility QoS.
     dispatch_queue_t            _cacheQueue;
     atomic_uint_fast64_t        _cacheGeneration;
@@ -125,6 +127,25 @@
         [loader prioritizeTrack:priorityTrack];
     }
     [loader load:tracks];
+}
+
+- (void)loadCachedMetadata:(NSArray<AudioTrack *> *)tracks {
+    if (!tracks.count) {
+        return;
+    }
+    if (!_cacheOnlyLoader) {
+        _cacheOnlyLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
+                                                                   delegate:self.delegate
+                                                       loadingConfiguration:_loadingConfiguration];
+    }
+    _cacheOnlyLoader.delegate = self.delegate;
+    AudioTrackMetadataLoader *loader = _cacheOnlyLoader;
+    NSArray<AudioTrack *> *snapshot = [tracks copy];
+    // Serial behind init's construction: before the store exists a lookup
+    // misses, and a miss here is final.
+    dispatch_async(_cacheQueue, ^{
+        [loader loadFromCacheOnly:snapshot];
+    });
 }
 
 - (void)abandonQueuedTrack:(AudioTrack *)track {

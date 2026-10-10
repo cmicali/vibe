@@ -1321,6 +1321,22 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     _scanOrderGeneration++;
 }
 
+- (void)loadFromCacheOnly:(NSArray<AudioTrack *> *)tracks {
+    __weak __typeof(self) weakSelf = self;
+    for (AudioTrack *track in tracks) {
+        NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
+            __typeof(self) strongSelf = weakSelf;
+            if (strongSelf && !track.metadata) {
+                [strongSelf loadTrackFromDiskCache:track];
+            }
+        }];
+        // Rows on screen.
+        op.qualityOfService = NSQualityOfServiceUserInitiated;
+        op.queuePriority = NSOperationQueuePriorityHigh;
+        [_queue addOperation:op];
+    }
+}
+
 - (BOOL)loadTrackFromDiskCache:(AudioTrack *)track {
     AudioTrackMetadata *cachedMetaData = [self readCachedMetadataForTrack:track];
     if (!cachedMetaData) {

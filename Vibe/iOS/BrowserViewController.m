@@ -290,12 +290,16 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     // it read under it. The session's hold may be gone with the playlist.
     BOOL _holdsScope;
 
-    // Album art for the files already on the device, through the app's own
-    // metadata pipeline: the stack's one cache (stackArtCache), the
-    // listing's local files, and a track per row that has been near the
-    // screen.
+    // Album art through the app's own metadata pipeline: the stack's one
+    // cache (stackArtCache), and a track per row that has been near the
+    // screen. Every song may show art the cache already holds; only the
+    // local ones may be parsed for it.
     AudioTrackMetadataCache *_artCache;
+    NSSet<NSURL *> *_songFiles;
     NSSet<NSURL *> *_localFiles;
+    // The not-local songs already looked up, so a miss is asked once per
+    // listing.
+    NSMutableSet<NSURL *> *_cacheOnlyAsked;
     NSMutableDictionary<NSURL *, AudioTrack *> *_artTracks;
 
     // Which picker is up: a location grant, or a one-off pick.
@@ -529,13 +533,14 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 // The rows on screen and a margin, not the folder: one merely browsed is not
 // parsed whole.
 //
-// TRAP: only files whose bytes are on the device are asked. A cache miss
-// reads the tags from the file, which for a Dropbox placeholder is ranged
-// requests and for a provider's dataless file a download: browsing a folder
-// costs nothing a row does not say. A file seen before answers from the
-// metadata cache without being read at all.
+// TRAP: only files whose bytes are on the device go to loadMetadata:. Its
+// cache miss reads the tags from the file, which for a Dropbox placeholder is
+// ranged requests and for a provider's dataless file a download: browsing a
+// folder costs nothing a row does not say. Every other song goes to
+// loadCachedMetadata:, which answers from the metadata cache and reads
+// nothing on a miss.
 - (void)loadArtForVisibleRows {
-    if (_localFiles.count == 0 || !self.viewIfLoaded.window) {
+    if (_songFiles.count == 0 || !self.viewIfLoaded.window) {
         return;
     }
     [self.tableView layoutIfNeeded];
@@ -552,10 +557,11 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
     first = MAX(0, first - kArtRowMargin);
     last = MIN((NSInteger)_files.count - 1, last + kArtRowMargin);
-    NSMutableArray<AudioTrack *> *pending = [NSMutableArray array];
+    NSMutableArray<AudioTrack *> *parse = [NSMutableArray array];
+    NSMutableArray<AudioTrack *> *cacheOnly = [NSMutableArray array];
     for (NSInteger row = first; row <= last; row++) {
         NSURL *url = _files[(NSUInteger)row];
-        if (![_localFiles containsObject:url]) {
+        if (![_songFiles containsObject:url]) {
             continue;
         }
         AudioTrack *track = _artTracks[url];
@@ -566,16 +572,26 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             track = [AudioTrack withURL:url];
             _artTracks[url] = track;
         }
-        if (!track.metadata) {
-            [pending addObject:track];
+        if (track.metadata) {
+            continue;
+        }
+        if ([_localFiles containsObject:url]) {
+            [parse addObject:track];
+        }
+        else if (![_cacheOnlyAsked containsObject:url]) {
+            [_cacheOnlyAsked addObject:url];
+            [cacheOnly addObject:track];
         }
     }
-    if (pending.count == 0) {
+    if (parse.count == 0 && cacheOnly.count == 0) {
         return;
     }
     AudioTrackMetadataCache *cache = [self stackArtCache];
     cache.delegate = self;
-    [cache loadMetadata:pending];
+    if (parse.count > 0) {
+        [cache loadMetadata:parse];
+    }
+    [cache loadCachedMetadata:cacheOnly];
 }
 
 - (void)redrawVisibleRowsShowing:(AudioTrackMetadata *)metadata {
@@ -645,14 +661,19 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         [NSURLUtil listDirectory:directory sortedBy:sort folders:&folders playlists:&playlists audio:&files];
         NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
         NSMutableDictionary<NSURL *, NSString *> *sizes = [NSMutableDictionary dictionary];
-        // The audio whose bytes are here: what art may be read from.
+        // The songs, which may show cached art, and those whose bytes are
+        // here, which art may be read from.
+        NSMutableArray<NSURL *> *songs = [NSMutableArray array];
         NSMutableArray<NSURL *> *local = [NSMutableArray array];
         for (NSURL *url in files) {
+            BOOL song = ![PlaylistFile isCueExtension:url.pathExtension.lowercaseString];
+            if (song) {
+                [songs addObject:url];
+            }
             if ([NSURLUtil isRemotePlaceholderFile:url]) {
                 [placeholders addObject:url];
             }
-            else if (![PlaylistFile isCueExtension:url.pathExtension.lowercaseString]
-                    && ![NSURLUtil isDatalessFile:url]) {
+            else if (song && ![NSURLUtil isDatalessFile:url]) {
                 [local addObject:url];
             }
             // A placeholder carries the remote size, so this is what a tap
@@ -674,7 +695,10 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             strongSelf->_hasSongs = files.count > 0;
             strongSelf->_placeholders = placeholders;
             strongSelf->_fileSizes = sizes;
+            strongSelf->_songFiles = [NSSet setWithArray:songs];
             strongSelf->_localFiles = [NSSet setWithArray:local];
+            // A new listing may hold a file cached since: ask again.
+            strongSelf->_cacheOnlyAsked = [NSMutableSet set];
             [strongSelf showFilterIfNeeded];
             if (!strongSelf->_refreshing) {
                 [strongSelf.refreshControl endRefreshing];
@@ -1569,7 +1593,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     if (self.isRoot) {
-        return section == VibeBrowserRootSectionLocations ? STR_BROWSER_LOCATIONS_FOOTER : nil;
+        return nil;
     }
     // A relist that failed over rows already here: they may be out of date.
     if (section == VibeBrowserSectionFiles && _refreshError && !self.isEmpty) {
@@ -1727,6 +1751,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
             break;
         case VibeBrowserRootRowAddFolder:
             content.text = STR_SETTINGS_ADD_FOLDER;
+            // iCloud Drive named here: it is where most music on a phone is.
+            content.secondaryText = STR_BROWSER_ADD_FOLDER_CAPTION;
             content.image = [UIImage systemImageNamed:@"folder.badge.plus"];
             action = YES;
             break;
@@ -1994,7 +2020,14 @@ didEndDisplayingCell:(UITableViewCell *)cell
         return;
     }
     NSURL *url = urls.firstObject;
-    if (url && ![SearchFolderStore.shared addFolderURL:url]) {
+    if (!url) {
+        return;
+    }
+    if ([SearchFolderStore.shared addFolderURL:url]) {
+        // Opened, not played: adding a folder leaves playback alone.
+        [self pushDirectory:url];
+    }
+    else {
         // Silence would read as a failed pick.
         VibePresentAlert(self, STR_BROWSER_LOCATIONS, STR_SETTINGS_SEARCH_FOLDERS_COVERED);
     }
