@@ -292,7 +292,7 @@ targets:
       # both.
       - script: |
           [ "$VIBE_DIRECT_DISTRIBUTION" = 1 ] && exit 0
-          for key in SUFeedURL SUPublicEDKey SUEnableInstallerLauncherService SUVerifyUpdateBeforeExtraction; do
+          for key in SUFeedURL SUPublicEDKey SUEnableInstallerLauncherService SUVerifyUpdateBeforeExtraction SUScheduledCheckInterval; do
               /usr/libexec/PlistBuddy -c "Delete :$key" "$TARGET_BUILD_DIR/$INFOPLIST_PATH" 2>/dev/null || true
           done
         name: Remove Updater Keys
@@ -314,13 +314,14 @@ targets:
 
         ITSAppUsesNonExemptEncryption: false
 
-        # Sparkle's. The AppStore configuration strips all four from the built
+        # Sparkle's. The AppStore configuration strips all five from the built
         # Info.plist (the script below). The feed and the key are permanent:
         # every shipped build trusts them.
         SUFeedURL: "$(VIBE_SPARKLE_FEED_URL)"
         SUPublicEDKey: "$(VIBE_SPARKLE_PUBLIC_KEY)"
         SUEnableInstallerLauncherService: true   # required under the App Sandbox
         SUVerifyUpdateBeforeExtraction: true
+        SUScheduledCheckInterval: 604800          # weekly, until Settings > General says otherwise
 
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
