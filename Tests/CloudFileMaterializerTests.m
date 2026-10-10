@@ -1061,9 +1061,10 @@ static void TakeNews(CloudFileAvailability *availability) {
                                   wanted:&wanted length:&length readerPosition:&position]);
 }
 
-// Either writer's wait sleeps until woken: a flag set with no wake ends
-// nothing.
-- (void)testAWaitNeedsAWakeToSeeAnInterrupt {
+// Either writer's wait, once blocked, sees an interrupt set after it blocked
+// when wakeWaiters wakes it. Nothing asserts it stays blocked until the wake.
+// NSCondition may wake early, and an early look at the flag is harmless.
+- (void)testAWakeMakesABlockedWaitSeeAnInterrupt {
     CloudFileAvailability *withoutPart = [[CloudFileAvailability alloc] initWithoutPartFile];
     [withoutPart noteSize:100];
     for (CloudFileAvailability *availability in @[
@@ -1079,11 +1080,10 @@ static void TakeNews(CloudFileAvailability *availability) {
                                             result:&result error:NULL];
         [self awaitReturn:asked];
         atomic_store(&interrupted, true);
-        XCTAssertNotEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC))), 0,
-                          @"%@: no wake, still waiting", availability.partURL ? @"transfer" : @"no part file");
         [availability wakeWaiters];
         [self awaitReturn:returned];
-        XCTAssertEqual(result, CloudFileAvailabilityInterrupted);
+        XCTAssertEqual(result, CloudFileAvailabilityInterrupted, @"%@",
+                       availability.partURL ? @"transfer" : @"no part file");
     }
 }
 
