@@ -7,6 +7,18 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta4</title>
+<pubDate>Sat, 10 Oct 2026 01:21:17 +0000</pubDate>
+<sparkle:version>311</sparkle:version>
+<sparkle:shortVersionString>1.16-beta4</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* Changed: this beta tests automatic updates; nothing else changed
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta4/Vibe-macOS-universal-1.16-beta4.zip" length="10045046" type="application/octet-stream" sparkle:edSignature="3fXM347LTx5LXB7Mlfrkh1bG2C/P3/xnhZt3Km4Iw2ZTY9apM56P3ojZ3mrGsU815zxa3tFQqpcldXJU12jwAA=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta3</title>
 <pubDate>Sat, 10 Oct 2026 01:17:41 +0000</pubDate>
 <sparkle:version>310</sparkle:version>
