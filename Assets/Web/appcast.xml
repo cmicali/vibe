@@ -6,5 +6,22 @@
 <title>Vibe</title>
 <link>https://vibeplayer.app/</link>
 <language>en</language>
+<item>
+<title>Vibe 1.16-beta3</title>
+<pubDate>Sat, 10 Oct 2026 01:17:41 +0000</pubDate>
+<sparkle:version>310</sparkle:version>
+<sparkle:shortVersionString>1.16-beta3</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* New: Open URL… (⌘U) plays an audio file from a web address, including Dropbox and Google Drive share links
+* New: drop a web link on the player to play it
+* New: automatic updates, and Check for Updates in the Vibe menu
+* New: Cut and Paste in the Edit menu
+* Improved: the pitch fader sounds cleaner and glides instead of stepping
+* Fixed: a network share that stops answering now pauses with "Connection lost" instead of going silent
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta3/Vibe-macOS-universal-1.16-beta3.zip" length="10045036" type="application/octet-stream" sparkle:edSignature="N+4/US4xi8gMr8xmmYBQsK/3Q4963vO8Y/TFkTfHgCgs+dmUX6UcG5UM2Fkuz1ysgAQQ9AVNqy8fEEmrDpZhDQ=="/>
+</item>
 </channel>
 </rss>
