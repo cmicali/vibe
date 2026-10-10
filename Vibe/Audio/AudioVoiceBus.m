@@ -1516,6 +1516,13 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
             || atomic_load_explicit(&s->generation, memory_order_acquire) != generation) {
         return;
     }
+    // TRAP: the last release of a handle closes its file. On a network share a
+    // close waits on the server. Main and the player queue take the table lock
+    // to read a voice, so a close under it stalls both. These locals keep the
+    // release past the unlock.
+    NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *file = record->file;
+    NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *successor = record->successorFile;
+    NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *waiting = record->waitingSuccessor;
     os_unfair_lock_lock(&_tableLock);
     record->file = nil;
     record->successorFile = nil;
