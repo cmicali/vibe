@@ -26,6 +26,14 @@ NS_ASSUME_NONNULL_BEGIN
 // link.error string.
 extern NSErrorDomain const VibeLinkErrorDomain;
 
+// The client every link goes through: the plain client, and an iCloud Drive
+// share's lookup before each request to it. The lookup's address lives about
+// 15 minutes, so each request gets one looked up in the last 10. A refused
+// address is looked up again once. The checksum the lookup states is the
+// version, so a resend after a fresh lookup continues the same bytes.
+@interface LinkClient : HTTPTransferClient
+@end
+
 @interface LinkStore : RemotePlaceholderStore
 
 - (instancetype)initWithClient:(HTTPTransferClient *)client
@@ -40,7 +48,7 @@ extern NSErrorDomain const VibeLinkErrorDomain;
 
 // rootURL holds one directory per link. The tests pass a temp directory and a
 // client over their stub. The store sets the client's allowsURL.
-- (instancetype)initWithClient:(HTTPTransferClient *)client
+- (instancetype)initWithClient:(LinkClient *)client
                        rootURL:(NSURL *)rootURL NS_DESIGNATED_INITIALIZER;
 
 // The typed link as a file to open: its placeholder, or its download when

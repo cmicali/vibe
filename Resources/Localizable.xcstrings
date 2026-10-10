@@ -13765,6 +13765,564 @@
       },
       "extractionState": "manual"
     },
+    "link.error.icloud_folder": {
+      "comment": "Open URL error: the address is an iCloud Drive share link to a folder, and Vibe plays only a link to one file. Vibe is the app name. iCloud is a product name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe все още не може да отваря споделени папки в iCloud. Вместо това споделете отделен файл."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe zatím neumí otevírat sdílené složky na iCloudu. Sdílejte místo toho jednotlivý soubor."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kan endnu ikke åbne delte iCloud-mapper. Del en enkelt fil i stedet."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kann geteilte iCloud-Ordner noch nicht öffnen. Teile stattdessen eine einzelne Datei."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Vibe δεν μπορεί ακόμη να ανοίξει κοινόχρηστους φακέλους iCloud. Μοιραστείτε ένα μεμονωμένο αρχείο."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe can’t open shared iCloud folders yet. Share a single file instead."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe aún no puede abrir carpetas compartidas de iCloud. Comparte un solo archivo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ei vielä osaa avata jaettuja iCloud-kansioita. Jaa sen sijaan yksittäinen tiedosto."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ne peut pas encore ouvrir les dossiers iCloud partagés. Partagez plutôt un seul fichier."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe još ne može otvarati dijeljene mape na iCloudu. Umjesto toga podijelite jednu datoteku."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Vibe még nem tud megosztott iCloud-mappákat megnyitni. Inkább egyetlen fájlt ossz meg."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe belum dapat membuka folder iCloud yang dibagikan. Bagikan satu file saja."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe non può ancora aprire le cartelle condivise di iCloud. Condividi invece un singolo file."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibeは共有されたiCloudフォルダをまだ開けません。代わりにファイルを1つ共有してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe는 아직 공유된 iCloud 폴더를 열 수 없습니다. 대신 파일 하나를 공유하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kan ikke åpne delte iCloud-mapper ennå. Del én enkelt fil i stedet."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kan gedeelde iCloud-mappen nog niet openen. Deel in plaats daarvan één bestand."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nie umie jeszcze otwierać udostępnionych folderów iCloud. Udostępnij zamiast tego pojedynczy plik."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe ainda não abre pastas compartilhadas do iCloud. Compartilhe um único arquivo."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe ainda não abre pastas partilhadas do iCloud. Partilhe um único ficheiro."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nu poate deschide încă dosare iCloud partajate. Partajați în schimb un singur fișier."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe пока не открывает общие папки iCloud. Поделитесь отдельным файлом."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe zatiaľ nevie otvárať zdieľané priečinky na iCloude. Zdieľajte namiesto toho jednotlivý súbor."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kan inte öppna delade iCloud-mappar än. Dela en enskild fil i stället."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ยังเปิดโฟลเดอร์ iCloud ที่แชร์ไม่ได้ โปรดแชร์ไฟล์เดียวแทน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe henüz paylaşılan iCloud klasörlerini açamıyor. Bunun yerine tek bir dosya paylaşın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe поки не відкриває спільні папки iCloud. Поділіться окремим файлом."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe chưa mở được thư mục iCloud được chia sẻ. Hãy chia sẻ một tệp riêng lẻ."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 暂时无法打开共享的 iCloud 文件夹。请改为共享单个文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 暫時無法打開共享的 iCloud 檔案夾。請改為共享單一檔案。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.icloud_private": {
+      "comment": "Open URL error: the address is an iCloud Drive share link that only invited people can open, after signing in with their Apple Account. Anyone with the link is the name of the iCloud sharing option that lets everyone open it: use the name Apple uses in this language. iCloud is a product name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тази връзка към iCloud е споделена само с поканени хора. Помолете собственика да я сподели с „Всеки с връзката“."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento odkaz na iCloud je sdílený jen s pozvanými lidmi. Požádejte vlastníka, aby ho sdílel s volbou „Kdokoli s odkazem“."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dette iCloud-link er kun delt med inviterede personer. Bed ejeren om at dele det med “Alle med linket”."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser iCloud-Link ist nur für eingeladene Personen freigegeben. Bitte den Eigentümer, ihn für „Jeder mit dem Link“ freizugeben."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αυτός ο σύνδεσμος iCloud είναι κοινόχρηστος μόνο με προσκεκλημένα άτομα. Ζητήστε από τον κάτοχο να τον μοιραστεί με «Οποιονδήποτε έχει τον σύνδεσμο»."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This iCloud link is shared only with invited people. Ask the owner to share it with anyone who has the link."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este enlace de iCloud solo se comparte con personas invitadas. Pide al propietario que lo comparta con “Cualquiera con el enlace”."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tämä iCloud-linkki on jaettu vain kutsutuille. Pyydä omistajaa jakamaan se valinnalla ”Kaikki, joilla on linkki”."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce lien iCloud n’est partagé qu’avec des personnes invitées. Demandez à son propriétaire de le partager avec « Toute personne disposant du lien »."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ova iCloud poveznica dijeli se samo s pozvanim osobama. Zamolite vlasnika da je podijeli s opcijom „Svatko s poveznicom”."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ez az iCloud-link csak meghívott személyekkel van megosztva. Kérd meg a tulajdonost, hogy ossza meg a „Bárki, aki rendelkezik a linkkel” beállítással."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tautan iCloud ini hanya dibagikan dengan orang yang diundang. Minta pemiliknya untuk membagikannya ke “Siapa pun yang memiliki tautan”."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo link di iCloud è condiviso solo con le persone invitate. Chiedi al proprietario di condividerlo con “Chiunque abbia il link”."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このiCloudリンクは招待された人にのみ共有されています。「リンクを知っている人全員」に共有するよう所有者に依頼してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 iCloud 링크는 초대된 사람에게만 공유되어 있습니다. 소유자에게 ‘링크가 있는 모든 사람’과 공유하도록 요청하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne iCloud-lenken er bare delt med inviterte personer. Be eieren om å dele den med «Alle som har lenken»."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze iCloud-link is alleen gedeeld met uitgenodigde personen. Vraag de eigenaar om hem te delen met ‘Iedereen met de link’."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To łącze iCloud jest udostępnione tylko zaproszonym osobom. Poproś właściciela o udostępnienie go z opcją „Każdy, kto ma łącze”."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este link do iCloud está compartilhado apenas com pessoas convidadas. Peça ao proprietário para compartilhá-lo com “Qualquer pessoa com o link”."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta ligação do iCloud está partilhada apenas com pessoas convidadas. Peça ao proprietário para a partilhar com “Qualquer pessoa com a ligação”."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acest link iCloud este partajat doar cu persoanele invitate. Cereți proprietarului să-l partajeze cu „Oricine are linkul”."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Эта ссылка iCloud доступна только приглашенным людям. Попросите владельца открыть доступ «Всем, у кого есть ссылка»."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento odkaz na iCloud je zdieľaný len s pozvanými ľuďmi. Požiadajte vlastníka, aby ho zdieľal s voľbou „Ktokoľvek s odkazom“."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den här iCloud-länken delas bara med inbjudna personer. Be ägaren att dela den med ”Alla som har länken”."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ลิงก์ iCloud นี้แชร์ให้เฉพาะผู้ที่ได้รับเชิญเท่านั้น โปรดขอให้เจ้าของแชร์ให้ “ทุกคนที่มีลิงก์”"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu iCloud bağlantısı yalnızca davet edilen kişilerle paylaşılıyor. Sahibinden bağlantıyı “Bağlantıya sahip olan herkes” ile paylaşmasını isteyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Це посилання iCloud доступне лише запрошеним людям. Попросіть власника надати доступ «Усім, хто має посилання»."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liên kết iCloud này chỉ được chia sẻ với những người được mời. Hãy yêu cầu chủ sở hữu chia sẻ với “Bất kỳ ai có liên kết”."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 iCloud 链接仅共享给受邀人员。请让所有者将其共享给“任何拥有链接的人”。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此 iCloud 連結僅與受邀的人共享。請要求擁有者將其共享給「任何擁有連結的人」。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.error.icloud_unreadable": {
+      "comment": "Open URL error: the address is an iCloud Drive share link, and iCloud answered in a way Vibe did not understand. Vibe is the app name. iCloud is a product name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe не успя да прочете тази връзка към iCloud. Проверете връзката и опитайте отново."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nedokázal přečíst tento odkaz na iCloud. Zkontrolujte odkaz a zkuste to znovu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kunne ikke læse dette iCloud-link. Tjek linket, og prøv igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe konnte diesen iCloud-Link nicht lesen. Prüfe den Link und versuche es erneut."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Vibe δεν μπόρεσε να διαβάσει αυτόν τον σύνδεσμο iCloud. Ελέγξτε τον σύνδεσμο και δοκιμάστε ξανά."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe couldn’t read this iCloud link. Check the link and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe no ha podido leer este enlace de iCloud. Revisa el enlace e inténtalo de nuevo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ei pystynyt lukemaan tätä iCloud-linkkiä. Tarkista linkki ja yritä uudelleen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe n’a pas pu lire ce lien iCloud. Vérifiez le lien et réessayez."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nije mogao pročitati ovu iCloud poveznicu. Provjerite poveznicu i pokušajte ponovno."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Vibe nem tudta beolvasni ezt az iCloud-linket. Ellenőrizd a linket, és próbáld újra."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe tidak dapat membaca tautan iCloud ini. Periksa tautannya, lalu coba lagi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe non è riuscito a leggere questo link di iCloud. Controlla il link e riprova."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VibeはこのiCloudリンクを読み取れませんでした。リンクを確認して、もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe가 이 iCloud 링크를 읽을 수 없습니다. 링크를 확인한 후 다시 시도하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kunne ikke lese denne iCloud-lenken. Sjekk lenken og prøv igjen."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kon deze iCloud-link niet lezen. Controleer de link en probeer het opnieuw."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nie może odczytać tego łącza iCloud. Sprawdź łącze i spróbuj ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe não conseguiu ler este link do iCloud. Verifique o link e tente novamente."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe não conseguiu ler esta ligação do iCloud. Verifique a ligação e tente novamente."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nu a putut citi acest link iCloud. Verificați linkul și încercați din nou."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe не удалось прочитать эту ссылку iCloud. Проверьте ссылку и повторите попытку."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe nedokázal prečítať tento odkaz na iCloud. Skontrolujte odkaz a skúste to znova."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kunde inte läsa den här iCloud-länken. Kontrollera länken och försök igen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe อ่านลิงก์ iCloud นี้ไม่ได้ โปรดตรวจสอบลิงก์แล้วลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe bu iCloud bağlantısını okuyamadı. Bağlantıyı denetleyip yeniden deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe не вдалося прочитати це посилання iCloud. Перевірте посилання й повторіть спробу."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe không đọc được liên kết iCloud này. Hãy kiểm tra liên kết và thử lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 无法读取此 iCloud 链接。请检查链接后再试一次。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 無法讀取此 iCloud 連結。請檢查連結後再試一次。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "link.error.insecure": {
       "comment": "Open URL error: the address starts with http://, which is not encrypted, and points outside the user's home or office network. Vibe is the app name. Keep http:// and https:// exactly as written.",
       "localizations": {
@@ -16178,6 +16736,564 @@
           "stringUnit": {
             "state": "translated",
             "value": "存取被拒"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.icloud_folder": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address is an iCloud Drive share link to a folder, and Vibe plays only a link to one file. iCloud is a product name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Папките в iCloud не се поддържат"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Složky na iCloudu nejsou podporované"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-mapper understøttes ikke"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-Ordner nicht unterstützt"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν υποστηρίζονται φάκελοι iCloud"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud folders not supported"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carpetas de iCloud no compatibles"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-kansioita ei tueta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dossiers iCloud non pris en charge"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud mape nisu podržane"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az iCloud-mappák nem támogatottak"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder iCloud tidak didukung"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cartelle iCloud non supportate"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloudフォルダには未対応"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud 폴더는 지원되지 않음"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-mapper støttes ikke"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-mappen niet ondersteund"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Foldery iCloud nieobsługiwane"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pastas do iCloud não compatíveis"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pastas do iCloud não suportadas"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosarele iCloud nu sunt acceptate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Папки iCloud не поддерживаются"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Priečinky na iCloude nie sú podporované"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-mappar stöds inte"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่รองรับโฟลเดอร์ iCloud"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud klasörleri desteklenmiyor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Папки iCloud не підтримуються"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa hỗ trợ thư mục iCloud"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持 iCloud 文件夹"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援 iCloud 檔案夾"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.icloud_private": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. The address is an iCloud Drive share link that only invited people can open.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Само за поканени хора"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jen pro pozvané"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kun delt med inviterede"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur für eingeladene Personen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μόνο για προσκεκλημένους"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared with invited people only"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo para personas invitadas"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jaettu vain kutsutuille"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réservé aux personnes invitées"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Samo za pozvane osobe"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Csak meghívottaknak"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hanya untuk orang yang diundang"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo per persone invitate"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "招待された人のみに共有"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "초대된 사람에게만 공유됨"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bare delt med inviterte"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alleen voor genodigden"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tylko dla zaproszonych osób"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só para pessoas convidadas"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Só para pessoas convidadas"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doar pentru persoane invitate"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только для приглашенных"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Len pre pozvaných"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bara för inbjudna"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เฉพาะผู้ที่ได้รับเชิญ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yalnızca davetliler için"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Лише для запрошених"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉ dành cho người được mời"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅共享给受邀人员"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "僅與受邀的人共享"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "link.status.icloud_unreadable": {
+      "comment": "Mac only: an Open URL link failed. Shown on the player header's artist line, over the link's file name, for a few seconds. Keep it as short as 'Could not open file'. iCloud answered in a way Vibe did not understand. iCloud is a product name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Връзката към iCloud не е прочетена"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odkaz na iCloud nelze přečíst"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke læse iCloud-linket"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-Link nicht lesbar"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αδύνατη η ανάγνωση του συνδέσμου iCloud"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read this iCloud link"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el enlace de iCloud"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-linkkiä ei voitu lukea"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lien iCloud illisible"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud poveznica nije pročitana"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az iCloud-link nem olvasható"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tautan iCloud tidak terbaca"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile leggere il link iCloud"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloudリンクを読み取れません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud 링크를 읽을 수 없음"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke lese iCloud-lenken"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud-link niet leesbaar"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można odczytać łącza iCloud"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível ler o link do iCloud"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível ler a ligação do iCloud"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linkul iCloud nu poate fi citit"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось прочитать ссылку iCloud"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odkaz na iCloud sa nedá prečítať"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunde inte läsa iCloud-länken"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อ่านลิงก์ iCloud ไม่ได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud bağlantısı okunamadı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося прочитати посилання iCloud"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không đọc được liên kết iCloud"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 iCloud 链接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取 iCloud 連結"
           }
         }
       },

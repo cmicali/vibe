@@ -880,6 +880,9 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
         @(VibeLinkErrorNotAudio): @[STR_LINK_ERROR_NOT_AUDIO, STR_LINK_STATUS_NOT_AUDIO],
         @(VibeLinkErrorNoSize): @[STR_LINK_ERROR_NO_SIZE, STR_LINK_STATUS_NO_SIZE],
         @(VibeLinkErrorLiveStream): @[STR_LINK_ERROR_LIVE_STREAM, STR_LINK_STATUS_LIVE_STREAM],
+        @(VibeLinkErrorICloudPrivate): @[STR_LINK_ERROR_ICLOUD_PRIVATE, STR_LINK_STATUS_ICLOUD_PRIVATE],
+        @(VibeLinkErrorICloudFolder): @[STR_LINK_ERROR_ICLOUD_FOLDER, STR_LINK_STATUS_ICLOUD_FOLDER],
+        @(VibeLinkErrorICloudUnreadable): @[STR_LINK_ERROR_ICLOUD_UNREADABLE, STR_LINK_STATUS_ICLOUD_UNREADABLE],
     };
     for (NSNumber *code in expected) {
         NSError *error = LinkError(code.integerValue, nil);

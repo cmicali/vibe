@@ -198,7 +198,8 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
     return YES;
 }
 
-- (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response {
+- (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response
+                               state:(NSMutableDictionary<NSString *, id> *)state {
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
     metadata[@"etag"] = [response valueForHTTPHeaderField:@"ETag"];
     metadata[@"lastModified"] = [response valueForHTTPHeaderField:@"Last-Modified"];
@@ -447,7 +448,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 - (NSURLSessionResponseDisposition)read:(HTTPTransfer *)read didReceiveResponse:(NSHTTPURLResponse *)http {
     BOOL accepted = http.statusCode == 200 || http.statusCode == 206;
     read.response = accepted ? http : nil;
-    read.metadata = accepted ? [self metadataOfResponse:http] : nil;
+    read.metadata = accepted ? [self metadataOfResponse:http state:read.state] : nil;
     read.received = accepted ? [NSMutableData data] : nil;
     if (!accepted) {
         read.errorData = [NSMutableData data];
@@ -552,7 +553,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
     uint64_t offset = download.bytesWritten;
     NSString *contentRange = [http valueForHTTPHeaderField:@"Content-Range"];
     if (http.statusCode == 416 && download.resumeVersion && !download.file) {
-        NSDictionary *metadata = [self metadataOfResponse:http];
+        NSDictionary *metadata = [self metadataOfResponse:http state:download.state];
         NSString *version = [self versionOfMetadata:metadata];
         // A kept part as long as its version now is the whole file.
         if (VibeHTTPContentRangeTotal(contentRange) == (int64_t)offset
@@ -579,7 +580,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
         download.retryAfter = [http valueForHTTPHeaderField:@"Retry-After"];
         return NSURLSessionResponseAllow;
     }
-    NSDictionary *metadata = [self metadataOfResponse:http];
+    NSDictionary *metadata = [self metadataOfResponse:http state:download.state];
     NSString *version = [self versionOfMetadata:metadata];
     // TRAP: a resend answers whatever version is current, so bytes continuing
     // a file, a resend's or a kept part's, must be the version it holds, or

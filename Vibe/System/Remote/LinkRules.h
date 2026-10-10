@@ -44,6 +44,9 @@ typedef NS_ENUM(NSInteger, VibeLinkError) {
     VibeLinkErrorLiveStream,
     VibeLinkErrorServer,
     VibeLinkErrorCancelled,
+    VibeLinkErrorICloudPrivate,
+    VibeLinkErrorICloudFolder,
+    VibeLinkErrorICloudUnreadable,
 };
 
 #pragma mark - Acceptance

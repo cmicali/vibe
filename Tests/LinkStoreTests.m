@@ -31,16 +31,6 @@ static const NSUInteger kStallBytes = 5 * 64 * 1024;
 static const uint64_t kWindowBytes = 128 * 1024;
 static const NSTimeInterval kDay = 24 * 60 * 60;
 
-static BOOL IsPlaceholder(NSURL *url) {
-    struct stat st = StatOf(url);
-    return S_ISREG(st.st_mode) && VibeFileModeIsRemotePlaceholder(st.st_mode);
-}
-
-static BOOL IsDownloaded(NSURL *url) {
-    struct stat st = StatOf(url);
-    return S_ISREG(st.st_mode) && !VibeFileModeIsRemotePlaceholder(st.st_mode);
-}
-
 @interface LinkStoreTests : LinkStoreTestCase
 @end
 
@@ -54,41 +44,9 @@ static BOOL IsDownloaded(NSURL *url) {
     [_store writeIndex:record ofDirectory:file.URLByDeletingLastPathComponent];
 }
 
-- (BOOL)fetch:(NSURL *)url error:(NSError **)error {
-    return [_store fetchPlaceholderAtURL:url onReadable:nil onCancel:^(dispatch_block_t cancel) {
-    } error:error];
-}
-
-- (void)fetchExpectingSuccess:(NSURL *)url {
-    NSError *error = nil;
-    XCTAssertTrue([self fetch:url error:&error], @"%@", error);
-}
-
 - (void)settleDiskQueue {
     dispatch_sync(_store.diskQueue, ^{
     });
-}
-
-- (void)waitUntil:(BOOL (^)(void))condition {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while (!condition() && deadline.timeIntervalSinceNow > 0) {
-        usleep(1000);
-    }
-}
-
-// A drop of the next answer to path once `bytes` of url's part are on disk:
-// a failure sent straight after the bytes overtakes them on the client's side.
-- (void)dropNextAnswerTo:(NSString *)path after:(NSUInteger)bytes partOf:(NSURL *)url {
-    NSString *part = [NSURLUtil remotePlaceholderPartURL:url].path;
-    [_stub queueStep:[HTTPStubStep dropAfter:bytes ready:^BOOL {
-        struct stat st;
-        return stat(part.fileSystemRepresentation, &st) == 0 && (NSUInteger)st.st_size >= bytes;
-    }] forPath:path];
-}
-
-- (NSArray<NSURLRequest *> *)requestsTo:(NSString *)path since:(NSUInteger)count {
-    NSArray<NSURLRequest *> *requests = [_stub requestsToPath:path];
-    return [requests subarrayWithRange:NSMakeRange(count, requests.count - MIN(count, requests.count))];
 }
 
 #pragma mark What a probe opens as
