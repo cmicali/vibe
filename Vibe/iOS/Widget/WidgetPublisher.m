@@ -11,24 +11,26 @@
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
-#import "PlatformColor.h"
 #import "UIImage+DominantColor.h"
 #import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
 
-static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC;
+// A track change makes two reloads. The title goes first, and the waveform's
+// bake follows a few hundred ms later. At one reload a second, the bake's
+// reload waited most of a second.
+static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;
 
 // A seek detector against the widget's own extrapolation; looser than the lock
 // screen's, since a widget entry spans minutes.
 static const NSTimeInterval kWidgetPositionTolerance = 2.0;
 
-// Pixels; the widget draws it at 67pt.
-static const CGFloat kWidgetArtworkSide = 256;
+// Pixels. The large widget draws it at up to 190pt, at 3x.
+static const CGFloat kWidgetArtworkSide = 576;
 
-// Stretched to fit, so only the ASPECT matters: the medium widget's, the
-// taller, since scaling down is clean and scaling up stretches the amplitude.
+// Stretched to fit, so only the ASPECT matters. It is the medium widget's.
+// The small waveform tile draws the same images narrower and slightly taller.
 static const CGSize  kWidgetWaveformSize  = (CGSize){320, 64};
 static const CGFloat kWidgetWaveformScale = 3;
 
@@ -211,7 +213,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 // On _queue. One reload per burst of writes, each reload being an extension
-// launch, and at most one a second: a burst costs one trailing reload. The
+// launch, and at most four a second: a burst costs one trailing reload. The
 // first of a quiet period goes at once — the app may be suspended before a
 // timer fires — and the trailing one always goes.
 - (void)scheduleReload {
@@ -301,25 +303,18 @@ static const CGFloat kWidgetWaveformScale = 3;
     // nil widget style means "match app".
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-    VibeColor *played = [settings waveformCustomPlayedColorForDark:YES];
-    VibeColor *unplayed = [settings waveformCustomUnplayedColorForDark:YES];
 
     // Always dark: the widget's background is. The artwork colour is memoized
     // on the image; nil (not decoded, or too gray) resolves album_art to Mono.
-    WaveformTheme *theme = [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                                      isDark:YES
-                                                artworkColor:_publishedTrack.cachedArt.vibeDominantColor
-                                                customPlayed:played
-                                              customUnplayed:unplayed];
+    WaveformTheme *theme = [WaveformTheme themeForSettings:settings isDark:YES
+                                              artworkColor:_publishedTrack.cachedArt.vibeDominantColor];
     // The RESOLVED palette, not the inputs, so a cover arriving under a theme
     // that ignores it bakes nothing. The waveform, not its track: the
     // signature clears on a track change, and a new waveform for the same
     // track, the bands' decode, must bake.
     BOOL centered = settings.widgetWaveformCentered;
-    NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%@|%p",
-                           style, centered, VibeHexStringFromColor(theme.playedColor) ?: @"",
-                           VibeHexStringFromColor(theme.unplayedColor) ?: @"",
-                           (void *)waveform];
+    NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%p",
+                           style, centered, theme.paletteSignature, (void *)waveform];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }

@@ -1,7 +1,10 @@
 # v1.16
 
+* mac: Added automatic updates and Check for Updates to the downloaded version
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
+* ios: Added small waveform widgets, a large widget, and Lock Screen widgets
+* ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
 * ios: Added album art for songs in iCloud and Dropbox that are not downloaded
 * ios: Improved Add Folder: it names iCloud Drive and opens the folder once added
 

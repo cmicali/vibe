@@ -99,6 +99,19 @@ SCENARIO=""
 FAILED=()
 RESULTS="{}"
 
+# A setup command whose reply is checked. A scenario run on whatever the app
+# held before, such as the default 60 s silence timeout, fails its checks for
+# a reason they cannot name. Callers return on failure.
+setup_failed() {   # <what>
+    echo "    FAIL  setup: $1"
+    FAILED+=("$SCENARIO: setup: $1")
+    return 1
+}
+must() {   # <verb> [args ...]
+    local reply
+    reply="$(dbg "$@")" || setup_failed "$* -> $reply"
+}
+
 # A fresh folder of APFS clones, the fake reinstalled over it (no session
 # rebuild, VibeFakeDropbox.h), its mirror directory made so `open` lists it.
 # Sets FOLDER and ACCOUNT, so never call it in a subshell.
@@ -115,8 +128,9 @@ fixture() {   # <transfer-seconds> <file...>
         cp -c "$FIX/source/$f" "$FIX/$name/$clone"
         F0="${F0:-$clone}"
     done
-    dbg set_fake_dropbox "$FIX" "$seconds" >/dev/null || { echo "set_fake_dropbox failed" >&2; exit 1; }
-    ACCOUNT="$(dbg dump_dropbox | jq -r .accountPath)"
+    must set_fake_dropbox "$FIX" "$seconds" || return 1
+    ACCOUNT="$(dbg dump_dropbox | jq -r '.accountPath // empty')"
+    [ -n "$ACCOUNT" ] || setup_failed "dump_dropbox gave no accountPath" || return 1
     # Earlier runs' mirror folders, once: never one a transfer may still write.
     [ "$FIXTURES" = 1 ] && rm -rf "$ACCOUNT"/run-*
     mkdir -p "$ACCOUNT/$name"
@@ -124,7 +138,7 @@ fixture() {   # <transfer-seconds> <file...>
 }
 
 T0=0
-open_folder() { T0="$(now)"; dbg open "$ACCOUNT/$1" >/dev/null; }
+open_folder() { T0="$(now)"; must open "$ACCOUNT/$1"; }
 
 # One poll, every dump the assertions read, as one compact line, appended to
 # the scenario's log. t is seconds since the folder was opened.
@@ -191,8 +205,8 @@ PY
 # to finish, checking the streaming guarantees on every poll.
 stream() {   # <file> <seconds> <expect-tail 0|1>
     local file="$1" seconds="$2" tail="$3"
-    fixture "$seconds" "$file" short.wav
-    open_folder "$FOLDER"
+    fixture "$seconds" "$file" short.wav || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 30 '.state == "playing" and .pos > 0.5' || true
     local played="$SNAP"
     wait_for $(( seconds + 20 )) '.tracks[0].ph == false' || true
@@ -238,8 +252,8 @@ scenario_stream-mp3-noxing() { stream noxing.mp3 12 1; }
 # Opens over a transfer of `seconds` and reports when it started against when
 # the download completed: the formats whose open needs the whole file.
 starts() {   # <file> <seconds>
-    fixture "$2" "$1"
-    open_folder "$FOLDER"
+    fixture "$2" "$1" || return 1
+    open_folder "$FOLDER" || return 1
     wait_for $(( $2 + 25 )) '.state == "playing" and .pos > 0.3' || true
     local played="$SNAP"
     local m; m="$(polls | jq -c --argjson p "$played" --argjson seconds "$2" '
@@ -252,19 +266,19 @@ starts() {   # <file> <seconds>
 # A 3 MB MP3 takes the small window, so its open's ID3v1 check is answered
 # from it and the file streams.
 scenario_small-mp3() {
-    starts small.mp3 12
+    starts small.mp3 12 || return 1
     check "one tail read; it plays before a quarter of the transfer" '.tailReads == 1 and .startedAt < .transferSeconds / 4' "$(printf '%s' "$RESULTS" | jq -c '.["small-mp3"]')"
 }
 # ADTS reads the whole file in order at its open (the spike): no streaming.
 scenario_stream-adts() {
-    starts adts.aac 12
+    starts adts.aac 12 || return 1
     check "the open waits for the whole download" '.startedAt >= .transferSeconds * 0.8' "$(printf '%s' "$RESULTS" | jq -c '.["stream-adts"]')"
 }
 
 # A seek past the download's edge, per format: lands once the bytes arrive.
 seek_ahead() {   # <file> <fraction>
-    fixture 24 "$1" short.wav
-    open_folder "$FOLDER"
+    fixture 24 "$1" short.wav || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 30 '.state == "playing" and .pos > 2' || true
     local duration; duration="$(dbg dump_state | jq .player.duration)"
     local target; target="$(python3 -c "print(int($duration * $2))")"
@@ -290,8 +304,8 @@ scenario_seek-ahead-flac() { seek_ahead long.flac 0.6; }
 scenario_seek-ahead-m4a() { seek_ahead long.m4a 0.6; }
 
 scenario_seek() {
-    fixture 24 long.wav short.wav
-    open_folder "$FOLDER"
+    fixture 24 long.wav short.wav || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 4' || true
     local before="$SNAP"
     dbg seek 1 >/dev/null
@@ -316,8 +330,8 @@ scenario_seek() {
 }
 
 scenario_skip() {
-    fixture 60 long.wav short.wav
-    open_folder "$FOLDER"
+    fixture 60 long.wav short.wav || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 2' || true
     local before="$SNAP"
     dbg next >/dev/null
@@ -338,8 +352,8 @@ scenario_skip() {
 # A skip a moment after the open: the first stream's transfer is cancelled
 # however early, and its row's bar goes.
 scenario_quick-skip() {
-    fixture 60 long.wav short.wav
-    open_folder "$FOLDER"
+    fixture 60 long.wav short.wav || return 1
+    open_folder "$FOLDER" || return 1
     sleep 0.3
     dbg next >/dev/null
     wait_for 10 '.idx == 1 and ([.rows[] | select(.i == 0)] == [])' || true
@@ -358,8 +372,8 @@ scenario_quick-skip() {
 # A short track streaming into a long one: the successor's stream is the
 # gapless park, and the boundary promotes it without a reopen.
 scenario_gapless() {
-    fixture 15 g1.wav g2.mp3
-    open_folder "$FOLDER"
+    fixture 15 g1.wav g2.mp3 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     wait_for 25 '.gapless' || true
     local armed="$SNAP"
@@ -375,8 +389,8 @@ scenario_gapless() {
 }
 
 scenario_pause-replay() {
-    fixture 60 long.wav short.wav
-    open_folder "$FOLDER"
+    fixture 60 long.wav short.wav || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 3' || true
     dbg play_pause >/dev/null
     wait_for 3 '.state == "paused"' || true
@@ -405,9 +419,9 @@ scenario_pause-replay() {
 # A link slower than the bitrate, set as a rate (the WAV is 176 KB/s): holds
 # and releases, the position still through each hold, one resume per hold.
 scenario_buffering() {
-    fixture 0 long.wav short.wav
-    dbg fake_dropbox_fault rate rate=120K file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 0 long.wav short.wav || return 1
+    must fake_dropbox_fault rate rate=120K file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     local releases; releases="$(printf '%s' "$SNAP" | jq .br.releases)"
     wait_for 40 ".br.releases >= $releases + 5" || true
@@ -423,7 +437,6 @@ scenario_buffering() {
          bufferingPolls: ([.[] | select(.buf)] | length), maxDriftWhileHeld: ($drift | map(fabs) | max // 0),
          position: last.pos, state: last.state, errors: ([.[] | .err | select(. != "")] | unique)}')"
     record "$m"
-    dbg fake_dropbox_fault clear >/dev/null
     check "buffering rose and cleared" '.holds >= 1 and .releases >= 1' "$m"
     check "one resume per hold" '.holds - .releases <= 1 and .stalls == 0' "$m"
     check "the position holds while buffering" '.maxDriftWhileHeld < 0.1' "$m"
@@ -435,9 +448,9 @@ scenario_buffering() {
 # 1 MB and stays stopped until the pause has landed, so no release can race
 # the pause; it is resumed before the play.
 scenario_pause-buffering() {
-    fixture 0 long.wav short.wav
-    dbg fake_dropbox_fault stall after=1M file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 0 long.wav short.wav || return 1
+    must fake_dropbox_fault stall after=1M file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     wait_for 30 '.buf' || true
     local held="$SNAP"
@@ -447,11 +460,10 @@ scenario_pause-buffering() {
     sleep 3
     snap
     local still="$SNAP"
-    dbg fake_dropbox_fault resume >/dev/null
+    must fake_dropbox_fault resume || return 1
     dbg play_pause >/dev/null
     wait_for 15 ".state == \"playing\" and .pos > $(printf '%s' "$still" | jq .pos) + 0.5" || true
     local resumed="$SNAP"
-    dbg fake_dropbox_fault clear >/dev/null
     local m; m="$(jq -cn --argjson h "$held" --argjson p "$paused" --argjson s "$still" --argjson r "$resumed" '
         {heldBuffering: $h.buf, pausedState: $p.state, pausedBuffering: $p.buf, heldPosition: $h.pos,
          pausedPosition: $s.pos, resumedState: $r.state, resumedTo: $r.pos, errors: [$r.err | select(. != "")]}')"
@@ -463,15 +475,14 @@ scenario_pause-buffering() {
 # Seeks in quick succession while the link is slower than the bitrate: no
 # hang, no stall, and the last seek wins.
 scenario_scrub-buffering() {
-    fixture 0 long.wav short.wav
-    dbg fake_dropbox_fault rate rate=100K file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 0 long.wav short.wav || return 1
+    must fake_dropbox_fault rate rate=100K file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 3' || true
     local t
     for t in 2 1 2.5 0.5 1.5 0.2 1; do dbg seek "$t" >/dev/null; sleep 0.2; done
     wait_for 20 '.state == "playing" and .pos > 1.5 and .buf == false' || true
     local m; m="$(printf '%s' "$SNAP" | jq -c '{state, pos, buf, stalls: .br.stalls, errors: [.err | select(. != "")]}')"
-    dbg fake_dropbox_fault clear >/dev/null
     record "$m"
     check "plays on from the last seek, no error" '.state == "playing" and .pos > 1 and .pos < 30 and .errors == []' "$m"
 }
@@ -480,16 +491,17 @@ scenario_scrub-buffering() {
 # no-progress deadline, paused in place; resume fetches afresh and plays on.
 # Then, in a fresh folder, a stall lifted inside the deadline, which releases.
 scenario_stall() {
-    dbg set_audio_loading timeout-baseline=6 timeout-silence=6 >/dev/null
-    fixture 20 long.wav short.wav
-    dbg fake_dropbox_fault stall after=3M file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    # Unapplied, the 60 s default holds through every wait below.
+    must set_audio_loading timeout-baseline=6 timeout-silence=6 || return 1
+    fixture 20 long.wav short.wav || return 1
+    must fake_dropbox_fault stall after=3M file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     wait_for 40 '.buf' || true
     local held="$SNAP" stalls; stalls="$(printf '%s' "$SNAP" | jq .br.stalls)"
     wait_for 20 ".state == \"paused\" and .br.stalls > $stalls" || true
     local stalled="$SNAP"
-    dbg fake_dropbox_fault resume >/dev/null
+    must fake_dropbox_fault resume || return 1
     dbg play_pause >/dev/null
     wait_for 20 ".state == \"playing\" and .pos > $(printf '%s' "$stalled" | jq .pos) + 1" || true
     local resumed="$SNAP"
@@ -497,15 +509,14 @@ scenario_stall() {
     # where the stall left it, the same rev, never the whole file again.
     local replay; replay="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
         [.log[] | select(.file == $f0 and (.kind == "whole" or .kind == "resume"))] | {count: length, last: (.[-1] | {kind, range, rev}), first: (.[0] | {rev})}')"
-    fixture 20 long.wav short.wav
-    dbg fake_dropbox_fault stall after=3M file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 20 long.wav short.wav || return 1
+    must fake_dropbox_fault stall after=3M file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 40 '.buf' || true
     local held2="$SNAP"
-    dbg fake_dropbox_fault resume >/dev/null
+    must fake_dropbox_fault resume || return 1
     wait_for 15 ".buf == false and .br.releases > $(printf '%s' "$held2" | jq .br.releases)" || true
     local released="$SNAP"
-    dbg set_audio_loading defaults >/dev/null
     local m; m="$(jq -cn --argjson h "$held" --argjson s "$stalled" --argjson r "$resumed" --argjson h2 "$held2" --argjson x "$released" --argjson p "$replay" '
         {heldAt: $h.pos, heldBuffering: $h.buf, stalledAfterHoldSeconds: ($s.t - $h.t), stalledState: $s.state, stalledAt: $s.pos, stalledError: $s.err,
          stalls: ($s.br.stalls - $h.br.stalls), resumedState: $r.state, resumedTo: $r.pos, heldAgain: $h2.buf,
@@ -519,27 +530,36 @@ scenario_stall() {
     check "a stall lifted in time releases" '.heldAgain and .releasedBuffering == false' "$m"
 }
 
-# The last whole download in the log, and the requests after it.
+# A connection lost at 2 MB, then the resend. The fake's delivered count is
+# what it handed the URL loading system. A failed load discards the bytes the
+# client has not read yet, so the resend starts at what the client wrote. That
+# is a whole number of 64 KB pieces, at or below the drop. The installed file
+# must equal the host's byte for byte.
 scenario_drop() {
-    fixture 12 long.wav short.wav
-    dbg fake_dropbox_fault drop after=2M file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 12 long.wav short.wav || return 1
+    must fake_dropbox_fault drop after=2M file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 50 '.tracks[0].ph == false' || true
     snap
-    local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
+    local identical=false
+    cmp -s "$FIX/$FOLDER/$F0" "$ACCOUNT/$FOLDER/$F0" && identical=true
+    local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" --argjson identical "$identical" '
         [.log[] | select(.file == $f0 and (.kind == "whole" or .kind == "resume"))] as $d |
-        {requests: [$d[] | {kind, range, status, rev, delivered, outcome}], installed: (.tracks[0].ph == false),
-         state, errors: [.err | select(. != "")]}')"
+        {requests: [$d[] | {kind, range, status, rev, size, delivered, outcome}],
+         resumedAt: ((($d[1].range // "") | capture("^bytes=(?<o>[0-9]+)-$")? | .o | tonumber) // null),
+         identical: $identical, installed: (.tracks[0].ph == false), state, errors: [.err | select(. != "")]}')"
     record "$m"
     check "the body dropped at 2 MB" '.requests[0].outcome == "dropped" and .requests[0].delivered == 2097152' "$m"
-    check "resumed with Range from the drop, same rev" '.requests[1].kind == "resume" and .requests[1].range == "bytes=2097152-" and .requests[1].status == 206 and .requests[1].rev == .requests[0].rev and .requests[1].outcome == "complete"' "$m"
+    check "resumed with Range from what was written, same rev" '.requests[1].kind == "resume" and .resumedAt != null and .resumedAt > 0 and .resumedAt <= 2097152 and .resumedAt % 65536 == 0 and .requests[1].status == 206 and .requests[1].rev == .requests[0].rev' "$m"
+    check "the resend delivered the rest whole" '.requests[1].outcome == "complete" and .requests[1].delivered == .requests[1].size - .resumedAt' "$m"
+    check "the installed file is the host file" '.identical' "$m"
     check "installed and playing, no error" '.installed and .state == "playing" and .errors == []' "$m"
 }
 
 scenario_throttle() {
-    fixture 30 long.wav short.wav
-    dbg fake_dropbox_fault throttle seconds=2 file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 30 long.wav short.wav || return 1
+    must fake_dropbox_fault throttle seconds=2 file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
         [.log[] | select(.file == $f0 and .kind == "whole")] as $d |
@@ -550,10 +570,10 @@ scenario_throttle() {
 }
 
 scenario_expired-token() {
-    fixture 30 long.wav short.wav
+    fixture 30 long.wav short.wav || return 1
     local tokens; tokens="$(dbg dump_fake_dropbox | jq '.requests["/oauth2/token"] // 0')"
-    dbg fake_dropbox_fault expired-token file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    must fake_dropbox_fault expired-token file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 0.3' || true
     local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" --argjson before "$tokens" '
         {statuses: [.log[] | select(.file == $f0 and .kind == "whole") | .status],
@@ -566,9 +586,9 @@ scenario_expired-token() {
 # The resend names another version: FileChanged, the part deleted, the play
 # failing through the failure path rather than splicing two versions.
 scenario_rev-change() {
-    fixture 30 long.wav short.wav
-    dbg fake_dropbox_fault rev-change after=1M file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 30 long.wav short.wav || return 1
+    must fake_dropbox_fault rev-change after=1M file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 25 '.err != ""' || true
     sleep 2
     snap
@@ -585,30 +605,28 @@ scenario_rev-change() {
 # No tail window: an MP3 (its open reads the last 128 bytes) waits for the
 # whole download.
 scenario_tail-fail() {
-    fixture 12 long.mp3 short.wav
-    dbg fake_dropbox_fault tail-fail file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 12 long.mp3 short.wav || return 1
+    must fake_dropbox_fault tail-fail file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 50 '.state == "playing" and .pos > 0.3' || true
     local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
         {startedAt: (.t - .pos), tailStatuses: [.log[] | select(.kind == "tail" and .file == $f0) | .status], window: (.tracks[0].s.windowBytes // 0),
          installed: (.tracks[0].ph == false), errors: [.err | select(. != "")]}')"
     record "$m"
-    dbg fake_dropbox_fault clear >/dev/null
     check "the tail read answered 500" '.tailStatuses == [500]' "$m"
     check "the MP3 opened only at the end of the download" '.startedAt >= 10 and .installed' "$m"
     check "no error" '.errors == []' "$m"
 }
 
 scenario_slow-tail() {
-    fixture 60 long.mp3 short.wav
-    dbg fake_dropbox_fault slow-tail seconds=6 file=$F0 >/dev/null
-    open_folder "$FOLDER"
+    fixture 60 long.mp3 short.wav || return 1
+    must fake_dropbox_fault slow-tail seconds=6 file=$F0 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 30 '.state == "playing" and .pos > 0.3' || true
     local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
         {startedAt: (.t - .pos), tail: [.log[] | select(.kind == "tail" and .file == $f0) | {status, outcome}],
          window: (.tracks[0].s.windowBytes // 0), errors: [.err | select(. != "")]}')"
     record "$m"
-    dbg fake_dropbox_fault clear >/dev/null
     check "the MP3 opened when the slow tail landed, not at the end" '.startedAt >= 5.5 and .startedAt < 20' "$m"
     check "no error" '.errors == []' "$m"
 }
@@ -617,9 +635,9 @@ scenario_slow-tail() {
 # read, sent beside the download, lands with the head, so the MP3 opens one
 # first byte later than stream-mp3 does (~1.4 s there), not two.
 scenario_latency() {
-    fixture 30 long.mp3 short.wav
-    dbg fake_dropbox_fault latency seconds=1.5 >/dev/null
-    open_folder "$FOLDER"
+    fixture 30 long.mp3 short.wav || return 1
+    must fake_dropbox_fault latency seconds=1.5 || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 30 '.state == "playing" and .pos > 0.3' || true
     local m; m="$(printf '%s' "$SNAP" | jq -c --arg f0 "$F0" '
         ([.log[] | select(.file == $f0 and .kind == "whole")] | first) as $whole |
@@ -627,7 +645,6 @@ scenario_latency() {
         {startedAt: (.t - .pos), tailAskedAfterDownload: (($tail.t // 99) - ($whole.t // 0)),
          window: (.tracks[0].s.windowBytes // 0), errors: [.err | select(. != "")]}')"
     record "$m"
-    dbg fake_dropbox_fault clear >/dev/null
     check "the tail was asked with the download" '.tailAskedAfterDownload < 0.5' "$m"
     check "the MP3 opened one first byte later than with none, not two" '.startedAt < 3.5' "$m"
     check "no error" '.errors == []' "$m"
@@ -636,10 +653,10 @@ scenario_latency() {
 # The fake account signed out mid-stream: the mirror's playlist is cleared
 # (PlaybackController's account-change rule), and nothing is left loading.
 scenario_sign-out() {
-    fixture 60 long.wav short.wav
-    open_folder "$FOLDER"
+    fixture 60 long.wav short.wav || return 1
+    open_folder "$FOLDER" || return 1
     wait_for 20 '.state == "playing" and .pos > 2' || true
-    dbg set_fake_dropbox off >/dev/null
+    must set_fake_dropbox off || return 1
     sleep 3
     local state rows
     state="$(dbg dump_state)"; rows="$(dbg dump_row_loading)"
@@ -654,10 +671,10 @@ scenario_sign-out() {
 # download's metadata names the new version (size and mtime), and the
 # installed file and its cache key follow it.
 scenario_reupload() {
-    fixture 10 long.wav short.wav
+    fixture 10 long.wav short.wav || return 1
     local fake="$FIX/$FOLDER/$F0"
     # Listed first: open, then pause straight away, before anything plays.
-    open_folder "$FOLDER"
+    open_folder "$FOLDER" || return 1
     wait_for 10 '.tracks[0].ph == true' || true
     dbg play_index 1 >/dev/null
     sleep 1
@@ -705,7 +722,10 @@ if [ -z "$CLAIMS" ] && [ "$JOBS" -gt 1 ]; then
     jq -s '{scenarios: (map(.scenarios) | add), failed: (map(.failed) | add)}' "$OUT"/summary-*.json > "$OUT/summary.json"
     echo "summary: $OUT/summary.json"
     MISSING="$(jq -r --arg all "$SCENARIOS" '($all | split(" ") | map(select(. != ""))) - (.scenarios | keys) | join(" ")' "$OUT/summary.json")"
-    [ -z "$MISSING" ] || echo "NOT RUN (a worker died): $MISSING"
+    for s in $MISSING; do
+        echo "NOT RUN (a worker died): $s"
+        [ -f "$OUT/$s.out" ] && sed 's/^/    /' "$OUT/$s.out"
+    done
     if [ "$(jq '.failed | length' "$OUT/summary.json")" -gt 0 ] || [ -n "$MISSING" ]; then
         jq -r '.failed[] | "FAILED: \(.)"' "$OUT/summary.json"
         exit 1
@@ -719,11 +739,17 @@ for SCENARIO in $SCENARIOS; do
     if [ -n "$CLAIMS" ]; then mkdir "$CLAIMS/$SCENARIO" 2>/dev/null || continue; fi
     FOLDER=""
     STARTED="$(date +%s)"
-    "scenario_$SCENARIO" > "$OUT/$SCENARIO.out" 2>&1
+    {
+        "scenario_$SCENARIO"
+        # Whatever the scenario changed, so the next one starts from defaults.
+        must fake_dropbox_fault clear
+        must set_audio_loading defaults
+    } > "$OUT/$SCENARIO.out" 2>&1
+    # A scenario that returned at a failed setup measured nothing, but it ran.
+    RESULTS="$(printf '%s' "$RESULTS" | jq -c --arg s "$SCENARIO" '.[$s] //= {setupFailed: true}')"
     echo "== $SCENARIO ($(( $(date +%s) - STARTED )) s${CLAIMS:+, $VIBE_SIM_UDID})"
     cat "$OUT/$SCENARIO.out"
 done
-dbg fake_dropbox_fault clear >/dev/null
 printf '%s' "$RESULTS" | jq --argjson failed "$(printf '%s\n' "${FAILED[@]+"${FAILED[@]}"}" | jq -R . | jq -s 'map(select(. != ""))')" \
     '{scenarios: ., failed: $failed}' > "$OUT/$SUMMARY"
 [ -n "$CLAIMS" ] && exit 0

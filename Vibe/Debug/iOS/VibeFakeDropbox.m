@@ -495,6 +495,9 @@ static NSData *VibeFakeDropboxBody(NSURLRequest *request) {
         }
         os_unfair_lock_unlock(&sLock);
         if (cut) {
+            // TRAP: a failed load discards every byte the session has not yet
+            // handed its delegate. Under load that is many pieces, so the
+            // client's resend can start well below `delivered`.
             [self.client URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain
                                                                                code:NSURLErrorNetworkConnectionLost
                                                                            userInfo:nil]];

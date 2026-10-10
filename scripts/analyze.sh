@@ -5,7 +5,7 @@
 # analyzer off for its sources, and the filter below drops what its headers
 # still report through ours).
 #
-# Usage: scripts/analyze.sh [Debug|Release] [macos|ios|all]
+# Usage: scripts/analyze.sh [Debug|Release|AppStore] [macos|ios|all]
 #   configuration defaults to Debug (the schemes' analyze action); the leg to
 #   all. CI runs Release, one leg per matrix job, and the leg IS that
 #   platform's Release build: `xcodebuild analyze` compiles, links and signs
@@ -16,8 +16,8 @@ set -euo pipefail
 
 CONFIGURATION="${1:-Debug}"
 case "$CONFIGURATION" in
-    Debug|Release) ;;
-    *) echo "error: configuration must be Debug or Release (got '$CONFIGURATION')" >&2; exit 1 ;;
+    Debug|Release|AppStore) ;;
+    *) echo "error: configuration must be Debug, Release or AppStore (got '$CONFIGURATION')" >&2; exit 1 ;;
 esac
 
 LEG="${2:-all}"

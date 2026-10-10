@@ -24,10 +24,11 @@ Apache 2.0, and available on the Mac App Store or as a direct download.
   seconds when the tempo is known, and performance FX on the keyboard — a
   low-kill filter, a reverb wash, and delays locked to the track's BPM.
 - Localized into 30 languages.
-- Collects nothing, and has no network access of its own: the macOS sandbox
-  carries no network-client entitlement, so the operating system will not
-  permit an outbound connection. Cloud files are fetched by the provider's
-  own system extension, not by Vibe.
+- Collects nothing. The Mac App Store version has no network access of its
+  own: its sandbox carries no network-client entitlement, so the operating
+  system will not permit an outbound connection. The version downloaded from
+  vibeplayer.app connects only to check for and download updates. Cloud files
+  are fetched by the provider's own system extension, not by Vibe.
 
 ## Links
 

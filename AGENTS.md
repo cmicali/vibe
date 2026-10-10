@@ -22,6 +22,8 @@ A CUE sheet — beside its files, or embedded in a FLAC — plays as rows, each 
 
 **Debug builds are what the debug command channel needs** — it compiles out of Release entirely.
 
+**There are three configurations.** Debug and Release are the direct download, which updates itself through Sparkle. AppStore is the Mac App Store archive, the one with no updater, built by `make build CONFIG=AppStore`. The iOS App Store path archives Release. `VIBE_DIRECT_DISTRIBUTION` is the one marker that tells them apart (`Vibe/Mac/App/AGENTS.md`, Updates).
+
 Releases go through the **`vibe-release` skill**: the Developer ID path (`make release`) and the App Store path (`make appstore-build`, `make appstore-upload-signed-build`) are not interchangeable — do not improvise from the scripts.
 
 ## Checks
@@ -89,7 +91,7 @@ Nested `AGENTS.md` files hold the detail. An agent loads one only once it works 
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `APPEARANCE.md`; `Transport/` and `Convert/` carry their own docs), `Menu/`, `Controls/`, `Settings/` (`Appearance/` is the theme list and editor), `About/`.
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell, the Files tab's browser and mini player; `Player/` is the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, `Dropbox/` the Dropbox account and its local mirror, each with a doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav (the last three modified; its `AGENTS.md` lists how).
+- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav (the last three modified; its `AGENTS.md` lists how), and the prebuilt Sparkle framework, the direct download's updater.
 
 ## Cross-directory guarantees
 

@@ -2,7 +2,7 @@
 #
 # Generate Vibe.xcodeproj from project.yml (via XcodeGen) and build the app.
 #
-# Usage: scripts/build.sh [Debug|Release] [xcodebuild args ...]
+# Usage: scripts/build.sh [Debug|Release|AppStore] [xcodebuild args ...]
 #   configuration defaults to Release; the rest pass through to xcodebuild.
 #
 # Output: build/DerivedData/Build/Products/<configuration>/Vibe.app
@@ -11,8 +11,8 @@ set -euo pipefail
 CONFIGURATION="${1:-Release}"
 shift || true
 case "$CONFIGURATION" in
-    Debug|Release) ;;
-    *) echo "error: configuration must be Debug or Release (got '$CONFIGURATION')" >&2; exit 1 ;;
+    Debug|Release|AppStore) ;;
+    *) echo "error: configuration must be Debug, Release or AppStore (got '$CONFIGURATION')" >&2; exit 1 ;;
 esac
 
 cd "$(dirname "$0")/.."

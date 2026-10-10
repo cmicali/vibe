@@ -2,24 +2,24 @@
   "sourceLanguage": "en",
   "strings": {
     "widget.description": {
-      "comment": "iOS widget gallery: the one-line description under the widget's name, shown while the user is choosing a widget to add. Vibe is the app name.",
+      "comment": "iOS widget gallery: the one-line description under every Vibe widget's name, shown while the user is choosing a widget to add. Vibe is the app name.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Какво възпроизвежда Vibe."
+            "value": "Какво възпроизвежда Vibe в момента."
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Co Vibe přehrává."
+            "value": "Co Vibe právě přehrává."
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hvad Vibe afspiller."
+            "value": "Hvad Vibe afspiller lige nu."
           }
         },
         "de": {
@@ -31,157 +31,157 @@
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Τι αναπαράγει το Vibe."
+            "value": "Τι αναπαράγει τώρα το Vibe."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "What Vibe is playing."
+            "value": "What Vibe is currently playing."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lo que está reproduciendo Vibe."
+            "value": "Lo que Vibe está reproduciendo ahora."
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mitä Vibe toistaa."
+            "value": "Mitä Vibe toistaa juuri nyt."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce que Vibe est en train de lire."
+            "value": "Ce que Vibe lit en ce moment."
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Što Vibe reproducira."
+            "value": "Što Vibe trenutačno reproducira."
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Amit a Vibe lejátszik."
+            "value": "Amit a Vibe éppen lejátszik."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yang sedang diputar Vibe."
+            "value": "Yang sedang diputar Vibe saat ini."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cosa sta riproducendo Vibe."
+            "value": "Cosa sta riproducendo Vibe in questo momento."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibeで再生中の曲。"
+            "value": "Vibeで現在再生中の曲。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe에서 재생 중인 항목."
+            "value": "Vibe에서 현재 재생 중인 항목."
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hva Vibe spiller."
+            "value": "Hva Vibe spiller akkurat nå."
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wat Vibe afspeelt."
+            "value": "Wat Vibe nu afspeelt."
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Co odtwarza Vibe."
+            "value": "Co Vibe teraz odtwarza."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que o Vibe está reproduzindo."
+            "value": "O que o Vibe está reproduzindo agora."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que o Vibe está a reproduzir."
+            "value": "O que o Vibe está a reproduzir neste momento."
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce redă Vibe."
+            "value": "Ce redă Vibe în acest moment."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что воспроизводит Vibe."
+            "value": "Что сейчас воспроизводит Vibe."
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Čo Vibe prehráva."
+            "value": "Čo Vibe práve prehráva."
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vad Vibe spelar upp."
+            "value": "Vad Vibe spelar just nu."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สิ่งที่ Vibe กำลังเล่น"
+            "value": "สิ่งที่ Vibe กำลังเล่นอยู่ตอนนี้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe’ın çaldığı parça."
+            "value": "Vibe’ın şu anda çaldığı parça."
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Що відтворює Vibe."
+            "value": "Що зараз відтворює Vibe."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe đang phát gì."
+            "value": "Vibe đang phát gì lúc này."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 正在播放的内容。"
+            "value": "Vibe 当前正在播放的内容。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vibe 正在播放的內容。"
+            "value": "Vibe 目前正在播放的內容。"
           }
         }
       },
@@ -559,6 +559,192 @@
       },
       "extractionState": "manual"
     },
+    "widget.intent.previous": {
+      "comment": "Name of the widget's skip-to-previous-track action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предишна песен"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Předchozí skladba"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forrige nummer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorheriger Titel"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προηγούμενο κομμάτι"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous Track"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pista anterior"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edellinen kappale"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Morceau précédent"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prethodna pjesma"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Előző szám"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trek Sebelumnya"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brano precedente"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前のトラック"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이전 트랙"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forrige spor"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorig nummer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poprzedni utwór"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faixa Anterior"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faixa anterior"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Piesa precedentă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предыдущий трек"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predchádzajúca skladba"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Föregående spår"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แทร็กก่อนหน้า"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Önceki Parça"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Попередній трек"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản nhạc trước"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一首"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上一首"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "widget.intent.seek": {
       "comment": "Name of the widget's seek action — jump to a position in the current track — as it appears in the Shortcuts app's action list. A command, not a label.",
       "localizations": {
@@ -740,6 +926,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "跳轉"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "widget.name.now_playing": {
+      "comment": "iOS widget gallery: the name every Vibe widget shares, Home Screen and Lock Screen alike. Each shows the track that is playing. Use the system's term for the track that is playing now.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сега се възпроизвежда"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Právě hraje"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spiller nu"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktueller Titel"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παίζει τώρα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now Playing"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora suena"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nyt soi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À l’écoute"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sada svira"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most játszott"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sedang Diputar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In riproduzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生中"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "지금 재생 중"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spilles nå"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Huidig nummer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teraz odtwarzane"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tocando Agora"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A reproduzir"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "În redare"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сейчас играет"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Práve hrá"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spelas nu"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กำลังเล่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu Anda Çalıyor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зараз грає"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在播放"
           }
         }
       },

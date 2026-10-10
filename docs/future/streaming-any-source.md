@@ -37,7 +37,7 @@ Measured on macOS 27 with a probe that opens a dataless file, reads 64 KB with a
 - **Only a POSIX read can get a range.** Apple's documentation: "If you clone the entire file, or read the file using file coordination, the system requests the entire file." Vibe's provider road is `NSFileCoordinator` (`CloudFileMaterializer materializeURL:`), so today Vibe would be handed whole files even by a provider that streams. An app can neither request a range nor learn ahead of the read whether it will get one. The probe is the detector: a file still dataless after a read returned came from a provider that streams.
 - **iOS File Providers cannot.** The iOS 27 SDK marks the protocol `API_UNAVAILABLE(ios)`, and Apple's developer support says the same on the forums (thread 776780): macOS only, "no alternative on iOS". A provider there hands over whole files.
 - **Apple's sample provider (FruitBasket) implements it**, so a provider written from the sample streams. OneDrive, Box, and Google Drive are not installed here and are unverified.
-- **A network filesystem already reads by range.** An SMB, NFS, AFP, or WebDAV mount holds ordinary files, not dataless ones, and each `pread` fetches its bytes over the wire. No whole-file transfer happens, so nothing needs downloading: what is missing is the four rows above. Not measured here, since no share was mounted.
+- **A network filesystem already reads by range.** An SMB, NFS, AFP, or WebDAV mount holds ordinary files, not dataless ones, and each `pread` fetches its bytes over the wire. No whole-file transfer happens, so nothing needs downloading: what is missing is the four rows above. Measured below, on the Mac.
 - **The Files app's SMB volume on iOS is a live network mount.** Measured 2026-10-08 on an iPhone 17 Pro with the `--dataless-diag` probe. A folder picked from an SMB server lives under `/private/var/mobile/Library/LiveFiles/com.apple.filesystems.smbclientd/<server>/`. Its mount is a `lifs` filesystem without `MNT_LOCAL`. Its files carry no dataless flag. So a read fetches its bytes over the wire, as on the Mac, and the read-ahead applies to iOS too. A 44.1 kHz FLAC opened in 87 ms and played 98 ms after the play was submitted. A sleeping or dropped server was not tried.
 - **Unverified: what a USB drive is on iOS.** It is probably a live local mount under `LiveFiles/` too. The same probe settles it. The design below needs no answer: a network mount is read ahead, and a dataless file takes the provider road.
 
@@ -140,6 +140,22 @@ A debug seam forces the rule and throttles, stalls, or fails the read-ahead's re
 Nothing is built until these are in hand. Each decides something.
 
 - **A real share and a slow disk** (SMB over gigabit and over Wi-Fi, a USB spinning disk): time from tap to audio per format today, underruns during play, and what hangs for how long when the cable is pulled or the disk sleeps. Decides whether phases 2 and 3 are worth building, and the read-ahead's sizes.
+
+  **Results, 2026-10-09: SMB over Wi-Fi.** A MacBook Pro (M4 Max) played from a Raspberry Pi's SMB share over Wi-Fi. The Debug build ran on the built-in speakers, kept silent. Opens went through the debug channel, so Launch Services was not in the time.
+
+  | | Local disk | SMB share |
+  | --- | --- | --- |
+  | Open to first audio, CD FLAC of 30 to 69 MB | 34 to 41 ms | 63 to 78 ms |
+  | Seek to the file's middle, before that part was read | 30 to 44 ms | 115 to 209 ms |
+  | Underruns over 10 s of play | none | none |
+
+  - **A healthy share needs no read-ahead to play.** It costs about 30 ms an open and about 150 ms a cold seek. Nothing underran.
+  - **A Finder open of a file on the share takes about 1.1 s, and Vibe is 18 ms of it.** A temporary log line timed the hand-off: Launch Services took 1.13 s to deliver the URL, against 0.14 s for a local file. Opens from the playlist, a drag, or the Open dialog do not pay it.
+  - **A dropped server fails silently, which is the case for phases 1 and 2.** The Pi went off the network while a track played. A seek into a part not yet read then stopped the audio. The voice underran 525,824 frames, about 12 s, while `dump_state` still said playing, with `buffering` false and no error. The player cannot see a mount read that blocks, so nothing reported it.
+  - **An open of a file never read failed after about 30 s,** with POSIX error 60, "Operation timed out", from the SMB client. Vibe then showed its error state. The debug channel's own `open` verb stats the path on main (`DebugCommonVerbs.m`), so the main thread was blocked for those 30 s too. That is the test tool, not the app's open.
+  - **The app's main thread stats a playing file at every track start.** `performPerTrackRefreshForStartedTrack:` calls `noteNewRecentDocumentURL:`, and AppKit reads the file's attributes there. With the server flaky this blocked main for 350 to 430 ms. A server that stops answering could hold main for the SMB timeout.
+  - **Recovery needed nothing.** Once the Pi was back, an open of the file that had failed played in 280 ms.
+  - Not measured yet: gigabit Ethernet, a USB spinning disk, and a disk asleep on the server.
 - **The read-ahead's cost on a fast volume** (`make bench-components`, the open, decode, and seek benchmarks with the rule forced on). Decides how wide the rule is, and whether one road for every file is affordable.
 - **iOS, on a device:** what a file picked from the Files app's SMB server and from a USB drive is: its path, its mount, and whether it is dataless. Decides whether iOS gains anything.
 - **The probe is the dataless diagnostics, not a new script.** On the Mac, `set_dataless_diag on` and then `dump_dataless_diag` report each directory's verdicts and its mount. On a phone, a Debug build launched with `--dataless-diag` logs the same thing, one line per directory (the `vibe-debug` skill's on-device log section). So a new provider or OS release is one run to re-check.

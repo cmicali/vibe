@@ -24,13 +24,14 @@ One afternoon on a device decides which services need native work at all.
 | --- | --- |
 | Google Drive | Failed every check. Picking from it kept showing an error message, and files and folders would not open. So nothing listed, played, survived a relaunch, or played on the lock screen. The playlist check was never reached. It behaved much worse than Dropbox's own provider. |
 | OneDrive and Box | Deferred. They are the lowest priority (Deferred, below). |
+| SMB on the Mac | Healthy, it plays with no read-ahead: opens about 30 ms and cold seeks about 150 ms slower than local, no underruns. A dropped server stalls the audio silently: 12 s of underrun while the player still said playing. A main-thread `stat` at every track start blocked the UI for up to 430 ms. Detail in the [streaming plan](streaming-any-source.md)'s phase 0. |
 | SMB on iOS | A live network mount, not a provider copy. The folder listed and played. The open took 87 ms. Detail in the [streaming plan](streaming-any-source.md)'s measured facts. |
 | USB on iOS | Not run, since no drive was at hand. Rerun with `--dataless-diag`. |
 | Google scope inquiry | Not sent. |
 
 **What the results change.** Google Drive on iOS has no Files route to fall back on. A native client (item 4) is the only way to play from it. So item 4's scope assumption carries the whole feature.
 
-SMB on iOS reads in place over the wire, as it does on the Mac. So item 2's read-ahead serves both platforms, not only the Mac. A sleeping server probably hangs an iOS seek today, as it does on the Mac. That was not tried.
+SMB on iOS reads in place over the wire, as it does on the Mac. So item 2's read-ahead serves both platforms, not only the Mac. On the Mac a dropped server stalls playback with no buffering state and no error, so phase 1's availability and phase 2's read-ahead are worth building there. A sleeping server probably does the same on iOS. That was not tried.
 
 ### 1. iCloud Drive on iOS
 
