@@ -134,7 +134,9 @@ static const NSTimeInterval kSlowOutputStartLogThresholdSeconds = 0.25;
 - (NSDictionary<NSString *, NSNumber *> *)outputUnitCountersOnQueue {
     return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
-             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds),
+             @"lateCycles": @(_outputUnit.lateCycles), @"clockJumps": @(_outputUnit.clockJumps),
+             @"skippedFrames": @(_outputUnit.skippedFrames)};
 }
 
 // The pipeline's format changed: the master bus follows, the FX chain is
