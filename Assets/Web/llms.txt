@@ -27,11 +27,11 @@ Apache 2.0, and available on the Mac App Store or as a direct download.
 - Open URL… plays an audio file from a web address. Plain http is allowed
   only to the local network. The download is kept for replay.
 - Collects nothing. Vibe goes online only to fetch an address the user types
-  into Open URL…, and on iPhone and iPad to reach Dropbox if connected. It
-  sends nothing else and has no analytics and no servers of its own. On the
-  Mac the outgoing network entitlement is used only to fetch the addresses
-  the user opens. Cloud files are fetched by the provider's own system
-  extension, not by Vibe.
+  into Open URL…, on iPhone and iPad to reach Dropbox if connected, and in the
+  Mac version downloaded from vibeplayer.app to check for and download
+  updates. It sends nothing else and has no analytics and no servers of its
+  own. On the Mac the outgoing network entitlement is used only for those.
+  Cloud files are fetched by the provider's own system extension, not by Vibe.
 
 ## Links
 

@@ -7,6 +7,7 @@
 
 @class MainPlayerController;
 @class SettingsWindowController;
+@class SPUStandardUpdaterController;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
@@ -22,6 +23,15 @@
 // View > Theme > Edit Themes…: opens Settings on the theme editor.
 - (IBAction)showThemeSettings:(id)sender;
 - (IBAction)showSupportPage:(id)sender;
+#if VIBE_DIRECT_DISTRIBUTION
+// The target of Vibe > Check for Updates…, which validates it. nil in a Debug
+// build launched without --update-feed.
+@property (nonatomic, readonly) SPUStandardUpdaterController *updaterController;
+// Settings > General's check frequency in seconds, 0 for never. Sparkle
+// stores it. Reads 0 and ignores writes while no updater runs: a Debug build
+// launched without --update-feed.
+@property (nonatomic) NSTimeInterval updateCheckInterval;
+#endif
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.
 - (void)openRecentDocument:(NSMenuItem *)sender;

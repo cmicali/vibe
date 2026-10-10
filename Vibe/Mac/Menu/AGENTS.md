@@ -4,6 +4,10 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method, ca
 
 **Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time: Open Recent to `AppDelegate`'s `OpenRecentMenuController` (over `NSDocumentController.recentDocumentURLs`), Output to `MainPlayerController`'s `OutputDevicesMenuController`, View > Theme to the player controller itself.
 
+## App menu
+
+**Check for Updates…** sits under About in the direct download only. It is compiled out of the Mac App Store build, never hidden, since App Review rejects an app that updates itself. It targets Sparkle's updater controller, which validates it (`Mac/App/AGENTS.md`, Updates). Like Settings…, it is absent from `MenuValidationRules.h`. It is not remappable.
+
 ## Key equivalents
 
 **Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut (`ShortcutRules.h`: the defaults table, overridden sparsely by `AppSettings.shortcutOverrides`). The builder passes `@"", 0` for those items and installs, then requests the `Shortcuts` effect, which also runs on an input source change. The fixed system shortcuts (⌘, ⌘H ⌥⌘H ⌘Q ⌘W ⌘Z ⇧⌘Z ⌘X ⌘C ⌘V ⌘A) keep their literals here and are reserved, never remappable. An override stored before its key was reserved stays stored, but it does nothing. The key monitor passes the press on, and `applyShortcuts` gives the item no equivalent (`VibeShortcutForMenuItem`). So a ⌘V bound before Edit > Paste existed never shadows Paste.

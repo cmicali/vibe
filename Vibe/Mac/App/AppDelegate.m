@@ -29,8 +29,13 @@
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
 #import "LinkStore.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+
+#if VIBE_DIRECT_DISTRIBUTION
+#import <Sparkle/Sparkle.h>
+#endif
 
 #if DEBUG
 #import "DebugUtil.h"
@@ -44,6 +49,11 @@
 @property (nonatomic, strong) SettingsWindowController *settingsWindowController;
 
 @end
+
+#if VIBE_DIRECT_DISTRIBUTION
+@interface AppDelegate () <SPUUpdaterDelegate>
+@end
+#endif
 
 
 // Long enough to absorb a split multi-file open, short enough that a
@@ -102,6 +112,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
+#if VIBE_DIRECT_DISTRIBUTION
+    // Before the menu, whose Check for Updates… targets it.
+    [self createUpdater];
+#endif
     // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
@@ -138,6 +152,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self cleanupLegacyCaches];
 
     [self.mainPlayerController showWindow:self];
+
+#if VIBE_DIRECT_DISTRIBUTION
+    [_updaterController startUpdater];
+#endif
 
     [self openCommandLineArguments];
 
@@ -187,6 +205,58 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         });
     });
 }
+
+#if VIBE_DIRECT_DISTRIBUTION
+#pragma mark - Updates
+
+#if DEBUG
+// A Debug build checks only the feed this names, so the debug channel, stress
+// runs and screenshots never raise an update dialog.
+static NSString *DebugUpdateFeed(void) {
+    NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+    NSUInteger index = [args indexOfObject:@"--update-feed"];
+    return index != NSNotFound && index + 1 < args.count ? args[index + 1] : nil;
+}
+
+- (NSString *)feedURLStringForUpdater:(SPUUpdater *)updater {
+    return DebugUpdateFeed();
+}
+#endif
+
+- (void)createUpdater {
+#if DEBUG
+    if (!DebugUpdateFeed()) {
+        return;
+    }
+#endif
+    _updaterController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO
+                                                                       updaterDelegate:self
+                                                                    userDriverDelegate:nil];
+}
+
+// Any other stored interval reads as the nearest preset.
+- (NSTimeInterval)updateCheckInterval {
+    SPUUpdater *updater = _updaterController.updater;
+    if (!updater.automaticallyChecksForUpdates) {
+        return 0;
+    }
+    return VibeNearestPreset((NSInteger)updater.updateCheckInterval,
+                             kVibeUpdateCheckIntervalPresets, kVibeUpdateCheckIntervalPresetCount);
+}
+
+- (void)setUpdateCheckInterval:(NSTimeInterval)interval {
+    SPUUpdater *updater = _updaterController.updater;
+    updater.automaticallyChecksForUpdates = interval > 0;
+    if (interval > 0) {
+        updater.updateCheckInterval = interval;
+    }
+}
+
+// Asked at every check. A stable item carries no channel and always qualifies.
+- (NSSet<NSString *> *)allowedChannelsForUpdater:(SPUUpdater *)updater {
+    return AppSettings.sharedInstance.receiveBetaUpdates ? [NSSet setWithObject:@"beta"] : [NSSet set];
+}
+#endif
 
 - (void)cleanupLegacyCaches {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{

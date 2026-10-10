@@ -21,6 +21,10 @@
 #import "ShortcutRules.h"
 #import "VibeStrings.h"
 
+#if VIBE_DIRECT_DISTRIBUTION
+#import <Sparkle/Sparkle.h>
+#endif
+
 // TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
 // any menu it takes for Edit, of no use in the app's few short text fields.
 // No public opt-out covers AutoFill, so this delegate drops every item
@@ -187,6 +191,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *appMenu = Submenu(mainMenu, appName).submenu;
     AddItem(appMenu, [NSString stringWithFormat:STR_MENU_APP_ABOUT, appName],
             @selector(showAboutWindow:), appDelegate, @"", 0, nil);
+#if VIBE_DIRECT_DISTRIBUTION
+    // Compiled out of the Mac App Store build, never hidden: App Review
+    // rejects an app that updates itself (guideline 2.4.5).
+    AddItem(appMenu, STR_MENU_APP_CHECK_FOR_UPDATES, @selector(checkForUpdates:),
+            appDelegate.updaterController, @"", 0, @"menu_check_for_updates");
+#endif
     AddSeparator(appMenu);
 
     AddSymbolItem(appMenu, STR_MENU_APP_SETTINGS, @"gearshape",

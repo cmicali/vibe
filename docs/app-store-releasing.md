@@ -241,8 +241,8 @@ make appstore-upload-signed-build-ios  # iOS:   same, then actually upload
 ```
 
 One script serves both: `scripts/release-appstore.sh`, defaulting to macOS and
-taking `--platform ios`. It regenerates the Xcode project, archives Release
-(unsigned on macOS, `CODE_SIGN_IDENTITY: "-"`, so everyday mac builds need no
+taking `--platform ios`. It regenerates the Xcode project, archives the
+`AppStore` configuration on macOS and Release on iOS (unsigned on macOS, `CODE_SIGN_IDENTITY: "-"`, so everyday mac builds need no
 credentials; the iOS target is `CODE_SIGN_STYLE: Automatic` and signs through
 the API key), exports re-signed via cloud signing, validates with App Store Connect, and with
 `--upload` submits. Validation runs the same checks as upload, so the
@@ -254,10 +254,17 @@ script, and read from there by everything below:
 | | `--platform macos` (default) | `--platform ios` |
 |---|---|---|
 | scheme | `Vibe` | `VibeiOS` |
+| configuration | `AppStore`, checked for no updater | `Release` |
 | architectures | `arm64` + `x86_64`, asserted exactly | `arm64`, asserted exactly |
 | signed with | Apple Distribution + Mac Installer | Apple Distribution |
 | product | `Vibe.pkg` | `Vibe.ipa` (widget in `PlugIns/`) |
 | build dir | `build/appstore` | `build/appstore-ios` |
+
+**The Mac App Store build carries no updater.** The direct download updates
+itself through Sparkle, and App Review rejects a Mac App Store app that does
+(guideline 2.4.5). The `AppStore` configuration leaves out the framework, its
+Info.plist keys, its menu item and setting, and its entitlements. After the
+archive, `asc_require_no_updater` fails the run if any of them is there.
 
 **The bundle layout is the trap the script exists to absorb**: a macOS bundle
 nests its payload under `Contents/`, an iOS one does not, so the same
