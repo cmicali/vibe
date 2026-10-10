@@ -8,7 +8,10 @@
 * mac: Added automatic updates and Check for Updates to the downloaded version
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
 * mac: Added a volume slider show setting to theme editor
+* mac: Changed: the volume slider appears only when the pointer is near it
+* mac: Improved the pitch fader: cleaner sound, and it glides instead of stepping
 * mac: Added Cut and Paste to the Edit menu
+* Added the vibe theme track, which loads on the first launch
 * ios: Added small waveform widgets, a large widget, and Lock Screen widgets
 * ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
 * ios: Added album art for songs in iCloud and Dropbox that are not downloaded

@@ -120,7 +120,7 @@ const size_t kVibeUpdateCheckIntervalPresetCount =
             SETTING_APPLE_MPEG_DECODER:             @(NO),
 #if VIBE_DIRECT_DISTRIBUTION
             // A beta build keeps its tester on the beta train.
-            SETTING_RECEIVE_BETA_UPDATES:           @((BOOL)VIBE_VERBOSE_LOGGING),
+            SETTING_RECEIVE_BETA_UPDATES:           @((BOOL)VIBE_BETA_DEBUG),
 #endif
             SETTING_DECLICK:                        @(YES),
             SETTING_VOLUME_CONTROL:                 @(NO),
@@ -178,7 +178,7 @@ const size_t kVibeUpdateCheckIntervalPresetCount =
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
     [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
-#if VIBE_DIRECT_DISTRIBUTION && VIBE_VERBOSE_LOGGING
+#if VIBE_DIRECT_DISTRIBUTION && VIBE_BETA_DEBUG
     // Stored, not just registered: a stable update registers it off, and would
     // otherwise take a tester off the beta train.
     [NSUserDefaults.standardUserDefaults setBool:self.receiveBetaUpdates forKey:SETTING_RECEIVE_BETA_UPDATES];
