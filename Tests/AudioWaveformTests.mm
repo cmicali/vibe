@@ -1023,8 +1023,11 @@ static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
     theme.flatFill = YES;
     uint32_t low = VibeSRGBOf(theme.spectrumColors[0]);
     uint32_t high = VibeSRGBOf(theme.spectrumColors[2]);
-    XCTAssertEqual([self spectrumCenterRGBForBands:{1, 0, 0} theme:theme], low);
-    XCTAssertEqual([self spectrumCenterRGBForBands:{0, 0, 1} theme:theme], high);
+    // Outside the asserts: a braced list's commas split a macro's arguments.
+    uint32_t lowAlone = [self spectrumCenterRGBForBands:{1, 0, 0} theme:theme];
+    uint32_t highAlone = [self spectrumCenterRGBForBands:{0, 0, 1} theme:theme];
+    XCTAssertEqual(lowAlone, low);
+    XCTAssertEqual(highAlone, high);
     uint32_t purple = [self spectrumCenterRGBForBands:{1, 0, 1} theme:theme];
     uint32_t red = purple >> 16 & 0xff, green = purple >> 8 & 0xff, blue = purple & 0xff;
     XCTAssertGreaterThan(red, green);
