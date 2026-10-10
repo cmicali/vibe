@@ -24,6 +24,11 @@ typedef struct {
     _Atomic uint64_t cycles;
     _Atomic uint64_t renderNanos;
     _Atomic uint64_t renderMaxNanos;
+    // Written by the queue; 0 checks nothing. The callback counts each open
+    // cycle that pulls other than cycleFrames, and keeps its pull.
+    _Atomic uint32_t cycleFrames;
+    _Atomic uint64_t resampledCycles;
+    _Atomic uint32_t resampledPullFrames;
     uint32_t channels;
     VibeOutputRenderProc _Nullable renderProc;
     void * _Nullable renderRefCon;

@@ -65,6 +65,9 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     VibeBitPerfectStatusRateUnsupported,
     // The output route, format or gain could not be confirmed.
     VibeBitPerfectStatusSwitchFailed,
+    // Outranked only by SwitchFailed: the output unit's own cycles show it
+    // resampling after its rebuild (AudioOutputUnit.resampledCycles).
+    VibeBitPerfectStatusOutputResampled,
     VibeBitPerfectStatusChannelConversion,
     VibeBitPerfectStatusDepthInsufficient,
     VibeBitPerfectStatusMuted,
@@ -94,6 +97,7 @@ typedef struct {
     BOOL hasTrack;
     BOOL rateExact;
     BOOL formatConfirmed;   // the bound device has the requested format; its gain reads succeeded
+    BOOL unitResamples;     // the output unit still resamples after this play's rebuild
     BOOL channelsMatch;     // unchanged source channels, verified output routing
     BOOL depthOK;
     BOOL muted;
@@ -112,7 +116,8 @@ static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPer
             && a.playerVolume == b.playerVolume && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
             && a.rateExact == b.rateExact
-            && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
+            && a.formatConfirmed == b.formatConfirmed && a.unitResamples == b.unitResamples
+            && a.channelsMatch == b.channelsMatch
             && a.depthOK == b.depthOK && a.muted == b.muted
             && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
             && a.sourceLossless == b.sourceLossless;
@@ -317,7 +322,7 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
 }
 
 // The fold over the report's inputs, in priority order, so two breakers never
-// race for the caption: Off > Idle > SwitchFailed >
+// race for the caption: Off > Idle > SwitchFailed > OutputResampled >
 // RateUnsupported > ChannelConversion > DepthInsufficient > Muted > VolumeScaled > ExclusiveRefused >
 // SourceLossy > Active. SourceLossy is last
 // before Active because it is the only status that says the chain is perfect
@@ -332,6 +337,9 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     }
     if (!r.formatConfirmed) {
         return VibeBitPerfectStatusSwitchFailed;
+    }
+    if (r.unitResamples) {
+        return VibeBitPerfectStatusOutputResampled;
     }
     if (!r.rateExact) {
         return VibeBitPerfectStatusRateUnsupported;

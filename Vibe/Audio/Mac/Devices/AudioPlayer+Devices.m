@@ -1241,6 +1241,11 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
                         ? [NSString stringWithFormat:@"the output unit pulls at %.0f Hz", unitFormat.sampleRate]
                 : nil;
         report.formatConfirmed = (unconfirmed == nil);
+        // Every rate above can agree while AUHAL still converts. Only a run
+        // the drain has already rebuilt for this play counts, so a run about
+        // to be rebuilt never shows the caption.
+        report.unitResamples = _outputUnit.resampledCycles > 0
+                && _resamplingRebuiltPlayIdentifier == _activeSubmittedPlayIdentifier;
         report.hogWanted = _exclusiveOutputWanted; // the device is eligible and prepared by here
         report.exclusive = readOwner && answered && ownerRead && owner == getpid();
         if (readControls) {
@@ -1332,6 +1337,7 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         case VibeBitPerfectStatusActive:            return @"active";
         case VibeBitPerfectStatusRateUnsupported:   return @"rateUnsupported";
         case VibeBitPerfectStatusSwitchFailed:      return @"switchFailed";
+        case VibeBitPerfectStatusOutputResampled:   return @"outputResampled";
         case VibeBitPerfectStatusChannelConversion: return @"channelConversion";
         case VibeBitPerfectStatusDepthInsufficient: return @"depthInsufficient";
         case VibeBitPerfectStatusMuted:             return @"muted";
@@ -1358,6 +1364,7 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         @"hasTrack": @(r.hasTrack),
         @"rateExact": @(r.rateExact),
         @"formatConfirmed": @(r.formatConfirmed),
+        @"unitResamples": @(r.unitResamples),
         @"depthOK": @(r.depthOK),
         @"channelsMatch": @(r.channelsMatch),
         @"hogWanted": @(r.hogWanted),

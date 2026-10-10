@@ -152,6 +152,8 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     uint64_t                _renderStuckFrames;
     // nil under the debug pump, and on iOS until the first start.
     AudioOutputUnit         *_outputUnit;
+    uint64_t                _resamplingNotedGeneration; // the unit's run whose resampling was last noted
+    uint64_t                _resamplingRebuiltPlayIdentifier; // the play the unit was last rebuilt for
     // The equalizer's meter: queue-confined intent and installation; the
     // publisher is stable for the player's lifetime.
     BOOL                    _levelsWanted;

@@ -92071,6 +92071,192 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.bit_perfect.output_resampled": {
+      "comment": "Bit-perfect output status: the device and the file agree on the sample rate, but the system's output layer is still converting the rate, so the audio is not delivered unchanged. Vibe has already rebuilt its output once to clear this. 'macOS' is the product name.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS преобразува дискретизацията преди устройството"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS převzorkovává zvuk před zařízením"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS omsampler lyden før enheden"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS rechnet die Abtastrate vor dem Gerät um"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το macOS αλλάζει τη δειγματοληψία πριν από τη συσκευή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS is resampling audio before device"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS remuestrea el audio antes del dispositivo"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS muuntaa näytteenottotaajuuden ennen laitetta"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS rééchantillonne l’audio avant l’appareil"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ponovno uzorkuje zvuk prije uređaja"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A macOS újramintavételezi a hangot az eszköz előtt"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS mengubah laju sampel sebelum perangkat"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS ricampiona l’audio prima del dispositivo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOSがデバイスの手前でオーディオをリサンプリングしています"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS가 기기 전에 오디오를 리샘플링하고 있습니다"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS omsampler lyden før enheten"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS hersamplet de audio vóór het apparaat"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS zmienia próbkowanie dźwięku przed urządzeniem"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O macOS está reamostrando o áudio antes do dispositivo"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O macOS está a reamostrar o áudio antes do dispositivo"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS reeșantionează sunetul înainte de dispozitiv"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS передискретизирует звук перед устройством"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS prevzorkúva zvuk pred zariadením"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS omsamplar ljudet före enheten"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS กำลังแปลงอัตราสุ่มตัวอย่างก่อนถึงอุปกรณ์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS sesi aygıttan önce yeniden örnekliyor"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS передискретизує звук перед пристроєм"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS đang lấy mẫu lại âm thanh trước thiết bị"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 正在设备之前重新采样音频"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS 正在裝置之前重新取樣音訊"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.bit_perfect.player_volume": {
       "comment": "Bit-perfect output status: the player window's own volume slider (Settings > Audio > Volume control) is below full, so the app is scaling the audio. %@ is the slider's position as a whole-number percentage; %% is a literal percent sign.",
       "localizations": {

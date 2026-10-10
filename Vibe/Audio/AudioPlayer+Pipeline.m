@@ -364,7 +364,9 @@ VIBE_REALTIME_END
 - (NSDictionary<NSString *, NSNumber *> *)outputUnitCountersOnQueue {
     return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
-             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds),
+             @"cycleFrames": @(_outputUnit.cycleFrames), @"resampledCycles": @(_outputUnit.resampledCycles),
+             @"resampledPullFrames": @(_outputUnit.resampledPullFrames)};
 }
 
 #if DEBUG
@@ -929,8 +931,36 @@ void VibeMasterBusFree(VibeMasterBus *master) {
     }];
     [self updateBufferingOnQueue];
     [self maybeCrossfadeIntoParkOnQueue];
+    [self noteOutputResamplingOnQueue];
     [self noteDrainOnQueue];
     [self updateDrainTimerOnQueue];
+}
+
+// The unit's evidence arrives only with its cycles, after the start's
+// publication, so the drain notes the first resampled cycle of each run. The
+// first such run of a play is rebuilt once with a fresh unit, the repair for
+// AUHAL's stale converter (Mac/Devices/AGENTS.md); the format is unchanged, so
+// every voice keeps its ring and the position. A run that still resamples is
+// left playing and reported: a second rebuild would only repeat the gap.
+- (void)noteOutputResamplingOnQueue {
+    AudioOutputUnit *unit = _outputUnit;
+    if (!unit.resampledCycles || unit.runGeneration == _resamplingNotedGeneration) {
+        return;
+    }
+    _resamplingNotedGeneration = unit.runGeneration;
+    BOOL rebuild = _resamplingRebuiltPlayIdentifier != _activeSubmittedPlayIdentifier;
+    LogWarn(@"AudioOutputUnit: resampling, pulling %u frames for each %u-frame device cycle at %.0f Hz; %@",
+            (unsigned)unit.resampledPullFrames, (unsigned)unit.cycleFrames, unit.format.sampleRate,
+            rebuild ? @"rebuilding the unit" : @"already rebuilt once for this play");
+    if (rebuild) {
+        _resamplingRebuiltPlayIdentifier = _activeSubmittedPlayIdentifier;
+        BOOL wasPlaying = _state == VibePlayerStatePlaying && _voice != 0;
+        [self stopOutputOnQueue];
+        [unit configureFormat:unit.format renderProc:VibeMasterBusRender refCon:_masterBus];
+        [self resumeOutputAfterEditOnQueue:wasPlaying reason:@"output unit rebuilt"];
+        return;
+    }
+    [self refreshOutputAudioActiveOnQueue]; // refolds the bit-perfect report
 }
 
 - (NSDictionary<NSString *, id> *)pipelineRenderSnapshotOnQueue {
