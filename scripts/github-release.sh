@@ -29,7 +29,7 @@
 #   --prerelease   publish a beta: not marked Latest, and neither the web page
 #                  nor the Homebrew tap is repointed, so neither hands out a
 #                  test build. Its feed items carry the beta channel, which
-#                  only a build with Settings > Advanced > Beta updates on
+#                  only a build with Settings > General > Beta updates on
 #                  accepts.
 set -euo pipefail
 

@@ -49,6 +49,7 @@ static const double kWaveformGainDetentDB = 0.75;
     NSPopUpButton *_artworkDragPopUp;
 #if VIBE_DIRECT_DISTRIBUTION
     NSPopUpButton *_updateCheckPopUp;
+    VibeSwitch *_betaUpdatesSwitch;
 #endif
     // Shown on refresh while the async check runs.
     BOOL _lastKnownIsDefaultPlayer;
@@ -116,6 +117,7 @@ static const double kWaveformGainDetentDB = 0.75;
     [self addItem:STR_SETTINGS_UPDATE_CHECK_DAILY value:@(24 * 3600) to:_updateCheckPopUp];
     [self addItem:STR_SETTINGS_UPDATE_CHECK_WEEKLY value:@(7 * 24 * 3600) to:_updateCheckPopUp];
     [self addItem:STR_SETTINGS_UPDATE_CHECK_MONTHLY value:@(30 * 24 * 3600) to:_updateCheckPopUp];
+    _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
 #endif
 
     [self loadPaneWithSections:@[
@@ -136,6 +138,8 @@ static const double kWaveformGainDetentDB = 0.75;
 #if VIBE_DIRECT_DISTRIBUTION
             // Compiled out of the Mac App Store build, which has no updater.
             [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL
+                                  caption:STR_SETTINGS_BETA_UPDATES_CAPTION control:_betaUpdatesSwitch],
 #endif
         ]],
     ]];
@@ -209,6 +213,7 @@ static const double kWaveformGainDetentDB = 0.75;
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 #if VIBE_DIRECT_DISTRIBUTION
     [self selectValue:@([(AppDelegate *)NSApp.delegate updateCheckInterval]) in:_updateCheckPopUp];
+    _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates ? NSControlStateValueOn : NSControlStateValueOff;
 #endif
 }
 
@@ -306,6 +311,10 @@ static const double kWaveformGainDetentDB = 0.75;
 #if VIBE_DIRECT_DISTRIBUTION
 - (void)updateCheckChanged:(id)sender {
     [(AppDelegate *)NSApp.delegate setUpdateCheckInterval:[_updateCheckPopUp.selectedItem.representedObject doubleValue]];
+}
+
+- (void)betaUpdatesChanged:(id)sender {
+    AppSettings.sharedInstance.receiveBetaUpdates = _betaUpdatesSwitch.state == NSControlStateValueOn;
 }
 #endif
 

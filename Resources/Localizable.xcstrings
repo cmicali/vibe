@@ -35899,378 +35899,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.advanced.beta_updates_caption": {
-      "comment": "Settings, Advanced pane, Build group: hint below the Beta updates switch.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Предлагане и на тестови версии при проверка за актуализации"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Při hledání aktualizací nabízet i testovací verze"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilbyd også testversioner, når der søges efter opdateringer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beim Suchen nach Updates auch Testversionen anbieten"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Να προσφέρονται και δοκιμαστικές εκδόσεις κατά τον έλεγχο για ενημερώσεις"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Also offer test versions when checking for updates"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ofrecer también versiones de prueba al buscar actualizaciones"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tarjoa myös testiversioita päivityksiä tarkistettaessa"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Proposer aussi les versions de test lors de la recherche de mises à jour"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pri provjeri ažuriranja nudi i testne verzije"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frissítések keresésekor tesztverziókat is felajánl"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tawarkan juga versi uji saat memeriksa pembaruan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Offri anche le versioni di prova quando verifichi gli aggiornamenti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アップデートの確認時にテスト版も提示します"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "업데이트를 확인할 때 테스트 버전도 제공합니다"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilby også testversjoner når det ses etter oppdateringer"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bied ook testversies aan bij het zoeken naar updates"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Proponuj także wersje testowe podczas sprawdzania uaktualnień"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferecer também versões de teste ao buscar atualizações"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferecer também versões de teste ao procurar atualizações"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oferă și versiuni de test la căutarea actualizărilor"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Предлагать и тестовые версии при проверке обновлений"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pri vyhľadávaní aktualizácií ponúkať aj testovacie verzie"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erbjud även testversioner vid sökning efter uppdateringar"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เสนอเวอร์ชันทดสอบด้วยเมื่อตรวจหาการอัปเดต"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Güncellemeler denetlenirken test sürümlerini de öner"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пропонувати й тестові версії під час перевірки оновлень"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cũng đề xuất phiên bản thử nghiệm khi kiểm tra cập nhật"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "检查更新时也提供测试版本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "檢查更新項目時也提供測試版本"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.advanced.beta_updates_label": {
-      "comment": "Settings, Advanced pane, Build group: switch that lets the app's update check also offer test versions released before the final one. Only in the version downloaded from the website, not the App Store one.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Бета актуализации"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta aktualizace"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Betaopdateringer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta-Updates"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ενημερώσεις beta"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta updates"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actualizaciones beta"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beetapäivitykset"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mises à jour bêta"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta ažuriranja"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bétafrissítések"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pembaruan beta"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiornamenti beta"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ベータアップデート"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "베타 업데이트"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Betaoppdateringer"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bèta-updates"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uaktualnienia beta"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atualizações beta"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atualizações beta"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actualizări beta"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Бета-обновления"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta aktualizácie"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Betauppdateringar"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การอัปเดตเบต้า"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta güncellemeleri"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Бета-оновлення"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bản cập nhật beta"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta 版更新"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Beta 版更新項目"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.advanced.build_section": {
       "comment": "Settings, Advanced pane: heading above the rows describing this exact build of the app — version, source revision and languages. 'Build' as the software-development noun.",
       "localizations": {
@@ -82027,6 +81655,378 @@
       },
       "extractionState": "manual"
     },
+    "settings.general.beta_updates_caption": {
+      "comment": "Settings, General pane, System group: hint below the Beta updates switch.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предлагане и на тестови версии при проверка за актуализации"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Při hledání aktualizací nabízet i testovací verze"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilbyd også testversioner, når der søges efter opdateringer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Suchen nach Updates auch Testversionen anbieten"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Να προσφέρονται και δοκιμαστικές εκδόσεις κατά τον έλεγχο για ενημερώσεις"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also offer test versions when checking for updates"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ofrecer también versiones de prueba al buscar actualizaciones"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarjoa myös testiversioita päivityksiä tarkistettaessa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proposer aussi les versions de test lors de la recherche de mises à jour"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pri provjeri ažuriranja nudi i testne verzije"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frissítések keresésekor tesztverziókat is felajánl"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tawarkan juga versi uji saat memeriksa pembaruan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offri anche le versioni di prova quando verifichi gli aggiornamenti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アップデートの確認時にテスト版も提示します"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "업데이트를 확인할 때 테스트 버전도 제공합니다"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilby også testversjoner når det ses etter oppdateringer"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bied ook testversies aan bij het zoeken naar updates"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proponuj także wersje testowe podczas sprawdzania uaktualnień"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferecer também versões de teste ao buscar atualizações"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferecer também versões de teste ao procurar atualizações"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oferă și versiuni de test la căutarea actualizărilor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предлагать и тестовые версии при проверке обновлений"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pri vyhľadávaní aktualizácií ponúkať aj testovacie verzie"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erbjud även testversioner vid sökning efter uppdateringar"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เสนอเวอร์ชันทดสอบด้วยเมื่อตรวจหาการอัปเดต"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güncellemeler denetlenirken test sürümlerini de öner"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пропонувати й тестові версії під час перевірки оновлень"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cũng đề xuất phiên bản thử nghiệm khi kiểm tra cập nhật"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检查更新时也提供测试版本"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檢查更新項目時也提供測試版本"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.general.beta_updates_label": {
+      "comment": "Settings, General pane, System group: switch that lets the app's update check also offer test versions released before the final one. Only in the version downloaded from the website, not the App Store one.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета актуализации"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta aktualizace"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betaopdateringer"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta-Updates"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ενημερώσεις beta"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta updates"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones beta"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beetapäivitykset"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mises à jour bêta"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta ažuriranja"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bétafrissítések"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pembaruan beta"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiornamenti beta"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ベータアップデート"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "베타 업데이트"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betaoppdateringer"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bèta-updates"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uaktualnienia beta"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações beta"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações beta"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizări beta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета-обновления"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta aktualizácie"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betauppdateringar"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การอัปเดตเบต้า"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta güncellemeleri"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бета-оновлення"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản cập nhật beta"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta 版更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beta 版更新項目"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.general.bit_perfect": {
       "comment": "Settings, Audio pane: switch that sends each file's audio to the chosen output device unchanged — the device's sample rate and bit depth follow the file.",
       "localizations": {
@@ -88912,12 +88912,6 @@
     "settings.general.update_check.daily": {
       "comment": "Settings, General pane, 'Check for updates' dropdown: check once a day.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Daily"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -88946,6 +88940,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Καθημερινά"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily"
           }
         },
         "es": {
@@ -89098,12 +89098,6 @@
     "settings.general.update_check.monthly": {
       "comment": "Settings, General pane, 'Check for updates' dropdown: check once a month.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Monthly"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -89132,6 +89126,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μηνιαία"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monthly"
           }
         },
         "es": {
@@ -89284,12 +89284,6 @@
     "settings.general.update_check.never": {
       "comment": "Settings, General pane, 'Check for updates' dropdown: the app never checks by itself; the user can still choose Check for Updates in the app menu.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Never"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -89318,6 +89312,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ποτέ"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never"
           }
         },
         "es": {
@@ -89470,12 +89470,6 @@
     "settings.general.update_check.weekly": {
       "comment": "Settings, General pane, 'Check for updates' dropdown: check once a week.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Weekly"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -89504,6 +89498,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Εβδομαδιαία"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weekly"
           }
         },
         "es": {
@@ -89656,12 +89656,6 @@
     "settings.general.update_check_label": {
       "comment": "Settings, General pane, System group: row beside the dropdown choosing how often the app checks the internet for a newer version. Only in the version downloaded from the website, not the App Store one.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Check for updates"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -89690,6 +89684,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Έλεγχος για ενημερώσεις"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for updates"
           }
         },
         "es": {
