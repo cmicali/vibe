@@ -147,7 +147,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Logging
 
-`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_VERBOSE_LOGGING` (`project.yml`) controls persisted beta logging and instrumentation**: at 1 info, debug and warn are written at Default (errors stay errors) and Settings > Advanced > Save Debug Info retrieves it; at 0 info/debug must be streamed live. Playback diagnostics belong in `Audio/AGENTS.md`, hardware observation in `Audio/Mac/Devices/AGENTS.md`, and report export in `Mac/App/AGENTS.md`. Use `vibe-debug` for collection and keep each beta's matching dSYMs for stall-stack symbolication.
+`LogError`, `LogWarn`, `LogInfo`, `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`. **`VIBE_BETA_DEBUG` (`project.yml`) is the beta switch.** It sets `VIBE_VERBOSE_LOGGING` and the mac's Beta updates default, so a release flips one line. **`VIBE_VERBOSE_LOGGING` controls persisted beta logging and instrumentation**: at 1 info, debug and warn are written at Default (errors stay errors) and Settings > Advanced > Save Debug Info retrieves it; at 0 info/debug must be streamed live. Playback diagnostics belong in `Audio/AGENTS.md`, hardware observation in `Audio/Mac/Devices/AGENTS.md`, and report export in `Mac/App/AGENTS.md`. Use `vibe-debug` for collection and keep each beta's matching dSYMs for stall-stack symbolication.
 
 ## Localization
 

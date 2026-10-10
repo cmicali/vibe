@@ -26,8 +26,8 @@ settingGroups:
   # THE version, for every target: both apps ship under one bundle identifier,
   # so they must carry the same number, and a per-target copy drifts silently.
   # A release bumps these two lines, and a stable one also sets
-  # VIBE_VERBOSE_LOGGING to 0 (the vibe-release skill); the release scripts
-  # read the number back out of the BUILT app.
+  # VIBE_BETA_DEBUG to 0 (the vibe-release skill); the release scripts read
+  # the number back out of the BUILT app.
   vibe-version:
     MARKETING_VERSION: "1.16-beta4"
     CURRENT_PROJECT_VERSION: 311
@@ -95,12 +95,15 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GCC_C_LANGUAGE_STANDARD: c17
     GCC_NO_COMMON_BLOCKS: YES
+    # The beta switch: 1 for a beta, 0 for a stable release. It sets
+    # VIBE_VERBOSE_LOGGING below and the Beta updates default on the mac.
+    VIBE_BETA_DEBUG: 1
     # 1 for betas: info, debug and warn are persisted at Default, so Save Debug
     # Info retrieves them, and every timed playback step is recorded, so a
     # report with nothing logged means the path was not taken. 0 for a stable
     # release: info and debug are stream-only, and only steps over their
     # threshold are recorded.
-    VIBE_VERBOSE_LOGGING: 1
+    VIBE_VERBOSE_LOGGING: $(VIBE_BETA_DEBUG)
     # Nothing else fails on a compiler warning: the analyze gate matches only
     # checker findings. If a toolchain warns on vendored code, give that file a
     # per-file -Wno-* flag beside the PIN caches' entries rather than turning
@@ -127,6 +130,7 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS:
         - "DEBUG=1"
         - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
+        - "VIBE_BETA_DEBUG=$(VIBE_BETA_DEBUG)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
       ONLY_ACTIVE_ARCH: YES
@@ -142,6 +146,7 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS:
         - "NDEBUG=1"
         - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
+        - "VIBE_BETA_DEBUG=$(VIBE_BETA_DEBUG)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
     AppStore: *release-project-settings
