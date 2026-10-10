@@ -17,7 +17,7 @@ The scope and API facts behind these conclusions are documented in [Drive author
 
 ## What Dropbox already gives us
 
-The relevant baseline is the current implementation, including streaming, rather than the older plans in this directory. See [Dropbox's subsystem documentation](../../Vibe/iOS/Dropbox/AGENTS.md), the [iOS shell](../../Vibe/iOS/AGENTS.md), and [the materializer](../../Vibe/System/AGENTS.md).
+The relevant baseline is the current implementation, including streaming, rather than the older plans in this directory. See [Dropbox's subsystem documentation](../../Vibe/iOS/Dropbox/AGENTS.md), the [iOS shell](../../Vibe/iOS/AGENTS.md), and [the materializer](../../Vibe/Loading/AGENTS.md).
 
 | Existing owner | What can carry over |
 | --- | --- |

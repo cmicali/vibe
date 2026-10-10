@@ -306,7 +306,7 @@ static NSString *DebugUpdateFeed(void) {
     }];
 }
 
-// A drop holding links (System/Remote/AGENTS.md). Each .webloc is read for
+// A drop holding links (Loading/Net/AGENTS.md). Each .webloc is read for
 // its link off main, then the drop opens in drop order.
 - (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append token:(OpenRequestToken *)token {
     [self.mainPlayerController beginLinkResolveFeedbackAppending:append];

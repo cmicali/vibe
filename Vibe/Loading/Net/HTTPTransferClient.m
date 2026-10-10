@@ -290,7 +290,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 // to come. One with none — waiting on the request hook, or on a retry's delay
 // after a task that already ended — settles here, at once: a cancel frees
 // the caller's lane now, never when the hook or the delay comes back
-// (System/AGENTS.md). Whichever step runs next sees the flag and closes the
+// (Loading/AGENTS.md). Whichever step runs next sees the flag and closes the
 // file.
 //
 // TRAP: the cancel never touches the file. The step that ended the last task

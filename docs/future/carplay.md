@@ -62,7 +62,7 @@ Templates then fall out easily: a `CPListTemplate` of persistent roots, a `CPLis
 
 ### 4. Cloud folders degrade silently, and that is accepted
 
-A dataless track can take seconds to make a sound. Dropbox can now start before its download completes; the iCloud provider path still waits for materialization. The phone's loading indicator reads transfer progress from `CloudTransferRegistry`, backed by `DownloadProgressMonitor` (`System/AGENTS.md`). The CarPlay design has no equivalent custom progress fill; use the list-item spinner while the open is pending. The deferred metadata sweep, foreground-transfer rule and a stream's mid-track buffering still apply.
+A dataless track can take seconds to make a sound. Dropbox can now start before its download completes; the iCloud provider path still waits for materialization. The phone's loading indicator reads transfer progress from `CloudTransferRegistry`, backed by `DownloadProgressMonitor` (`Loading/AGENTS.md`). The CarPlay design has no equivalent custom progress fill; use the list-item spinner while the open is pending. The deferred metadata sweep, foreground-transfer rule and a stream's mid-track buffering still apply.
 
 ## Files
 
@@ -75,7 +75,7 @@ exception before implementation; this list is a proposal, not an approved expans
 - `Vibe/iOS/VibeiOSSceneDelegate.m` — borrows it instead of creating it.
 - `Vibe/iOS/CarPlay/` — new: the `CPTemplateApplicationSceneDelegate` and the template controllers, a `PlaybackObserver` between them. Under `Vibe/iOS/` rather than a shared subsystem, since CarPlay is iOS-only by construction.
 - `Vibe/iOS/Search/SearchFolderStore.{h,m}` and `FileSearchIndex.{h,m}` — the persistent library and its search index, reused by the templates.
-- `Vibe/System/NowPlayingController.m` — the skip commands, if the lock-screen trade above turns out acceptable.
+- `Vibe/NowPlaying/NowPlayingController.m` — the skip commands, if the lock-screen trade above turns out acceptable.
 - `Vibe/Common/VibeStrings.h` — every template title and list label is user-facing; `make strings` after.
 - `Vibe/iOS/AGENTS.md` — the multi-scene paragraph, and a CarPlay section.
 

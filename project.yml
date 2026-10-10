@@ -168,7 +168,9 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/System
+      - path: Vibe/Loading
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
@@ -510,7 +512,9 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      - path: Vibe/System
+      - path: Vibe/Loading
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
+      - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
@@ -811,7 +815,7 @@ targets:
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
@@ -819,8 +823,8 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
-      - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Audio/Loading/AudioWorkScheduler.m
+      - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
@@ -831,18 +835,18 @@ targets:
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
       - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
-      - path: Vibe/Audio/Loading/CloudTransferRegistry.m
+      - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
-      - path: Vibe/System/NowPlayingController.m
-      - path: Vibe/System/CloudFileMaterializer.m
-      - path: Vibe/System/DownloadProgressMonitor.m
-      - path: Vibe/System/DownloadProgressSourceAdapters.m
-      - path: Vibe/System/Remote/HTTPTransferClient.m
-      - path: Vibe/System/Remote/RemotePlaceholderStore.m
-      - path: Vibe/System/Remote/LinkStore.m
+      - path: Vibe/NowPlaying/NowPlayingController.m
+      - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/DownloadProgressMonitor.m
+      - path: Vibe/Loading/DownloadProgressSourceAdapters.m
+      - path: Vibe/Loading/Net/HTTPTransferClient.m
+      - path: Vibe/Loading/Net/RemotePlaceholderStore.m
+      - path: Vibe/Loading/Net/LinkStore.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -916,8 +920,9 @@ targets:
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
-          - "$(SRCROOT)/Vibe/System"
-          - "$(SRCROOT)/Vibe/System/Remote"
+          - "$(SRCROOT)/Vibe/NowPlaying"
+          - "$(SRCROOT)/Vibe/Loading"
+          - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
@@ -929,7 +934,6 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Vibe/Audio/Analysis"
           - "$(SRCROOT)/Vibe/Audio/FX"
-          - "$(SRCROOT)/Vibe/Audio/Loading"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
           # The theme and zoom math; the renderers, level math and host-less morph engine.
@@ -979,7 +983,7 @@ targets:
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
@@ -987,9 +991,9 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
-      - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Audio/Loading/AudioWorkScheduler.m
-      - path: Vibe/Audio/Loading/CloudTransferRegistry.m
+      - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioWorkScheduler.m
+      - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -1001,12 +1005,12 @@ targets:
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Debug/VibeWorkTally.m
-      - path: Vibe/System/CloudFileMaterializer.m
-      - path: Vibe/System/DownloadProgressMonitor.m
-      - path: Vibe/System/DownloadProgressSourceAdapters.m
-      - path: Vibe/System/Remote/HTTPTransferClient.m
-      - path: Vibe/System/Remote/RemotePlaceholderStore.m
-      - path: Vibe/System/Remote/LinkStore.m
+      - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/DownloadProgressMonitor.m
+      - path: Vibe/Loading/DownloadProgressSourceAdapters.m
+      - path: Vibe/Loading/Net/HTTPTransferClient.m
+      - path: Vibe/Loading/Net/RemotePlaceholderStore.m
+      - path: Vibe/Loading/Net/LinkStore.m
       - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m

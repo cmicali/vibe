@@ -1,6 +1,6 @@
 # Future: which cloud file services to handle next, in order
 
-**Status: planned 2026-10-08. Item 0 is partly done, and its results are under item 0.** The only app code built is item 0's debug-only probe log. This is the order for the other file sources, with the reason for each place. The plans it points at are the detail: [iCloud Drive](ios-icloud-improvements.md), [streaming from any source](streaming-any-source.md), [Dropbox shared links](dropbox-shared-links.md), [Vibe links](share-links.md) and [Google Drive](ios-google-drive.md). Current behavior is in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md) and [System](../../Vibe/System/AGENTS.md) docs.
+**Status: planned 2026-10-08. Item 0 is partly done, and its results are under item 0.** The only app code built is item 0's debug-only probe log. This is the order for the other file sources, with the reason for each place. The plans it points at are the detail: [iCloud Drive](ios-icloud-improvements.md), [streaming from any source](streaming-any-source.md), [Dropbox shared links](dropbox-shared-links.md), [Vibe links](share-links.md) and [Google Drive](ios-google-drive.md). Current behavior is in the [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Loading/AGENTS.md) docs.
 
 ## Where things stand
 
@@ -47,7 +47,7 @@ This is infrastructure, not only a feature. Each native client below is then a w
 
 ### 3. Links
 
-Two plans, one shape. [Vibe links](share-links.md) plays a single file reached by a plain HTTP URL, with no account, on both platforms. Its app half is built as Open URL (`System/Remote/AGENTS.md`). It moved the streamed download and the ranged read out of `DropboxClient` into one shared HTTP transfer. It turned the remote backend from one root into a registration per root. Items 4 and 5 need both of those, which is why this plan went first. [Dropbox shared links](dropbox-shared-links.md) is folder links through a signed-in account. Its phase 1 is zero new files and folds the client's two path lookups into one. Defer its phase 2, the share extension, until someone asks for it. It is a new target with no offsetting removal.
+Two plans, one shape. [Vibe links](share-links.md) plays a single file reached by a plain HTTP URL, with no account, on both platforms. Its app half is built as Open URL (`Loading/Net/AGENTS.md`). It moved the streamed download and the ranged read out of `DropboxClient` into one shared HTTP transfer. It turned the remote backend from one root into a registration per root. Items 4 and 5 need both of those, which is why this plan went first. [Dropbox shared links](dropbox-shared-links.md) is folder links through a signed-in account. Its phase 1 is zero new files and folds the client's two path lookups into one. Defer its phase 2, the share extension, until someone asks for it. It is a new target with no offsetting removal.
 
 ### 4. Google Drive, a native client on iOS
 
