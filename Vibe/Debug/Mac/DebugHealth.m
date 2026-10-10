@@ -290,6 +290,11 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"renderCycles": counts[@"renderCycles"],
             @"renderMeanMicros": counts[@"renderMeanMicros"],
             @"renderMaxMicros": counts[@"renderMaxMicros"],
+            // Cycles that outran their audio, and jumps of the device's clock
+            // with the frames they skipped. Cumulative; a soak holds them at 0.
+            @"lateCycles": counts[@"lateCycles"],
+            @"clockJumps": counts[@"clockJumps"],
+            @"skippedFrames": counts[@"skippedFrames"],
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
         },

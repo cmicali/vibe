@@ -364,7 +364,9 @@ VIBE_REALTIME_END
 - (NSDictionary<NSString *, NSNumber *> *)outputUnitCountersOnQueue {
     return @{@"dropouts": @(_outputUnit.dropouts), @"renderCycles": @(_outputUnit.renderCycles),
              @"renderMeanMicros": @(_outputUnit.renderMeanMicroseconds),
-             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
+             @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds),
+             @"lateCycles": @(_outputUnit.lateCycles), @"clockJumps": @(_outputUnit.clockJumps),
+             @"skippedFrames": @(_outputUnit.skippedFrames)};
 }
 
 #if DEBUG

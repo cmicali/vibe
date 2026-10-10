@@ -1142,7 +1142,13 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     XCTAssertGreaterThan(atomic_load(&state.renderNanos), 0ull);
     XCTAssertGreaterThan(atomic_load(&state.renderMaxNanos), 0ull);
     atomic_store(&state.dropouts, 7);
+    atomic_store(&state.lateCycles, 7);
+    atomic_store(&state.clockJumps, 7);
+    atomic_store(&state.skippedFrames, 7);
     VibeOutputUnitStateClearCounters(&state);
+    XCTAssertEqual(atomic_load(&state.lateCycles), 0ull);
+    XCTAssertEqual(atomic_load(&state.clockJumps), 0ull);
+    XCTAssertEqual(atomic_load(&state.skippedFrames), 0ull);
     XCTAssertEqual(atomic_load(&state.cycles), 0ull);
     XCTAssertEqual(atomic_load(&state.renderNanos), 0ull);
     XCTAssertEqual(atomic_load(&state.renderMaxNanos), 0ull);
@@ -1155,6 +1161,47 @@ static OSStatus VibeTestCycle(VibeOutputUnitState *state, AudioBufferList *data,
     VibeTestFreeIOBuffers(data);
     XCTAssertEqual(atomic_load(&state.cycles), 1ull);
     XCTAssertEqual(engine.calls, 4u);
+}
+
+// A start sets the clock. After it, a cycle whose sample time does not follow
+// the last one's end is a jump, and the frames ahead of that end were skipped.
+- (void)testOutputUnitCallbackCountsClockJumpsButNotAStart {
+    VibeTestEngine engine = { .maxFrames = 8192 };
+    VibeOutputUnitState state = {0};
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
+    atomic_store(&state.clockRestart, 1);
+    atomic_store(&state.gate, 1);
+    AudioBufferList *data = VibeTestIOBuffers(2, 512, 0.5f);
+    // 10000 starts, 10512 follows, 11536 skips 512 frames, 11000 goes back.
+    for (NSNumber *time in @[@10000, @10512, @11536, @11000]) {
+        AudioUnitRenderActionFlags flags = 0;
+        XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, time.unsignedLongLongValue), noErr);
+    }
+    XCTAssertEqual(atomic_load(&state.clockJumps), 2ull);
+    XCTAssertEqual(atomic_load(&state.skippedFrames), 512ull);
+    atomic_store(&state.clockRestart, 1);
+    AudioUnitRenderActionFlags flags = 0;
+    XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, 0), noErr);
+    XCTAssertEqual(atomic_load(&state.clockJumps), 2ull);
+    XCTAssertEqual(atomic_load(&state.clockRestart), 0);
+    VibeTestFreeIOBuffers(data);
+}
+
+// A cycle is late when its callback ran longer than its frames last at the
+// unit's rate. No rate counts nothing.
+- (void)testOutputUnitCallbackCountsLateCyclesAtItsRate {
+    VibeTestEngine engine = { .maxFrames = 8192 };
+    VibeOutputUnitState state = {0};
+    XCTAssertTrue(VibeOutputUnitStateInitialize(&state, 2, VibeTestRenderProc, &engine));
+    atomic_store(&state.gate, 1);
+    AudioBufferList *data = VibeTestIOBuffers(2, 512, 0.5f);
+    AudioUnitRenderActionFlags flags = 0;
+    XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, 1), noErr);
+    XCTAssertEqual(atomic_load(&state.lateCycles), 0ull);
+    state.sampleRate = 1e15; // 512 frames last half a nanosecond
+    XCTAssertEqual(VibeTestCycle(&state, data, 512, &flags, 2), noErr);
+    XCTAssertEqual(atomic_load(&state.lateCycles), 1ull);
+    VibeTestFreeIOBuffers(data);
 }
 
 - (void)testOutputUnitCallbackHandsTheProcEveryBuffer {

@@ -647,6 +647,58 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
+#if VIBE_VERBOSE_LOGGING
+// The device's load, for a glitch line: a hot or throttled phone is slower to
+// decode and render. Any thread.
+static NSString *VibeLoadNote(void) {
+    NSProcessInfo *process = NSProcessInfo.processInfo;
+    return [NSString stringWithFormat:@"thermal %ld, low power %d",
+            (long)process.thermalState, process.lowPowerModeEnabled];
+}
+
+// The three glitches shorter than a stall, each logged at the drain after it:
+// a callback that outran its buffer, a device clock that skipped ahead of the
+// render, and a current voice whose ring ran dry. A count below the last one
+// was cleared by a measurement.
+- (void)noteGlitchesOnQueue:(BOOL)playing {
+    uint64_t late = _outputUnit.lateCycles, jumps = _outputUnit.clockJumps, skipped = _outputUnit.skippedFrames;
+    double rate = [self masterBusFormatOnQueue].sampleRate;
+    if (playing && late > _renderClockLateCycles) {
+        LogWarn(@"Stall: %llu render callbacks ran longer than their audio, %.1f ms buffer, max %.0f µs, mean %.0f µs (play %llu, %@; %@)",
+                late - _renderClockLateCycles, _outputUnit.bufferLatency * 1000, _outputUnit.renderMaxMicroseconds,
+                _outputUnit.renderMeanMicroseconds, [self diagnosticPlayIdentifierOnQueue],
+                self.currentTrack.url.lastPathComponent, VibeLoadNote());
+    }
+    if (playing && jumps > _renderClockJumps) {
+        uint64_t frames = skipped > _renderClockSkippedFrames ? skipped - _renderClockSkippedFrames : 0;
+        LogWarn(@"Stall: output clock jumped %llu times, skipping %llu frames (%.1f ms) it never asked the render for, max render %.0f µs (play %llu, %@; %@)",
+                jumps - _renderClockJumps, frames, rate > 0 ? frames * 1000.0 / rate : 0,
+                _outputUnit.renderMaxMicroseconds, [self diagnosticPlayIdentifierOnQueue],
+                self.currentTrack.url.lastPathComponent, VibeLoadNote());
+    }
+    _renderClockLateCycles = late;
+    _renderClockJumps = jumps;
+    _renderClockSkippedFrames = skipped;
+    if (!playing || !_voice) {
+        return;
+    }
+    VibeVoiceSnapshot snapshot = [_voiceBus snapshotOfVoice:_voice];
+    if (_voice != _underrunVoice) {
+        _underrunVoice = _voice;
+        _underrunFrames = 0;
+    }
+    if (snapshot.underrunFrames > _underrunFrames && rate > 0) {
+        uint64_t frames = snapshot.underrunFrames - _underrunFrames;
+        uint64_t buffered = snapshot.written > snapshot.consumed ? snapshot.written - snapshot.consumed : 0;
+        LogWarn(@"Stall: voice %llu underran %llu frames (%.1f ms) %.3fs in, %.0f ms buffered, decoding %d, waiting for bytes %d (play %llu, %@; %@)",
+                _voice, frames, frames * 1000.0 / rate, snapshot.consumed / rate, buffered * 1000.0 / rate,
+                snapshot.decoding, snapshot.waitingForBytes, [self diagnosticPlayIdentifierOnQueue],
+                self.currentTrack.url.lastPathComponent, VibeLoadNote());
+    }
+    _underrunFrames = snapshot.underrunFrames;
+}
+#endif
+
 // Read at every drain, so it needs no wakeup of its own. A stopped clock means
 // the device's IO stopped pulling. noteOutputEdgeOnQueue closes a stall a stop
 // cuts short.
@@ -666,6 +718,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
                 self.currentTrack.url.lastPathComponent);
     }
     _renderClockDropouts = dropouts;
+    [self noteGlitchesOnQueue:playing];
     uint64_t frames = [self renderedFramesOnQueue];
     if (!playing || frames != _renderClockFrames) {
         if (_renderClockStalledSince) {

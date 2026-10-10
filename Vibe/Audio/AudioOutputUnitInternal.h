@@ -12,8 +12,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The callback's world. Writers: the queue (`gate`, the proc and the channel
-// count, between stop and start), the callback (everything else).
+// The callback's world. Writers: the queue (`gate` and `clockRestart`, and
+// the proc, the channel count and the rate between stop and start), the
+// callback (everything else).
 typedef struct {
     _Atomic int32_t gate;           // 1 between start and stop
     _Atomic int32_t inRender;       // 1 while the callback is inside the struct
@@ -24,6 +25,17 @@ typedef struct {
     _Atomic uint64_t cycles;
     _Atomic uint64_t renderNanos;
     _Atomic uint64_t renderMaxNanos;
+    // Cycles whose callback ran longer than the cycle's own audio lasts, at
+    // `sampleRate`. Such a cycle risks a dropout. None is counted at rate 0.
+    _Atomic uint64_t lateCycles;
+    // Cycles whose sample time is not where the last one ended, and the
+    // frames skipped ahead across them. A skip is audio the device never got.
+    // The first cycle after each start sets the clock (`clockRestart`).
+    _Atomic uint64_t clockJumps;
+    _Atomic uint64_t skippedFrames;
+    _Atomic int32_t clockRestart;
+    Float64 nextSampleTime;         // the callback's alone
+    double sampleRate;
     uint32_t channels;
     VibeOutputRenderProc _Nullable renderProc;
     void * _Nullable renderRefCon;
@@ -46,7 +58,7 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
 - (OSStatus)halStartUnit;
 @end
 
-// Zeroes the dropout and callback-cost counters. Any thread; a cycle in
+// Zeroes the dropout, callback-cost and clock counters. Any thread; a cycle in
 // flight lands in the new count, which a measurement tolerates.
 void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state);
 
