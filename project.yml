@@ -292,8 +292,9 @@ targets:
       # both.
       - script: |
           [ "$VIBE_DIRECT_DISTRIBUTION" = 1 ] && exit 0
-          for key in SUFeedURL SUPublicEDKey SUEnableInstallerLauncherService SUVerifyUpdateBeforeExtraction SUScheduledCheckInterval; do
-              /usr/libexec/PlistBuddy -c "Delete :$key" "$TARGET_BUILD_DIR/$INFOPLIST_PATH" 2>/dev/null || true
+          plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          for key in $(/usr/libexec/PlistBuddy -c Print "$plist" | awk '/^    SU/ { print $1 }'); do
+              /usr/libexec/PlistBuddy -c "Delete :$key" "$plist"
           done
         name: Remove Updater Keys
         basedOnDependencyAnalysis: false
@@ -314,9 +315,9 @@ targets:
 
         ITSAppUsesNonExemptEncryption: false
 
-        # Sparkle's. The AppStore configuration strips all five from the built
-        # Info.plist (the script below). The feed and the key are permanent:
-        # every shipped build trusts them.
+        # Sparkle's. The AppStore configuration strips every SU* key from the
+        # built Info.plist (the script below). The feed and the key are
+        # permanent: every shipped build trusts them.
         SUFeedURL: "$(VIBE_SPARKLE_FEED_URL)"
         SUPublicEDKey: "$(VIBE_SPARKLE_PUBLIC_KEY)"
         SUEnableInstallerLauncherService: true   # required under the App Sandbox
@@ -429,11 +430,11 @@ targets:
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_APP_SANDBOX: YES
-        # TRAP: off in a local direct build. Under the hardened runtime, library
+        # TRAP: off in a local build. Under the hardened runtime, library
         # validation refuses an ad-hoc-signed Sparkle in an ad-hoc-signed app
-        # ("different Team IDs"), so it would die at launch. release.sh's
-        # archives turn it on, and the Developer ID export re-signs both under
-        # one team; notarization rejects a build without it.
+        # ("different Team IDs"), so it would die at launch. asc_archive turns
+        # it on for every archive, and the Developer ID export re-signs both
+        # under one team; notarization rejects a build without it.
         ENABLE_HARDENED_RUNTIME: NO
         ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
@@ -459,7 +460,6 @@ targets:
       configs:
         AppStore:
           VIBE_DIRECT_DISTRIBUTION: 0
-          ENABLE_HARDENED_RUNTIME: YES
           CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
           # Unlinks and unembeds the framework the dependency below adds.
           EXCLUDED_SOURCE_FILE_NAMES: Sparkle.framework

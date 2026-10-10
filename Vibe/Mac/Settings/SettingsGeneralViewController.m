@@ -135,7 +135,6 @@ static const double kWaveformGainDetentDB = 0.75;
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
 #if VIBE_DIRECT_DISTRIBUTION
-            // Compiled out of the Mac App Store build, which has no updater.
             [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL
                                   caption:STR_SETTINGS_BETA_UPDATES_CAPTION control:_betaUpdatesSwitch],

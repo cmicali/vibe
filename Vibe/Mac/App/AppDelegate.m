@@ -46,7 +46,7 @@
 @end
 
 #if VIBE_DIRECT_DISTRIBUTION
-@interface AppDelegate () <SPUUpdaterDelegate, NSMenuItemValidation>
+@interface AppDelegate () <SPUUpdaterDelegate>
 @end
 #endif
 
@@ -61,10 +61,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
-#if VIBE_DIRECT_DISTRIBUTION
-    // nil in a Debug build launched without --update-feed.
-    SPUStandardUpdaterController *_updaterController;
-#endif
 }
 
 - (instancetype)init {
@@ -97,6 +93,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
+#if VIBE_DIRECT_DISTRIBUTION
+    // Before the menu, whose Check for Updates… targets it.
+    [self createUpdater];
+#endif
     // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
@@ -135,7 +135,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self.mainPlayerController showWindow:self];
 
 #if VIBE_DIRECT_DISTRIBUTION
-    [self startUpdater];
+    [_updaterController startUpdater];
 #endif
 
     [self openCommandLineArguments];
@@ -194,19 +194,15 @@ static NSString *DebugUpdateFeed(void) {
 }
 #endif
 
-- (void)startUpdater {
+- (void)createUpdater {
 #if DEBUG
     if (!DebugUpdateFeed()) {
         return;
     }
 #endif
-    _updaterController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:YES
+    _updaterController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO
                                                                        updaterDelegate:self
                                                                     userDriverDelegate:nil];
-}
-
-- (IBAction)checkForUpdates:(id)sender {
-    [_updaterController checkForUpdates:sender];
 }
 
 - (NSTimeInterval)updateCheckInterval {
@@ -221,13 +217,6 @@ static NSString *DebugUpdateFeed(void) {
     if (interval > 0) {
         updater.updateCheckInterval = interval;
     }
-}
-
-- (BOOL)validateMenuItem:(NSMenuItem *)item {
-    if (item.action == @selector(checkForUpdates:)) {
-        return _updaterController.updater.canCheckForUpdates;
-    }
-    return YES;
 }
 
 // Asked at every check. A stable item carries no channel and always qualifies.

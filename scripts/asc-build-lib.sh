@@ -5,6 +5,9 @@
 
 # shellcheck shell=bash
 
+# Release is the direct download; the Mac App Store path sets AppStore.
+ASC_CONFIGURATION="${ASC_CONFIGURATION:-Release}"
+
 asc_require_xcodegen() {
     command -v xcodegen >/dev/null 2>&1 || {
         echo "error: xcodegen not found — install with: brew install xcodegen" >&2; exit 1; }
@@ -16,8 +19,8 @@ asc_require_translations() {
     "$(dirname "${BASH_SOURCE[0]}")/check-translations.sh"
 }
 
-# Archive $ASC_CONFIGURATION (default Release, the direct download; the Mac
-# App Store path sets AppStore) into $ARCHIVE.
+# Archive $ASC_CONFIGURATION into $ARCHIVE, under the hardened runtime that a
+# local build leaves off (project.yml's TRAP).
 #   $1   progress label
 #   ...  xcodebuild arguments placed before `archive` (callers pin ARCHS and
 #        the destination, so neither follows the host)
@@ -32,8 +35,9 @@ asc_archive() {
 
     echo "🔊 archive ($label)"
     xcodebuild -project "$PRODUCT.xcodeproj" -scheme "$SCHEME" \
-        -configuration "${ASC_CONFIGURATION:-Release}" \
+        -configuration "$ASC_CONFIGURATION" \
         -archivePath "$ARCHIVE" "${ASC_XCODEBUILD_AUTH[@]}" "$@" \
+        ENABLE_HARDENED_RUNTIME=YES \
         archive
 }
 
@@ -44,7 +48,7 @@ asc_generate_and_archive() {
     echo "🔊 xcodegen generate"
     xcodegen generate
 
-    asc_archive "${ASC_CONFIGURATION:-Release}" "$@"
+    asc_archive "$ASC_CONFIGURATION" "$@"
 }
 
 # Fail unless the macOS app carries no updater: no Sparkle file, no link to

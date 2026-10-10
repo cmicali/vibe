@@ -179,9 +179,7 @@ write_developer_id_export_options() {
 PLIST
 }
 
-# The hardened runtime is off in a local direct build (project.yml's TRAP),
-# so each archive turns it on.
-asc_generate_and_archive "ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO ENABLE_HARDENED_RUNTIME=YES
+asc_generate_and_archive "ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO
 asc_require_binary_architectures \
     "$ARCHIVE/Products/Applications/$PRODUCT.app/Contents/MacOS/$PRODUCT" \
     arm64 x86_64
@@ -198,7 +196,7 @@ mkdir -p "$ARM64_BUILD_DIR"
 BUILD_DIR="$ARM64_BUILD_DIR"
 ARCHIVE="$ARM64_ARCHIVE"
 EXPORT_DIR="$ARM64_EXPORT_DIR"
-asc_archive "Release, arm64-only" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO ENABLE_HARDENED_RUNTIME=YES \
+asc_archive "Release, arm64-only" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
     "VIBE_SPARKLE_FEED_URL=$ARM64_FEED"
 asc_require_binary_architectures \
     "$ARCHIVE/Products/Applications/$PRODUCT.app/Contents/MacOS/$PRODUCT" arm64

@@ -67,18 +67,6 @@ gh auth status >/dev/null 2>&1 || {
     echo "error: gh is not authenticated — run: gh auth login" >&2
     exit 1
 }
-# The deploy runs after publishing, so its credentials are checked before.
-if [[ -z "$DRAFT" ]]; then
-    command -v npx >/dev/null || {
-        echo "error: npx is not installed — the deploy runs wrangler through it (brew install node)" >&2
-        exit 1
-    }
-    # shellcheck disable=SC1091
-    ( [[ -f .release-env ]] && source .release-env; [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] ) || {
-        echo "error: no CLOUDFLARE_API_TOKEN in .release-env — scripts/deploy-web.sh says how to make one" >&2
-        exit 1
-    }
-fi
 [[ -d "$UNIVERSAL_APP" && -f "$UNIVERSAL_DMG" && -f "$UNIVERSAL_ZIP" \
         && -d "$ARM64_APP" && -f "$ARM64_DMG" && -f "$ARM64_ZIP" ]] || {
     echo "error: universal or arm64 release artifacts are missing — run 'make release' first" >&2
