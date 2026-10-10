@@ -1,6 +1,6 @@
 # Vibe links: share a remote track, open it in Vibe
 
-**Status: planned 2026-10-08. The app half of Phases 2 and 3 is built as Open URL, on both platforms.** It plays an http or https link through the shared HTTP transfer and a `Links` root. It rewrites Dropbox and Google Drive share links to their bytes. It looks up an iCloud Drive share link before each request (`System/Remote/AGENTS.md`). What remains is the link service and its landing page (Phase 1), the `vibe://` scheme and universal links, and SoundCloud (Phase 4). Phase 0 is done but for two probes, and its results are under Phases. The SoundCloud token probe waits on decision 2. Apple's CDN check waits on Phase 1's deploy. The rest of this doc is the plan and the decisions it needs.
+**Status: planned 2026-10-08. The app half of Phases 2 and 3 is built as Open URL, on both platforms.** It plays an http or https link through the shared HTTP transfer and a `Links` root. It rewrites Dropbox and Google Drive share links to their bytes. It looks up an iCloud Drive share link before each request (`Loading/Net/AGENTS.md`). What remains is the link service and its landing page (Phase 1), the `vibe://` scheme and universal links, and SoundCloud (Phase 4). Phase 0 is done but for two probes, and its results are under Phases. The SoundCloud token probe waits on decision 2. Apple's CDN check waits on Phase 1's deploy. The rest of this doc is the plan and the decisions it needs.
 
 The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox share link, a direct file URL, or a SoundCloud track. The site answers a short link, `https://vibeplayer.app/p/<id>`. A person who taps it gets Vibe, open on that track, streaming it from where it lives. Nobody downloads a file first.
 
@@ -8,7 +8,7 @@ Two plans in this directory touch the same ground. [Dropbox shared links](dropbo
 
 ## What exists
 
-- **A stream that plays before its download ends.** The Dropbox fetch writes a part file from byte 0, publishes a `CloudFileAvailability`, reads the file's tail by range beside the download, and the player opens on the head (`System/AGENTS.md`, `Audio/Loading/AGENTS.md`). Every wait can be interrupted. The engine, the coordinator and both shells see only the wait.
+- **A stream that plays before its download ends.** The Dropbox fetch writes a part file from byte 0, publishes a `CloudFileAvailability`, reads the file's tail by range beside the download, and the player opens on the head (`Loading/AGENTS.md`). Every wait can be interrupted. The engine, the coordinator and both shells see only the wait.
 - **The transport is already plain HTTP.** `DropboxClient`'s streamed download and ranged read are `NSURLSession` tasks with a `Range` header, a resend ladder and a part file. Dropbox adds a bearer token and a `rev` check. Everything else is what any file server needs.
 - **Both shells open a file URL.** The mac's `application:openURLs:` and the iOS scene's `openURLContexts:` funnel into one open. Neither accepts anything but a file URL today.
 - **The site is static on Cloudflare Pages** (`Assets/Web/README.md`). Pages serves Functions and KV from the same project, so the short-link service needs no second host.
@@ -46,7 +46,7 @@ Two plans in this directory touch the same ground. [Dropbox shared links](dropbo
 | Where | Change |
 | --- | --- |
 | `CloudFileMaterializer` | The remote backend takes a second root. `setRemoteRoot:` becomes a registration a backend makes for its own root, and the dispatch picks the backend by which root the path lies under. The Dropbox mirror registers as it does now. |
-| `DropboxClient` | The streamed download and the ranged read move into a shared HTTP transfer under `Vibe/System/`, with the part file, the resend ladder, the resume by `Range`, and the tail read. Dropbox's client keeps the authorization header, the `rev` check and the account. The link backend uses the same transfer with no header and an `ETag` or `Last-Modified` check in place of `rev`. |
+| `DropboxClient` | The streamed download and the ranged read move into a shared HTTP transfer under `Vibe/Loading/Net/`, with the part file, the resend ladder, the resume by `Range`, and the tail read. Dropbox's client keeps the authorization header, the `rev` check and the account. The link backend uses the same transfer with no header and an `ETag` or `Last-Modified` check in place of `rev`. |
 | `NSURLUtil` | `isRemotePlaceholderFile:` answers for any registered root. |
 | `VibeiOSAppDelegate`, `AppDelegate` (mac) | At launch, the link backend registers its root, fetch, read and availability beside the mirror's. The mac has no mirror and registers only the link backend. |
 | `PlaybackController`, `AppDelegate` (mac) | A `https://vibeplayer.app/p/<id>` URL, from a universal link or a `vibe://p/<id>` scheme, fetches the record, resolves it to a URL and a size with one `HEAD`, writes the placeholder and the index, and opens the file as a single-file open. The track is named from the record's title. |
@@ -77,7 +77,7 @@ Other services (Bandcamp, Mixcloud, YouTube) are not planned. Each has its own A
 
 The bonus: play a link without installing Vibe.
 
-**What it would be.** A second iOS target, `VibeClip`, built from `Audio/`, `Common/`, `Playlist/`, `System/`, `Util/` and one screen. It invokes from the same `/p/<id>` link, reads the record, streams the file through the same HTTP backend, and offers the full app. The 50 MB limit for a link invocation (iOS 17 and later) is room enough for the engine and its three decoders. Messages shows the clip's card from the App Store Connect default experience, not per link ([supporting invocations from your website and the Messages app](https://developer.apple.com/documentation/appclip/supporting-invocations-from-your-website-and-the-messages-app)).
+**What it would be.** A second iOS target, `VibeClip`, built from `Audio/`, `Common/`, `Loading/`, `NowPlaying/`, `Playlist/`, `Util/` and one screen. It invokes from the same `/p/<id>` link, reads the record, streams the file through the same HTTP backend, and offers the full app. The 50 MB limit for a link invocation (iOS 17 and later) is room enough for the engine and its three decoders. Messages shows the clip's card from the App Store Connect default experience, not per link ([supporting invocations from your website and the Messages app](https://developer.apple.com/documentation/appclip/supporting-invocations-from-your-website-and-the-messages-app)).
 
 **Why it is not in this plan's first cut.** An App Clip cannot use Background Modes ([choosing the right functionality for your App Clip](https://developer.apple.com/documentation/appclip/choosing-the-right-functionality-for-your-app-clip)). The audio stops when the screen locks or the person switches apps. A music player that stops at the lock screen is a demo, not a player. It is also a fourth target that recurses the shared subsystem directories, so `check-layout`'s assertion that the top of `Vibe/` is in both app targets becomes three, and every shared file must build without `UIKit`'s app-only pieces.
 
@@ -132,7 +132,7 @@ The form, the two functions, the KV namespace, the AASA file. Deployable and use
 
 ### Phase 2: the HTTP backend, shared
 
-Move the transfer out of `DropboxClient` into `System/`. The Dropbox streaming tests, `dropbox-streaming.sh` and the PCM comparisons pass untouched. Done when a scripted file over a stubbed `NSURLProtocol` plays through the render pump sample-identical to the local open, seeks included.
+Move the transfer out of `DropboxClient` into `Loading/Net/`. The Dropbox streaming tests, `dropbox-streaming.sh` and the PCM comparisons pass untouched. Done when a scripted file over a stubbed `NSURLProtocol` plays through the render pump sample-identical to the local open, seeks included.
 
 ### Phase 3: the link road, both platforms
 

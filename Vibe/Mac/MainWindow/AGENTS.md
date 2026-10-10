@@ -59,7 +59,7 @@ The drag is `Playlist/Mac/AGENTS.md`'s. This side owns **`playlistOrderDidChange
 
 `AppSettings.showTimeLabels` hides both time fields in the full display-state render, including their click target; updates still carry the current position and duration, so revealing them is immediate. The right time label shows duration or minus-prefixed remaining, toggled by click and persisted in `AppSettings.showRemainingTime`. Both are wall-clock (file time over the varispeed rate), and **every write goes through `renderRightTimeLabelWithDisplayPosition:duration:rate:`**, which delegates rate adjustment, remaining-time subtraction, clamping and the whole-second string cache to `Formatters.durationStringForFileDuration:rate:elapsedDisplayTime:remaining:`; `VibeTrackTimeMayUpdate` keeps placeholder states intact. The tick skips the label when the duration cache is 0, or the end-of-playlist park would read `-0:00`. In betas, after rendering position, it consumes at most one pending player diagnostic for that row/submission and logs the displayed value and delay since state publication. It never waits on the player queue.
 
-**Now Playing** publishes the same wall-clock position and duration, rate 1.0 playing and 0 paused, and nothing until the first real play — `NowPlayingController`'s rule (`System/AGENTS.md`). Artwork reads non-blocking: `cachedArt`, else the 128px `cachedThumbnail`, refreshed when the full art resolves.
+**Now Playing** publishes the same wall-clock position and duration, rate 1.0 playing and 0 paused, and nothing until the first real play — `NowPlayingController`'s rule (`NowPlaying/AGENTS.md`). Artwork reads non-blocking: `cachedArt`, else the 128px `cachedThumbnail`, refreshed when the full art resolves.
 
 ## The window
 

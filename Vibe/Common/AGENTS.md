@@ -1,6 +1,6 @@
 # Common
 
-**What every other directory is written in terms of, and nothing else. If you can name the feature it belongs to, it belongs there instead** — `Vibe/System/` takes OS-service bridges, `Vibe/Util/` the featureless helpers. **Nothing in `Common/` may import from a feature directory.** The one class importing from `Util/` is `Mac/Theme/AppTheme` (`NSData.sha1Hex`, `NSAppearance.isDark`), both featureless categories, so the rule holds; it lives under `Common/Mac/` because it is macOS-only, the platform split in directory form (`Mac/AGENTS.md` owns the theme store, `Mac/Theme/AGENTS.md` the record).
+**What every other directory is written in terms of, and nothing else. If you can name the feature it belongs to, it belongs there instead.** The featureless helpers are `Vibe/Util/`. **Nothing in `Common/` may import from a feature directory.** The one class importing from `Util/` is `Mac/Theme/AppTheme` (`NSData.sha1Hex`, `NSAppearance.isDark`), both featureless categories, so the rule holds; it lives under `Common/Mac/` because it is macOS-only, the platform split in directory form (`Mac/AGENTS.md` owns the theme store, `Mac/Theme/AGENTS.md` the record).
 
 ## The settings store
 

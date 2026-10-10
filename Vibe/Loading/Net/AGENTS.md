@@ -1,4 +1,4 @@
-# Remote files over HTTP
+# Net: remote files over HTTP
 
 Files the app fetches itself over HTTP, rather than through a file provider. Both apps compile this directory. It is Foundation-only.
 
@@ -29,7 +29,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **`allowsURL` is asked of every request and every redirect.** It gets the URL that redirected, nil for a request, and the URL to be requested. A request it refuses is never sent. A redirect it refuses completes its task with the 3xx itself, and the transfer fails with `VibeHTTPErrorRefusedURL`.
 
-**A cancel settles a transfer at once when no task is in flight for it** (`cancelTransfer:`). A task is in flight until its completion has reached the delegate. That covers a transfer waiting on the request hook, such as Dropbox's token refresh, or on a retry's delay. The lane the caller holds is freed now (`System/AGENTS.md`).
+**A cancel settles a transfer at once when no task is in flight for it** (`cancelTransfer:`). A task is in flight until its completion has reached the delegate. That covers a transfer waiting on the request hook, such as Dropbox's token refresh, or on a retry's delay. The lane the caller holds is freed now (`Loading/AGENTS.md`).
 
 **TRAP: a cancel never touches a download's file.** The step that ended the last task may still be reading it. The next step sees the cancel and closes the file. A cancel that closed it raced that step.
 
@@ -57,15 +57,15 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **The hooks say which remote file a placeholder stands for and how to read its answers** (`RemotePlaceholderStoreInternal.h`). `remoteTargetForURL:error:` is the target the client fetches. The download and the ranged read go through `downloadTarget:…` and `readTarget:…`, which call the client by default. `versionOfMetadata:` is the client's by default. `readsByRangeAtURL:` NO means no tail read. A ranged read then answers only from a live stream that holds the whole range. Any other fails with `ENOTSUP` and sends no request. The tags come once the file is local. `budgetRootURL` is where the budget counts. `downloadsDidChangeWithTotal:` is told each new total.
 
-**The fetch streams into a hidden part file** (`NSURLUtil remotePlaceholderPartURL:`). The part file's own rules are the client's (above). The fetch publishes it while it writes it (`availabilityForURL:`, the streaming lookup, `System/AGENTS.md`): a `CloudFileAvailability` per transfer, keyed by the file's comparable path. It is made at the first accepted response, with that response's size. That is the version being downloaded, which may differ from the placeholder's. It is kept across every resend. A response naming no size streams nothing and downloads whole. The fetch's `onReadable` fires once, past 256 KB of head and short of the size. A file that completes first never fires it.
+**The fetch streams into a hidden part file** (`NSURLUtil remotePlaceholderPartURL:`). The part file's own rules are the client's (above). The fetch publishes it while it writes it (`availabilityForURL:`, the streaming lookup, `Loading/AGENTS.md`): a `CloudFileAvailability` per transfer, keyed by the file's comparable path. It is made at the first accepted response, with that response's size. That is the version being downloaded, which may differ from the placeholder's. It is kept across every resend. A response naming no size streams nothing and downloads whole. The fetch's `onReadable` fires once, past 256 KB of head and short of the size. A file that completes first never fires it.
 
-**A stream reads its tail once, beside the download.** The window is sized by `VibeAudioFileTailWindowBytes` (`Audio/Loading/AudioFileOpenRules.h`). It is a ranged read on the call session, of the same target, at the same moment. It lands about when the head does. It is installed as the availability's tail window, from which the handle reads past the download's edge. Readable does not wait for it. A failed tail read logs one line and leaves the window absent. Reads there wait for the download. The finish cancels a tail read still running.
+**A stream reads its tail once, beside the download.** The window is sized by `VibeAudioFileTailWindowBytes` (`Loading/AudioFileOpenRules.h`). It is a ranged read on the call session, of the same target, at the same moment. It lands about when the head does. It is installed as the availability's tail window, from which the handle reads past the download's edge. Readable does not wait for it. A failed tail read logs one line and leaves the window absent. Reads there wait for the download. The finish cancels a tail read still running.
 
 **TRAP: a read of the target answers whatever version is current.** The window is therefore installed only by whichever answer lands second. It is installed only when the ranged answer names the download's version, and the download's size is the placeholder's its offset came from. A version missing on either side drops it (`installTail:…`). Installed unchecked, another version's tail would decode as this one's.
 
 **TRAP: finished after the install, forgotten after the finish.** A reader whose part open missed the rename waits for the finish, then opens the URL. A failure's part is deleted or kept by the client. Either way that same wait turns into the failure, never a missing file or a short read.
 
-**The fetch's cancel keeps the part.** The coordinator cancels when nothing reads the stream any more (`Audio/Loading/AGENTS.md`). A stall's replay then continues the download where it stopped.
+**The fetch's cancel keeps the part.** The coordinator cancels when nothing reads the stream any more (`Loading/AGENTS.md`). A stall's replay then continues the download where it stopped.
 
 **Tags are read by range, never by download** (`readPlaceholderAtURL:…`, installed as the read `CloudFileMaterializer`'s `remoteReadForURL:` answers). **A file streaming now is read from its stream first** (`streamedBytesOfURL:…`). A range in its first MB or its tail window waits up to 3 s for the stream to hold it. Any other range takes the part file's prefix below the bytes noted. The server is asked only for the rest. A read past 30 s is given up, and the parse fails, to be retried by a later scan.
 
@@ -75,7 +75,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 ## Links
 
-**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). Its client is `LinkClient`. That is the plain client for every link but an iCloud Drive share (below). Its root is `<Application Support>/Links`, kept out of backups. Each root has its own backend (`System/AGENTS.md`).
+**Open URL plays an http or https link as a placeholder of this store** (`LinkStore`). Its client is `LinkClient`. That is the plain client for every link but an iCloud Drive share (below). Its root is `<Application Support>/Links`, kept out of backups. Each root has its own backend (`Loading/AGENTS.md`).
 
 **Both apps install it at launch, before anything can open a file under it.** The mac installs it first in `applicationWillFinishLaunching:`, before the restore. iOS installs it in `application:didFinishLaunchingWithOptions:`, after the Dropbox mirror and before the scene restores a playlist.
 

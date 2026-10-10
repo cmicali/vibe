@@ -1,6 +1,6 @@
 # Future: streaming from any source
 
-**Status: planned 2026-10-03. Phases 1 and 2 built together, 2026-10-09.** Builds on Dropbox streaming, implemented in [PR #134](https://github.com/cmicali/vibe/pull/134). Current behavior lives in the [audio](../../Vibe/Audio/AGENTS.md), [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Audio/Loading/AGENTS.md), [System](../../Vibe/System/AGENTS.md) and [waveform-loading](../../Vibe/Audio/Waveform/AGENTS.md) docs. Google Drive has a [separate feasibility study](ios-google-drive.md). The plan below is kept as it was written. Where the build differs, this status says so.
+**Status: planned 2026-10-03. Phases 1 and 2 built together, 2026-10-09.** Builds on Dropbox streaming, implemented in [PR #134](https://github.com/cmicali/vibe/pull/134). Current behavior lives in the [audio](../../Vibe/Audio/AGENTS.md), [Dropbox](../../Vibe/iOS/Dropbox/AGENTS.md), [file-loading](../../Vibe/Loading/AGENTS.md) and [waveform-loading](../../Vibe/Audio/Waveform/AGENTS.md) docs. Google Drive has a [separate feasibility study](ios-google-drive.md). The plan below is kept as it was written. Where the build differs, this status says so.
 
 **Built.**
 
@@ -197,7 +197,7 @@ Done when the streaming tests, the full `dropbox-streaming.sh` scenario suite, a
 2. **Length without completion.** A CBR estimate settles where the reads reach the end, as now. A VBR estimate has no download to wait for, so the handle that needs an exact length counts through its own read-ahead (the waveform's does, and it reads the whole file anyway), and that count settles the player's duration.
 3. **Progress that only grows:** the bytes the read-ahead has installed feed the stall deadline. The open deadline gets the same count, by a feed that does not pass through the transfer registry.
 4. **The mac shell draws buffering** and the stall's pause, and the stall's string stops naming a download (`vibe-strings`).
-5. `Audio/AGENTS.md`, `Loading/AGENTS.md`, and `System/AGENTS.md` say "a file still arriving" where they say "a remote transfer".
+5. `Audio/AGENTS.md` and `Loading/AGENTS.md` say "a file still arriving" where they say "a remote transfer".
 
 Done when a throttled file plays through the render pump sample-identical to the direct open, seeks included, and a stalled one never hangs a seek, skip, or stop.
 

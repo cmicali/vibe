@@ -66,7 +66,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         self.autorecalculatesKeyViewLoop = NO;
         self.allowsToolTipsWhenApplicationIsInactive = NO;
 
-        // Files, and web links (System/Remote/AGENTS.md). Entering decides
+        // Files, and web links (Loading/Net/AGENTS.md). Entering decides
         // whether the drag holds either.
         [self registerForDraggedTypes:@[
             kVibeDropTypeFileURL,
