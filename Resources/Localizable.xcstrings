@@ -2608,10 +2608,184 @@
     "browser.add_clipboard_link": {
       "comment": "iOS Add to Playlist sheet: a row under Locations, shown only while the clipboard holds a web link. A tap adds the copied link to the playlist. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добави връзката от клипборда"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přidat odkaz ze schránky"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilføj link fra udklipsholderen"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link aus Zwischenablage hinzufügen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Προσθήκη συνδέσμου από το πρόχειρο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Add Link on Clipboard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir enlace del portapapeles"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lisää linkki leikepöydältä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajouter le lien du presse-papiers"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj poveznicu iz međuspremnika"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hivatkozás hozzáadása a vágólapról"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tambahkan Tautan di Papan Klip"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aggiungi link negli appunti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリップボードのリンクを追加"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클립보드의 링크 추가"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg til lenke fra utklippstavlen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voeg link op klembord toe"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dodaj link ze schowka"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar Link da Área de Transferência"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adicionar ligação da área de transferência"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adăugați linkul din clipboard"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить ссылку из буфера обмена"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pridať odkaz zo schránky"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg till länk i urklipp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพิ่มลิงก์ในคลิปบอร์ด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panodaki Bağlantıyı Ekle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Додати посилання з буфера обміну"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm liên kết trong bảng tạm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加剪贴板中的链接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入剪貼板中的連結"
           }
         }
       },
@@ -3922,10 +4096,184 @@
     "browser.open_clipboard_link": {
       "comment": "iOS Files tab: a row under Locations, shown only while the clipboard holds a web link. A tap plays the copied link. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отвори връзката от клипборда"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otevřít odkaz ze schránky"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åbn link fra udklipsholderen"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link aus Zwischenablage öffnen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Άνοιγμα συνδέσμου από το πρόχειρο"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Open Link on Clipboard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir enlace del portapapeles"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avaa linkki leikepöydältä"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir le lien du presse-papiers"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvori poveznicu iz međuspremnika"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hivatkozás megnyitása a vágólapról"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buka Tautan di Papan Klip"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri link negli appunti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クリップボードのリンクを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "클립보드의 링크 열기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Åpne lenke fra utklippstavlen"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open link op klembord"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otwórz link ze schowka"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Link da Área de Transferência"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir ligação da área de transferência"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deschideți linkul din clipboard"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть ссылку из буфера обмена"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otvoriť odkaz zo schránky"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öppna länk i urklipp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดลิงก์ในคลิปบอร์ด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Panodaki Bağlantıyı Aç"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відкрити посилання з буфера обміну"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở liên kết trong bảng tạm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开剪贴板中的链接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開剪貼板中的連結"
           }
         }
       },
@@ -84100,10 +84448,184 @@
     "settings.files.allow_paste": {
       "comment": "iOS settings screen, Files: a row that opens this app's page in the system Settings app, where pasting from other apps can be allowed. Then the Files tab opens a copied link without asking first. Title case, as the rows beside it.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешаване на поставяне на връзки"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povolit vkládání odkazů"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillad indsættelse af links"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einsetzen von Links erlauben"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Να επιτρέπεται η επικόλληση συνδέσμων"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Allow Pasting Links"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir pegar enlaces"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salli linkkien sijoittaminen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoriser le collage de liens"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dopusti lijepljenje poveznica"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hivatkozások beillesztésének engedélyezése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izinkan Menempel Tautan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consenti di incollare link"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンクのペーストを許可"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "링크 붙여넣기 허용"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillat innliming av lenker"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sta plakken van links toe"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pozwól na wklejanie linków"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir Colar Links"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir colar ligações"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permiteți lipirea linkurilor"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разрешить вставку ссылок"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povoliť vkladanie odkazov"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tillåt inklistring av länkar"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อนุญาตให้วางลิงก์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı Yapıştırmaya İzin Ver"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дозволити вставлення посилань"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cho phép dán liên kết"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允许粘贴链接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "允許貼上連結"
           }
         }
       },
@@ -84112,10 +84634,184 @@
     "settings.files.allow_paste_footer": {
       "comment": "iOS settings screen, Files: explanation under the Allow Pasting Links row. 'Settings' is the system Settings app. 'Paste from Other Apps' and 'Allow' are the labels iOS shows on this app's page in the Settings app: use exactly the wording iOS uses for them in this language.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В „Настройки“ задайте „Поставяне от други приложения“ на „Разрешаване“. Тогава копираната връзка се отваря без питане."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V Nastavení nastavte „Vkládání z jiných aplikací“ na „Povolit“. Zkopírovaný odkaz se pak otevře bez dotazu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I Indstillinger skal du sætte “Indsæt fra andre apps” til “Tillad”. Et kopieret link åbnes så uden at spørge."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setze in den Einstellungen „Aus anderen Apps einsetzen“ auf „Erlauben“. Ein kopierter Link wird dann ohne Nachfrage geöffnet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Στις Ρυθμίσεις, ορίστε το «Επικόλληση από άλλες εφαρμογές» σε «Να επιτρέπεται». Ένας αντιγραμμένος σύνδεσμος θα ανοίγει τότε χωρίς ερώτηση."
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "In Settings, set Paste from Other Apps to Allow. A copied link then opens without asking."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En Ajustes, pon “Pegar desde otras apps” en “Permitir”. Así, un enlace copiado se abre sin preguntar."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aseta Asetuksissa ”Sijoita muista apeista” tilaan ”Salli”. Kopioitu linkki avautuu silloin kysymättä."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dans Réglages, réglez « Coller depuis d’autres apps » sur « Autoriser ». Un lien copié s’ouvre alors sans confirmation."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "U Postavkama postavite „Zalijepi iz drugih aplikacija” na „Dopusti”. Kopirana poveznica tada se otvara bez pitanja."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Beállításokban állítsd a „Beillesztés más appokból” lehetőséget „Engedélyezés” értékre. A másolt hivatkozás ezután kérdés nélkül megnyílik."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di Pengaturan, atur “Tempel dari App Lain” ke “Izinkan”. Tautan yang disalin kemudian terbuka tanpa bertanya."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Impostazioni, imposta “Incolla da altre app” su “Consenti”. Un link copiato si aprirà senza chiedere."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定で「ほかのAppからペースト」を「許可」にしてください。コピーしたリンクが確認なしで開きます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정에서 ‘다른 앱에서 붙여넣기’를 ‘허용’으로 설정하십시오. 그러면 복사한 링크가 묻지 않고 열립니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I Innstillinger setter du «Lim inn fra andre apper» til «Tillat». En kopiert lenke åpnes da uten å spørre."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zet in Instellingen ‘Plakken uit andere apps’ op ‘Sta toe’. Een gekopieerde link wordt dan geopend zonder te vragen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "W Ustawieniach ustaw „Wklejanie z innych aplikacji” na „Pozwól”. Skopiowany link otworzy się wtedy bez pytania."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Em Ajustes, defina “Colar de Outros Apps” como “Permitir”. Assim, um link copiado abre sem perguntar."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Em Definições, defina “Colar de outras apps” como “Permitir”. Uma ligação copiada abre então sem perguntar."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "În Configurări, setați „Lipire din alte aplicații” la „Permite”. Un link copiat se deschide apoi fără întrebare."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В «Настройках» установите для «Вставка из других приложений» значение «Разрешить». Тогда скопированная ссылка откроется без запроса."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "V Nastaveniach nastavte „Vkladanie z iných apiek“ na „Povoliť“. Skopírovaný odkaz sa potom otvorí bez otázky."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ställ in ”Klistra in från andra appar” på ”Tillåt” i Inställningar. En kopierad länk öppnas då utan att fråga."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ใน การตั้งค่า ให้ตั้ง “วางจากแอปอื่น” เป็น “อนุญาต” จากนั้นลิงก์ที่คัดลอกจะเปิดโดยไม่ถาม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayarlar’da “Diğer Uygulamalardan Yapıştır” seçeneğini “İzin Ver” olarak ayarlayın. Kopyalanan bağlantı bundan sonra sormadan açılır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "У «Параметрах» установіть для «Вставлення з інших програм» значення «Дозволити». Тоді скопійоване посилання відкриється без запиту."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trong Cài đặt, đặt “Dán từ ứng dụng khác” thành “Cho phép”. Liên kết đã sao chép sẽ mở mà không cần hỏi."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“设置”中，将“从其他App粘贴”设为“允许”。之后，拷贝的链接会直接打开，不再询问。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「設定」中，將「從其他App貼上」設為「允許」。之後，拷貝的連結會直接打開，不再詢問。"
           }
         }
       },
