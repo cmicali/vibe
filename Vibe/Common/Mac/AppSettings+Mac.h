@@ -54,6 +54,11 @@ FOUNDATION_EXPORT const NSInteger kVibeSkipBasePresets[];
 FOUNDATION_EXPORT const size_t kVibeSkipBasePresetCount;
 FOUNDATION_EXPORT const NSInteger kVibeUIUpdateHzCapPresets[];
 FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
+#if VIBE_DIRECT_DISTRIBUTION
+// Settings > General's update check intervals in seconds, after Never.
+FOUNDATION_EXPORT const NSInteger kVibeUpdateCheckIntervalPresets[];
+FOUNDATION_EXPORT const size_t kVibeUpdateCheckIntervalPresetCount;
+#endif
 
 static const double kVibeWaveformGainMaxDB = 12;
 
@@ -255,6 +260,15 @@ static const double kVibeWaveformGainMaxDB = 12;
 // Changes request VibeSettingsLiveEffectMP3Decoder.
 - (BOOL)appleMPEGDecoder;
 - (void)setAppleMPEGDecoder:(BOOL)apple;
+
+#if VIBE_DIRECT_DISTRIBUTION
+// Whether the updater also offers the feed's beta channel. Compiled out of
+// the Mac App Store build. Default YES in a beta build (VIBE_VERBOSE_LOGGING),
+// NO in a stable one. A beta build stores it at launch, so a stable update
+// keeps a tester on betas. Read at each check, so a change needs no live effect.
+- (BOOL)receiveBetaUpdates;
+- (void)setReceiveBetaUpdates:(BOOL)receive;
+#endif
 
 // The Keyboard Shortcuts pane's remaps, sparse over the defaults: absent
 // means every default. Read per keypress by the key monitor. Writers request
