@@ -10,7 +10,7 @@ The same Files browser also owns the unresolved usability follow-ups below. They
 
 ### Current behavior
 
-The Files tab already supports persistent Locations. `BrowserViewController.presentPickerForLocation:` opens the system folder picker, and `SearchFolderStore` saves the selected folder's bookmark and restores access on later launches. The folder and its descendants can then be browsed in Vibe. The separate Browse Files action uses the picker for an individual open.
+The Files tab already supports persistent Locations. `BrowserViewController.presentPickerForLocation:` opens the system folder picker, and `SearchFolderStore` saves the selected folder's bookmark and restores access on later launches. The folder and its descendants can then be browsed in Vibe. The separate Choose File action uses the picker for an individual open.
 
 The missing piece is discoverability: someone wanting to connect their iCloud music collection should be led to the persistent folder flow, rather than repeatedly opening tracks through the system picker.
 

@@ -34,7 +34,7 @@ Dropbox currently uses no SDK. Its client and mirror alone total 2,145 implement
 
 ### Existing Files-provider route
 
-Apple documents Google Drive as a service users can enable in Files after installing its app. So Vibe's Browse Files route can reach it. [Apple's Files instructions](https://support.apple.com/en-us/102238)
+Apple documents Google Drive as a service users can enable in Files after installing its app. So Vibe's Choose File route can reach it. [Apple's Files instructions](https://support.apple.com/en-us/102238)
 
 **It does not work.** On 2026-10-08 the probe in [the cloud services order](cloud-services-order.md) (item 0) ran on the maintainer's iPhone. Picking from Google's provider kept showing an error message, and files and folders would not open. It behaved much worse than Dropbox's provider, whose gaps are why Vibe has a Dropbox client. So the Files route is no fallback, and a native client is the only way to play from Drive on iOS.
 

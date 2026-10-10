@@ -388,6 +388,10 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         if (_appending && self.navigationController.viewControllers.firstObject == self) {
             self.navigationItem.leftBarButtonItem = _closeItem;
         }
+        UIBarButtonItem *addLocation = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"plus"]
+                                                                         menu:[self addLocationMenu]];
+        addLocation.accessibilityLabel = STR_BROWSER_ADD_LOCATION;
+        self.navigationItem.rightBarButtonItem = addLocation;
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(clipboardMayHaveChanged:)
                                                    name:UIPasteboardChangedNotification
@@ -864,6 +868,32 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     self.navigationItem.rightBarButtonItems = items;
 }
 
+// The root's plus. Built when opened, so Connect to Dropbox follows the
+// account.
+- (UIMenu *)addLocationMenu {
+    __weak BrowserViewController *weakSelf = self;
+    UIDeferredMenuElement *items = [UIDeferredMenuElement elementWithUncachedProvider:
+            ^(void (^completion)(NSArray<UIMenuElement *> *)) {
+        UIAction *addFolder = VibeMenuAction(STR_SETTINGS_ADD_FOLDER, @"folder.badge.plus", ^{
+            [weakSelf presentPickerForLocation:YES];
+        });
+        // iCloud Drive named here: it is where most music on a phone is.
+        addFolder.subtitle = STR_BROWSER_ADD_FOLDER_CAPTION;
+        if (DropboxMirror.shared.client.isLinked) {
+            completion(@[addFolder]);
+            return;
+        }
+        UIAction *connect = [UIAction actionWithTitle:STR_SETTINGS_DROPBOX_CONNECT
+                                                image:[UIImage imageNamed:@"dropbox-glyph"]
+                                           identifier:nil
+                                              handler:^(UIAction *action) {
+            [weakSelf connectDropbox];
+        }];
+        completion(@[addFolder, connect]);
+    }];
+    return [UIMenu menuWithChildren:@[items]];
+}
+
 // Built when opened, so its check follows a change made on another screen.
 // The title says what the choice reaches: it is the one folder-open setting,
 // not this folder's view.
@@ -1237,7 +1267,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
     _clipboardHasLink = hasLink;
     if (self.viewIfLoaded.window) {
-        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeBrowserRootSectionLocations]
+        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeBrowserRootSectionActions]
                       withRowAnimation:UITableViewRowAnimationFade];
     }
 }
@@ -1282,11 +1312,11 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 }
 
 - (void)reloadPasteRow {
-    NSUInteger row = [[self rootRowsInSection:VibeBrowserRootSectionLocations]
+    NSUInteger row = [[self rootRowsInSection:VibeBrowserRootSectionActions]
             indexOfObject:@(VibeBrowserRootRowPasteURL)];
     if (self.isRoot && self.viewIfLoaded.window && row != NSNotFound) {
         [self.tableView reloadRowsAtIndexPaths:@[[NSIndexPath indexPathForRow:(NSInteger)row
-                                                                    inSection:VibeBrowserRootSectionLocations]]
+                                                                    inSection:VibeBrowserRootSectionActions]]
                               withRowAnimation:UITableViewRowAnimationNone];
     }
 }
@@ -1570,7 +1600,14 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 - (VibeBrowserRootRow)rootRowAtIndexPath:(NSIndexPath *)indexPath {
     NSArray<NSNumber *> *rows = [self rootRowsInSection:indexPath.section];
     return (NSUInteger)indexPath.row < rows.count
-            ? (VibeBrowserRootRow)rows[(NSUInteger)indexPath.row].integerValue : VibeBrowserRootRowBrowseFiles;
+            ? (VibeBrowserRootRow)rows[(NSUInteger)indexPath.row].integerValue : VibeBrowserRootRowChooseFile;
+}
+
+// A granted folder's index in SearchFolderStore: its row, less the sources
+// above it.
+- (NSUInteger)locationIndexAtIndexPath:(NSIndexPath *)indexPath {
+    return (NSUInteger)indexPath.row
+            - [[self rootRowsInSection:indexPath.section] indexOfObject:@(VibeBrowserRootRowLocation)];
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -1722,7 +1759,6 @@ didEndDisplayingCell:(UITableViewCell *)cell
     content.imageProperties.reservedLayoutSize = CGSizeMake(28, 28);
     BOOL action = NO;
     BOOL opening = NO;
-    UIImage *dropboxGlyph = [UIImage imageNamed:@"dropbox-glyph"];
     VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
     switch (row) {
         case VibeBrowserRootRowDevice:
@@ -1733,7 +1769,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         case VibeBrowserRootRowDropbox:
             content.text = VibeNotLocalized(@"Dropbox");
             content.secondaryText = DropboxMirror.shared.client.accountName;
-            content.image = dropboxGlyph;
+            content.image = [UIImage imageNamed:@"dropbox-glyph"];
             break;
         case VibeBrowserRootRowRecents:
             content.text = STR_BROWSER_RECENTS;
@@ -1741,23 +1777,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
             break;
         case VibeBrowserRootRowLocation:
             content.text = [SearchFolderStore displayNameForFolderURL:
-                    SearchFolderStore.shared.folderURLs[(NSUInteger)indexPath.row]];
+                    SearchFolderStore.shared.folderURLs[[self locationIndexAtIndexPath:indexPath]]];
             content.image = [UIImage systemImageNamed:@"folder"];
             break;
-        case VibeBrowserRootRowConnectDropbox:
-            content.text = STR_SETTINGS_DROPBOX_CONNECT;
-            content.image = dropboxGlyph;
-            action = YES;
-            break;
-        case VibeBrowserRootRowAddFolder:
-            content.text = STR_SETTINGS_ADD_FOLDER;
-            // iCloud Drive named here: it is where most music on a phone is.
-            content.secondaryText = STR_BROWSER_ADD_FOLDER_CAPTION;
-            content.image = [UIImage systemImageNamed:@"folder.badge.plus"];
-            action = YES;
-            break;
-        case VibeBrowserRootRowBrowseFiles:
-            content.text = STR_BROWSER_OTHER_FILES;
+        case VibeBrowserRootRowChooseFile:
+            content.text = STR_BROWSER_CHOOSE_FILE;
             content.image = [UIImage systemImageNamed:@"doc.badge.ellipsis"];
             action = YES;
             break;
@@ -1843,15 +1867,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
                                                  animated:YES];
             return;
         case VibeBrowserRootRowLocation:
-            [self pushDirectory:SearchFolderStore.shared.folderURLs[(NSUInteger)indexPath.row]];
+            [self pushDirectory:SearchFolderStore.shared.folderURLs[[self locationIndexAtIndexPath:indexPath]]];
             return;
-        case VibeBrowserRootRowConnectDropbox:
-            [self connectDropbox];
-            return;
-        case VibeBrowserRootRowAddFolder:
-            [self presentPickerForLocation:YES];
-            return;
-        case VibeBrowserRootRowBrowseFiles:
+        case VibeBrowserRootRowChooseFile:
             [self presentPickerForLocation:NO];
             return;
         case VibeBrowserRootRowOpenURL:
@@ -1867,8 +1885,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     }
 }
 
-// A sign-in that lands goes straight into the account: the row was tapped to
-// get there.
+// A sign-in that lands goes straight into the account: the plus's Connect to
+// Dropbox was tapped to get there.
 - (void)connectDropbox {
     __weak BrowserViewController *weakSelf = self;
     [DropboxMirror.shared.client signInWithPresentationAnchor:self.view.window completion:^(NSError *error) {
@@ -1905,7 +1923,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         commitEditingStyle:(UITableViewCellEditingStyle)style
          forRowAtIndexPath:(NSIndexPath *)indexPath {
     if (self.isRoot && style == UITableViewCellEditingStyleDelete) {
-        [SearchFolderStore.shared removeFolderAtIndex:(NSUInteger)indexPath.row];
+        [SearchFolderStore.shared removeFolderAtIndex:[self locationIndexAtIndexPath:indexPath]];
     }
 }
 
@@ -1944,7 +1962,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         if ([self rootRowAtIndexPath:indexPath] != VibeBrowserRootRowLocation) {
             return nil;
         }
-        NSURL *location = SearchFolderStore.shared.folderURLs[(NSUInteger)indexPath.row];
+        NSURL *location = SearchFolderStore.shared.folderURLs[[self locationIndexAtIndexPath:indexPath]];
         return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                        previewProvider:nil
                                                         actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
@@ -2042,7 +2060,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         @"openEnabled": @(_linkOpenItem.isEnabled),
     } : @{@"shown": @NO};
     return @{
-        @"pasteRowShown": @([[self rootRowsInSection:VibeBrowserRootSectionLocations]
+        @"pasteRowShown": @([[self rootRowsInSection:VibeBrowserRootSectionActions]
                 containsObject:@(VibeBrowserRootRowPasteURL)]),
         @"pasteRowResolving": @((BOOL)(_cancelLinkResolve != nil && _linkSheet == nil)),
         @"linkSheet": sheet,
