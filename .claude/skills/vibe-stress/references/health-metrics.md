@@ -25,7 +25,8 @@ The counters are nearly impossible to catch nonzero from outside, since a local 
 - `outputDropouts` counts IO cycles the output unit wrote as silence because the render returned an error. It is cumulative, so any growth is a finding.
 - `renderRefusals` counts renders the pipeline turned away because another was still inside: a callback stuck past its bounded stop while the next output unit began. It is cumulative, and `check_consistency` reports any (`graph.no_render_refused`).
 - `renderCycles`, `renderMeanMicros` and `renderMaxMicros` are the callback's cost. Diff the cycles and the mean across a run. Read the max against the device's buffer period, since a max near it is the dropout before it happens.
-- `clear_render_counters` zeroes all five, for a per-phase reading.
+- `lateCycles` counts callbacks that ran longer than the audio they rendered. `clockJumps` counts cycles whose sample time did not follow the last one, and `skippedFrames` the frames those jumps skipped. All three are cumulative. A soak on one unchanged device should hold them at zero.
+- `clear_render_counters` zeroes all eight, for a per-phase reading.
 - `retiredFades` (under `pending`) and `hostedUnits` (under `app`) fail apart. A voice that never reports its end strands a fade while the unit count stays flat. A unit count that moves means a unit was hosted without its predecessor being disposed.
 
 ## `quiesce`
