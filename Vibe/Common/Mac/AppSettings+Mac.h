@@ -263,7 +263,7 @@ static const double kVibeWaveformGainMaxDB = 12;
 
 #if VIBE_DIRECT_DISTRIBUTION
 // Whether the updater also offers the feed's beta channel. Compiled out of
-// the Mac App Store build. Default YES in a beta build (VIBE_VERBOSE_LOGGING),
+// the Mac App Store build. Default YES in a beta build (VIBE_BETA_DEBUG),
 // NO in a stable one. A beta build stores it at launch, so a stable update
 // keeps a tester on betas. Read at each check, so a change needs no live effect.
 - (BOOL)receiveBetaUpdates;
