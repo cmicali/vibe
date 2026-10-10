@@ -2207,7 +2207,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
 - (void)openItem:(NSDictionary *)item appending:(BOOL)appending inFolder:(BOOL)inFolder {
     PlaybackController *playback = _playback;
     uint64_t token = appending ? [playback addRequestToken]
-                               : [playback replaceRequestTokenOpening:[NSURL fileURLWithPath:item[@"path"]]];
+                               : [playback replaceRequestTokenOpening:[NSURL fileURLWithPath:item[@"path"]
+                                                                                isDirectory:[item[@"folder"] boolValue]]];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
     [playback resolveRecentItem:item completion:^(NSURL *url) {
