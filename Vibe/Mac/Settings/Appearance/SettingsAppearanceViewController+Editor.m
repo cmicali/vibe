@@ -761,16 +761,18 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         views[2].hidden = single;
         views[3].hidden = single;
     }
-    // 3-Band's hues name its bands, so its wells stand in for the waveform
-    // color.
+    // The band styles' hues name their bands. Neither offers the waveform
+    // color. 3-Band's wells stand in for it. Spectrum's hues are fixed, and it
+    // offers no wells.
     BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle];
+    BOOL bandWells = [WaveformRendererRegistry usesBandPaletteForIdentifier:theme.waveformStyle];
     BOOL customTheme = !bands && [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
     _waveformThemeRow.hidden = bands;
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme || single;
-    _bandsDarkRow.hidden = !bands;
-    _bandsLightRow.hidden = !bands || single;
-    _shadeOverlapsRow.hidden = !bands;
+    _bandsDarkRow.hidden = !bandWells;
+    _bandsLightRow.hidden = !bandWells || single;
+    _shadeOverlapsRow.hidden = !bandWells;
     _playheadColorsRow.hidden = !theme.waveformPlayheadLine;
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;

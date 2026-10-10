@@ -76,18 +76,19 @@ static NSArray<VibeColor *> *VibeBuiltInBandColors(BOOL dengine, BOOL isDark) {
     return colors[dengine ? 1 : 0][isDark ? 1 : 0];
 }
 
-static BOOL VibeGetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
-    CGFloat a = 0;
-#if TARGET_OS_OSX
-    NSColor *converted = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    if (!converted) {
-        return NO;
-    }
-    [converted getRed:r green:g blue:b alpha:&a];
-    return YES;
-#else
-    return [color getRed:r green:g blue:b alpha:&a];
-#endif
+// Spectrum's primaries: red lows, green mids and light-blue highs, as DJ
+// decks' spectrum displays draw them. The highs lean toward cyan, because pure
+// blue is too dark to read on black. The light set is darker, for white.
+static NSArray<VibeColor *> *VibeSpectrumColors(BOOL isDark) {
+    static NSArray<VibeColor *> *colors[2];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        colors[1] = @[VibeColorFromHexString(@"FF2A00"), VibeColorFromHexString(@"3CFF28"),
+                      VibeColorFromHexString(@"2E7BFF")];
+        colors[0] = @[VibeColorFromHexString(@"D41C00"), VibeColorFromHexString(@"169E1E"),
+                      VibeColorFromHexString(@"1A4FD6")];
+    });
+    return colors[isDark ? 1 : 0];
 }
 
 static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
@@ -103,11 +104,12 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _unplayedColor = unplayed;
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
         _bandColors = VibeBuiltInBandColors(NO, isDark);
+        _spectrumColors = VibeSpectrumColors(isDark);
         CGFloat pr, pg, pb, ur, ug, ub;
         // Alphas aside on purpose: the scrubber's single-bitmap fast path
         // recovers the level difference from unplayedOverPlayedOpacity.
         _unplayedSharesPlayedHue = played == unplayed ||
-                (VibeGetRGB(played, &pr, &pg, &pb) && VibeGetRGB(unplayed, &ur, &ug, &ub) &&
+                (VibeColorGetSRGB(played, &pr, &pg, &pb) && VibeColorGetSRGB(unplayed, &ur, &ug, &ub) &&
                  fabs(pr - ur) < 0.001 && fabs(pg - ug) < 0.001 && fabs(pb - ub) < 0.001);
     }
     return self;
@@ -129,8 +131,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 #if TARGET_OS_OSX
 + (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
                        artworkColor:(VibeColor *)artworkColor {
-    // 3-Band's hues are its bands, so its played side, which the hover and the
-    // volume bar read, is Mono's rather than the hidden waveform color's.
+    // The band styles hide the waveform color. Their played side is Mono's,
+    // because the hover and the volume bar read it.
     BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle];
     WaveformTheme *resolved = [self themeForIdentifier:bands ? SETTINGS_VALUE_WAVEFORM_THEME_MONO : theme.waveformTheme
                                                 isDark:isDark
@@ -138,7 +140,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                                           customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
                                         customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
     resolved.flatFill = !theme.waveformGradient;
-    if (bands) {
+    if ([WaveformRendererRegistry usesBandPaletteForIdentifier:theme.waveformStyle]) {
         resolved.bandColors = VibeBandColors([theme displayColorForBase:kVibeThemeColorWaveformLow dark:isDark],
                                              [theme displayColorForBase:kVibeThemeColorWaveformMid dark:isDark],
                                              [theme displayColorForBase:kVibeThemeColorWaveformHigh dark:isDark],
@@ -223,7 +225,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 // move that reaches every hue, at the cost of a little saturation.
 + (VibeColor *)legibleArtworkColor:(VibeColor *)color isDark:(BOOL)isDark {
     CGFloat r, g, b;
-    if (!color || !VibeGetRGB(color, &r, &g, &b)) {
+    if (!color || !VibeColorGetSRGB(color, &r, &g, &b)) {
         return nil;
     }
     CGFloat maxc = MAX(r, MAX(g, b));
@@ -249,7 +251,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 
 + (VibeColor *)color:(VibeColor *)color desaturatedBy:(CGFloat)amount {
     CGFloat r, g, b;
-    if (!VibeGetRGB(color, &r, &g, &b)) {
+    if (!VibeColorGetSRGB(color, &r, &g, &b)) {
         return color;
     }
     CGFloat gray = VibeLuminance(r, g, b);
@@ -261,7 +263,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 
 + (VibeColor *)hoverColorForPlayed:(VibeColor *)played isDark:(BOOL)isDark {
     CGFloat r, g, b;
-    if (!VibeGetRGB(played, &r, &g, &b)) {
+    if (!VibeColorGetSRGB(played, &r, &g, &b)) {
         return isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
     }
     // Toward the contrast pole just far enough to clear the delta (closed form:

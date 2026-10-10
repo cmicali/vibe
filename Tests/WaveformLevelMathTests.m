@@ -80,4 +80,51 @@ static float MeanSquareAtFraction(float fraction) {
     }
 }
 
+#pragma mark - Spectrum
+
+static const float kPureRGB[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+
+#define AssertRGB(rgb, r, g, b) do { \
+    XCTAssertEqualWithAccuracy((rgb)[0], (r), 1e-5f); \
+    XCTAssertEqualWithAccuracy((rgb)[1], (g), 1e-5f); \
+    XCTAssertEqualWithAccuracy((rgb)[2], (b), 1e-5f); \
+} while (0)
+
+// A lone band is its primary, whatever its level.
+- (void)testSpectrumLoneBandIsItsPrimary {
+    float rgb[3];
+    const float levels[] = {0.05f, 0.5f, 1.0f};
+    for (size_t i = 0; i < sizeof(levels) / sizeof(levels[0]); i++) {
+        float level = levels[i];
+        VibeSpectrumColor((const float[]){level, 0, 0}, kPureRGB, rgb);
+        AssertRGB(rgb, 1, 0, 0);
+        VibeSpectrumColor((const float[]){0, 0, level}, kPureRGB, rgb);
+        AssertRGB(rgb, 0, 0, 1);
+    }
+}
+
+// Low and high alike make the additive sum, a purple no single tone makes,
+// and a louder band leads by its energy.
+- (void)testSpectrumMixesAdditivelyByEnergy {
+    float rgb[3];
+    VibeSpectrumColor((const float[]){0.6f, 0, 0.6f}, kPureRGB, rgb);
+    AssertRGB(rgb, 1, 0, 1);
+    VibeSpectrumColor((const float[]){1, 0, 0.5f}, kPureRGB, rgb);
+    AssertRGB(rgb, 1, 0, 0.25f);
+    VibeSpectrumColor((const float[]){-1, 0.5f, 0}, kPureRGB, rgb);
+    AssertRGB(rgb, 0, 1, 0);
+}
+
+// Silence is the primaries' plain mean, a gray that reads on either
+// background. A dim palette stays as dim as its primaries, so a light
+// appearance's darker set keeps reading on white.
+- (void)testSpectrumKeepsThePrimariesBrightness {
+    float rgb[3];
+    VibeSpectrumColor((const float[]){0, 0, 0}, kPureRGB, rgb);
+    AssertRGB(rgb, 1.0f / 3, 1.0f / 3, 1.0f / 3);
+    const float dim[3][3] = {{0.5f, 0, 0}, {0, 0.5f, 0}, {0, 0, 0.5f}};
+    VibeSpectrumColor((const float[]){1, 0, 1}, dim, rgb);
+    AssertRGB(rgb, 0.5f, 0, 0.5f);
+}
+
 @end

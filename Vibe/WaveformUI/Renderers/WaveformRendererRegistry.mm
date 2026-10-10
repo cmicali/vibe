@@ -62,7 +62,8 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                  x2OversamplingDetailedAudioWaveformRenderer.class,
                                  x4OversamplingDetailedAudioWaveformRenderer.class,
                                  x8OversamplingDetailedAudioWaveformRenderer.class,
-                                 ThreeBandWaveformRenderer.class]) {
+                                 ThreeBandWaveformRenderer.class,
+                                 SpectrumWaveformRenderer.class]) {
             // A nil key raises; in Release an unoverridden subclass costs one
             // style, not the registry.
             NSString *identifier = [renderer styleIdentifier];
@@ -104,9 +105,17 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return identifier && [[self renderersByIdentifier][identifier] readsBands];
 }
 
++ (BOOL)usesBandPaletteForIdentifier:(NSString *)identifier {
+    return identifier && [[self renderersByIdentifier][identifier] usesBandPalette];
+}
+
++ (NSArray<VibeColor *> *)swatchColorsForIdentifier:(NSString *)identifier theme:(WaveformTheme *)theme {
+    Class renderer = (identifier ? [self renderersByIdentifier][identifier] : nil) ?: AudioWaveformRenderer.class;
+    return [renderer swatchColorsForTheme:theme];
+}
+
 + (BOOL)drawsPlayheadLineForIdentifier:(NSString *)identifier chosen:(NSNumber *)chosen {
-    return chosen != nil ? chosen.boolValue
-                         : [identifier isEqualToString:[ThreeBandWaveformRenderer styleIdentifier]];
+    return chosen != nil ? chosen.boolValue : [self readsBandsForIdentifier:identifier];
 }
 
 // Hosts the REAL renderer in a detached layer, so the Settings preview and the

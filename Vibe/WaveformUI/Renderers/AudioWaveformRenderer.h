@@ -253,6 +253,14 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // decode was asked for them. NO here.
 + (BOOL)readsBands;
 
+// Whether the style paints the theme's bandColors, which the settings then
+// offer. NO here.
++ (BOOL)usesBandPalette;
+
+// The three colors a theme's swatch shows for this style: the played color
+// here.
++ (NSArray<VibeColor *> *)swatchColorsForTheme:(WaveformTheme *)theme;
+
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 - (void)updateColors:(BOOL)isDark;

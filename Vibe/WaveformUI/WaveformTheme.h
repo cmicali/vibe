@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The resolved colors as hex: played, unplayed and the bands. Equal
 // signatures draw alike, so a view re-bakes only when this changes.
+// Spectrum's colors are left out, since they follow the appearance alone.
 @property (readonly) NSString *paletteSignature;
 
 // Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the
@@ -54,6 +55,11 @@ NS_ASSUME_NONNULL_BEGIN
 // low+mid, low+high, mid+high, and all three. Rekord Bin's unless a mac theme
 // sets its bands or iOS picks another palette.
 @property (nonatomic, copy) NSArray<VibeColor *> *bandColors;
+
+// Spectrum's low, mid and high primaries, opaque. It mixes them per bar by
+// the bands' energies. They are fixed per appearance, as a DJ deck's spectrum
+// colors are. No theme or band palette sets them.
+@property (readonly) NSArray<VibeColor *> *spectrumColors;
 
 // bandColors for a SETTINGS_VALUE_WAVEFORM_BAND_THEME_* identifier; an unknown
 // one resolves as Rekord Bin. custom is the custom palette's low, mid and high
