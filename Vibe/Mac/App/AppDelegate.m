@@ -210,7 +210,6 @@ static NSString *DebugUpdateFeed(void) {
     return updater.automaticallyChecksForUpdates ? updater.updateCheckInterval : 0;
 }
 
-// Setting either property also answers Sparkle's first-run prompt.
 - (void)setUpdateCheckInterval:(NSTimeInterval)interval {
     SPUUpdater *updater = _updaterController.updater;
     updater.automaticallyChecksForUpdates = interval > 0;

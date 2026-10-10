@@ -322,7 +322,10 @@ targets:
         SUPublicEDKey: "$(VIBE_SPARKLE_PUBLIC_KEY)"
         SUEnableInstallerLauncherService: true   # required under the App Sandbox
         SUVerifyUpdateBeforeExtraction: true
-        SUScheduledCheckInterval: 604800          # weekly, until Settings > General says otherwise
+        # On from the first launch, weekly, with no prompt: Sparkle asks only
+        # when this key is absent. Settings > General can change both.
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 604800
 
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
