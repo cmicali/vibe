@@ -459,7 +459,7 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     XCTAssertTrue([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE]);
     XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE);
     XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"spectrum"], STR_WAVEFORM_STYLE_SPECTRUM);
-    XCTAssertEqual([self rendererForStyle:@"spectrum"].class, ThreeBandWaveformRenderer.class);
+    XCTAssertEqual([self rendererForStyle:@"spectrum"].class, SpectrumWaveformRenderer.class);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     for (NSString *identifier in @[@"detailed", @"wiggle_centered"]) {
@@ -954,6 +954,22 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:nil]);
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:@"missing-style"]);
     XCTAssertFalse([WaveformRendererRegistry usesBandPaletteForIdentifier:nil]);
+}
+
+// A theme's swatch shows the band styles' own colors and every other style's
+// played color, an unregistered one included.
+- (void)testSwatchColorsFollowTheStyle {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    NSArray<VibeColor *> *played = @[theme.playedColor, theme.playedColor, theme.playedColor];
+    XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:@"three_band" theme:theme],
+                          [theme.bandColors subarrayWithRange:NSMakeRange(0, 3)]);
+    XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:@"spectrum" theme:theme],
+                          theme.spectrumColors);
+    for (NSString *identifier in @[@"detailed", @"wiggle_centered", @"missing-style"]) {
+        XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:identifier theme:theme], played,
+                              @"%@", identifier);
+    }
+    XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:nil theme:theme], played);
 }
 
 #pragma mark - Spectrum

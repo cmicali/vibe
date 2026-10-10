@@ -10,10 +10,10 @@
 // band set an antialiased envelope in the theme's bandColors, about the
 // midline or grounded.
 @interface ThreeBandWaveformRenderer : AudioWaveformRenderer
+@end
 
-// Spectrum shares the bands' levels, outline, morph, sides and bake, and fills
-// the outline with each bar's mix of the theme's spectrumColors instead.
-- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
-                     spectrum:(BOOL)spectrum;
-
+// A DJ deck's spectrum display. It keeps 3-Band's levels, outline, morph,
+// sides and bake. It fills the outline with each bar's mix of the theme's
+// spectrumColors in place of the band layers.
+@interface SpectrumWaveformRenderer : ThreeBandWaveformRenderer
 @end

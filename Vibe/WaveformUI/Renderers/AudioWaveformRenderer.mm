@@ -115,6 +115,14 @@
     return NO;
 }
 
++ (BOOL)usesBandPalette {
+    return NO;
+}
+
++ (NSArray<VibeColor *> *)swatchColorsForTheme:(WaveformTheme *)theme {
+    return @[theme.playedColor, theme.playedColor, theme.playedColor];
+}
+
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
 }

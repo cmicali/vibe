@@ -197,14 +197,10 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
-    return [self initWithLayer:parentLayer bounds:bounds isDark:isDark spectrum:NO];
-}
-
-- (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
-                     spectrum:(BOOL)spectrum {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
-        _spectrum = spectrum;
+        // Read once, since setupLayers builds one style's layers.
+        _spectrum = [self isKindOfClass:SpectrumWaveformRenderer.class];
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
@@ -304,6 +300,14 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 + (BOOL)readsBands {
     return YES;
+}
+
++ (BOOL)usesBandPalette {
+    return YES;
+}
+
++ (NSArray<VibeColor *> *)swatchColorsForTheme:(WaveformTheme *)theme {
+    return [theme.bandColors subarrayWithRange:NSMakeRange(0, kAudioWaveformBandCount)];
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
@@ -540,6 +544,27 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 // The unplayed side is the played bitmap dimmed, as the live stack is.
 - (CGFloat)unplayedOverPlayedOpacity {
     return kUnplayedOpacity;
+}
+
+@end
+
+@implementation SpectrumWaveformRenderer
+
++ (NSString *)styleIdentifier {
+    return @"spectrum";
+}
+
++ (NSString *)displayName {
+    return STR_WAVEFORM_STYLE_SPECTRUM;
+}
+
+// The hues are fixed. The settings offer no band palette.
++ (BOOL)usesBandPalette {
+    return NO;
+}
+
++ (NSArray<VibeColor *> *)swatchColorsForTheme:(WaveformTheme *)theme {
+    return theme.spectrumColors;
 }
 
 @end

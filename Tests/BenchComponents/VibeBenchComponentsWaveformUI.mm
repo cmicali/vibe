@@ -300,8 +300,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     auto spectrum = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "spectrum-resize", "frame", [spectrum]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(spectrum.get(), 800, 13);
-        spectrum->renderer = [[ThreeBandWaveformRenderer alloc] initWithLayer:spectrum->parent bounds:bounds
-                                                                       isDark:YES spectrum:YES];
+        spectrum->renderer = [[SpectrumWaveformRenderer alloc] initWithLayer:spectrum->parent bounds:bounds
+                                                                      isDark:YES];
         spectrum->renderer.normalizesLevels = YES;
         [spectrum->renderer updateWaveform:bounds progress:0.4 waveform:spectrum->waveform.get()];
         [spectrum->renderer settleMorphImmediately];

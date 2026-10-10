@@ -4,7 +4,7 @@ The pane identifier is `themes`; the directory and the class keep the Appearance
 
 ## The list page
 
-The theme table is one column, so no header: each name carries its theme's swatch (`swatchForThemeIdentifier:dark:`), the window color behind three bars of the waveform color, the active theme's from its working record. Group headers start at the swatches' edge.
+The theme table is one column, so no header. Each name carries its theme's swatch (`swatchForThemeIdentifier:dark:`): the window color behind three bars. The style picks the bars' colors (`WaveformRendererRegistry.swatchColorsForIdentifier:theme:`). They are the waveform color, 3-Band's bands, or Spectrum's fixed colors. The active theme's swatch comes from its working record. Group headers start at the swatches' edge.
 
 Current theme comes first: the active name, Edit Theme… (Customize… for a built-in; both only open the editor), the quick waveform-style picker and a static renderer preview below it. Built-in divergence shows Modified and Revert; Customize copies that working state into an editable theme. The theme list follows.
 
