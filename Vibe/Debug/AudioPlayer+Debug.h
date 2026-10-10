@@ -63,8 +63,8 @@ NS_ASSUME_NONNULL_BEGIN
 // `unitRenders` stays flat while no effect is engaged, `decodeTurns` while
 // every voice is paused at its end, `varispeedRenders` and
 // `varispeedHistoryWrites` at zero pitch settled. The output unit's
-// `renderCycles`, `renderMeanMicros`, `renderMaxMicros` and `outputDropouts`
-// are cumulative.
+// `renderCycles`, `renderMeanMicros`, `renderMaxMicros`, `outputDropouts`,
+// `lateCycles`, `clockJumps` and `skippedFrames` are cumulative.
 //
 // Reads with dispatch_sync on the player queue, so never call it from there;
 // that makes it the main-thread channel's liveness probe for the queue.
