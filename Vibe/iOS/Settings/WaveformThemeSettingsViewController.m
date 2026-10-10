@@ -20,12 +20,26 @@ typedef NS_ENUM(NSInteger, VibeThemeSection) {
     VibeThemeSectionCount,
 };
 
+// The style this screen colors: the card's, or the widget's when the card's
+// takes no palette. Spectrum takes none, because its hues are fixed. nil when
+// neither style takes one.
+static NSString *_Nullable PalettedStyle(void) {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *card = [WaveformRendererRegistry resolveStyleIdentifier:settings.waveformStyle];
+    NSString *widget = [WaveformRendererRegistry resolveStyleIdentifier:settings.widgetWaveformStyle ?: card];
+    for (NSString *style in @[card, widget]) {
+        if (![WaveformRendererRegistry readsBandsForIdentifier:style]
+            || [WaveformRendererRegistry usesBandPaletteForIdentifier:style]) {
+            return style;
+        }
+    }
+    return nil;
+}
+
 // 3-Band draws its bands and ignores the waveform theme, so under it the
-// screen offers the band palettes instead. Spectrum takes neither, and the
-// waveform themes still color the widget's style.
+// screen offers the band palettes instead.
 static BOOL ShowsBands(void) {
-    return [WaveformRendererRegistry usesBandPaletteForIdentifier:
-            [WaveformRendererRegistry resolveStyleIdentifier:AppSettings.sharedInstance.waveformStyle]];
+    return [WaveformRendererRegistry usesBandPaletteForIdentifier:PalettedStyle()];
 }
 
 // The mac popup's order, and the mac's built-in 3-Band themes.
@@ -98,6 +112,10 @@ static void StoreCustomWaveformColor(UIColor *color, NSInteger row, BOOL isDark,
 static NSString *const kChoiceCellIdentifier = @"choice";
 
 @implementation WaveformThemeSettingsViewController
+
++ (BOOL)appliesToCurrentStyles {
+    return PalettedStyle() != nil;
+}
 
 + (NSString *)currentThemeDisplayName {
     BOOL bands = ShowsBands();

@@ -189,6 +189,14 @@ static NSString *const kValueCellIdentifier  = @"value";
         content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
         content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayName];
     }
+    // The theme row dims, as the Centered switch does, for styles that ignore it.
+    BOOL enabled = !waveform || indexPath.row != VibeWaveformRowTheme
+                   || [WaveformThemeSettingsViewController appliesToCurrentStyles];
+    if (!enabled) {
+        content.textProperties.color = UIColor.tertiaryLabelColor;
+        content.secondaryTextProperties.color = UIColor.tertiaryLabelColor;
+    }
+    cell.userInteractionEnabled = enabled;
     cell.contentConfiguration = content;
     return cell;
 }
