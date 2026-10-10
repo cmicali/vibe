@@ -2605,6 +2605,18 @@
       },
       "extractionState": "manual"
     },
+    "browser.add_clipboard_link": {
+      "comment": "iOS Add to Playlist sheet: a row under Locations, shown only while the clipboard holds a web link. A tap adds the copied link to the playlist. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Link on Clipboard"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.add_subfolders": {
       "comment": "iOS add-to-playlist sheet: the item under a long press on a folder's add button. Adds every song in the folder and in the folders inside it to the playlist, where a plain tap adds only the songs directly in the folder.",
       "localizations": {
@@ -3907,6 +3919,18 @@
       },
       "extractionState": "manual"
     },
+    "browser.open_clipboard_link": {
+      "comment": "iOS Files tab: a row under Locations, shown only while the clipboard holds a web link. A tap plays the copied link. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Link on Clipboard"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.open_url": {
       "comment": "iOS Files tab: the row under Locations that asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
@@ -4463,7 +4487,7 @@
           }
         }
       },
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "browser.paste_open": {
       "comment": "iOS Files tab: a row under Locations, shown only while the clipboard holds a web link. The system's Paste button sits beside it, and tapping that button plays the copied link. Title case, as the rows beside it.",
@@ -4649,7 +4673,7 @@
           }
         }
       },
-      "extractionState": "manual"
+      "extractionState": "stale"
     },
     "browser.play_subfolders": {
       "comment": "iOS Files tab: the item under a long press on a folder's play button. Plays every song in the folder and in the folders inside it, where a plain tap plays only the songs directly in the folder.",
@@ -84073,6 +84097,30 @@
       },
       "extractionState": "manual"
     },
+    "settings.files.allow_paste": {
+      "comment": "iOS settings screen, Files: a row that opens this app's page in the system Settings app, where pasting from other apps can be allowed. Then the Files tab opens a copied link without asking first. Title case, as the rows beside it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Pasting Links"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.files.allow_paste_footer": {
+      "comment": "iOS settings screen, Files: explanation under the Allow Pasting Links row. 'Settings' is the system Settings app. 'Paste from Other Apps' and 'Allow' are the labels iOS shows on this app's page in the Settings app: use exactly the wording iOS uses for them in this language.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Settings, set Paste from Other Apps to Allow. A copied link then opens without asking."
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.files.conversion": {
       "comment": "macOS Settings: FLAC conversion",
       "localizations": {
@@ -85190,7 +85238,7 @@
       "extractionState": "manual"
     },
     "settings.files_dropbox": {
-      "comment": "iOS settings: the row, and the title of the screen it opens, holding the Dropbox account and the order folders are sorted in. Dropbox is a product name: keep it as is.",
+      "comment": "iOS settings: the row, and the title of the screen it opens, holding the Dropbox account, the order folders are sorted in, and the row that allows pasting links. Dropbox is a product name: keep it as is.",
       "localizations": {
         "bg": {
           "stringUnit": {

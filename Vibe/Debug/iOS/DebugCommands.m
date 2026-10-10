@@ -596,9 +596,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // The paste row's control without the clipboard: the browser's own
-            // pasteItemProviders:, handed what the system's Paste would. The
-            // system checks a real tap on the control, so nothing can fake one.
+            // The paste row without the clipboard: the browser's own
+            // pasteItemProviders:, handed what a clipboard read would. A real
+            // read of another app's copy raises the system's prompt.
             VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 BrowserViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
@@ -610,9 +610,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 [browser pasteItemProviders:@[VibeDebugPasteProvider(VibeRestArgument(tokens))]];
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // Writes the clipboard from inside the app, which never asks. The
-            // paste row's check still only detects. simctl pbcopy left the
-            // iOS 27 simulator's clipboard empty.
+            // Writes the clipboard from inside the app. A paste of the app's own
+            // copy never asks. simctl pbcopy left the iOS 27 simulator's
+            // clipboard empty.
             VibeDebugCmd(@"set_clipboard <text> | clear", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_clipboard <text> | clear");

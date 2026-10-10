@@ -33,7 +33,6 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
 static NSString *const kSourceCellIdentifier = @"source";
 static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kItemCellIdentifier = @"item";
-static NSString *const kPasteCellIdentifier = @"paste";
 
 // Going back to a folder relists it only this long after its last listing;
 // pull to refresh always does.
@@ -49,8 +48,6 @@ static const NSUInteger kMaximumSubfolders = 500;
 static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
-// The system's Paste control in the paste row.
-static const CGSize kPasteControlSize = {112, 36};
 // TRAP: the system draws its Paste control blank, and ignores taps on it,
 // when its content does not fit the frame. A fixed size fits only the default
 // text size. So Open URL's control scales with Dynamic Type, and it spans the
@@ -387,9 +384,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         if (_appending && self.navigationController.viewControllers.firstObject == self) {
             self.navigationItem.leftBarButtonItem = _closeItem;
         }
-        // The paste row's control pastes into this screen (pasteItemProviders:).
-        self.pasteConfiguration = [[UIPasteConfiguration alloc] initWithAcceptableTypeIdentifiers:
-                @[UTTypeURL.identifier, UTTypePlainText.identifier]];
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(clipboardMayHaveChanged:)
                                                    name:UIPasteboardChangedNotification
@@ -398,9 +392,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
                                                selector:@selector(clipboardMayHaveChanged:)
                                                    name:UISceneDidActivateNotification
                                                  object:nil];
-        // The paste row's control takes its colors resolved (pasteCell).
-        [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class]
-                           withAction:@selector(reloadPasteRow)];
     }
     else {
         self.navigationItem.title = _title;
@@ -1227,9 +1218,17 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
 }
 
-// The paste row's control. Its first web link opens as the sheet's Open does.
-// Anything else fails as an address that is no link. A paste while a link
-// resolves gives that link up, as a second tap on a spinning row does.
+// The paste row's tap. Listing the clipboard's providers asks nothing. Loading
+// one raises the system's Allow Paste prompt, unless the user set Paste from
+// Other Apps to Allow.
+- (void)pasteClipboardLink {
+    [self pasteItemProviders:UIPasteboard.generalPasteboard.itemProviders];
+}
+
+// The paste row's items. The first web link opens as the sheet's Open does.
+// Other text fails as an address that is no link. A paste while a link
+// resolves gives that link up and loads nothing, as a second tap on a
+// spinning row does.
 - (void)pasteItemProviders:(NSArray<NSItemProvider *> *)itemProviders {
     dispatch_block_t cancel = _cancelLinkResolve;
     if (cancel) {
@@ -1240,10 +1239,17 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     VibeLoadPastedItems(itemProviders, ^(NSArray<NSDictionary<NSString *, NSString *> *> *items) {
         BrowserViewController *strongSelf = weakSelf;
         NSURL *link = VibePasteLinkOfItems(items);
+        // TRAP: a denied paste still lists its items, with their types. Only
+        // the loads fail (PBErrorDomain 13). Nothing was read, so nothing is
+        // said.
+        BOOL read = NO;
+        for (NSDictionary<NSString *, NSString *> *item in items) {
+            read = read || item.count > 0;
+        }
         if (link) {
             [strongSelf openLinkText:link.absoluteString];
         }
-        else if (strongSelf.viewIfLoaded.window) {
+        else if (read && strongSelf.viewIfLoaded.window) {
             NSError *invalid = [NSError errorWithDomain:VibeLinkErrorDomain code:VibeLinkErrorInvalid userInfo:nil];
             VibePresentAlert(VibeTopmostPresenter(strongSelf), STR_LINK_ERROR_TITLE,
                              [LinkStore messageForError:invalid brief:NO]);
@@ -1691,6 +1697,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     // so every row reserves its width and the labels line up.
     content.imageProperties.reservedLayoutSize = CGSizeMake(28, 28);
     BOOL action = NO;
+    BOOL opening = NO;
     UIImage *dropboxGlyph = [UIImage imageNamed:@"dropbox-glyph"];
     VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
     switch (row) {
@@ -1733,14 +1740,13 @@ didEndDisplayingCell:(UITableViewCell *)cell
             content.image = [UIImage systemImageNamed:@"link"];
             action = YES;
             break;
-        case VibeBrowserRootRowPasteURL: {
-            content.text = _appending ? STR_BROWSER_PASTE_ADD : STR_BROWSER_PASTE_OPEN;
+        case VibeBrowserRootRowPasteURL:
+            content.text = _appending ? STR_BROWSER_ADD_CLIPBOARD_LINK : STR_BROWSER_OPEN_CLIPBOARD_LINK;
             content.image = [UIImage systemImageNamed:@"doc.on.clipboard"];
-            // The paste row spins while its link resolves; the sheet shows its own.
-            UITableViewCell *cell = [self pasteCell];
-            VibeApplyRowContent(cell, content, _cancelLinkResolve != nil && _linkSheet == nil);
-            return cell;
-        }
+            action = YES;
+            // It spins while its link resolves. Open URL's sheet shows its own.
+            opening = _cancelLinkResolve != nil && _linkSheet == nil;
+            break;
     }
     UITableViewCell *cell = [self cellWithIdentifier:action ? kActionCellIdentifier : kSourceCellIdentifier];
     if (action) {
@@ -1753,48 +1759,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     else {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
-    VibeApplyRowContent(cell, content, NO);
+    VibeApplyRowContent(cell, content, opening);
     return cell;
-}
-
-// The system's Paste, drawn by the system and never covered, at the row's
-// trailing edge. The row's title says what it does. A tap elsewhere on the
-// row does nothing: anything but the control would ask to read the clipboard.
-- (UITableViewCell *)pasteCell {
-    UITableViewCell *cell = [self.tableView dequeueReusableCellWithIdentifier:kPasteCellIdentifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                      reuseIdentifier:kPasteCellIdentifier];
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    }
-    // TRAP: the system draws the control out of process. It sees no trait
-    // collection, so a dynamic color draws its light half, and a translucent
-    // one draws as solid gray. The colors are resolved here, and the control
-    // is made again for the other appearance.
-    UITraitCollection *traits = self.traitCollection;
-    if (cell.accessoryView.tag == traits.userInterfaceStyle) {
-        return cell;
-    }
-    // The row's own background and the action rows' tint, so it reads as a
-    // row's button.
-    UIPasteControlConfiguration *configuration = [[UIPasteControlConfiguration alloc] init];
-    configuration.displayMode = UIPasteControlDisplayModeIconAndLabel;
-    configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
-    configuration.baseBackgroundColor =
-            [UIColor.secondarySystemGroupedBackgroundColor resolvedColorWithTraitCollection:traits];
-    configuration.baseForegroundColor =
-            [(self.view.tintColor ?: UIColor.systemBlueColor) resolvedColorWithTraitCollection:traits];
-    UIPasteControl *paste = [[UIPasteControl alloc] initWithConfiguration:configuration];
-    paste.target = self;
-    paste.tag = traits.userInterfaceStyle;
-    // It has no size of its own. Its label fits the frame it is given.
-    paste.frame = CGRectMake(0, 0, kPasteControlSize.width, kPasteControlSize.height);
-    cell.accessoryView = paste;
-    return cell;
-}
-
-- (BOOL)tableView:(UITableView *)tableView shouldHighlightRowAtIndexPath:(NSIndexPath *)indexPath {
-    return !self.isRoot || [self rootRowAtIndexPath:indexPath] != VibeBrowserRootRowPasteURL;
 }
 
 #pragma mark - Selection
@@ -1870,7 +1836,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
             [self presentLinkSheet];
             return;
         case VibeBrowserRootRowPasteURL:
-            // Only its paste control acts.
+            [self pasteClipboardLink];
             return;
     }
 }
