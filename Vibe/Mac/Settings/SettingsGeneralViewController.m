@@ -4,6 +4,7 @@
 //
 
 #import "SettingsGeneralViewController.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"
@@ -46,6 +47,9 @@ static const double kWaveformGainDetentDB = 0.75;
     VibeSwitch *_reopenPlaylistSwitch;
     NSPopUpButton *_waveformDragPopUp;
     NSPopUpButton *_artworkDragPopUp;
+#if VIBE_DIRECT_DISTRIBUTION
+    NSPopUpButton *_updateCheckPopUp;
+#endif
     // Shown on refresh while the async check runs.
     BOOL _lastKnownIsDefaultPlayer;
     NSUInteger _defaultPlayerCheckGeneration;
@@ -105,6 +109,15 @@ static const double kWaveformGainDetentDB = 0.75;
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_PATH value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH to:_artworkDragPopUp];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
+#if VIBE_DIRECT_DISTRIBUTION
+    // Seconds, as AppDelegate.updateCheckInterval takes them; 0 is never.
+    _updateCheckPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(updateCheckChanged:)];
+    [self addItem:STR_SETTINGS_UPDATE_CHECK_NEVER value:@0 to:_updateCheckPopUp];
+    [self addItem:STR_SETTINGS_UPDATE_CHECK_DAILY value:@(24 * 3600) to:_updateCheckPopUp];
+    [self addItem:STR_SETTINGS_UPDATE_CHECK_WEEKLY value:@(7 * 24 * 3600) to:_updateCheckPopUp];
+    [self addItem:STR_SETTINGS_UPDATE_CHECK_MONTHLY value:@(30 * 24 * 3600) to:_updateCheckPopUp];
+#endif
+
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BEHAVIOR_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
@@ -120,6 +133,10 @@ static const double kWaveformGainDetentDB = 0.75;
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
+#if VIBE_DIRECT_DISTRIBUTION
+            // Compiled out of the Mac App Store build, which has no updater.
+            [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckPopUp],
+#endif
         ]],
     ]];
 }
@@ -190,6 +207,9 @@ static const double kWaveformGainDetentDB = 0.75;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
+#if VIBE_DIRECT_DISTRIBUTION
+    [self selectValue:@([(AppDelegate *)NSApp.delegate updateCheckInterval]) in:_updateCheckPopUp];
+#endif
 }
 
 // On, the caption is the player's report, which settles asynchronously: the
@@ -282,6 +302,12 @@ static const double kWaveformGainDetentDB = 0.75;
 - (void)artworkDragChanged:(id)sender {
     AppSettings.sharedInstance.artworkDragAction = _artworkDragPopUp.selectedItem.representedObject;
 }
+
+#if VIBE_DIRECT_DISTRIBUTION
+- (void)updateCheckChanged:(id)sender {
+    [(AppDelegate *)NSApp.delegate setUpdateCheckInterval:[_updateCheckPopUp.selectedItem.representedObject doubleValue]];
+}
+#endif
 
 #pragma mark - Output device
 

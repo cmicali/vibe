@@ -23,6 +23,10 @@
 #if VIBE_DIRECT_DISTRIBUTION
 // Vibe > Check for Updates…, the direct download's only.
 - (IBAction)checkForUpdates:(id)sender;
+// Settings > General's check frequency in seconds, 0 for never. Sparkle
+// stores it. Reads 0 and ignores writes while no updater runs: a Debug build
+// launched without --update-feed.
+@property (nonatomic) NSTimeInterval updateCheckInterval;
 #endif
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.

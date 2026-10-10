@@ -209,6 +209,20 @@ static NSString *DebugUpdateFeed(void) {
     [_updaterController checkForUpdates:sender];
 }
 
+- (NSTimeInterval)updateCheckInterval {
+    SPUUpdater *updater = _updaterController.updater;
+    return updater.automaticallyChecksForUpdates ? updater.updateCheckInterval : 0;
+}
+
+// Setting either property also answers Sparkle's first-run prompt.
+- (void)setUpdateCheckInterval:(NSTimeInterval)interval {
+    SPUUpdater *updater = _updaterController.updater;
+    updater.automaticallyChecksForUpdates = interval > 0;
+    if (interval > 0) {
+        updater.updateCheckInterval = interval;
+    }
+}
+
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
     if (item.action == @selector(checkForUpdates:)) {
         return _updaterController.updater.canCheckForUpdates;
