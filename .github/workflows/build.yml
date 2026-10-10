@@ -47,8 +47,9 @@ jobs:
     # cannot build this.
     runs-on: macos-26
     # A hung xcodebuild otherwise runs to the 360-minute default, at the
-    # macOS runner's 10x billing rate.
-    timeout-minutes: 30
+    # macOS runner's 10x billing rate. 45 rather than 30: the macOS leg runs
+    # two whole-app analyze builds, Release and AppStore, which share nothing.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

@@ -25,6 +25,7 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -205,9 +206,14 @@ static NSString *DebugUpdateFeed(void) {
                                                                     userDriverDelegate:nil];
 }
 
+// Any other stored interval reads as the nearest preset.
 - (NSTimeInterval)updateCheckInterval {
     SPUUpdater *updater = _updaterController.updater;
-    return updater.automaticallyChecksForUpdates ? updater.updateCheckInterval : 0;
+    if (!updater.automaticallyChecksForUpdates) {
+        return 0;
+    }
+    return VibeNearestPreset((NSInteger)updater.updateCheckInterval,
+                             kVibeUpdateCheckIntervalPresets, kVibeUpdateCheckIntervalPresetCount);
 }
 
 - (void)setUpdateCheckInterval:(NSTimeInterval)interval {

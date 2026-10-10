@@ -192,15 +192,16 @@ IFS=$'\t' read -r ARM64_VERSION ARM64_BUILD <<< "$ARM64_METADATA"
 TAG="v$VERSION"
 
 # Sparkle offers an item only when its build number is higher than the running
-# app's, and the feeds list newest first.
+# app's, and the feeds list newest first. An item for this very build is a run
+# that failed after writing it, so a re-run keeps it rather than refusing.
 newest_feed_build() {
     awk -F '</?sparkle:version>' 'NF == 3 { print $2; exit }' "$1"
 }
 if [[ -z "$DRAFT" ]]; then
     for feed in "$UNIVERSAL_FEED" "$ARM64_FEED"; do
         newest="$(newest_feed_build "$feed")"
-        if [[ -n "$newest" ]] && (( BUILD <= newest )); then
-            echo "error: build $BUILD is not newer than $feed's newest item, build $newest" >&2
+        if [[ -n "$newest" ]] && (( BUILD < newest )); then
+            echo "error: build $BUILD is older than $feed's newest item, build $newest" >&2
             echo "       bump CURRENT_PROJECT_VERSION in project.yml and rebuild" >&2
             exit 1
         fi
@@ -242,6 +243,11 @@ add_feed_item() {
     local minimum
     local item
 
+    if [[ "$(newest_feed_build "$feed")" == "$BUILD" ]]; then
+        echo "🔊 $feed already offers build $BUILD — keeping it"
+        return
+    fi
+
     if [[ -n "$PRERELEASE" ]]; then
         channel="<sparkle:channel>beta</sparkle:channel>"
     fi
@@ -273,7 +279,7 @@ XML
     rm -f "$item"
     xmllint --noout "$feed" || {
         echo "error: $feed is no longer valid XML — nothing has been published" >&2
-        git checkout -- "$feed"
+        git checkout -- "$UNIVERSAL_FEED" "$ARM64_FEED"
         exit 1
     }
 }
@@ -301,10 +307,13 @@ else
         WEB_FILES+=(Assets/Web/index.html Assets/Web/_redirects)
         MESSAGE="web: point the download and updates at v$VERSION"
     fi
-    git commit -q -m "$MESSAGE" -- "${WEB_FILES[@]}" || {
-        echo "error: could not commit the web update — nothing has been published" >&2
-        exit 1
-    }
+    # Nothing to commit on a re-run whose first attempt committed already.
+    if [[ -n "$(git status --porcelain -- "${WEB_FILES[@]}")" ]]; then
+        git commit -q -m "$MESSAGE" -- "${WEB_FILES[@]}" || {
+            echo "error: could not commit the web update — nothing has been published" >&2
+            exit 1
+        }
+    fi
     git push -q origin HEAD || {
         echo "error: could not push the web update — the tag would dangle." >&2
         echo "       Nothing has been published. Push, then re-run." >&2

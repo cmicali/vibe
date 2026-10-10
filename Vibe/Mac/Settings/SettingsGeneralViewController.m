@@ -114,9 +114,13 @@ static const double kWaveformGainDetentDB = 0.75;
     // Seconds, as AppDelegate.updateCheckInterval takes them; 0 is never.
     _updateCheckPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(updateCheckChanged:)];
     [self addItem:STR_SETTINGS_UPDATE_CHECK_NEVER value:@0 to:_updateCheckPopUp];
-    [self addItem:STR_SETTINGS_UPDATE_CHECK_DAILY value:@(24 * 3600) to:_updateCheckPopUp];
-    [self addItem:STR_SETTINGS_UPDATE_CHECK_WEEKLY value:@(7 * 24 * 3600) to:_updateCheckPopUp];
-    [self addItem:STR_SETTINGS_UPDATE_CHECK_MONTHLY value:@(30 * 24 * 3600) to:_updateCheckPopUp];
+    NSArray<NSString *> *intervalTitles = @[STR_SETTINGS_UPDATE_CHECK_DAILY, STR_SETTINGS_UPDATE_CHECK_WEEKLY,
+                                            STR_SETTINGS_UPDATE_CHECK_MONTHLY];
+    NSAssert(intervalTitles.count == kVibeUpdateCheckIntervalPresetCount,
+             @"Every update check interval needs a title");
+    for (size_t i = 0; i < kVibeUpdateCheckIntervalPresetCount; i++) {
+        [self addItem:intervalTitles[i] value:@(kVibeUpdateCheckIntervalPresets[i]) to:_updateCheckPopUp];
+    }
     _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
 #endif
 

@@ -39,6 +39,9 @@
 #define SETTING_APPLE_MPEG_DECODER                  @"AudioPlayer.appleMPEGDecoder"
 #if VIBE_DIRECT_DISTRIBUTION
 #define SETTING_RECEIVE_BETA_UPDATES                @"Updates.receiveBetas"
+// Sparkle's own keys, behind Settings > General's Check for updates.
+#define SETTING_SPARKLE_AUTOMATIC_CHECKS            @"SUEnableAutomaticChecks"
+#define SETTING_SPARKLE_CHECK_INTERVAL              @"SUScheduledCheckInterval"
 #endif
 // { device UID: { mode: YES } }, holding only the modes that are on.
 #define SETTING_OUTPUT_MODES_BY_DEVICE_UID          @"AudioPlayer.outputModesByDeviceUID"
@@ -74,6 +77,11 @@ const size_t kVibeSkipBasePresetCount =
 const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 const size_t kVibeUIUpdateHzCapPresetCount =
         sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]);
+#if VIBE_DIRECT_DISTRIBUTION
+const NSInteger kVibeUpdateCheckIntervalPresets[] = {24 * 3600, 7 * 24 * 3600, 30 * 24 * 3600};
+const size_t kVibeUpdateCheckIntervalPresetCount =
+        sizeof(kVibeUpdateCheckIntervalPresets) / sizeof(kVibeUpdateCheckIntervalPresets[0]);
+#endif
 
 @implementation AppSettings (Mac)
 
@@ -126,9 +134,14 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     }];
 }
 
-// Keys with no registered default, where absent IS the default.
+// Keys with no registered default, where absent IS the default. Sparkle's
+// defaults are the Info.plist's, so a reset clears them here too.
 - (NSArray<NSString *> *)nullableSettingKeys {
-    return @[SETTING_CURRENT_THEME, SETTING_OUTPUT_MODES_BY_DEVICE_UID, SETTING_SHORTCUT_OVERRIDES];
+    return @[SETTING_CURRENT_THEME, SETTING_OUTPUT_MODES_BY_DEVICE_UID, SETTING_SHORTCUT_OVERRIDES,
+#if VIBE_DIRECT_DISTRIBUTION
+             SETTING_SPARKLE_AUTOMATIC_CHECKS, SETTING_SPARKLE_CHECK_INTERVAL,
+#endif
+    ];
 }
 
 // The persistent domain, not dictionaryRepresentation, which folds the
@@ -165,6 +178,11 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"NSQuitAlwaysKeepsWindows"];
     [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
     [NSApplication sharedApplication].automaticCustomizeTouchBarMenuItemEnabled = NO;
+#if VIBE_DIRECT_DISTRIBUTION && VIBE_VERBOSE_LOGGING
+    // Stored, not just registered: a stable update registers it off, and would
+    // otherwise take a tester off the beta train.
+    [NSUserDefaults.standardUserDefaults setBool:self.receiveBetaUpdates forKey:SETTING_RECEIVE_BETA_UPDATES];
+#endif
 }
 
 #pragma mark Themes
