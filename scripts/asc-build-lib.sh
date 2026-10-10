@@ -52,9 +52,11 @@ asc_generate_and_archive() {
 }
 
 # Fail unless the macOS app carries no updater: no Sparkle file, no link to
-# it, no SU* Info.plist key, and none of the direct download's entitlements.
-# App Review rejects a Mac App Store app that updates itself (guideline
-# 2.4.5), and a linked but unused framework is enough.
+# it, no SU* Info.plist key, and none of the installer's temporary
+# exceptions. App Review rejects a Mac App Store app that updates itself
+# (guideline 2.4.5), and a linked but unused framework is enough. The
+# network client entitlement is no sign of one: both builds carry it for
+# Open URL (ENABLE_OUTGOING_NETWORK_CONNECTIONS).
 asc_require_no_updater() {
     local app="$1"
     local found
@@ -77,7 +79,7 @@ asc_require_no_updater() {
         exit 1
     fi
     entitlements="$(codesign -d --entitlements - --xml "$app" 2>/dev/null)"
-    if grep -q 'network.client\|temporary-exception' <<<"$entitlements"; then
+    if grep -q 'temporary-exception' <<<"$entitlements"; then
         echo "error: $app is signed with the direct download's entitlements" >&2
         exit 1
     fi
