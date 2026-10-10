@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// A remote placeholder's backend (NSURLUtil's setRemotePlaceholderRoot:;
+// A remote placeholder's backend (NSURLUtil's setRemotePlaceholderRoots:;
 // iOS: the Dropbox mirror). Blocks the worker until url holds its bytes.
 // onCancel hands over the block -cancel runs, from any thread; a cancel that
 // came first runs it at once. Unlike the provider path, this cancel stops the
@@ -193,17 +193,21 @@ typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *u
 
 @interface CloudFileMaterializer : NSObject
 
-// The remote backend, once at launch before anything opens a file: root,
-// fetch and read all or none, availability only with them, nil while the
-// backend streams nothing. The root scopes NSURLUtil's remote placeholder
-// rule, so while a file is a remote placeholder the blocks are there to serve it.
+// A remote backend for the files under root, at launch before anything opens
+// one. It replaces any backend root had. Fetch and read come all or none, and
+// availability only with them, nil while the backend streams nothing. A root
+// with no blocks removes its backend, and a nil root removes every backend.
+// Several roots may be installed. A file goes to the backend of the longest
+// root holding it. The roots scope NSURLUtil's remote placeholder rule. While
+// a file is a remote placeholder, its backend's blocks are there to serve it.
 + (void)setRemoteRoot:(nullable NSURL *)root
                 fetch:(nullable CloudFileRemoteFetch)fetch
                  read:(nullable CloudFileRemoteRead)read
          availability:(nullable CloudFileRemoteAvailability)availability;
 
-// AudioTrackMetadata's parse reads a remote placeholder through it.
-@property (class, nonatomic, readonly, copy, nullable) CloudFileRemoteRead remoteRead;
+// The read of the backend holding url, nil under no root. AudioTrackMetadata's
+// parse reads a remote placeholder through it.
++ (nullable CloudFileRemoteRead)remoteReadForURL:(NSURL *)url;
 
 // AudioFileHandle opens a file being streamed through it; nil, and nothing
 // asked, when no backend streams.

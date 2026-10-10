@@ -13,6 +13,7 @@
 #import <Foundation/Foundation.h>
 #import <CommonCrypto/CommonDigest.h>
 
+#import "HTTPTransferRules.h"
 #import "PlaylistFile.h"
 #import "SettingsRules.h"
 
@@ -163,39 +164,6 @@ static inline BOOL VibeDropboxIsExpiredAccessToken(NSInteger status, NSDictionar
 // captive portal, a proxy) must not unlink, which deletes every download.
 static inline BOOL VibeDropboxIsRevokedGrant(NSInteger status, NSDictionary *_Nullable body) {
     return status == 400 && [body[@"error"] isEqual:@"invalid_grant"];
-}
-
-// Seconds to wait before retrying, or a negative answer for "do not retry".
-// 429 is rate limiting and 503 a transient outage; Retry-After is honored but
-// capped, since a waiting download holds a materialization lane.
-static inline NSTimeInterval VibeDropboxRetryDelay(NSInteger status, NSString *_Nullable retryAfter) {
-    if (status != 429 && status != 503) {
-        return -1;
-    }
-    double seconds = retryAfter.doubleValue;
-    if (seconds <= 0) {
-        seconds = 1;
-    }
-    return MIN(seconds, 10.0);
-}
-
-// A link that dropped or stalled, which a resend may outlast; anything else
-// (TLS, a malformed response) would only fail again.
-static inline BOOL VibeDropboxIsConnectionError(NSError *error) {
-    if (![error.domain isEqualToString:NSURLErrorDomain]) {
-        return NO;
-    }
-    switch (error.code) {
-        case NSURLErrorTimedOut:
-        case NSURLErrorNetworkConnectionLost:
-        case NSURLErrorNotConnectedToInternet:
-        case NSURLErrorCannotConnectToHost:
-        case NSURLErrorCannotFindHost:
-        case NSURLErrorDNSLookupFailed:
-            return YES;
-        default:
-            return NO;
-    }
 }
 
 // The one line an API failure leaves in the log and the error.

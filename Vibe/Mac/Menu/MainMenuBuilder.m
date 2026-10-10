@@ -26,11 +26,12 @@
 #endif
 
 // TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
-// any menu it takes for Edit, all inert here. No public opt-out covers
-// AutoFill, so this delegate drops every item without a menu_edit* identifier,
-// separators included. It deliberately does not implement
-// menuHasKeyEquivalent:…: Edit carries real key equivalents, which that
-// override would answer for instead of letting AppKit walk the items.
+// any menu it takes for Edit, of no use in the app's few short text fields.
+// No public opt-out covers AutoFill, so this delegate drops every item
+// without a menu_edit* identifier, separators included. It deliberately
+// does not implement menuHasKeyEquivalent:…: Edit carries real key
+// equivalents, which that override would answer for instead of letting
+// AppKit walk the items.
 @interface VibeEditMenuCleaner : NSObject <NSMenuDelegate>
 @end
 
@@ -38,7 +39,7 @@
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     for (NSMenuItem *item in [menu.itemArray copy]) {
-        if (![item.identifier hasPrefix:@"menu_edit"]) {
+        if (!VibeEditMenuKeepsItem(item.identifier)) {
             [menu removeItem:item];
         }
     }
@@ -158,7 +159,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Main Menu")];
 
     [self buildAppMenuIn:mainMenu appDelegate:appDelegate];
-    [self buildFileMenuIn:mainMenu player:player openRecentMenuController:openRecentMenuController];
+    [self buildFileMenuIn:mainMenu appDelegate:appDelegate player:player
+            openRecentMenuController:openRecentMenuController];
     [self buildEditMenuIn:mainMenu player:player];
     [self buildPlaybackMenuIn:mainMenu player:player];
     [self buildFXMenuIn:mainMenu player:player];
@@ -216,10 +218,12 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
             @selector(terminate:), nil, @"q", NSEventModifierFlagCommand, nil);
 }
 
-+ (void)buildFileMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player
++ (void)buildFileMenuIn:(NSMenu *)mainMenu appDelegate:(AppDelegate *)appDelegate
+                 player:(MainPlayerController *)player
         openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
     AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"", 0, kVibeMenuOpen);
+    AddItem(fileMenu, STR_MENU_FILE_OPEN_URL, @selector(openLink:), appDelegate, @"", 0, kVibeMenuOpenLink);
     NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open
     AddSeparator(fileMenu);
@@ -242,11 +246,18 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSymbolItem(editMenu, STR_MENU_EDIT_REDO, @"arrow.uturn.forward", @selector(redo:), nil, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
     AddSeparator(editMenu).identifier = @"menu_edit_separator";
 
+    // Cut and Paste are nil-targeted, so they reach the focused text field
+    // and stay disabled anywhere else. ⌘C is Copy File's, which forwards to
+    // a focused text field itself.
+    AddSymbolItem(editMenu, STR_MENU_EDIT_CUT, @"scissors", @selector(cut:), nil,
+                  @"x", NSEventModifierFlagCommand, kVibeMenuEditCut);
     [editMenu addItem:[self copyNameItemWithTarget:player]];
     NSMenuItem *copyFileItem = [self copyFileItemWithTarget:player];
     copyFileItem.keyEquivalent = @"c";
     copyFileItem.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     [editMenu addItem:copyFileItem];
+    AddSymbolItem(editMenu, STR_MENU_EDIT_PASTE, @"doc.on.clipboard", @selector(paste:), nil,
+                  @"v", NSEventModifierFlagCommand, kVibeMenuEditPaste);
 
     AddSeparator(editMenu).identifier = @"menu_edit_separator_remove";
     // minus.circle, not trash: the file stays on disk.
@@ -462,6 +473,18 @@ static NSString *_Nullable LayoutCharacter(unsigned short keyCode, NSEventModifi
     return LayoutCharacters(state)[@(keyCode)].lowercaseString;
 }
 
+// The key that types character in that layer, kVibeShortcutKeyMask when no
+// key does. The lowest key code wins, so the answer is the same every time.
+static unsigned short LayoutKeyCode(unichar character, NSEventModifierFlags modifiers) {
+    for (unsigned short keyCode = 0; keyCode < 128; keyCode++) {
+        NSString *typed = LayoutCharacter(keyCode, modifiers);
+        if (typed.length == 1 && [typed characterAtIndex:0] == character) {
+            return keyCode;
+        }
+    }
+    return kVibeShortcutKeyMask;
+}
+
 static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     unsigned short key = VibeShortcutKey(shortcut);
     NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
@@ -563,8 +586,22 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
         // none. Not the item's own flag, which Convert's validation sets and
         // may not have cleared yet.
         ApplyShortcut(item, item.parentItem.isHiddenOrHasHiddenAncestor
-                ? kVibeShortcutNone : VibeShortcutEffective(identifier, overrides));
+                ? kVibeShortcutNone : [self carriedShortcutForIdentifier:identifier overrides:overrides]);
     }
+}
+
++ (VibeShortcut)carriedShortcutForIdentifier:(NSString *)identifier overrides:(NSDictionary *)overrides {
+    VibeShortcut shortcut = VibeShortcutEffective(identifier, overrides);
+    if (shortcut == kVibeShortcutNone) {
+        return kVibeShortcutNone;
+    }
+    unsigned short key = VibeShortcutKey(shortcut);
+    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+    BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
+    unsigned short layoutKeyCode = isCharacter ? LayoutKeyCode(key, modifiers) : kVibeShortcutKeyMask;
+    unichar layoutCharacter = isCharacter
+            ? 0 : [self characterForKeyCode:VibeShortcutCanonicalKeyCode(key) modifiers:modifiers];
+    return VibeShortcutForMenuItem(identifier, shortcut, layoutKeyCode, layoutCharacter, overrides);
 }
 
 + (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {

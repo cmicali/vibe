@@ -22,6 +22,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
+#import "BrowserViewController.h"
 #import "FavoritesStore.h"
 #import "LibraryViewController.h"
 #import "SearchViewController.h"
@@ -208,6 +209,8 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     ui[@"miniPlayerShown"] = @(self.isMiniPlayerShown);
     ui[@"selectedTab"] = self.selectedTabIdentifier;
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
+    // Open URL's paste row and sheet, on the add sheet's browser while it is up.
+    [ui addEntriesFromDictionary:[self.debugActiveBrowser debugLinkState] ?: @{}];
     state[@"ui"] = ui;
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
@@ -406,6 +409,21 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
 
 - (void)debugAppendPath:(NSString *)path {
     [self.playback debugAppendPath:path];
+}
+
+- (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *, NSError *))completion {
+    [BrowserViewController openLinkString:link replacingPlaylistOf:self.playback from:self completion:completion];
+}
+
+- (BrowserViewController *)debugActiveBrowser {
+    for (UIViewController *shown = self.presentedViewController; shown; shown = shown.presentedViewController) {
+        UIViewController *first = [shown isKindOfClass:UINavigationController.class]
+                ? ((UINavigationController *)shown).viewControllers.firstObject : nil;
+        if ([first isKindOfClass:BrowserViewController.class]) {
+            return (BrowserViewController *)first;
+        }
+    }
+    return self.filesBrowser;
 }
 
 - (AudioTrackMetadataCache *)debugMetadataCache {

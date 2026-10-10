@@ -65,7 +65,9 @@ The `NSTableView` half of `Vibe/Playlist/`: `PlaylistController` (data source an
 
 **One drag, two destinations, decided by the operation mask, not the payload.** Each row's `NSPasteboardItem` carries the private reorder type (payload: the per-session token) and the file URL. `NSDragOperationMove` for local, `NSDragOperationCopy` elsewhere: inside the table a reorder, onto the Finder or another app a copy of the files, one per selected row.
 
-**The private type plus the live token is the whole proof a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`: same source, the type, a matching token) — a file URL alone is what an external file drag carries too. The table registers only the private type, so an external file drag still falls to the window's wells, and `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open.
+**The private type plus the live token is the whole proof a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`: same source, the type, a matching token) — a file URL alone is what an external file drag carries too. The table registers only the private type, so an external file or link drag still falls to the window's wells, and `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open.
+
+**A remote placeholder is never dragged out** (`TrackCommands.handsOutURL:`, the path tested before any stat). No other app could read its bytes. Its item carries only the reorder type, so its row still reorders. Copy Files skips it by the same answer.
 
 **`willBeginAtPoint:` starts the security scope on each dragged URL and `endedAtPoint:` — always called, drop or cancel — balances it**, since a receiver outside the app reads the files long after the session. Only URLs whose start answered YES are recorded: an unbalanced stop over-releases the sandbox extension, and a URL covered by a folder grant answers NO and drags fine. Token, tracks and scopes all clear at session end.
 

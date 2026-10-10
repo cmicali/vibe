@@ -23,16 +23,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// The remote backend's root as a comparable path ending in "/", set at
-// launch. Nil (the mac) means no file is a placeholder.
+// The remote backends' roots as comparable paths ending in "/", set at
+// launch. None means no file is a placeholder.
 static os_unfair_lock sRemoteRootLock = OS_UNFAIR_LOCK_INIT;
-static NSString *sRemoteRootPrefix;
+static NSArray<NSString *> *sRemoteRootPrefixes;
 
-static NSString *VibeRemoteRootPrefix(void) {
+static NSArray<NSString *> *VibeRemoteRootPrefixes(void) {
     os_unfair_lock_lock(&sRemoteRootLock);
-    NSString *prefix = sRemoteRootPrefix;
+    NSArray<NSString *> *prefixes = sRemoteRootPrefixes;
     os_unfair_lock_unlock(&sRemoteRootLock);
-    return prefix;
+    return prefixes;
 }
 
 NSString *VibeAliasFreePath(NSString *path) {
@@ -78,8 +78,17 @@ NSString *VibeComparablePath(NSString *path) {
 }
 
 BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path) {
-    NSString *prefix = VibeRemoteRootPrefix();
-    return prefix && [VibeComparablePath(path) hasPrefix:prefix];
+    NSArray<NSString *> *prefixes = VibeRemoteRootPrefixes();
+    if (prefixes.count == 0) {
+        return NO;
+    }
+    NSString *comparable = VibeComparablePath(path);
+    for (NSString *prefix in prefixes) {
+        if ([comparable hasPrefix:prefix]) {
+            return YES;
+        }
+    }
+    return NO;
 }
 
 // Installed at launch, read from the expansion workers: every access locks.
@@ -177,21 +186,23 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
     }
 }
 
-+ (void)setRemotePlaceholderRoot:(NSURL *)root {
-    NSString *prefix = root ? [VibeComparablePath(root.path) stringByAppendingString:@"/"] : nil;
++ (void)setRemotePlaceholderRoots:(NSArray<NSURL *> *)roots {
+    NSMutableArray<NSString *> *prefixes = [NSMutableArray arrayWithCapacity:roots.count];
+    for (NSURL *root in roots) {
+        [prefixes addObject:[VibeComparablePath(root.path) stringByAppendingString:@"/"]];
+    }
     os_unfair_lock_lock(&sRemoteRootLock);
-    sRemoteRootPrefix = prefix;
+    sRemoteRootPrefixes = prefixes.count ? [prefixes copy] : nil;
     os_unfair_lock_unlock(&sRemoteRootLock);
 }
 
-// The root first: with none installed, as on the mac, no stat is paid.
+// The path first: a file under no root, as most are, pays no stat.
 + (BOOL)isRemotePlaceholderFile:(NSURL *)url {
-    if (!VibeRemoteRootPrefix()) {
+    if (!VibePathIsUnderRemotePlaceholderRoot(url.path)) {
         return NO;
     }
     struct stat st;
-    return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode)
-            && VibePathIsUnderRemotePlaceholderRoot(url.path);
+    return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode);
 }
 
 + (BOOL)readsRemotePlaceholderByRange:(NSURL *)url {
@@ -542,6 +553,13 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
         return VibeReadAccessReadable;
     }
     return (errno == EPERM || errno == EACCES) ? VibeReadAccessDenied : VibeReadAccessMissing;
+}
+
+// TRAP: a remote placeholder is asked first. Its mode denies its owner, and
+// access(2) calls it denied. A playlist naming one would then raise a grant
+// panel. It plays: the player downloads it.
+static VibeReadAccess PlaylistEntryAccess(NSURL *url) {
+    return [NSURLUtil isRemotePlaceholderFile:url] ? VibeReadAccessReadable : ReadAccessForURL(url);
 }
 
 + (BOOL)isReadDenied:(NSURL *)url {
@@ -912,7 +930,7 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
         if (scannedAccessByPath[url.path] != nil) {
             continue;
         }
-        VibeReadAccess access = ReadAccessForURL(url);
+        VibeReadAccess access = PlaylistEntryAccess(url);
         scannedAccessByPath[url.path] = @(access);
         anyUnreadable |= (access != VibeReadAccessReadable);
         anyDenied |= (access == VibeReadAccessDenied);
@@ -936,11 +954,9 @@ static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
     for (AudioTrack *row in resolved) {
         NSString *path = row.url.path;
         NSNumber *scanned = scannedAccessByPath[path];
-        VibeReadAccess access = scanned != nil ? (VibeReadAccess)scanned.integerValue : ReadAccessForURL(row.url);
+        VibeReadAccess access = scanned != nil ? (VibeReadAccess)scanned.integerValue : PlaylistEntryAccess(row.url);
         scannedAccessByPath[path] = @(access);
-        // A remote placeholder answers no readability probe, and plays: the
-        // player downloads it.
-        if (access == VibeReadAccessReadable || [self isRemotePlaceholderFile:row.url]) {
+        if (access == VibeReadAccessReadable) {
             [readable addObject:row];
         }
         else if (![skipped containsObject:path]) {

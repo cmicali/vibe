@@ -16,6 +16,8 @@
 typedef NS_ENUM(NSInteger, VibeFilesSection) {
     VibeFilesSectionDropbox = 0,
     VibeFilesSectionFolderSort,
+    // One row, which opens this app's page in the Settings app.
+    VibeFilesSectionPaste,
     VibeFilesSectionCount,
 };
 
@@ -124,8 +126,11 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return (VibeFilesSection)section == VibeFilesSectionDropbox
-            ? (NSInteger)[self dropboxRows].count : VibeFolderSortRowCount;
+    switch ((VibeFilesSection)section) {
+        case VibeFilesSectionDropbox: return (NSInteger)[self dropboxRows].count;
+        case VibeFilesSectionPaste:   return 1;
+        default:                      return VibeFolderSortRowCount;
+    }
 }
 
 // The Dropbox section's rows, top to bottom: Connect alone while unlinked;
@@ -146,11 +151,17 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    return (VibeFilesSection)section == VibeFilesSectionDropbox
-            ? VibeNotLocalized(@"Dropbox") : STR_SETTINGS_FOLDER_SORT_LABEL;
+    switch ((VibeFilesSection)section) {
+        case VibeFilesSectionDropbox:    return VibeNotLocalized(@"Dropbox");
+        case VibeFilesSectionFolderSort: return STR_SETTINGS_FOLDER_SORT_LABEL;
+        default:                         return nil;
+    }
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
+    if ((VibeFilesSection)section == VibeFilesSectionPaste) {
+        return STR_SETTINGS_ALLOW_PASTE_FOOTER;
+    }
     if ((VibeFilesSection)section != VibeFilesSectionDropbox) {
         return nil;
     }
@@ -162,6 +173,19 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if ((VibeFilesSection)indexPath.section == VibeFilesSectionDropbox) {
         return [self dropboxCellForTableView:tableView indexPath:indexPath];
+    }
+    if ((VibeFilesSection)indexPath.section == VibeFilesSectionPaste) {
+        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kActionCellIdentifier];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                          reuseIdentifier:kActionCellIdentifier];
+        }
+        UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
+        content.text = STR_SETTINGS_ALLOW_PASTE;
+        content.textProperties.color = UIColor.tintColor;
+        cell.contentConfiguration = content;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        return cell;
     }
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
     if (!cell) {
@@ -202,7 +226,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
     if (client.isLinked && [self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowRemoveDownloads) {
         content.text = STR_SETTINGS_DROPBOX_REMOVE_DOWNLOADS;
-        content.textProperties.color = self.view.tintColor ?: UIColor.systemBlueColor;
+        content.textProperties.color = UIColor.tintColor;
         content.secondaryText = [NSByteCountFormatter stringFromByteCount:_downloadBytes
                                                                countStyle:NSByteCountFormatterCountStyleFile];
     }
@@ -212,7 +236,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
     }
     else {
         content.text = STR_SETTINGS_DROPBOX_CONNECT;
-        content.textProperties.color = self.view.tintColor ?: UIColor.systemBlueColor;
+        content.textProperties.color = UIColor.tintColor;
         content.image = [UIImage imageNamed:@"dropbox-glyph"];
     }
     cell.contentConfiguration = content;
@@ -315,6 +339,13 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
         else if ([self dropboxRowAtIndex:indexPath.row] == VibeDropboxRowDisconnect) {
             [self confirmDisconnectDropbox];
         }
+        return;
+    }
+    // No API reads the paste permission, so the row is always there.
+    if ((VibeFilesSection)indexPath.section == VibeFilesSectionPaste) {
+        [UIApplication.sharedApplication openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]
+                                         options:@{}
+                               completionHandler:nil];
         return;
     }
     // Governs the next open, so nothing is notified.

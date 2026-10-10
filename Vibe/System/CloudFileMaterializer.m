@@ -14,17 +14,37 @@
 #include <os/lock.h>
 #include <unistd.h>
 
-// The remote backend, installed together (setRemoteRoot:fetch:read:availability:).
+// The remote backends, one per root (setRemoteRoot:fetch:read:availability:).
+// Each is {root, prefix, fetch, read, availability?}, the prefix a comparable
+// path ending in "/". Sorted longest prefix first, and the first match is
+// then the longest. Replaced whole under the lock, never mutated.
 static os_unfair_lock sRemoteLock = OS_UNFAIR_LOCK_INIT;
-static CloudFileRemoteFetch sRemoteFetch;
-static CloudFileRemoteRead sRemoteRead;
-static CloudFileRemoteAvailability sRemoteAvailability;
+static NSArray<NSDictionary *> *sRemoteBackends;
 
-static CloudFileRemoteFetch VibeRemoteFetch(void) {
+static NSArray<NSDictionary *> *VibeRemoteBackends(void) {
     os_unfair_lock_lock(&sRemoteLock);
-    CloudFileRemoteFetch fetch = sRemoteFetch;
+    NSArray<NSDictionary *> *backends = sRemoteBackends;
     os_unfair_lock_unlock(&sRemoteLock);
-    return fetch;
+    return backends;
+}
+
+// The snapshot holds the blocks. A replacement then cannot release one mid-call.
+static NSDictionary *VibeRemoteBackendForURL(NSURL *url) {
+    NSArray<NSDictionary *> *backends = VibeRemoteBackends();
+    if (backends.count == 0) {
+        return nil;
+    }
+    NSString *path = VibeComparablePath(url.path);
+    for (NSDictionary *backend in backends) {
+        if ([path hasPrefix:backend[@"prefix"]]) {
+            return backend;
+        }
+    }
+    return nil;
+}
+
+static NSError *VibeNoRemoteBackendError(void) {
+    return [NSError errorWithDomain:NSPOSIXErrorDomain code:EACCES userInfo:nil];
 }
 
 #if DEBUG
@@ -583,27 +603,44 @@ static NSError *VibeMaterializationCancelledError(void) {
 
 + (void)setRemoteRoot:(NSURL *)root fetch:(CloudFileRemoteFetch)fetch read:(CloudFileRemoteRead)read
          availability:(CloudFileRemoteAvailability)availability {
-    NSParameterAssert((root == nil) == (fetch == nil) && (fetch == nil) == (read == nil) && (root || !availability));
+    NSParameterAssert((fetch == nil) == (read == nil) && (fetch || !availability) && (root || !fetch));
+    NSString *prefix = root ? [VibeComparablePath(root.path) stringByAppendingString:@"/"] : nil;
+    NSMutableDictionary *installed = nil;
+    if (fetch && root) {
+        installed = [@{@"root": root, @"prefix": prefix, @"fetch": [fetch copy], @"read": [read copy]} mutableCopy];
+        if (availability) {
+            installed[@"availability"] = [availability copy];
+        }
+    }
     os_unfair_lock_lock(&sRemoteLock);
-    sRemoteFetch = [fetch copy];
-    sRemoteRead = [read copy];
-    sRemoteAvailability = [availability copy];
+    NSMutableArray<NSDictionary *> *backends = [NSMutableArray array];
+    if (prefix) {
+        for (NSDictionary *backend in sRemoteBackends) {
+            if (![backend[@"prefix"] isEqualToString:prefix]) {
+                [backends addObject:backend];
+            }
+        }
+    }
+    if (installed) {
+        [backends addObject:installed];
+    }
+    [backends sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        return [@([b[@"prefix"] length]) compare:@([a[@"prefix"] length])];
+    }];
+    sRemoteBackends = [backends copy];
+    // Set under the lock. Two racing installs then cannot leave NSURLUtil
+    // with the older roots. NSURLUtil's lock never takes this one.
+    [NSURLUtil setRemotePlaceholderRoots:[backends valueForKey:@"root"]];
     os_unfair_lock_unlock(&sRemoteLock);
-    [NSURLUtil setRemotePlaceholderRoot:root];
 }
 
 + (CloudFileAvailability *)availabilityForURL:(NSURL *)url {
-    os_unfair_lock_lock(&sRemoteLock);
-    CloudFileRemoteAvailability availability = sRemoteAvailability;
-    os_unfair_lock_unlock(&sRemoteLock);
+    CloudFileRemoteAvailability availability = VibeRemoteBackendForURL(url)[@"availability"];
     return availability ? availability(url) : nil;
 }
 
-+ (CloudFileRemoteRead)remoteRead {
-    os_unfair_lock_lock(&sRemoteLock);
-    CloudFileRemoteRead read = sRemoteRead;
-    os_unfair_lock_unlock(&sRemoteLock);
-    return read;
++ (CloudFileRemoteRead)remoteReadForURL:(NSURL *)url {
+    return VibeRemoteBackendForURL(url)[@"read"];
 }
 
 // A cancel that wins this lock fails the call; a later one finds no work.
@@ -761,14 +798,13 @@ static NSError *VibeMaterializationCancelledError(void) {
                  token:(CloudFileMaterializationToken *)token
             onReadable:(dispatch_block_t)onReadable
                  error:(NSError *__autoreleasing *)error {
-    CloudFileRemoteFetch fetch = VibeRemoteFetch();
+    CloudFileRemoteFetch fetch = VibeRemoteBackendForURL(url)[@"fetch"];
     os_unfair_lock_lock(&_lock);
     BOOL current = (_token == token && !token.isCancelled);
     os_unfair_lock_unlock(&_lock);
     if (!current || !fetch) {
         if (error) {
-            *error = current ? [NSError errorWithDomain:NSPOSIXErrorDomain code:EACCES userInfo:nil]
-                             : VibeMaterializationCancelledError();
+            *error = current ? VibeNoRemoteBackendError() : VibeMaterializationCancelledError();
         }
         return NO;
     }

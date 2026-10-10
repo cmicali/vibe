@@ -248,6 +248,12 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 // The rest of the tokens, so titles with spaces work unquoted.
                 return VibeClickMenuItem(controller, VibeRestArgument(tokens));
             }),
+            VibeDebugCmd(@"open_url_window <text> | open | cancel | close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: open_url_window <text> | open | cancel | close");
+                }
+                return VibeDriveOpenURLWindow(tokens);
+            }),
             VibeTransportCmd(@"skip_forward", ^(MainPlayerController *controller) { [controller skipForward:nil]; }),
             VibeTransportCmd(@"skip_forward_more", ^(MainPlayerController *controller) { [controller skipForwardMore:nil]; }),
             VibeTransportCmd(@"skip_forward_most", ^(MainPlayerController *controller) { [controller skipForwardMost:nil]; }),
@@ -665,7 +671,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"file_drag_hover <x> <y>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragHover(controller, tokens);
             }),
-            VibeDebugCmd(@"file_drag_drop <x> <y> <file-or-directory>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+            VibeDebugCmd(@"file_drag_drop <x> <y> <file-directory-or-link>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragDrop(controller, tokens);
             }),
             VibeDebugCmd(@"file_drag_end", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

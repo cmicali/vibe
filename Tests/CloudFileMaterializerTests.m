@@ -13,15 +13,25 @@
 #import "CloudFileMaterializer+Debug.h"
 #import "NSURLUtil+Debug.h"
 
+#include <limits.h>
+#include <stdlib.h>
+
 @interface CloudFileMaterializerTests : XCTestCase
 @end
 
-@implementation CloudFileMaterializerTests
+@implementation CloudFileMaterializerTests {
+    NSMutableArray<NSURL *> *_temporaryRoots;
+}
 
 - (void)tearDown {
     [CloudFileMaterializer setFakeTransferProvider:nil acquireSlot:nil
                                        releaseSlot:nil didFinish:nil];
     [NSURLUtil setDatalessProbe:nil];
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    for (NSURL *root in _temporaryRoots) {
+        [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
+    }
+    _temporaryRoots = nil;
     [super tearDown];
 }
 
@@ -559,6 +569,137 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertNil([CloudFileMaterializer availabilityForURL:[NSURL fileURLWithPath:@"/remote/other.flac"]]);
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     XCTAssertNil([CloudFileMaterializer availabilityForURL:url]);
+}
+
+#pragma mark - Remote backends per root
+
+// A fresh directory, spelled as realpath answers it, removed in tearDown.
+- (NSURL *)makeTemporaryRoot {
+    char resolved[PATH_MAX];
+    NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+    [NSFileManager.defaultManager createDirectoryAtPath:base withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSURL *root = [NSURL fileURLWithPath:@(realpath(base.fileSystemRepresentation, resolved)) isDirectory:YES];
+    if (!_temporaryRoots) {
+        _temporaryRoots = [NSMutableArray array];
+    }
+    [_temporaryRoots addObject:root];
+    return root;
+}
+
+// A one-byte file its owner may not read: a remote placeholder under a root.
+- (NSURL *)makePlaceholder:(NSString *)relative under:(NSURL *)root {
+    NSURL *url = [root URLByAppendingPathComponent:relative];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:NULL];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:url.path contents:[NSData dataWithBytes:"x" length:1]
+                                                      attributes:@{NSFilePosixPermissions: @0}]);
+    return url;
+}
+
+// A backend that logs its name for every call, and reads back its name.
+- (void)installBackendNamed:(NSString *)name at:(NSURL *)root
+               availability:(CloudFileAvailability *)availability log:(NSMutableArray<NSString *> *)log {
+    [CloudFileMaterializer setRemoteRoot:root fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
+                                                          void (^onCancel)(dispatch_block_t), NSError **error) {
+        [log addObject:[@"fetch " stringByAppendingString:name]];
+        return YES;
+    } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
+        [log addObject:[@"read " stringByAppendingString:name]];
+        return [name dataUsingEncoding:NSUTF8StringEncoding];
+    } availability:^CloudFileAvailability *(NSURL *url) {
+        [log addObject:[@"availability " stringByAppendingString:name]];
+        return availability;
+    }];
+}
+
+- (BOOL)materialize:(NSURL *)url {
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    return [materializer materializeURL:url token:[materializer prepareMaterialization] onReadable:nil error:NULL];
+}
+
+- (NSString *)remoteReadOf:(NSURL *)url {
+    CloudFileRemoteRead read = [CloudFileMaterializer remoteReadForURL:url];
+    NSData *bytes = read ? read(url, 0, 1, NULL) : nil;
+    return bytes ? [[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] : nil;
+}
+
+// Two roots each reach their own blocks, and a root inside another wins over it.
+- (void)testEachRootReachesItsOwnBackendAndTheLongestRootWins {
+    NSURL *outer = [self makeTemporaryRoot];
+    NSURL *inner = [outer URLByAppendingPathComponent:@"inner" isDirectory:YES];
+    NSURL *other = [self makeTemporaryRoot];
+    NSURL *outerFile = [self makePlaceholder:@"a.flac" under:outer];
+    NSURL *innerFile = [self makePlaceholder:@"b.flac" under:inner];
+    NSURL *otherFile = [self makePlaceholder:@"c.flac" under:other];
+    CloudFileAvailability *outerStream = [[CloudFileAvailability alloc] initWithoutPartFile];
+    CloudFileAvailability *innerStream = [[CloudFileAvailability alloc] initWithoutPartFile];
+    NSMutableArray<NSString *> *log = [NSMutableArray array];
+    [self installBackendNamed:@"inner" at:inner availability:innerStream log:log];
+    [self installBackendNamed:@"outer" at:outer availability:outerStream log:log];
+    [self installBackendNamed:@"other" at:other availability:nil log:log];
+
+    XCTAssertTrue([self materialize:outerFile]);
+    XCTAssertTrue([self materialize:innerFile]);
+    XCTAssertTrue([self materialize:otherFile]);
+    XCTAssertEqualObjects(log, (@[@"fetch outer", @"fetch inner", @"fetch other"]));
+
+    XCTAssertEqualObjects([self remoteReadOf:outerFile], @"outer");
+    XCTAssertEqualObjects([self remoteReadOf:innerFile], @"inner");
+    XCTAssertEqualObjects([self remoteReadOf:otherFile], @"other");
+
+    XCTAssertEqual([CloudFileMaterializer availabilityForURL:outerFile], outerStream);
+    XCTAssertEqual([CloudFileMaterializer availabilityForURL:innerFile], innerStream);
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:otherFile]);
+
+    // Installing a root again replaces its backend alone.
+    [log removeAllObjects];
+    [self installBackendNamed:@"outer again" at:outer availability:nil log:log];
+    XCTAssertEqualObjects([self remoteReadOf:outerFile], @"outer again");
+    XCTAssertEqualObjects([self remoteReadOf:innerFile], @"inner");
+    XCTAssertEqualObjects(log, (@[@"read outer again", @"read inner"]));
+}
+
+- (void)testRemovingOneRootKeepsTheOthersAndANilRootRemovesThemAll {
+    NSURL *outer = [self makeTemporaryRoot];
+    NSURL *inner = [outer URLByAppendingPathComponent:@"inner" isDirectory:YES];
+    NSURL *other = [self makeTemporaryRoot];
+    NSURL *innerFile = [self makePlaceholder:@"b.flac" under:inner];
+    NSURL *otherFile = [self makePlaceholder:@"c.flac" under:other];
+    NSMutableArray<NSString *> *log = [NSMutableArray array];
+    [self installBackendNamed:@"outer" at:outer availability:nil log:log];
+    [self installBackendNamed:@"inner" at:inner availability:nil log:log];
+    [self installBackendNamed:@"other" at:other availability:nil log:log];
+
+    [CloudFileMaterializer setRemoteRoot:inner fetch:nil read:nil availability:nil];
+    XCTAssertEqualObjects([self remoteReadOf:innerFile], @"outer");
+    XCTAssertEqualObjects([self remoteReadOf:otherFile], @"other");
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
+
+    [CloudFileMaterializer setRemoteRoot:other fetch:nil read:nil availability:nil];
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:otherFile]);
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
+
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:innerFile]);
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:innerFile]);
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:innerFile]);
+    XCTAssertFalse([NSURLUtil isDatalessFile:innerFile]);
+    XCTAssertEqualObjects(log, (@[@"read outer", @"read other"]));
+}
+
+// Each URL's read is its own backend's, and nil under no root.
+- (void)testTheRemoteReadIsPerURL {
+    NSURL *first = [self makeTemporaryRoot];
+    NSURL *second = [self makeTemporaryRoot];
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[first URLByAppendingPathComponent:@"x.flac"]]);
+    NSMutableArray<NSString *> *log = [NSMutableArray array];
+    [self installBackendNamed:@"first" at:first availability:nil log:log];
+    [self installBackendNamed:@"second" at:second availability:nil log:log];
+
+    XCTAssertEqualObjects([self remoteReadOf:[second URLByAppendingPathComponent:@"x.flac"]], @"second");
+    XCTAssertEqualObjects([self remoteReadOf:[first URLByAppendingPathComponent:@"x.flac"]], @"first");
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[NSURL fileURLWithPath:@"/nowhere/x.flac"]]);
+    XCTAssertEqualObjects(log, (@[@"read second", @"read first"]));
 }
 
 #pragma mark - Blocks, and a writer with no part file

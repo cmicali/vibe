@@ -17,6 +17,7 @@
 #import "AudioFileHandle.h"
 #import "AudioFileHandle+Debug.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
+#import "AudioFileOpenRules.h"
 #import "AudioFixtures.h"
 #import "AudioTrack.h"
 #import "CloudFileMaterializer.h"
@@ -717,6 +718,130 @@ static NSData *VibeWithoutVBRHeader(NSData *mp3) {
         [self assertPCM:whole equals:[self referenceOf:source from:0 frames:INT64_MAX] context:name];
         XCTAssertFalse(handle.lengthIsEstimated, @"%@", name);
         XCTAssertEqual(handle.length, length, @"%@", name);
+    }
+}
+
+// An AIFF of 16-bit stereo at 44.1 kHz, `le16` byte-swapped into its SSND.
+static NSData *VibeAIFF(NSData *le16, uint32_t frames) {
+    NSMutableData *aiff = [NSMutableData data];
+    void (^be32)(uint32_t) = ^(uint32_t v) { uint32_t b = CFSwapInt32HostToBig(v); [aiff appendBytes:&b length:4]; };
+    void (^be16)(uint16_t) = ^(uint16_t v) { uint16_t b = CFSwapInt16HostToBig(v); [aiff appendBytes:&b length:2]; };
+    [aiff appendBytes:"FORM" length:4];
+    be32(0);
+    [aiff appendBytes:"AIFFCOMM" length:8];
+    be32(18);
+    be16(2);
+    be32(frames);
+    be16(16);
+    const uint8_t rate[10] = {0x40, 0x0E, 0xAC, 0x44}; // 44100 as an 80-bit float
+    [aiff appendBytes:rate length:10];
+    [aiff appendBytes:"SSND" length:4];
+    be32((uint32_t)le16.length + 8);
+    be32(0);
+    be32(0);
+    NSMutableData *samples = [le16 mutableCopy];
+    uint16_t *s = samples.mutableBytes;
+    for (NSUInteger i = 0; i < samples.length / 2; i++) {
+        s[i] = CFSwapInt16(s[i]);
+    }
+    [aiff appendData:samples];
+    uint32_t form = CFSwapInt32HostToBig((uint32_t)aiff.length - 8);
+    [aiff replaceBytesInRange:NSMakeRange(4, 4) withBytes:&form];
+    return aiff;
+}
+
+// `file` with a tag of `length` bytes in a chunk after its audio, as a tag
+// with its cover sits after an AIFF's SSND or a WAV's data, and the
+// container's own size moved to count it. The tag is an ID3v2 one of padding.
+static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t length) {
+    NSMutableData *bytes = [file mutableCopy];
+    NSMutableData *tag = [NSMutableData dataWithLength:length];
+    uint8_t *t = tag.mutableBytes;
+    memcpy(t, "ID3\x04\x00\x00", 6);
+    uint32_t payload = length - 10;
+    t[6] = (payload >> 21) & 0x7F; t[7] = (payload >> 14) & 0x7F; t[8] = (payload >> 7) & 0x7F; t[9] = payload & 0x7F;
+    if ([extension isEqualToString:@"w64"]) {
+        // The 'junk' GUID, a 64-bit size counting its 24-byte header, and the
+        // riff's own 64-bit size at 16.
+        static const uint8_t junk[16] = {'j', 'u', 'n', 'k', 0xF3, 0xAC, 0xD3, 0x11,
+                                         0x8C, 0xD1, 0x00, 0xC0, 0x4F, 0x8E, 0xDB, 0x8A};
+        [bytes increaseLengthBy:(8 - bytes.length % 8) % 8];
+        [bytes appendBytes:junk length:16];
+        uint64_t size = OSSwapHostToLittleInt64(24 + (uint64_t)length);
+        [bytes appendBytes:&size length:8];
+        [bytes appendData:tag];
+        uint64_t riff = OSSwapHostToLittleInt64(bytes.length);
+        [bytes replaceBytesInRange:NSMakeRange(16, 8) withBytes:&riff];
+        return bytes;
+    }
+    if ([extension isEqualToString:@"caf"]) {
+        // CAF's sizes are 64-bit and big-endian; the file counts none.
+        uint64_t size = OSSwapHostToBigInt64(length);
+        [bytes appendBytes:"info" length:4];
+        [bytes appendBytes:&size length:8];
+        [bytes appendData:tag];
+        return bytes;
+    }
+    BOOL aiff = [extension hasPrefix:@"aif"];
+    uint32_t size = aiff ? CFSwapInt32HostToBig(length) : OSSwapHostToLittleInt32(length);
+    [bytes appendBytes:aiff ? "ID3 " : "id3 " length:4];
+    [bytes appendBytes:&size length:4];
+    [bytes appendData:tag];
+    uint32_t outer = (uint32_t)bytes.length - 8;
+    outer = aiff ? CFSwapInt32HostToBig(outer) : OSSwapHostToLittleInt32(outer);
+    [bytes replaceBytesInRange:NSMakeRange(4, 4) withBytes:&outer];
+    return bytes;
+}
+
+// A chunk after the audio, a 235 KB tag as a Dropbox AIFF carried, is past
+// the small window. Every chunked container's open walks to that chunk's
+// header, so on the small window it waits for the download. On the window
+// its format takes, it opens on its head and the window with no wait, and
+// the stream decodes as the whole file.
+- (void)testAChunkAfterTheAudioOpensFromTheWindow {
+    const uint32_t frames = 441000, tag = 235 * 1024;
+    const uint64_t head = 64 * 1024, small = 128 * 1024;
+    NSData *samples = VibeNoiseSamples(frames, 2);
+    NSError *error = nil;
+    NSURL *wav = VibeWriteWAV([self sourceNamed:@"plain.wav"], samples, 44100, 2, 16, (uint32_t)samples.length);
+    NSURL *w64 = VibeWriteFixture([self sourceNamed:@"plain.w64"], VibeNoiseBuffer(frames), &error);
+    NSURL *caf = VibeWriteFixture([self sourceNamed:@"plain.caf"], VibeNoiseBuffer(frames), &error);
+    XCTAssertNil(error);
+    NSDictionary<NSString *, NSData *> *plain = @{
+        @"aiff": VibeAIFF(samples, frames),
+        @"wav": [NSData dataWithContentsOfURL:wav],
+        @"w64": [NSData dataWithContentsOfURL:w64],
+        @"caf": [NSData dataWithContentsOfURL:caf],
+    };
+    for (NSString *extension in plain) {
+        NSURL *source = [self sourceNamed:[@"tagged." stringByAppendingString:extension]];
+        XCTAssertTrue([VibeWithTrailingTag(plain[extension], extension, tag) writeToURL:source atomically:YES], @"%@", extension);
+        uint64_t size = [NSData dataWithContentsOfURL:source].length;
+        uint64_t window = VibeAudioFileTailWindowBytes(extension, size);
+        XCTAssertGreaterThan(window, (uint64_t)tag + 24, @"%@", extension);
+
+        VibeGrowingFile *cramped = [self stream:source prefix:head window:small];
+        NSUInteger waits = [self drive:cramped step:0 reader:^{
+            XCTAssertNotNil([[AudioFileHandle alloc] initForReading:cramped.url error:NULL], @"%@", extension);
+        }];
+        XCTAssertGreaterThan(waits, 0u, @"%@: the small window left the chunk's header to the download", extension);
+        [cramped complete];
+
+        VibeGrowingFile *file = [self stream:source prefix:head window:window];
+        __block AudioFileHandle *handle = nil;
+        waits = [self drive:file step:0 reader:^{
+            handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
+        }];
+        XCTAssertNotNil(handle, @"%@", extension);
+        XCTAssertEqual(waits, 0u, @"%@ waited to open", extension);
+        XCTAssertGreaterThanOrEqual(file.availability.furthestOffsetAsked, file.windowOffset, @"%@: the open read the window",
+                                    extension);
+        __block NSData *pcm = nil;
+        [self drive:file step:7919 reader:^{
+            pcm = VibeDecode(handle, 4096, INT64_MAX, NULL);
+        }];
+        XCTAssertEqual(file.availability.windowLength, 0u, @"%@: the download reached the window and dropped it", extension);
+        [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:extension];
     }
 }
 

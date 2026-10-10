@@ -3,8 +3,10 @@
 //  Vibe (iOS)
 //
 //  What a query matches, for both of the search screen's sections, which must
-//  agree where they overlap. Header-only and Foundation-only so the macOS suite
-//  can test it.
+//  agree where they overlap. Then the Files tab's decisions: the root's rows,
+//  what Recents names, which open the next launch restores, and which links a
+//  launch keeps. Header-only and Foundation-only so the macOS suite can test
+//  it.
 //
 
 #ifndef FileSearchRules_h
@@ -13,6 +15,8 @@
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
+
+#pragma mark - What a query matches
 
 // Case, diacritic and width insensitive, anywhere in the text. An empty query
 // matches everything, for the playlist's browse list; the files section tests
@@ -104,6 +108,101 @@ static inline BOOL VibeSearchPendingRestoreShouldBeSuppressed(
         NSString *resolvedPath) {
     return VibeSearchFolderCoveringRootIndex(suppressedRootPaths, resolvedPath) != NSNotFound
             && VibeSearchFolderCoveringRootIndex(liveRootPaths, resolvedPath) == NSNotFound;
+}
+
+#pragma mark - The root's rows
+
+typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
+    VibeBrowserRootSectionSources = 0,
+    // Its own group: a place to go back to, not a place files live.
+    VibeBrowserRootSectionRecents,
+    VibeBrowserRootSectionLocations,
+    VibeBrowserRootSectionCount,
+};
+
+typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
+    VibeBrowserRootRowDevice = 0,
+    VibeBrowserRootRowDropbox,
+    VibeBrowserRootRowRecents,
+    VibeBrowserRootRowLocation,
+    VibeBrowserRootRowConnectDropbox,
+    VibeBrowserRootRowAddFolder,
+    VibeBrowserRootRowBrowseFiles,
+    VibeBrowserRootRowOpenURL,
+    VibeBrowserRootRowPasteURL,
+};
+
+// The rows of one root section. Sources: the device, and Dropbox once linked.
+// Recents, alone. Locations: the granted folders first, so a location's row
+// is its index in the store. Then Connect to Dropbox until an account is
+// linked, Add Folder…, Browse Files…, and Open URL…. The paste row follows
+// Open URL… only while the clipboard probably holds a web link.
+static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection section,
+                                                       BOOL dropboxLinked,
+                                                       NSUInteger locations,
+                                                       BOOL clipboardHasLink) {
+    if (section == VibeBrowserRootSectionSources) {
+        return dropboxLinked ? @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox)]
+                             : @[@(VibeBrowserRootRowDevice)];
+    }
+    if (section == VibeBrowserRootSectionRecents) {
+        return @[@(VibeBrowserRootRowRecents)];
+    }
+    if (section != VibeBrowserRootSectionLocations) {
+        return @[];
+    }
+    NSMutableArray<NSNumber *> *rows = [NSMutableArray array];
+    for (NSUInteger i = 0; i < locations; i++) {
+        [rows addObject:@(VibeBrowserRootRowLocation)];
+    }
+    if (!dropboxLinked) {
+        [rows addObject:@(VibeBrowserRootRowConnectDropbox)];
+    }
+    [rows addObject:@(VibeBrowserRootRowAddFolder)];
+    [rows addObject:@(VibeBrowserRootRowBrowseFiles)];
+    [rows addObject:@(VibeBrowserRootRowOpenURL)];
+    if (clipboardHasLink) {
+        [rows addObject:@(VibeBrowserRootRowPasteURL)];
+    }
+    return rows;
+}
+
+#pragma mark - Recents
+
+// The recents' file URLs, from the paths they recorded. A launch's pruning
+// keeps every link these name.
+// TRAP: never fileURLWithPath: alone. It stats the path, and a recent on an
+// unreachable SMB share then holds main for the connect's 30 s timeout.
+static inline NSArray<NSURL *> *VibeRecentItemURLs(NSArray *items) {
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (id item in items) {
+        NSDictionary *entry = [item isKindOfClass:NSDictionary.class] ? item : nil;
+        id path = entry[@"path"];
+        if ([path isKindOfClass:NSString.class] && [path length] > 0) {
+            id folder = entry[@"folder"];
+            BOOL isFolder = [folder isKindOfClass:NSNumber.class] && [folder boolValue];
+            [urls addObject:[NSURL fileURLWithPath:path isDirectory:isFolder]];
+        }
+    }
+    return urls;
+}
+
+#pragma mark - The restored playlist
+
+// Whether an open's base becomes the bookmark the next launch restores. An
+// open strictly inside a one-off pick's grant keeps the session's. A one-file
+// open keeps a folder bookmark, whose grant reaches more than the file. A
+// link is the one exception. It needs no grant, a web address is the only
+// other way back to it, and the next launch restores it from its
+// placeholder. A mirror file opened alone keeps the folder bookmark.
+static inline BOOL VibeFolderSessionPersistsBase(BOOL keepsSessionBookmark,
+                                                 BOOL openedFolder,
+                                                 BOOL persistedBaseIsFolder,
+                                                 BOOL baseIsLink) {
+    if (keepsSessionBookmark) {
+        return NO;
+    }
+    return openedFolder || baseIsLink || !persistedBaseIsFolder;
 }
 
 NS_ASSUME_NONNULL_END

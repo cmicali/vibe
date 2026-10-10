@@ -7,24 +7,14 @@
 
 #import <Security/Security.h>
 #include <os/lock.h>
-#include <sys/stat.h>
-#include <sys/xattr.h>
 
 #import "DropboxRules.h"
+#import "HTTPTransferRules.h"
 
 NSErrorDomain const VibeDropboxErrorDomain = @"com.commonwealthrecordings.Vibe.Dropbox";
 NSNotificationName const VibeDropboxAccountDidChangeNotification =
         @"VibeDropboxAccountDidChangeNotification";
 
-// A throttled or briefly unavailable call is tried this many times in all.
-static const NSInteger kMaximumAttempts = 4;
-// A download whose connection dropped after its file was made resumes this
-// many times in a row with no byte arriving between: one outlasts a handoff
-// between networks, a second a flap, and past that the link is down and the
-// open should fail rather than hold its materialization lane. A byte that
-// arrives resets the count, so a long download over a poor link finishes.
-static const NSInteger kMaximumNetworkRetries = 2;
-static const NSTimeInterval kNetworkRetryDelay = 1;
 // An access token this close to its expiry is refreshed instead of used.
 static const NSTimeInterval kAccessTokenMargin = 60;
 // A Keychain still locked is asked again no sooner than this.
@@ -46,24 +36,11 @@ static NSData *VibeRandomBytes(size_t count) {
     return data;
 }
 
-static NSError *VibeCancelledError(void) {
-    return VibeDropboxMakeError(VibeDropboxErrorCancelled, @"cancelled");
-}
-
-// The rev a download's file holds bytes of, on the file itself, so the next
-// download of that destination continues it (startDownload:).
-static const char *const kVibeDropboxRevAttribute = "com.commonwealthrecordings.Vibe.rev";
-
-static NSString *_Nullable VibeDropboxRevOfFile(NSURL *url) {
-    char rev[64] = {0};
-    ssize_t length = getxattr(url.fileSystemRepresentation, kVibeDropboxRevAttribute, rev, sizeof(rev) - 1, 0, 0);
-    return length > 0 ? [[NSString alloc] initWithBytes:rev length:(NSUInteger)length encoding:NSUTF8StringEncoding] : nil;
-}
-
-BOOL VibeDropboxKeepsPart(NSError *error) {
-    return ([error.domain isEqualToString:VibeDropboxErrorDomain] && error.code == VibeDropboxErrorCancelled)
-            || VibeDropboxIsConnectionError(error);
-}
+// A transfer's state: the access token its attempt was sent with, that
+// token's account generation, and whether an expired token was refreshed.
+static NSString *const kStateToken = @"token";
+static NSString *const kStateAccountGeneration = @"accountGeneration";
+static NSString *const kStateRefreshed = @"refreshed";
 
 // The metadata a content response carries in its Dropbox-API-Result header.
 static NSDictionary *_Nullable VibeDropboxAPIResult(NSHTTPURLResponse *http) {
@@ -73,64 +50,14 @@ static NSDictionary *_Nullable VibeDropboxAPIResult(NSHTTPURLResponse *http) {
 typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accountGeneration,
                                        NSError *_Nullable error);
 
-#pragma mark - Transfer state
-
-// A download or a ranged read in flight. The cancel flag, the task and
-// bytesWritten are under the client's lock; the rest belongs to whichever
-// step runs, and attempts never overlap.
-@interface DropboxTransfer : NSObject
-@property (nonatomic, copy) NSString *path;
-@property (nonatomic) NSInteger attempts;
-@property (nonatomic) BOOL refreshed;
-@property (nonatomic) BOOL cancelled;
-@property (nonatomic) BOOL finished;
-@property (nonatomic, nullable) NSURLSessionDataTask *task;
-@property (nonatomic, copy, nullable) NSString *accessToken;
-@property (nonatomic) uint64_t accountGeneration;
-// The download's metadata, or the read's bytes; finishTransfer: calls it once.
-@property (nonatomic, copy, nullable) void (^completion)(id _Nullable, NSError *_Nullable);
-// A ranged read's metadata is its answer's. A download's only: the file,
-// made at the first accepted response, and that response's metadata and size
-// span every attempt; bytesWritten is the resume offset. The rest is per
-// response.
-@property (nonatomic, copy, nullable) NSURL *destination;
-@property (nonatomic, copy, nullable) void (^progress)(uint64_t, int64_t, NSString *_Nullable);
-@property (nonatomic, nullable) NSFileHandle *file;
-@property (nonatomic, nullable) NSDictionary *metadata;
-@property (nonatomic) int64_t size;
-@property (nonatomic) uint64_t bytesWritten;
-@property (nonatomic) NSInteger networkRetries;
-@property (nonatomic) NSInteger status;
-// A whole-file answer to a ranged resend: the bytes already written, skipped.
-@property (nonatomic) uint64_t skip;
-// The rev of the bytes a kept destination held at the start, continued from
-// (bytesWritten) until the first answer names it; another rev starts over.
-@property (nonatomic, copy, nullable) NSString *resumeRev;
-@property (nonatomic) BOOL restart;
-@property (nonatomic, nullable) NSMutableData *errorData;
-@property (nonatomic, copy, nullable) NSString *retryAfter;
-// The transfer's own reason to stop: a disk write, or a changed version.
-@property (nonatomic, nullable) NSError *failure;
-@end
-
-@implementation DropboxTransfer
-@end
-
 #pragma mark - Client
 
-@interface DropboxClient () <NSURLSessionDataDelegate,
-                             ASWebAuthenticationPresentationContextProviding>
+@interface DropboxClient () <ASWebAuthenticationPresentationContextProviding>
 @end
 
 @implementation DropboxClient {
     NSString *_appKey;
     NSString *_keychainService;
-    NSURLSessionConfiguration *_configuration;
-    // Streamed downloads, through the delegate below.
-    NSURLSession *_downloadSession;
-    // Everything answered whole — calls, tokens, ranged reads — on its own
-    // queue, so a tag read never waits behind a download's disk writes.
-    NSURLSession *_callSession;
 
     os_unfair_lock _lock;
     NSString *_refreshToken;
@@ -152,7 +79,6 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // most once per kAccountLoadRetryInterval, since every accessor asks.
     BOOL _accountLoadDeferred;
     CFAbsoluteTime _accountLoadRetryAt;
-    NSMutableDictionary<NSNumber *, DropboxTransfer *> *_downloads;
     BOOL _warmedUp;
 
     // Main thread: the sign-in in progress.
@@ -163,34 +89,15 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (instancetype)initWithAppKey:(NSString *)appKey
                keychainService:(NSString *)keychainService
                  configuration:(NSURLSessionConfiguration *)configuration {
-    self = [super init];
+    self = [super initWithConfiguration:configuration];
     if (self) {
         _appKey = [appKey copy];
         _keychainService = [keychainService copy];
-        _configuration = configuration;
         _lock = OS_UNFAIR_LOCK_INIT;
         _keychainLock = [[NSLock alloc] init];
-        _downloads = [NSMutableDictionary dictionary];
-        _retryDelayScale = 1;
-        [self useSessionConfiguration:nil];
         [self loadAccount];
     }
     return self;
-}
-
-- (void)useSessionConfiguration:(NSURLSessionConfiguration *)configuration {
-    configuration = configuration ?: _configuration;
-    [_downloadSession finishTasksAndInvalidate];
-    [_callSession finishTasksAndInvalidate];
-    NSOperationQueue *delegateQueue = [[NSOperationQueue alloc] init];
-    delegateQueue.maxConcurrentOperationCount = 1;
-    delegateQueue.name = @"com.commonwealthrecordings.Vibe.dropbox";
-    // TRAP: a delegate session retains its delegate until invalidated. The
-    // client lives as long as the app, so only a replaced session is.
-    _downloadSession = [NSURLSession sessionWithConfiguration:configuration
-                                                     delegate:self
-                                                delegateQueue:delegateQueue];
-    _callSession = [NSURLSession sessionWithConfiguration:configuration];
 }
 
 #pragma mark - Account
@@ -515,7 +422,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     // the grant really ends on Dropbox's side, not only here.
     void (^revoke)(NSString *) = ^(NSString *token) {
         NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_API_BASE stringByAppendingString:@"auth/token/revoke"]];
-        [[self->_callSession dataTaskWithRequest:[self requestForURL:url token:token]] resume];
+        [[self.callSession dataTaskWithRequest:[self requestForURL:url token:token]] resume];
     };
     if (access) {
         revoke(access);
@@ -546,23 +453,22 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     return request;
 }
 
-// One ladder for every call Dropbox refused: an expired access token
-// refreshes once and resends, any other 401 unlinks, a throttle waits and
-// resends, and the rest fail with Dropbox's own words. Exactly one of resend
-// and fail runs.
+// One ladder for every call Dropbox refused, the calls' and the transfers':
+// an expired access token refreshes once and resends, any other 401 unlinks,
+// a throttle waits and resends, and the rest fail with Dropbox's own words.
+// Exactly one of resend and fail runs.
 - (void)handleFailureStatus:(NSInteger)status
                        data:(NSData *)data
                  retryAfter:(NSString *)retryAfter
-                      token:(NSString *)token
-                 generation:(uint64_t)generation
-                  refreshed:(BOOL)refreshed
+                      state:(NSMutableDictionary<NSString *, id> *)state
                     attempt:(NSInteger)attempt
-                     resend:(void (^)(BOOL refreshed, NSInteger attempt))resend
+                     resend:(void (^)(NSInteger attempt))resend
                        fail:(void (^)(NSError *error))fail {
     NSDictionary *body = VibeJSONObject(data);
-    if (VibeDropboxIsExpiredAccessToken(status, body) && !refreshed) {
-        [self discardAccessToken:token];
-        resend(YES, attempt);
+    if (VibeDropboxIsExpiredAccessToken(status, body) && ![state[kStateRefreshed] boolValue]) {
+        [self discardAccessToken:state[kStateToken]];
+        state[kStateRefreshed] = @YES;
+        resend(attempt);
         return;
     }
     NSString *summary = VibeDropboxErrorSummary(status, body);
@@ -574,16 +480,11 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
                    text.length > 300 ? [text substringToIndex:300] : text];
     }
     if (status == 401) {
-        [self unlinkAccountGeneration:generation reason:summary];
+        [self unlinkAccountGeneration:[state[kStateAccountGeneration] unsignedLongLongValue] reason:summary];
         fail(VibeDropboxMakeError(VibeDropboxErrorNotLinked, summary));
         return;
     }
-    NSTimeInterval delay = VibeDropboxRetryDelay(status, retryAfter);
-    if (delay >= 0 && attempt < kMaximumAttempts) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * self.retryDelayScale * NSEC_PER_SEC)),
-                       dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-            resend(refreshed, attempt + 1);
-        });
+    if ([self resendAfterStatus:status retryAfter:retryAfter attempt:attempt resend:resend]) {
         return;
     }
     LogWarn(@"Dropbox: call failed: %@", summary);
@@ -602,8 +503,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     request.HTTPMethod = @"POST";
     [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
     request.HTTPBody = VibeDropboxFormBody(fields);
-    [[_callSession dataTaskWithRequest:request
-                     completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+    [[self.callSession dataTaskWithRequest:request
+                         completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class]
                 ? ((NSHTTPURLResponse *)response).statusCode : 0;
         completion(VibeJSONObject(data), status, error);
@@ -687,19 +588,22 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (void)callEndpoint:(NSString *)endpoint
            arguments:(NSDictionary *)arguments
           completion:(void (^)(NSDictionary *, NSError *))completion {
-    [self callEndpoint:endpoint arguments:arguments attempt:1 refreshed:NO completion:completion];
+    [self callEndpoint:endpoint arguments:arguments state:[NSMutableDictionary dictionary] attempt:1
+            completion:completion];
 }
 
 - (void)callEndpoint:(NSString *)endpoint
            arguments:(NSDictionary *)arguments
+               state:(NSMutableDictionary<NSString *, id> *)state
              attempt:(NSInteger)attempt
-           refreshed:(BOOL)refreshed
           completion:(void (^)(NSDictionary *, NSError *))completion {
     [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
         if (tokenError) {
             completion(nil, tokenError);
             return;
         }
+        state[kStateToken] = token;
+        state[kStateAccountGeneration] = @(generation);
         NSMutableURLRequest *request = [self requestForURL:
                 [NSURL URLWithString:[VIBE_DROPBOX_API_BASE stringByAppendingString:endpoint]] token:token];
         [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
@@ -707,8 +611,8 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         request.HTTPBody = arguments
                 ? [NSJSONSerialization dataWithJSONObject:arguments options:0 error:NULL]
                 : [@"null" dataUsingEncoding:NSUTF8StringEncoding];
-        [[self->_callSession dataTaskWithRequest:request
-                               completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        [[self.callSession dataTaskWithRequest:request
+                             completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
             if (error) {
                 completion(nil, error);
                 return;
@@ -720,10 +624,10 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
             }
             [self handleFailureStatus:http.statusCode data:data
                            retryAfter:[http valueForHTTPHeaderField:@"Retry-After"]
-                                token:token generation:generation refreshed:refreshed attempt:attempt
-                               resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
-                [self callEndpoint:endpoint arguments:arguments attempt:nextAttempt
-                         refreshed:nowRefreshed completion:completion];
+                                state:state attempt:attempt
+                               resend:^(NSInteger nextAttempt) {
+                [self callEndpoint:endpoint arguments:arguments state:state attempt:nextAttempt
+                        completion:completion];
             } fail:^(NSError *failure) {
                 completion(nil, failure);
             }];
@@ -755,399 +659,59 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         // connection to the content host, one per session, since a session's
         // connections are its own (the download on one, its tail on the other).
         NSMutableURLRequest *request = [self downloadRequestForPath:@"" token:token];
-        [[self->_downloadSession dataTaskWithRequest:request] resume];
-        [[self->_callSession dataTaskWithRequest:request] resume];
+        [[self.downloadSession dataTaskWithRequest:request] resume];
+        [[self.callSession dataTaskWithRequest:request] resume];
     }];
 }
 
 #pragma mark - Transfers
 
-// Any thread. A transfer with a task in flight completes through that task's
-// cancel. One with none — waiting on a token refresh, or on a retry's delay
-// after a task that already ended — settles here, at once: a cancel frees
-// the caller's lane now, never when the refresh or the delay comes back
-// (System/AGENTS.md). Whichever step runs next sees the flag.
-- (void)cancelTransfer:(DropboxTransfer *)transfer {
-    os_unfair_lock_lock(&_lock);
-    transfer.cancelled = YES;
-    NSURLSessionDataTask *task = transfer.task;
-    os_unfair_lock_unlock(&_lock);
-    if (task && task.state != NSURLSessionTaskStateCompleted) {
-        [task cancel];
-        return;
-    }
-    [self finishTransfer:transfer result:nil error:VibeCancelledError()];
-}
-
-// Exactly once per transfer, whichever path gets here first.
-- (void)finishTransfer:(DropboxTransfer *)transfer result:(id)result error:(NSError *)error {
-    os_unfair_lock_lock(&_lock);
-    BOOL first = !transfer.finished;
-    transfer.finished = YES;
-    os_unfair_lock_unlock(&_lock);
-    if (!first) {
-        return;
-    }
-    NSError *closeError = nil;
-    if (transfer.file && ![transfer.file closeAndReturnError:&closeError] && !error) {
-        error = closeError;
-    }
-    transfer.file = nil;
-    if (error && transfer.destination && !VibeDropboxKeepsPart(error)) {
-        [NSFileManager.defaultManager removeItemAtURL:transfer.destination error:NULL];
-    }
-    transfer.completion(error ? nil : result, error);
-}
-
-// The transfer's task, unless a cancel came first. Under the lock, so a
-// cancel either finds the task or is seen here.
-//
-// TRAP: a download enters the delegate's table under the SAME lock. Written
-// after the adopt, a cancel between the two cancelled a task whose
-// completion found no transfer, and the download never finished: its caller
-// waited on it for good, holding its materialization lane.
-- (BOOL)adoptTask:(NSURLSessionDataTask *)task forTransfer:(DropboxTransfer *)transfer {
-    os_unfair_lock_lock(&_lock);
-    BOOL cancelled = transfer.cancelled;
-    if (!cancelled) {
-        transfer.task = task;
-        if (transfer.destination) {
-            _downloads[@(task.taskIdentifier)] = transfer;
-        }
-    }
-    os_unfair_lock_unlock(&_lock);
-    return !cancelled;
-}
-
-- (dispatch_block_t)cancelBlockForTransfer:(DropboxTransfer *)transfer {
-    __weak DropboxClient *weakSelf = self;
-    return ^{
-        [weakSelf cancelTransfer:transfer];
-    };
-}
-
-#pragma mark - Ranged read
-
-- (dispatch_block_t)readPath:(NSString *)path
-                      offset:(uint64_t)offset
-                      length:(uint64_t)length
-                  completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
-    DropboxTransfer *read = [[DropboxTransfer alloc] init];
-    read.path = path;
-    // Weak: the transfer holds this block, and finishTransfer: holds the transfer.
-    __weak DropboxTransfer *weakRead = read;
-    read.completion = ^(id data, NSError *error) {
-        completion(data, error ? nil : weakRead.metadata, error);
-    };
-    read.attempts = 1;
-    [self startRead:read offset:offset length:length];
-    return [self cancelBlockForTransfer:read];
-}
-
-- (void)startRead:(DropboxTransfer *)read offset:(uint64_t)offset length:(uint64_t)length {
+// files/download by the target path, as the account. A transfer waiting on
+// the refresh is settled at once by its cancel (HTTPTransferClient).
+- (void)makeRequestForTarget:(id)target
+                       state:(NSMutableDictionary<NSString *, id> *)state
+                  completion:(void (^)(NSMutableURLRequest *, NSError *))completion {
     [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
         if (tokenError) {
-            [self finishTransfer:read result:nil error:tokenError];
+            completion(nil, tokenError);
             return;
         }
-        NSMutableURLRequest *request = [self downloadRequestForPath:read.path token:token];
-        [request setValue:[NSString stringWithFormat:@"bytes=%llu-%llu", offset, offset + length - 1]
-       forHTTPHeaderField:@"Range"];
-        NSURLSessionDataTask *task = [self->_callSession dataTaskWithRequest:request
-                                                           completionHandler:^(NSData *data, NSURLResponse *response,
-                                                                               NSError *error) {
-            if (error) {
-                [self finishTransfer:read result:nil
-                               error:[error.domain isEqualToString:NSURLErrorDomain] && error.code == NSURLErrorCancelled
-                                       ? VibeCancelledError() : error];
-                return;
-            }
-            NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-            // 200 is a server ignoring the range: the whole file, so cut it,
-            // and a range past its end is nothing, never bytes from its start.
-            if (http.statusCode == 206 || http.statusCode == 200) {
-                read.metadata = VibeDropboxAPIResult(http);
-                NSData *bytes = data ?: [NSData data];
-                if (http.statusCode == 200) {
-                    NSUInteger start = (NSUInteger)MIN((uint64_t)bytes.length, offset);
-                    bytes = [bytes subdataWithRange:NSMakeRange(start,
-                            (NSUInteger)MIN((uint64_t)(bytes.length - start), length))];
-                }
-                [self finishTransfer:read result:bytes error:nil];
-                return;
-            }
-            [self handleFailureStatus:http.statusCode data:data
-                           retryAfter:[http valueForHTTPHeaderField:@"Retry-After"]
-                                token:token generation:generation refreshed:read.refreshed attempt:read.attempts
-                               resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
-                read.refreshed = nowRefreshed;
-                read.attempts = nextAttempt;
-                [self startRead:read offset:offset length:length];
-            } fail:^(NSError *failure) {
-                [self finishTransfer:read result:nil error:failure];
-            }];
-        }];
-        if (![self adoptTask:task forTransfer:read]) {
-            [self finishTransfer:read result:nil error:VibeCancelledError()];
-            return;
-        }
-        [task resume];
+        state[kStateToken] = token;
+        state[kStateAccountGeneration] = @(generation);
+        completion([self downloadRequestForPath:target token:token], nil);
     }];
 }
 
-#pragma mark - Download
-
-- (dispatch_block_t)downloadPath:(NSString *)path
-                           toURL:(NSURL *)destination
-                        progress:(void (^)(uint64_t, int64_t, NSString *))progress
-                      completion:(void (^)(NSDictionary *, NSError *))completion {
-    DropboxTransfer *download = [[DropboxTransfer alloc] init];
-    download.path = path;
-    download.destination = destination;
-    download.progress = progress;
-    download.completion = completion;
-    download.attempts = 1;
-    // A destination holding bytes of a version, kept by a transfer the link
-    // ended, is continued from its last byte; one with no rev is replaced.
-    struct stat kept;
-    NSString *rev = stat(destination.fileSystemRepresentation, &kept) == 0 && kept.st_size > 0
-            ? VibeDropboxRevOfFile(destination) : nil;
-    if (rev) {
-        download.resumeRev = rev;
-        download.bytesWritten = (uint64_t)kept.st_size;
-    }
-    [self startDownload:download];
-    return [self cancelBlockForTransfer:download];
+- (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response {
+    return VibeDropboxAPIResult(response);
 }
 
-- (void)startDownload:(DropboxTransfer *)download {
-    [self withAccessToken:^(NSString *token, uint64_t generation, NSError *tokenError) {
-        if (tokenError) {
-            [self finishTransfer:download result:nil error:tokenError];
-            return;
-        }
-        NSMutableURLRequest *request = [self downloadRequestForPath:download.path token:token];
-        os_unfair_lock_lock(&self->_lock);
-        uint64_t offset = download.bytesWritten;
-        os_unfair_lock_unlock(&self->_lock);
-        // A resend continues the file, never starts it over: a reader may
-        // hold it open, and a new file would leave it waiting on one that
-        // never grows.
-        if (offset > 0) {
-            [request setValue:[NSString stringWithFormat:@"bytes=%llu-", offset] forHTTPHeaderField:@"Range"];
-        }
-        NSURLSessionDataTask *task = [self->_downloadSession dataTaskWithRequest:request];
-        download.accessToken = token;
-        download.accountGeneration = generation;
-        if (![self adoptTask:task forTransfer:download]) {
-            [self finishTransfer:download result:nil error:VibeCancelledError()];
-            return;
-        }
-        [task resume];
-    }];
+- (NSString *)versionOfMetadata:(NSDictionary *)metadata {
+    return VibeDropboxRevOf(metadata);
 }
 
-- (DropboxTransfer *)downloadForTask:(NSURLSessionTask *)task {
-    os_unfair_lock_lock(&_lock);
-    DropboxTransfer *download = _downloads[@(task.taskIdentifier)];
-    os_unfair_lock_unlock(&_lock);
-    return download;
+- (int64_t)sizeOfMetadata:(NSDictionary *)metadata {
+    return VibeDropboxSizeOf(metadata);
 }
 
-// The delegate queue is serial, so a download's response, data and
-// completion callbacks never overlap, and it alone writes the file.
-- (void)URLSession:(NSURLSession *)session
-          dataTask:(NSURLSessionDataTask *)dataTask
-didReceiveResponse:(NSURLResponse *)response
- completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
-    DropboxTransfer *download = [self downloadForTask:dataTask];
-    if (!download) {
-        completionHandler(NSURLSessionResponseAllow);
-        return;
-    }
-    NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-    download.status = http.statusCode;
-    download.errorData = nil;
-    download.skip = 0;
-    // A ranged resend answers 206 from where the file stopped, or 200 with the
-    // whole file from a server ignoring the range. A request with no range,
-    // the first or one before any byte was written, takes only 200.
-    uint64_t offset = download.bytesWritten;
-    // A kept part longer than the version now current asks past its end:
-    // started over, whole, as another version's part is (restart).
-    if (http.statusCode == 416 && download.resumeRev && !download.file) {
-        LogInfo(@"Dropbox: %@ is shorter than its kept part's %llu bytes; downloading it whole", download.path, offset);
-        download.restart = YES;
-        completionHandler(NSURLSessionResponseCancel);
-        return;
-    }
-    if (http.statusCode != 200 && !(http.statusCode == 206 && offset > 0)) {
-        download.errorData = [NSMutableData data];
-        download.retryAfter = [http valueForHTTPHeaderField:@"Retry-After"];
-        completionHandler(NSURLSessionResponseAllow);
-        return;
-    }
-    NSDictionary *metadata = VibeDropboxAPIResult(http);
-    NSString *rev = VibeDropboxRevOf(metadata);
-    // TRAP: a download by id answers whatever version is current, so bytes
-    // continuing a file, a resend's or a kept part's, must be the version it
-    // holds, or two versions splice into one; with no rev to compare, nothing
-    // proves they match. A resend of another version fails the transfer; a
-    // kept part's starts it over, whole, from the completion (restart).
-    NSString *pinned = download.file ? VibeDropboxRevOf(download.metadata) : download.resumeRev;
-    if ((download.file || download.resumeRev) && ![rev isEqualToString:pinned]) {
-        if (download.file) {
-            LogWarn(@"Dropbox: %@ changed during its download (rev %@, now %@)", download.path, pinned, rev);
-            download.failure = VibeDropboxMakeError(VibeDropboxErrorFileChanged,
-                                                    @"the file changed on Dropbox during its download");
-        }
-        else {
-            LogInfo(@"Dropbox: %@ is another version than its kept part's (rev %@, now %@); downloading it whole",
-                    download.path, pinned, rev);
-            download.restart = YES;
-        }
-        completionHandler(NSURLSessionResponseCancel);
-        return;
-    }
-    download.skip = http.statusCode == 200 ? offset : 0;
-    if (download.file) {
-        completionHandler(NSURLSessionResponseAllow);
-        return;
-    }
-    // Made once per transfer, at its first accepted response, unless it
-    // continues a kept part.
-    download.metadata = metadata;
-    download.size = VibeDropboxSizeOf(metadata);
-    if (!download.resumeRev) {
-        NSFileManager *files = NSFileManager.defaultManager;
-        [files removeItemAtURL:download.destination error:NULL];
-        if (![files createFileAtPath:download.destination.path contents:nil attributes:nil]) {
-            download.failure = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
-            completionHandler(NSURLSessionResponseCancel);
-            return;
-        }
-        if (rev) {
-            setxattr(download.destination.fileSystemRepresentation, kVibeDropboxRevAttribute,
-                     rev.UTF8String, strlen(rev.UTF8String), 0, 0);
-        }
-    }
-    NSError *error = nil;
-    download.file = [NSFileHandle fileHandleForWritingToURL:download.destination error:&error];
-    download.failure = error;
-    if (download.file && download.resumeRev && ![download.file seekToEndReturningOffset:NULL error:&error]) {
-        download.failure = error;
-    }
-    if (download.file && !download.failure && download.progress) {
-        download.progress(offset, download.size, rev);
-    }
-    completionHandler(download.file && !download.failure ? NSURLSessionResponseAllow : NSURLSessionResponseCancel);
-}
-
-- (void)URLSession:(NSURLSession *)session
-          dataTask:(NSURLSessionDataTask *)dataTask
-    didReceiveData:(NSData *)data {
-    DropboxTransfer *download = [self downloadForTask:dataTask];
-    if (download.errorData) {
-        [download.errorData appendData:data];
-        return;
-    }
-    if (!download.file || download.failure) {
-        return;
-    }
-    if (download.skip > 0) {
-        NSUInteger skipped = (NSUInteger)MIN((uint64_t)data.length, download.skip);
-        download.skip -= skipped;
-        data = [data subdataWithRange:NSMakeRange(skipped, data.length - skipped)];
-        if (data.length == 0) {
-            return;
-        }
-    }
-    NSError *error = nil;
-    if (![download.file writeData:data error:&error]) {
-        download.failure = error;
-        [dataTask cancel];
-        return;
-    }
-    download.networkRetries = 0;
-    os_unfair_lock_lock(&_lock);
-    uint64_t written = download.bytesWritten += data.length;
-    os_unfair_lock_unlock(&_lock);
-    // After the write: a reader told of these bytes finds them on disk.
-    if (download.progress) {
-        download.progress(written, download.size, VibeDropboxRevOf(download.metadata));
+- (NSError *)errorWithCode:(VibeHTTPError)code description:(NSString *)description {
+    switch (code) {
+        case VibeHTTPErrorCancelled:
+            return VibeDropboxMakeError(VibeDropboxErrorCancelled, description);
+        case VibeHTTPErrorVersionChanged:
+            return VibeDropboxMakeError(VibeDropboxErrorFileChanged, @"the file changed on Dropbox during its download");
+        default:
+            return VibeDropboxMakeError(VibeDropboxErrorAPI, description);
     }
 }
 
-- (void)URLSession:(NSURLSession *)session
-              task:(NSURLSessionTask *)task
-didCompleteWithError:(NSError *)error {
-    os_unfair_lock_lock(&_lock);
-    DropboxTransfer *download = _downloads[@(task.taskIdentifier)];
-    [_downloads removeObjectForKey:@(task.taskIdentifier)];
-    BOOL cancelled = download.cancelled;
-    os_unfair_lock_unlock(&_lock);
-    if (!download) {
-        return;
-    }
-    if (cancelled) {
-        [self finishTransfer:download result:nil error:VibeCancelledError()];
-        return;
-    }
-    if (download.restart) {
-        download.restart = NO;
-        download.resumeRev = nil;
-        download.metadata = nil;
-        [NSFileManager.defaultManager removeItemAtURL:download.destination error:NULL];
-        os_unfair_lock_lock(&_lock);
-        download.bytesWritten = 0;
-        os_unfair_lock_unlock(&_lock);
-        [self startDownload:download];
-        return;
-    }
-    if (download.failure) {
-        [self finishTransfer:download result:nil error:download.failure];
-        return;
-    }
-    // Every byte is here: a resend would ask for bytes=<size>-, which 416s.
-    BOOL whole = download.file && download.size >= 0 && download.bytesWritten == (uint64_t)download.size;
-    if (error && whole && !download.errorData && VibeDropboxIsConnectionError(error)) {
-        error = nil;
-    }
-    if (error) {
-        if (download.file && download.networkRetries < kMaximumNetworkRetries && VibeDropboxIsConnectionError(error)) {
-            download.networkRetries++;
-            LogInfo(@"Dropbox: resuming %@ at byte %llu: %@", download.path, download.bytesWritten,
-                    error.localizedDescription);
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                         (int64_t)(kNetworkRetryDelay * self.retryDelayScale * NSEC_PER_SEC)),
-                           dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-                [self startDownload:download];
-            });
-            return;
-        }
-        [self finishTransfer:download result:nil error:error];
-        return;
-    }
-    if (!download.errorData) {
-        // A file of another length than its version's is not that version.
-        NSError *mismatch = download.size < 0 || whole ? nil
-                : VibeDropboxMakeError(VibeDropboxErrorAPI, @"the download's length differs from its file's size");
-        if (mismatch) {
-            LogWarn(@"Dropbox: %@ ended at byte %llu of %lld", download.path, download.bytesWritten, download.size);
-        }
-        [self finishTransfer:download result:download.metadata ?: @{} error:mismatch];
-        return;
-    }
-    [self handleFailureStatus:download.status data:download.errorData retryAfter:download.retryAfter
-                        token:download.accessToken generation:download.accountGeneration
-                    refreshed:download.refreshed attempt:download.attempts
-                       resend:^(BOOL nowRefreshed, NSInteger nextAttempt) {
-        download.refreshed = nowRefreshed;
-        download.attempts = nextAttempt;
-        [self startDownload:download];
-    } fail:^(NSError *failure) {
-        [self finishTransfer:download result:nil error:failure];
-    }];
+- (NSString *)logName {
+    return @"Dropbox";
+}
+
+// A Dropbox path or id names a file in the account, not a link.
+- (NSString *)descriptionOfTarget:(id)target {
+    return [target description];
 }
 
 @end

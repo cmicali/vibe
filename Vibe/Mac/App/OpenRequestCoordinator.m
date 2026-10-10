@@ -36,6 +36,11 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     // and only ever climb.
     NSUInteger _armedDeadlineGeneration;
     NSUInteger _armedDeadlineSequence;
+    // Stamps each armed deadline. Only the latest timer acts, so one a
+    // release re-armed for the same request leaves the older nothing to do.
+    NSUInteger _deadlineTimerGeneration;
+    // The current generation's held requests, by sequence (holdRequest:).
+    NSMutableIndexSet *_heldSequences;
 }
 
 + (instancetype)sharedCoordinator {
@@ -53,6 +58,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         // 1, not 0: the armed-deadline state uses 0 as none.
         _openGeneration = 1;
         _completed = [NSMutableDictionary dictionary];
+        _heldSequences = [NSMutableIndexSet indexSet];
         _stragglerDeadline = kDefaultStragglerDeadline;
     }
     return self;
@@ -64,6 +70,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     _nextSequence = 0;
     _nextDeliverySequence = 0;
     [_completed removeAllObjects];
+    [_heldSequences removeAllIndexes];
 }
 
 - (OpenRequestToken *)beginRequestAppending:(BOOL)append
@@ -106,9 +113,29 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     }
 }
 
+- (void)holdRequest:(OpenRequestToken *)token {
+    if ([self isRequestCurrent:token]) {
+        [_heldSequences addIndex:token.sequence];
+    }
+}
+
+- (void)releaseRequest:(OpenRequestToken *)token {
+    if (![self isRequestCurrent:token] || ![_heldSequences containsIndex:token.sequence]) {
+        return;
+    }
+    [_heldSequences removeIndex:token.sequence];
+    // The head gets a full deadline from now for what it opens next. One
+    // armed while it was held may be nearly spent, and one that found it held
+    // did not re-arm.
+    if (_completed.count > 0 && token.sequence == _nextDeliverySequence) {
+        _armedDeadlineGeneration = 0;
+        [self armStragglerDeadline];
+    }
+}
+
 - (void)abandonStalledRequests {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
-    if (_completed.count == 0) {
+    if (_completed.count == 0 || [_heldSequences containsIndex:_nextDeliverySequence]) {
         return;
     }
     // Only the head: the ones behind it may be slow rather than wedged, and a
@@ -144,6 +171,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     }
     _armedDeadlineGeneration = generation;
     _armedDeadlineSequence = missingSequence;
+    NSUInteger timerGeneration = ++_deadlineTimerGeneration;
     __weak OpenRequestCoordinator *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
@@ -153,8 +181,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         }
         // TRAP: a replacement or a later gap may have armed its own deadline;
         // disarming here would strand that missing request.
-        if (strongSelf->_armedDeadlineGeneration != generation ||
-                strongSelf->_armedDeadlineSequence != missingSequence) {
+        if (strongSelf->_deadlineTimerGeneration != timerGeneration) {
             return;
         }
         strongSelf->_armedDeadlineGeneration = 0;

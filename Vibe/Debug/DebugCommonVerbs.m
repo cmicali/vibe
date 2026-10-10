@@ -35,11 +35,15 @@
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
 #import "EqualizerIndicatorView+Debug.h"
+#import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
+#import "RemotePlaceholderStoreInternal.h"
 #import "VibeFakeCloud.h"
+#import "VibeFakeHTTP.h"
 #import "VibeWorkTally.h"
 
 #if TARGET_OS_OSX
@@ -198,6 +202,71 @@ static NSDictionary *VibeSlowVolumeReply(NSNumber *released) {
     reply[@"liveReadAheads"] = @(AudioFileHandle.debugLiveReadAheads);
     reply[@"orphanedReadAheads"] = @(AudioFileHandle.debugOrphanedReadAheads);
     return reply;
+}
+
+// A VibeLinkError by its link.error key's last part. A script reads the
+// failure the shell would show.
+static NSString *VibeLinkErrorName(VibeLinkError code) {
+    switch (code) {
+        case VibeLinkErrorNone: return @"none";
+        case VibeLinkErrorInvalid: return @"invalid";
+        case VibeLinkErrorInsecure: return @"insecure";
+        case VibeLinkErrorUnreachable: return @"unreachable";
+        case VibeLinkErrorLocalNetwork: return @"local_network";
+        case VibeLinkErrorNotFound: return @"not_found";
+        case VibeLinkErrorDenied: return @"denied";
+        case VibeLinkErrorNotAudio: return @"not_audio";
+        case VibeLinkErrorNoSize: return @"no_size";
+        case VibeLinkErrorLiveStream: return @"live_stream";
+        case VibeLinkErrorServer: return @"server";
+        case VibeLinkErrorCancelled: return @"cancelled";
+    }
+    return @"unknown";
+}
+
+static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
+    if (file) {
+        return @{@"ok": @YES, @"file": file.path, @"placeholder": @([NSURLUtil isRemotePlaceholderFile:file])};
+    }
+    BOOL linkError = [error.domain isEqualToString:VibeLinkErrorDomain];
+    NSError *cause = error.userInfo[NSUnderlyingErrorKey];
+    return @{
+        @"ok": @NO,
+        @"linkError": linkError ? VibeLinkErrorName((VibeLinkError)error.code) : [NSString stringWithFormat:@"%@ %ld",
+                                                                        error.domain, (long)error.code],
+        @"code": @(error.code),
+        @"status": error.userInfo[VibeHTTPErrorStatusCodeKey] ?: NSNull.null,
+        @"cause": cause ? [NSString stringWithFormat:@"%@ %ld", cause.domain, (long)cause.code] : NSNull.null,
+    };
+}
+
+// Each link's directory under the Links root, with its record and its file:
+// a placeholder or a download, and the stream writing it now.
+static NSArray<NSDictionary *> *VibeLinkDirectories(LinkStore *store) {
+    NSMutableArray<NSDictionary *> *links = [NSMutableArray array];
+    NSFileManager *files = NSFileManager.defaultManager;
+    NSArray<NSURL *> *directories = [files contentsOfDirectoryAtURL:store.rootURL includingPropertiesForKeys:nil
+                                                            options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                              error:NULL];
+    for (NSURL *directory in [directories sortedArrayUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        return [a.lastPathComponent compare:b.lastPathComponent];
+    }]) {
+        NSURL *file = [files contentsOfDirectoryAtURL:directory includingPropertiesForKeys:nil
+                                              options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL].firstObject;
+        CloudFileAvailability *stream = file ? [store availabilityForURL:file] : nil;
+        BOOL placeholder = file && [NSURLUtil isRemotePlaceholderFile:file];
+        [links addObject:@{
+            @"directory": directory.lastPathComponent,
+            @"record": [store indexOfDirectory:directory] ?: NSNull.null,
+            @"file": file.lastPathComponent ?: NSNull.null,
+            @"path": file.path ?: NSNull.null,
+            @"placeholder": @(placeholder),
+            @"stream": stream ? @{@"size": @(stream.size), @"writtenBytes": @(stream.writtenBytes),
+                                  @"windowBytes": @(stream.windowLength), @"readers": @(stream.readerCount)}
+                              : NSNull.null,
+        }];
+    }
+    return links;
 }
 
 NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> surface) {
@@ -758,6 +827,129 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 }
                 [surface debugAppendPath:path];
                 return VibeJSONString(@{@"ok": @YES, @"appending": path});
+            }),
+            // Each shell's Open URL road: the resolve, then the file through
+            // the shell's replace. Replies when the resolve settles, with the
+            // file or the link's failure, never waiting for playback.
+            VibeDebugCmd(@"open_url <url>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                           id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count != 2) {
+                    return VibeErrorJSON(@"usage: open_url <url>");
+                }
+                [surface debugOpenLink:tokens[1] completion:^(NSURL *file, NSError *error) {
+                    VibeWriteDebugResponse(commandId, VibeJSONString(VibeOpenLinkReply(file, error)));
+                }];
+                return nil; // response written by the completion above
+            }),
+            VibeDebugCmd(@"dump_links", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                        id<VibeDebugPlayerSurface> surface) {
+                LinkStore *store = LinkStore.shared;
+                [store measureDownloadsWithCompletion:^(long long bytes) {
+                    VibeWriteDebugResponse(commandId, VibeJSONString(@{
+                        @"root": store.rootURL.path,
+                        @"budgetBytes": @(store.downloadBudget),
+                        @"downloadsBytes": @(bytes),
+                        @"links": VibeLinkDirectories(store),
+                    }));
+                }];
+                return nil; // response written by the completion above
+            }),
+            // A directory serves as https://fake.vibe.test/ and
+            // http://fake.local/ under the Links client (VibeFakeHTTP.h).
+            VibeDebugCmd(@"set_fake_http <directory>|off [<transfer-seconds>]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2 || tokens.count > 3) {
+                    return VibeErrorJSON(@"usage: set_fake_http <directory>|off [<transfer-seconds>]");
+                }
+                HTTPTransferClient *client = LinkStore.shared.client;
+                if ([tokens[1] isEqualToString:@"off"]) {
+                    [VibeFakeHTTP uninstallFromClient:client];
+                    return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
+                }
+                BOOL isDirectory = NO;
+                if (![NSFileManager.defaultManager fileExistsAtPath:tokens[1] isDirectory:&isDirectory]
+                        || !isDirectory) {
+                    return VibeErrorJSON(@"not a directory: %@", tokens[1]);
+                }
+                double seconds = 0;
+                if (tokens.count > 2 && (!VibeParseDouble(tokens[2], &seconds) || seconds < 0)) {
+                    return VibeErrorJSON(@"not a number of seconds: %@", tokens[2]);
+                }
+                [VibeFakeHTTP installWithDirectory:[NSURL fileURLWithPath:tokens[1] isDirectory:YES]
+                                   transferSeconds:seconds client:client];
+                return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": tokens[1],
+                                        @"transferSeconds": @(seconds),
+                                        @"hosts": @[@"https://fake.vibe.test/", @"http://fake.local/"]});
+            }),
+            VibeDebugCmd(@"dump_fake_http", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                           id<VibeDebugPlayerSurface> surface) {
+                return VibeJSONString(VibeFakeHTTP.statistics);
+            }),
+            // The value is the kind's own: drop, etag-change, and stall take
+            // bytes (after=), rate bytes per second, latency seconds, status
+            // a code. Byte counts take K and M.
+            VibeDebugCmd(@"fake_http_fault <stall|drop|etag-change|rate|latency|no-range|no-length|icy|status|html"
+                         @"|gzip|off> [<value>] [file=<basename>] [after=<bytes>] [once|always]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: fake_http_fault <kind|off> [<value>] [file=<basename>] "
+                                         @"[after=<bytes>] [once|always]");
+                }
+                NSString *kind = tokens[1];
+                if ([kind isEqualToString:@"off"]) {
+                    [VibeFakeHTTP clearFaults];
+                    return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeHTTP.statistics[@"faults"]});
+                }
+                NSString *file = nil;
+                NSNumber *once = nil;
+                // Past the 256 KB readable mark by default. The stream has begun there.
+                uint64_t after = 512 * 1024, rate = 0;
+                double seconds = 1, number = 0;
+                NSInteger status = 0;
+                for (NSUInteger i = 2; i < tokens.count; i++) {
+                    NSString *token = tokens[i];
+                    if (i == 2 && [token rangeOfString:@"="].location == NSNotFound
+                            && ![@[@"once", @"always"] containsObject:token]) {
+                        BOOL valid = NO;
+                        if ([kind isEqualToString:@"rate"]) {
+                            valid = VibeParseByteCount(token, &rate) && rate > 0;
+                        }
+                        else if ([kind isEqualToString:@"latency"]) {
+                            valid = VibeParseDouble(token, &seconds) && seconds >= 0;
+                        }
+                        else if ([kind isEqualToString:@"status"]) {
+                            valid = VibeParseDouble(token, &number) && number >= 100 && number < 600;
+                            status = (NSInteger)number;
+                        }
+                        else {
+                            valid = VibeParseByteCount(token, &after);
+                        }
+                        if (!valid) {
+                            return VibeErrorJSON(@"bad value for %@: %@", kind, token);
+                        }
+                    }
+                    else if ([token hasPrefix:@"file="] && token.length > 5) {
+                        file = [token substringFromIndex:5];
+                    }
+                    else if ([token hasPrefix:@"after="]) {
+                        if (!VibeParseByteCount([token substringFromIndex:6], &after)) {
+                            return VibeErrorJSON(@"bad argument: %@", token);
+                        }
+                    }
+                    else if ([token isEqualToString:@"once"] || [token isEqualToString:@"always"]) {
+                        once = @([token isEqualToString:@"once"]);
+                    }
+                    else {
+                        return VibeErrorJSON(@"bad argument: %@", token);
+                    }
+                }
+                if (![VibeFakeHTTP addFaultOfKind:kind file:file after:after seconds:seconds rate:rate
+                                           status:status once:once]) {
+                    return VibeErrorJSON(@"unknown fault, or its value missing: %@", kind);
+                }
+                return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeHTTP.statistics[@"faults"]});
             }),
             // clientTimeout 20 exceeds the 15s wait below: the waveform clear
             // queues behind any in-flight load, and the default 5s client wait

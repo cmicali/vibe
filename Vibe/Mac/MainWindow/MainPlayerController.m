@@ -73,6 +73,10 @@
     // B's first track is still opening.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
+    // The header's notice title (showNotice:naming:), and the generation that
+    // pairs the notice with its own timer. noticeStatus is the notice.
+    NSString*                   _noticeTitle;
+    NSUInteger                  _noticeGeneration;
     TransportKeyMonitor*        _keyMonitor;
     BOOL                        _folderArtRefreshScheduled;
     uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
@@ -436,20 +440,33 @@
         case TrackDisplayStateEmpty:
         case TrackDisplayStateLaunchGrace:
         case TrackDisplayStateError:
+        case TrackDisplayStateNotice:
             return nil;
     }
+}
+
+- (TrackDisplayState)headerState {
+    return [self headerStateForState:[self displayState]];
+}
+
+// The one home of the rule: a notice outranks the display state, on the
+// header only.
+- (TrackDisplayState)headerStateForState:(TrackDisplayState)state {
+    return _noticeStatus ? TrackDisplayStateNotice : state;
 }
 
 - (void)renderTrackPresentationForState:(TrackDisplayState)state
                                   track:(AudioTrack *)track
                            displayTrack:(AudioTrack *)displayTrack {
+    TrackDisplayState header = [self headerStateForState:state];
+    NSString *errorStatus = track && track == _erroredTrack ? _errorStatus : nil;
     // renderState rewrites the codec line, so tempo/key and FX follow it.
-    [self.trackDisplay renderState:state
-                             track:(state == TrackDisplayStateError ? track : displayTrack)
+    [self.trackDisplay renderState:header
+                             track:(header == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                       errorStatus:(track && track == _erroredTrack ? _errorStatus : nil)
-            unplayablePlaylistName:_unplayablePlaylistName];
+                            status:(_noticeStatus ?: errorStatus)
+                             title:(_noticeStatus ? _noticeTitle : _unplayablePlaylistName)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];
@@ -509,7 +526,7 @@
     [self.trackDisplay renderPosition:position
                              duration:_currentTrackDuration
                                  rate:self.playbackRate
-                                state:[self displayState]];
+                                state:[self headerState]];
     [self.audioPlayer noteDisplayedPosition:position forTrack:self.playlistController.currentTrack];
 }
 
@@ -517,7 +534,13 @@
 // unconditional: neither the label's 0.1 BPM granularity nor a hidden readout
 // may gate the audio.
 - (void)effectiveTempoDidChange {
-    AudioTrack *track = [self displayedTrack];
+    // One currentTrack read (displayedTrack's trap). The audio follows the
+    // playing track. The label follows the header, which names none under a
+    // notice.
+    AudioTrack *current = self.playlistController.currentTrack;
+    TrackDisplayState state = [self displayStateForTrack:current];
+    AudioTrack *track = [self displayedTrackForState:state track:current];
+    AudioTrack *shown = [self displayedTrackForState:[self headerStateForState:state] track:current];
     float baseBPM = track.bpm;
     float scaledBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
     self.audioPlayer.fx.delayTapBPM = scaledBPM;
@@ -525,14 +548,14 @@
     // at the 16% extreme, and a flickering key would misread as a data change.
     // The notation applies to tagged keys too.
     AppSettings *settings = AppSettings.sharedInstance;
-    VibeMusicalKey key = track && settings.showKey ? track.key : VibeMusicalKeyNone;
+    VibeMusicalKey key = shown && settings.showKey ? shown.key : VibeMusicalKeyNone;
     NSString *keyText = @"";
     if (VibeMusicalKeyIsValid(key)) {
         keyText = [settings.keyNotation isEqualToString:SETTINGS_VALUE_KEY_NOTATION_MUSICAL]
                 ? VibeMusicalKeyMusicalName(key)
                 : VibeMusicalKeyCamelotName(key);
     }
-    float labelBPM = track && settings.showBPM ? scaledBPM : 0;
+    float labelBPM = shown && settings.showBPM ? scaledBPM : 0;
     [self.trackDisplay renderBPM:labelBPM
                          keyText:keyText
                         colorKey:(settings.keyColorsEnabled ? key : VibeMusicalKeyNone)];
@@ -551,6 +574,73 @@
     _emptyStateSuppressed = NO;
     _unplayablePlaylistName = [name copy];
     [self updateUI];
+}
+
+- (void)beginLinkResolveFeedbackAppending:(BOOL)append {
+    if (append && [self displayedTrack]) {
+        return;
+    }
+    [self.trackDisplay showWaveformLoadingIndicator];
+}
+
+- (void)endLinkResolveFeedback {
+    if (self.trackDisplay.waveformLoadingIndicatorShown) {
+        [self restoreCoveredHeader];
+    }
+}
+
+static const NSTimeInterval kNoticeSeconds = 4;
+
+- (void)showNotice:(NSString *)status naming:(NSString *)name {
+    _noticeStatus = [status copy];
+    _noticeTitle = [name copy];
+    NSUInteger generation = ++_noticeGeneration;
+    [self updateUI];
+    __weak MainPlayerController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kNoticeSeconds * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        MainPlayerController *strongSelf = weakSelf;
+        if (strongSelf && strongSelf->_noticeGeneration == generation) {
+            [strongSelf endNotice];
+        }
+    });
+}
+
+- (void)endNotice {
+    _noticeGeneration++;
+    if (!_noticeStatus) {
+        return;
+    }
+    _noticeStatus = nil;
+    _noticeTitle = nil;
+    [self restoreCoveredHeader];
+}
+
+// The header after the drop shimmer or a notice. Either cleared the waveform,
+// so a shown track loads it again. A slow open gets back the shimmer the
+// notice kept off. A track's open still in flight keeps the strip. The render
+// comes first: a notice's header takes no strip writes until it is gone.
+- (void)restoreCoveredHeader {
+    [self updateUI];
+    AudioTrack *track = self.playlistController.currentTrack;
+    switch ([self displayStateForTrack:track]) {
+        case TrackDisplayStateLoading:
+            if (_loadingURL) {
+                [self.trackDisplay showWaveformLoadingIndicator];
+                [self.trackDisplay setWaveformLoadingProgress:_loadingProgress];
+            }
+            break;
+        case TrackDisplayStateTrack:
+            [self.trackDisplay prepareForWaveformLoad];
+            [self.waveformCache loadWaveformForTrack:track];
+            break;
+        case TrackDisplayStateEmpty:
+        case TrackDisplayStateLaunchGrace:
+        case TrackDisplayStateError:
+        case TrackDisplayStateNotice:
+            [self.trackDisplay hideWaveformLoadingIndicator];
+            break;
+    }
 }
 
 - (void)play:(NSArray<AudioTrack *> *)tracks {
@@ -651,6 +741,7 @@
     _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
     _currentTrackDuration = 0;
     [self pauseUIUpdateTimer];
+    [self endNotice];
     [self updateUI];
 }
 
@@ -1018,7 +1109,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 - (void)updateRateDependentUI {
     [self.trackDisplay renderTotalDuration:self.audioPlayer.duration
                                       rate:self.playbackRate
-                                     state:[self displayState]];
+                                     state:[self headerState]];
     [self effectiveTempoDidChange];
     [self syncUITimerRate];
     [self updatePlaybackUI];
@@ -1058,6 +1149,12 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (IBAction) copyFile:(id)sender {
+    // ⌘C is this item's, so a focused text field copies its own text.
+    NSTextView *text = [self focusedTextView];
+    if (text) {
+        [NSApp sendAction:@selector(copy:) to:text from:sender];
+        return;
+    }
     [TrackCommands copyFiles:[self currentTrackAsList]];
 }
 

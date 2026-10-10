@@ -315,6 +315,11 @@ targets:
 
         ITSAppUsesNonExemptEncryption: false
 
+        # Open URL: https to any host, plain http only on the local network.
+        # InfoPlist.xcstrings localizes the usage text.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
         # Sparkle's. The AppStore configuration strips every SU* key from the
         # built Info.plist (the script below). The feed and the key are
         # permanent: every shipped build trusts them.
@@ -439,6 +444,7 @@ targets:
         # it on for every archive, and the Developer ID export re-signs both
         # under one team; notarization rejects a build without it.
         ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES    # Open URL, in both builds
         ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
@@ -571,6 +577,11 @@ targets:
         LSApplicationCategoryType: "public.app-category.music"
         ITSAppUsesNonExemptEncryption: false
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
+        # Open URL: https to any host, plain http only on the local network.
+        # InfoPlist.xcstrings localizes the usage text.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
         UILaunchScreen: {}                    # system launch screen; no storyboard
         UIBackgroundModes: [audio]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
@@ -780,6 +791,7 @@ targets:
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/DebugWireFormat.m
       - path: Vibe/Debug/VibeFakeCloud.m
+      - path: Vibe/Debug/VibeFakeHTTP.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
@@ -823,6 +835,9 @@ targets:
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/System/Remote/HTTPTransferClient.m
+      - path: Vibe/System/Remote/RemotePlaceholderStore.m
+      - path: Vibe/System/Remote/LinkStore.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -835,6 +850,7 @@ targets:
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/Mac/TrackCommands.m
       - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
@@ -896,6 +912,7 @@ targets:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
           - "$(SRCROOT)/Vibe/System"
+          - "$(SRCROOT)/Vibe/System/Remote"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
@@ -938,6 +955,8 @@ targets:
     sources:
       - path: Tests/AudioPlayerRenderTests.m
       - path: Tests/TestFilesystemGuard.m
+      - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
+      - path: Vibe/Debug/VibeFakeHTTP.m       # HTTPStub's serving engine
       - path: Tests/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
@@ -980,6 +999,9 @@ targets:
       - path: Vibe/System/CloudFileMaterializer.m
       - path: Vibe/System/DownloadProgressMonitor.m
       - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/System/Remote/HTTPTransferClient.m
+      - path: Vibe/System/Remote/RemotePlaceholderStore.m
+      - path: Vibe/System/Remote/LinkStore.m
       - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m

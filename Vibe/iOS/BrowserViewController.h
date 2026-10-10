@@ -50,6 +50,20 @@ NS_ASSUME_NONNULL_BEGIN
                           inFolder:(BOOL)inFolder
                              token:(uint64_t)token;
 
+// Open URL: the typed link resolved (LinkStore), then its file opened alone
+// through confirmReplacing…, which asks when the playlist was built by hand.
+// It asks over what is on top of anchor's window when the link settles. The
+// sheet, the add sheet, or the card may have come or gone by then. The
+// replace token is taken now, so a later open supersedes it. A link that
+// fails leaves the playlist as it is. Never the inbox road: it does not
+// persist. Completion on main, with exactly one of file and error, before
+// the replace question. The returned block cancels the resolve on main, as
+// LinkStore's does.
++ (dispatch_block_t)openLinkString:(NSString *)string
+                replacingPlaylistOf:(PlaybackController *)playback
+                               from:(UIViewController *)anchor
+                         completion:(nullable void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them
 // into the Playlist tab when the tracks land; this screen knows no tabs.
@@ -64,6 +78,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The pieces the other screens' rows and alerts share with the browser's.
 void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *message);
+// What an alert goes over: the top of root's presentation stack, the add
+// sheet or the card, past one being dismissed.
+UIViewController *VibeTopmostPresenter(UIViewController *root);
 UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void));
 // Two lines, cut in the middle, secondary line in the secondary color.
 void VibeApplyFileNameStyle(UIListContentConfiguration *content);

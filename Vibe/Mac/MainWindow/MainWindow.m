@@ -8,6 +8,7 @@
 #import "AppSettings+Mac.h"
 #import "WindowAnimation.h"
 #import "AppDelegate.h" // drops enter the app's one open funnel; see performDragOperation:
+#import "LinkRules.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 #import "VibeStrings.h"
@@ -22,6 +23,8 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     BOOL _pitchPanelShown;
     BOOL _playlistShown;
     id   _resizeObserver;
+    // The drag in progress, decided once at its entry.
+    NSDragOperation _dragOperation;
 }
 
 // Keep the controller's conversion guards when Undo follows the responder chain.
@@ -63,10 +66,12 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
         self.autorecalculatesKeyViewLoop = NO;
         self.allowsToolTipsWhenApplicationIsInactive = NO;
 
-        // File URLs only: NSPasteboardTypeURL would show a copy cursor for a
-        // browser link the drop then rejects.
+        // Files, and web links (System/Remote/AGENTS.md). Entering decides
+        // whether the drag holds either.
         [self registerForDraggedTypes:@[
-            NSPasteboardTypeFileURL,
+            kVibeDropTypeFileURL,
+            kVibeDropTypeURL,
+            kVibeDropTypeText,
         ]];
 
         self.allowsConcurrentViewDrawing = YES;
@@ -171,22 +176,43 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 
 #pragma mark - Drag and Drop
 
-// External drags only: our own sources (the art, a playlist row) carry file
-// URLs a drop here would re-open.
-- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
-    if (sender.draggingSource) {
-        return NSDragOperationNone;
+// Each item's first string in VibeDropURLsOfItems' order, the only one it
+// reads. Each read is a round trip to the pasteboard server.
+static NSArray<NSDictionary<NSString *, NSString *> *> *VibeDropItemsOfPasteboard(NSPasteboard *pboard) {
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *items = [NSMutableArray array];
+    for (NSPasteboardItem *item in pboard.pasteboardItems) {
+        NSDictionary<NSString *, NSString *> *strings = @{};
+        for (NSString *type in @[kVibeDropTypeFileURL, kVibeDropTypeURL, kVibeDropTypeText]) {
+            NSString *string = [item stringForType:type];
+            if (string) {
+                strings = @{type: string};
+                break;
+            }
+        }
+        [items addObject:strings];
     }
-    [self notifyFileDraggingUpdated:sender];
-    return NSDragOperationCopy;
+    return items;
+}
+
+// External drags only: our own sources (the art, a playlist row) carry file
+// URLs a drop here would re-open. A drag holding no file and no web link is
+// refused.
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+    // A file drag is decided by its types alone. It can hold thousands of
+    // items, and the drop reads each one anyway.
+    NSPasteboard *pboard = sender.draggingPasteboard;
+    BOOL holdsFiles = [pboard.types containsObject:kVibeDropTypeFileURL];
+    _dragOperation = !sender.draggingSource
+            && (holdsFiles || VibeDropURLsOfItems(VibeDropItemsOfPasteboard(pboard)).count > 0)
+            ? NSDragOperationCopy : NSDragOperationNone;
+    return [self draggingUpdated:sender];
 }
 
 - (NSDragOperation)draggingUpdated:(id<NSDraggingInfo>)sender {
-    if (sender.draggingSource) {
-        return NSDragOperationNone;
+    if (_dragOperation != NSDragOperationNone) {
+        [self notifyFileDraggingUpdated:sender];
     }
-    [self notifyFileDraggingUpdated:sender];
-    return NSDragOperationCopy;
+    return _dragOperation;
 }
 
 - (void)draggingExited:(nullable id<NSDraggingInfo>)sender {
@@ -208,26 +234,36 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
 }
 
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
-    NSPasteboard *pboard = [sender draggingPasteboard];
-    NSArray<NSURL*> *pasteboardURLs = [pboard readObjectsForClasses:@[[NSURL class]] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
-    if (pasteboardURLs.count == 0) {
+    // Synchronously: the session is gone by the time the expansion lands.
+    BOOL append = [self.dropDelegate mainWindow:self dropAppendsAtLocation:sender.draggingLocation];
+    return [self openDroppedItems:VibeDropItemsOfPasteboard(sender.draggingPasteboard) appending:append];
+}
+
+- (BOOL)openDroppedItems:(NSArray<NSDictionary<NSString *, NSString *> *> *)items appending:(BOOL)append {
+    NSArray<NSURL *> *dropped = VibeDropURLsOfItems(items);
+    if (dropped.count == 0) {
         return NO;
     }
     // TRAP: a Finder drag delivers file-reference URLs (file:///.file/id=…),
     // whose .path follows the file wherever it moves. Downstream treats a
     // track's URL as fixed — cache keys hash it, the convert undo restores to
     // it — so every drop is pinned to its current path.
-    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:pasteboardURLs.count];
-    for (NSURL *url in pasteboardURLs) {
-        NSString *path = url.path;
+    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:dropped.count];
+    for (NSURL *url in dropped) {
+        NSString *path = url.isFileURL ? url.path : nil;
         [urls addObject:path ? [NSURL fileURLWithPath:path] : url];
     }
-    // Synchronously: the session is gone by the time the expansion lands.
-    BOOL append = [self.dropDelegate mainWindow:self dropAppendsAtLocation:sender.draggingLocation];
     // The whole open funnel, or a drop skips a tail step such as
     // revealEmptyStateNamingPlaylist:.
     [(AppDelegate *)NSApp.delegate openDroppedURLs:urls appending:append];
     return YES;
+}
+
+// Escape: a dropped link stops resolving, and its drop opens nothing.
+- (void)cancelOperation:(id)sender {
+    if (![(AppDelegate *)NSApp.delegate cancelLinkOpens]) {
+        [super cancelOperation:sender];
+    }
 }
 
 #pragma mark - Public API

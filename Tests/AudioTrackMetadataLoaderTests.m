@@ -766,9 +766,9 @@ materializationCoordinator:coordinator
     AudioTrack *track = [self trackNamed:@"mix.mp3"];
     XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:track.url.path contents:nil
                                                       attributes:@{NSFilePosixPermissions: @0}]);
-    [NSURLUtil setRemotePlaceholderRoot:_testRootURL];
+    [NSURLUtil setRemotePlaceholderRoots:@[_testRootURL]];
     [self addTeardownBlock:^{
-        [NSURLUtil setRemotePlaceholderRoot:nil];
+        [NSURLUtil setRemotePlaceholderRoots:@[]];
     }];
     VibeMetadataLoaderOperationController *controller = [[VibeMetadataLoaderOperationController alloc] init];
     controller.blocksUntilCancelled = YES;

@@ -105,7 +105,7 @@
             BOOL visible = VibeMenuHasVisibleSelection(key, shown, row);
             XCTAssertEqual(visible, key && shown && row >= 0);
             XCTAssertEqual(VibeTransportMenuEnabled(kVibeMenuPlaySelected, YES, YES, visible, YES, NO), visible);
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, YES, YES, visible, YES, YES), visible);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, YES, YES, visible, YES, YES, NO), visible);
         }
     }
 }
@@ -142,13 +142,54 @@
 - (void)testUndoRedoAvailabilityAndCopyHaveIndependentInputs {
     for (NSInteger busy = 0; busy < 2; busy++) for (NSInteger undo = 0; undo < 2; undo++) {
         for (NSInteger redo = 0; redo < 2; redo++) {
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditUndo, busy, undo, redo, NO, NO, NO), !busy && undo);
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRedo, busy, undo, redo, NO, NO, NO), !busy && redo);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditUndo, busy, undo, redo, NO, NO, NO, NO), !busy && undo);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRedo, busy, undo, redo, NO, NO, NO, NO), !busy && redo);
         }
     }
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, YES, YES, YES, YES, NO));
-    XCTAssertTrue(VibeEditMenuEnabled(kVibeMenuEditCopyName, YES, NO, NO, NO, YES, NO));
-    XCTAssertFalse(VibeEditMenuEnabled(@"unknown", NO, YES, YES, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, YES, YES, YES, YES, NO, NO));
+    XCTAssertTrue(VibeEditMenuEnabled(kVibeMenuEditCopyName, YES, NO, NO, NO, YES, NO, NO));
+    XCTAssertFalse(VibeEditMenuEnabled(@"unknown", NO, YES, YES, YES, YES, YES, YES));
+}
+
+// ⌘C is Copy File's. With a text field focused it copies the text, so it is
+// enabled with no track; nothing else in Edit follows the focus.
+- (void)testCopyFileIsEnabledForAFocusedTextFieldWithoutATrack {
+    for (NSInteger url = 0; url < 2; url++) for (NSInteger text = 0; text < 2; text++) {
+        XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, NO, NO, NO, url, url, text), url || text);
+    }
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyName, NO, NO, NO, NO, NO, NO, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, NO, NO, NO, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditUndo, NO, NO, NO, NO, YES, YES, YES));
+}
+
+// Cut and Paste are nil-targeted, so the player never validates them. They
+// must survive the Edit menu's cleaner, which drops what macOS appends.
+- (void)testCutAndPasteSurviveTheEditMenuCleanerAndAreNotThePlayers {
+    for (NSString *identifier in @[kVibeMenuEditCut, kVibeMenuEditPaste, kVibeMenuEditCopyFile,
+                                   @"menu_edit_select_all", @"menu_edit_separator"]) {
+        XCTAssertTrue(VibeEditMenuKeepsItem(identifier), @"%@", identifier);
+    }
+    [self assertIdentifiers:@[kVibeMenuEditCut, kVibeMenuEditPaste] classify:VibeMenuValidationDomainUnknown];
+    XCTAssertFalse(VibeEditMenuKeepsItem(nil), @"AutoFill and Dictation carry no identifier");
+    XCTAssertFalse(VibeEditMenuKeepsItem(@"NSMenuItemAutoFill"));
+    XCTAssertFalse(VibeEditMenuKeepsItem(@"menu_cut"));
+}
+
+// File > Open and Open URL target the app delegate, which enables them
+// always. The player never validates them.
+- (void)testOpenAndOpenURLAreTheAppDelegatesNotThePlayers {
+    [self assertIdentifiers:@[kVibeMenuOpen, kVibeMenuOpenLink] classify:VibeMenuValidationDomainUnknown];
+    XCTAssertEqualObjects(kVibeMenuOpenLink, @"menu_open_link");
+    XCTAssertFalse([kVibeMenuOpenLink isEqualToString:kVibeMenuOpen]);
+}
+
+// Convert to FLAC hides with Convert off, and for a file under a remote root
+// whatever the setting.
+- (void)testConvertHidesWhenOffOrForAFileUnderARemoteRoot {
+    XCTAssertFalse(VibeConvertMenuItemHidden(YES, NO));
+    XCTAssertTrue(VibeConvertMenuItemHidden(NO, NO));
+    XCTAssertTrue(VibeConvertMenuItemHidden(YES, YES));
+    XCTAssertTrue(VibeConvertMenuItemHidden(NO, YES));
 }
 
 - (void)testConvertCancelTitleAndActionReturnToIdleTogether {
