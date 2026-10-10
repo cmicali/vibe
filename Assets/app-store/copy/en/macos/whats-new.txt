@@ -1,4 +1,6 @@
-* New: vibe theme track loads on the first launch
-* New: Dark Wolf theme, by JohnnyFireOne
-* New: volume slider show setting in the theme editor
-* Changed: the volume slider appears only when the pointer is near it
+* New: Open URL… (⌘U) plays an audio file from a web address, including Dropbox and Google Drive share links
+* New: drop a web link on the player to play it
+* New: automatic updates, and Check for Updates in the Vibe menu
+* New: Cut and Paste in the Edit menu
+* Improved: the pitch fader sounds cleaner and glides instead of stepping
+* Fixed: a network share that stops answering now pauses with "Connection lost" instead of going silent
