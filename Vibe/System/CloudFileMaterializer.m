@@ -49,39 +49,97 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 }
 #endif
 
+// A contiguous copy of its own: a response's bytes can be dispatch data in
+// pieces, which reading them through .bytes would flatten into a second
+// buffer held beside the first.
+static NSData *VibeContiguousCopy(NSData *bytes) {
+    NSMutableData *copy = [NSMutableData dataWithLength:bytes.length];
+    [bytes getBytes:copy.mutableBytes length:bytes.length];
+    return copy;
+}
+
 @implementation CloudFileAvailability {
     NSCondition *_condition;
+    uint64_t _size;
     uint64_t _written;
     BOOL _complete;
     NSError *_failure;
     NSUInteger _readers;
     dispatch_block_t _onLastReaderGone;
-    // While held, _written < _windowOffset: no range is on disk and in the
-    // window at once, so a read never mixes the two.
-    NSData *_window;
-    uint64_t _windowOffset;
+    // Offset-ordered and disjoint, each offset beside its block. A
+    // transfer's one block lies wholly past _written. A read then never mixes
+    // the disk and memory.
+    NSMutableArray<NSData *> *_blocks;
+    NSMutableArray<NSNumber *> *_blockOffsets;
+    uint64_t _installedBytes;
+    // What the writer's wait for work reports. Only a writer with no part
+    // file reads them.
+    uint64_t _readerPosition;
+    uint64_t _wantedOffset;
+    uint64_t _wantedLength;
+    uint64_t _signalledBlockOffset;
+    BOOL _writerSignalled;
+    BOOL _readAheadPaused;
+}
+
+- (instancetype)initWithoutPartFile {
+    self = [super init];
+    if (self) {
+        _size = UINT64_MAX;
+        _condition = [[NSCondition alloc] init];
+        _blocks = [NSMutableArray array];
+        _blockOffsets = [NSMutableArray array];
+        _signalledBlockOffset = UINT64_MAX;
+    }
+    return self;
 }
 
 - (instancetype)initWithPartURL:(NSURL *)partURL size:(uint64_t)size {
-    self = [super init];
+    self = [self initWithoutPartFile];
     if (self) {
         _partURL = partURL;
         _size = size;
-        _condition = [[NSCondition alloc] init];
     }
     return self;
+}
+
+- (uint64_t)size {
+    [_condition lock];
+    uint64_t size = _size;
+    [_condition unlock];
+    return size;
+}
+
+- (void)noteSize:(uint64_t)size {
+    [_condition lock];
+    if (_size == UINT64_MAX) {
+        _size = size;
+        [_condition broadcast];
+    }
+    [_condition unlock];
+}
+
+- (void)noteShortenedEnd:(uint64_t)end {
+    [_condition lock];
+    if (_size != UINT64_MAX && end < _size) {
+        _size = end;
+        [_condition broadcast];
+    }
+    [_condition unlock];
 }
 
 - (void)noteWrittenBytes:(uint64_t)bytes {
     [_condition lock];
     if (bytes > _written) {
         _written = MIN(bytes, _size);
-        // TRAP: dropped under the lock a reader copies under, so a wait the
-        // window answered has copied before the window can go. A range in it
+        // TRAP: dropped under the lock a reader copies under. A wait a block
+        // answered has then copied before the block can go. A range in it
         // past the download's edge waits for the disk from here.
-        if (_window && _written >= _windowOffset) {
-            _window = nil;
+        NSUInteger passed = 0;
+        while (passed < _blocks.count && _blockOffsets[passed].unsignedLongLongValue <= _written) {
+            passed++;
         }
+        [self removeBlocksAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, passed)]];
         [_condition broadcast];
     }
     [_condition unlock];
@@ -94,38 +152,149 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
     return written;
 }
 
+- (uint64_t)progressBytes {
+    [_condition lock];
+    uint64_t progress = _written + _installedBytes;
+    [_condition unlock];
+    return progress;
+}
+
 - (void)finishWithError:(NSError *)error {
+    // TRAP: complete sends every reader to the disk. A writer with no part
+    // file has written nothing there.
+    NSAssert(error || _partURL, @"An availability with no part file finishes only with an error");
     [_condition lock];
     if (!_complete && !_failure) {
         _complete = error == nil;
         _failure = error;
-        _window = nil;
+        [self removeBlocksAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _blocks.count)]];
         [_condition broadcast];
     }
     [_condition unlock];
 }
 
+// Under the lock: where the blocks held contiguously from offset end, clipped
+// to the size, and in *index, when given, the block holding offset. Offset
+// itself, and NSNotFound, when no block holds it.
+- (uint64_t)heldEndAt:(uint64_t)offset block:(NSUInteger *)index {
+    NSUInteger first = NSNotFound;
+    uint64_t end = offset;
+    for (NSUInteger i = 0; i < _blocks.count; i++) {
+        uint64_t start = _blockOffsets[i].unsignedLongLongValue;
+        if (start > end) {
+            break;
+        }
+        uint64_t blockEnd = start + _blocks[i].length;
+        if (blockEnd > end) {
+            if (first == NSNotFound) {
+                first = i;
+            }
+            end = blockEnd;
+        }
+    }
+    if (index) {
+        *index = first;
+    }
+    return first == NSNotFound ? offset : MIN(end, _size);
+}
+
+// Under the lock: length bytes from offset, held from block index on.
+- (void)copyHeldBytesAt:(uint64_t)offset length:(uint64_t)length fromBlock:(NSUInteger)index into:(uint8_t *)buffer {
+    for (uint64_t copied = 0; copied < length; index++) {
+        NSData *block = _blocks[index];
+        uint64_t inBlock = offset + copied - _blockOffsets[index].unsignedLongLongValue;
+        uint64_t count = MIN(length - copied, block.length - inBlock);
+        memcpy(buffer + copied, (const uint8_t *)block.bytes + inBlock, (size_t)count);
+        copied += count;
+    }
+}
+
+// Under the lock: each block with its offset.
+- (void)removeBlocksAtIndexes:(NSIndexSet *)indexes {
+    [_blocks removeObjectsAtIndexes:indexes];
+    [_blockOffsets removeObjectsAtIndexes:indexes];
+}
+
+// Under the lock: the bytes at offset take the place of every block they
+// overlap.
+- (void)insertBlock:(NSData *)block atOffset:(uint64_t)offset {
+    NSUInteger at = 0;
+    NSMutableIndexSet *overlapped = [NSMutableIndexSet indexSet];
+    for (NSUInteger i = 0; i < _blocks.count; i++) {
+        uint64_t start = _blockOffsets[i].unsignedLongLongValue;
+        if (start + _blocks[i].length <= offset) {
+            at = i + 1;
+        }
+        else if (start < offset + block.length) {
+            [overlapped addIndex:i];
+        }
+    }
+    [self removeBlocksAtIndexes:overlapped];
+    [_blocks insertObject:block atIndex:at];
+    [_blockOffsets insertObject:@(offset) atIndex:at];
+    _installedBytes += block.length;
+    [_condition broadcast];
+}
+
 - (void)installWindow:(NSData *)bytes atOffset:(uint64_t)offset {
+    NSData *window = VibeContiguousCopy(bytes);
     [_condition lock];
-    if (!_complete && !_failure && !_window && bytes.length > 0 && offset > _written && offset < _size
-            && bytes.length <= _size - offset) {
-        // A contiguous copy of its own: a response's bytes can be dispatch
-        // data in pieces, which reading them through .bytes would flatten
-        // into a second buffer held beside the first.
-        NSMutableData *window = [NSMutableData dataWithLength:bytes.length];
-        [bytes getBytes:window.mutableBytes length:bytes.length];
-        _window = window;
-        _windowOffset = offset;
-        [_condition broadcast];
+    if (!_complete && !_failure && _blocks.count == 0 && window.length > 0 && offset > _written && offset < _size
+            && window.length <= _size - offset) {
+        [self insertBlock:window atOffset:offset];
     }
     [_condition unlock];
+}
+
+- (void)installBlock:(NSData *)bytes atOffset:(uint64_t)offset {
+    [_condition lock];
+    if (!_complete && !_failure && bytes.length > 0 && offset < _size && bytes.length <= _size - offset
+            && [self heldEndAt:offset block:NULL] < offset + bytes.length) {
+        [self insertBlock:bytes atOffset:offset];
+    }
+    [_condition unlock];
+}
+
+- (void)dropBlocksOutsideRangeAt:(uint64_t)offset length:(uint64_t)length {
+    uint64_t end = offset + MIN(length, UINT64_MAX - offset);
+    NSMutableIndexSet *dropped = [NSMutableIndexSet indexSet];
+    [_condition lock];
+    uint64_t wantedEnd = _wantedOffset + _wantedLength;
+    for (NSUInteger i = 0; i < _blocks.count; i++) {
+        uint64_t start = _blockOffsets[i].unsignedLongLongValue;
+        uint64_t blockEnd = start + _blocks[i].length;
+        BOOL wanted = _wantedLength > 0 && blockEnd > _wantedOffset && start < wantedEnd;
+        if ((blockEnd <= offset || start >= end) && start != 0 && blockEnd != _size && !wanted) {
+            [dropped addIndex:i];
+        }
+    }
+    // TRAP: dropped under the lock a reader copies under. A wait a block
+    // answered has then copied before the block can go.
+    [self removeBlocksAtIndexes:dropped];
+    [_condition unlock];
+}
+
+- (uint64_t)heldEndAt:(uint64_t)offset {
+    [_condition lock];
+    uint64_t end = [self heldEndAt:MAX(offset, _written) block:NULL];
+    [_condition unlock];
+    return end;
 }
 
 - (uint64_t)windowLength {
     [_condition lock];
-    uint64_t length = _window.length;
+    uint64_t length = 0;
+    for (NSData *block in _blocks) {
+        length += block.length;
+    }
     [_condition unlock];
     return length;
+}
+
+// Under the lock.
+- (void)signalWriter {
+    _writerSignalled = YES;
+    [_condition broadcast];
 }
 
 - (CloudFileAvailabilityWait)waitForBytesAt:(uint64_t)offset
@@ -136,13 +305,17 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
                                 interrupted:(BOOL (NS_NOESCAPE ^)(void))interrupted
                                    deadline:(NSDate *)deadline
                                       error:(NSError *__autoreleasing *)error {
-    BOOL end = offset >= _size || length == 0;
-    uint64_t last = end ? 0 : offset + MIN(length, _size - offset);
-    uint64_t fromWindow = 0;
+    BOOL noPartFile = _partURL == nil;
+    BOOL wantedRecorded = NO;
+    uint64_t fromBlocks = 0;
     CloudFileAvailabilityWait result;
     NSError *failure = nil;
     [_condition lock];
+    _readerPosition = offset;
     for (;;) {
+        // Each pass, since a writer with no part file sets and lowers the size.
+        BOOL end = offset >= _size || length == 0;
+        uint64_t last = end ? 0 : offset + MIN(length, _size - offset);
         if (_failure) {
             failure = _failure;
             result = CloudFileAvailabilityFailed;
@@ -152,11 +325,19 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
             result = CloudFileAvailabilityReady;
             break;
         }
-        uint64_t windowEnd = _windowOffset + _window.length;
-        if (_window && offset >= _windowOffset && last <= windowEnd) {
+        NSUInteger block;
+        uint64_t held = [self heldEndAt:offset block:&block];
+        if (last <= held) {
             if (buffer) {
-                fromWindow = MIN(capacity, windowEnd - offset);
-                memcpy(buffer, (const uint8_t *)_window.bytes + (offset - _windowOffset), (size_t)fromWindow);
+                fromBlocks = MIN(capacity, held - offset);
+                [self copyHeldBytesAt:offset length:fromBlocks fromBlock:block into:buffer];
+            }
+            // The writer refills ahead once the reader enters another block,
+            // well before the reader reaches the edge of what is held.
+            uint64_t blockOffset = _blockOffsets[block].unsignedLongLongValue;
+            if (noPartFile && blockOffset != _signalledBlockOffset) {
+                _signalledBlockOffset = blockOffset;
+                [self signalWriter];
             }
             result = CloudFileAvailabilityReady;
             break;
@@ -164,6 +345,12 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
         if (interrupted && interrupted()) {
             result = CloudFileAvailabilityInterrupted;
             break;
+        }
+        if (noPartFile && (_wantedOffset != offset || _wantedLength != last - offset)) {
+            _wantedOffset = offset;
+            _wantedLength = last - offset;
+            wantedRecorded = YES;
+            [self signalWriter];
         }
         if (!deadline) {
             [_condition wait];
@@ -173,9 +360,12 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
             break;
         }
     }
+    if (wantedRecorded && _wantedOffset == offset) {
+        _wantedLength = 0;
+    }
     [_condition unlock];
     if (copied) {
-        *copied = fromWindow;
+        *copied = fromBlocks;
     }
     if (failure && error) {
         *error = failure;
@@ -184,20 +374,18 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 }
 
 - (NSData *)readyBytesAt:(uint64_t)offset length:(uint64_t)length {
-    if (offset >= _size || length == 0) {
-        return nil;
-    }
-    length = MIN(length, _size - offset);
     uint64_t onDisk = 0;
     [_condition lock];
-    if (_complete || _failure) {
+    if (_complete || _failure || offset >= _size || length == 0) {
         [_condition unlock];
         return nil;
     }
-    uint64_t windowEnd = _windowOffset + _window.length;
-    if (_window && offset >= _windowOffset && offset < windowEnd) {
-        NSData *copy = [_window subdataWithRange:NSMakeRange((NSUInteger)(offset - _windowOffset),
-                                                             (NSUInteger)MIN(length, windowEnd - offset))];
+    length = MIN(length, _size - offset);
+    NSUInteger block;
+    uint64_t held = [self heldEndAt:offset block:&block];
+    if (block != NSNotFound) {
+        NSMutableData *copy = [NSMutableData dataWithLength:(NSUInteger)MIN(length, held - offset)];
+        [self copyHeldBytesAt:offset length:copy.length fromBlock:block into:copy.mutableBytes];
         [_condition unlock];
         return copy;
     }
@@ -229,6 +417,54 @@ static void VibeFakeTransferHooks(NSTimeInterval (^*seconds)(NSURL *, NSString *
 - (void)wakeWaiters {
     [_condition lock];
     [_condition broadcast];
+    [_condition unlock];
+}
+
+- (BOOL)waitForWorkUntil:(NSDate *)deadline
+                  wanted:(uint64_t *)offset
+                  length:(uint64_t *)length
+          readerPosition:(uint64_t *)position {
+    [_condition lock];
+    while (!_writerSignalled && !_complete && !_failure) {
+        if (![_condition waitUntilDate:deadline]) {
+            break;
+        }
+    }
+    _writerSignalled = NO;
+    BOOL running = !_complete && !_failure;
+    *offset = _wantedOffset;
+    *length = _wantedLength;
+    *position = _readerPosition;
+    [_condition unlock];
+    return running;
+}
+
+- (void)noteReaderPosition:(uint64_t)offset {
+    if (_partURL) {
+        return;
+    }
+    [_condition lock];
+    _readerPosition = offset;
+    [self signalWriter];
+    [_condition unlock];
+}
+
+- (BOOL)readAheadPaused {
+    [_condition lock];
+    BOOL paused = _readAheadPaused;
+    [_condition unlock];
+    return paused;
+}
+
+- (void)setReadAheadPaused:(BOOL)readAheadPaused {
+    if (_partURL) {
+        return;
+    }
+    [_condition lock];
+    if (_readAheadPaused && !readAheadPaused) {
+        [self signalWriter];
+    }
+    _readAheadPaused = readAheadPaused;
     [_condition unlock];
 }
 

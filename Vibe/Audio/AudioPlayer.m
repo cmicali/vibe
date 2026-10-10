@@ -66,9 +66,9 @@ static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
 static const float kDefaultMaxPitchPercent = 8.0f;
-// A streaming voice whose decode waits at the download's edge is held once
-// less than this is buffered: the hold's fade still has frames to fade, and a
-// link that trickles in many short waits holds as surely as one that stops.
+// A voice whose decode waits for its file's bytes is held once less than
+// this is buffered. The hold's fade then still has frames to fade. A link
+// that trickles in many short waits holds as surely as one that stops.
 static const NSTimeInterval kBufferingGraceSeconds = 0.25;
 
 // Marks _queue, so runSyncOnQueue: can tell it is already on this player's.
@@ -96,7 +96,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     NSTimeInterval          _deadlineMovedUptime;
     VibeAudioOpenTimeoutConfiguration _deadlineTimeouts;
 
-    // ---- The buffering hold's transfer bytes, at the hold and at its last
+    // ---- The buffering hold's fetched bytes, at the hold and at its last
     // movement.
     uint64_t                _bufferingStartBytes;
     uint64_t                _bufferingBytes;
@@ -879,15 +879,16 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - Buffering
 
-// A streaming track whose download falls behind holds silent in place, still
-// Playing, and plays on once rather than in fragments. Held when its decode
-// waits at the download's edge with less than the grace buffered, through
-// the pause's fade and exact landing frame; released once half a ring is
-// buffered, the end is known, or the decoder has nothing left to wait for. A
-// hold the download makes no progress under for the open deadline's span
+// A track whose bytes fall behind holds silent in place, still Playing, and
+// plays on once rather than in fragments. The bytes come from a download or
+// a network share's read-ahead. The hold treats both alike. It begins
+// when the decode waits for bytes with less than the grace buffered. It
+// takes the pause's fade and exact landing frame. It ends once half a ring
+// is buffered, the end is known, or the decoder has nothing left to wait
+// for. A hold with no progress for the open deadline's span
 // (AudioFileOpenTimeoutMath.h) pauses in place with an error, never a track
-// end. Read off the voice's snapshot at each drain, which runs while the
-// output runs voices; the render is untouched.
+// end. It is read off the voice's snapshot at each drain. The drain runs
+// while the output runs voices. The render is untouched.
 - (void)updateBufferingOnQueue {
     if (_state != VibePlayerStatePlaying || !_voice || ![self renderingOnQueue]) {
         return;
@@ -904,12 +905,21 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
             _deadlineArmedUptime = NSProcessInfo.processInfo.systemUptime;
             _deadlineMovedUptime = 0;
             _deadlineTimeouts = _loadingConfiguration.openTimeouts;
-            _bufferingStartBytes = _bufferingBytes = [self bufferedStreamBytesOnQueue];
+            _bufferingStartBytes = _bufferingBytes = snapshot.bytesWritten;
             // One not yet heard is cut, so none of its file is consumed in silence.
             [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:live ? kFadeDurationMilliseconds : 0
                                                 action:VibeVoiceActionPause] forVoice:_voice];
         }
         return;
+    }
+    // What the writer of the file the decoder reads has fetched. A successor
+    // not yet read never counts. Its download would hide a stall of the file
+    // the voice waits on. Any change is movement: a file's count only grows,
+    // and a switch to another file is movement too.
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (snapshot.bytesWritten != _bufferingBytes) {
+        _bufferingBytes = snapshot.bytesWritten;
+        _deadlineMovedUptime = now;
     }
     if (endKnown || buffered >= _voiceBus.ringFrames / 2 || !(snapshot.waitingForBytes || snapshot.decoding)) {
         [_voiceBus setRamp:[self rampOnQueueToGain:1 milliseconds:kFadeDurationMilliseconds action:VibeVoiceActionNone]
@@ -923,21 +933,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self setBufferingOnQueue:NO outcome:@"released"];
         return;
     }
-    uint64_t bytes = [self bufferedStreamBytesOnQueue];
-    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-    if (bytes > _bufferingBytes) {
-        _bufferingBytes = bytes;
-        _deadlineMovedUptime = now;
-    }
     if (VibeAudioOpenDeadlineRemaining(now, _deadlineArmedUptime, _deadlineMovedUptime, _deadlineTimeouts) <= 0) {
         [self stallOnQueue];
     }
-}
-
-// What the current voice's transfers have written: its file's and a queued
-// successor's.
-- (uint64_t)bufferedStreamBytesOnQueue {
-    return _file.bytesWritten + _successorFile.bytesWritten;
 }
 
 // Published under _stateLock beside the tuple, with the output-liveness fold
@@ -962,10 +960,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     os_unfair_lock_unlock(&_stateLock);
     AudioTrack *track = self.currentTrack;
     if (!buffering) {
-        uint64_t bytes = [self bufferedStreamBytesOnQueue];
         LogInfo(@"Buffering: %@ held %.2f s, %@; %llu bytes arrived meanwhile", track.url.lastPathComponent,
                 NSProcessInfo.processInfo.systemUptime - _deadlineArmedUptime, outcome,
-                bytes > _bufferingStartBytes ? bytes - _bufferingStartBytes : 0);
+                _bufferingBytes > _bufferingStartBytes ? _bufferingBytes - _bufferingStartBytes : 0);
     }
     [self refreshOutputAudioActiveOnQueue];
     if (!track) {
@@ -979,10 +976,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }];
 }
 
-// No bytes for the deadline's span: paused where it stopped, the voice and its
-// file let go, so the transfer's claim, its last reader gone, is cancelled,
-// and resumeOnQueue replays from here. Never didFinishPlaying: a stall is
-// not the end of the track.
+// No bytes for the deadline's span: paused where it stopped. The voice and
+// its file are let go. A transfer's claim then loses its last reader and is
+// cancelled. A read-ahead's thread ends with its handle. resumeOnQueue
+// replays from here. Never didFinishPlaying: a stall is not the end of the
+// track.
 - (void)stallOnQueue {
     AudioTrack *track = self.currentTrack;
     uint64_t submittedPlay = _activeSubmittedPlayIdentifier;
@@ -993,7 +991,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _debugBufferingStalls++;
     os_unfair_lock_unlock(&_stateLock);
 #endif
-    [self setBufferingOnQueue:NO outcome:@"stalled, no download progress"];
+    [self setBufferingOnQueue:NO outcome:@"stalled, no progress"];
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
     [self cutRetiringVoicesToDeclickOnQueue];

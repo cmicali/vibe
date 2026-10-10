@@ -113,8 +113,11 @@ static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
 // the successor began (UINT64_MAX until it has), `endOfStream` the stream's
 // length once known. The stamp is the audio thread's timestamp for the first
 // frame consumed after a start or resume; hostTime is valid only on hardware.
-// `waitingForBytes` is its decoder blocked at a streaming file's edge
-// (AudioFileHandle.waitingForBytes), `decoding` a decode turn queued or
+// `waitingForBytes` is its decoder blocked waiting for its file's bytes
+// (AudioFileHandle.waitingForBytes), and `bytesWritten` what that file's
+// writer has fetched (AudioFileHandle.bytesWritten). Both read the file the
+// decoder reads now: the voice's own, or the queued successor once the
+// decoder has switched into it. `decoding` is a decode turn queued or
 // running for it.
 typedef struct {
     VibeVoiceState state;
@@ -122,6 +125,7 @@ typedef struct {
     BOOL waitingForBytes;
     BOOL decoding;
     VibeVoiceEnd ended;
+    uint64_t bytesWritten;
     uint64_t consumed;
     uint64_t written;
     uint64_t boundary;
@@ -180,10 +184,11 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // The voice reads no more of its file, so the file may be handed to another
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
-// A read of its file or successor waiting at a streaming file's edge ends as
-// an interruption, so its turn returns at once (AudioFileHandle's
-// interruptReads); so does a kill's, and a dead voice's at the drain that
-// reports it. The next voice's first seek of the file allows reads again.
+// A read of its file or successor that waits for bytes ends as an
+// interruption (AudioFileHandle's interruptReads), whatever writer fetches
+// them. Its turn returns at once. A kill does the same. So does a dead
+// voice, at the drain that reports it. The next voice's first seek of the
+// file allows reads again.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
 // Ends the bus's reading for good: every voice reads no more, and

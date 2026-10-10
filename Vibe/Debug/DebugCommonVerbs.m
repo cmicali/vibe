@@ -16,6 +16,7 @@
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugConsistency.h"
+#import "AudioFileHandle+Debug.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileMaterializationCoordinator+Debug.h"
 #import "AudioLoadingConfiguration.h"
@@ -98,6 +99,105 @@ static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
     run_on_main_thread({
         VibeBurstJumps(surface, remaining - 1, state);
     });
+}
+
+// set_slow_volume's state. The verb writes it on main. The read-ahead hook
+// reads it on read-ahead threads. Both hold the condition's lock. A held read
+// waits on the condition until its due time or until the next
+// set_slow_volume moves slowVolumeGeneration.
+static NSString *sSlowVolumeMode = @"off";
+static double sSlowVolumeBytesPerSecond;
+static int sSlowVolumeErrno;
+static uint64_t sSlowVolumeGeneration;
+static CFAbsoluteTime sSlowVolumeNextDue;
+static NSInteger sSlowVolumeHeldReads;
+static NSInteger sSlowVolumeReads;
+
+static NSCondition *VibeSlowVolumeCondition(void) {
+    static NSCondition *condition;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        condition = [NSCondition new];
+    });
+    return condition;
+}
+
+// A throttle paces every read-ahead together, as one slow link would. Each
+// read is due once the reads before it have had their share of the rate.
+static int VibeSlowVolumeBeforeRead(uint64_t length) {
+    NSCondition *condition = VibeSlowVolumeCondition();
+    @autoreleasepool {
+        [condition lock];
+        sSlowVolumeReads++;
+        int failure = sSlowVolumeErrno;
+        NSDate *until = nil;
+        if ([sSlowVolumeMode isEqualToString:@"stall"]) {
+            until = NSDate.distantFuture;
+        } else if (sSlowVolumeBytesPerSecond > 0) {
+            sSlowVolumeNextDue = MAX(CFAbsoluteTimeGetCurrent(), sSlowVolumeNextDue)
+                    + (double)length / sSlowVolumeBytesPerSecond;
+            until = [NSDate dateWithTimeIntervalSinceReferenceDate:sSlowVolumeNextDue];
+        }
+        uint64_t generation = sSlowVolumeGeneration;
+        if (until) {
+            sSlowVolumeHeldReads++;
+            while (generation == sSlowVolumeGeneration && [condition waitUntilDate:until]) {
+            }
+            sSlowVolumeHeldReads--;
+        }
+        [condition unlock];
+        return failure;
+    }
+}
+
+// Lets every held read go, then applies the new mode. Answers how many reads
+// it let go.
+static NSInteger VibeSetSlowVolume(NSString *mode, double bytesPerSecond, int failure) {
+    NSCondition *condition = VibeSlowVolumeCondition();
+    [condition lock];
+    NSInteger released = sSlowVolumeHeldReads;
+    sSlowVolumeGeneration++;
+    sSlowVolumeMode = mode;
+    sSlowVolumeBytesPerSecond = bytesPerSecond;
+    sSlowVolumeErrno = failure;
+    sSlowVolumeNextDue = 0;
+    sSlowVolumeReads = 0;
+    [condition broadcast];
+    [condition unlock];
+    BOOL forced = ![mode isEqualToString:@"off"];
+    [AudioFileHandle debugSetMountRule:forced ? ^NSNumber *(NSURL *url) {
+        return @YES;
+    } : nil];
+    [AudioFileHandle debugSetBeforeRead:forced ? ^int(NSURL *url, uint64_t offset, uint64_t length) {
+        return VibeSlowVolumeBeforeRead(length);
+    } : nil];
+    return released;
+}
+
+static NSDictionary *VibeSlowVolumeReply(NSNumber *released) {
+    NSCondition *condition = VibeSlowVolumeCondition();
+    [condition lock];
+    NSMutableDictionary *reply = [@{
+        @"ok": @YES,
+        @"mode": sSlowVolumeMode,
+        @"forced": @(![sSlowVolumeMode isEqualToString:@"off"]),
+        @"reads": @(sSlowVolumeReads),
+        @"heldReads": @(sSlowVolumeHeldReads),
+    } mutableCopy];
+    if (sSlowVolumeBytesPerSecond > 0) {
+        reply[@"bytesPerSecond"] = @(sSlowVolumeBytesPerSecond);
+    }
+    if (sSlowVolumeErrno) {
+        reply[@"errno"] = @(sSlowVolumeErrno);
+        reply[@"error"] = @(strerror(sSlowVolumeErrno));
+    }
+    [condition unlock];
+    if (released) {
+        reply[@"releasedReads"] = released;
+    }
+    reply[@"liveReadAheads"] = @(AudioFileHandle.debugLiveReadAheads);
+    reply[@"orphanedReadAheads"] = @(AudioFileHandle.debugOrphanedReadAheads);
+    return reply;
 }
 
 NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> surface) {
@@ -837,6 +937,33 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString([NSURLUtil datalessDiagnostics]);
+            }),
+            // Every file opened from now on reads ahead, as if on a share. See
+            // AudioFileHandle+Debug.h. No argument reports and changes nothing.
+            VibeDebugCmd(@"set_slow_volume [off|on|throttle <bytes-per-second>|stall|fail [<errno>]]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count == 1) {
+                    return VibeJSONString(VibeSlowVolumeReply(nil));
+                }
+                NSString *mode = tokens[1].lowercaseString;
+                double bytesPerSecond = 0;
+                NSUInteger failure = EIO;
+                BOOL valid = tokens.count == 2 && [@[@"off", @"on", @"stall"] containsObject:mode];
+                if ([mode isEqualToString:@"throttle"]) {
+                    valid = tokens.count == 3 && VibeParseDouble(tokens[2], &bytesPerSecond) && bytesPerSecond > 0;
+                }
+                else if ([mode isEqualToString:@"fail"]) {
+                    valid = tokens.count == 2 || (tokens.count == 3 && VibeParseNonnegativeInteger(tokens[2], &failure)
+                            && failure > 0 && failure <= ELAST);
+                }
+                if (!valid) {
+                    return VibeErrorJSON(@"usage: set_slow_volume [off|on|throttle <bytes-per-second>|stall"
+                                         @"|fail [<errno 1-%d>]]", ELAST);
+                }
+                NSInteger released = VibeSetSlowVolume(mode, bytesPerSecond,
+                                                       [mode isEqualToString:@"fail"] ? (int)failure : 0);
+                return VibeJSONString(VibeSlowVolumeReply(@(released)));
             }),
             // Every recent waveform decode, playback's or file_cache's. See
             // AudioLoadTiming.h.

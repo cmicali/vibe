@@ -168,12 +168,6 @@ private:
     uint64_t _bytesFetched = 0;
 };
 
-// A parse never waits for a download: a streaming file's facts come once it
-// is on disk, as they did when a placeholder refused the open, so a worker is
-// never held for the rest of a transfer (Audio/AGENTS.md: every wait for a
-// stream's bytes can be interrupted). The handle fails at once instead.
-static BOOL (^const VibeNeverWaitsForAStream)(void) = ^BOOL { return YES; };
-
 // The stream a parse reads: the file, or its remote bytes by range when it
 // is a remote placeholder. A read is installed exactly while a placeholder
 // root is (setRemoteRoot:fetch:read:availability:), so the mac, which
