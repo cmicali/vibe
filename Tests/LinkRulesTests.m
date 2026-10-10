@@ -1018,6 +1018,27 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
     XCTAssertFalse(VibeDropHasLinks(@[]));
 }
 
+// A paste opens its first web link. Files and text that is not one link are
+// skipped. Nothing found is the invalid-link error.
+- (void)testAPasteOpensItsFirstWebLink {
+    NSArray *items = @[@{kVibeDropTypeText: @"hello world"},
+                       FileItem(@"file:///Users/me/Music/a.flac"),
+                       @{kVibeDropTypeURL: @"https://example.com/b.mp3", kVibeDropTypeText: @"Song B"},
+                       @{kVibeDropTypeText: @"https://example.com/c.mp3"}];
+    XCTAssertEqualObjects(VibePasteLinkOfItems(items), U(@"https://example.com/b.mp3"));
+    XCTAssertEqualObjects(VibePasteLinkOfItems(@[@{kVibeDropTypeText: @" https://example.com/a.mp3\n"}]),
+                          U(@"https://example.com/a.mp3"));
+    // Plain http is a link. Its resolve refuses a public host as insecure.
+    XCTAssertEqualObjects(VibePasteLinkOfItems(@[@{kVibeDropTypeText: @"http://example.com/a.mp3"}]),
+                          U(@"http://example.com/a.mp3"));
+    for (NSString *text in @[@"", @"example.com/a.mp3", @"Listen: https://example.com/a.mp3",
+                             @"ftp://example.com/a.mp3", @"file:///Users/me/a.mp3"]) {
+        XCTAssertNil(VibePasteLinkOfItems(@[@{kVibeDropTypeText: text}]), @"%@", text);
+    }
+    XCTAssertNil(VibePasteLinkOfItems(@[FileItem(@"file:///Users/me/Music/a.flac")]));
+    XCTAssertNil(VibePasteLinkOfItems(@[]));
+}
+
 - (void)testAWeblocIsALink {
     NSURL *webloc = [NSURL fileURLWithPath:@"/Users/me/Desktop/Song.WEBLOC"];
     XCTAssertTrue(VibeLinkIsWebloc(webloc));
