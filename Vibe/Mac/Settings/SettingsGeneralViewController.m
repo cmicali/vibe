@@ -134,13 +134,13 @@ static const double kWaveformGainDetentDB = 0.75;
                                   caption:STR_SETTINGS_LOCK_WINDOW_POSITION_CAPTION control:_lockWindowPositionSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
 #if VIBE_DIRECT_DISTRIBUTION
             // Compiled out of the Mac App Store build, which has no updater.
             [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL
                                   caption:STR_SETTINGS_BETA_UPDATES_CAPTION control:_betaUpdatesSwitch],
 #endif
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
         ]],
     ]];
 }
@@ -214,6 +214,7 @@ static const double kWaveformGainDetentDB = 0.75;
 #if VIBE_DIRECT_DISTRIBUTION
     [self selectValue:@([(AppDelegate *)NSApp.delegate updateCheckInterval]) in:_updateCheckPopUp];
     _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates ? NSControlStateValueOn : NSControlStateValueOff;
+    [self refreshBetaUpdatesEnabled];
 #endif
 }
 
@@ -311,6 +312,14 @@ static const double kWaveformGainDetentDB = 0.75;
 #if VIBE_DIRECT_DISTRIBUTION
 - (void)updateCheckChanged:(id)sender {
     [(AppDelegate *)NSApp.delegate setUpdateCheckInterval:[_updateCheckPopUp.selectedItem.representedObject doubleValue]];
+    [self refreshBetaUpdatesEnabled];
+}
+
+// Never disables the row but keeps its value: Check for Updates… still
+// honors it.
+- (void)refreshBetaUpdatesEnabled {
+    [SettingsRowView setControl:_betaUpdatesSwitch
+                        enabled:[(AppDelegate *)NSApp.delegate updateCheckInterval] > 0];
 }
 
 - (void)betaUpdatesChanged:(id)sender {

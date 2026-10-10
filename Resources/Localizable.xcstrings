@@ -88724,7 +88724,7 @@
       "extractionState": "manual"
     },
     "settings.general.system_section": {
-      "comment": "Settings, General pane: heading above the row that makes the app macOS's default music player.",
+      "comment": "Settings, General pane: heading above the rows for how the app checks for updates, in the version downloaded from the website, and the row that makes the app macOS's default music player.",
       "localizations": {
         "bg": {
           "stringUnit": {
