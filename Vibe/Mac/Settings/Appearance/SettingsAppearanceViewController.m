@@ -459,9 +459,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
             ? [theme displayColorForBase:kVibeThemeColorWindowTint dark:dark]
             : [NSColor colorWithWhite:dark ? 0.2 : 0.92 alpha:1];
     WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
-    // 3-Band's bars are its low, mid and high bands.
-    NSArray<NSColor *> *bars = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle]
+    // The band styles' bars are their low, mid and high bands.
+    NSArray<NSColor *> *bars = [WaveformRendererRegistry usesBandPaletteForIdentifier:theme.waveformStyle]
             ? [palette.bandColors subarrayWithRange:NSMakeRange(0, 3)]
+            : [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle]
+            ? palette.spectrumColors
             : @[palette.playedColor, palette.playedColor, palette.playedColor];
     NSColor *edge = [NSColor colorWithWhite:dark ? 1 : 0 alpha:0.2];
     NSImage *swatch = [NSImage imageWithSize:NSMakeSize(16, 16) flipped:NO drawingHandler:^BOOL(NSRect rect) {

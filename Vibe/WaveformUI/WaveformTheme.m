@@ -76,6 +76,21 @@ static NSArray<VibeColor *> *VibeBuiltInBandColors(BOOL dengine, BOOL isDark) {
     return colors[dengine ? 1 : 0][isDark ? 1 : 0];
 }
 
+// Spectrum's primaries: red lows, green mids and light-blue highs, as DJ
+// decks' spectrum displays draw them. The highs lean toward cyan, because pure
+// blue is too dark to read on black. The light set is darker, for white.
+static NSArray<VibeColor *> *VibeSpectrumColors(BOOL isDark) {
+    static NSArray<VibeColor *> *colors[2];
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        colors[1] = @[VibeColorFromHexString(@"FF2A00"), VibeColorFromHexString(@"3CFF28"),
+                      VibeColorFromHexString(@"2E7BFF")];
+        colors[0] = @[VibeColorFromHexString(@"D41C00"), VibeColorFromHexString(@"169E1E"),
+                      VibeColorFromHexString(@"1A4FD6")];
+    });
+    return colors[isDark ? 1 : 0];
+}
+
 static BOOL VibeGetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
     CGFloat a = 0;
 #if TARGET_OS_OSX
@@ -103,6 +118,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _unplayedColor = unplayed;
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
         _bandColors = VibeBuiltInBandColors(NO, isDark);
+        _spectrumColors = VibeSpectrumColors(isDark);
         CGFloat pr, pg, pb, ur, ug, ub;
         // Alphas aside on purpose: the scrubber's single-bitmap fast path
         // recovers the level difference from unplayedOverPlayedOpacity.
@@ -129,8 +145,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 #if TARGET_OS_OSX
 + (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
                        artworkColor:(VibeColor *)artworkColor {
-    // 3-Band's hues are its bands, so its played side, which the hover and the
-    // volume bar read, is Mono's rather than the hidden waveform color's.
+    // The band styles hide the waveform color. Their played side is Mono's,
+    // because the hover and the volume bar read it.
     BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle];
     WaveformTheme *resolved = [self themeForIdentifier:bands ? SETTINGS_VALUE_WAVEFORM_THEME_MONO : theme.waveformTheme
                                                 isDark:isDark
@@ -138,7 +154,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                                           customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
                                         customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
     resolved.flatFill = !theme.waveformGradient;
-    if (bands) {
+    if ([WaveformRendererRegistry usesBandPaletteForIdentifier:theme.waveformStyle]) {
         resolved.bandColors = VibeBandColors([theme displayColorForBase:kVibeThemeColorWaveformLow dark:isDark],
                                              [theme displayColorForBase:kVibeThemeColorWaveformMid dark:isDark],
                                              [theme displayColorForBase:kVibeThemeColorWaveformHigh dark:isDark],

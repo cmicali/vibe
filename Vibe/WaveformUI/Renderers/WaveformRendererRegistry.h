@@ -34,8 +34,12 @@ NS_ASSUME_NONNULL_BEGIN
 // AudioWaveformRenderer.readsBands, for a persisted style; NO for nil or an
 // unregistered one.
 + (BOOL)readsBandsForIdentifier:(nullable NSString *)identifier;
+// Whether the style paints the theme's bandColors: 3-Band alone. Spectrum
+// reads the bands too, but its hues are fixed. The settings offer the band
+// palette only where this answers YES.
++ (BOOL)usesBandPaletteForIdentifier:(nullable NSString *)identifier;
 // iOS, whose playhead line is a loose setting: the user's choice, and until
-// there is one the style's own default, the line for 3-Band alone. The mac's
+// there is one the style's own default, the line for the band styles. The mac's
 // is its theme's field, whatever the style.
 + (BOOL)drawsPlayheadLineForIdentifier:(nullable NSString *)identifier
                                 chosen:(nullable NSNumber *)chosen;

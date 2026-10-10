@@ -15,6 +15,7 @@
 
 static NSString *const kWiggleIdentifier = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
+static NSString *const kSpectrumIdentifier = @"spectrum";
 
 // Fine transients, so the Detailed family's sampling differences survive a
 // thumbnail. The bands keep a mix's measured balance — lows near the whole,
@@ -74,6 +75,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
             registry[identifier] = renderer;
         }
         registry[kWiggleIdentifier] = DetailedAudioWaveformRenderer.class;
+        registry[kSpectrumIdentifier] = ThreeBandWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -104,9 +106,12 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return identifier && [[self renderersByIdentifier][identifier] readsBands];
 }
 
++ (BOOL)usesBandPaletteForIdentifier:(NSString *)identifier {
+    return [identifier isEqualToString:[ThreeBandWaveformRenderer styleIdentifier]];
+}
+
 + (BOOL)drawsPlayheadLineForIdentifier:(NSString *)identifier chosen:(NSNumber *)chosen {
-    return chosen != nil ? chosen.boolValue
-                         : [identifier isEqualToString:[ThreeBandWaveformRenderer styleIdentifier]];
+    return chosen != nil ? chosen.boolValue : [self readsBandsForIdentifier:identifier];
 }
 
 // Hosts the REAL renderer in a detached layer, so the Settings preview and the
@@ -198,11 +203,15 @@ static AudioWaveform *VibePreviewWaveform(void) {
     if ([identifier isEqualToString:kWiggleIdentifier]) {
         return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES];
     }
+    if ([identifier isEqualToString:kSpectrumIdentifier]) {
+        return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark spectrum:YES];
+    }
     return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
 }
 
 + (NSString *)displayNameForIdentifier:(NSString *)identifier {
     if ([identifier isEqualToString:kWiggleIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE;
+    if ([identifier isEqualToString:kSpectrumIdentifier]) return STR_WAVEFORM_STYLE_SPECTRUM;
     return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 

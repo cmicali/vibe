@@ -297,6 +297,35 @@ static AppTheme *ThreeBandRecord(NSDictionary *fields) {
                            NSColor.whiteColor));
 }
 
+// Spectrum's primaries are fixed per appearance: red, green and blue lows,
+// mids and highs, opaque, darker on light so each reads on white. Spectrum
+// hides the waveform color as 3-Band does, so its played side is Mono's too.
+- (void)testSpectrumPrimariesAreFixedPerAppearance {
+    for (int darkPass = 0; darkPass <= 1; darkPass++) {
+        BOOL isDark = darkPass == 1;
+        NSArray<VibeColor *> *primaries = [self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE isDark:isDark].spectrumColors;
+        XCTAssertEqual(primaries.count, 3u);
+        for (NSUInteger band = 0; band < 3; band++) {
+            XCTAssertEqualWithAccuracy(Alpha(primaries[band]), 1, 0.001);
+            CGFloat rgb[3];
+            GetRGB(primaries[band], &rgb[0], &rgb[1], &rgb[2]);
+            for (NSUInteger channel = 0; channel < 3; channel++) {
+                if (channel != band) {
+                    XCTAssertGreaterThan(rgb[band], rgb[channel], @"band %lu", (unsigned long)band);
+                }
+            }
+        }
+        XCTAssertEqualObjects([self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:isDark].spectrumColors, primaries);
+    }
+    for (NSUInteger band = 0; band < 3; band++) {
+        XCTAssertLessThan(Luminance([self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:NO].spectrumColors[band]),
+                          Luminance([self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:YES].spectrumColors[band]));
+    }
+    AppTheme *spectrum = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum", @"waveformTheme": @"orange"}];
+    XCTAssertTrue(SameRGB([WaveformTheme themeForAppTheme:spectrum isDark:YES artworkColor:nil].playedColor,
+                          NSColor.whiteColor));
+}
+
 // Hover clears the played color's luminance by 0.25 toward the appearance's
 // pole, saturating there, which keeps Mono's hover exactly the base.
 - (void)testHoverContrastHolds {

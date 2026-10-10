@@ -21,9 +21,10 @@ typedef NS_ENUM(NSInteger, VibeThemeSection) {
 };
 
 // 3-Band draws its bands and ignores the waveform theme, so under it the
-// screen offers the band palettes instead.
+// screen offers the band palettes instead. Spectrum takes neither, and the
+// waveform themes still color the widget's style.
 static BOOL ShowsBands(void) {
-    return [WaveformRendererRegistry readsBandsForIdentifier:
+    return [WaveformRendererRegistry usesBandPaletteForIdentifier:
             [WaveformRendererRegistry resolveStyleIdentifier:AppSettings.sharedInstance.waveformStyle]];
 }
 
