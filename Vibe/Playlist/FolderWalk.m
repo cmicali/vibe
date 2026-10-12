@@ -154,9 +154,6 @@ static void VibeSortAudioURLs(NSMutableArray<NSURL*> *urls, VibeFolderOpenSort s
     }
 }
 
-// The walk ranks cover candidates on the way past, so the walked-directories
-// handler gets each folder's answer for free. Only directories with playable
-// audio are reported.
 // What both listings prefetch. Every key is one more attribute the provider
 // must answer, so the date is asked for only when the sort needs it; the size
 // rides the same bulk read the stat keys already cost, and spares a stat per
@@ -190,6 +187,9 @@ static BOOL VibeListedFileIsEmpty(NSURL *url, BOOL isLink, BOOL *dangling) {
     return url.isEmptyOrDirectory;
 }
 
+// The walk ranks cover candidates on the way past, so the walked-directories
+// handler gets each folder's answer for free. Only directories with playable
+// audio are reported.
 + (NSArray<AudioTrack*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
@@ -677,8 +677,8 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
 
 #pragma mark - Playlist files (CUE, M3U)
 
-// Only an explicitly opened playlist file expands; one met in a folder walk
-// would double every track, and the extension filter drops it.
+// Only an explicitly opened playlist file expands here. A walk drops an M3U,
+// because it would double every track. A walk's sheet goes to rowsForWalk:.
 //
 // Opening a playlist file grants access to it alone, so a denied entry raises
 // one folder grant through the handler, and the re-resolve then also gets a
