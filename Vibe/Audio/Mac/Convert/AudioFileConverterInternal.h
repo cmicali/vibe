@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  The private surface shared between AudioFileConverter.m and its sandbox
-//  category: the related-item presenter class, and the class extension holding
-//  the two ivars the placement rungs reach. Do not use it outside the
+//  and disposal categories: the related-item presenter class, and the class
+//  extension holding the ivars the categories reach. Do not use it outside the
 //  converter's implementation files and its Debug fault injector; everything
 //  else goes through AudioFileConverter.h.
 //
@@ -34,6 +34,19 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
     // on the converter queue; dealloc's teardown never races it because the
     // app-lifetime instance is never released.
     NSMutableArray<VibeRelatedItemPresenter *> *_relatedItemPresenters;
+    // Disposal moves, unbounded on a cloud or network folder, so off main —
+    // and off the converter queue, or an undo would wait out a running encode.
+    // Serial, because an undo must follow the trash it reverses.
+    dispatch_queue_t _disposeQueue;
+    void (^_restore)(NSURL *, NSURL *, void (^)(BOOL, NSError *));
+    void (^_verify)(NSURL *, void (^)(BOOL, NSError *));
+    void (^_trash)(NSURL *, void (^)(VibeTrashOutcome, NSURL *, NSError *));
+    // Convert > Delete Original as it stood at accept. trashSourceIfEnabled:
+    // consumes this, not the live setting, so a mid-encode toggle applies to
+    // the next conversion, never the one in flight. Main-thread confined.
+    BOOL _deleteOriginalAtAccept;
+    // Backs undoRedoInFlight. Named here so the disposal category can write it.
+    BOOL _undoRedoInFlight;
 }
 
 // The converter consumes this on main when source disposal begins and carries
@@ -59,8 +72,13 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
                            toURL:(NSURL *)tempURL
                         progress:(void (^_Nullable)(double fraction))progress
                            error:(NSError **)error;
-- (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error;
 - (NSError *)errorWithCode:(VibeConvertErrorCode)code description:(NSString *)description;
+@end
+
+// The rest of AudioFileConverter+Disposal.m. Its public half is in
+// AudioFileConverter.h.
+@interface AudioFileConverter (DisposalInternal)
+- (BOOL)playableFileAtURL:(NSURL *)url error:(NSError **)error;
 - (void)trashItemAtURL:(NSURL *)url
     resultingURLFilter:(nullable VibeSourceTrashResultingURLFilter)resultingURLFilter
             completion:(void (^)(VibeTrashOutcome outcome,

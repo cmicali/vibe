@@ -802,6 +802,7 @@ targets:
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
+      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Disposal.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
