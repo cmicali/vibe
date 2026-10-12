@@ -809,7 +809,7 @@ class OpGenerator:
         stage "the callback landed while a handler was underway". The hold
         parks those deliveries behind the chained verb. The app caps it at 5s;
         1.2 keeps a batch moving while outlasting a decode's delivery cadence.
-        block_main chains only shared verbs (DebugCommonVerbs.m).
+        block_main chains only shared verbs (Vibe/Debug/Verbs/).
         """
         seconds = f"{self.rng.uniform(0.05, 1.2):.2f}"
         then = self.rng.choice([

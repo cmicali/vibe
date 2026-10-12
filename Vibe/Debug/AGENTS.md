@@ -7,7 +7,7 @@ How a running app is driven and read from outside, on both platforms. **The verb
 Each shared subdirectory matches a section below.
 
 - **`Channel/`** is the transport.
-- **`Verbs/`** holds the verbs both platforms answer, and the protocol they are written against.
+- **`Verbs/`** holds the verbs both platforms answer, one file per topic, and the protocol they are written against.
 - **`Oracles/`** holds the oracles.
 - **`Simulators/`** holds the simulators.
 - **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here.
@@ -23,7 +23,7 @@ This is why a shipping header may not carry `#if DEBUG` (root `AGENTS.md`, Vocab
 - **Debug-only state** becomes a debug-only object the shipping class holds: `VibeManualRenderPump`.
 - **A debug-only hook** ships as a plain block pointer with no conditional around it: `MainPlayerControllerInternal.h`'s `conversionUndoRedoSettledHandler`, and `AudioFileConverterInternal.h`'s `nextSourceTrashResultingURLFilter`.
 
-**`AudioFileHandle+Debug.h` is the network-mount read-ahead's seam** (`Audio/AGENTS.md`), so a test plays a local file as if it were on a share. `debugSetMountRule:` forces the mount rule per URL. `debugSetBeforeRead:` runs a hook on the read-ahead thread before each `pread`, outside every lock. The hook can throttle a read, stall it until released, fail it with an errno, or end the file there. Two counts are read back: the read-ahead threads alive, and those orphaned inside a read. The rule, the hook and the counts are process-wide, so a test sets them for its own URLs and clears them in `tearDown`. **TRAP: the rule and the hook are set on a test's thread and read on open and read-ahead threads, so both are read under a lock.** An unlocked read of a block global is a retain racing a release. The seam's statics live in `AudioFileHandle.m` under `#if DEBUG`. The common verb `set_slow_volume` drives the seam in a running app: it forces the rule for every file and installs one hook that throttles, stalls or fails each read. Its state lives in `DebugCommonVerbs.m` under one `NSCondition`, on which a held read waits. Each set releases every held read.
+**`AudioFileHandle+Debug.h` is the network-mount read-ahead's seam** (`Audio/AGENTS.md`), so a test plays a local file as if it were on a share. `debugSetMountRule:` forces the mount rule per URL. `debugSetBeforeRead:` runs a hook on the read-ahead thread before each `pread`, outside every lock. The hook can throttle a read, stall it until released, fail it with an errno, or end the file there. Two counts are read back: the read-ahead threads alive, and those orphaned inside a read. The rule, the hook and the counts are process-wide, so a test sets them for its own URLs and clears them in `tearDown`. **TRAP: the rule and the hook are set on a test's thread and read on open and read-ahead threads, so both are read under a lock.** An unlocked read of a block global is a retain racing a release. The seam's statics live in `AudioFileHandle.m` under `#if DEBUG`. The common verb `set_slow_volume` drives the seam in a running app: it forces the rule for every file and installs one hook that throttles, stalls or fails each read. Its state lives in `Verbs/DebugStallVerbs.m` under one `NSCondition`, on which a held read waits. Each set releases every held read.
 
 ## The transport, and the two ends of it
 
@@ -40,18 +40,20 @@ iOS has no client. `debug-ios.sh` writes the command file straight into the simu
 
 ## A verb is written once unless it cannot be
 
-`DebugCommonVerbs.m` holds every verb both platforms can answer. It is written against **`VibeDebugPlayerSurface`** (`DebugPlayerSurface.h`), the smallest protocol that serves them. `MainPlayerController` adopts it on macOS, and `RootViewController` on iOS, since that is the one object that sees the whole iOS app.
+`Verbs/` holds every verb both platforms can answer. They are written against **`VibeDebugPlayerSurface`** (`DebugPlayerSurface.h`), the smallest protocol that serves them. `MainPlayerController` adopts it on macOS, and `RootViewController` on iOS, since that is the one object that sees the whole iOS app.
+
+The verbs are split by topic. `DebugCommonVerbs.m` holds the state and transport verbs and the shared table. The table adds each topic's verbs after its own. `DebugStallVerbs.m` holds the deliberate stalls: the `block_*` verbs, `hang_open` and `set_slow_volume`. `DebugAudioVerbs.m` holds the meter, decoder, resampler, cache, timing and waveform verbs. `DebugLoadingVerbs.m` holds the cloud, row-loading, loading-configuration and link verbs. It also drives the fake cloud and the fake HTTP server. Each platform's dispatcher looks a verb up in the shared table first, so a verb is registered once.
 
 What is left per platform is what genuinely differs:
 
-- **`Mac/`**: the command table (`DebugCommandTable.m`) plus the AppKit-only verbs: `DebugInput.m` (direct playlist selection, synthetic drop and reorder delegates, named gesture probes and raw input), `DebugScreenshot.m`, `DebugSettingsUI.m` (the structural Settings walker; the pane classes it keys off are in `Mac/Settings/AGENTS.md`), `DebugStateDump.m`, `DebugHealth.m` and `DebugBPMScan.mm`. `Mac/Seams/` holds the `+Debug` categories over the mac shell's classes, plus `MainPlayerController+DebugPlayerSurface`.
-- **`iOS/`**: the command table (`DebugCommands.m`), the verbs that stand in for touches the channel cannot synthesize (`expand_player`, `minimize_player`, `select_tab`, and the favorites, search, route and waveform verbs), and the `+Debug` categories over the iOS shell in `iOS/Seams/`. All of them live here, not beside the classes they extend.
+- **`Mac/`**: the command table (`DebugCommandTable.m`), which adds four topic tables after its own verbs: `DebugThemeVerbs.m`, `DebugWindowVerbs.m`, `DebugOutputVerbs.m` and `DebugConvertVerbs.m` (with undo and redo). The AppKit-only helpers are `DebugInput.m` (direct playlist selection, named gesture probes and raw input), `DebugSyntheticDrags.m` (the synthetic drop and reorder delegates), `DebugScreenshot.m`, `DebugSettingsUI.m` (the structural Settings walker; the pane classes it keys off are in `Mac/Settings/AGENTS.md`), `DebugStateDump.m`, `DebugHealth.m` and `DebugBPMScan.mm`. `Mac/Seams/` holds the `+Debug` categories over the mac shell's classes, plus `MainPlayerController+DebugPlayerSurface`.
+- **`iOS/`**: the command table (`DebugCommands.m`), the Dropbox verbs it adds after its own (`DebugDropboxVerbs.m`, beside `VibeFakeDropbox`), the verbs that stand in for touches the channel cannot synthesize (`expand_player`, `minimize_player`, `select_tab`, and the favorites, search, route and waveform verbs), and the `+Debug` categories over the iOS shell in `iOS/Seams/`. All of them live here, not beside the classes they extend.
 
 **Gestures are not the channel's job on iOS.** No public API synthesizes a `UITouch` in-process. Taps and drags go through `drive-ios.sh` and the resident `VibeiOSDriver` XCUITest in `Tests/iOSDriver/`, which is not part of `VibeTests`.
 
 ## Desktop input boundary
 
-The stress runner permits only reviewed controller and delegate commands, including direct table selection and shell removal. Synthetic file drops and row reorders call shipping delegates without native drag sessions. Raw AppKit events can start native window and file drags, and mouse injection activates the app. So they are reserved for explicit gesture tests on an isolated test desktop. The named pitch-fader probes resolve and hit-test fresh geometry before queuing input, and the runner asserts the result. Replay and shrink enforce the same command gate. The workflow is in `vibe-debug` and `vibe-stress`.
+The stress runner permits only reviewed controller and delegate commands, including direct table selection and shell removal. Synthetic file drops and row reorders (`Mac/DebugSyntheticDrags.m`) call shipping delegates without native drag sessions. Raw AppKit events (`Mac/DebugInput.m`) can start native window and file drags, and mouse injection activates the app. So they are reserved for explicit gesture tests on an isolated test desktop. The named pitch-fader probes resolve and hit-test fresh geometry before queuing input, and the runner asserts the result. Replay and shrink enforce the same command gate. The workflow is in `vibe-debug` and `vibe-stress`.
 
 ## The oracles
 
@@ -72,4 +74,4 @@ These exist for the stress driver, which cannot tell a healthy soak from a leaki
 
 ## Adding a verb
 
-Decide which table it belongs in first. A verb both platforms can answer goes in `DebugCommonVerbs.m`. If it needs something new from the app, it adds the smallest possible method to `VibeDebugPlayerSurface`. A verb only one platform can answer stays in that platform's table and never reaches the protocol. The reply is JSON through `DebugWireFormat`. The skill's documentation follows the usage string, not a list kept here.
+Decide which table it belongs in first. A verb both platforms can answer goes in its topic's file under `Verbs/`, or in `DebugCommonVerbs.m` when no topic fits. If it needs something new from the app, it adds the smallest possible method to `VibeDebugPlayerSurface`. A verb only one platform can answer stays in that platform's table or one of its topic tables, and never reaches the protocol. A new topic file joins its table's concatenation and declares its function beside the table's. The reply is JSON through `DebugWireFormat`. The skill's documentation follows the usage string, not a list kept here.

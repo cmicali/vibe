@@ -11,7 +11,7 @@
 #   and prints their replies as one JSON array in order: a poll of six dumps
 #   costs one round trip, not six.
 # Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own
-# clientTimeout from the shared table (DebugCommonVerbs.m: clear_caches 20,
+# clientTimeout from the shared tables (Vibe/Debug/Verbs/: clear_caches 20,
 # block_main and block_main_deep 30, file_cache 60), else 10.
 # VIBE_APP_TMP: the app container's tmp, resolved once by a caller that sends
 # many commands (`simctl get_app_container` is most of a round trip). Valid

@@ -17,6 +17,9 @@ extern "C" {
 
 void VibeiOSInstallDebugCommandHook(void);
 
+// The Dropbox verbs (DebugDropboxVerbs.m), which only the iOS table reads.
+NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void);
+
 #ifdef __cplusplus
 }
 #endif

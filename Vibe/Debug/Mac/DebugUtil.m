@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The mac dispatcher over the shared and mac tables. The transport is
-//  DebugChannel.m; the mac verbs are DebugCommandTable.m.
+//  DebugChannel.m; the mac verbs are DebugCommandTable.m and its topic tables.
 //
 
 #import "DebugInternal.h"
