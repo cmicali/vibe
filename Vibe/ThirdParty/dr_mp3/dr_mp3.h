@@ -3137,12 +3137,20 @@ static drmp3_bool32 drmp3_init_internal(drmp3* pMP3, drmp3_read_proc onRead, drm
                         return DRMP3_FALSE; /* Failed to seek back to the start. */
                     }
                 } else {
-                    /* Don't have a seek callback to move backwards. We'll just fall through and let the decoding process re-sync. The ideal solution here would be to read into the cache. */
-
                     /*
-                    TODO: Copy the header into the cache. Will need to allocate space. See drmp3_decode_next_frame_ex__callbacks. There is not need
-                    to handle the memory case because that will always have a seek implementation and will never hit this code path.
+                    Don't have a seek callback to move backwards. Put the header into the cache so decoding starts with it; otherwise the
+                    first frame is lost (and with it a Xing/Info tag). There is no need to handle the memory case because that will always
+                    have a seek implementation and will never hit this code path.
                     */
+                    pMP3->pData = (drmp3_uint8*)drmp3__malloc_from_callbacks(DRMP3_DATA_CHUNK_SIZE, &pMP3->allocationCallbacks);
+                    if (pMP3->pData == NULL) {
+                        return DRMP3_FALSE; /* Out of memory. */
+                    }
+
+                    pMP3->dataCapacity = DRMP3_DATA_CHUNK_SIZE;
+                    DRMP3_COPY_MEMORY(pMP3->pData, header, 10);
+                    pMP3->dataSize = 10;
+                    pMP3->streamCursor = 10;
                 }
             }
         } else {
@@ -3302,9 +3310,13 @@ static drmp3_bool32 drmp3_init_internal(drmp3* pMP3, drmp3_read_proc onRead, drm
                     /* Since this was identified as a tag, we don't want to treat it as audio. We need to clear out the PCM cache. */
                     pMP3->pcmFramesRemainingInMP3Frame = 0;
 
-                    /* The start offset needs to be moved to the end of this frame so it's not included in any audio processing after seeking. */
+                    /*
+                    The start offset needs to be moved to the end of this frame so it's not included in any audio processing after seeking.
+                    The stream cursor stays: it is where the next read continues, past the data already in the cache. Resetting it made
+                    the read clamp against the end of the stream (ID3v1 / APE tags) let the tags in, and minimp3 then rejects the frames
+                    in front of them.
+                    */
                     pMP3->streamStartOffset += (drmp3_uint32)(firstFrameInfo.frame_bytes);
-                    pMP3->streamCursor = pMP3->streamStartOffset;
 
                     /*
                     The internal decoder needs to be reset to clear out any state. If we don't reset this state, it's possible for
@@ -4379,6 +4391,15 @@ static drmp3_bool32 drmp3_seek_to_start_of_stream(drmp3* pMP3)
 }
 
 
+/*
+The PCM frame the next read returns, as the caller counts them. currentPCMFrame also counts the delay frames that reading skips at the
+start of the stream, so it runs ahead by up to delayInPCMFrames.
+*/
+static drmp3_uint64 drmp3_get_cursor_in_pcm_frames(drmp3* pMP3)
+{
+    return (pMP3->currentPCMFrame > pMP3->delayInPCMFrames) ? pMP3->currentPCMFrame - pMP3->delayInPCMFrames : 0;
+}
+
 static drmp3_bool32 drmp3_seek_forward_by_pcm_frames__brute_force(drmp3* pMP3, drmp3_uint64 frameOffset)
 {
     drmp3_uint64 framesRead;
@@ -4402,9 +4423,12 @@ static drmp3_bool32 drmp3_seek_forward_by_pcm_frames__brute_force(drmp3* pMP3, d
 
 static drmp3_bool32 drmp3_seek_to_pcm_frame__brute_force(drmp3* pMP3, drmp3_uint64 frameIndex)
 {
+    drmp3_uint64 cursor;
+
     DRMP3_ASSERT(pMP3 != NULL);
 
-    if (frameIndex == pMP3->currentPCMFrame) {
+    cursor = drmp3_get_cursor_in_pcm_frames(pMP3);
+    if (frameIndex == cursor) {
         return DRMP3_TRUE;
     }
 
@@ -4412,15 +4436,17 @@ static drmp3_bool32 drmp3_seek_to_pcm_frame__brute_force(drmp3* pMP3, drmp3_uint
     If we're moving foward we just read from where we're at. Otherwise we need to move back to the start of
     the stream and read from the beginning.
     */
-    if (frameIndex < pMP3->currentPCMFrame) {
+    if (frameIndex < cursor) {
         /* Moving backward. Move to the start of the stream and then move forward. */
         if (!drmp3_seek_to_start_of_stream(pMP3)) {
             return DRMP3_FALSE;
         }
+
+        cursor = 0;
     }
 
-    DRMP3_ASSERT(frameIndex >= pMP3->currentPCMFrame);
-    return drmp3_seek_forward_by_pcm_frames__brute_force(pMP3, (frameIndex - pMP3->currentPCMFrame));
+    DRMP3_ASSERT(frameIndex >= cursor);
+    return drmp3_seek_forward_by_pcm_frames__brute_force(pMP3, (frameIndex - cursor));
 }
 
 static drmp3_bool32 drmp3_find_closest_seek_point(drmp3* pMP3, drmp3_uint64 frameIndex, drmp3_uint32* pSeekPointIndex)
@@ -4458,8 +4484,11 @@ static drmp3_bool32 drmp3_seek_to_pcm_frame__seek_table(drmp3* pMP3, drmp3_uint6
     DRMP3_ASSERT(pMP3->pSeekPoints != NULL);
     DRMP3_ASSERT(pMP3->seekPointCount > 0);
 
-    /* If there is no prior seekpoint it means the target PCM frame comes before the first seek point. Just assume a seekpoint at the start of the file in this case. */
-    if (drmp3_find_closest_seek_point(pMP3, frameIndex, &priorSeekPointIndex)) {
+    /*
+    If there is no prior seekpoint it means the target PCM frame comes before the first seek point. Just assume a seekpoint at the start of the file in this case.
+    Seek points count the delay frames too.
+    */
+    if (drmp3_find_closest_seek_point(pMP3, frameIndex + pMP3->delayInPCMFrames, &priorSeekPointIndex)) {
         seekPoint = pMP3->pSeekPoints[priorSeekPointIndex];
     } else {
         seekPoint.seekPosInBytes     = 0;
@@ -4501,7 +4530,7 @@ static drmp3_bool32 drmp3_seek_to_pcm_frame__seek_table(drmp3* pMP3, drmp3_uint6
     Now at this point we can follow the same process as the brute force technique where we just skip over unnecessary MP3 frames and then
     read-and-discard at least 2 whole MP3 frames.
     */
-    leftoverFrames = frameIndex - pMP3->currentPCMFrame;
+    leftoverFrames = frameIndex - drmp3_get_cursor_in_pcm_frames(pMP3);
     return drmp3_seek_forward_by_pcm_frames__brute_force(pMP3, leftoverFrames);
 }
 
@@ -4544,7 +4573,7 @@ DRMP3_API drmp3_bool32 drmp3_get_mp3_and_pcm_frame_count(drmp3* pMP3, drmp3_uint
     }
 
     /* We'll need to seek back to where we were, so grab the PCM frame we're currently sitting on so we can restore later. */
-    currentPCMFrame = pMP3->currentPCMFrame;
+    currentPCMFrame = drmp3_get_cursor_in_pcm_frames(pMP3);
 
     if (!drmp3_seek_to_start_of_stream(pMP3)) {
         return DRMP3_FALSE;
@@ -4666,7 +4695,7 @@ DRMP3_API drmp3_bool32 drmp3_calculate_seek_points(drmp3* pMP3, drmp3_uint32* pS
     }
 
     /* We'll need to seek back to the current sample after calculating the seekpoints so we need to go ahead and grab the current location at the top. */
-    currentPCMFrame = pMP3->currentPCMFrame;
+    currentPCMFrame = drmp3_get_cursor_in_pcm_frames(pMP3);
 
     /* We never do more than the total number of MP3 frames and we limit it to 32-bits. */
     if (!drmp3_get_mp3_and_pcm_frame_count(pMP3, &totalMP3FrameCount, &totalPCMFrameCount)) {
