@@ -19,10 +19,13 @@ static const uint32_t kPeriod = 65536;
 static const double kStep = 1.0 / kPeriod;   // a frame's rise
 static const uint32_t kMaxFrames = 4096;
 // Values either side of the ramp's wrap that are not read. The converter
-// rings on the full-scale step there, up to about 9% of it either side
-// (Gibbs), so a frame near the wrap can read as a position up to about 6000
-// frames from it.
-static const double kWrapGuard = 8000;
+// rings on the full-scale step there, up to 9% of it (Gibbs). A frame inside
+// the step reads anywhere between its two sides. TRAP: two frames in a row
+// inside the step must never both be read. A quarter of the period leaves
+// the step's middle half, at most 0.66 frames wide at the widest kernel, and
+// no frame steps less than 0.84. At an eighth, two frames straddling the wrap
+// at a high ratio could both be read, and the threaded test failed at random.
+static const double kWrapGuard = kPeriod / 4.0;
 
 // The source: the ramp from the frame counter at `context`.
 static OSStatus VibeTestRampInput(void *context, const AudioTimeStamp *stamp, UInt32 frames,
