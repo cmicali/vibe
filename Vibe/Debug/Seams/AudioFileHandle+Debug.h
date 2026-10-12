@@ -2,9 +2,10 @@
 //  AudioFileHandle+Debug.h
 //  Vibe
 //
-//  The read-ahead's test seam: which files read ahead, and what each of its
-//  reads does. Both are process-wide. A test sets them for its own URLs and
-//  clears them in tearDown. Declaration-only, like AudioPlayer+Debug.h.
+//  The read-ahead's test seam (NetworkReadAhead): which files read ahead, and
+//  what each of its reads does. Both are process-wide. A test sets them for
+//  its own URLs and clears them in tearDown. Declaration-only, like
+//  AudioPlayer+Debug.h.
 //
 
 #if DEBUG
@@ -37,6 +38,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, nonatomic, readonly) NSInteger debugOrphanedReadAheads;
 
 @end
+
+// NetworkReadAhead.m's side of the seam. The category forwards to these.
+void VibeNetworkReadAheadDebugSetMountRule(NSNumber *_Nullable (^_Nullable rule)(NSURL *url));
+void VibeNetworkReadAheadDebugSetBeforeRead(int (^_Nullable beforeRead)(NSURL *url, uint64_t offset, uint64_t length));
+void VibeNetworkReadAheadDebugSetRetryScale(double scale);
+NSInteger VibeNetworkReadAheadDebugLive(void);
+NSInteger VibeNetworkReadAheadDebugOrphaned(void);
 
 NS_ASSUME_NONNULL_END
 

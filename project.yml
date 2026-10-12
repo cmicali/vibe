@@ -980,6 +980,7 @@ targetTemplates:
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
+      - path: Vibe/Loading/NetworkReadAhead.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c
