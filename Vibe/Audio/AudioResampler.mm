@@ -17,7 +17,7 @@ static const int kVibeMaxInput = 4096;
 // (docs/audio-quality.md).
 static const double kVibeR8TransitionBand = 1.0;
 
-struct VibeConverter {
+struct VibeResampler {
     // One per channel, identically configured, so every channel produces the
     // same count per call.
     std::vector<CR8BResampler> channels;
@@ -29,51 +29,51 @@ struct VibeConverter {
     size_t producedStart = 0;
     size_t producedCount = 0;
 
-    ~VibeConverter() {
+    ~VibeResampler() {
         for (CR8BResampler channel : channels) {
             r8b_delete(channel);
         }
     }
 };
 
-VibeConverter *VibeConverterCreate(double fromRate, double toRate, uint32_t channels) {
+VibeResampler *VibeResamplerCreate(double fromRate, double toRate, uint32_t channels) {
     if (channels == 0 || fromRate <= 0 || toRate <= 0) {
         return NULL;
     }
-    VibeConverter *converter = new (std::nothrow) VibeConverter();
-    if (!converter) {
+    VibeResampler *resampler = new (std::nothrow) VibeResampler();
+    if (!resampler) {
         return NULL;
     }
     try {
         for (uint32_t c = 0; c < channels; c++) {
-            converter->channels.push_back(r8b_create(fromRate, toRate, kVibeMaxInput, kVibeR8TransitionBand, r8brr24));
+            resampler->channels.push_back(r8b_create(fromRate, toRate, kVibeMaxInput, kVibeR8TransitionBand, r8brr24));
         }
-        converter->input.assign(channels, nullptr);
-        converter->widened.resize(kVibeMaxInput);
-        converter->produced.assign(channels, nullptr);
+        resampler->input.assign(channels, nullptr);
+        resampler->widened.resize(kVibeMaxInput);
+        resampler->produced.assign(channels, nullptr);
     }
     catch (const std::bad_alloc &) {
-        delete converter;
+        delete resampler;
         return NULL;
     }
-    return converter;
+    return resampler;
 }
 
-void VibeConverterDispose(VibeConverter *converter) {
-    delete converter;
+void VibeResamplerDispose(VibeResampler *resampler) {
+    delete resampler;
 }
 
-uint32_t VibeConverterFill(VibeConverter *converter, VibeConverterInputProc input, void *userData, uint32_t frames,
+uint32_t VibeResamplerFill(VibeResampler *resampler, VibeResamplerInputProc input, void *userData, uint32_t frames,
                            float *const *output) {
-    uint32_t filled = 0, channels = (uint32_t)converter->channels.size();
+    uint32_t filled = 0, channels = (uint32_t)resampler->channels.size();
     for (;;) {
-        size_t take = MIN(converter->producedCount, (size_t)(frames - filled));
+        size_t take = MIN(resampler->producedCount, (size_t)(frames - filled));
         for (uint32_t c = 0; c < channels; c++) {
-            vDSP_vdpsp(converter->produced[c] + converter->producedStart, 1, output[c] + filled, 1, take);
+            vDSP_vdpsp(resampler->produced[c] + resampler->producedStart, 1, output[c] + filled, 1, take);
         }
         filled += (uint32_t)take;
-        converter->producedStart += take;
-        converter->producedCount -= take;
+        resampler->producedStart += take;
+        resampler->producedCount -= take;
         if (filled == frames) {
             break;
         }
@@ -81,18 +81,18 @@ uint32_t VibeConverterFill(VibeConverter *converter, VibeConverterInputProc inpu
         // arguments twice: wrapped around the input call, a pull that
         // answered under the maximum (a file's last read) read again and
         // lost it, breaking every gapless boundary (measured).
-        uint32_t fed = input(userData, kVibeMaxInput, converter->input.data());
+        uint32_t fed = input(userData, kVibeMaxInput, resampler->input.data());
         fed = MIN(fed, (uint32_t)kVibeMaxInput);
         if (fed == 0) {
             break;
         }
         int count = 0;
         for (uint32_t c = 0; c < channels; c++) {
-            vDSP_vspdp(converter->input[c], 1, converter->widened.data(), 1, fed);
-            count = r8b_process(converter->channels[c], converter->widened.data(), (int)fed, converter->produced[c]);
+            vDSP_vspdp(resampler->input[c], 1, resampler->widened.data(), 1, fed);
+            count = r8b_process(resampler->channels[c], resampler->widened.data(), (int)fed, resampler->produced[c]);
         }
-        converter->producedStart = 0;
-        converter->producedCount = (size_t)count;
+        resampler->producedStart = 0;
+        resampler->producedCount = (size_t)count;
     }
     return filled;
 }

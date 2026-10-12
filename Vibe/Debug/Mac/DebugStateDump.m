@@ -9,10 +9,12 @@
 #import "PlatformColor.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioPlayer+BitPerfect.h"
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
 #import "SettingsRules.h"
 #import "DrawnControls.h"
+#import "VolumeControlView.h"
 #import "MainPlayerController+Menus.h"
 #import "AppDelegate+Debug.h"
 
@@ -167,12 +169,12 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"playButtonColor": VibeHexStringFromColor(controller.playButton.symbolNormalColor) ?: @"",
             @"nextButtonEnabled": @(controller.nextButton.isEnabled),
             @"pitchFader": @(controller.pitchPanel.pitch),
-            @"volumeSlider": @{@"value": @(controller.playerContentView.volumeSlider.doubleValue),
+            @"volumeSlider": @{@"value": @(controller.playerContentView.volumeControlView.slider.doubleValue),
                                @"hidden": @(controller.playerContentView.volumeControlView.isHidden),
                                @"alpha": @(controller.playerContentView.volumeControlView.alphaValue),
                                @"dragging": @(controller.playerContentView.volumeDragging),
-                               @"fill": VibeHexStringFromColor(controller.playerContentView.volumeSlider.trackFillColor) ?: @"",
-                               @"knob": VibeHexStringFromColor(controller.playerContentView.volumeSlider.knobColor) ?: @""},
+                               @"fill": VibeHexStringFromColor(controller.playerContentView.volumeControlView.slider.trackFillColor) ?: @"",
+                               @"knob": VibeHexStringFromColor(controller.playerContentView.volumeControlView.slider.knobColor) ?: @""},
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"waveformLoading": @(controller.trackDisplay.waveformLoadingIndicatorShown),

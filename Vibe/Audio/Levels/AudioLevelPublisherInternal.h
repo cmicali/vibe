@@ -7,8 +7,30 @@
 
 #import "AudioLevelPublisher.h"
 #import <CoreAudioTypes/CoreAudioBaseTypes.h>
+#import <stdatomic.h>
 
 typedef struct VibeLevelPublisherState VibeLevelPublisherState;
+
+// Visible here for the debug seam (AudioLevelPublisher+Debug.m), which reads
+// the counters. Writers go through the functions below.
+struct VibeLevelPublisherState {
+    _Atomic uint64_t activeSession;
+    _Atomic uint64_t nextSession;
+    _Atomic uint64_t nextSequence;
+    // Odd means a writer is changing the five level words; equal even values
+    // before and after a read prove they came from one coherent publication.
+    _Atomic uint64_t writeVersion;
+    _Atomic bool writeClaimed;
+    _Atomic uint64_t publishedSession;
+    _Atomic uint64_t publishedSequence;
+    _Atomic uint32_t levelBits[kLevelBandCount];
+    // Debug builds only. Release never writes them.
+    _Atomic uint64_t callbackCount;
+    _Atomic uint64_t analyzedWindowCount;
+    _Atomic uint64_t publicationCount;
+    _Atomic uint64_t lastCallbackFrameLength;
+    _Atomic uint64_t lastSampleRateBits;
+};
 
 NS_ASSUME_NONNULL_BEGIN
 

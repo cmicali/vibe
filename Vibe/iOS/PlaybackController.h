@@ -111,6 +111,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger currentIndex;
 // The open folder's display name, nil before anything was opened.
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
+// YES once an Add has landed on the playlist now loaded, or it was restored
+// with additions: replacing it loses work a reopen does not bring back.
+@property (nonatomic, readonly) BOOL playlistHasAdditions;
 
 #pragma mark - Display state
 
@@ -162,6 +165,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)seekToProgress:(float)progress;
 - (void)seekToPosition:(NSTimeInterval)position;
 
+// Unloads everything, the twin of the mac's File > Close: the player, the
+// session with its scopes and persisted bookmarks (the next launch restores
+// nothing), the model, the sweep. Safe where a partial edit is not because it
+// is the whole playlist: no cursor survives to strand.
+- (void)clearPlaylist;
+
 #pragma mark - Settings
 
 // A Track transitions writer calls this (the store applies no effects): it
@@ -199,7 +208,11 @@ NS_ASSUME_NONNULL_BEGIN
 // no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable AudioTrack *)track;
 
-#pragma mark - Opening
+@end
+
+// The open and add roads, the row being opened, and the launch's restore
+// (PlaybackController+Opening.m).
+@interface PlaybackController (Opening)
 
 // "Open in Vibe" from Files or the share sheet.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
@@ -219,12 +232,6 @@ NS_ASSUME_NONNULL_BEGIN
 // FolderSession's, for the folder picked after needsFolderOfSheetAtURL:.
 - (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending;
 
-// Unloads everything, the twin of the mac's File > Close: the player, the
-// session with its scopes and persisted bookmarks (the next launch restores
-// nothing), the model, the sweep. Safe where a partial edit is not because it
-// is the whole playlist: no cursor survives to strand.
-- (void)clearPlaylist;
-
 // Appends without touching playback, the tab or the card. An Add onto nothing
 // is an Open (FolderSession).
 - (void)addURLs:(NSArray<NSURL *> *)urls;
@@ -235,7 +242,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token;
 
 // A replace's own identity, taken when the USER asks and judged by the
-// browser's confirmReplacing… funnel. Taking one supersedes every replace
+// confirmReplacing… funnel (+ReplacePrompt). Taking one supersedes every replace
 // still waiting, as an open or a clear does, so of two taps whose
 // resolves finish in either order only the later one opens. Not the Add
 // token: two taps before either resolved captured the same generation, and
@@ -257,10 +264,6 @@ NS_ASSUME_NONNULL_BEGIN
 // the user chose otherwise — has nothing to settle it.
 - (void)endOpeningForReplaceRequest:(uint64_t)token;
 
-// YES once an Add has landed on the playlist now loaded, or it was restored
-// with additions: replacing it loses work a reopen does not bring back.
-@property (nonatomic, readonly) BOOL playlistHasAdditions;
-
 // Nil for a single-file playlist and before anything was opened.
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
 
@@ -274,18 +277,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkFolderURL:(NSURL *)folderURL
                completion:(void (^)(NSData *_Nullable bookmark))completion;
 
-// Every tree the search screen may walk: the session's, then Settings' and
-// Documents, then resolved favorites. FileSearchIndex prunes nesting.
+// Every tree the search screen may walk: the session's, then the Locations and
+// Documents, then resolved favorites. Never a Dropbox folder. FileSearchIndex
+// prunes nesting.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // A search hit or a recent (FolderSession openURL:inFolder:): a folder opens,
 // a file plays alone or, inFolder, its directory with it selected.
 - (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder;
-
-// FolderSession's recents, newest first, and their resolve.
-@property (nonatomic, readonly) NSArray<NSDictionary *> *recentItems;
-- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
-- (void)clearRecentItems;
 
 // The scene delegate calls exactly one of this and handleOpenURLContexts: at
 // launch. Nothing to restore, or a failed restore, sends

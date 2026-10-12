@@ -5,7 +5,8 @@
 //  The player's iOS output-recovery half — what AudioPlayer+Devices'
 //  rate-change and device-loss handling is on macOS. It lives in this
 //  directory so the mac target never compiles these entry points.
-//  AudioSessionController's delegate verdicts are the only callers.
+//  PlaybackController calls them for AudioSessionController's verdicts. It
+//  also calls recoverOutput after the remote Play command's resume.
 //
 
 #import "AudioPlayer.h"

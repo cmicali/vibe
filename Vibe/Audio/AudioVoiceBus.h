@@ -7,7 +7,7 @@
 //  ring buffer, a gain with at most one pending ramp, an optional queued
 //  successor file that continues gaplessly at the boundary. The bus mixes
 //  every live voice into the buffers the master bus's render hands it
-//  (AudioPlayer+Pipeline.h).
+//  (AudioMasterBus.h).
 //
 //  The transport (AudioPlayer) never waits on the bus. It starts a voice,
 //  ramps it, retires it, and learns three things back through the drain it

@@ -6,6 +6,7 @@
 #import "MainPlayerController+Convert.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+PlayerEvents.h"
+#import "MainPlayerController+Transport.h"
 
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"

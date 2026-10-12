@@ -4,8 +4,9 @@
 //
 //  Between AudioWaveformCache, which runs ONE load at a time, and the pager:
 //  which page that load targets, and the latest snapshot per page with the
-//  fraction loaded it was delivered with, 1 for a complete page. The cancel before a retarget is NOT the race guard — a decode
-//  can outlive it — so deliveries are matched on the URL they were loaded for.
+//  fraction loaded it was delivered with, 1 for a complete page. The cancel
+//  before a retarget is NOT the race guard, since a decode can outlive it.
+//  Deliveries are matched on the sourceKey of the track they were loaded for.
 //
 
 #import <Foundation/Foundation.h>

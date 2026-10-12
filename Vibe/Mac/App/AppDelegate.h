@@ -25,12 +25,9 @@
 - (IBAction)showSupportPage:(id)sender;
 #if VIBE_DIRECT_DISTRIBUTION
 // The target of Vibe > Check for Updates…, which validates it. nil in a Debug
-// build launched without --update-feed.
+// build launched without --update-feed. The rest of the updater is
+// AppDelegate+Updates.
 @property (nonatomic, readonly) SPUStandardUpdaterController *updaterController;
-// Settings > General's check frequency in seconds, 0 for never. Sparkle
-// stores it. Reads 0 and ignores writes while no updater runs: a Debug build
-// launched without --update-feed.
-@property (nonatomic) NSTimeInterval updateCheckInterval;
 #endif
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.
@@ -39,7 +36,7 @@
 // A deliberate open like ⌘O and Open Recent, so it ends a Launch Services
 // burst rather than joining it, but with its own append decision. Past that
 // it is the one open funnel. urls may hold web links and .webloc files
-// (LinkRules.h). Each opens its resolved link, in drop order.
+// (LinkDropRules.h). Each opens its resolved link, in drop order.
 - (void)openDroppedURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
 // Escape on the player window. Every open still resolving its links stops,

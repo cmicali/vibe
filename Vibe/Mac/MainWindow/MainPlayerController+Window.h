@@ -10,6 +10,7 @@
 #import "MainPlayerController.h"
 
 @class MainWindow;
+@class WaveformView;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -65,6 +66,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The update timer's visibility gate: YES while unoccluded.
 - (BOOL)isWindowVisible;
+
+// Re-resolves colors without writing a setting.
+- (void)refreshWaveformTheme;
+// WaveformViewDelegate's theme half; +Transport adopts the protocol.
+- (void)waveformViewDidResolveTheme:(WaveformView *)waveformView;
 
 @end
 

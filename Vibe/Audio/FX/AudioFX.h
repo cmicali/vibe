@@ -6,8 +6,6 @@
 #import <Foundation/Foundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 
-@class AVAudioFormat;
-
 NS_ASSUME_NONNULL_BEGIN
 
 // The DJ effects: the low-kill high-pass (Q, with a W boost) and the
@@ -43,16 +41,6 @@ NS_ASSUME_NONNULL_BEGIN
                     scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler
             afterRenderLeaves:(void (^)(dispatch_block_t work))afterRenderLeaves;
 
-// On the queue with the output stopped; idempotent. The units are hosted at
-// the first connect (`format` stereo float32 non-interleaved) and kept; a
-// connect at another rate re-hosts them and re-applies the intent.
-// Disconnecting rests every unit and tail without changing intent.
-- (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount;
-
-// Media-services reset, on the player queue after withdrawing the chain:
-// dispose orphaned units without messaging them; the next connect re-hosts.
-- (void)markDead;
-
 // Whether the segment is in the chain. Player-queue only.
 @property (nonatomic, readonly) BOOL connected;
 
@@ -62,14 +50,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL sendsActive;
 @property (nonatomic, readonly) NSTimeInterval longestTailSeconds;
 
-// The current hosting, NULL while unhosted. A published chain stays valid for
-// every render that read it. Player queue.
-typedef struct VibeFXChain VibeFXChain;
-- (VibeFXChain *)chain;
-
-// Idle effects render nothing, which the tests read. Any thread.
-- (NSUInteger)hostedUnitCount;
-- (uint64_t)unitRenders;
 // For the audio-path report: intentSnapshot plus what the hosting says.
 // Player queue, because it reads the chain the queue may free.
 - (NSDictionary<NSString *, id> *)diagnosticSnapshot;
@@ -119,10 +99,5 @@ typedef struct VibeFXChain VibeFXChain;
 @property (nonatomic) float delayTapBPM;
 
 @end
-
-// In place over `io`: stereo float32, non-interleaved, at most the hosted
-// maximumFrameCount frames. Audio thread. The first unit render that fails
-// ends the call with its status; the caller silences the slice.
-OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
 
 NS_ASSUME_NONNULL_END

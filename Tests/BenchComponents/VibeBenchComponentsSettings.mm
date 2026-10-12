@@ -16,13 +16,21 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
+// perf.py builds this file against older refs too. The Themes pane's class
+// was SettingsAppearanceViewController there, a name a later class reuses, so
+// the new header is tested first.
+#if __has_include("SettingsThemesViewController.h")
+#import "SettingsThemesViewController.h"
+#else
 #import "SettingsAppearanceViewController.h"
+#define SettingsThemesViewController SettingsAppearanceViewController
+#endif
 #import "SettingsPaneViewController.h"
 #import "SettingsWindowController.h"
 
 struct VibeBenchComponentsSettingsState {
     SettingsWindowController *controller = nil;
-    SettingsAppearanceViewController *themes = nil;
+    SettingsThemesViewController *themes = nil;
     NSViewController *appearance = nil;
     NSString *themeIdentifier = nil;
 };

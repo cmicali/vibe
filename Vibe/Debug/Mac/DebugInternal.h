@@ -15,7 +15,7 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import <notify.h>
 
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugCommandDispatch.h"
@@ -43,7 +43,7 @@
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
 #import "AudioFileConverter+Debug.h"
 #import "MusicalKey.h"
@@ -52,7 +52,7 @@
 #import "PitchControlPanel.h"
 #import "SymbolButton.h"
 #import "AppSettings.h"
-#import "NSURLUtil.h"
+#import "FolderWalk.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -68,7 +68,8 @@ NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 NSDictionary *VibeOpenURLWindowState(void);
 NSString *VibeDriveOpenURLWindow(NSArray<NSString *> *tokens);
 
-// DebugInput.m — synthesized input, synthetic drags and row selection.
+// DebugInput.m — synthesized input and row selection.
+NSPoint VibeWindowPointForContentPoint(NSWindow *window, double x, double y);
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
                         BOOL down, BOOL up);
 NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> *tokens);
@@ -77,6 +78,8 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
 NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSString *> *tokens);
+
+// DebugSyntheticDrags.m — file drops and row reorders through the delegates.
 NSString *VibeSyntheticFileDragHover(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeSyntheticFileDragEnd(MainPlayerController *controller);
 NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
@@ -85,8 +88,13 @@ NSString *VibeReorderUpdate(MainPlayerController *controller, NSArray<NSString *
 NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeReorderCancel(MainPlayerController *controller);
 
-// DebugCommandTable.m — the verb table the dispatcher walks.
+// DebugMacVerbs.m — the verb table the dispatcher walks. It adds the
+// topic tables below, which only it reads.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void);
+NSArray<NSDictionary *> *VibeDebugThemeVerbs(void);   // DebugThemeVerbs.m
+NSArray<NSDictionary *> *VibeDebugWindowVerbs(void);  // DebugWindowVerbs.m
+NSArray<NSDictionary *> *VibeDebugOutputVerbs(void);  // DebugOutputVerbs.m
+NSArray<NSDictionary *> *VibeDebugConvertVerbs(void); // DebugConvertVerbs.m
 
 NS_ASSUME_NONNULL_END
 

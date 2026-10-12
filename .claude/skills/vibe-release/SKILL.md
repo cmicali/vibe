@@ -10,7 +10,7 @@ There are three release paths, and they are not interchangeable. Each uses a dif
 | | `make release` | `make appstore-build` | `make appstore-build-ios` |
 |---|---|---|---|
 | platform | macOS | macOS | iOS |
-| script | `scripts/release.sh` | `scripts/release-appstore.sh` | the same, `--platform ios` |
+| script | `scripts/release/release.sh` | `scripts/appstore/release-appstore.sh` | the same, `--platform ios` |
 | scheme | `Vibe` | `Vibe` | `VibeiOS` |
 | configuration | `Release` | `AppStore` (no updater) | `Release` |
 | certificate | Developer ID Application | Apple Distribution (+ Mac Installer) | Apple Distribution |
@@ -30,7 +30,7 @@ Each App Store pair works the same way: `appstore-build[-ios]` stops after valid
 
 **The DMG is the default download.** A zip expands wherever the browser drops it, and a quarantined app launched from `~/Downloads` runs translocated, from a random read-only mount that vanishes on quit. Settings > General > Default music player registers the path the app runs at, so a translocated copy would register a path that ceases to exist. Dragging out of a disk image clears translocation. The window is deliberately plain, since a background image needs Finder driven over AppleScript, the flakiest step in any DMG script. Four notarization submissions are needed, and every staple is checked at publish.
 
-`make github-release` (`scripts/github-release.sh`; `ARGS="--draft"` for a review pass, `ARGS="--prerelease"` for a beta) re-verifies every exported app, DMG, mounted app and zipped app, including architecture and version, then tags HEAD as `v<MARKETING_VERSION>`. It attaches `Vibe-macOS-universal-<version>.dmg` and `.zip` and `Vibe-macOS-arm64-<version>.dmg` and `.zip`. Release notes come from `Assets/app-store/copy/en/macos/whats-new.txt`. It needs `gh` authenticated and a pushed HEAD, and refuses an existing release for the same version.
+`make github-release` (`scripts/release/github-release.sh`; `ARGS="--draft"` for a review pass, `ARGS="--prerelease"` for a beta) re-verifies every exported app, DMG, mounted app and zipped app, including architecture and version, then tags HEAD as `v<MARKETING_VERSION>`. It attaches `Vibe-macOS-universal-<version>.dmg` and `.zip` and `Vibe-macOS-arm64-<version>.dmg` and `.zip`. Release notes come from `Assets/app-store/copy/en/macos/whats-new.txt`. It needs `gh` authenticated and a pushed HEAD, and refuses an existing release for the same version.
 
 ## The release commit
 
@@ -56,16 +56,16 @@ A beta is `make release`, then `make github-release ARGS="--prerelease"`. The pa
 
 The web site's mechanics (the Download button's version, the `/download/latest` 302 link, the local-only Cloudflare deploy, derived images and content-hashed assets) are in `Assets/Web/README.md`. The release ordering is here:
 
-1. **Before the release**, it runs `scripts/web-set-version.sh <version>` and adds the feed items. It commits `index.html`, `_redirects` and the feeds by explicit pathspec and pushes. A failed commit or push is **fatal**, since nothing is published yet and a tag on an unpushed commit would dangle. The tag-points-at-HEAD preflight runs after that push.
+1. **Before the release**, it runs `scripts/web/web-set-version.sh <version>` and adds the feed items. It commits `index.html`, `_redirects` and the feeds by explicit pathspec and pushes. A failed commit or push is **fatal**, since nothing is published yet and a tag on an unpushed commit would dangle. The tag-points-at-HEAD preflight runs after that push.
 2. It calls `gh release create --target HEAD`, so the tag names a tree whose page already advertises the release.
 3. **After the release exists**, it runs `deploy-web.sh`, since the page and the feed items name the release's assets, which 404 until then. A deploy failure is a warning naming the retry, `make deploy-web`.
 4. Last, it runs `brew-set-version.sh` (below). Its failure is a warning, so a missed warning is a stale tap.
 
-`--draft` skips the page, the feeds, the deploy and the tap. A draft creates no tag until published and writes no feed item. Once a draft is published, repoint by hand: `scripts/web-set-version.sh <version> && make deploy-web`, then `scripts/brew-set-version.sh <version>`. `--prerelease` skips the page and the tap, since a beta must never become `vibeplayer.app/download/latest`, but still commits its feed items.
+`--draft` skips the page, the feeds, the deploy and the tap. A draft creates no tag until published and writes no feed item. Once a draft is published, repoint by hand: `scripts/web/web-set-version.sh <version> && make deploy-web`, then `scripts/release/brew-set-version.sh <version>`. `--prerelease` skips the page and the tap, since a beta must never become `vibeplayer.app/download/latest`, but still commits its feed items.
 
 ## The Homebrew tap
 
-`brew install cmicali/tap/vibe` installs from [cmicali/homebrew-tap](https://github.com/cmicali/homebrew-tap). **Every stable release must move it**, or `brew upgrade` keeps handing out the previous version. `scripts/brew-set-version.sh` writes the tap's one file, `Casks/vibe.rb`, whole from its own template and commits it through the GitHub contents API. Make cask changes (the `zap` paths are the sandbox's containers) in that template. The two `sha256`s are the digests GitHub computed for the published DMGs, so it cannot run before `gh release create`. It can be re-run for any stable release, and a re-run with nothing to change commits nothing. `ARGS="--dry-run"` prints the cask. A beta or a draft is refused.
+`brew install cmicali/tap/vibe` installs from [cmicali/homebrew-tap](https://github.com/cmicali/homebrew-tap). **Every stable release must move it**, or `brew upgrade` keeps handing out the previous version. `scripts/release/brew-set-version.sh` writes the tap's one file, `Casks/vibe.rb`, whole from its own template and commits it through the GitHub contents API. Make cask changes (the `zap` paths are the sandbox's containers) in that template. The two `sha256`s are the digests GitHub computed for the published DMGs, so it cannot run before `gh release create`. It can be re-run for any stable release, and a re-run with nothing to change commits nothing. `ARGS="--dry-run"` prints the cask. A beta or a draft is refused.
 
 Validate a template change with `brew tap cmicali/tap <local clone>` and `brew audit --cask --strict --online cmicali/tap/vibe`. `brew install --cask --appdir=<scratch dir>` installs without touching `/Applications`, and `brew untap cmicali/tap` puts the machine back. homebrew/cask refuses self-submitted apps below its notability bar, so the tap is the channel.
 
@@ -93,7 +93,7 @@ The direct download updates itself through Sparkle 2, vendored at `Vibe/ThirdPar
 
 **One run writes one platform's page.** App Store Connect localizations hang off a version, and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's new, captions and screenshots. `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded: key analysis, the pitch fader and bit-perfect output are macOS-only, and a page describing features the app lacks is a review rejection.
 
-The build upload carries no product-page content. Copy and screenshots live in `Assets/app-store/` (format in its README) and upload separately with `make appstore-upload-metadata`. That runs `scripts/appstore-upload-metadata.sh`, which drives the Swift tool in `scripts/asc-upload/` with the shared key.
+The build upload carries no product-page content. Copy and screenshots live in `Assets/app-store/` (format in its README) and upload separately with `make appstore-upload-metadata`. That runs `scripts/appstore/appstore-upload-metadata.sh`, which drives the Swift tool in `scripts/appstore/asc-upload/` with the shared key.
 
 The loop:
 
@@ -114,7 +114,7 @@ Flags via `ARGS`: `--platform ios`, `--locales de,fr`, `--skip-screenshots`, `--
 
 ## The shared API key
 
-All scripts share one App Store Connect API key, `ASC_KEY_ID` and `ASC_ISSUER_ID`, from the gitignored `.release-env` at the repo root. `scripts/asc-auth-lib.sh` resolves it. The key covers cloud signing, notarization (`notarytool --key/--key-id/--issuer`, no app-specific password) and upload.
+All scripts share one App Store Connect API key, `ASC_KEY_ID` and `ASC_ISSUER_ID`, from the gitignored `.release-env` at the repo root. `scripts/appstore/asc-auth-lib.sh` resolves it. The key covers cloud signing, notarization (`notarytool --key/--key-id/--issuer`, no app-specific password) and upload.
 
 The key must carry the **Admin** role. Cloud-managed App Store certificates are Admin-gated, so an App Manager key authenticates and uploads but fails the export with a 403. A key's role cannot be edited after creation.
 

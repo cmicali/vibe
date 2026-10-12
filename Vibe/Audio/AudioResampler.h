@@ -20,19 +20,19 @@ NS_ASSUME_NONNULL_BEGIN
 extern "C" {
 #endif
 
-typedef struct VibeConverter VibeConverter;
+typedef struct VibeResampler VibeResampler;
 
 // Points `channels[c]` at up to `maxFrames` frames of each channel's float32
 // input, valid until the next call, and returns how many; 0 is none for now.
-typedef uint32_t (*VibeConverterInputProc)(void *_Nullable userData, uint32_t maxFrames,
+typedef uint32_t (*VibeResamplerInputProc)(void *_Nullable userData, uint32_t maxFrames,
                                            const float *_Nullable *_Nonnull channels);
 
-// NULL when the converter could not be made.
-VibeConverter *_Nullable VibeConverterCreate(double fromRate, double toRate, uint32_t channels);
-void VibeConverterDispose(VibeConverter *converter);
+// NULL when the resampler could not be made.
+VibeResampler *_Nullable VibeResamplerCreate(double fromRate, double toRate, uint32_t channels);
+void VibeResamplerDispose(VibeResampler *resampler);
 
 // Up to `frames` into `output`, one buffer per channel; returns the frames made.
-uint32_t VibeConverterFill(VibeConverter *converter, VibeConverterInputProc input, void *_Nullable userData,
+uint32_t VibeResamplerFill(VibeResampler *resampler, VibeResamplerInputProc input, void *_Nullable userData,
                            uint32_t frames, float *const _Nonnull *_Nonnull output);
 
 #ifdef __cplusplus

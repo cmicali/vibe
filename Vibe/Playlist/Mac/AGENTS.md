@@ -1,11 +1,12 @@
 # Playlist table (macOS only)
 
-The `NSTableView` half of `Vibe/Playlist/`:
+The macOS half of `Vibe/Playlist/`:
 
 - `PlaylistController` is the data source and delegate: cell *content*, the model observer, the drag session and the row menu.
 - `PlaylistTableView` is everything *structural*: columns, row metrics, the scroll view, and the code-built cells and their styling.
 - `PlaylistRowView` draws row backgrounds. `PlaylistTextCell` and `PlaylistCoverImageView` are cell parts.
 - `PlaylistDropZoneView` draws the pane's Add and Replace wells and hit-tests them. The window is the dragging destination.
+- `PlaylistFile+Session` is the last-playlist store. It saves and restores the mirror and owns the `VibeLastPlaylistCurrentIndex` defaults key. Only `MainPlayerController` calls it (`Mac/MainWindow/AGENTS.md`, The last playlist). It is here, not in the shell, so `PlaylistFileSessionTests` keeps testing it.
 
 Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reorder follow-ups are `Mac/MainWindow/AGENTS.md`'s.
 
@@ -78,7 +79,7 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 ## Dragging rows: reorder inside, files outside
 
-**One drag has two destinations, chosen by the operation mask.** Each row's `NSPasteboardItem` carries the private reorder type, with the session token as payload, and the file URL. The mask is `NSDragOperationMove` locally and `NSDragOperationCopy` elsewhere. So inside the table a drag reorders, and onto the Finder or another app it copies the files.
+**One drag has two destinations, chosen by the operation mask.** Each row's `NSPasteboardItem` carries the private reorder type, with the session token as payload. The first dragged row of each file also carries its file URL, so a drop outside copies each file once. The mask is `NSDragOperationMove` locally and `NSDragOperationCopy` elsewhere. So inside the table a drag reorders, and onto the Finder or another app it copies the files.
 
 **The private type plus the live token is the whole proof that a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`). A file URL alone is what an external drag carries too. The table registers only the private type, so an external file drag still falls to the window's wells. `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open.
 
@@ -88,4 +89,8 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 **A row number captured at mouse-down is never trusted.** The payload is the exact `AudioTrack`s, re-resolved through `rowsForTracks:` at every validation and at the drop. A replaced playlist resolves to nothing and rejects the drag. A row converted away drops out alone. One qualification (`reorderDestinationForInfo:`) serves both the insertion line and the accept, so the line never promises a move the drop refuses.
 
-**`PlaylistDragRules.h` is the one conversion from an AppKit insertion slot to model final positions**, tested in `Tests/PlaylistDragRulesTests.m`. `VibePlaylistDropDestinationForSlot` solves the downward off-by-one. It answers nil for a no-op slot, so no insertion line is drawn there. A no-op is a contiguous block dropped onto or beside itself, or every row at once. `VibePlaylistMoveSequenceEnumerate` emits single-row moves in **evolving coordinates**: apply one before computing the next.
+**`PlaylistDragRules.h` is the one conversion from an AppKit insertion slot to model final positions**, tested in `Tests/Playlist/PlaylistDragRulesTests.m`. `VibePlaylistDropDestinationForSlot` solves the downward off-by-one. It answers nil for a no-op slot, so no insertion line is drawn there. A no-op is a contiguous block dropped onto or beside itself, or every row at once. `VibePlaylistMoveSequenceEnumerate` emits single-row moves in **evolving coordinates**: apply one before computing the next.
+
+## Track commands
+
+**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `FolderWalkTests`). Menu validation reads no file, so Copy File stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.

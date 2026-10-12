@@ -5,28 +5,6 @@
 
 #import "AudioLevelPublisherInternal.h"
 
-#import <stdatomic.h>
-
-struct VibeLevelPublisherState {
-    _Atomic uint64_t activeSession;
-    _Atomic uint64_t nextSession;
-    _Atomic uint64_t nextSequence;
-    // Odd means a writer is changing the five level words; equal even values
-    // before and after a read prove they came from one coherent publication.
-    _Atomic uint64_t writeVersion;
-    _Atomic bool writeClaimed;
-    _Atomic uint64_t publishedSession;
-    _Atomic uint64_t publishedSequence;
-    _Atomic uint32_t levelBits[kLevelBandCount];
-#if DEBUG
-    _Atomic uint64_t callbackCount;
-    _Atomic uint64_t analyzedWindowCount;
-    _Atomic uint64_t publicationCount;
-    _Atomic uint64_t lastCallbackFrameLength;
-    _Atomic uint64_t lastSampleRateBits;
-#endif
-};
-
 @implementation AudioLevelPublisher {
     VibeLevelPublisherState _publisherState;
 }
@@ -119,25 +97,6 @@ struct VibeLevelPublisherState {
     }
     return NO;
 }
-
-#if DEBUG
-- (NSDictionary<NSString *, NSNumber *> *)debugState {
-    VibeLevelPublisherState *state = &_publisherState;
-    uint64_t sampleRateBits = atomic_load_explicit(&state->lastSampleRateBits,
-                                                    memory_order_relaxed);
-    double sampleRate = 0;
-    memcpy(&sampleRate, &sampleRateBits, sizeof(sampleRate));
-    return @{
-        @"installed": @(atomic_load_explicit(&state->activeSession, memory_order_acquire) != 0),
-        @"callbacks": @(atomic_load_explicit(&state->callbackCount, memory_order_relaxed)),
-        @"analyzedWindows": @(atomic_load_explicit(&state->analyzedWindowCount, memory_order_relaxed)),
-        @"publications": @(atomic_load_explicit(&state->publicationCount, memory_order_relaxed)),
-        @"sequence": @(atomic_load_explicit(&state->publishedSequence, memory_order_relaxed)),
-        @"lastFrameLength": @(atomic_load_explicit(&state->lastCallbackFrameLength, memory_order_relaxed)),
-        @"sampleRate": @(sampleRate),
-    };
-}
-#endif
 
 @end
 

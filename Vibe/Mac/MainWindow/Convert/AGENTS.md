@@ -1,6 +1,6 @@
 # Convert to FLAC: the swap and its undo
 
-`Audio/Mac/Convert/` is the engine and the file round trip. This category is what happens in the playlist when a conversion finishes and when it is undone. The controller is `../AGENTS.md`.
+`Mac/Convert/` is the engine and the file round trip. This category is what happens in the playlist when a conversion finishes and when it is undone. The controller is `../AGENTS.md`.
 
 **The FLAC takes the rows its source occupied.** `didConvertTrack:toURL:error:completion:` resolves every row holding the source URL at completion. That includes duplicates that survived removal of the original row, and rows in a playlist that replaced the old one during encoding. No matching row means nothing changes, and the FLAC stays on disk. Every matching row is swapped. **Currency is the current row's, not the converted object's.** A same-URL duplicate made current mid-encode must not be swapped out from under the player. **The playlist entry is swapped before the replay** (`replayTrack:intent:`), so `didStartPlaying:`'s identity guard passes and the ordinary per-track refresh comes free. A parked successor on a swapped row is prefetched again, since the parked handle still holds the source.
 
@@ -10,7 +10,7 @@
 
 **The disposal's completion makes the conversion undoable.** It registers a `VibeFLACConversionRecord` as "Convert to FLAC" on the window's `NSUndoManager`. The record holds each file's current location (`ExpectedPath`, `KnownTrashURL`, `UnknownTrashURL`). The move outcome decides whether the source was trashed, never the presence of a URL.
 
-**One undo or redo may be in flight at a time.** The controller reads `AudioFileConverter.isUndoRedoInFlight` to disable both items and refuse the actions until the restore and trash chain settles. So rapid commands cannot interleave file moves against one mutable record. `AudioFileConverter.registerUndoForConversion:undoManager:swap:completion:` owns the shared inverse: register the opposite action at once, restore and verify, ask the shell to swap surviving rows, then dispose of the retired file (`Audio/Mac/Convert/AGENTS.md`). The shell supplies `swapConvertedTrack:toURL:` and the completion. The completion refreshes state, reports a failure, reveals a stranded Trash item and consumes the debug settlement handler.
+**One undo or redo may be in flight at a time.** The controller reads `AudioFileConverter.isUndoRedoInFlight` to disable both items and refuse the actions until the restore and trash chain settles. So rapid commands cannot interleave file moves against one mutable record. `AudioFileConverter.registerUndoForConversion:undoManager:swap:completion:` owns the shared inverse: register the opposite action at once, restore and verify, ask the shell to swap surviving rows, then dispose of the retired file (`Mac/Convert/AGENTS.md`). The shell supplies `swapConvertedTrack:toURL:` and the completion. The completion refreshes state, reports a failure, reveals a stranded Trash item and consumes the debug settlement handler.
 
 `AudioPlayer.getPlaybackIntent:forTrack:` captures the replay position and pause intent together on the player queue, including a seek made while the source is still Loading. A stopped or superseded row never starts playback.
 

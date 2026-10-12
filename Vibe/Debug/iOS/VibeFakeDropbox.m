@@ -14,7 +14,7 @@
 #import "DropboxClientInternal.h"
 #import "DropboxRules.h"
 #import "NSURL+Hash.h"
-#import "VibeFakeHTTP.h"
+#import "VibeFakeHTTPProtocol.h"
 
 static NSString *const kFakeAccountID = @"dbid:fake";
 static NSString *const kFakeAccountName = @"Fake Dropbox";

@@ -2,7 +2,7 @@
 
 The application object and the app-wide services it owns. The test for this directory is ownership: **`AppDelegate` creates it, or the OS hands it to `AppDelegate`.** A service several features use but none owns lives here. A service one feature owns lives with that feature.
 
-`main.m` at the repo root creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `NSURLUtil`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how a path utility in `Vibe/Util/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
+`main.m` creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `FolderWalk`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how the walk in `Vibe/Playlist/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
 
 ## Opening files is a funnel, not an event
 
@@ -15,7 +15,7 @@ Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a
 
 **Close invalidates the open coordinator before it unloads the playlist**, so a pending walk or a buffered append cannot reopen files the user closed. A replacing open uses the same invalidation.
 
-The walk is `NSURLUtil` (`Vibe/Util/`) on a four-wide queue. An unreachable mount cannot hold every later open hostage, and a burst of drops cannot spawn a thread each.
+The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable mount cannot hold every later open hostage, and a burst of drops cannot spawn a thread each.
 
 `DocumentTypes` lives in `Vibe/Common/`, because both targets declare document types. It seeds the ⌘O panel's filter and `DefaultAppRegistration` (`Mac/Settings/`). The panel then widens its filter to every type registered for those filename extensions.
 
@@ -23,9 +23,9 @@ The walk is `NSURLUtil` (`Vibe/Util/`) on a four-wide queue. An unreachable moun
 
 ## Open URL and links
 
-**Open URL (⌘U, `openLink:`) is an `NSPanel` that `AppDelegate` builds and owns.** It is not a sheet, so the player keeps working while it is up. It stays up when Vibe is not active (`hidesOnDeactivate` off), since a link is often copied from a browser. It takes the level of the About and Settings windows (`applyAuxiliaryWindowLevels`). Open is disabled while the field is blank (`VibeLinkTextIsBlank`). Return presses Open and never breaks the line. Nothing reads the pasteboard unless the user pastes.
+**Open URL (⌘U, `openLink:`) is an `NSPanel` that `OpenLinkWindowController` builds.** `AppDelegate` owns the controller for the app's life. The controller builds the panel at each show and releases it at each close. The panel is not a sheet, so the player keeps working while it is up. It stays up when Vibe is not active (`hidesOnDeactivate` off), since a link is often copied from a browser. It takes the level of the About and Settings windows (`applyAuxiliaryWindowLevels`). Open is disabled while the field is blank (`VibeLinkTextIsBlank`). Return presses Open and never breaks the line. Nothing reads the pasteboard unless the user pastes.
 
-**⌘W reaches the panel because `AppDelegate`, its delegate, answers `closeFile:` ahead of the player.** The player's `closeFile:` would clear the playlist. Every close ends in `windowWillClose:`, which cancels a resolve still running.
+**⌘W reaches the panel because the controller, its delegate, answers `closeFile:` ahead of the player.** The player's `closeFile:` would clear the playlist. `AppDelegate` forwards `closeFile:` and Close's validation to the controller when no window takes them. Every close ends in `windowWillClose:`, which cancels a resolve still running.
 
 **A link opens down the same road as a dropped link** (`openInOrder:token:completion:`). `openLinkString:completion:` takes a replacing request at once, then resolves the link. A failure or a cancel finishes the request with no rows, so a loaded playlist stays. There is no alert. The header shows the failure as a notice (`showNotice:naming:`, `Mac/MainWindow/AGENTS.md`). Every newer open request ends a held notice (`beginOpenRequestAppending:fromURLs:`).
 
@@ -62,7 +62,7 @@ Restoration runs three utility workers plus one user-initiated lane for a grant 
 
 **The direct download updates itself through Sparkle. The Mac App Store build has no updater at all.** `VIBE_DIRECT_DISTRIBUTION` (`project.yml`) is the one channel marker: 1 in Debug and Release, 0 in `AppStore`. Nothing else may infer the channel. Everything Sparkle is inside `#if VIBE_DIRECT_DISTRIBUTION`: the import, the controller, the menu item, the two Settings rows, the beta setting and the debug report's feed line. The `AppStore` configuration also unlinks the framework and strips its Info.plist keys. `release-appstore.sh` and CI check the result (the `vibe-release` skill).
 
-`AppDelegate` owns one `SPUStandardUpdaterController`. It is created unstarted in `applicationWillFinishLaunching:`, before the menu, and started in `applicationDidFinishLaunching:` after the window is up. Sparkle's standard UI does the rest. Automatic checks are on from the first launch, weekly, so Sparkle never shows its first-run prompt (`SUEnableAutomaticChecks`, `SUScheduledCheckInterval`). Vibe adds three things.
+`AppDelegate` owns one `SPUStandardUpdaterController`. It is created unstarted in `applicationWillFinishLaunching:`, before the menu, and started in `applicationDidFinishLaunching:` after the window is up. `AppDelegate+Updates` creates it. That category is also the updater's delegate, and it holds `updateCheckInterval`. Sparkle's standard UI does the rest. Automatic checks are on from the first launch, weekly, so Sparkle never shows its first-run prompt (`SUEnableAutomaticChecks`, `SUScheduledCheckInterval`). Vibe adds three things.
 
 - **Check for Updates…** targets the controller, which validates it.
 - `allowedChannelsForUpdater:` adds the feed's `beta` channel while `AppSettings.receiveBetaUpdates` is on. Sparkle asks at every check, so the setting needs no live effect.
@@ -82,6 +82,8 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **A launch-time open outranks the remembered playlist, and the restore is not an open.** It does not enter the coalescer. An empty drain arms no burst, so a Finder open a beat later replaces rather than appends. It does not enter `openURLs:appending:` either, so it records no stats and mints no bookmarks.
 
+`MainPlayerController` saves and restores the mirror through `PlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
+
 **Links are pruned once per launch, after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`pruneKeepingTracks:recentURLs:`). The store deletes every other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
 
 `AppStats` (`Vibe/Common/`, `Common/AGENTS.md`) counts on both platforms. This shell feeds it from `deliverExpandedRows:` and from the player's output-audio activity event.
@@ -92,7 +94,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **The app does not opt into sudden termination.** Under it an idle quit is a SIGKILL with no callback, and the last playlist would not be written.
 
-**TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block. libdispatch does not drain the main queue re-entrantly, so a reply queued there never runs, and Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, uses the same queue for the same reason (`Audio/Mac/Convert/AGENTS.md`).
+**TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block. libdispatch does not drain the main queue re-entrantly, so a reply queued there never runs, and Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, uses the same queue for the same reason (`Mac/Convert/AGENTS.md`).
 
 ## Debug info
 
@@ -104,3 +106,11 @@ It is two calls because of two threads. `VibeDebugInfoSnapshot` reads on main wh
 - **The log is all of Vibe's own lines, the audio frameworks' lines at any stored level, and anyone's errors**, capped at the newest 100,000 lines. Device trouble is reported in the frameworks' lines. Without `VIBE_VERBOSE_LOGGING` (root `AGENTS.md`), Vibe's info and debug lines were never stored, and the report cannot recover them.
 - **It covers this run only.** The log store is scoped to the current process, so a user must save before quitting.
 - **The audio path** (`audioPath`) is the render chain stage by stage, from source file to output device. Settings > Advanced's Audio group and the debug channel's `dump_audio_path` read the same model.
+
+## The Dock tile
+
+**`NSDockTile+Util`**: the Dock tile and the app icon behind it.
+- `setDockIcon:shaped:` composes artwork onto the icon grid off main. With the theme's App icon shape off, it installs the picture as it is.
+- `setAppIcon:shaped:` composes a theme's custom icon the same way into `NSApp.applicationIconImage`, so the Dock, the app switcher and the About surfaces agree. Nil resets to the bundle icon.
+- `resetToAppIcon` puts the application's icon back in the tile. It reads the icon live, so a custom icon shows through.
+- The file's `TRAP:`s are the authority. One view is installed for good and only its image swaps, since detaching and re-installing a view leaks a 256KB dock-tile context per transition. Assigning `applicationIconImage` replaces the tile's content view, so every install re-attaches ours. **Each custom-icon-then-reset round trip of `applicationIconImage` also leaks one 256KB context inside AppKit's setter**, so `setAppIcon:shaped:` assigns only on a change.

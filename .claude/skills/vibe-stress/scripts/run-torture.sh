@@ -87,7 +87,7 @@ echo "  exe: $exe"
 echo "  verified: intended binary"
 
 # As in launch.sh: an occluded, paused app is deferred by the OS until the
-# channel times out (raise_window's TRAP in DebugCommandTable.m).
+# channel times out (raise_window's TRAP in DebugWindowVerbs.m).
 raised=$("$V" --debug-cmd raise_window 2>/dev/null)
 if printf '%s' "$raised" | jq -e '.visible' >/dev/null 2>&1; then
     echo "  window: raised, visible"

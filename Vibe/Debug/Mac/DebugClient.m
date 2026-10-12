@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 
 #if DEBUG
 
@@ -15,7 +15,7 @@
 
 // The CLI half of the debug command channel. The local verbs (sleep, script,
 // scan_bpm, scan_key, clear_disk_caches, set_analysis) run in this process;
-// everything else rides the transport DebugUtil.h describes.
+// everything else rides the transport DebugMacEntry.h describes.
 
 #pragma mark Client side
 

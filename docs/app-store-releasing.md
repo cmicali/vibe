@@ -39,7 +39,7 @@ make appstore-upload-signed-build-ios         # iOS: build + validate + upload
   ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
   ```
 
-  Optional overrides, in `.release-env` or the environment: `ASC_KEY_PATH` if the `.p8` lives elsewhere, and `TEAM_ID` for another team. `scripts/asc-auth-lib.sh` resolves the key for every release script. No certificate or provisioning profile is made by hand. The first archive and export create them through `-allowProvisioningUpdates`.
+  Optional overrides, in `.release-env` or the environment: `ASC_KEY_PATH` if the `.p8` lives elsewhere, and `TEAM_ID` for another team. `scripts/appstore/asc-auth-lib.sh` resolves the key for every release script. No certificate or provisioning profile is made by hand. The first archive and export create them through `-allowProvisioningUpdates`.
 
 ## 2. Bump the version
 
@@ -48,7 +48,7 @@ make appstore-upload-signed-build-ios         # iOS: build + validate + upload
 - `MARKETING_VERSION` is the store-visible version (`1.16`).
 - `CURRENT_PROJECT_VERSION` is the build number. Every upload for a version needs a higher one.
 
-Then open a version record carrying that same string on each platform you ship. `scripts/release-appstore.sh` reports the version read from the archived app's `Info.plist`, so what it prints is what it ships. Commit the bump before releasing, so `VIBE_GIT_DIRTY` stays clean.
+Then open a version record carrying that same string on each platform you ship. `scripts/appstore/release-appstore.sh` reports the version read from the archived app's `Info.plist`, so what it prints is what it ships. Commit the bump before releasing, so `VIBE_GIT_DIRTY` stays clean.
 
 ## 3. Localize the assets
 
@@ -71,7 +71,7 @@ make appstore-build-ios                # iOS:   archive → signed .ipa → ASC 
 make appstore-upload-signed-build-ios  # iOS:   same, then upload
 ```
 
-One script serves both, `scripts/release-appstore.sh`, defaulting to macOS and taking `--platform ios`. Validation runs the same checks as upload, so the non-uploading target is a safe full rehearsal. The output lands in `build/appstore` or `build/appstore-ios`. Everything that differs per platform is set once, in a `case` at the top of the script. A macOS bundle nests its `Info.plist` and executable under `Contents/` and an iOS one does not, and the script reads the right depth for each.
+One script serves both, `scripts/appstore/release-appstore.sh`, defaulting to macOS and taking `--platform ios`. Validation runs the same checks as upload, so the non-uploading target is a safe full rehearsal. The output lands in `build/appstore` or `build/appstore-ios`. Everything that differs per platform is set once, in a `case` at the top of the script. A macOS bundle nests its `Info.plist` and executable under `Contents/` and an iOS one does not, and the script reads the right depth for each.
 
 Processing takes a few minutes after upload. The build then shows under the app's TestFlight tab and the version's Build section. To poll for it:
 

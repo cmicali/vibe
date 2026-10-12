@@ -2,12 +2,13 @@
 //  AppSettings+Mac.h
 //  Vibe
 //
-//  The macOS half of AppSettings: every mac-only preference and the theme
-//  store. Callers import it explicitly beside AppSettings.h.
+//  The macOS half of AppSettings: every mac-only preference. Callers import it
+//  explicitly beside AppSettings.h.
 //
 
 #import "AppSettings.h"
-#import "AppTheme.h"
+// The theme store, which most mac readers use too.
+#import "AppSettings+Themes.h"
 
 // Nonnull by default, as in AppSettings.h (the device strings register @"").
 NS_ASSUME_NONNULL_BEGIN
@@ -73,6 +74,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 // running-app effects.
 - (BOOL)allSettingsAtDefaults;
 - (void)resetToDefaults;
+// Reset settings and delete custom themes and their unused images.
+- (void)factoryReset;
 
 - (NSString *)audioOutputDeviceName;
 - (void)setAudioOutputDeviceName:(NSString *)deviceName;
@@ -127,66 +130,6 @@ static const double kVibeWaveformGainMaxDB = 12;
 // album_art/app_icon. A writer requests VibeSettingsLiveEffectAppIcon.
 @property (nonatomic, copy) NSString *dockIcon;
 
-
-#pragma mark Themes
-
-// Themed appearance fields have no accessors here: read currentTheme.
-
-// The working theme every appearance consumer reads, materialized once and
-// mutated in place. Main thread only.
-- (AppTheme *)currentTheme;
-
-// The named theme the working state derives from: a built-in identifier or a
-// user theme's minted id, snapped to vibe when it names neither.
-- (NSString *)activeThemeIdentifier;
-
-// Built-ins first, then the user themes in creation order.
-- (NSArray<NSString *> *)orderedThemeIdentifiers;
-
-// Reset settings and delete custom themes and their unused images.
-- (void)factoryReset;
-
-// A user theme's stored name; the built-ins' localized names. nil for an
-// identifier that names nothing.
-- (nullable NSString *)displayNameForThemeIdentifier:(NSString *)identifier;
-
-// The named theme's sanitized sparse record; vibe's (empty) for an unknown
-// identifier.
-- (NSDictionary<NSString *, id> *)recordForThemeIdentifier:(NSString *)identifier;
-
-// Edits, renames and removals share fifty undo/redo entries; continuous edits
-// coalesce. Applying a theme clears history. Images stay on disk while history
-// can restore them. The caller requests ThemeApply.
-@property (readonly, nonatomic) BOOL canUndoThemeEdit;
-@property (readonly, nonatomic) BOOL canRedoThemeEdit;
-@property (readonly, nonatomic) BOOL themeUndoRemovesTheme;
-@property (readonly, nonatomic) BOOL themeRedoRemovesTheme;
-@property (readonly, nonatomic) BOOL currentThemeIsModified;
-- (void)undoThemeEdit;
-- (void)redoThemeEdit;
-
-// Store only: the caller requests VibeSettingsLiveEffectThemeApply.
-- (void)applyThemeWithIdentifier:(NSString *)identifier;
-
-// The one persist funnel, called after every currentTheme field edit. The
-// working record lands in the active user theme, or for a built-in in the
-// divergence key, which re-applying the theme clears. A continuous control
-// (a slider, a tracking color well) passes continuous:YES so undo folds the
-// gesture into one entry.
-- (void)currentThemeDidChange;
-- (void)currentThemeDidChangeContinuous:(BOOL)continuous;
-
-// Every mutation refuses a built-in identifier; names are deduped against
-// every display name. Duplicating the active theme copies its working record.
-// duplicate answers nil for an unknown source. Removing the active theme
-// activates the successor (vibe when it names nothing) and the caller requests
-// VibeSettingsLiveEffectThemeApply. Each path sweeps orphaned images itself.
-- (NSString *)addUserThemeWithRecord:(NSDictionary<NSString *, id> *)record
-                                name:(nullable NSString *)name;
-- (nullable NSString *)duplicateThemeWithIdentifier:(NSString *)identifier;
-- (void)removeUserThemeWithIdentifier:(NSString *)identifier
-                        fallingBackTo:(nullable NSString *)successor;
-- (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name;
 
 - (BOOL)isPitchPanelShown;
 - (void)setPitchPanelShown:(BOOL)shown;
@@ -341,14 +284,6 @@ static const double kVibeWaveformGainMaxDB = 12;
 // value, so a write without it is never observed.
 - (BOOL)useFolderArt;
 - (void)setUseFolderArt:(BOOL)use;
-
-// NO, without calling `data`, when `identifier` is no longer the active user
-// theme. The caller then calls currentThemeDidChange and requests the field's
-// live effect.
-- (BOOL)setCurrentThemeImageForKey:(NSString *)key
-                 themeIdentifier:(NSString *)identifier
-                            data:(NSData * _Nullable (^)(void))data
-                           error:(NSError * _Nullable * _Nullable)error;
 
 @end
 

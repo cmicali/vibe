@@ -13,7 +13,11 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
-#import "AudioTrackMetadataLoaderInternal.h"
+#if __has_include("AudioTrackMetadataLoaderInternal.h")
+#import "AudioTrackMetadataLoaderInternal.h" // the ivars; some older commits have only the class's header
+#else
+#import "AudioTrackMetadataLoader.h"
+#endif
 #import "MetadataParseCoordinator.h"
 
 #include <memory>

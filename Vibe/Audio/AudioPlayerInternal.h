@@ -21,7 +21,7 @@
 // Every member calls across category lines; exactly one platform member is
 // compiled.
 #if TARGET_OS_OSX
-#import "AudioPlayer+Devices.h"
+#import "AudioPlayer+DevicesInternal.h"
 #else
 #import "AudioPlayer+Recovery.h"
 #endif
@@ -69,10 +69,6 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 
-// Defined in AudioPlayer.m.
-NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
-NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying, NSURL * _Nullable trackURL);
-
 @interface AudioPlayer () {
     dispatch_queue_t        _queue;
     os_unfair_lock          _stateLock;
@@ -101,6 +97,7 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     uint64_t                _nextSubmittedPlayIdentifier;
 
     // ---- Queue-confined transport state.
+    AudioLoadingConfiguration *_loadingConfiguration;
     // The play that owns the current voice. A promote keeps it; a newer play,
     // stop or failure clears it.
     uint64_t                _activeSubmittedPlayIdentifier;
@@ -165,69 +162,13 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     NSDictionary            *_positionDiagnostic; // _stateLock; consumed once by main
     uint64_t                _firstRenderVoice;
 
-#if TARGET_OS_OSX
-    // ---- The output device: the device _outputUnit is bound to.
-    // AudioPlayer+Devices.m owns every field below.
-    // The bound device's nominal rate and hog owner, watched in every mode:
-    // another process moving the rate rebinds the unit at the new rate, and
-    // one taking the device parks playback and refuses starts until it lets
-    // go (_boundDeviceHeldElsewhere). Delivered on the queue.
-    AudioObjectPropertyListenerBlock _boundDeviceListener;
-    AudioDeviceID           _boundDeviceListenerDeviceID;
-    BOOL                    _boundDeviceHeldElsewhere;
-    // The launch preference awaiting a successful HAL snapshot and bind.
-    // Queue-confined. Until binding succeeds the output honestly follows
-    // System Output (-1).
-    NSString                *_pendingSavedDeviceUID;
-    NSString                *_pendingSavedDeviceModelUID;
-    NSString                *_pendingSavedDeviceName;
-    // The concrete device this player last committed to, so a device that
-    // VANISHES can be told apart from System Output the user chose.
-    NSString                *_boundDeviceUID;
-    NSString                *_boundDeviceModelUID;
-    NSString                *_boundDeviceName;
-    // Set only across one selectOutputDeviceOnQueue: call, when a wanted device
-    // was found by its model UID under a new device UID: whose remembered modes
-    // that bind should read. Nil means the device's own.
-    NSString                *_modesUIDForNextSelection;
-    // _stateLock: destination -> source until main has persisted the carry.
-    NSMutableDictionary<NSString *, NSString *> *_unpersistedOutputModeSources;
-    // Covers the async manager lookup and its checked bind, so a failed bind
-    // resetting to Stopped cannot start another attempt.
-    BOOL                    _pendingSavedDeviceLookupInFlight;
-    // Coalesces the single delayed retry after a system-default read fails.
-    BOOL                    _systemOutputBindRetryScheduled;
-    // Bit-perfect output: the settings' queue-side intent.
-    BOOL                    _bitPerfectWanted;
-    BOOL                    _allowBitPerfectOnAnyDevice;
-    // The device configureOutputDeviceOnQueue: is rebinding to, for the
-    // duration of that call, else kAudioObjectUnknown.
-    AudioDeviceID           _rebindDeviceID;
-    BOOL                    _exclusiveOutputWanted;
-    // Possible ownership, or kAudioObjectUnknown; retained until release is
-    // confirmed, never overwritten by another device.
-    AudioDeviceID           _hoggedDeviceID;
-    // The one device whose format this run changed and has not yet put back.
-    AudioDeviceID           _changedFormatDeviceID;
-    AudioStreamID           _changedFormatStreamID;
-    AudioStreamBasicDescription _formatBeforeChange;
-    // The device the last prepare set up: its first output stream, the format
-    // asked of it, and the listeners the HAL holds on it.
-    AudioDeviceID           _preparedDeviceID;
-    AudioStreamID           _preparedStreamID;
-    AudioStreamBasicDescription _preparedFormat;
-    AudioObjectPropertyListenerBlock _outputLevelListener;
-    // The prepared device's volume, balance and mute as the report last read
-    // them, trusted only while _outputLevelListener is registered.
-    AudioDeviceID           _outputControlsDeviceID;
-    AudioStreamID           _outputControlsStreamID;
-    UInt32                  _outputControlsChannels;
-    Float32                 _outputControlsVolume;
-    Float32                 _outputControlsBalance;
-    BOOL                    _outputControlsMuted;
-    // The published report, under _stateLock.
-    VibeBitPerfectReport    _bitPerfectReport;
-#endif
+    // ---- Debug builds only. debugBufferingRecord's, under _stateLock: holds
+    // begun, how they ended.
+    NSUInteger              _debugBufferingHolds;
+    NSUInteger              _debugBufferingReleases;
+    NSUInteger              _debugBufferingStalls;
+    NSTimeInterval          _debugBufferingSinceUptime;
+    NSTimeInterval          _debugBufferingLastHeldSeconds;
 }
 
 #pragma mark - Read by the categories, written only by AudioPlayer.m
@@ -253,6 +194,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 @property (atomic, readwrite) NSInteger currentlyRequestedAudioDeviceId;
 
 #pragma mark - Queue-side helpers implemented in AudioPlayer.m
+
+// The designated init. `pump` is a VibeManualRenderPump under manual
+// rendering (AudioPlayer+Debug.m), nil otherwise.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID name:(NSString *)deviceName
+                         enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate manualPump:(nullable id)pump;
 
 // Inline when already on _queue, where dispatch_sync would deadlock.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;
@@ -299,10 +245,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // it; requires a current voice and file.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position;
 
-// The full-tuple publisher; the two unpublish variants are the only partial
-// writers. Anything that moves the position comes through here. `window` is
-// the track's frames of `file` — its duration — and `startSeconds` is where in
-// it the voice began.
+// The full-tuple publisher. The partial writers are the two unpublish
+// variants, republishEstimatedWindowOnQueue and the stall's park
+// (publishPausedWithoutVoiceOnQueueAtSeconds:). Only this and the stall's
+// park move the position's origin. `window` is the track's frames of `file`
+// (its duration), and `startSeconds` is where in it the voice began.
 - (void)publishState:(VibePlayerState)state
                voice:(VibeVoiceID)voice
                 file:(nullable AudioFileHandle *)file

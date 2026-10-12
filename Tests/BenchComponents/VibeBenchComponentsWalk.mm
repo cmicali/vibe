@@ -8,7 +8,12 @@
 #import "VibeBenchComponents.h"
 
 #import "AudioTrack.h"
+#if __has_include("FolderWalkInternal.h")
+#import "FolderWalkInternal.h"
+#else
 #import "NSURLUtilInternal.h"
+#define FolderWalk NSURLUtil   // the walk was NSURLUtil before it moved to Playlist/
+#endif
 
 #include <memory>
 
@@ -27,7 +32,7 @@ static void VibeBenchComponentsRegisterWalk(void) {
         VibeBenchComponentsAdd("walk", sort == VibeFolderOpenSortName ? "10k-name" : "10k-newest", "file", prepareFolder,
                     [folder, sort]() {
             NSUInteger folders = 0;
-            NSArray<AudioTrack *> *rows = [NSURLUtil expandAndFilterList:@[*folder] sortedBy:sort folderCount:&folders];
+            NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[*folder] sortedBy:sort folderCount:&folders];
             if (rows.count != 10000) {
                 printf("warning: walk found %lu rows\n", (unsigned long)rows.count);
             }
@@ -41,7 +46,7 @@ static void VibeBenchComponentsRegisterWalk(void) {
     }, []() {
         NSUInteger folders = 0;
         NSURL *library = [NSURL fileURLWithPath:[VibeBenchComponentsCorpus() stringByAppendingPathComponent:@"library"] isDirectory:YES];
-        (void)[NSURLUtil expandAndFilterList:@[library] sortedBy:VibeFolderOpenSortName folderCount:&folders];
+        (void)[FolderWalk expandAndFilterList:@[library] sortedBy:VibeFolderOpenSortName folderCount:&folders];
     });
 }
 

@@ -15,7 +15,7 @@
 //
 //  Reading facts are immutable after init, but for the length of a streaming
 //  MP3 with no VBR header: estimated from its head's frames
-//  (lengthIsEstimated), and settled by its decode (AudioFileHandle.m).
+//  (lengthIsEstimated), and settled by its decode (AudioFileHandle+MPEG.m).
 //  Writing advances length. Cursor, read, write and close operations belong
 //  to one consumer at a time (the bus's decoder after a voice starts,
 //  AudioVoiceBus.h).

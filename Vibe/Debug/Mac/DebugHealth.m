@@ -34,6 +34,7 @@
 #import "ArtworkDisplayController+Debug.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Debug.h"
+#import "MainPlayerController+Playlist.h"
 #import "TrackDisplayController.h"
 #import "MainWindow.h"
 #import "PlaylistController.h"
