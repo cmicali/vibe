@@ -50,6 +50,17 @@ void VibeNotifyDisplaySettingsChanged(void) {
     return self;
 }
 
+#if !TARGET_OS_OSX
+// The widget's copy of a card key: Settings.waveformX is stored for the widget
+// as Settings.widgetWaveformX, which is SETTING_WIDGET_WAVEFORM_CENTERED's
+// spelling.
+static NSString *WaveformKey(NSString *key, BOOL widget) {
+    return widget ? [key stringByReplacingOccurrencesOfString:@"Settings.waveform"
+                                                   withString:@"Settings.widgetWaveform"]
+                  : key;
+}
+#endif
+
 - (NSDictionary<NSString *, id> *)registeredSettingDefaults {
     NSMutableDictionary *appDefaults = [@{
             SETTING_FOLDER_OPEN_SORT: SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME,
@@ -67,11 +78,12 @@ void VibeNotifyDisplaySettingsChanged(void) {
     [self registerMacDefaultsInto:appDefaults];
 #else
     appDefaults[SETTING_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
-    appDefaults[SETTING_WAVEFORM_THEME] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
-    appDefaults[SETTING_WAVEFORM_BAND_THEME] = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
     appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
-    appDefaults[SETTING_WAVEFORM_CENTERED] = @(YES);
-    appDefaults[SETTING_WIDGET_WAVEFORM_CENTERED] = @(YES);
+    for (int widget = 0; widget <= 1; widget++) {
+        appDefaults[WaveformKey(SETTING_WAVEFORM_THEME, widget)] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+        appDefaults[WaveformKey(SETTING_WAVEFORM_BAND_THEME, widget)] = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
+        appDefaults[WaveformKey(SETTING_WAVEFORM_CENTERED, widget)] = @(YES);
+    }
 #endif
     return appDefaults;
 }
@@ -120,85 +132,92 @@ void VibeNotifyDisplaySettingsChanged(void) {
 #endif
 
 #if !TARGET_OS_OSX
-- (NSString *)waveformTheme {
-    return VibeNormalizedWaveformTheme([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_WAVEFORM_THEME]);
+// Under Match app the widget draws the card's, so a widget read is a card
+// read. A write never redirects: the widget's copy waits for its own style.
+- (BOOL)readsWidgetCopy:(BOOL)widget {
+    return widget && self.widgetWaveformStyle != nil;
 }
 
-- (void)setWaveformTheme:(NSString *)identifier {
-    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_THEME];
+- (NSString *)waveformThemeForWidget:(BOOL)widget {
+    return VibeNormalizedWaveformTheme([[NSUserDefaults standardUserDefaults]
+            stringForKey:WaveformKey(SETTING_WAVEFORM_THEME, [self readsWidgetCopy:widget])]);
 }
 
-- (VibeColor *)waveformCustomPlayedColorForDark:(BOOL)isDark {
-    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
-            isDark ? SETTING_WAVEFORM_CUSTOM_PLAYED_DARK : SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT]);
+- (void)setWaveformTheme:(NSString *)identifier forWidget:(BOOL)widget {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier
+                                              forKey:WaveformKey(SETTING_WAVEFORM_THEME, widget)];
 }
 
-- (void)setWaveformCustomPlayedColor:(VibeColor *)color forDark:(BOOL)isDark {
-    [self setHexColor:color forKey:
-            isDark ? SETTING_WAVEFORM_CUSTOM_PLAYED_DARK : SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT];
+- (VibeColor *)waveformCustomPlayedColorForDark:(BOOL)isDark widget:(BOOL)widget {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:WaveformKey(
+            isDark ? SETTING_WAVEFORM_CUSTOM_PLAYED_DARK : SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT,
+            [self readsWidgetCopy:widget])]);
 }
 
-- (VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark {
-    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:
-            isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT]);
+- (void)setWaveformCustomPlayedColor:(VibeColor *)color forDark:(BOOL)isDark widget:(BOOL)widget {
+    [self setHexColor:color forKey:WaveformKey(
+            isDark ? SETTING_WAVEFORM_CUSTOM_PLAYED_DARK : SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT, widget)];
 }
 
-- (void)setWaveformCustomUnplayedColor:(VibeColor *)color forDark:(BOOL)isDark {
-    [self setHexColor:color forKey:
-            isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT];
+- (VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark widget:(BOOL)widget {
+    return VibeColorFromHexString([[NSUserDefaults standardUserDefaults] stringForKey:WaveformKey(
+            isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT,
+            [self readsWidgetCopy:widget])]);
 }
 
-- (NSString *)waveformBandTheme {
+- (void)setWaveformCustomUnplayedColor:(VibeColor *)color forDark:(BOOL)isDark widget:(BOOL)widget {
+    [self setHexColor:color forKey:WaveformKey(
+            isDark ? SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK : SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT, widget)];
+}
+
+- (NSString *)waveformBandThemeForWidget:(BOOL)widget {
     return VibeNormalizedWaveformBandTheme([[NSUserDefaults standardUserDefaults]
-            stringForKey:SETTING_WAVEFORM_BAND_THEME]);
+            stringForKey:WaveformKey(SETTING_WAVEFORM_BAND_THEME, [self readsWidgetCopy:widget])]);
 }
 
-- (void)setWaveformBandTheme:(NSString *)identifier {
-    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_BAND_THEME];
+- (void)setWaveformBandTheme:(NSString *)identifier forWidget:(BOOL)widget {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier
+                                              forKey:WaveformKey(SETTING_WAVEFORM_BAND_THEME, widget)];
 }
 
-static NSString *WaveformCustomBandKey(NSUInteger band, BOOL isDark) {
+static NSString *WaveformCustomBandKey(NSUInteger band, BOOL isDark, BOOL widget) {
     static NSString *const keys[2][3] = {
         {SETTING_WAVEFORM_CUSTOM_LOW_LIGHT, SETTING_WAVEFORM_CUSTOM_MID_LIGHT, SETTING_WAVEFORM_CUSTOM_HIGH_LIGHT},
         {SETTING_WAVEFORM_CUSTOM_LOW_DARK, SETTING_WAVEFORM_CUSTOM_MID_DARK, SETTING_WAVEFORM_CUSTOM_HIGH_DARK},
     };
     NSCParameterAssert(band < 3);
-    return keys[isDark ? 1 : 0][band];
+    return WaveformKey(keys[isDark ? 1 : 0][band], widget);
 }
 
-- (VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark {
+- (VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark widget:(BOOL)widget {
     return VibeColorFromHexString([[NSUserDefaults standardUserDefaults]
-            stringForKey:WaveformCustomBandKey(band, isDark)]);
+            stringForKey:WaveformCustomBandKey(band, isDark, [self readsWidgetCopy:widget])]);
 }
 
-- (void)setWaveformCustomBandColor:(VibeColor *)color band:(NSUInteger)band forDark:(BOOL)isDark {
-    [self setHexColor:[color colorWithAlphaComponent:1] forKey:WaveformCustomBandKey(band, isDark)];
+- (void)setWaveformCustomBandColor:(VibeColor *)color band:(NSUInteger)band
+                           forDark:(BOOL)isDark widget:(BOOL)widget {
+    [self setHexColor:[color colorWithAlphaComponent:1] forKey:WaveformCustomBandKey(band, isDark, widget)];
 }
 
-- (NSNumber *)waveformPlayheadLine {
-    id stored = [[NSUserDefaults standardUserDefaults] objectForKey:SETTING_WAVEFORM_PLAYHEAD_LINE];
+- (NSNumber *)waveformPlayheadLineForWidget:(BOOL)widget {
+    id stored = [[NSUserDefaults standardUserDefaults]
+            objectForKey:WaveformKey(SETTING_WAVEFORM_PLAYHEAD_LINE, [self readsWidgetCopy:widget])];
     return [stored isKindOfClass:NSNumber.class] ? stored : nil;
 }
 
-- (void)setWaveformPlayheadLine:(BOOL)line {
-    [[NSUserDefaults standardUserDefaults] setBool:line forKey:SETTING_WAVEFORM_PLAYHEAD_LINE];
+- (void)setWaveformPlayheadLine:(BOOL)line forWidget:(BOOL)widget {
+    [[NSUserDefaults standardUserDefaults] setBool:line
+                                            forKey:WaveformKey(SETTING_WAVEFORM_PLAYHEAD_LINE, widget)];
 }
 
-- (BOOL)waveformCentered {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WAVEFORM_CENTERED];
+- (BOOL)waveformCenteredForWidget:(BOOL)widget {
+    return [[NSUserDefaults standardUserDefaults]
+            boolForKey:WaveformKey(SETTING_WAVEFORM_CENTERED, [self readsWidgetCopy:widget])];
 }
 
-- (void)setWaveformCentered:(BOOL)centered {
-    [[NSUserDefaults standardUserDefaults] setBool:centered forKey:SETTING_WAVEFORM_CENTERED];
-}
-
-- (BOOL)widgetWaveformCentered {
-    return self.widgetWaveformStyle ? [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WIDGET_WAVEFORM_CENTERED]
-                                    : self.waveformCentered;
-}
-
-- (void)setWidgetWaveformCentered:(BOOL)centered {
-    [[NSUserDefaults standardUserDefaults] setBool:centered forKey:SETTING_WIDGET_WAVEFORM_CENTERED];
+- (void)setWaveformCentered:(BOOL)centered forWidget:(BOOL)widget {
+    [[NSUserDefaults standardUserDefaults] setBool:centered
+                                            forKey:WaveformKey(SETTING_WAVEFORM_CENTERED, widget)];
 }
 #endif  // !TARGET_OS_OSX
 

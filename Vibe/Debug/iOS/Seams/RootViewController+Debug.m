@@ -216,11 +216,14 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
         @"widgetWaveformStyle": AppSettings.sharedInstance.widgetWaveformStyle ?: (id)NSNull.null,
-        @"waveformTheme": AppSettings.sharedInstance.waveformTheme,
+        @"waveformTheme": [AppSettings.sharedInstance waveformThemeForWidget:NO],
         // The stored choice; null draws the style's default.
-        @"waveformPlayheadLine": AppSettings.sharedInstance.waveformPlayheadLine ?: (id)NSNull.null,
-        @"waveformCentered": @(AppSettings.sharedInstance.waveformCentered),
-        @"widgetWaveformCentered": @(AppSettings.sharedInstance.widgetWaveformCentered),
+        @"waveformPlayheadLine": [AppSettings.sharedInstance waveformPlayheadLineForWidget:NO] ?: (id)NSNull.null,
+        @"waveformCentered": @([AppSettings.sharedInstance waveformCenteredForWidget:NO]),
+        // The widget's, which under Match app read as the card's.
+        @"widgetWaveformTheme": [AppSettings.sharedInstance waveformThemeForWidget:YES],
+        @"widgetWaveformPlayheadLine": [AppSettings.sharedInstance waveformPlayheadLineForWidget:YES] ?: (id)NSNull.null,
+        @"widgetWaveformCentered": @([AppSettings.sharedInstance waveformCenteredForWidget:YES]),
         @"folderOpenSort": VibeFolderOpenSortIdentifier(AppSettings.sharedInstance.folderOpenSort),
         @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),
         @"repeatMode": VibeRepeatModeIdentifier(AppSettings.sharedInstance.repeatMode),

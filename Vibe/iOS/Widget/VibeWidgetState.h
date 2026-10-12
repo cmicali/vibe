@@ -38,6 +38,10 @@ extern const char *const kVibeWidgetReadNotification;
 @property (nonatomic) NSTimeInterval position;
 @property (nonatomic, copy, nullable) NSDate *positionDate;
 
+// YES: both waveform images are the whole strip as played, and the widget
+// draws a line at the playhead. NO: the played image is revealed to it.
+@property (nonatomic) BOOL playheadLine;
+
 #pragma mark - Where it lives
 
 // nil when the app group is not provisioned; the widget draws its empty state.

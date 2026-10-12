@@ -21,10 +21,12 @@ typedef NS_ENUM(NSInteger, VibeThemeSection) {
 };
 
 // 3-Band draws its bands and ignores the waveform theme, so under it the
-// screen offers the band palettes instead.
-static BOOL ShowsBands(void) {
-    return [WaveformRendererRegistry readsBandsForIdentifier:
-            [WaveformRendererRegistry resolveStyleIdentifier:AppSettings.sharedInstance.waveformStyle]];
+// screen offers the band palettes instead. The widget's screen is only
+// reachable with a widget style of its own.
+static BOOL ShowsBands(BOOL widget) {
+    AppSettings *settings = AppSettings.sharedInstance;
+    return [WaveformRendererRegistry readsBandsForIdentifier:[WaveformRendererRegistry
+            resolveStyleIdentifier:(widget ? settings.widgetWaveformStyle : nil) ?: settings.waveformStyle]];
 }
 
 // The mac popup's order, and the mac's built-in 3-Band themes.
@@ -49,9 +51,9 @@ static NSArray<NSString *> *ColorRowNames(BOOL bands) {
 }
 
 // Normalized on read, so it always matches a row.
-static NSString *CurrentTheme(BOOL bands) {
+static NSString *CurrentTheme(BOOL bands, BOOL widget) {
     AppSettings *settings = AppSettings.sharedInstance;
-    return bands ? settings.waveformBandTheme : settings.waveformTheme;
+    return bands ? [settings waveformBandThemeForWidget:widget] : [settings waveformThemeForWidget:widget];
 }
 
 // Shared by the wells and the seed on choosing Custom, so the waveform matches
@@ -67,45 +69,51 @@ static UIColor *DefaultCustomUnplayedColor(BOOL isDark) {
 }
 
 // Seeds any unset color from the wells' fallbacks, as the mac does.
-static void SeedCustomWaveformColors(AppSettings *settings) {
+static void SeedCustomWaveformColors(AppSettings *settings, BOOL widget) {
     for (int darkPass = 0; darkPass <= 1; darkPass++) {
         BOOL isDark = darkPass == 1;
-        if (![settings waveformCustomPlayedColorForDark:isDark]) {
-            [settings setWaveformCustomPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark];
+        if (![settings waveformCustomPlayedColorForDark:isDark widget:widget]) {
+            [settings setWaveformCustomPlayedColor:DefaultCustomPlayedColor(isDark) forDark:isDark widget:widget];
         }
-        if (![settings waveformCustomUnplayedColorForDark:isDark]) {
-            [settings setWaveformCustomUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark];
+        if (![settings waveformCustomUnplayedColorForDark:isDark widget:widget]) {
+            [settings setWaveformCustomUnplayedColor:DefaultCustomUnplayedColor(isDark) forDark:isDark widget:widget];
         }
     }
 }
 
 // row is the well's in its section: Played and Unplayed, or Low, Mid and
 // High.
-static void StoreCustomWaveformColor(UIColor *color, NSInteger row, BOOL isDark, BOOL bands) {
+static void StoreCustomWaveformColor(UIColor *color, NSInteger row, BOOL isDark, BOOL bands, BOOL widget) {
     AppSettings *settings = AppSettings.sharedInstance;
     if (bands) {
-        [settings setWaveformCustomBandColor:color band:(NSUInteger)row forDark:isDark];
+        [settings setWaveformCustomBandColor:color band:(NSUInteger)row forDark:isDark widget:widget];
     }
     else if (row == 0) {
-        [settings setWaveformCustomPlayedColor:color forDark:isDark];
+        [settings setWaveformCustomPlayedColor:color forDark:isDark widget:widget];
     }
     else {
-        [settings setWaveformCustomUnplayedColor:color forDark:isDark];
+        [settings setWaveformCustomUnplayedColor:color forDark:isDark widget:widget];
     }
 }
 
 static NSString *const kChoiceCellIdentifier = @"choice";
 
-@implementation WaveformThemeSettingsViewController
+@implementation WaveformThemeSettingsViewController {
+    BOOL _widget;
+}
 
-+ (NSString *)currentThemeDisplayName {
-    BOOL bands = ShowsBands();
-    NSUInteger row = [ThemeIdentifiers(bands) indexOfObject:CurrentTheme(bands)];
++ (NSString *)currentThemeDisplayNameForWidget:(BOOL)widget {
+    BOOL bands = ShowsBands(widget);
+    NSUInteger row = [ThemeIdentifiers(bands) indexOfObject:CurrentTheme(bands, widget)];
     return ThemeDisplayNames(bands)[row == NSNotFound ? 0 : row];
 }
 
-- (instancetype)init {
-    return [super initWithStyle:UITableViewStyleInsetGrouped];
+- (instancetype)initForWidget:(BOOL)widget {
+    self = [super initWithStyle:UITableViewStyleInsetGrouped];
+    if (self) {
+        _widget = widget;
+    }
+    return self;
 }
 
 - (void)viewDidLoad {
@@ -114,9 +122,16 @@ static NSString *const kChoiceCellIdentifier = @"choice";
 }
 
 - (BOOL)customThemeActive {
-    BOOL bands = ShowsBands();
-    return [CurrentTheme(bands) isEqualToString:bands ? SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM
-                                                      : SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    BOOL bands = ShowsBands(_widget);
+    return [CurrentTheme(bands, _widget) isEqualToString:bands ? SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM
+                                                               : SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+}
+
+// The widget's screen shows no light wells, and so no header to tell the
+// sections apart.
+- (BOOL)showsSection:(VibeThemeSection)section {
+    return section == VibeThemeSectionChoice
+        || ([self customThemeActive] && (section == VibeThemeSectionDark || !_widget));
 }
 
 #pragma mark - Table
@@ -127,13 +142,14 @@ static NSString *const kChoiceCellIdentifier = @"choice";
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if ((VibeThemeSection)section == VibeThemeSectionChoice) {
-        return (NSInteger)ThemeIdentifiers(ShowsBands()).count;
+        return (NSInteger)ThemeIdentifiers(ShowsBands(_widget)).count;
     }
-    return [self customThemeActive] ? (NSInteger)ColorRowNames(ShowsBands()).count : 0;
+    return [self showsSection:(VibeThemeSection)section] ? (NSInteger)ColorRowNames(ShowsBands(_widget)).count : 0;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    if ((VibeThemeSection)section == VibeThemeSectionChoice || ![self customThemeActive]) {
+    if ((VibeThemeSection)section == VibeThemeSectionChoice || _widget
+            || ![self showsSection:(VibeThemeSection)section]) {
         return nil;
     }
     return section == VibeThemeSectionDark ? STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL
@@ -145,7 +161,7 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     if ((VibeThemeSection)indexPath.section != VibeThemeSectionChoice) {
         return [self colorCellForRow:indexPath.row dark:indexPath.section == VibeThemeSectionDark];
     }
-    BOOL bands = ShowsBands();
+    BOOL bands = ShowsBands(_widget);
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
     if (!cell) {
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
@@ -154,14 +170,15 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
     content.text = ThemeDisplayNames(bands)[indexPath.row];
     cell.contentConfiguration = content;
-    cell.accessoryType = [ThemeIdentifiers(bands)[indexPath.row] isEqualToString:CurrentTheme(bands)]
+    cell.accessoryType = [ThemeIdentifiers(bands)[indexPath.row] isEqualToString:CurrentTheme(bands, _widget)]
             ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
     return cell;
 }
 
 // Not dequeued: reuse would drag a well's state and wiring to another row.
 - (UITableViewCell *)colorCellForRow:(NSInteger)row dark:(BOOL)isDark {
-    BOOL bands = ShowsBands();
+    BOOL bands = ShowsBands(_widget);
+    BOOL widget = _widget;
     UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
                                                   reuseIdentifier:nil];
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
@@ -175,7 +192,7 @@ static NSString *const kChoiceCellIdentifier = @"choice";
         // The bands are opaque, since the layers stack. An unset one draws
         // Rekord Bin's, so nothing is seeded.
         well.supportsAlpha = NO;
-        well.selectedColor = [settings waveformCustomBandColor:(NSUInteger)row forDark:isDark]
+        well.selectedColor = [settings waveformCustomBandColor:(NSUInteger)row forDark:isDark widget:widget]
                 ?: [WaveformTheme bandColorsForIdentifier:SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN
                                                    isDark:isDark customBands:@[]][row];
     }
@@ -183,13 +200,13 @@ static NSString *const kChoiceCellIdentifier = @"choice";
         // A color's alpha is its side's resting level (WaveformTheme.h).
         well.supportsAlpha = YES;
         well.selectedColor = row == 0
-                ? ([settings waveformCustomPlayedColorForDark:isDark] ?: DefaultCustomPlayedColor(isDark))
-                : ([settings waveformCustomUnplayedColorForDark:isDark] ?: DefaultCustomUnplayedColor(isDark));
+                ? ([settings waveformCustomPlayedColorForDark:isDark widget:widget] ?: DefaultCustomPlayedColor(isDark))
+                : ([settings waveformCustomUnplayedColorForDark:isDark widget:widget] ?: DefaultCustomUnplayedColor(isDark));
     }
     [well addAction:[UIAction actionWithHandler:^(UIAction *action) {
         UIColor *color = ((UIColorWell *)action.sender).selectedColor;
         if (color) {
-            StoreCustomWaveformColor(color, row, isDark, bands);
+            StoreCustomWaveformColor(color, row, isDark, bands, widget);
             VibeNotifyDisplaySettingsChanged();
         }
     }] forControlEvents:UIControlEventValueChanged];
@@ -204,17 +221,17 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     if ((VibeThemeSection)indexPath.section != VibeThemeSectionChoice) {
         return;
     }
-    BOOL bands = ShowsBands();
+    BOOL bands = ShowsBands(_widget);
     NSString *identifier = ThemeIdentifiers(bands)[indexPath.row];
     AppSettings *settings = AppSettings.sharedInstance;
     if (bands) {
-        settings.waveformBandTheme = identifier;
+        [settings setWaveformBandTheme:identifier forWidget:_widget];
     }
     else {
         if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
-            SeedCustomWaveformColors(settings);
+            SeedCustomWaveformColors(settings, _widget);
         }
-        settings.waveformTheme = identifier;
+        [settings setWaveformTheme:identifier forWidget:_widget];
     }
     // TRAP: reloadData, NOT a reloadSections: per section. The checkmark moves
     // and the colors sections change row count in one turn, and two

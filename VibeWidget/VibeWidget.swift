@@ -14,14 +14,19 @@ import WidgetKit
 
 // A widget is not a live view: WidgetKit renders each entry once, ahead of
 // time, and the home screen shows the entry whose date has arrived. So motion
-// costs entries, and entries are budgeted. The budget is spread over whatever
-// is left of the track: the step is the finest that still reaches the end,
-// never finer than kPlayheadStep. TRAP: a fixed step ran out — 24 entries at
-// 5 s is 115 s — and a longer track's head then FROZE there, because ordinary
-// playback publishes nothing (the widget's own arithmetic is the playhead) and
-// .atEnd asks for a fresh timeline on WidgetKit's schedule, not the track's.
+// costs entries, and entries are budgeted. The first kDenseEntries step the
+// playhead every kPlayheadStep: two minutes, which the app replaces well
+// before they run out, since it reloads the timeline once a minute while a
+// track plays (WidgetPublisher). The rest of the track is covered by
+// kTailEntries, spread to its end, so a reload WidgetKit holds back costs a
+// coarse playhead and not a frozen one. TRAP: a fixed step ran out — 24
+// entries at 5 s is 115 s — and a longer track's head then FROZE there,
+// because ordinary playback publishes nothing (the widget's own arithmetic
+// is the playhead) and .atEnd asks for a fresh timeline on WidgetKit's
+// schedule, not the track's.
 private let kPlayheadStep: TimeInterval = 5
-private let kMaxEntries = 24
+private let kDenseEntries = 24
+private let kTailEntries = 8
 // Pixels; the blurred background's longest side. See blurred(_:).
 private let kBlurSide: CGFloat = 96
 
@@ -64,16 +69,20 @@ struct VibeProvider: TimelineProvider {
             completion(Timeline(entries: [first], policy: .never))
             return
         }
-        // Step the playhead to the end of the track within the entry budget:
-        // 5 s apart on a short remainder, minutes apart on an hour-long mix,
-        // always landing the last entry at the end. The app reloads on every
-        // transport event, and the track's end is one, so .atEnd is only the
-        // fallback for an app killed mid-track.
+        // Dense to the window's end or the track's, whichever is first, then
+        // coarse to the track's end, always landing the last entry there. The
+        // app reloads on every transport event, and the track's end is one, so
+        // .atEnd is only the fallback for an app killed mid-track.
         let remaining = max(0, state.duration - state.position(at: now))
-        let step = max(kPlayheadStep, remaining / Double(kMaxEntries - 1))
-        let steps = min(kMaxEntries, Int(remaining / step) + 1)
-        let entries = (0..<steps).map { index in
-            VibeEntry(date: now.addingTimeInterval(Double(index) * step),
+        let dense = min(remaining, Double(kDenseEntries - 1) * kPlayheadStep)
+        var offsets = Array(stride(from: 0, through: dense, by: kPlayheadStep))
+        if dense < remaining {
+            let step = max(kPlayheadStep, (remaining - dense) / Double(kTailEntries))
+            offsets += stride(from: dense + step, to: remaining, by: step)
+            offsets.append(remaining)
+        }
+        let entries = offsets.map { offset in
+            VibeEntry(date: now.addingTimeInterval(offset),
                       state: state, artwork: first.artwork,
                       blurredArtwork: first.blurredArtwork,
                       played: first.played, unplayed: first.unplayed)

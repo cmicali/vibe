@@ -11,7 +11,8 @@
 //  appears mid-track is handed the current snapshot at once.
 //
 //  Main thread only. Every file write and WidgetKit reload lands on its own
-//  serial queue.
+//  serial queue. While a placed widget shows a playing track, the timeline is
+//  reloaded once a minute, so the widget's short playhead steps never run out.
 //
 
 #import <Foundation/Foundation.h>

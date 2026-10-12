@@ -77,8 +77,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 #if !TARGET_OS_OSX
 // Every iOS surface that draws a waveform maps the loose settings through
-// here, as the mac maps its theme record.
-+ (WaveformTheme *)themeForSettings:(AppSettings *)settings isDark:(BOOL)isDark
+// here, as the mac maps its theme record. widget reads the widget's copies
+// (AppSettings.h).
++ (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
                        artworkColor:(nullable VibeColor *)artworkColor;
 #endif
 

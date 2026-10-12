@@ -17,13 +17,13 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 **TRAP: a placed widget belongs to its kind.** The original kind keeps its small and medium because both shipped. Moving a size to another kind breaks every copy of it on someone's Home Screen.
 
-`VibeWidgetView.swift` holds every layout. Its header describes each one. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape.
+`VibeWidgetView.swift` holds every layout. Its header describes each one. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape. With `playheadLine` set, the view draws the line itself over a strip that is wholly played.
 
 ## The timeline
 
-A widget is not a live view. WidgetKit renders each entry once, ahead of time. A paused or empty state is one entry with policy `.never`, held until the app publishes again. A playing state steps the playhead to the track's end within 24 entries, never closer than 5 s apart.
+A widget is not a live view. WidgetKit renders each entry once, ahead of time. A paused or empty state is one entry with policy `.never`, held until the app publishes again. A playing state steps the playhead every 5 s for two minutes, then in up to 8 coarse steps to the track's end.
 
-**TRAP: the step is spread over what is left of the track.** A fixed step runs out on a long track, and the playhead then freezes. Ordinary playback publishes nothing, and `.atEnd` asks for a new timeline on WidgetKit's schedule, not the track's.
+**The app replaces the timeline once a minute while a track plays** (`Vibe/iOS/Widget/AGENTS.md`), so the dense entries never run out. The coarse tail is the insurance for a reload WidgetKit holds back. **TRAP: a fixed step alone ran out on a long track, and the playhead then froze.** Ordinary playback publishes nothing, and `.atEnd` asks for a new timeline on WidgetKit's schedule, not the track's.
 
 The extension has a hard memory cap. So the artwork and both waveform images are decoded once per timeline and shared by every entry. The blurred background is made once per timeline at 96 px, with one `CIContext` per process.
 

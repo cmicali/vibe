@@ -152,19 +152,19 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
 #endif
 
 #if !TARGET_OS_OSX
-+ (WaveformTheme *)themeForSettings:(AppSettings *)settings isDark:(BOOL)isDark
++ (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
                        artworkColor:(VibeColor *)artworkColor {
-    WaveformTheme *resolved = [self themeForIdentifier:settings.waveformTheme
+    WaveformTheme *resolved = [self themeForIdentifier:[settings waveformThemeForWidget:widget]
                                                 isDark:isDark
                                           artworkColor:artworkColor
-                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
-                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
-    NSString *bandTheme = settings.waveformBandTheme;
+                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark widget:widget]
+                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark widget:widget]];
+    NSString *bandTheme = [settings waveformBandThemeForWidget:widget];
     NSMutableArray<VibeColor *> *custom = [NSMutableArray arrayWithCapacity:3];
     if ([bandTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM]) {
         // An unset band draws Rekord Bin's, which is what its well shows.
         for (NSUInteger band = 0; band < 3; band++) {
-            [custom addObject:[settings waveformCustomBandColor:band forDark:isDark] ?: resolved.bandColors[band]];
+            [custom addObject:[settings waveformCustomBandColor:band forDark:isDark widget:widget] ?: resolved.bandColors[band]];
         }
     }
     resolved.bandColors = [self bandColorsForIdentifier:bandTheme isDark:isDark customBands:custom];
