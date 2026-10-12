@@ -18,7 +18,7 @@
 #import "PlaybackController+ReplacePrompt.h"
 #import "Playlist.h"
 #import "FavoritesStore.h"
-#import "SearchFolderStore.h"
+#import "LocationStore.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 

@@ -11,6 +11,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "BrowserRules.h"
 #import "DocumentTypes.h"
 #import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
@@ -19,6 +20,7 @@
 #import "FileSearchRules.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
+#import "LocationStore.h"
 #import "OpenURLSheetController.h"
 #import "OpenURLSheetController+Debug.h"
 #import "FilePaths.h"
@@ -28,7 +30,6 @@
 #import "PlaybackController+ReplacePrompt.h"
 #import "PlaylistFile.h"
 #import "RecentsViewController.h"
-#import "SearchFolderStore.h"
 #import "SettingsRules.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
@@ -207,7 +208,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         // is IPC that can block.
         _dropboxPath = directoryURL ? [DropboxMirror.shared dropboxPathForURL:directoryURL] : nil;
         _standardizedPath = VibeComparablePath(directoryURL.path);
-        _title = directoryURL ? [SearchFolderStore displayNameForFolderURL:directoryURL] : nil;
+        _title = directoryURL ? [LocationStore displayNameForFolderURL:directoryURL] : nil;
         _playingPath = VibeComparablePath(playback.currentTrack.url.path);
         _clipboardChangeCount = NSIntegerMin;
     }
@@ -242,7 +243,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(sourcesDidChange:)
                                                    name:VibeSearchFoldersDidChangeNotification
-                                                 object:SearchFolderStore.shared];
+                                                 object:LocationStore.shared];
         if (_appending && self.navigationController.viewControllers.firstObject == self) {
             self.navigationItem.leftBarButtonItem = _closeItem;
         }
@@ -1174,7 +1175,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     if (DropboxMirror.shared.accountURL) {
         [sources addObject:DropboxMirror.shared.accountURL];
     }
-    [sources addObjectsFromArray:SearchFolderStore.shared.searchRoots];
+    [sources addObjectsFromArray:LocationStore.shared.searchRoots];
     NSMutableArray<NSString *> *sourcePaths = [NSMutableArray arrayWithCapacity:sources.count];
     for (NSURL *source in sources) {
         [sourcePaths addObject:VibeComparablePath(source.path) ?: @""];
@@ -1262,7 +1263,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 - (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
     return VibeBrowserRootRows((VibeBrowserRootSection)section, _dropboxLinked,
-                               SearchFolderStore.shared.folderURLs.count, _clipboardHasLink);
+                               LocationStore.shared.folderURLs.count, _clipboardHasLink);
 }
 
 - (VibeBrowserRootRow)rootRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -1273,13 +1274,13 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 - (NSUInteger)locationIndexAtIndexPath:(NSIndexPath *)indexPath {
     return VibeBrowserRootLocationIndex((VibeBrowserRootSection)indexPath.section, (NSUInteger)indexPath.row,
-                                        _dropboxLinked, SearchFolderStore.shared.folderURLs.count);
+                                        _dropboxLinked, LocationStore.shared.folderURLs.count);
 }
 
 // The granted folder a Locations row shows. Nil for any other row.
 - (NSURL *)locationAtIndexPath:(NSIndexPath *)indexPath {
     NSUInteger index = [self locationIndexAtIndexPath:indexPath];
-    return index == NSNotFound ? nil : SearchFolderStore.shared.folderURLs[index];
+    return index == NSNotFound ? nil : LocationStore.shared.folderURLs[index];
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -1434,7 +1435,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
     switch (row) {
         case VibeBrowserRootRowDevice:
-            content.text = [SearchFolderStore displayNameForFolderURL:SearchFolderStore.containerDocumentsURL];
+            content.text = [LocationStore displayNameForFolderURL:LocationStore.containerDocumentsURL];
             content.image = [UIImage systemImageNamed:
                     UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"ipad" : @"iphone"];
             break;
@@ -1448,7 +1449,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
             content.image = [UIImage systemImageNamed:@"clock"];
             break;
         case VibeBrowserRootRowLocation:
-            content.text = [SearchFolderStore displayNameForFolderURL:[self locationAtIndexPath:indexPath]];
+            content.text = [LocationStore displayNameForFolderURL:[self locationAtIndexPath:indexPath]];
             content.image = [UIImage systemImageNamed:@"folder"];
             break;
         case VibeBrowserRootRowChooseFile:
@@ -1525,7 +1526,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     VibeBrowserRootRow row = [self rootRowAtIndexPath:indexPath];
     switch (row) {
         case VibeBrowserRootRowDevice:
-            [self pushDirectory:SearchFolderStore.containerDocumentsURL];
+            [self pushDirectory:LocationStore.containerDocumentsURL];
             return;
         case VibeBrowserRootRowDropbox:
             if (DropboxMirror.shared.accountURL) {
@@ -1596,7 +1597,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
          forRowAtIndexPath:(NSIndexPath *)indexPath {
     NSUInteger index = self.isRoot ? [self locationIndexAtIndexPath:indexPath] : NSNotFound;
     if (style == UITableViewCellEditingStyleDelete && index != NSNotFound) {
-        [SearchFolderStore.shared removeFolderAtIndex:index];
+        [LocationStore.shared removeFolderAtIndex:index];
     }
 }
 
@@ -1641,9 +1642,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
                                                         actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
             UIAction *remove = VibeMenuAction(STR_BROWSER_REMOVE_LOCATION, @"minus.circle", ^{
                 // By URL: the list can move while the menu is up.
-                NSUInteger index = [SearchFolderStore.shared.folderURLs indexOfObject:location];
+                NSUInteger index = [LocationStore.shared.folderURLs indexOfObject:location];
                 if (index != NSNotFound) {
-                    [SearchFolderStore.shared removeFolderAtIndex:index];
+                    [LocationStore.shared removeFolderAtIndex:index];
                 }
             });
             remove.attributes = UIMenuElementAttributesDestructive;
@@ -1688,7 +1689,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 
 #pragma mark - The system pickers
 
-// A location: one folder, granted for good (SearchFolderStore). Anything else:
+// A location: one folder, granted for good (LocationStore). Anything else:
 // files and folders from anywhere, for one open.
 - (void)presentPickerForLocation:(BOOL)location {
     NSArray<UTType *> *types = location
@@ -1714,7 +1715,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     if (!url) {
         return;
     }
-    if ([SearchFolderStore.shared addFolderURL:url]) {
+    if ([LocationStore.shared addFolderURL:url]) {
         // Opened, not played: adding a folder leaves playback alone.
         [self pushDirectory:url];
     }

@@ -1,4 +1,4 @@
-# Favorites, Search and the folder stores (iOS)
+# Favorites and Search (iOS)
 
 The shell is `../AGENTS.md`.
 
@@ -6,7 +6,7 @@ The shell is `../AGENTS.md`.
 
 **No public API searches the Files app.** The picker and browser have no search hook, and `NSFileProviderSearchQuery` is the extension's side. The app can only walk trees it holds, so scope is granted folder by folder.
 
-**`PlaybackController.searchRoots` composes the scope, and nothing else does.** The transient half is `FolderSession.searchRoots`: the base folder and every folder an Add brought in, gone at the next open. A single added file is a scope, not a root, so it never appears here. The persistent half is `SearchFolderStore.searchRoots` (the Files tab's Locations plus Documents, which needs no grant) and `FavoritesStore`'s resolved bookmarks. `FileSearchIndex` prunes nested and duplicate roots, in both directions (the `TRAP:` in `FileSearchIndex.m`).
+**`PlaybackController.searchRoots` composes the scope, and nothing else does.** The transient half is `FolderSession.searchRoots`: the base folder and every folder an Add brought in, gone at the next open. A single added file is a scope, not a root, so it never appears here. The persistent half is `LocationStore.searchRoots` and `FavoritesStore`'s resolved bookmarks. `LocationStore` (`../Files/AGENTS.md`) answers with the Files tab's Locations plus Documents, which needs no grant. `FileSearchIndex` prunes nested and duplicate roots, in both directions (the `TRAP:` in `FileSearchIndex.m`).
 
 ## SearchViewController
 
@@ -34,18 +34,6 @@ One streaming walk into memory, then a latest-wins filter per query off main.
 - **A track the playlist lists is not offered twice.** The screen passes the playlist's paths as the exclusion set, tested before the string match.
 - **`FileSearchRules.h` is the matching rule for both sections**, tested from the macOS suite. It also holds `VibeSearchRootCoversPath`, the coverage decision the pruning and the Locations list's refusal both read. The one intended disagreement is the empty query: no constraint for the playlist, no match for a file.
 
-## SearchFolderStore
-
-The folders the user handed the app: persisted security-scoped bookmarks, each scope started at launch and held for the session. It is the iOS twin of the mac's `FolderAccessManager`, with its own `NSUserDefaults` key.
-
-- **Coverage is tested against the persistent roots, never the open folder.** A subfolder of a listed folder, or anything inside Documents, is refused with a message. The open folder is transient, so refusing against it would drop a grant the user wants later. A folder that covers existing rows replaces them, and a restored folder some root now covers is dropped.
-- **Bookmark work never blocks main, and one provider cannot hold up every root.** Launch restoration resolves at most `kMaximumConcurrentBookmarkRestorations` at once and merges on main in original order. Minting has its own serial queue and needs the scope open, so a stale bookmark is refreshed only after resolving. A replacing parent owns the narrower rows' scopes until its own mint lands. Pending identities remember a removed parent, so a late child cannot bring it back.
-- **Removing a row hides it at once but defers `stopAccessingSecurityScopedResource`** until the playlist and every overlapping open release the grant object `FolderSession` was handed. Later metadata and waveform reads keep the access that made the playlist valid.
-- **It posts `VibeSearchFoldersDidChangeNotification`, and the Files tab's root and Search derive their rows from that one delivery.** Launch resolves can land while either screen is up, and a local animation beside the notification would mutate the table twice.
-- **A folder is named on screen by `displayNameForFolderURL:` and nowhere else**: the browser's titles and rows, the Playlist tab's title, a favorite's name and location, a recent's folder line. The Dropbox mirror's directory is the account id and reads "Dropbox". Documents reads "On My iPhone". **Naming never touches the disk**, since asking a provider's folder for its name is IPC that can block main. The two roots are recognized by spelling, a location by the name resolved with its bookmark, and any other folder is its own path component. So a provider root reached through a one-off pick reads as its directory name (`com~apple~CloudDocs`), not "iCloud Drive".
-- `restorePersistedFolders` runs at launch beside restore-or-adopt. It opens and plays nothing.
-- The channel cannot drive the document picker, so `dump_search`, `add_search_folder` and `remove_search_folder` set up a scope for a test. **TRAP: a folder added through the channel is not security-scoped, yet it outlives the session.** `addFolderURL:` persists a plain bookmark whatever `startAccessingSecurityScopedResource` answered, and the next launch restores it. A test removes what it added, or later runs inherit the scope.
-
 ## FavoritesStore and FavoritesViewController
 
 Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApplyFileIconForName:folder:art:` and `vibeApplyFileNameStyle`). **Every action goes through `openFavorite:appending:`**, which resolves the bookmark off main, deselects, and alerts on an unreachable folder. A tap replaces through `PlaybackController`'s `confirmReplacing…` funnel with a replace token. An Add hands the folder to `addURLs:token:`. **A Dropbox favorite with no song directly inside opens in the Files tab** (`showDirectoryHandler`), where its subfolders are, after it is listed from Dropbox.
@@ -54,7 +42,7 @@ Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApp
 
 **Add to Playlist and Remove from Favorites are each reached twice**, since a context menu should never be the only road to an action. The long press gives Play, Add to Playlist and Remove from Favorites. A leading swipe gives Add. The trailing swipe is the system Delete (`canEditRowAtIndexPath:` plus `commitEditingStyle:`), which UIKit draws and localizes itself. Remove acts on the favorite's own path, never the row index, because the list can move while the menu is up.
 
-**A favorite is a place to go, not a grant to hold**, so this store is smaller than `SearchFolderStore`:
+**A favorite is a place to go, not a grant to hold**, so this store is smaller than `LocationStore` (`../Files/AGENTS.md`):
 
 - **Nothing resolves and no scope starts until a tap**, or until the search screen appears. Rows draw from the name and location recorded at star time, so favorites cost no provider I/O at launch.
 - **Nesting is allowed**, so identity is exact standardized-path equality. `VibeSearchRootCoversPath` would be the bug here.

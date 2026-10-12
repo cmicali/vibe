@@ -12,7 +12,7 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
-#import "SearchFolderStore.h"
+#import "LocationStore.h"
 
 @implementation PlaybackController (Opening)
 
@@ -176,7 +176,7 @@ static const NSTimeInterval kOpeningTimeout = 25;
 // already browsed.
 - (NSArray<NSURL *> *)searchRoots {
     NSArray<NSURL *> *roots = [[_folderSession.searchRoots
-            arrayByAddingObjectsFromArray:SearchFolderStore.shared.searchRoots]
+            arrayByAddingObjectsFromArray:LocationStore.shared.searchRoots]
             arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
     DropboxMirror *mirror = DropboxMirror.shared;
     return [roots filteredArrayUsingPredicate:

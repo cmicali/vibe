@@ -2,7 +2,7 @@
 //  FavoritesStore.h
 //  Vibe (iOS)
 //
-//  The folders the user starred: places to go back to. Not SearchFolderStore's
+//  The folders the user starred: places to go back to. Not LocationStore's
 //  twin; three differences are the design:
 //
 //  1. NOTHING IS RESOLVED AT LAUNCH. Rows draw from strings recorded at star

@@ -10,12 +10,13 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
+#import "FolderSessionRules.h"
 #import "LinkStore.h"
+#import "LocationStoreInternal.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"
 #import "PlaylistFile.h"
 #import "RecentsStore.h"
-#import "SearchFolderStoreInternal.h"
 #import <stdatomic.h>
 
 // iOS app-layer state, so not AppSettings.
@@ -24,7 +25,7 @@ static NSString *const kAdditionBookmarksKey = @"VibeiOSAdditionBookmarks";
 // Holds a standardized path despite its name: the shipped key is kept so a
 // bare filename an older build wrote restores through the filename tier.
 static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
-// SearchFolderStore's bound, for its reason: one stalled provider must not
+// LocationStore's bound, for its reason: one stalled provider must not
 // head-of-line every other bookmark.
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Past this many contributors an open is ONE recent, the folder they share.
@@ -85,7 +86,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // twice, each start balanced by its own stop.
     NSMutableArray<NSURL *> *_scopedURLs;
     // Persistent-root grants retained for this playlist, same lifetime.
-    NSMutableArray<SearchFolderGrant *> *_searchGrants;
+    NSMutableArray<LocationGrant *> *_searchGrants;
     // The BASE: title, star, bookmark. Appends never move it; nil for a
     // single-file base.
     NSURL *_folderURL;
@@ -137,7 +138,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 }
 
 - (NSString *)folderDisplayName {
-    return _folderURL ? [SearchFolderStore displayNameForFolderURL:_folderURL] : nil;
+    return _folderURL ? [LocationStore displayNameForFolderURL:_folderURL] : nil;
 }
 
 - (NSArray<NSURL *> *)searchRoots {
@@ -541,7 +542,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     }
     // The app's own trees need no grant, so a file picked in one always
     // reaches its folder: Documents, and the Dropbox mirror.
-    NSString *documents = VibeComparablePath(SearchFolderStore.containerDocumentsURL.path);
+    NSString *documents = VibeComparablePath(LocationStore.containerDocumentsURL.path);
     NSString *dropbox = VibeComparablePath(DropboxMirror.shared.accountURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
@@ -550,7 +551,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [coveringRootPaths addObject:dropbox];
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
-    NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];
+    NSMutableArray<LocationGrant *> *grants = [NSMutableArray array];
     BOOL keepsSessionBookmark = NO;
     for (NSURL *url in urls) {
         NSString *path = VibeComparablePath(url.path);
@@ -558,11 +559,11 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // a derived root would also mask the favorites lookup below.
         NSURL *root = [self rootCoveringPath:path in:_scopedURLs];
         NSURL *sessionRoot = root;
-        SearchFolderGrant *grant = [SearchFolderStore.shared grantCoveringURL:url];
+        LocationGrant *grant = [LocationStore.shared grantCoveringURL:url];
         if (!grant) {
             // A removed Settings row: carry the current playlist's retained
             // grant over rather than revoke it when this result wins.
-            for (SearchFolderGrant *held in _searchGrants) {
+            for (LocationGrant *held in _searchGrants) {
                 if (VibeSearchRootCoversPath(VibeComparablePath(held.rootURL.path), path)) {
                     grant = held;
                     break;
@@ -629,7 +630,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                    sortedBy:(VibeFolderOpenSort)sort
           coveringRootPaths:(NSArray<NSString *> *)coveringRootPaths
                       holds:(NSArray<NSURL *> *)holds
-                     grants:(NSArray<SearchFolderGrant *> *)grants
+                     grants:(NSArray<LocationGrant *> *)grants
        openIntentGeneration:(uint64_t)openIntentGeneration {
     if (![self isCurrentOpenIntent:openIntentGeneration]) {
         for (NSURL *hold in holds) {
@@ -1001,7 +1002,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
             id host = linkHosts[index];
             item[@"location"] = host != NSNull.null
-                    ? host : [SearchFolderStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
+                    ? host : [LocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
         }];
         [RecentsStore.shared recordRecentItems:recents];
     });
@@ -1018,7 +1019,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
              selectedURL:(NSURL *)selectedURL
                 restored:(BOOL)restored
              ownedScopes:(NSArray<NSURL *> *)ownedScopes
-             ownedGrants:(NSArray<SearchFolderGrant *> *)ownedGrants
+             ownedGrants:(NSArray<LocationGrant *> *)ownedGrants
             baseBookmark:(NSData *)baseBookmark
        additionBookmarks:(NSArray<NSData *> *)additionBookmarks {
     BOOL current = [self isCurrentOpenIntent:openIntentGeneration];

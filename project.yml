@@ -611,7 +611,7 @@ targets:
         # visible on-device Documents folder.
         #
         # UIFileSharingEnabled is a product decision: the app's Documents
-        # directory is a permanent search root (SearchFolderStore), and this is
+        # directory is a permanent search root (LocationStore), and this is
         # the only way to put anything in it. The app keeps no state there.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true

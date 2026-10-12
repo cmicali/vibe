@@ -5,13 +5,13 @@
 
 #import "VibeiOSSceneDelegate.h"
 #import "AudioTrack.h"
-#import "FileSearchRules.h"
+#import "BrowserRules.h"
 #import "LinkStore.h"
+#import "LocationStore.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
 #import "RecentsStore.h"
 #import "RootViewController.h"
-#import "SearchFolderStore.h"
 
 @implementation VibeiOSSceneDelegate {
     // One engine per process, so multi-scene is off.
@@ -41,7 +41,7 @@
     [root loadViewIfNeeded];
     [self setSceneActive:scene.activationState == UISceneActivationStateForegroundActive];
     // Opens and plays nothing, and resolves off main.
-    [SearchFolderStore.shared restorePersistedFolders];
+    [LocationStore.shared restorePersistedFolders];
     if (connectionOptions.URLContexts.count > 0) {
         [_playback handleOpenURLContexts:connectionOptions.URLContexts];
     }
