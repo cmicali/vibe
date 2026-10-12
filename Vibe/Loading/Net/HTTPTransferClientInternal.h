@@ -13,7 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface HTTPTransferClient ()
 
-// Calls and ranged reads, answered whole. Its own queue, so a tag read never
+// Calls and ranged reads. A call is answered whole. A ranged read streams
+// through the client, as a download does. Its own queue, so a tag read never
 // waits behind a download's disk writes.
 @property (nonatomic, readonly) NSURLSession *callSession;
 // Downloads and probes, streamed through the client as their delegate.

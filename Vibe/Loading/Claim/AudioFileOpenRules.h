@@ -47,7 +47,7 @@ static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
 }
 
 // The bytes at a file's end its open reads, with room, for a stream to fetch
-// ahead of its download (the Dropbox mirror's tail window); 0 for none. Every
+// ahead of its download (a placeholder store's tail window); 0 for none. Every
 // open that reads past its head reads one region at the end (measured,
 // docs/future/streaming-any-source.md). An MP3's ID3v1 check reads 4–128 bytes,
 // an APE footer a few KB more, and a FLAC with no length 64 KB. 128 KB is twice

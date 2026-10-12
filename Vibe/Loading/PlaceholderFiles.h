@@ -32,10 +32,11 @@ static inline BOOL VibeFileModeIsRemotePlaceholder(mode_t mode) {
 // YES too.
 + (BOOL)isDatalessFile:(NSURL *)url;
 
-// Under a remote backend's root (iOS: the Dropbox mirror), a regular file its
-// owner may not read is a placeholder for a remote file. Its stat is the
-// remote file's: size, mtime, and the cache key. Any direct open fails instead
-// of reading zeros. Anywhere else an unreadable file is merely unreadable.
+// Under a remote backend's root (the Links store, and on iOS the Dropbox
+// mirror), a regular file its owner may not read is a placeholder for a
+// remote file. Its stat is the remote file's: size, mtime, and the cache
+// key. Any direct open fails instead of reading zeros. Anywhere else an
+// unreadable file is merely unreadable.
 // CloudFileMaterializer's setRemoteRoot:fetch:read:availability: keeps the
 // roots in step with its backends.
 + (void)setRemotePlaceholderRoots:(NSArray<NSURL *> *)roots;

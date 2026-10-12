@@ -142,7 +142,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
     dispatch_source_t _pendingTimer;
     NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
     // Stage 2, keyed "purpose:path". Membership is the ceiling's count: a run
-    // stays until its uncancellable AudioFileHandle call returns.
+    // stays until its AudioFileHandle call returns.
     NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;

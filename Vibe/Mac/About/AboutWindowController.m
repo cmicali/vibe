@@ -42,7 +42,7 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     window.movableByWindowBackground = YES;
     window.releasedWhenClosed = NO;
     window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    // The Metal view's clear color, so the text strip blends in.
+    // Under the record artwork, which covers the whole content view.
     window.backgroundColor = [NSColor colorWithSRGBRed:0.02 green:0.02 blue:0.035 alpha:1.0];
 
     self = [super initWithWindow:window];

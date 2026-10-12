@@ -28,8 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// A remote placeholder's backend (PlaceholderFiles' setRemotePlaceholderRoots:;
-// iOS: the Dropbox mirror). Blocks the worker until url holds its bytes.
+// A remote placeholder's backend (PlaceholderFiles' setRemotePlaceholderRoots:):
+// the Links store, and on iOS the Dropbox mirror. Blocks the worker until url
+// holds its bytes.
 // onCancel hands over the block -cancel runs, from any thread; a cancel that
 // came first runs it at once. Unlike the provider path, this cancel stops the
 // transfer, not just the wait. onReadable, when given, is called at most

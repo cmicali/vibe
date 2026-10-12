@@ -195,7 +195,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
                                             attributes:nil error:NULL];
 }
 
-// Answers the CUE sheets to fetch: they are read while the folder opens, so
+// Answers the playlist files to fetch: they are read while the folder opens, so
 // they come down with the listing; tracks wait for their open. *discarded is
 // set when downloaded bytes went: a changed file back to a placeholder, or a
 // departed file or folder deleted.
