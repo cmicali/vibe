@@ -4,7 +4,8 @@
 //
 //  What a search matches, and the Files tab's decisions: the root's rows, what
 //  Recents names for a link, which open the next launch restores, and the
-//  recents a launch's pruning keeps. The header ships only in VibeiOS but is
+//  recents a launch's pruning keeps. Then FolderSession's open intents, each
+//  TRAP: sequence replayed. The header ships only in VibeiOS but is
 //  Foundation-only, so it compiles here.
 //
 
@@ -457,6 +458,118 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
 - (void)testAnOpenInsideAOneOffPickKeepsTheSessions {
     XCTAssertFalse(VibeFolderSessionPersistsBase(YES, YES, NO, NO));
     XCTAssertFalse(VibeFolderSessionPersistsBase(YES, NO, NO, YES));
+}
+
+- (void)testOnlyAnOpenStrictlyInsideTheSessionsOwnHoldKeepsItsBookmark {
+    XCTAssertTrue(VibeFolderSessionKeepsSessionBookmark(YES, NO, NO, NO));
+    XCTAssertFalse(VibeFolderSessionKeepsSessionBookmark(YES, YES, NO, NO), @"the held root itself");
+    XCTAssertFalse(VibeFolderSessionKeepsSessionBookmark(YES, NO, YES, NO), @"a Location persists by itself");
+    XCTAssertFalse(VibeFolderSessionKeepsSessionBookmark(YES, NO, NO, YES), @"a favorite persists by itself");
+    XCTAssertFalse(VibeFolderSessionKeepsSessionBookmark(NO, NO, NO, NO));
+}
+
+- (void)testAFolderBehindAFileBaseDoesNotClaimTheBase {
+    XCTAssertTrue(VibeFolderSessionFolderClaimsBase(NO, 1));
+    XCTAssertFalse(VibeFolderSessionFolderClaimsBase(NO, 2), @"the file ahead of it is the base");
+    XCTAssertFalse(VibeFolderSessionFolderClaimsBase(YES, 1), @"an append never moves the base");
+}
+
+#pragma mark - The open intent
+
+- (void)testTwoAddsOntoAnEmptySessionPromoteTheFirstAndParkTheSecond {
+    uint64_t openIntentGeneration = 7;
+    uint64_t landedOpenIntentGeneration = 0;
+    uint64_t promotedOpenIntentGeneration = 0;
+    BOOL promotedOpenInFlight = NO;
+    // Both tokens are taken when the user asks, before either URL resolves.
+    uint64_t firstToken = openIntentGeneration;
+    uint64_t secondToken = openIntentGeneration;
+
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(firstToken, openIntentGeneration,
+                                                     promotedOpenIntentGeneration));
+    XCTAssertFalse(VibeFolderSessionAddParks(YES, landedOpenIntentGeneration, promotedOpenInFlight));
+    XCTAssertTrue(VibeFolderSessionAddPromotes(YES, landedOpenIntentGeneration, promotedOpenInFlight));
+    openIntentGeneration++;
+    promotedOpenIntentGeneration = openIntentGeneration;
+    promotedOpenInFlight = YES;
+
+    XCTAssertNotEqual(secondToken, openIntentGeneration);
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(secondToken, openIntentGeneration,
+                                                     promotedOpenIntentGeneration),
+                  @"a promotion is not a supersession");
+    XCTAssertTrue(VibeFolderSessionAddParks(YES, landedOpenIntentGeneration, promotedOpenInFlight));
+    XCTAssertFalse(VibeFolderSessionAddPromotes(YES, landedOpenIntentGeneration, promotedOpenInFlight),
+                   @"a second promotion would cancel the first");
+}
+
+- (void)testAParkedAddAppendsOnceThePromotedOpenLands {
+    uint64_t promotedOpenIntentGeneration = 8;
+    uint64_t landedOpenIntentGeneration =
+            VibeFolderSessionLandedOpenIntentGeneration(0, promotedOpenIntentGeneration, NO, YES);
+    XCTAssertEqual(landedOpenIntentGeneration, promotedOpenIntentGeneration);
+    // The release clears the in-flight flag before it replays the waiter.
+    XCTAssertFalse(VibeFolderSessionAddParks(YES, landedOpenIntentGeneration, NO));
+    XCTAssertFalse(VibeFolderSessionAddPromotes(YES, landedOpenIntentGeneration, NO));
+    XCTAssertFalse(VibeFolderSessionAppendIsStale(YES, promotedOpenIntentGeneration,
+                                                  landedOpenIntentGeneration));
+}
+
+- (void)testAParkedAddPromotesWhenThePromotedOpenFindsNothing {
+    uint64_t landedOpenIntentGeneration = VibeFolderSessionLandedOpenIntentGeneration(0, 8, NO, NO);
+    XCTAssertEqual(landedOpenIntentGeneration, (uint64_t)0);
+    XCTAssertTrue(VibeFolderSessionAddPromotes(YES, landedOpenIntentGeneration, NO), @"the first waiter");
+    XCTAssertTrue(VibeFolderSessionAddParks(YES, landedOpenIntentGeneration, YES), @"the second waiter");
+}
+
+- (void)testAFailedRestoreStillLetsAnAddPlay {
+    // The restore bumped to 1 and found nothing. Only a promotion sets the
+    // in-flight flag, so the restore left it clear.
+    uint64_t landedOpenIntentGeneration = VibeFolderSessionLandedOpenIntentGeneration(0, 1, NO, NO);
+    XCTAssertEqual(landedOpenIntentGeneration, (uint64_t)0);
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(1, 1, 0));
+    XCTAssertTrue(VibeFolderSessionAddPromotes(YES, landedOpenIntentGeneration, NO));
+}
+
+- (void)testARealReplaceDropsAnAddTakenBeforeIt {
+    // Token 7, a promotion to 8, then the user's replace to 9.
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(7, 9, 8));
+    // A replace with no promotion, and a clear, which zeroes the promotion.
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(7, 8, 0));
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(7, 9, 0));
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(6, 8, 8), @"two below the promotion");
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(9, 9, 8));
+
+    // The replace landing releases the promotion's waiters onto its playlist.
+    uint64_t landedOpenIntentGeneration = VibeFolderSessionLandedOpenIntentGeneration(0, 9, NO, YES);
+    XCTAssertFalse(VibeFolderSessionAddPromotes(YES, landedOpenIntentGeneration, NO));
+    XCTAssertFalse(VibeFolderSessionAddParks(YES, landedOpenIntentGeneration, NO));
+    XCTAssertFalse(VibeFolderSessionAppendIsStale(YES, 9, landedOpenIntentGeneration));
+}
+
+- (void)testAnEmptyOpenCarriesTheLandedGeneration {
+    uint64_t landedOpenIntentGeneration = 3;
+    // An Add taken after the empty open of 4 captures 4.
+    XCTAssertTrue(VibeFolderSessionAppendIsStale(YES, 4, landedOpenIntentGeneration),
+                  @"without the carry, Add is dead for the session");
+    landedOpenIntentGeneration =
+            VibeFolderSessionLandedOpenIntentGeneration(landedOpenIntentGeneration, 4, NO, NO);
+    XCTAssertEqual(landedOpenIntentGeneration, (uint64_t)4);
+    XCTAssertFalse(VibeFolderSessionAppendIsStale(YES, 4, landedOpenIntentGeneration));
+
+    XCTAssertEqual(VibeFolderSessionLandedOpenIntentGeneration(0, 4, NO, NO), (uint64_t)0,
+                   @"zero stays zero, so an Add is still promoted");
+    XCTAssertEqual(VibeFolderSessionLandedOpenIntentGeneration(3, 5, YES, NO), (uint64_t)3);
+    XCTAssertEqual(VibeFolderSessionLandedOpenIntentGeneration(3, 5, YES, YES), (uint64_t)3,
+                   @"an append moves nothing");
+}
+
+- (void)testAnAddDuringAnOpenThatNeverLandedIsDropped {
+    // Landed 3, a replace of 4 in flight, an Add captured at 4.
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(4, 4, 0));
+    XCTAssertFalse(VibeFolderSessionAddPromotes(YES, 3, NO));
+    XCTAssertFalse(VibeFolderSessionAddParks(YES, 3, NO));
+    XCTAssertTrue(VibeFolderSessionAppendIsStale(YES, 4, 3));
+    XCTAssertFalse(VibeFolderSessionAppendIsStale(NO, 4, 3), @"a replace is never stale this way");
 }
 
 @end

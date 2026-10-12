@@ -5,8 +5,8 @@
 //  What a query matches, for both of the search screen's sections, which must
 //  agree where they overlap. Then the Files tab's decisions: the root's rows,
 //  what Recents names, which open the next launch restores, and which links a
-//  launch keeps. Header-only and Foundation-only so the macOS suite can test
-//  it.
+//  launch keeps. Last, how FolderSession's open intents settle. Header-only
+//  and Foundation-only so the macOS suite can test it.
 //
 
 #ifndef FileSearchRules_h
@@ -208,6 +208,82 @@ static inline BOOL VibeFolderSessionPersistsBase(BOOL keepsSessionBookmark,
         return NO;
     }
     return openedFolder || baseIsLink || !persistedBaseIsFolder;
+}
+
+// The base is the FIRST contributor, even a file, and an append never moves
+// it. So a folder claims the base only as a replace's first contributor.
+static inline BOOL VibeFolderSessionFolderClaimsBase(BOOL appending, NSUInteger contributorCount) {
+    return !appending && contributorCount == 1;
+}
+
+// An open leaves the session bookmark alone when a URL lies strictly inside a
+// hold only the session has, a one-off pick. A Location's grant or a favorite
+// over it persists by itself, so the open is remembered.
+static inline BOOL VibeFolderSessionKeepsSessionBookmark(BOOL insideSessionHold,
+                                                         BOOL isSessionHoldRoot,
+                                                         BOOL underSearchGrant,
+                                                         BOOL underFavorite) {
+    return insideSessionHold && !isSessionHoldRoot && !underSearchGrant && !underFavorite;
+}
+
+#pragma mark - The open intent
+
+// A replace bumps openIntentGeneration and an Add captures it. The landed
+// generation is the last settled replace's. It is zero while nothing has
+// landed. FolderSession holds the state, and its TRAP: comments the sequences.
+
+// Whether an Add may still land, from the token taken when the user asked. A
+// token one below the live promoted generation is a promoted sibling's, so it
+// is still the user's. A real replace or a clear bumps past it.
+static inline BOOL VibeFolderSessionAddTokenIsCurrent(uint64_t token,
+                                                      uint64_t openIntentGeneration,
+                                                      uint64_t promotedOpenIntentGeneration) {
+    if (token == openIntentGeneration) {
+        return YES;
+    }
+    return promotedOpenIntentGeneration != 0
+            && token + 1 == promotedOpenIntentGeneration
+            && openIntentGeneration == promotedOpenIntentGeneration;
+}
+
+// An Add onto a session that has landed nothing is an open. Only the first
+// such Add promotes. The rest park until that open settles.
+static inline BOOL VibeFolderSessionAddPromotes(BOOL appending,
+                                                uint64_t landedOpenIntentGeneration,
+                                                BOOL promotedOpenInFlight) {
+    return appending && landedOpenIntentGeneration == 0 && !promotedOpenInFlight;
+}
+
+static inline BOOL VibeFolderSessionAddParks(BOOL appending,
+                                             uint64_t landedOpenIntentGeneration,
+                                             BOOL promotedOpenInFlight) {
+    return appending && landedOpenIntentGeneration == 0 && promotedOpenInFlight;
+}
+
+// An append lands only against the replace that settled last. An append
+// captured during an open that never landed is dropped.
+static inline BOOL VibeFolderSessionAppendIsStale(BOOL appending,
+                                                  uint64_t openIntentGeneration,
+                                                  uint64_t landedOpenIntentGeneration) {
+    return appending && landedOpenIntentGeneration != openIntentGeneration;
+}
+
+// The landed generation once a current request settles. A replace that found
+// tracks lands its own. An empty replace or a cancel still settles: the
+// playlist left standing answers for it. Zero stays zero, so the next Add is
+// still promoted. An append moves nothing.
+static inline uint64_t VibeFolderSessionLandedOpenIntentGeneration(
+        uint64_t landedOpenIntentGeneration,
+        uint64_t openIntentGeneration,
+        BOOL appending,
+        BOOL foundTracks) {
+    if (appending) {
+        return landedOpenIntentGeneration;
+    }
+    if (foundTracks || landedOpenIntentGeneration != 0) {
+        return openIntentGeneration;
+    }
+    return 0;
 }
 
 NS_ASSUME_NONNULL_END
