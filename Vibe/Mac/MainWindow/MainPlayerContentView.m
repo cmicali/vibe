@@ -334,14 +334,15 @@ static BOOL CursorIsIn(NSView *view, NSRect rect) {
 }
 
 // The window's area says whether the pointer is in the window. The volume
-// area only re-runs the funnel.
+// area only re-runs the funnel. There is no volume area while the control is
+// off, and nil must not match an event with no area (set_controls_hover's).
 - (void)mouseEntered:(NSEvent *)event {
-    BOOL volumeArea = event.trackingArea == _volumeHoverArea;
+    BOOL volumeArea = _volumeHoverArea && event.trackingArea == _volumeHoverArea;
     [self setControlsShown:volumeArea ? [self isCursorOverWindow] : YES animated:YES];
 }
 
 - (void)mouseExited:(NSEvent *)event {
-    BOOL volumeArea = event.trackingArea == _volumeHoverArea;
+    BOOL volumeArea = _volumeHoverArea && event.trackingArea == _volumeHoverArea;
     [self setControlsShown:volumeArea ? [self isCursorOverWindow] : NO animated:YES];
 }
 
