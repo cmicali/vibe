@@ -4,6 +4,8 @@
 
 The renderer draws the whole track across a *virtual* width: the view width divided by `visibleFraction` (0.48 at rest). **A `UIScrollView` carries it.** The virtual width is the content size, and the insets are half a view on each side. So `contentOffset.x == progress·virtualWidth - centerX`, and both ends of the track park under the center. UIKit supplies the drag, the deceleration and the rubber-band at both ends. `decelerationRate` is `Fast`.
 
+The view is split like the mac's. `WaveformScrubberView.mm` is the core: the scroll, the zoom, the renderer and theme, progress, accessibility, `cancelInteraction`, `resetWaveformContentState` and layout. `+Bitmap.mm` is the picture: `prepareForWaveformLoad`, `showWaveform:`, the bake store, the throttle, the bake, segments, the install and the reveal. `+Loading.mm` is the loading indicator. `+Gestures.mm` is the touch scrub, the tap and the pinch. `WaveformScrubberViewInternal.h` is the private surface they share. It holds the ivars and the cross-file methods. It is ObjC++ only, because it imports `AudioWaveformRenderer.h`.
+
 ## Zoom
 
 **`visibleFraction` is the user's request, not what is drawn.** A pinch drives it. `effectiveVisibleFraction` is a computed accessor that clamps it to what this geometry's bitmap can hold. `virtualWidth` reads the effective value, so the content size, the offset mapping, the buckets and the bake are all clamped without knowing it.
