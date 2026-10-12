@@ -6,6 +6,7 @@
 #import "MainPlayerController+Window.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Transport.h"
 
 #import "AppDelegate.h"
 #import "AppSettings.h"
@@ -26,6 +27,7 @@
 #import "TrackDisplayController.h"
 #import "UIUpdateTimer.h"
 #import "VibeStrings.h"
+#import "WaveformView.h"
 
 @implementation MainPlayerController (Window)
 
@@ -298,6 +300,16 @@
         window = appDelegate.mainPlayerController.window;
     }
     completionHandler(window, nil);
+}
+
+#pragma mark - The waveform theme
+
+- (void)refreshWaveformTheme {
+    [self.waveformView refreshThemeColors];
+}
+
+- (void)waveformViewDidResolveTheme:(WaveformView *)waveformView {
+    [self.playerContentView applyVolumeColors];
 }
 
 @end

@@ -6,6 +6,7 @@
 #import "MainPlayerContentView.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h" // declares the button action selectors
+#import "MainPlayerController+Transport.h" // volumeChanged:
 #import "SymbolButton.h"
 #import "DrawnControls.h"
 #import "ArtworkImageView.h"

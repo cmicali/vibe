@@ -1,6 +1,6 @@
 # Transport: bare keys, skips and FX toggles
 
-`TransportKeyMonitor` handles the keys. `MainPlayerController+Transport` is the skips and the five effect setters. `TransportMath.h` is the skip arithmetic, tested. The controller is `../AGENTS.md`, and the menu twins are `Mac/Menu/AGENTS.md`.
+`TransportKeyMonitor` handles the keys. `MainPlayerController+Transport` is the skips and the five effect setters. It also holds shuffle, repeat and On track end, the successor prefetch, the pitch fader, the volume slider and the waveform's seek. `TransportMath.h` is the skip arithmetic, tested. The controller is `../AGENTS.md`, and the menu twins are `Mac/Menu/AGENTS.md`.
 
 ## Keys
 

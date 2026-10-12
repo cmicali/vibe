@@ -11,6 +11,7 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
 #import "MainPlayerController.h"
+#import "MainPlayerController+Playlist.h"
 #import "FolderWalk.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"

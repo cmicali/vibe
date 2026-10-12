@@ -290,8 +290,4 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     }
 }
 
-- (void)refreshWaveformTheme {
-    [self.waveformView refreshThemeColors];
-}
-
 @end
