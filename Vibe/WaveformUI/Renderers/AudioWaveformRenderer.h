@@ -10,6 +10,7 @@
 #import "AudioWaveform.h"
 #import "WaveformTheme.h"
 #import "WaveformLevelMath.h"
+#import "WaveformBarMath.h"
 #import "PlatformColor.h"
 
 #include <vector>
@@ -28,47 +29,6 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// The block styles' quantization: the block under a view x, and how many whole
-// blocks a progress fills, each flipping at its midpoint. Presentation only —
-// the reported seek stays continuous.
-static inline NSInteger VibeBlockIndexForX(CGFloat x, CGFloat width, NSInteger count) {
-    NSInteger index = (NSInteger)(x / width * (CGFloat)count);
-    return clampRange(index, (NSInteger)0, count - 1);
-}
-static inline NSInteger VibeBlockBoundaryForProgress(CGFloat progress, NSInteger count) {
-    NSInteger boundary = (NSInteger)llround((double)count * progress);
-    return clampRange(boundary, (NSInteger)0, count);
-}
-
-// A bar's level averages energy over a column no finer than 1/1024 of the
-// track (~0.4s, the momentary-loudness scale), however fine the bars: RMS over
-// less than a beat converges back to peak, and the oversampling styles'
-// one-chunk bars would peg on every kick. Only the level is floored; the
-// min/max shape keeps per-bar resolution.
-static const NSUInteger kVibeWaveformEnergyColumns = 1024;
-
-// The energy column bar i of count draws, of MIN(count,
-// kVibeWaveformEnergyColumns): its own until the bars are finer than the
-// floor.
-static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
-    return count > kVibeWaveformEnergyColumns
-            ? i * kVibeWaveformEnergyColumns / count : i;
-}
-
-// How much of AudioWaveform.getBarMeanSquares's reach count bars take: all of
-// it up to fullCount, fading to none at twice that. Bars about a beat long
-// need it, or their levels ripple as a resize moves their edges; bars short
-// enough to draw each hit do not, and it would fatten every hit by a bar.
-static inline float VibeWaveformWindowReach(NSUInteger count, NSUInteger fullCount) {
-    return clampRange(2 - (float)count / (float)fullCount, 0, 1);
-}
-
-// Normalize only raises levels: its reference cannot exceed the fixed one.
-// Silence keeps the fixed reference to avoid division by zero.
-static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
-    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
-}
-
 // Normalize's reference is the loudest of the energy columns the bars draw,
 // read from the mean squares the fill just took. A streaming load keeps the
 // fixed reference: its loudest column is only the loudest SO FAR, and a
@@ -81,38 +41,6 @@ static inline float VibeWaveformFullScaleRMSForColumns(AudioWaveform *waveform, 
         loudest = sqrtf(fmaxf(loudest, 0));
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
-}
-
-// The waveform's resolution: a bar finer than a chunk only repeats its
-// neighbor. Caps the styles whose count follows the scrubber's zoomed width.
-static const NSUInteger kVibeWaveformMaxBars = 8192;
-
-// Pixel-snapped, since half-lit edge pixels blur the crispest thing in the
-// waveform. Bounds-relative; x may overshoot either edge.
-static inline CGRect VibeSnappedColumnRect(CGFloat x, CGFloat columnWidth,
-                                           CGFloat boundsWidth, CGFloat height, CGFloat scale) {
-    CGFloat width = MAX(round(columnWidth * scale), 1) / scale;
-    CGFloat left = floor((x - width / 2) * scale) / scale;
-    left = clampRange(left, 0, MAX(0, boundsWidth - width));
-    return CGRectMake(left, 0, width, height);
-}
-
-// The Detailed family's band, which 3-Band shares: bars reach this share of
-// half the height either side of the midline. The one normalized-to-pixels
-// scale, shared by the seek band, the morph's frame-skip heuristic, the masks
-// and the gradient band: they disagree silently if any site re-derives it.
-static const CGFloat kVibeBarAmplitudeOfHalfHeight = 0.75;
-static inline CGFloat VibeBarVScale(CGFloat height) {
-    return (height / 2) * kVibeBarAmplitudeOfHalfHeight;
-}
-// The band's foot, where Centered off grounds the bars.
-static inline CGFloat VibeBarBaseline(CGFloat height) {
-    return height / 2 - VibeBarVScale(height);
-}
-static inline CGRect VibeBarSeekHitBand(CGRect bounds) {
-    CGFloat bottomY = round(VibeBarBaseline(bounds.size.height));
-    CGFloat topY = round(bounds.size.height - VibeBarBaseline(bounds.size.height));
-    return CGRectMake(bounds.origin.x, bottomY, bounds.size.width, topY - bottomY);
 }
 
 // Both styles' gradient: a ramp down the band, the resting level at the top
@@ -143,20 +71,6 @@ static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *s
             CGPointMake(0, size.height * (VibeBarBaseline(1) - drop)),
             kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     CGGradientRelease(gradient);
-}
-
-// A few pixels over Detailed's sub-point bars and 3-Band's point-wide ones: a
-// lit slice, not a blob. Pixel-snapped at use.
-static const CGFloat kVibeHoverHighlightWidth = 1.5;
-
-// The line a theme's playheadColor asks for: solid, the height of the seek
-// band, pixel-snapped like the hover slice. Each view draws its own, since
-// the mac's moves across the waveform and the scrubber's stays at center.
-static const CGFloat kVibePlayheadLineWidth = 2;
-static inline CGRect VibePlayheadLineRect(CGFloat x, CGRect band, CGFloat boundsWidth, CGFloat scale) {
-    CGRect line = VibeSnappedColumnRect(x, kVibePlayheadLineWidth, boundsWidth, band.size.height, scale);
-    line.origin.y = band.origin.y;
-    return line;
 }
 
 // The envelope bake's bitmap, in the format the iOS scrubber installs: sRGB,

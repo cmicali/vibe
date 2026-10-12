@@ -27,7 +27,7 @@ The one in-memory value is `windowAppearancePreviewStyle`. The Settings window's
 
 Reads go straight to `NSUserDefaults`. Each is one CFPreferences lookup, cheap enough even for `uiUpdateHzCap` on every live-resize frame. The exceptions are the mac theme store's (`Mac/AGENTS.md`). `storedUserThemes` is memoized, and `currentTheme` materializes once. Each is refreshed by its own writer, and no CLI-side verb writes those keys.
 
-**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process.** A plain `defaults write` is one, and so are the debug channel's CLI-side verbs (`set_analysis`). A cache invalidated on the notification reports the old value for good. A cache over a stored key must invalidate some other way. `FolderArtResolver` caches `useFolderArt` on the cell-draw path, so a write that skips `VibeSettingsLiveEffectFolderArt` is never observed (`Audio/Metadata/FolderArt/AGENTS.md`).
+**TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process.** A plain `defaults write` is one, and so are the debug channel's CLI-side verbs (`set_analysis`). A cache invalidated on the notification reports the old value for good. A cache over a stored key must invalidate some other way. `FolderArtResolver` caches `useFolderArt` on the cell-draw path, so a write that skips `VibeSettingsLiveEffectFolderArt` is never observed (`Audio/Metadata/Artwork/FolderArt/AGENTS.md`).
 
 **TRAP: a stored key never follows a rename of its macro.** Changing the string resets every user's setting. `SETTING_FOLDER_ART` keeps `@"Audio.folderArtwork"`. The mac keys are listed at the top of `Mac/AppSettings+Mac.m`, and the shared keys in `AppSettingsInternal.h`.
 

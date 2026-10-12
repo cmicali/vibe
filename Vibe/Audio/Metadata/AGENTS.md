@@ -1,6 +1,6 @@
 # Metadata and artwork
 
-Tags, their disk cache, the playlist scan and embedded artwork. `FolderArt/`, the sidecar-cover fallback, has its own `AGENTS.md`.
+Tags, their disk cache, the playlist scan and embedded artwork. The artwork classes live in `Artwork/`. `Artwork/FolderArt/` is the sidecar-cover fallback, and it has its own `AGENTS.md`.
 
 - `AudioTrackMetadataCache` is the facade, and `AudioTrackMetadataLoader` the one sweep behind it (private).
 - The loader is one object in three files. `AudioTrackMetadataLoader.m` is its life and the sweep's stage 1. `+Materialization.m` is the lane: priority marks, the two slots, the foreground gate and each completion's settlement. `+Parse.m` is the cache read, the parse, installation, settlement and publication, with the display-art rendition's sidecar. `AudioTrackMetadataLoaderInternal.h` holds its ivars and each file's shared methods. `MetadataScanEntry` holds its two records, the scan entry and the priority mark.

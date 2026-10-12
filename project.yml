@@ -808,12 +808,12 @@ targets:
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
       - path: Vibe/Audio/Metadata/MetadataScanEntry.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
-      - path: Vibe/Audio/Metadata/FolderArt/FolderArtResolver.m
-      - path: Vibe/Audio/Metadata/FolderArt/FolderArtEntry.m
-      - path: Vibe/Audio/Metadata/FolderArt/FolderArtFileIO.m
-      - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
-      - path: Vibe/Audio/Metadata/EmbeddedThumbnailCache.m
-      - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
+      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m

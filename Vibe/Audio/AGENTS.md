@@ -1,6 +1,6 @@
 # Audio
 
-The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/`, `Mac/Convert/` and `iOS/`.
+The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Metadata/Artwork/FolderArt/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/`, `Mac/Convert/` and `iOS/`.
 
 ## The model in one page
 
