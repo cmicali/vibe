@@ -240,6 +240,9 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
 
 - (void)setUp {
     [super setUp];
+    // No test here races a deadline against the retry pause. They only wait it
+    // out.
+    [AudioFileHandle debugSetRetryScale:0.1];
     _directory = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
                             isDirectory:YES];
     XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_directory withIntermediateDirectories:YES
@@ -273,6 +276,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
                       (long)AudioFileHandle.debugLiveReadAheads);
         [VibeReadAheadScript removeHook];
     }
+    [AudioFileHandle debugSetRetryScale:1];
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     [NSFileManager.defaultManager removeItemAtURL:_directory error:NULL];
     [super tearDown];

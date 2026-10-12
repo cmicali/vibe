@@ -133,7 +133,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     self.replayResumeTrack = nil; // the live position publishes from here
     // First, so a quick second Next finds the park. nil past the end drops
     // it. The prefetch's registration preempts any background transfer.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self endLoadingProgress];
@@ -193,13 +193,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
     [self pauseUIUpdateTimer];
-    // Read from the playlist before advanceAtTrackEnd, whose play is async:
-    // the player still reads Stopped after an ordinary advance. Under Pause nothing has
-    // spliced, since successorPrefetchTrack parked nothing; this second read
-    // of the setting is load-bearing because it decides from the playlist.
-    BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(
-            self.playlistController.trackEndSuccessor != nil, AppSettings.sharedInstance.pauseAtTrackEnd)
-            && [self.playlistController advanceAtTrackEnd];
+    // The playlist decides, On track end = Pause included. Its play is async,
+    // so the player still reads Stopped after an ordinary advance.
+    BOOL advances = [self.playlistController advanceAtTrackEnd];
     // Advancing, the cached duration must survive the Loading gap.
     if (!advances) {
         _currentTrackDuration = 0;

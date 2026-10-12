@@ -137,12 +137,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The successor prefetch
 
-// The track every prefetch site parks: the next track, or nil past the end or
-// under On track end = Pause. The audio half of that setting: with nothing
-// parked nothing splices, and didFinishPlaying: re-reads it to park.
-- (nullable AudioTrack *)successorPrefetchTrack;
-// Re-parks it, except while Stopped. Every site but a track start goes through
-// this.
+// Re-parks the playlist's trackEndSuccessor, except while Stopped. Every site
+// but a track start goes through this.
 - (void)prefetchSuccessor;
 
 #pragma mark - Saving the playlist

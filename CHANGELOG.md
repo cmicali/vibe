@@ -13,6 +13,7 @@
 * mac: Improved the pitch fader: cleaner sound, and it glides instead of stepping
 * mac: Added Cut and Paste to the Edit menu
 * mac: Fixed the resize cursor sometimes not showing at the window's right edge
+* Changed Previous on the first song to restart it, on the Mac, in Control Center and on the Lock Screen
 * Added the vibe theme track, which loads on the first launch
 * ios: Added small waveform widgets, a large widget, and Lock Screen widgets
 * ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors

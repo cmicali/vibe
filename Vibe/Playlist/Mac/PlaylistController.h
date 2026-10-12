@@ -86,7 +86,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)previous;
 
 // Playlist's transport modes, pushed in by the shell's end-of-track apply.
-- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled;
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled
+        pauseAtTrackEnd:(BOOL)pauseAtTrackEnd;
 
 // Playlist's: what follows a track that plays out, or nil to park.
 - (nullable AudioTrack *)trackEndSuccessor;

@@ -830,7 +830,11 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 - (IBAction)previous:(nullable id)sender {
-    [self.playlistController previous];   // refresh rides the funnel; see next:
+    // Refresh rides the funnel; see next:. On the first row, Previous restarts
+    // the loaded track (VibePlaybackPreviousIsAvailable).
+    if (![self.playlistController previous] && !self.audioPlayer.isStopped) {
+        [self.audioPlayer seekToPosition:0];
+    }
 }
 
 - (IBAction)playSelectedTrack:(nullable id)sender {
@@ -1057,15 +1061,6 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
-- (AudioTrack *)successorPrefetchTrack {
-    AudioTrack *successor = self.playlistController.trackEndSuccessor;
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
-                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
-        return nil;
-    }
-    return successor;
-}
-
 // TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
 // file, and re-parking its successor after a list edit or a mode change would
 // open one. On a cloud folder that is an unasked download. A new play
@@ -1074,13 +1069,14 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     if (self.audioPlayer.isStopped) {
         return;
     }
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
 }
 
 // The model and the system's controls, which show the same modes.
 - (void)pushTransportModesToPlaylist {
     AppSettings *settings = AppSettings.sharedInstance;
-    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled];
+    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled
+                           pauseAtTrackEnd:settings.pauseAtTrackEnd];
     [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
                                          repeatMode:settings.repeatMode
                                           available:YES];

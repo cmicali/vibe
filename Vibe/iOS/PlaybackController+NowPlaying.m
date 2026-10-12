@@ -11,6 +11,7 @@
 #import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
+#import "PlaybackDeliveryRules.h"
 #import "WidgetPublisher.h"
 
 // Held once: the publisher's dirty check compares artwork by identity, and
@@ -55,7 +56,8 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
                            state:state
                             rate:_player.isBuffering ? 0.0 : 1.0
                          hasNext:_playlist.hasNextTrack
-                     hasPrevious:_playlist.hasPreviousTrack];
+                     hasPrevious:VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack,
+                                                                 _playlist.currentTrack != nil, _player.isStopped)];
     [_widgetPublisher updateWithTrack:track
                              position:position
                              duration:duration

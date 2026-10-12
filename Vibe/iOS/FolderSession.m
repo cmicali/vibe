@@ -177,10 +177,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // its siblings are dropped here before they can park as waiters (seconds
     // on a cold provider). A token one below the live promoted generation is
     // still the user's; a real replace or a clear bumps past it.
-    BOOL supersededByOwnPromotion = _promotedOpenIntentGeneration != 0
-            && token + 1 == _promotedOpenIntentGeneration
-            && [self isCurrentOpenIntent:_promotedOpenIntentGeneration];
-    if (![self isCurrentOpenIntent:token] && !supersededByOwnPromotion) {
+    if (!VibeFolderSessionAddTokenIsCurrent(token, [self addRequestToken],
+                                            _promotedOpenIntentGeneration)) {
         LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
         return;
     }
@@ -245,9 +243,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     uint64_t openIntentGeneration = [self beginOpenIntent];
     // An empty open's settle, as finishOpenIntent: makes it: without the carry,
     // every later Add is captured at a generation nothing landed.
-    if (_landedOpenIntentGeneration != 0) {
-        _landedOpenIntentGeneration = openIntentGeneration;
-    }
+    _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
+            _landedOpenIntentGeneration, openIntentGeneration);
     [self releaseAddWaitersAfterSettle];
 }
 
@@ -1018,23 +1015,22 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // captured at a generation nothing landed and Add is dead for the
         // session. Zero stays zero, so an Add is still promoted, and an append
         // carries nothing.
-        if (!appending && _landedOpenIntentGeneration != 0) {
-            _landedOpenIntentGeneration = openIntentGeneration;
-        }
         if (appending) {
             // Delivered empty, never dropped: whoever asked is waiting to
             // hear how it landed, and nothing else will tell them.
             LogInfo(@"FolderSession: nothing to append");
             [self.delegate folderSession:self didAppendTracks:@[]];
         }
-        else if (restored) {
-            [self.delegate folderSessionRestoreDidFail:self];
-        }
         else {
-            [self.delegate folderSessionDidOpenEmptyFolder:self];
-        }
-        // Replayed, not left hanging; the first promotes in its turn.
-        if (!appending) {
+            _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
+                    _landedOpenIntentGeneration, openIntentGeneration);
+            if (restored) {
+                [self.delegate folderSessionRestoreDidFail:self];
+            }
+            else {
+                [self.delegate folderSessionDidOpenEmptyFolder:self];
+            }
+            // Replayed, not left hanging; the first promotes in its turn.
             [self releaseAddWaitersAfterSettle];
         }
         return YES;

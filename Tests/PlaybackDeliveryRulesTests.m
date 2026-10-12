@@ -5,44 +5,21 @@
 
 #import <XCTest/XCTest.h>
 #import "PlaybackDeliveryRules.h"
-#import "Playlist.h"
-#import "AppSettings+Mac.h"
+#import "AudioTrack.h"
 
 @interface PlaybackDeliveryRulesTests : XCTestCase
 @end
 
 @implementation PlaybackDeliveryRulesTests
 
-- (void)testTrackEndSettingAndPlaylistBoundaryChooseAdvanceOrPark {
-    Playlist *playlist = [Playlist new];
-    [playlist replaceAllWithTracks:@[[AudioTrack withURL:[NSURL fileURLWithPath:@"/a.wav"]],
-                                     [AudioTrack withURL:[NSURL fileURLWithPath:@"/b.wav"]]]
-                   startingAtIndex:NSNotFound];
-    AppSettings *settings = AppSettings.sharedInstance;
-    [settings resetToDefaults];
-    @try {
-        XCTAssertTrue(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
-        settings.pauseAtTrackEnd = YES;
-        XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
-        [playlist next];
-        for (NSNumber *pause in @[@NO, @YES]) {
-            settings.pauseAtTrackEnd = pause.boolValue;
-            XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
-        }
-        // Repeat gives the last row a successor; Pause still outranks it.
-        for (NSNumber *mode in @[@(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
-            playlist.repeatMode = mode.integerValue;
-            settings.pauseAtTrackEnd = NO;
-            XCTAssertTrue(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
-            settings.pauseAtTrackEnd = YES;
-            XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
-        }
-        [playlist clear];
-        settings.pauseAtTrackEnd = NO;
-        XCTAssertFalse(VibePlaybackShouldAdvanceAtTrackEnd(playlist.trackEndSuccessor != nil, settings.pauseAtTrackEnd));
-    } @finally {
-        [settings resetToDefaults];
-    }
+// On the first row, Previous restarts a loaded track. With nothing loaded
+// there is nothing to restart, even before an asynchronous stop lands.
+- (void)testPreviousIsAvailableOnTheFirstRowOnlyWithATrackLoaded {
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, YES, YES));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, YES, NO));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(NO, YES, NO));
+    XCTAssertFalse(VibePlaybackPreviousIsAvailable(NO, YES, YES));
+    XCTAssertFalse(VibePlaybackPreviousIsAvailable(NO, NO, NO), @"a close whose stop has not landed");
 }
 
 - (void)testSeekSettlementMatchesRowsAndAcceptsEmptyOnlyWhileStopped {

@@ -660,9 +660,11 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return moved;
 }
 
-- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled {
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled
+        pauseAtTrackEnd:(BOOL)pauseAtTrackEnd {
     _model.repeatMode = repeatMode;
     _model.shuffleEnabled = shuffleEnabled;
+    _model.pauseAtTrackEnd = pauseAtTrackEnd;
 }
 
 - (AudioTrack *)trackEndSuccessor {

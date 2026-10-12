@@ -26,7 +26,7 @@
 **The model is the one home of "what comes next".** Each shell pushes the modes in from `AppSettings`. The model reads no setting, which is why `RepeatMode.h` is in `Common/`. There are two answers, because under Repeat One a skip and a track end differ:
 
 - **`nextTrack`** is where Next lands: the next row, or under shuffle the next entry of the play order. It wraps under Repeat All and is nil at the boundary. `hasNextTrack` is its presence.
-- **`trackEndSuccessor`** is what follows a track that plays out: the current track under Repeat One, `nextTrack` otherwise. `advanceAtTrackEnd` moves to it.
+- **`trackEndSuccessor`** is what follows a track that plays out. It is nil under `pauseAtTrackEnd`, the current track under Repeat One, and `nextTrack` otherwise. `advanceAtTrackEnd` moves to it, and moves nothing when it is nil.
 
 Previous never wraps.
 

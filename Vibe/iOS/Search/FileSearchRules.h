@@ -5,8 +5,8 @@
 //  What a query matches, for both of the search screen's sections, which must
 //  agree where they overlap. Then the Files tab's decisions: the root's rows,
 //  what Recents names, which open the next launch restores, and which links a
-//  launch keeps. Header-only and Foundation-only so the macOS suite can test
-//  it.
+//  launch keeps. Last, two of FolderSession's open-intent rules. Header-only
+//  and Foundation-only so the macOS suite can test it.
 //
 
 #ifndef FileSearchRules_h
@@ -208,6 +208,34 @@ static inline BOOL VibeFolderSessionPersistsBase(BOOL keepsSessionBookmark,
         return NO;
     }
     return openedFolder || baseIsLink || !persistedBaseIsFolder;
+}
+
+#pragma mark - The open intent
+
+// A replace bumps openIntentGeneration and an Add captures it as its token.
+// The landed generation is the last settled replace's, and zero while nothing
+// has landed. FolderSession holds the state.
+
+// Whether an Add may still land, from the token taken when the user asked. A
+// token one below the live promoted generation is a promoted sibling's, so it
+// is still the user's. A real replace or a clear bumps past it.
+static inline BOOL VibeFolderSessionAddTokenIsCurrent(uint64_t token,
+                                                      uint64_t openIntentGeneration,
+                                                      uint64_t promotedOpenIntentGeneration) {
+    if (token == openIntentGeneration) {
+        return YES;
+    }
+    return promotedOpenIntentGeneration != 0
+            && token + 1 == promotedOpenIntentGeneration
+            && openIntentGeneration == promotedOpenIntentGeneration;
+}
+
+// The landed generation after a replace settles empty or is cancelled. The
+// playlist left standing answers for it, so a later Add captures a generation
+// that landed. Zero stays zero, so the next Add is still promoted.
+static inline uint64_t VibeFolderSessionCarriedOpenIntentGeneration(uint64_t landedOpenIntentGeneration,
+                                                                    uint64_t openIntentGeneration) {
+    return landedOpenIntentGeneration != 0 ? openIntentGeneration : 0;
 }
 
 NS_ASSUME_NONNULL_END
