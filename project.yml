@@ -827,8 +827,8 @@ targets:
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
-      - path: Vibe/iOS/Dropbox/DropboxClient.m
-      - path: Vibe/iOS/Dropbox/DropboxMirror.m
+      - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
+      - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
@@ -879,6 +879,7 @@ targets:
           - "$(SRCROOT)/Vibe/NowPlaying"
           - "$(SRCROOT)/Vibe/Loading"
           - "$(SRCROOT)/Vibe/Loading/Net"
+          - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
@@ -909,7 +910,6 @@ targets:
           # screen's state machine is testable here. The iOS sources compiled in
           # above are Foundation-only too.
           - "$(SRCROOT)/Vibe/iOS"
-          - "$(SRCROOT)/Vibe/iOS/Dropbox"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform

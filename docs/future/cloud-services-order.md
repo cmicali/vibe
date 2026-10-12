@@ -1,6 +1,6 @@
 # Future: which cloud file services to handle next, in order
 
-**Status: Partly built.** Items 1, 2 and 3 are partly built, and each links to its plan's remaining part. Items 4 and 5 are not built. Current behavior is in `Vibe/iOS/Dropbox/AGENTS.md`, `Vibe/Loading/AGENTS.md` and `Vibe/Loading/Net/AGENTS.md`.
+**Status: Partly built.** Items 1, 2 and 3 are partly built, and each links to its plan's remaining part. Items 4 and 5 are not built. Current behavior is in `Vibe/Loading/iOS/Dropbox/AGENTS.md`, `Vibe/Loading/AGENTS.md` and `Vibe/Loading/Net/AGENTS.md`.
 
 ## Where things stand
 

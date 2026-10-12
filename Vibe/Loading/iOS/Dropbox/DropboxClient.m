@@ -14,6 +14,8 @@
 NSErrorDomain const VibeDropboxErrorDomain = @"com.commonwealthrecordings.Vibe.Dropbox";
 NSNotificationName const VibeDropboxAccountDidChangeNotification =
         @"VibeDropboxAccountDidChangeNotification";
+NSString *const VibeDropboxKeychainService = @"com.commonwealthrecordings.Vibe.dropbox";
+NSString *const VibeDropboxAppKeyInfoKey = @"VibeDropboxAppKey";
 
 // An access token this close to its expiry is refreshed instead of used.
 static const NSTimeInterval kAccessTokenMargin = 60;

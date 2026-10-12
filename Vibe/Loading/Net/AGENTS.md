@@ -14,7 +14,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 | `LinkRules.h` | the address rule, the audio check, the names, the share-link rewrite that asks each host's file, what a drop or a paste opens, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
 | `DropboxLinkRules.h`, `GoogleDriveLinkRules.h`, `ICloudLinkRules.h` | one host's share links each: the rewrite, or iCloud's lookup, and what that host answers. No other link code names a host. Tested (`DropboxLinkRulesTests`, `GoogleDriveLinkRulesTests`, `ICloudLinkRulesTests`) |
 
-`DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store, and `LinkClient` the client (below).
+`DropboxClient` subclasses the client, and `DropboxMirror` subclasses the store (`../iOS/Dropbox/AGENTS.md`). `LinkStore` subclasses the store, and `LinkClient` the client (below).
 
 **TRAP: a subclass's internal header imports `HTTPTransferClientInternal.h` and never redeclares its seams** (`DropboxClientInternal.h`). A redeclaration that cannot see the base's gets an ivar of its own. It starts at 0, not 1, and every retry wait would read it.
 

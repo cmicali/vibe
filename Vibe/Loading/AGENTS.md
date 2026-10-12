@@ -18,6 +18,7 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 | `CloudFileAvailability` | how much of a file is readable while a writer fetches it |
 | `NetworkReadAhead` | the read-ahead of a file on a network mount: its thread, its blocks, its retries and its orphans |
 | `Net/` | files the app fetches itself over HTTP. Its doc is `Net/AGENTS.md` |
+| `iOS/Dropbox/` | the Dropbox account and its local mirror. Only the iOS app compiles it. Its doc is `iOS/Dropbox/AGENTS.md` |
 
 The player's side of an open is `Audio/AGENTS.md`'s: the deadline, progress identity and prefetch. The sweep's retries against the foreground hold are `Audio/Metadata/AGENTS.md`'s. `docs/file-loading-spec.md` states the observable behavior across all of them. Three root `AGENTS.md` guarantees are implemented here: the foreground open outranks background downloads, the six-run handle ceiling, and a row shows the loading bar only while a transfer is running.
 

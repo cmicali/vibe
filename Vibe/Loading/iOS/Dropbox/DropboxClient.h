@@ -44,6 +44,11 @@ static inline NSError *VibeDropboxMakeError(VibeDropboxError code, NSString *des
 // Posted on main when the account is linked, unlinked or renamed.
 extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 
+// The app's Keychain service for the refresh token.
+extern NSString *const VibeDropboxKeychainService;
+// The Info.plist key that holds the app key.
+extern NSString *const VibeDropboxAppKeyInfoKey;
+
 @interface DropboxClient : HTTPTransferClient
 
 - (instancetype)init NS_UNAVAILABLE;
