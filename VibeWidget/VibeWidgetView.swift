@@ -34,6 +34,8 @@ import UIKit
 import WidgetKit
 
 private let kCornerRadius: CGFloat = 8
+// The scrubber's (kVibePlayheadLineWidth), the height of the strip.
+private let kPlayheadLineWidth: CGFloat = 2
 
 // Medium: the top row's height, and with it the artwork and the type that
 // fills it. Everything below this row is the waveform.
@@ -382,7 +384,9 @@ struct VibeWidgetView: View {
     // Two baked images, not a live draw: the app renders the current track's
     // envelope twice, once in each half of the waveform theme's palette, and
     // the played one is revealed to the playhead. That is what lets the
-    // playhead move without the app re-rendering anything per entry.
+    // playhead move without the app re-rendering anything per entry. Under a
+    // playhead line both images are the whole strip as played, and the line
+    // is drawn here, as the scrubber draws its own.
     //
     // On the Lock Screen the image is only a shape, which the system tints.
     // Both halves draw the PLAYED image, solid up to the playhead and dim after
@@ -407,6 +411,13 @@ struct VibeWidgetView: View {
                         .mask(alignment: .leading) {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }
+                }
+                if state?.playheadLine == true, entry.played != nil {
+                    Rectangle()
+                        .fill(.white)
+                        .frame(width: kPlayheadLineWidth)
+                        .offset(x: max(0, min(geometry.size.width - kPlayheadLineWidth,
+                                              geometry.size.width * progress - kPlayheadLineWidth / 2)))
                 }
                 if state != nil && !lockScreen {
                     seekZones

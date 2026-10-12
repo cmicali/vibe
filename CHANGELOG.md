@@ -16,6 +16,8 @@
 * Changed Previous on the first song to restart it, on the Mac, in Control Center and on the Lock Screen
 * Added the vibe theme track, which loads on the first launch
 * ios: Added small waveform widgets, a large widget, and Lock Screen widgets
+* ios: Improved the widget's playhead, which now keeps up on long tracks
+* ios: Added the widget's own waveform theme, colors, and playhead line, under its own style
 * ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
 * Added the Spectrum waveform style, colored by each moment's bass, mids and highs, in RGB, Blue, Green or Custom colors
 * ios: Added album art for songs in iCloud and Dropbox that are not downloaded
