@@ -11,8 +11,8 @@
 #   and prints their replies as one JSON array in order: a poll of six dumps
 #   costs one round trip, not six.
 # Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own
-# clientTimeout from the shared table (DebugCommonVerbs.m: clear_caches 20,
-# block_main and block_main_deep 30, file_cache 60), else 10.
+# clientTimeout from the shared tables (Vibe/Debug/Verbs/: clear_caches 20,
+# block_main and block_main_deep 30, file_cache and open_url 60), else 10.
 # VIBE_APP_TMP: the app container's tmp, resolved once by a caller that sends
 # many commands (`simctl get_app_container` is most of a round trip). Valid
 # only until the next install, which moves the container.
@@ -58,7 +58,7 @@ for verb in "${VERBS[@]}"; do
     case "$verb" in
         clear_caches) t=20 ;;
         block_main|block_main_deep) t=30 ;;
-        file_cache) t=60 ;;
+        file_cache|open_url) t=60 ;;
         *) t=10 ;;
     esac
     [ "$t" -le "$VERB_TIMEOUT" ] || VERB_TIMEOUT="$t"

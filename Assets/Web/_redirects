@@ -17,7 +17,7 @@
 /support   https://github.com/cmicali/vibe/issues   301
 /support/  https://github.com/cmicali/vibe/issues   301
 
-# The target names a version, so scripts/web-set-version.sh rewrites these
+# The target names a version, so scripts/web/web-set-version.sh rewrites these
 # three lines at release time from the same URL it writes into the page's
 # Download button — one source, so the branded link and the button can never
 # name different builds. GitHub's own /releases/latest/download shortcut

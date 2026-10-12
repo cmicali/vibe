@@ -8,7 +8,11 @@
 
 #import "VibeBenchComponents.h"
 
-#import "AudioTrackArtworkInternal.h"
+#if __has_include("AudioTrackArtworkInternal.h")
+#import "AudioTrackArtworkInternal.h" // its name before it became the class's only header
+#else
+#import "AudioTrackArtwork.h"
+#endif
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
 

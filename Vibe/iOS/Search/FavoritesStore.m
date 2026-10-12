@@ -6,7 +6,7 @@
 #import "FavoritesStore.h"
 
 #import "FileSearchRules.h"
-#import "SearchFolderStore.h"
+#import "LocationStore.h"
 
 NSNotificationName const VibeFavoritesDidChangeNotification =
         @"VibeFavoritesDidChangeNotification";
@@ -158,11 +158,11 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     if (path.length == 0 || !bookmark || [self indexOfPath:path] != NSNotFound) {
         return;
     }
-    NSString *name = [SearchFolderStore displayNameForFolderURL:url];
+    NSString *name = [LocationStore displayNameForFolderURL:url];
     NSURL *parent = url.URLByStandardizingPath.URLByDeletingLastPathComponent;
     // Empty rather than "/": the row drops its second line.
     NSString *location = parent.path.length > 1
-            ? [SearchFolderStore displayNameForFolderURL:parent]
+            ? [LocationStore displayNameForFolderURL:parent]
             : @"";
     FavoriteFolder *favorite = [[FavoriteFolder alloc] initWithName:name location:location
                                                                path:path bookmark:bookmark];
@@ -314,7 +314,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     }];
 }
 
-// No refcounted grant, unlike SearchFolderStore: FolderSession always takes a
+// No refcounted grant, unlike LocationStore: FolderSession always takes a
 // hold of its OWN, so dropping this scope cannot strand a playlist.
 - (void)releaseScopeForFavorite:(FavoriteFolder *)favorite {
     // A resolve in flight checks membership and releases its own hold.

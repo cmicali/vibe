@@ -1,6 +1,6 @@
 # Transport: bare keys, skips and FX toggles
 
-`TransportKeyMonitor` handles the keys. `MainPlayerController+Transport` is the skips and the five effect setters. `TransportMath.h` is the skip arithmetic, tested. The controller is `../AGENTS.md`, and the menu twins are `Mac/Menu/AGENTS.md`.
+`TransportKeyMonitor` handles the keys. `MainPlayerController+Transport` is the skips and the five effect setters. It also holds shuffle, repeat and On track end, the successor prefetch, the pitch fader, the volume slider and the waveform's seek. `TransportMath.h` is the skip arithmetic, tested. The controller is `../AGENTS.md`, and the menu twins are `Mac/Menu/AGENTS.md`.
 
 ## Keys
 
@@ -26,7 +26,7 @@ Every command but the effect keys goes through `performMenuCommandWithIdentifier
 
 ## FX toggles
 
-**The FX keys act only while this run has an `AudioFX` controls object and `AppSettings.audioFXAllowed` is true** (the FX setting, with bit-perfect output outranking it). Turning the setting off clears all five live states and stops the keys at once. The player disconnects the FX segment in the same output-stopped rebuild. The menu builder drops the fallback equivalents, and validation disables the items. **The five effect setters are the single funnel** for menus, keys and debug commands. Each calls `updateFXIndicators`, which re-reads the live `AudioFX` flags rather than the caller's intent. The codec line is the indicator (`../APPEARANCE.md`).
+**The FX keys act only while this run has an `AudioFX` controls object and `AppSettings.audioFXAllowed` is true** (the FX setting, with bit-perfect output outranking it). Turning the setting off clears all five live states and stops the keys at once. The player disconnects the FX segment in the same output-stopped rebuild. The menu builder drops the fallback equivalents, and validation disables the items. **The five effect setters are the single funnel** for menus, keys and debug commands. Each calls `updateFXIndicators`, which re-reads the live `AudioFX` flags rather than the caller's intent. The codec line is the indicator (`../LAYOUT.md`).
 
 ## Skips
 

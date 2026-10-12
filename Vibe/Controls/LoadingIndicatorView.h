@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The row gutter's host for LoadingIndicator's row style: the small loading
-//  bar a playlist or library row shows while a provider transfer is really
+//  bar a playlist row shows while a provider transfer is really
 //  running for its file. SHARED for the same reason EqualizerIndicatorView is
 //  — the bar is the app's transferring marker and both platforms draw the
 //  same one in the same 16pt number gutter. Only the superclass, the layout

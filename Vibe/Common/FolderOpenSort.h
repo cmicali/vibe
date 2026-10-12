@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  The order a folder's tracks land in the playlist when the user opens it.
-//  Its own header because Util/NSURLUtil takes it as a walk parameter and may
-//  not import a setting.
+//  Its own header because FolderWalk takes it as a walk parameter and may not
+//  import a setting.
 //
 
 #import <Foundation/Foundation.h>

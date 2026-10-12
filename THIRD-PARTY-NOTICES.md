@@ -12,8 +12,8 @@ ships only inside the direct-download Mac app.
 | --- | --- | --- |
 | TagLib | `Vibe/ThirdParty/taglib/` | Mozilla Public License 1.1 (see the election below) |
 | UTF8-CPP | `Vibe/ThirdParty/taglib/toolkit/utf8-cpp.*` | Boost-style permissive |
-| PINCache | `Vibe/ThirdParty/PINCache/` | Apache License 2.0 |
-| PINOperation | `Vibe/ThirdParty/PINOperation/` | Apache License 2.0 |
+| PINCache | `Vibe/ThirdParty/PINCache/` | Apache License 2.0; modified |
+| PINOperation | `Vibe/ThirdParty/PINOperation/` | Apache License 2.0; modified |
 | r8brain-free-src | `Vibe/ThirdParty/r8brain/` | MIT |
 | PFFFT (double) | `Vibe/ThirdParty/r8brain/fft/` | FFTPACK (BSD-style) |
 | dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
@@ -69,7 +69,9 @@ Licensed under the Apache License, Version 2.0. The full text ships with each
 component, at `Vibe/ThirdParty/PINCache/LICENSE.txt` and
 `Vibe/ThirdParty/PINOperation/LICENSE.txt`. Neither upstream project ships a
 `NOTICE` file, so no additional attribution text is required beyond this
-entry.
+entry. Vibe modifies `PINCache/PINDiskCache.m` and
+`PINOperation/PINOperationQueue.m`. Each change is marked `Vibe:` in its file
+(`Vibe/ThirdParty/AGENTS.md`).
 
 Because Vibe is itself Apache 2.0, these two impose no obligation the project's
 own license does not already carry.

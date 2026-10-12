@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // VibeDominantColorOfImage (PlatformImage.h), memoized on the image: the pager
 // reconfigures a page on every reuse, and re-sampling would rasterize on the
-// swipe. The memo dies with the image. nil is not memoized.
+// swipe. The memo dies with the image. nil is memoized too.
 @property (nonatomic, readonly, nullable) UIColor *vibeDominantColor;
 
 @end

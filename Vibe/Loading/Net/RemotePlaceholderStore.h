@@ -4,9 +4,9 @@
 //
 //  Remote files kept as local placeholders under one root, so everything
 //  that plays, tags, waveforms, and caches a file works on them unchanged. A
-//  placeholder is NSURLUtil's remote placeholder: the real size and mtime,
-//  no readable bytes. Playing one downloads it through CloudFileMaterializer's
-//  remote fetch, which is fetchPlaceholderAtURL:… here, and the bytes replace
+//  placeholder is PlaceholderFiles' remote placeholder: the real size and
+//  mtime, no readable bytes. Playing one downloads it through
+//  CloudFileMaterializer's remote fetch, which is fetchPlaceholderAtURL:… here, and the bytes replace
 //  it. The part file they stream into is readable meanwhile. Tags are read by
 //  range. Past the download budget the oldest downloads go back to
 //  placeholders.

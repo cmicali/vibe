@@ -50,7 +50,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from stress import AUDIO_SUFFIXES  # noqa: E402
 
-EMBEDDED_MINIMUM = 100 * 1024 * 1024    # NSURLUtil's kVibeEmbeddedCueMinimumBytes
+EMBEDDED_MINIMUM = 100 * 1024 * 1024    # FolderWalk's kVibeEmbeddedCueMinimumBytes
 CD_FRAMES = 75
 
 

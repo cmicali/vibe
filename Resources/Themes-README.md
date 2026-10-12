@@ -7,14 +7,14 @@ Every `<identifier>.json` in `Resources/Themes/` ships in the mac app as a read-
 1. Design the theme in the app: Settings > Themes > Add > New Theme, then edit it.
 2. Export it with the Export… button. A debug build can also print it: `Vibe --debug-cmd dump_theme <your-theme-name>`.
 3. Rename the file to its identifier (`my_theme.json`) and put it in `Resources/Themes/`. Set `name` to the display name you want.
-4. Add the identifier to `testBuiltInIdentifiers` in `Tests/AppThemeTests.m`. The order is `vibe` first, then alphabetical. The list keeps a dropped or renamed file loud.
+4. Add the identifier to `testBuiltInIdentifiers` in `Tests/Common/AppThemeTests.m`. The order is `vibe` first, then alphabetical. The list keeps a dropped or renamed file loud.
 5. Open a pull request. CI's `make test` validates every file here.
 
 ## File format
 
 `version` is `kVibeThemeRecordVersion` (currently 2). Then come `name`, an optional `description` that the app ignores, and one object per group. The groups are `window`, `player`, `info`, `volume`, `waveform` and `playlist`, in that order. Each holds only the fields the theme changes from the factory look. A missing field or a missing group means the default.
 
-Keys are local to their group (`window.cornerRadius`, `waveform.style`, `playlist.durationFontFace`). The full set is `FieldSpecs()` in `Vibe/Common/Mac/Theme/AppTheme.m`. Colors are `#RRGGBB[AA]`, with a `…Dark`/`…Light` suffix per appearance. A theme with `"window": {"mode": "single"}` uses only the `…Dark` slots.
+Keys are local to their group (`window.cornerRadius`, `waveform.style`, `playlist.durationFontFace`). The full set is `VibeThemeFieldSpecs()` in `Vibe/Common/Mac/Theme/AppTheme.m`. Colors are `#RRGGBB[AA]`, with a `…Dark`/`…Light` suffix per appearance. A theme with `"window": {"mode": "single"}` uses only the `…Dark` slots.
 
 **`testBundledThemesAreValid` is the gate.** The app's import silently drops a typo'd key or a malformed color. The test fails any file whose keys or values would not survive the sanitizer unchanged. A built-in that sets a corner radius must also set `window.customCornerRadius` to `true`, or the round trip fails.
 

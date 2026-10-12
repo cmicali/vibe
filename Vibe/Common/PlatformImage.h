@@ -27,6 +27,11 @@ FOUNDATION_EXPORT const CGFloat kVibeArchivedDisplayArtDimension;
 // nil for nil or undecodable data. 10-100ms, so keep it off the main thread.
 FOUNDATION_EXPORT VibeImage *_Nullable VibeDecodedImageWithData(NSData *_Nullable data, CGFloat maxPixelSize);
 
+// PNG for alpha-bearing art, which JPEG would flatten; JPEG otherwise, far
+// smaller for photos. ImageIO sniffs either on decode. nil when the image
+// cannot be encoded.
+FOUNDATION_EXPORT NSData *_Nullable VibeEncodedImageData(VibeImage *image);
+
 // The pixel size from the container header alone; CGSizeZero for nil or
 // undecodable data.
 FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);

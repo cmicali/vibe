@@ -32,10 +32,10 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null
 open -a "Device Hub" 2>/dev/null || true
 
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-# Unconditional, a live drive-ios.sh session included: install-ios.sh installs
+# Unconditional, a live drive-ios.sh session included: sim-install.sh installs
 # only when the content differs, and skipping it leaves gestures silently
 # running against the previous build.
-VIBE_IOS_APP="$APP" "$DIR/install-ios.sh" "$UDID"
+VIBE_IOS_APP="$APP" "$DIR/sim-install.sh" "$UDID"
 
 if [ "$#" -gt 0 ]; then
     DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"

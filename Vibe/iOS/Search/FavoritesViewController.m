@@ -6,11 +6,14 @@
 #import "FavoritesViewController.h"
 
 #import "AppSettings.h"
-#import "BrowserViewController.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
+#import "FileRow.h"
 #import "PlaybackController.h"
-#import "NSURLUtil.h"
+#import "PlaybackController+ReplacePrompt.h"
+#import "FilePaths.h"
+#import "FolderWalk.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
 static NSString *const kFavoriteCellIdentifier = @"favorite";
@@ -98,9 +101,9 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     content.text = favorite.name;
     // Nil, not empty, so the row draws one line.
     content.secondaryText = favorite.location.length > 0 ? favorite.location : nil;
-    VibeApplyFileNameStyle(content);
-    VibeApplyFileIcon(content, nil, YES, nil);
-    VibeApplyRowContent(cell, content, [self favoriteIsOpening:favorite]);
+    [content vibeApplyFileNameStyle];
+    [content vibeApplyFileIconForName:nil folder:YES art:nil];
+    [cell vibeApplyRowContent:content opening:[self favoriteIsOpening:favorite]];
     return cell;
 }
 
@@ -186,13 +189,6 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     return [VibeComparablePath(favorite.path) isEqualToString:_playback.openingPath];
 }
 
-- (void)playbackDidChangeOpening:(PlaybackController *)playback {
-    if (self.viewIfLoaded.window) {
-        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
-                              withRowAnimation:UITableViewRowAnimationNone];
-    }
-}
-
 // The one opening path for the tap and every row action.
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
     // The token is taken HERE, before the resolve: an Add outliving a replace
@@ -240,7 +236,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray<NSURL *> *audio = @[];
-            [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL playlists:NULL audio:&audio];
+            [FolderWalk listDirectory:folderURL sortedBy:sort folders:NULL playlists:NULL audio:&audio];
             dispatch_async(dispatch_get_main_queue(), ^{
                 FavoritesViewController *strongSelf = weakSelf;
                 if (audio.count > 0) {
@@ -258,13 +254,21 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 }
 
 - (void)playFolderURL:(NSURL *)folderURL token:(uint64_t)token {
-    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:@[folderURL] inFolder:NO
-                                                token:token];
+    [_playback confirmReplacingPlaylistFrom:self openingURLs:@[folderURL] inFolder:NO token:token];
 }
 
 // The row stays: a signed-out provider or an unmounted volume is temporary.
 - (void)showUnavailableAlertForFavorite:(FavoriteFolder *)favorite {
-    VibePresentAlert(self, favorite.name, STR_ERROR_FAVORITE_UNAVAILABLE);
+    [self vibePresentAlertWithTitle:favorite.name message:STR_ERROR_FAVORITE_UNAVAILABLE];
+}
+
+#pragma mark - PlaybackObserver
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
 }
 
 @end

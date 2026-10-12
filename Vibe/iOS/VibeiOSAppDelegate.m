@@ -9,7 +9,7 @@
 #import "LinkStore.h"
 #import "NSBundle+BuildInfo.h"
 #if DEBUG
-#import "DebugCommands.h"
+#import "DebugiOSEntry.h"
 #endif
 
 @implementation VibeiOSAppDelegate

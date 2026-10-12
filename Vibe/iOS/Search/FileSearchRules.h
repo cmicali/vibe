@@ -3,10 +3,9 @@
 //  Vibe (iOS)
 //
 //  What a query matches, for both of the search screen's sections, which must
-//  agree where they overlap. Then the Files tab's decisions: the root's rows,
-//  what Recents names, which open the next launch restores, and which links a
-//  launch keeps. Last, two of FolderSession's open-intent rules. Header-only
-//  and Foundation-only so the macOS suite can test it.
+//  agree where they overlap. Then which root covers a path, for the search
+//  walk and LocationStore's merge. Header-only and Foundation-only so the
+//  macOS suite can test it.
 //
 
 #ifndef FileSearchRules_h
@@ -75,7 +74,7 @@ static inline BOOL VibeSearchRootCoversPath(NSString *rootPath, NSString *path) 
     return [pathPrefix hasPrefix:rootPrefix];
 }
 
-// SearchFolderStore's merge keeps roots minimal: an existing ancestor absorbs a
+// LocationStore's merge keeps roots minimal: an existing ancestor absorbs a
 // candidate (an exact duplicate included), and a candidate ancestor removes
 // every descendant.
 static inline NSUInteger VibeSearchFolderCoveringRootIndex(
@@ -108,134 +107,6 @@ static inline BOOL VibeSearchPendingRestoreShouldBeSuppressed(
         NSString *resolvedPath) {
     return VibeSearchFolderCoveringRootIndex(suppressedRootPaths, resolvedPath) != NSNotFound
             && VibeSearchFolderCoveringRootIndex(liveRootPaths, resolvedPath) == NSNotFound;
-}
-
-#pragma mark - The root's rows
-
-typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
-    VibeBrowserRootSectionLocations = 0,
-    // Its own group: a place to go back to, not a place files live.
-    VibeBrowserRootSectionRecents,
-    VibeBrowserRootSectionActions,
-    VibeBrowserRootSectionCount,
-};
-
-typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
-    VibeBrowserRootRowDevice = 0,
-    VibeBrowserRootRowDropbox,
-    VibeBrowserRootRowLocation,
-    VibeBrowserRootRowRecents,
-    VibeBrowserRootRowChooseFile,
-    VibeBrowserRootRowOpenURL,
-    VibeBrowserRootRowPasteURL,
-};
-
-// The rows of one root section. Locations: the device, Dropbox once linked,
-// then the granted folders in the store's order. Recents, alone. Actions:
-// Choose File… and Open URL…. The paste row follows Open URL… only while the
-// clipboard probably holds a web link. Adding a location is the bar's plus.
-static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection section,
-                                                       BOOL dropboxLinked,
-                                                       NSUInteger locations,
-                                                       BOOL clipboardHasLink) {
-    if (section == VibeBrowserRootSectionLocations) {
-        NSMutableArray<NSNumber *> *rows = [NSMutableArray arrayWithObject:@(VibeBrowserRootRowDevice)];
-        if (dropboxLinked) {
-            [rows addObject:@(VibeBrowserRootRowDropbox)];
-        }
-        for (NSUInteger i = 0; i < locations; i++) {
-            [rows addObject:@(VibeBrowserRootRowLocation)];
-        }
-        return rows;
-    }
-    if (section == VibeBrowserRootSectionRecents) {
-        return @[@(VibeBrowserRootRowRecents)];
-    }
-    if (section != VibeBrowserRootSectionActions) {
-        return @[];
-    }
-    return clipboardHasLink
-            ? @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)]
-            : @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL)];
-}
-
-// A Location row's index in SearchFolderStore, or NSNotFound for any other
-// row. The folders follow the device and, once linked, Dropbox.
-static inline NSUInteger VibeBrowserRootLocationIndex(VibeBrowserRootSection section,
-                                                      NSUInteger row,
-                                                      BOOL dropboxLinked,
-                                                      NSUInteger locations) {
-    NSUInteger first = dropboxLinked ? 2 : 1;
-    if (section != VibeBrowserRootSectionLocations || row < first || row - first >= locations) {
-        return NSNotFound;
-    }
-    return row - first;
-}
-
-#pragma mark - Recents
-
-// The recents' file URLs, from the paths they recorded. A launch's pruning
-// keeps every link these name.
-// TRAP: never fileURLWithPath: alone. It stats the path, and a recent on an
-// unreachable SMB share then holds main for the connect's 30 s timeout.
-static inline NSArray<NSURL *> *VibeRecentItemURLs(NSArray *items) {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (id item in items) {
-        NSDictionary *entry = [item isKindOfClass:NSDictionary.class] ? item : nil;
-        id path = entry[@"path"];
-        if ([path isKindOfClass:NSString.class] && [path length] > 0) {
-            id folder = entry[@"folder"];
-            BOOL isFolder = [folder isKindOfClass:NSNumber.class] && [folder boolValue];
-            [urls addObject:[NSURL fileURLWithPath:path isDirectory:isFolder]];
-        }
-    }
-    return urls;
-}
-
-#pragma mark - The restored playlist
-
-// Whether an open's base becomes the bookmark the next launch restores. An
-// open strictly inside a one-off pick's grant keeps the session's. A one-file
-// open keeps a folder bookmark, whose grant reaches more than the file. A
-// link is the one exception. It needs no grant, a web address is the only
-// other way back to it, and the next launch restores it from its
-// placeholder. A mirror file opened alone keeps the folder bookmark.
-static inline BOOL VibeFolderSessionPersistsBase(BOOL keepsSessionBookmark,
-                                                 BOOL openedFolder,
-                                                 BOOL persistedBaseIsFolder,
-                                                 BOOL baseIsLink) {
-    if (keepsSessionBookmark) {
-        return NO;
-    }
-    return openedFolder || baseIsLink || !persistedBaseIsFolder;
-}
-
-#pragma mark - The open intent
-
-// A replace bumps openIntentGeneration and an Add captures it as its token.
-// The landed generation is the last settled replace's, and zero while nothing
-// has landed. FolderSession holds the state.
-
-// Whether an Add may still land, from the token taken when the user asked. A
-// token one below the live promoted generation is a promoted sibling's, so it
-// is still the user's. A real replace or a clear bumps past it.
-static inline BOOL VibeFolderSessionAddTokenIsCurrent(uint64_t token,
-                                                      uint64_t openIntentGeneration,
-                                                      uint64_t promotedOpenIntentGeneration) {
-    if (token == openIntentGeneration) {
-        return YES;
-    }
-    return promotedOpenIntentGeneration != 0
-            && token + 1 == promotedOpenIntentGeneration
-            && openIntentGeneration == promotedOpenIntentGeneration;
-}
-
-// The landed generation after a replace settles empty or is cancelled. The
-// playlist left standing answers for it, so a later Add captures a generation
-// that landed. Zero stays zero, so the next Add is still promoted.
-static inline uint64_t VibeFolderSessionCarriedOpenIntentGeneration(uint64_t landedOpenIntentGeneration,
-                                                                    uint64_t openIntentGeneration) {
-    return landedOpenIntentGeneration != 0 ? openIntentGeneration : 0;
 }
 
 NS_ASSUME_NONNULL_END
