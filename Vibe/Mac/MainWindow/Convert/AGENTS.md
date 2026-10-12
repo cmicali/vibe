@@ -12,6 +12,6 @@
 
 **One undo or redo may be in flight at a time.** The controller reads `AudioFileConverter.isUndoRedoInFlight` to disable both items and refuse the actions until the restore and trash chain settles. So rapid commands cannot interleave file moves against one mutable record. `AudioFileConverter.registerUndoForConversion:undoManager:swap:completion:` owns the shared inverse: register the opposite action at once, restore and verify, ask the shell to swap surviving rows, then dispose of the retired file (`Audio/Mac/Convert/AGENTS.md`). The shell supplies `swapConvertedTrack:toURL:` and the completion. The completion refreshes state, reports a failure, reveals a stranded Trash item and consumes the debug settlement handler.
 
-`AudioPlayer.getPlaybackIntent:forTrack:` captures the replay position and pause intent together on the player queue, including a seek made while the source is still Loading. A stopped or superseded row never starts playback. Playlist removal uses the same snapshot.
+`AudioPlayer.getPlaybackIntent:forTrack:` captures the replay position and pause intent together on the player queue, including a seek made while the source is still Loading. A stopped or superseded row never starts playback.
 
 Progress is the waveform's sweep. It is forwarded to `trackDisplay.setConvertSweepFraction:` **only while the converting track is `displayedTrack`**.
