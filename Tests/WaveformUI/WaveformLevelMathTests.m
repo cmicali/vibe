@@ -80,4 +80,14 @@ static float MeanSquareAtFraction(float fraction) {
     }
 }
 
+// The reach fades out as the bars get short: full up to the given count,
+// none from twice that.
+- (void)testWindowReachFadesOutAsBarsGetShort {
+    XCTAssertEqual(VibeWaveformWindowReach(2, 512), 1);
+    XCTAssertEqual(VibeWaveformWindowReach(512, 512), 1);
+    XCTAssertEqual(VibeWaveformWindowReach(768, 512), 0.5f);
+    XCTAssertEqual(VibeWaveformWindowReach(1024, 512), 0);
+    XCTAssertEqual(VibeWaveformWindowReach(8192, 512), 0);
+}
+
 @end
