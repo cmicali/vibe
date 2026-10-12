@@ -778,7 +778,7 @@ targets:
           - "**/*.md"
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
           - "BenchComponents/**"              # the component benchmarks, perf.py's tool
-          - "AudioPlayerRenderTests.m"         # VibeAudioTests' suite
+          - "AudioRender/**"                  # VibeAudioTests' suite
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -977,7 +977,7 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: Tests/AudioPlayerRenderTests.m
+      - path: Tests/AudioRender
       - path: Tests/TestFilesystemGuard.m
       - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
