@@ -10,13 +10,13 @@
 #import "MainPlayerController+Settings.h"
 #import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"
-#import "SettingsAppearanceViewController.h"
 #import "SettingsFilesViewController.h"
 #import "SettingsGeneralViewController.h"
 #import "SettingsPaneViewController.h"
 #import "SettingsPlaybackViewController.h"
 #import "SettingsShortcutsViewController.h"
 #import "SettingsSidebarController.h"
+#import "SettingsThemesViewController.h"
 #import "NSView+DarkMode.h"
 #import "VibeStrings.h"
 
@@ -241,7 +241,7 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     // Grouped in the sidebar by SidebarGroupStarts.
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
-    [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsThemesViewController alloc] initWithPlayerController:playerController],
                                   @"themes", STR_SETTINGS_THEMES_SECTION, @"paintpalette")];
     [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:SettingsGeneralPageAppearance],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"circle.lefthalf.filled")];
@@ -461,8 +461,8 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return [self tabItemWithIdentifier:@"themes"];
 }
 
-- (SettingsAppearanceViewController *)themesPane {
-    return (SettingsAppearanceViewController *)[self themesTabItem].viewController;
+- (SettingsThemesViewController *)themesPane {
+    return (SettingsThemesViewController *)[self themesTabItem].viewController;
 }
 
 - (SettingsGeneralViewController *)audioPane {
@@ -595,7 +595,7 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 
 - (void)updateNavigation {
     [self noteLocation];
-    SettingsAppearanceViewController *pane = [self themesPane];
+    SettingsThemesViewController *pane = [self themesPane];
     BOOL selected = [self themesPaneIsSelected];
     // The editor's page swap retitles the pane mid-view.
     NSInteger selectedIndex = _tabs.selectedTabViewItemIndex;
@@ -647,7 +647,7 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 }
 
 - (void)randomizeTheme:(NSSegmentedControl *)sender {
-    SettingsAppearanceViewController *pane = [self themesPane];
+    SettingsThemesViewController *pane = [self themesPane];
     switch (sender.selectedSegment) {
         case 0: [pane randomizeThemeSettings]; break;
         case 1: [pane randomizeThemeColors]; break;

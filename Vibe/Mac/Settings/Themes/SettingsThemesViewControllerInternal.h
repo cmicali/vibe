@@ -1,12 +1,12 @@
 //
-//  SettingsAppearanceViewControllerInternal.h
+//  SettingsThemesViewControllerInternal.h
 //  Vibe
 //
-//  Shared only between SettingsAppearanceViewController.m and its Editor
+//  Shared only between SettingsThemesViewController.m and its Editor
 //  category: the editor page's outlets and the list-side methods it calls.
 //
 
-#import "SettingsAppearanceViewController.h"
+#import "SettingsThemesViewController.h"
 #import "AppTheme.h"
 #import "MainPlayerController+Settings.h"
 
@@ -15,7 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Both pages' popups; a cap, not a size.
 static const CGFloat kAppearancePopUpWidth = 220;
 
-@interface SettingsAppearanceViewController () <NSTableViewDataSource, NSTableViewDelegate> {
+@interface SettingsThemesViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
     NSStackView *_editorStack;
     SettingsSectionView *_transportSection;
@@ -78,7 +78,7 @@ static const CGFloat kAppearancePopUpWidth = 220;
     VibeFontSlot _fontEditingSlot;
 }
 
-#pragma mark - Implemented in SettingsAppearanceViewController.m
+#pragma mark - Implemented in SettingsThemesViewController.m
 
 // The page swap, and the window title. The layout resolver ends with it.
 - (void)applyEditorVisibility;

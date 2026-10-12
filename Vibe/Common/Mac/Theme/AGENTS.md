@@ -1,6 +1,6 @@
 # AppTheme: the theme record
 
-The theme record. The store that holds it (the keys, `currentThemeDidChange`, undo, the image sweep) is `../AGENTS.md`'s. The editor is `Mac/Settings/Appearance/AGENTS.md`'s. Root `AGENTS.md`'s theme guarantee is stated here and in `../AGENTS.md`.
+The theme record. The store that holds it (the keys, `currentThemeDidChange`, undo, the image sweep) is `../AGENTS.md`'s. The editor is `Mac/Settings/Themes/AGENTS.md`'s. Root `AGENTS.md`'s theme guarantee is stated here and in `../AGENTS.md`.
 
 ## The guarantee
 
@@ -23,7 +23,7 @@ The theme record. The store that holds it (the keys, `currentThemeDidChange`, un
 
 ## What a theme is not
 
-**A theme is how the window looks, never what it shows.** The readouts are `AppSettings` (`Mac/Settings/Appearance/AGENTS.md`): time labels and remaining time, status icons, file info, BPM, key, key notation and Camelot colors. So are the playlist's number, artwork and duration columns, and the Dock tile. A theme switch must never hide what the user chose to see. Version-1 records carried these fields. A record or import still naming one drops it at the gate as an unknown key (`../AGENTS.md`, Migrations). **One exception is deliberate:** a theme whose volume slider is `always` shown in the top-right corner keeps the codec and BPM lines hidden, because the slider takes their place.
+**A theme is how the window looks, never what it shows.** The readouts are `AppSettings` (`Mac/Settings/Themes/AGENTS.md`): time labels and remaining time, status icons, file info, BPM, key, key notation and Camelot colors. So are the playlist's number, artwork and duration columns, and the Dock tile. A theme switch must never hide what the user chose to see. Version-1 records carried these fields. A record or import still naming one drops it at the gate as an unknown key (`../AGENTS.md`, Migrations). **One exception is deliberate:** a theme whose volume slider is `always` shown in the top-right corner keeps the codec and BPM lines hidden, because the slider takes their place.
 
 ## The built-ins
 

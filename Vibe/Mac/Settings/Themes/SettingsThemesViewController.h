@@ -1,11 +1,11 @@
 //
-//  SettingsAppearanceViewController.h
+//  SettingsThemesViewController.h
 //  Vibe
 //
 
 #import "SettingsPaneViewController.h"
 
-@interface SettingsAppearanceViewController : SettingsPaneViewController
+@interface SettingsThemesViewController : SettingsPaneViewController
 
 // The editor page, over the active theme. A built-in opens as it is and is
 // copied into a new theme by its first edit. The window's history drives it.

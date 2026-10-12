@@ -6,7 +6,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class MainPlayerController;
-@class SettingsAppearanceViewController;
+@class SettingsThemesViewController;
 @class SettingsGeneralViewController;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -17,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // audioPane answers nil unless that pane is on screen, so outside refreshes
 // cost nothing for a closed window; the pane catches up when it appears.
-- (nullable SettingsAppearanceViewController *)themesPane;
+- (nullable SettingsThemesViewController *)themesPane;
 - (nullable SettingsGeneralViewController *)audioPane;
 
 - (void)refreshSelectedPane;
@@ -46,7 +46,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)navigateForward:(BOOL)forward;
 
 // Edit > Undo's target while the window is key: the theme history on
-// Appearance, the selected pane's own undo stack elsewhere.
+// Themes, the selected pane's own undo stack elsewhere.
 - (IBAction)undo:(nullable id)sender;
 
 // Types query into the sidebar's search field, as a user would; answers the

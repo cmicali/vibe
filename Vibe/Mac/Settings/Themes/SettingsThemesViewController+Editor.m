@@ -1,10 +1,10 @@
 //
-//  SettingsAppearanceViewController+Editor.m
+//  SettingsThemesViewController+Editor.m
 //  Vibe
 //
 
-#import "SettingsAppearanceViewController+Editor.h"
-#import "SettingsAppearanceViewControllerInternal.h"
+#import "SettingsThemesViewController+Editor.h"
+#import "SettingsThemesViewControllerInternal.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -36,7 +36,7 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return [key isEqualToString:dark] || [key isEqualToString:light];
 }
 
-@implementation SettingsAppearanceViewController (Editor)
+@implementation SettingsThemesViewController (Editor)
 
 #pragma mark - Construction
 
