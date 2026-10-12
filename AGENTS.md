@@ -48,7 +48,7 @@ All of these run in CI (`.github/workflows/build.yml`).
 | `make test-summary` | Markdown pass/fail table from the last `make test`. |
 | `make analyze CONFIG=Release` | clang static analyzer over **both** app targets. Fails on any finding outside `ThirdParty/`. Findings depend on the configuration, and CI checks Release. |
 | `make check-layout` | The layout rule below. |
-| `make check-vocabulary` | The mechanical vocabulary rules below. |
+| `make check-vocabulary` | The mechanical vocabulary rules below, and no doc line over 1500 characters. |
 | `make check-strings` | Fails when `Resources/Localizable.xcstrings` is stale against the source. |
 | `make check-translations` | Fails when any key in any catalog is missing a language. Both release paths run it; CI only reports. |
 | `make appstore-validate-copy` | App Store copy completeness and caption fit. |
