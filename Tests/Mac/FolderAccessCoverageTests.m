@@ -92,6 +92,13 @@
                           @"bookmark": stored[@"bookmark"] } : nil;
 }
 
+// TRAP: the real two seconds is shorter than the hang guard. On a loaded
+// runner the utility workers stall that long, and the fallback then settles a
+// wait the test asserts the restorations settled.
+- (NSTimeInterval)restoreDeadline {
+    return VIBE_TEST_GATE_TIMEOUT;
+}
+
 - (void)releaseOneRestoration {
     dispatch_semaphore_signal(_restorationGate);
 }
@@ -431,8 +438,8 @@ static NSString *RealHome(void) {
     [manager awaitRestoredAccessForURLs:@[file] completion:^{
         [openReleased fulfill];
     }];
-    // The manager's deadline is two seconds; this must be the child grant
-    // settling, not the fallback timer.
+    // The child grant settling releases this open. The fake's deadline is
+    // past the hang guard, so the fallback cannot.
     [self waitForExpectations:@[openReleased] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSArray<NSString *> *started = manager.startedRestorationPaths;
@@ -507,9 +514,8 @@ static NSString *RealHome(void) {
     [manager awaitRestoredAccessForURLs:@[file] completion:^{
         [openReleased fulfill];
     }];
-    // The removed child still has cleanup work in the utility queue, but it
-    // must not occupy the urgent lane or force this open to its two-second
-    // deadline.
+    // The removed child still has cleanup work in the utility queue. It must
+    // not occupy the urgent lane and hold this open until its deadline.
     [self waitForExpectations:@[openReleased] timeout:VIBE_TEST_HANG_TIMEOUT];
 
     NSArray<NSString *> *started = manager.startedRestorationPaths;
