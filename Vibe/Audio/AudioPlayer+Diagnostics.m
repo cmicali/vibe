@@ -326,19 +326,23 @@ static void VibeWatchMainThreadForStalls(mach_port_t thread) {
     __block int samples = 0;
     __block NSString *lastStack = nil;
     dispatch_source_set_event_handler(timer, ^{
-        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         uint64_t seen = atomic_load_explicit(&passes, memory_order_seq_cst);
         uint64_t since = atomic_load_explicit(&passStart, memory_order_seq_cst);
+        // TRAP: read the clock after passStart, and still clamp. Main can stamp
+        // a pass between the two reads, and the unsigned difference then wraps
+        // to a stall of 2^64 ns.
+        uint64_t now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        uint64_t stuck = since && now > since ? now - since : 0;
         if (since != stalledPass) {
             stalledPass = since;
             samples = 0;
             nextSampleAt = 0;
             lastStack = nil;
         }
-        if (since && VibeStallSampleDue(@"main thread", now - since, &samples, &nextSampleAt)) {
+        if (VibeStallSampleDue(@"main thread", stuck, &samples, &nextSampleAt)) {
             thread_t target = thread != MACH_PORT_NULL ? thread : VibeFindThread(dispatch_get_main_queue(), NULL);
             if (target != MACH_PORT_NULL) {
-                lastStack = VibeSampleStack(target, @"main thread", (now - since) / 1e6, lastStack);
+                lastStack = VibeSampleStack(target, @"main thread", stuck / 1e6, lastStack);
                 if (target != thread) {
                     mach_port_deallocate(mach_task_self(), target);
                 }
