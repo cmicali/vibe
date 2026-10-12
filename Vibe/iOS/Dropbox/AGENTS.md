@@ -8,7 +8,7 @@ Dropbox through its HTTP API, not its Files provider. The provider lists a folde
 | `DropboxMirror` | The account as local files: listing reconciliation, the sidecars, search and the path mapping. It subclasses `RemotePlaceholderStore` (`Loading/Net/AGENTS.md`), which owns the placeholders, the directory index's storage, the streaming fetch, the ranged read and the download budget. This class names each placeholder's Dropbox `id` and reads Dropbox's answers. |
 | `DropboxRules.h` | The decisions with no network or disk: PKCE, the wire encodings, entry reading, the version check, the index key. Tested. |
 
-Both classes are Foundation-only and compiled into the macOS `VibeTests`, which drive them over a stubbed `NSURLProtocol` and a temp root (`DropboxMirrorTests`).
+Both classes are Foundation-only and compiled into the macOS `VibeTests`, which drive them over a stubbed `NSURLProtocol` and a temp root (`DropboxMirrorTestCase` and its subclasses).
 
 ## The account
 

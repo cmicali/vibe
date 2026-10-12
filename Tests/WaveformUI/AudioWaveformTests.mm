@@ -451,7 +451,7 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
 }
 
 // Wiggle MC is Wiggle with Centered off: its identifier is gone, and only the
-// migrations read it (AppThemeTests).
+// migrations read it (AppThemeStoreTests).
 - (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
     NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
     XCTAssertFalse([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]);

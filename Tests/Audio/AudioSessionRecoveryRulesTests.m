@@ -6,7 +6,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "../Vibe/Audio/iOS/AudioSessionRecoveryRules.h"
+#import "../../Vibe/Audio/iOS/AudioSessionRecoveryRules.h"
 
 @interface AudioSessionRecoveryRulesTests : XCTestCase
 @end

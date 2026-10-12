@@ -83,7 +83,7 @@ An MP3 with no Xing, Info or VBRI frame opens on a length estimated from its hea
 
 - Host-less, over `set_slow_volume`: a throttled file reads ahead, waits and resumes. An interrupt returns a blocked open, read and seek.
 - `make test-audio`: every format through a throttled read-ahead matches the direct open, with seeks behind, inside and beyond the held blocks.
-- The Dropbox suite, unchanged, at every step: `DropboxMirrorTests`, the streaming handle and PCM tests, and `dropbox-streaming.sh`.
+- The Dropbox suite, unchanged, at every step: `DropboxMirrorTests`, `DropboxMirrorFetchTests`, `DropboxMirrorStreamingTests`, the streaming handle and PCM tests, and `dropbox-streaming.sh`.
 - `vibe-stress`: skip, seek and stop during a stall. A hang on any of them breaks the interrupt rule.
 - On hardware: pull the cable mid-play, let a disk sleep, wake the Mac with the share gone, and eject a volume under a playing track.
 - `make bench-components` before and after, to show the direct road did not move.

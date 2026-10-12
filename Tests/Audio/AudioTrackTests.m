@@ -285,7 +285,7 @@ static void Attach(AudioTrack *track, FakeTrackMetadata *fake) {
 
 #pragma mark - Cue rows
 
-static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSString *performer) {
+static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title, NSString *performer) {
     return [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/private/tmp/vibe-tests/mix.flac"]
                                   cueStart:start cueEnd:end title:title performer:performer
                                      sheet:[NSURL fileURLWithPath:@"/private/tmp/vibe-tests/mix.cue"]
@@ -293,7 +293,7 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
 }
 
 - (void)testACueRowNamesItselfBeforeItsFilesTags {
-    AudioTrack *row = CueRow(4500, 9000, @"Track Three", @"Artist Three");
+    AudioTrack *row = VibeCueRow(4500, 9000, @"Track Three", @"Artist Three");
     FakeTrackMetadata *tags = [FakeTrackMetadata new];
     tags.title = @"The Whole Mix";
     tags.artist = @"The DJ";
@@ -303,7 +303,7 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
 }
 
 - (void)testACueRowWithNoPerformerTakesItsFilesArtist {
-    AudioTrack *row = CueRow(4500, 9000, @"Track Three", nil);
+    AudioTrack *row = VibeCueRow(4500, 9000, @"Track Three", nil);
     FakeTrackMetadata *tags = [FakeTrackMetadata new];
     tags.artist = @"The DJ";
     Attach(row, tags);
@@ -313,7 +313,7 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
 
 // Every row of an image would otherwise take the image's one title.
 - (void)testAnUntitledCueRowIsNamedByItsNumber {
-    AudioTrack *row = CueRow(4500, 9000, nil, nil);
+    AudioTrack *row = VibeCueRow(4500, 9000, nil, nil);
     XCTAssertEqualObjects(row.displayTitle, @"Track 3");
     XCTAssertNil(row.displayArtist);
     FakeTrackMetadata *tags = [FakeTrackMetadata new];
@@ -326,14 +326,14 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
 
 // A single-track sheet's row is the whole file, so its tags name it.
 - (void)testAnUntitledWholeFileCueRowIsNamedLikeItsFile {
-    AudioTrack *row = CueRow(0, 0, nil, nil);
+    AudioTrack *row = VibeCueRow(0, 0, nil, nil);
     XCTAssertEqualObjects(row.displayTitle, @"mix");
     XCTAssertNil(row.displayArtist);
 }
 
 // A tag on the image describes the whole mix, never one window of it.
 - (void)testAWindowedRowSkipsItsFilesTaggedTempoAndKey {
-    AudioTrack *row = CueRow(4500, 9000, @"T", nil);
+    AudioTrack *row = VibeCueRow(4500, 9000, @"T", nil);
     FakeTrackMetadata *tags = [FakeTrackMetadata new];
     tags.bpm = 128.0f;
     tags.key = 5;
@@ -347,7 +347,7 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
 }
 
 - (void)testAWholeFileCueRowKeepsItsFilesTaggedTempo {
-    AudioTrack *row = CueRow(0, 0, @"T", nil);
+    AudioTrack *row = VibeCueRow(0, 0, @"T", nil);
     FakeTrackMetadata *tags = [FakeTrackMetadata new];
     tags.bpm = 128.0f;
     Attach(row, tags);
@@ -356,8 +356,8 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
 }
 
 - (void)testAWindowedRowsDurationIsItsWindowUntilPublished {
-    XCTAssertEqual(CueRow(4500, 13500, nil, nil).duration, 120.0);
-    AudioTrack *last = CueRow(13500, 0, nil, nil);
+    XCTAssertEqual(VibeCueRow(4500, 13500, nil, nil).duration, 120.0);
+    AudioTrack *last = VibeCueRow(13500, 0, nil, nil);
     FakeTrackMetadata *file = [FakeTrackMetadata new];
     file.duration = 600;
     Attach(last, file);
@@ -370,10 +370,10 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end, NSString *title, NSS
     AudioTrack *plain = TrackNamed(@"mix.flac");
     XCTAssertFalse(plain.isWindowed);
     XCTAssertEqualObjects(plain.sourceKey, plain.url.path);
-    XCTAssertEqualObjects(CueRow(0, 0, @"T", nil).sourceKey, plain.url.path);
-    XCTAssertEqualObjects(CueRow(4500, 9000, nil, nil).sourceKey, CueRow(4500, 9000, @"Other", nil).sourceKey);
-    XCTAssertNotEqualObjects(CueRow(0, 4500, nil, nil).sourceKey, CueRow(4500, 9000, nil, nil).sourceKey);
-    XCTAssertNotEqualObjects(CueRow(4500, 0, nil, nil).sourceKey, plain.sourceKey);
+    XCTAssertEqualObjects(VibeCueRow(0, 0, @"T", nil).sourceKey, plain.url.path);
+    XCTAssertEqualObjects(VibeCueRow(4500, 9000, nil, nil).sourceKey, VibeCueRow(4500, 9000, @"Other", nil).sourceKey);
+    XCTAssertNotEqualObjects(VibeCueRow(0, 4500, nil, nil).sourceKey, VibeCueRow(4500, 9000, nil, nil).sourceKey);
+    XCTAssertNotEqualObjects(VibeCueRow(4500, 0, nil, nil).sourceKey, plain.sourceKey);
 }
 
 #pragma mark - Metadata installation

@@ -255,7 +255,7 @@
     XCTAssertEqual(_cache.cancelCount, 1u);
 }
 
-static AudioTrack *CueRow(NSUInteger start, NSUInteger end) {
+static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end) {
     return [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/tmp/vibe-mix.flac"]
                                   cueStart:start cueEnd:end title:nil performer:nil
                                      sheet:nil trackNumber:0];
@@ -264,25 +264,25 @@ static AudioTrack *CueRow(NSUInteger start, NSUInteger end) {
 // Rows of one file each have a waveform, so the page's row, not its file, is
 // what a repeat request is matched on.
 - (void)testSameIndexWithAnotherRowOfTheSameFileReloads {
-    [_coordinator requestIndex:3 track:CueRow(0, 4500)];
-    [_coordinator requestIndex:3 track:CueRow(4500, 0)];
+    [_coordinator requestIndex:3 track:VibeCueRow(0, 4500)];
+    [_coordinator requestIndex:3 track:VibeCueRow(4500, 0)];
     XCTAssertEqual(_cache.loadedURLs.count, 2u);
-    [_coordinator requestIndex:3 track:CueRow(4500, 0)];
+    [_coordinator requestIndex:3 track:VibeCueRow(4500, 0)];
     XCTAssertEqual(_cache.loadedURLs.count, 2u);
 }
 
 // A late delivery for the departed row carries the page's file, so only the
 // window tells it apart.
 - (void)testDeliveryForAnotherRowOfTheSameFileIsDropped {
-    [_coordinator requestIndex:3 track:CueRow(0, 4500)];
-    [_coordinator requestIndex:4 track:CueRow(4500, 0)];
-    [self deliverForTrack:CueRow(0, 4500) percent:1.0f];
-    [self failForTrack:CueRow(0, 4500)];
+    [_coordinator requestIndex:3 track:VibeCueRow(0, 4500)];
+    [_coordinator requestIndex:4 track:VibeCueRow(4500, 0)];
+    [self deliverForTrack:VibeCueRow(0, 4500) percent:1.0f];
+    [self failForTrack:VibeCueRow(0, 4500)];
     XCTAssertEqual(_delegate.updatedIndexes.count, 0u);
     XCTAssertEqual(_delegate.failedIndexes.count, 0u);
     XCTAssertEqual(_coordinator.targetIndex, 4u);
 
-    [self deliverForTrack:CueRow(4500, 0) percent:1.0f];
+    [self deliverForTrack:VibeCueRow(4500, 0) percent:1.0f];
     XCTAssertEqualObjects(_delegate.updatedIndexes, @[@4]);
 }
 

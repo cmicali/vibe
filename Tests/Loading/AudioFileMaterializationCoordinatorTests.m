@@ -8,382 +8,7 @@
 #import "AudioFileMaterializationCoordinator+Debug.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "CloudTransferRegistry.h"
-
-@class VibeTestMaterializationController;
-
-@interface VibeTestDatalessProbeController : NSObject
-- (BOOL)probeURL:(NSURL *)url;
-- (void)setResults:(NSArray<NSNumber *> *)results forName:(NSString *)name;
-- (void)gateCall:(NSUInteger)call forName:(NSString *)name;
-- (void)releaseCall:(NSUInteger)call forName:(NSString *)name;
-- (void)releaseAll;
-- (BOOL)waitForCallCount:(NSUInteger)count forName:(NSString *)name;
-- (BOOL)waitForIdle;
-- (NSUInteger)callCountForName:(NSString *)name;
-- (NSUInteger)totalCallCount;
-- (NSUInteger)inFlightCount;
-- (NSArray<NSString *> *)timedOutGates;
-@end
-
-static NSString *VibeProbeCallKey(NSString *name, NSUInteger call) {
-    return [NSString stringWithFormat:@"%@:%lu", name, (unsigned long)call];
-}
-
-@implementation VibeTestDatalessProbeController {
-    NSCondition *_condition;
-    NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *_resultsByName;
-    NSMutableDictionary<NSString *, NSNumber *> *_callsByName;
-    NSMutableSet<NSString *> *_gatedCalls;
-    NSMutableSet<NSString *> *_releasedCalls;
-    NSMutableArray<NSString *> *_timedOutGates;
-    NSUInteger _inFlightCount;
-    BOOL _releasedAll;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _condition = [[NSCondition alloc] init];
-        _resultsByName = [NSMutableDictionary dictionary];
-        _callsByName = [NSMutableDictionary dictionary];
-        _gatedCalls = [NSMutableSet set];
-        _releasedCalls = [NSMutableSet set];
-        _timedOutGates = [NSMutableArray array];
-    }
-    return self;
-}
-
-// TRAP: if the probe regresses to running on the caller, a gate blocks the
-// test method itself and tearDown never releases it. The deadline turns that
-// hang into a reported failure.
-static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
-
-- (BOOL)probeURL:(NSURL *)url {
-    NSString *name = url.lastPathComponent;
-    [_condition lock];
-    NSUInteger call = _callsByName[name].unsignedIntegerValue + 1;
-    _callsByName[name] = @(call);
-    _inFlightCount++;
-    NSString *key = VibeProbeCallKey(name, call);
-    [_condition broadcast];
-    NSDate *gateDeadline = [NSDate dateWithTimeIntervalSinceNow:kProbeGateTimeout];
-    while (!_releasedAll && [_gatedCalls containsObject:key]
-            && ![_releasedCalls containsObject:key]) {
-        if (![_condition waitUntilDate:gateDeadline]) {
-            [_timedOutGates addObject:key];
-            _releasedAll = YES;
-            [_condition broadcast];
-            break;
-        }
-    }
-    NSArray<NSNumber *> *results = _resultsByName[name];
-    BOOL result = results.count
-            ? results[MIN(call - 1, results.count - 1)].boolValue : YES;
-    _inFlightCount--;
-    [_condition broadcast];
-    [_condition unlock];
-    return result;
-}
-
-- (void)setResults:(NSArray<NSNumber *> *)results forName:(NSString *)name {
-    NSParameterAssert(results.count);
-    [_condition lock];
-    _resultsByName[name] = [results copy];
-    [_condition unlock];
-}
-
-- (void)gateCall:(NSUInteger)call forName:(NSString *)name {
-    [_condition lock];
-    [_gatedCalls addObject:VibeProbeCallKey(name, call)];
-    [_condition unlock];
-}
-
-- (void)releaseCall:(NSUInteger)call forName:(NSString *)name {
-    [_condition lock];
-    [_releasedCalls addObject:VibeProbeCallKey(name, call)];
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (void)releaseAll {
-    [_condition lock];
-    _releasedAll = YES;
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (BOOL)waitForCallCount:(NSUInteger)count forName:(NSString *)name {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    [_condition lock];
-    while (_callsByName[name].unsignedIntegerValue < count) {
-        if (![_condition waitUntilDate:deadline]) {
-            [_condition unlock];
-            return NO;
-        }
-    }
-    [_condition unlock];
-    return YES;
-}
-
-- (BOOL)waitForIdle {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    [_condition lock];
-    while (_inFlightCount > 0) {
-        if (![_condition waitUntilDate:deadline]) {
-            [_condition unlock];
-            return NO;
-        }
-    }
-    [_condition unlock];
-    return YES;
-}
-
-- (NSUInteger)callCountForName:(NSString *)name {
-    [_condition lock];
-    NSUInteger count = _callsByName[name].unsignedIntegerValue;
-    [_condition unlock];
-    return count;
-}
-
-- (NSUInteger)totalCallCount {
-    [_condition lock];
-    NSUInteger count = 0;
-    for (NSNumber *calls in _callsByName.objectEnumerator) {
-        count += calls.unsignedIntegerValue;
-    }
-    [_condition unlock];
-    return count;
-}
-
-- (NSUInteger)inFlightCount {
-    [_condition lock];
-    NSUInteger count = _inFlightCount;
-    [_condition unlock];
-    return count;
-}
-
-- (NSArray<NSString *> *)timedOutGates {
-    [_condition lock];
-    NSArray<NSString *> *gates = [_timedOutGates copy];
-    [_condition unlock];
-    return gates;
-}
-
-@end
-
-@interface VibeTestMaterializationOperation : NSObject <AudioFileMaterializationOperation>
-- (instancetype)initWithURL:(NSURL *)url
-                       role:(VibeAudioFileMaterializationRole)role
-                 controller:(VibeTestMaterializationController *)controller;
-@property (nonatomic, readonly) NSURL *url;
-@property (nonatomic, readonly) VibeAudioFileMaterializationRole role;
-@property (nonatomic, readonly) BOOL started;
-@property (nonatomic, readonly) NSUInteger cancellationCount;
-- (void)deferCancellationCompletion;
-- (void)completeReady:(BOOL)ready;
-- (void)completeWithError:(NSError *)error;
-@end
-
-@interface VibeTestMaterializationController : NSObject
-- (id<AudioFileMaterializationOperation>)operationForURL:(NSURL *)url
-                                                    role:(VibeAudioFileMaterializationRole)role;
-- (void)operationDidStart:(VibeTestMaterializationOperation *)operation;
-- (BOOL)waitForStartedCount:(NSUInteger)count;
-- (NSArray<VibeTestMaterializationOperation *> *)startedOperations;
-- (VibeTestMaterializationOperation *)operationForLastPathComponent:(NSString *)name;
-- (NSUInteger)totalCancellationCount;
-- (void)completeAll;
-@end
-
-@implementation VibeTestMaterializationOperation {
-    NSCondition *_condition;
-    __weak VibeTestMaterializationController *_controller;
-    BOOL _started;
-    BOOL _finished;
-    BOOL _ready;
-    BOOL _defersCancellationCompletion;
-    NSUInteger _cancellationCount;
-    NSError *_finishError;
-}
-
-- (instancetype)initWithURL:(NSURL *)url
-                       role:(VibeAudioFileMaterializationRole)role
-                 controller:(VibeTestMaterializationController *)controller {
-    self = [super init];
-    if (self) {
-        _url = url;
-        _role = role;
-        _controller = controller;
-        _condition = [[NSCondition alloc] init];
-    }
-    return self;
-}
-
-- (BOOL)runOnReadable:(dispatch_block_t)onReadable error:(NSError *__autoreleasing *)error {
-    [_condition lock];
-    _started = YES;
-    [_condition broadcast];
-    [_condition unlock];
-    VibeTestMaterializationController *controller = _controller;
-    [controller operationDidStart:self];
-
-    [_condition lock];
-    while (!_finished) {
-        [_condition wait];
-    }
-    BOOL ready = _ready;
-    NSError *finishError = _finishError;
-    [_condition unlock];
-    if (!ready && error) {
-        *error = finishError
-                ?: [NSError errorWithDomain:NSCocoaErrorDomain
-                                       code:NSUserCancelledError userInfo:nil];
-    }
-    return ready;
-}
-
-- (void)cancel {
-    [_condition lock];
-    _cancellationCount++;
-    if (!_defersCancellationCompletion) {
-        _finished = YES;
-        _ready = NO;
-        [_condition broadcast];
-    }
-    [_condition unlock];
-}
-
-- (void)deferCancellationCompletion {
-    [_condition lock];
-    _defersCancellationCompletion = YES;
-    [_condition unlock];
-}
-
-- (void)completeReady:(BOOL)ready {
-    [_condition lock];
-    if (!_finished) {
-        _finished = YES;
-        _ready = ready;
-        [_condition broadcast];
-    }
-    [_condition unlock];
-}
-
-- (void)completeWithError:(NSError *)error {
-    [_condition lock];
-    if (!_finished) {
-        _finished = YES;
-        _ready = NO;
-        _finishError = error;
-        [_condition broadcast];
-    }
-    [_condition unlock];
-}
-
-- (BOOL)started {
-    [_condition lock];
-    BOOL started = _started;
-    [_condition unlock];
-    return started;
-}
-
-- (NSUInteger)cancellationCount {
-    [_condition lock];
-    NSUInteger count = _cancellationCount;
-    [_condition unlock];
-    return count;
-}
-
-@end
-
-@implementation VibeTestMaterializationController {
-    NSCondition *_condition;
-    NSMutableArray<VibeTestMaterializationOperation *> *_operations;
-    NSMutableArray<VibeTestMaterializationOperation *> *_startedOperations;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _condition = [[NSCondition alloc] init];
-        _operations = [NSMutableArray array];
-        _startedOperations = [NSMutableArray array];
-    }
-    return self;
-}
-
-- (id<AudioFileMaterializationOperation>)operationForURL:(NSURL *)url
-                                                    role:(VibeAudioFileMaterializationRole)role {
-    VibeTestMaterializationOperation *operation =
-            [[VibeTestMaterializationOperation alloc] initWithURL:url role:role controller:self];
-    [_condition lock];
-    [_operations addObject:operation];
-    [_condition broadcast];
-    [_condition unlock];
-    return operation;
-}
-
-- (void)operationDidStart:(VibeTestMaterializationOperation *)operation {
-    [_condition lock];
-    [_startedOperations addObject:operation];
-    [_condition broadcast];
-    [_condition unlock];
-}
-
-- (BOOL)waitForStartedCount:(NSUInteger)count {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    [_condition lock];
-    while (_startedOperations.count < count) {
-        if (![_condition waitUntilDate:deadline]) {
-            [_condition unlock];
-            return NO;
-        }
-    }
-    [_condition unlock];
-    return YES;
-}
-
-- (NSArray<VibeTestMaterializationOperation *> *)startedOperations {
-    [_condition lock];
-    NSArray *operations = [_startedOperations copy];
-    [_condition unlock];
-    return operations;
-}
-
-- (VibeTestMaterializationOperation *)operationForLastPathComponent:(NSString *)name {
-    [_condition lock];
-    VibeTestMaterializationOperation *found = nil;
-    for (VibeTestMaterializationOperation *operation in _operations.reverseObjectEnumerator) {
-        if ([operation.url.lastPathComponent isEqualToString:name]) {
-            found = operation;
-            break;
-        }
-    }
-    [_condition unlock];
-    return found;
-}
-
-- (NSUInteger)totalCancellationCount {
-    [_condition lock];
-    NSArray *operations = [_operations copy];
-    [_condition unlock];
-    NSUInteger count = 0;
-    for (VibeTestMaterializationOperation *operation in operations) {
-        count += operation.cancellationCount;
-    }
-    return count;
-}
-
-- (void)completeAll {
-    [_condition lock];
-    NSArray *operations = [_operations copy];
-    [_condition unlock];
-    for (VibeTestMaterializationOperation *operation in operations) {
-        [operation completeReady:YES];
-    }
-}
-
-@end
+#import "MaterializationTestFakes.h"
 
 @interface AudioFileMaterializationCoordinatorTests : XCTestCase
 @end
@@ -519,6 +144,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
                          completionQueue:_completionQueue completion:completion];
 }
 
+#pragma mark - Outcome counters
+
 // A counter an oracle reads needs a test that it moves: one stuck at zero
 // reads exactly like a clean run.
 - (void)testOutcomeCountersMoveWithRealWork {
@@ -572,6 +199,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     XCTAssertGreaterThan([_coordinator stateSnapshotForTesting].requestsAdmissionExhausted, 0u,
                          @"requestsAdmissionExhausted never moved");
 }
+
+#pragma mark - The initial probe
 
 - (void)testInitialProbeBoundAndPendingCancellationShareOneCoordinatorPolicy {
     NSMutableArray<NSString *> *runningNames = [NSMutableArray array];
@@ -733,6 +362,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     }
 }
 
+#pragma mark - Same-path joins and classification
+
 - (void)testSamePathRequestsAtomicallyJoinOneOperation {
     [_probeController gateCall:1 forName:@"same.wav"];
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
@@ -812,6 +443,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     XCTAssertEqual(_controller.startedOperations.count, 1u,
                    @"a fresh local answer settles without an operation");
 }
+
+#pragma mark - Foreground edges during a probe or refresh
 
 - (void)testForegroundDepartureDuringInitialProbePassesLocalPassengersAndYieldsDatalessOnes {
     [_probeController setResults:@[@NO] forName:@"depart-initial-local.wav"];
@@ -1188,6 +821,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     [self waitForExpectations:@[playbackReady] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
+#pragma mark - Joining, rebinding and replacing a path claim
+
 - (void)testCurrentTrackMetadataJoinsTheLivePlaybackClaim {
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
     XCTestExpectation *playbackReady = [self expectationWithDescription:@"playback ready"];
@@ -1432,6 +1067,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     [self waitForExpectations:@[oldSilent] timeout:0.1];
 }
 
+#pragma mark - Cancellation and restarts
+
 // The provider's dying fetch of a transfer a rising edge just cancelled can
 // bleed into a fresh coordinated read of the same file as a cancellation
 // nobody ordered; that is not a verdict on the file.
@@ -1523,6 +1160,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     XCTAssertEqual(cancelledDeliveries, 0u);
     XCTAssertEqual(_controller.totalCancellationCount, 0u);
 }
+
+#pragma mark - The foreground hold and local files
 
 // The foreground hold derives from the claim table: registration preempts
 // running metadata-only dataless work, new metadata requests yield while it is
@@ -1904,6 +1543,8 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     [self waitForExpectations:@[prefetchDone] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(_controller.startedOperations.count, 2u);
 }
+
+#pragma mark - Concurrency changes and expiry
 
 - (void)testLiveConcurrencyRaiseAdmitsAndLoweringOnlyDrains {
     VibeAudioLoadingConfigurationValues values =
