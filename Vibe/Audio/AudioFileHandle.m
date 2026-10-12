@@ -104,7 +104,16 @@ static os_unfair_lock sDebugLock = OS_UNFAIR_LOCK_INIT;
 static NSNumber *(^sDebugMountRule)(NSURL *);
 static int (^sDebugBeforeRead)(NSURL *, uint64_t, uint64_t);
 static _Atomic NSInteger sDebugLiveReadAheads;
+static _Atomic double sDebugRetryScale = 1;
 #endif
+
+static NSTimeInterval VibeReadAheadRetryPause(void) {
+#if DEBUG
+    return kVibeReadAheadRetrySeconds * atomic_load(&sDebugRetryScale);
+#else
+    return kVibeReadAheadRetrySeconds;
+#endif
+}
 
 // An ID3v2 tag's whole length from the file's first 10 bytes: the syncsafe
 // size in bytes 6-9 excludes the header and a footer. 0 for no tag.
@@ -458,7 +467,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             failing = YES;
         }
         // A timed wait on the availability. A finish ends the pause at once.
-        NSDate *retry = [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadRetrySeconds];
+        NSDate *retry = [NSDate dateWithTimeIntervalSinceNow:VibeReadAheadRetryPause()];
         BOOL running = YES;
         while (running && retry.timeIntervalSinceNow > 0) {
             running = [availability waitForWorkUntil:retry wanted:&wantedOffset length:&wantedLength readerPosition:&position];
@@ -1785,6 +1794,10 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     os_unfair_lock_lock(&sDebugLock);
     sDebugBeforeRead = copied;
     os_unfair_lock_unlock(&sDebugLock);
+}
+
++ (void)debugSetRetryScale:(double)scale {
+    atomic_store(&sDebugRetryScale, scale);
 }
 
 + (NSInteger)debugLiveReadAheads {

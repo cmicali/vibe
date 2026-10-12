@@ -26,6 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 // it, or -1 to read nothing. Nothing read is the file's end.
 + (void)debugSetBeforeRead:(nullable int (^)(NSURL *url, uint64_t offset, uint64_t length))beforeRead;
 
+// Scales the pause before a failed read is tried again, 1 by default. A test
+// that only waits the pause out shortens it. A test that races a deadline
+// against the pause keeps 1.
++ (void)debugSetRetryScale:(double)scale;
+
 // Read-ahead threads alive now, and those whose handle is gone while they are
 // still inside a read. Both are process-wide.
 @property (class, nonatomic, readonly) NSInteger debugLiveReadAheads;
