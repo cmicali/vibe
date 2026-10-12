@@ -497,7 +497,7 @@ static const NSUInteger kUIUpdateHz = 3;
     // prefetchTrack:nil unschedules an armed splice, so a mid-track switch to
     // Pause does not advance anyway; a new successor replaces one armed
     // before a repeat or shuffle change.
-    [_player prefetchTrack:self.successorPrefetchTrack];
+    [self prefetchSuccessor];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidChangePlayOrder:)]) {
             [observer playbackDidChangePlayOrder:self];
@@ -650,9 +650,10 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Transport follow-ups
 
-// TRAP: the Stopped gate is load-bearing. A parked track holds no file, and
-// prefetching over a list edit would open one — on a cloud folder, an unasked
-// download. A new play prefetches at start anyway.
+// TRAP: the Stopped gate is load-bearing. A parked track holds no file.
+// Prefetching over a list edit or a transition-setting change would open one.
+// On a cloud folder that is an unasked download. A new play prefetches at
+// start anyway.
 - (void)prefetchSuccessor {
     if (_player.isStopped) {
         return;

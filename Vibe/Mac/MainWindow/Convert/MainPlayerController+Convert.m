@@ -145,7 +145,7 @@
         }
         if ((NSInteger)row == successorRow) {
             // The parked handle is path-keyed and still holds the source.
-            [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+            [self prefetchSuccessor];
         }
     }];
     if (!converted) {

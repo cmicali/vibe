@@ -365,6 +365,23 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 }
 
 
+// An excerpt's start, keyed by its first frame's bits, so a search tries only
+// the starts that can match. A key collision costs one more memcmp.
+typedef struct { uint64_t key; NSUInteger start; } VibeExcerptStart;
+static uint64_t VibeFrameKey(const float *frame, NSUInteger channels) {
+    uint64_t key = 1469598103934665603ull;
+    for (NSUInteger c = 0; c < channels; c++) {
+        uint32_t bits; memcpy(&bits, frame + c, sizeof bits);
+        key = (key ^ bits) * 1099511628211ull;
+    }
+    return key;
+}
+static int VibeCompareExcerptStarts(const void *a, const void *b) {
+    const VibeExcerptStart *x = a, *y = b;
+    if (x->key != y->key) return x->key < y->key ? -1 : 1;
+    return x->start < y->start ? -1 : x->start > y->start;
+}
+
 // Every audible frame of capture must continue an exact excerpt of one of the
 // references: bit-perfect output may cut between excerpts, never scale a
 // sample. Each excerpt is found by an exact 32-frame match, so a ramp's scaled
@@ -376,6 +393,21 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     const float *a = capture.bytes;
     const float *r = NULL;
     NSUInteger at = 0, length = 0; // the current excerpt's next reference frame
+    // Sorted by key, then start, so the first match is the earliest start, as
+    // a scan from the reference's head would find it.
+    NSMutableArray<NSData *> *indexes = [NSMutableArray array];
+    for (NSData *reference in references) {
+        NSUInteger candidateFrames = reference.length / sizeof(float) / channels;
+        NSUInteger count = candidateFrames >= 32 ? candidateFrames - 31 : 0;
+        NSMutableData *index = [NSMutableData dataWithLength:count * sizeof(VibeExcerptStart)];
+        VibeExcerptStart *entries = index.mutableBytes;
+        const float *candidate = reference.bytes;
+        for (NSUInteger start = 0; start < count; start++) {
+            entries[start] = (VibeExcerptStart){ VibeFrameKey(candidate + start * channels, channels), start };
+        }
+        qsort(entries, count, sizeof *entries, VibeCompareExcerptStarts);
+        [indexes addObject:index];
+    }
     for (NSUInteger f = 0; f < frames; f++) {
         const float *frame = a + f * channels;
         BOOL silent = YES;
@@ -386,15 +418,22 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         }
         r = NULL;
         if (silent) { run = 0; continue; }
-        for (NSData *reference in references) {
-            const float *candidate = reference.bytes;
-            NSUInteger candidateFrames = reference.length / sizeof(float) / channels;
-            for (NSUInteger start = 0; !r && f + 32 <= frames && start + 32 <= candidateFrames; start++) {
+        uint64_t key = VibeFrameKey(frame, channels);
+        for (NSUInteger i = 0; !r && i < references.count; i++) {
+            const float *candidate = references[i].bytes;
+            NSUInteger candidateFrames = references[i].length / sizeof(float) / channels;
+            const VibeExcerptStart *entries = indexes[i].bytes;
+            NSUInteger count = indexes[i].length / sizeof(VibeExcerptStart), lo = 0, hi = count;
+            while (lo < hi) {
+                NSUInteger mid = lo + (hi - lo) / 2;
+                if (entries[mid].key < key) lo = mid + 1; else hi = mid;
+            }
+            for (NSUInteger e = lo; !r && f + 32 <= frames && e < count && entries[e].key == key; e++) {
+                NSUInteger start = entries[e].start;
                 if (memcmp(frame, candidate + start * channels, 32 * channels * sizeof(float)) == 0) {
                     r = candidate; at = start + 1; length = candidateFrames;
                 }
             }
-            if (r) break;
         }
         if (!r) {
             if (++run <= rampFrames) {
@@ -1649,8 +1688,14 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     for (NSNumber *block in @[@63,@256,@1024,@4096]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO]; _blockSize=block.unsignedIntegerValue;
         AudioTrack *track=[self play:url paused:NO position:0]; [self render:12000];
+        NSUInteger eventsBeforeStop=_events.count;
         [_player stop]; [self render:2048]; XCTAssertTrue(_player.isStopped);
-        XCTAssertNil(_player.currentTrack); XCTAssertEqual([self count:@"finish"],0u);
+        // Whatever the stop posted to main is queued before this marker.
+        [_player runSyncOnQueue:^{}];
+        __block BOOL drained=NO; dispatch_async(dispatch_get_main_queue(), ^{ drained=YES; });
+        [self settleUntil:^BOOL { return drained; }];
+        XCTAssertNil(_player.currentTrack);
+        XCTAssertEqual(_events.count,eventsBeforeStop,@"stop fires no transport or track-end callback: %@",_events);
         NSData *silence=[self renderSeconds:0.1]; XCTAssertEqual(RMS(silence,2,0,NSMakeRange(0,4800)),0);
         NSUInteger starts=[self count:@"start"]; [_player play:track];
         [self settleUntil:^BOOL { return [self count:@"start"]>starts; }];
@@ -5300,13 +5345,16 @@ typedef struct {
     XCTAssertTrue([_player.debugRenderCounts[@"varispeedEngaged"] boolValue]);
 }
 
-// Ten minutes at +8%, every frame read: the output plays the file at exactly
-// the ratio, the bus leads it by what the stage holds at every second, the
-// duration is the file's, and the track ends as the bus reaches the file's
-// last frame. So nothing drifts over a long play.
+// Six and a half minutes at +8%, every frame read. The output plays the file
+// at exactly the ratio. The bus leads it by what the stage holds at every
+// second. The duration is the file's. The track ends as the bus reaches the
+// file's last frame. So nothing drifts over a long play. The length puts the
+// file and the output both past 2^24 frames, where a float32 frame count stops
+// being exact.
 - (void)testALongPitchedPlayKeepsItsPosition {
     const double ratio = 1.08, rate = 48000;
-    const NSUInteger length = 10 * 60 * 48000;
+    const NSUInteger length = 390 * 48000;
+    XCTAssertGreaterThan(length / ratio, (double)(1u << 24));
     [self startPlayerAt:rate channels:1 fx:NO bitPerfect:NO automatic:NO];
     _blockSize = 4096;
     _player.pitch = 8;

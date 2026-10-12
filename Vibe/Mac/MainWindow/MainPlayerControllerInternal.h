@@ -141,6 +141,9 @@ NS_ASSUME_NONNULL_BEGIN
 // under On track end = Pause. The audio half of that setting: with nothing
 // parked nothing splices, and didFinishPlaying: re-reads it to park.
 - (nullable AudioTrack *)successorPrefetchTrack;
+// Re-parks it, except while Stopped. Every site but a track start goes through
+// this.
+- (void)prefetchSuccessor;
 
 #pragma mark - Saving the playlist
 
