@@ -129,8 +129,10 @@ public:
     // resize moves them, and bars about a beat long ripple with every point
     // of width. Between, the two are blended. A window past the track's
     // edge, or past the end of a load still streaming, is the mean of the
-    // frames it does cover.
-    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares);
+    // frames it does cover. ownBandMeanSquares, when given, takes the bands'
+    // values at reach 0 from the same pass, laid out as bandMeanSquares.
+    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares,
+                           float* ownBandMeanSquares = nullptr);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;

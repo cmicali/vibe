@@ -212,6 +212,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // 3-Band's overlaps: YES (default) shades and tints them as a CDJ does; NO
 // paints each band whole over the ones below, as Engine DJ does.
 @property (nonatomic) BOOL waveformShadeOverlaps;
+// Spectrum's palette: rgb (default), blue, green, or custom, which draws the
+// Low/Mid/High wells 3-Band also reads.
+@property (nonatomic, copy) NSString *waveformSpectrumPalette;
 // YES draws the whole waveform as played under a line at the playhead; NO
 // (default) dims the unplayed side.
 @property (nonatomic) BOOL waveformPlayheadLine;
