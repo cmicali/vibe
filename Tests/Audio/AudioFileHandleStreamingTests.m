@@ -185,7 +185,7 @@ static NSURL *VibeWriteEncoded(NSURL *url, AudioFileTypeID type, AudioStreamBasi
 
 static NSURL *VibeAssetFixture(NSString *name) {
     NSString *tests = [NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent;
-    NSString *path = [tests stringByAppendingPathComponent:[@"../Assets/test_audio_files" stringByAppendingPathComponent:name]];
+    NSString *path = [tests stringByAppendingPathComponent:[@"../../Assets/test_audio_files" stringByAppendingPathComponent:name]];
     return [NSFileManager.defaultManager fileExistsAtPath:path] ? [NSURL fileURLWithPath:path.stringByStandardizingPath] : nil;
 }
 

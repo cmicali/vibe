@@ -4,6 +4,18 @@
 
 `iOSDriver/` is **not** a test suite. It is the `vibe-debug` skill's touch driver, a resident XCUITest (`VibeiOSDriver`) started by `drive-ios.sh`, and `VibeTests`' `Tests` source entry excludes it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, excluded the same way.
 
+**The directories mirror `Vibe/`.** A test lives in the directory of the code it tests: `Audio/` (with `Analysis/`, `FX/`, `Levels/`, `Metadata/`, and `Waveform/`), `Loading/` (with `Net/`), `Playlist/`, `WaveformUI/`, `Common/`, `Util/`, `Controls/`, `NowPlaying/`, `Mac/`, and `iOS/`. A subsystem's platform half shares its directory. So `Audio/` holds the device and FLAC conversion tests, and `Playlist/` holds the drag rules. A test of a debug seam sits beside the tests of the class the seam opens (`AudioLoadingConfigurationDebugTests`). `Debug/` holds the tests of the debug fakes. The Dropbox tests are in `iOS/`, beside the Dropbox code. `SmokeTests.m` stays at the root, because it tests the harness itself.
+
+## Helpers
+
+`Support/` holds the shared helpers. None of them runs a test.
+
+- `AudioFixtures.h`: the fixture writers and the reference conversion (`VibeReferenceResample`). Both targets use it.
+- `HTTPStub.h` and `.m`: a scripted HTTP host per instance, over the debug fake's serving engine. Both targets compile it.
+- `LinkStoreTestCase.h` and `.m`: the base class of each link host's store tests.
+- `TestFilesystemGuard.h` and `.m`: the per-process temp root and in-memory defaults, installed at image load. Both targets compile it.
+- `VibeReadAheadScript.h` and `.m`: forces the network-mount rule and scripts each read. Both targets compile it.
+
 ## What belongs here
 
 Deterministic host-less logic and machinery: code whose outcome its inputs or narrow injected I/O boundaries control. That covers math, archive encode and decode, formatting, precedence rules, cache keys, coordinator accounting, queue and retry orchestration, and local temp-file wrappers. The suite is **host-less** (no `TEST_HOST`). It runs in seconds with no window server, audio hardware, permissions or Vibe instance, and it does not inherit the app's sandbox, so it can read fixtures from the repo.

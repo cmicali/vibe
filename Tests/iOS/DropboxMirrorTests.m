@@ -1686,7 +1686,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     }
     // The real encode with a seek table, when the gitignored corpus is here.
     NSString *tone = [[NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent
-            stringByAppendingPathComponent:@"../Assets/test_audio_files/tone.flac"].stringByStandardizingPath;
+            stringByAppendingPathComponent:@"../../Assets/test_audio_files/tone.flac"].stringByStandardizingPath;
     if ([NSFileManager.defaultManager fileExistsAtPath:tone]) {
         [files addObject:[NSURL fileURLWithPath:tone]];
     }

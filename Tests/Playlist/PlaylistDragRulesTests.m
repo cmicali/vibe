@@ -3,7 +3,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "../Vibe/Playlist/Mac/PlaylistDragRules.h"
+#import "../../Vibe/Playlist/Mac/PlaylistDragRules.h"
 
 @interface PlaylistDragRulesTests : XCTestCase
 @end

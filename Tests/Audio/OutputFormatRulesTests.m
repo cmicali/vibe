@@ -1,9 +1,9 @@
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 
-#import "../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
+#import "../../Vibe/Audio/Mac/Devices/OutputFormatRules.h"
 #import "AudioFixtures.h"
-#import "../Vibe/Audio/AudioOutputUnitInternal.h"
+#import "../../Vibe/Audio/AudioOutputUnitInternal.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"

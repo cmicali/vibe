@@ -978,11 +978,11 @@ targets:
     platform: macOS
     sources:
       - path: Tests/AudioRender
-      - path: Tests/TestFilesystemGuard.m
-      - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
+      - path: Tests/Support/TestFilesystemGuard.m
+      - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # its sessionConfiguration
-      - path: Tests/VibeReadAheadScript.m
+      - path: Tests/Support/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m

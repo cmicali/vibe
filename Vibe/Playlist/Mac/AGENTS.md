@@ -88,7 +88,7 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 **A row number captured at mouse-down is never trusted.** The payload is the exact `AudioTrack`s, re-resolved through `rowsForTracks:` at every validation and at the drop. A replaced playlist resolves to nothing and rejects the drag. A row converted away drops out alone. One qualification (`reorderDestinationForInfo:`) serves both the insertion line and the accept, so the line never promises a move the drop refuses.
 
-**`PlaylistDragRules.h` is the one conversion from an AppKit insertion slot to model final positions**, tested in `Tests/PlaylistDragRulesTests.m`. `VibePlaylistDropDestinationForSlot` solves the downward off-by-one. It answers nil for a no-op slot, so no insertion line is drawn there. A no-op is a contiguous block dropped onto or beside itself, or every row at once. `VibePlaylistMoveSequenceEnumerate` emits single-row moves in **evolving coordinates**: apply one before computing the next.
+**`PlaylistDragRules.h` is the one conversion from an AppKit insertion slot to model final positions**, tested in `Tests/Playlist/PlaylistDragRulesTests.m`. `VibePlaylistDropDestinationForSlot` solves the downward off-by-one. It answers nil for a no-op slot, so no insertion line is drawn there. A no-op is a contiguous block dropped onto or beside itself, or every row at once. `VibePlaylistMoveSequenceEnumerate` emits single-row moves in **evolving coordinates**: apply one before computing the next.
 
 ## Track commands
 
