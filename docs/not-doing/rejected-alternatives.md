@@ -33,7 +33,7 @@ Shipped: every transfer slot ends at stage-1 settlement, and live handle runs ar
 
 Plan: `git show 557c191f:docs/done/fix-metadata-loader-test-hold-race.md`.
 
-The fake provider operation in `Tests/Audio/Metadata/AudioTrackMetadataLoaderTests.m` read `blocksUntilCancelled` one step after the point the test synchronized on, so it could complete as a success. Shipped: the read is hoisted, and a gate at the bad interleaving is the regression.
+The fake provider operation in `Tests/Support/MetadataLoaderTestFakes.m` read `blocksUntilCancelled` one step after the point the test synchronized on, so it could complete as a success. Shipped: the read is hoisted, and a gate at the bad interleaving is the regression.
 
 - **A longer settle delay.** The bug is a first start taking the wrong branch, which has already happened by then. Slower, no more correct.
 - **Making every hold/clear pair observable** with a second expectation. It edits all ten pairs for the same guarantee.

@@ -29,7 +29,7 @@
 
 **Only a continuous gesture coalesces.** `currentThemeDidChangeContinuous:YES` folds the same working-record keys moving within two seconds onto the first tick's before-snapshot, and updates the final after-snapshot. The theme list counts as one more key, so a rename or a removal never folds into the drag after it. Discrete edits stay separate. Undo and redo end coalescing. A new edit discards the redo branch, and an unchanged write keeps it.
 
-**Both directions use `restoreThemeHistoryForward:` without recording.** `_themeHistoryRestoring` means only "do not record". A restore sweeps nothing, since everything it puts back is still held by the entry it crossed. The caller requests `ThemeApply`. `AppThemeTests` covers both directions, removal order and fallback, branch invalidation, the history cap and gesture boundaries.
+**Both directions use `restoreThemeHistoryForward:` without recording.** `_themeHistoryRestoring` means only "do not record". A restore sweeps nothing, since everything it puts back is still held by the entry it crossed. The caller requests `ThemeApply`. `AppThemeStoreTests` covers both directions, removal order and fallback, branch invalidation, the history cap and gesture boundaries.
 
 ## The image sweep
 
