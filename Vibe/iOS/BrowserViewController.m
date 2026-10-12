@@ -315,6 +315,11 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     // then probably held a web link. The paste row shows only while it does.
     NSInteger _clipboardChangeCount;
     BOOL _clipboardHasLink;
+    // Whether Dropbox was linked when the root last reloaded. The rows read
+    // this, never the live account. The account flips off main before its
+    // change is posted. A live read in that gap maps a folder's row to the
+    // folder beside it.
+    BOOL _dropboxLinked;
     // Open URL's sheet while it is up, with its field, Open, and spinner.
     UINavigationController *_linkSheet;
     UITextView *_linkField;
@@ -478,6 +483,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     [self syncEqualizer];
     if (self.isRoot) {
         [self refreshClipboardLink];
+        _dropboxLinked = DropboxMirror.shared.client.isLinked;
         [self.tableView reloadData];
         return;
     }
@@ -635,10 +641,11 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 }
 
 // The account went or came, or a location was granted or removed. A pushed
-// Dropbox folder of a signed-out account has nothing left to show, so the
-// stack goes back to the sources.
+// Dropbox folder of a signed-out account has nothing left to show. The stack
+// goes back to the root.
 - (void)sourcesDidChange:(NSNotification *)notification {
     if (self.isRoot) {
+        _dropboxLinked = DropboxMirror.shared.client.isLinked;
         [self.tableView reloadData];
         return;
     }
@@ -868,8 +875,8 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     self.navigationItem.rightBarButtonItems = items;
 }
 
-// The root's plus. Built when opened, so Connect to Dropbox follows the
-// account.
+// The root's plus. It is built each time it opens. Connect to Dropbox then
+// follows the account.
 - (UIMenu *)addLocationMenu {
     __weak BrowserViewController *weakSelf = self;
     UIDeferredMenuElement *items = [UIDeferredMenuElement elementWithUncachedProvider:
@@ -1593,7 +1600,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 #pragma mark - Table
 
 - (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
-    return VibeBrowserRootRows((VibeBrowserRootSection)section, DropboxMirror.shared.client.isLinked,
+    return VibeBrowserRootRows((VibeBrowserRootSection)section, _dropboxLinked,
                                SearchFolderStore.shared.folderURLs.count, _clipboardHasLink);
 }
 
@@ -1603,11 +1610,15 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             ? (VibeBrowserRootRow)rows[(NSUInteger)indexPath.row].integerValue : VibeBrowserRootRowChooseFile;
 }
 
-// A granted folder's index in SearchFolderStore: its row, less the sources
-// above it.
 - (NSUInteger)locationIndexAtIndexPath:(NSIndexPath *)indexPath {
-    return (NSUInteger)indexPath.row
-            - [[self rootRowsInSection:indexPath.section] indexOfObject:@(VibeBrowserRootRowLocation)];
+    return VibeBrowserRootLocationIndex((VibeBrowserRootSection)indexPath.section, (NSUInteger)indexPath.row,
+                                        _dropboxLinked, SearchFolderStore.shared.folderURLs.count);
+}
+
+// The granted folder a Locations row shows. Nil for any other row.
+- (NSURL *)locationAtIndexPath:(NSIndexPath *)indexPath {
+    NSUInteger index = [self locationIndexAtIndexPath:indexPath];
+    return index == NSNotFound ? nil : SearchFolderStore.shared.folderURLs[index];
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -1776,8 +1787,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
             content.image = [UIImage systemImageNamed:@"clock"];
             break;
         case VibeBrowserRootRowLocation:
-            content.text = [SearchFolderStore displayNameForFolderURL:
-                    SearchFolderStore.shared.folderURLs[[self locationIndexAtIndexPath:indexPath]]];
+            content.text = [SearchFolderStore displayNameForFolderURL:[self locationAtIndexPath:indexPath]];
             content.image = [UIImage systemImageNamed:@"folder"];
             break;
         case VibeBrowserRootRowChooseFile:
@@ -1867,7 +1877,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
                                                  animated:YES];
             return;
         case VibeBrowserRootRowLocation:
-            [self pushDirectory:SearchFolderStore.shared.folderURLs[[self locationIndexAtIndexPath:indexPath]]];
+            [self pushDirectory:[self locationAtIndexPath:indexPath]];
             return;
         case VibeBrowserRootRowChooseFile:
             [self presentPickerForLocation:NO];
@@ -1910,7 +1920,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 #pragma mark - Row actions
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
-    return !self.isRoot || [self rootRowAtIndexPath:indexPath] == VibeBrowserRootRowLocation;
+    return !self.isRoot || [self locationIndexAtIndexPath:indexPath] != NSNotFound;
 }
 
 // Root only: the system draws and localizes Delete, which forgets a location.
@@ -1922,8 +1932,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
 - (void)tableView:(UITableView *)tableView
         commitEditingStyle:(UITableViewCellEditingStyle)style
          forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (self.isRoot && style == UITableViewCellEditingStyleDelete) {
-        [SearchFolderStore.shared removeFolderAtIndex:[self locationIndexAtIndexPath:indexPath]];
+    NSUInteger index = self.isRoot ? [self locationIndexAtIndexPath:indexPath] : NSNotFound;
+    if (style == UITableViewCellEditingStyleDelete && index != NSNotFound) {
+        [SearchFolderStore.shared removeFolderAtIndex:index];
     }
 }
 
@@ -1959,10 +1970,10 @@ didEndDisplayingCell:(UITableViewCell *)cell
     __weak BrowserViewController *weakSelf = self;
     if (self.isRoot) {
         // The swipe's Delete, where a long press finds it too.
-        if ([self rootRowAtIndexPath:indexPath] != VibeBrowserRootRowLocation) {
+        NSURL *location = [self locationAtIndexPath:indexPath];
+        if (!location) {
             return nil;
         }
-        NSURL *location = SearchFolderStore.shared.folderURLs[[self locationIndexAtIndexPath:indexPath]];
         return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                        previewProvider:nil
                                                         actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {

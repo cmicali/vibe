@@ -1064,6 +1064,10 @@ static void TakeNews(CloudFileAvailability *availability) {
 // Either writer's wait, once blocked, sees an interrupt set after it blocked
 // when wakeWaiters wakes it. Nothing asserts it stays blocked until the wake.
 // NSCondition may wake early, and an early look at the flag is harmless.
+// TRAP: `asked` is signalled only after a read that found no interrupt. That
+// read is under the wait's lock, so the wait parks before wakeWaiters can take
+// it. A signal before the read let the flag land first. The wait then
+// returned without parking, and a broken wake still passed.
 - (void)testAWakeMakesABlockedWaitSeeAnInterrupt {
     CloudFileAvailability *withoutPart = [[CloudFileAvailability alloc] initWithoutPartFile];
     [withoutPart noteSize:100];
@@ -1072,8 +1076,11 @@ static void TakeNews(CloudFileAvailability *availability) {
         __block _Atomic bool interrupted = false;
         dispatch_semaphore_t asked = dispatch_semaphore_create(0);
         BOOL (^isInterrupted)(void) = ^BOOL{
+            if (atomic_load(&interrupted)) {
+                return YES;
+            }
             dispatch_semaphore_signal(asked);
-            return atomic_load(&interrupted);
+            return NO;
         };
         CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
         dispatch_semaphore_t returned = [self wait:availability at:10 length:10 interrupted:isInterrupted

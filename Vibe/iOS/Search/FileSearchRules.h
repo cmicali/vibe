@@ -159,6 +159,19 @@ static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection se
             : @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL)];
 }
 
+// A Location row's index in SearchFolderStore, or NSNotFound for any other
+// row. The folders follow the device and, once linked, Dropbox.
+static inline NSUInteger VibeBrowserRootLocationIndex(VibeBrowserRootSection section,
+                                                      NSUInteger row,
+                                                      BOOL dropboxLinked,
+                                                      NSUInteger locations) {
+    NSUInteger first = dropboxLinked ? 2 : 1;
+    if (section != VibeBrowserRootSectionLocations || row < first || row - first >= locations) {
+        return NSNotFound;
+    }
+    return row - first;
+}
+
 #pragma mark - Recents
 
 // The recents' file URLs, from the paths they recorded. A launch's pruning
