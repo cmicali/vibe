@@ -11,6 +11,7 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 | `CloudTransferRegistry` | which files are on the wire |
 | `DownloadProgressMonitor` | how far one transfer has come, for the registry |
 | `CloudFileMaterializer` | the abortable download of a placeholder, a provider's or a remote one |
+| `CloudFileAvailability` | how much of a file is readable while a writer fetches it |
 | `Net/` | files the app fetches itself over HTTP. Its doc is `Net/AGENTS.md` |
 
 The player's side of an open is `Audio/AGENTS.md`'s: the deadline, progress identity and prefetch. The sweep's retries against the foreground hold are `Audio/Metadata/AGENTS.md`'s. `docs/file-loading-spec.md` states the observable behavior across all of them. Three root `AGENTS.md` guarantees are implemented here: the foreground open outranks background downloads, the six-run handle ceiling, and a row shows the loading bar only while a transfer is running.
@@ -115,7 +116,7 @@ A backend has three blocks (`CloudFileMaterializer.h` states each one's contract
 
 ### CloudFileAvailability
 
-**It says how much of a file is readable while a writer fetches it.** `CloudFileMaterializer.h` states every call's contract. There are two writers.
+**It says how much of a file is readable while a writer fetches it.** `CloudFileAvailability.h` states every call's contract. There are two writers.
 - A transfer writes a part file from byte 0. Its size is known before the first byte. It notes bytes only after writing them. It may also hold one **tail window**: bytes past the download's edge that it read ahead (`Net/AGENTS.md`). The window always lies wholly past the bytes written, so no read mixes the two. A range straddling its start waits for the disk.
 - A writer with no part file fetches by range into blocks held in memory (`initWithoutPartFile`). The one such writer is `AudioFileHandle`'s read-ahead on a network mount (`Audio/AGENTS.md`). It drives itself from `waitForWorkUntil:wanted:length:readerPosition:` and asks `heldEndAt:`, never a wait, what is already held. A wait would move the reader's position.
 

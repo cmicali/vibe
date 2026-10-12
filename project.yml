@@ -847,6 +847,7 @@ targets:
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/CloudFileAvailability.m
       - path: Vibe/Loading/DownloadProgressMonitor.m
       - path: Vibe/Loading/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
@@ -1015,6 +1016,7 @@ targets:
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Debug/VibeWorkTally.m
       - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/CloudFileAvailability.m
       - path: Vibe/Loading/DownloadProgressMonitor.m
       - path: Vibe/Loading/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
