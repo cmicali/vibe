@@ -500,6 +500,38 @@ static const AudioObjectPropertyAddress kVibeHogModeAddress = {
     return [self readHogOwner:&owner forDeviceID:deviceID] && owner != -1 && owner != getpid();
 }
 
++ (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID {
+    AudioObjectPropertyAddress address = {
+        kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
+    };
+    Boolean settable = false;
+    return deviceID != kAudioObjectUnknown && AudioObjectHasProperty(deviceID, &address)
+            && AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr && settable;
+}
+
++ (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID {
+    pid_t owner = -1;
+    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
+        return NO;
+    }
+    pid_t me = getpid();
+    // "Owned by this process" is the whole state: a release with another
+    // process holding it is already true, and an acquire over another holder
+    // is refused by the HAL itself (the write leaves it unchanged, and the
+    // read-back below says so).
+    if (owned ? owner == me : owner != me) {
+        return YES; // already in the requested state; a write here would toggle it
+    }
+    pid_t request = owned ? me : -1;
+    if (!VibeWriteDeviceProperty(deviceID, kAudioDevicePropertyHogMode, &request, sizeof(request))) {
+        return NO;
+    }
+    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
+        return NO;
+    }
+    return owned ? owner == me : owner != me;
+}
+
 #pragma mark - Diagnostics
 
 static NSString *VibeFourCCText(UInt32 code) {
@@ -670,21 +702,6 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
 }
 
 #if VIBE_VERBOSE_LOGGING
-+ (AudioObjectPropertyListenerBlock)eventLogListenerForObject:(AudioObjectID)object
-                                                       name:(NSString *)name queue:(dispatch_queue_t)queue {
-    return ^(UInt32 count, const AudioObjectPropertyAddress *addresses) {
-        for (UInt32 i = 0; i < count; i++) {
-            AudioObjectPropertyAddress address = addresses[i];
-            // TRAP: HAL delivers running/overload notifications synchronously
-            // on its IO thread. A property read here can deadlock its stop.
-            dispatch_async(queue, ^{
-                LogInfo(@"HAL: %@ (%u) %@", name, object,
-                        [self eventDescriptionOfProperty:address object:object]);
-            });
-        }
-    };
-}
-
 + (NSString *)eventDescriptionOfProperty:(AudioObjectPropertyAddress)address object:(AudioObjectID)object {
     UInt32 u = 0;
     BOOL haveU = VibeReadDeviceProperty(object, address.mSelector, address.mScope, &u, sizeof(u));
@@ -742,37 +759,5 @@ static NSArray<NSString *> *VibeReadAvailableRates(AudioDeviceID deviceID) {
     return [NSString stringWithFormat:@"%@ changed", VibeFourCCText(address.mSelector)];
 }
 #endif
-
-+ (BOOL)supportsHogModeForDeviceID:(AudioDeviceID)deviceID {
-    AudioObjectPropertyAddress address = {
-        kAudioDevicePropertyHogMode, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain
-    };
-    Boolean settable = false;
-    return deviceID != kAudioObjectUnknown && AudioObjectHasProperty(deviceID, &address)
-            && AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr && settable;
-}
-
-+ (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID {
-    pid_t owner = -1;
-    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
-        return NO;
-    }
-    pid_t me = getpid();
-    // "Owned by this process" is the whole state: a release with another
-    // process holding it is already true, and an acquire over another holder
-    // is refused by the HAL itself (the write leaves it unchanged, and the
-    // read-back below says so).
-    if (owned ? owner == me : owner != me) {
-        return YES; // already in the requested state; a write here would toggle it
-    }
-    pid_t request = owned ? me : -1;
-    if (!VibeWriteDeviceProperty(deviceID, kAudioDevicePropertyHogMode, &request, sizeof(request))) {
-        return NO;
-    }
-    if (![self readHogOwner:&owner forDeviceID:deviceID]) {
-        return NO;
-    }
-    return owned ? owner == me : owner != me;
-}
 
 @end

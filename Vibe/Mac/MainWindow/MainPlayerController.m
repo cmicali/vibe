@@ -19,7 +19,7 @@
 #import "DrawnControls.h"
 #import "AudioFileHandle.h"
 #import "AudioPlayer.h"
-#import "AudioPlayer+Devices.h"
+#import "AudioPlayer+BitPerfect.h"
 #import "AudioFX.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"

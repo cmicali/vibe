@@ -10,7 +10,6 @@
 #import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "AudioPlayer+Devices.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
 #import "AppStats.h"

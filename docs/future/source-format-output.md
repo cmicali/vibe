@@ -14,7 +14,7 @@ Carry the source's decoded PCM representation through the existing voice bus and
 - **Float32 carries every integer sample of 24 bits or fewer exactly**, since its significand is 24 bits. It cannot carry every Int32 sample, and float64 narrowed to float32 can lose precision. That gap is the whole feature.
 - **A client ASBD proves nothing.** AUHAL may insert a converter between the client and device formats. Read back the stream's virtual and physical formats, and measure ([Apple: AUHAL format conversion](https://developer.apple.com/library/archive/technotes/tn2091/_index.html#//apple_ref/doc/uid/DTS10000418-CH1-SUBSECTION6)).
 - **Proving wider output needs a wider capture.** The render suite's `CompareWidePCM` already counts what float32 loses. `verify-bit-perfect.swift` compares `[[Float]]`, so it and a float32 BlackHole loopback cannot validate Int32 or float64 output. Without a wider digital loopback, report hardware precision as unverified.
-- **Budget: zero new files and zero new types.** Carry one resolved format choice through the existing owners: the reader and opener, `AudioVoiceBus`, `AudioPlayer+Pipeline`'s master slicing, `AudioOutputUnit`'s client format, `OutputFormatRules.h`'s negotiation and the bit-perfect report. Reuse `AVAudioFormat` and `followOutputFormatOnQueue:`'s rebuild and restore.
+- **Budget: zero new files and zero new types.** Carry one resolved format choice through the existing owners: the reader and opener, `AudioVoiceBus`, `AudioMasterBus`'s slicing, `AudioOutputUnit`'s client format, `OutputFormatRules.h`'s negotiation and the bit-perfect report. Reuse `AVAudioFormat` and `followOutputFormatOnQueue:`'s rebuild and restore.
 
 ## What the design must not lose
 

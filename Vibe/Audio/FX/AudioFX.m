@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "AudioFX.h"
+#import "AudioFX+Pipeline.h"
 #import "AudioFXMath.h"
 #import "AudioVarispeed.h"
 #import "FadeMath.h"

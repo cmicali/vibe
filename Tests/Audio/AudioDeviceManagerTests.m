@@ -3,8 +3,8 @@
 //
 //  AudioDeviceManager with injected enumeration and retry scheduling, and no
 //  HAL registration: snapshot publication, saved-device lookups and the
-//  recovery retry. CoreAudioUtil's event log, bounded reads and device
-//  release obligations run with controlled attempts.
+//  recovery retry. AudioDeviceEventLog's listener, CoreAudioUtil's bounded
+//  reads and device release obligations run with controlled attempts.
 //
 
 #import <XCTest/XCTest.h>
@@ -12,6 +12,7 @@
 
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioDeviceEventLog.h"
 #import "AudioDeviceManager.h"
 #import "CoreAudioUtil.h"
 
@@ -50,7 +51,7 @@
     });
     IMP original = method_setImplementation(formatter, replacement);
     @try {
-        AudioObjectPropertyListenerBlock listener = [CoreAudioUtil eventLogListenerForObject:42 name:@"test device" queue:queue];
+        AudioObjectPropertyListenerBlock listener = [AudioDeviceEventLog listenerForObject:42 name:@"test device" queue:queue];
         for (NSNumber *selector in @[@(kAudioDevicePropertyDeviceIsRunning), @(kAudioDeviceProcessorOverload)]) {
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
                 AudioObjectPropertyAddress address = {selector.unsignedIntValue, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};

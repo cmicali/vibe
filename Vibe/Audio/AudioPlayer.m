@@ -10,11 +10,12 @@
 
 #import "AudioPlayer.h"
 #import "AudioPlayerInternal.h"
+#import "AudioMasterBusInternal.h"
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #import "AudioPlayer+Debug.h"
 #endif
-#import "AudioFX.h"
+#import "AudioFX+Pipeline.h"
 #import "AudioLoadingConfiguration.h"
 #import "AudioTrack.h"
 #if TARGET_OS_OSX

@@ -1,6 +1,6 @@
 # Output devices (macOS only)
 
-The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `CoreAudioUtil`, `OutputFormatRules.h` and `AudioPlayer+Devices`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
+The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `AudioDeviceEventLog`, `CoreAudioUtil`, `OutputFormatRules.h`, `AudioPlayer+Devices`, and `AudioPlayer+BitPerfect`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
 
 `CoreAudioUtil.diagnosticDescriptionOfDeviceID:` is the one read-everything call (formats, declared latency, clock, exclusive owner). It exists for Save Debug Info (`Mac/App/AGENTS.md`), and nothing that changes a device reads it. The player's side of that report is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too. The snapshot reads on the player queue, so shipping callers invoke it off main.
 
@@ -8,7 +8,7 @@ The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `Cor
 
 A singleton that owns device-change listening. At init it registers CoreAudio listeners for the default output device and the device list, kept for the process's life, then sweeps. `outputDevices` serves the latest immutable snapshot and waits at most 250 ms for the first one, so an unavailable `coreaudiod` cannot strand a caller's serial queue. `cachedOutputDevices`, `knowsOutputDeviceIsAbsent:` and `outputDeviceForId:` never wait, because the player queue calls them.
 
-With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log follows published devices, watched device and stream property changes, arrivals and removals, default and alert output changes, and `coreaudiod` restarts. **TRAP: HAL delivers running/overload notifications synchronously on its IO thread, and a property read there can deadlock its stop.** A delivery queue does not make them asynchronous: HAL waits for that queue. So the event-log listeners register with a NULL queue, copy the addresses, and enqueue their reads on `_eventLogQueue` (`CoreAudioUtil.eventLogListenerForObject:name:queue:`). Playback never waits on that queue, and its work changes no playback state.
+With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log (`AudioDeviceEventLog`) follows published devices, watched device and stream property changes, arrivals and removals, default and alert output changes, and `coreaudiod` restarts. **TRAP: HAL delivers running/overload notifications synchronously on its IO thread, and a property read there can deadlock its stop.** A delivery queue does not make them asynchronous: HAL waits for that queue. So the event-log listeners register with a NULL queue, copy the addresses, and enqueue their reads on `_eventLogQueue` (`AudioDeviceEventLog.listenerForObject:name:queue:`). Playback never waits on that queue, and its work changes no playback state.
 
 **A snapshot is normally published only after every read agrees**: the device list, the system default, each device's output-channel, name and UID properties, and the default appearing in the list. A partial result keeps the prior snapshot and takes the two-second retry, so a transient HAL failure cannot look like removal and persist a false System Output fallback.
 
@@ -24,7 +24,7 @@ With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log follows published devices, w
 
 ## AudioPlayer+Devices
 
-All device management: resolution, switching, the rate the pipeline runs at, and parking or falling back when a device vanishes. Its `(PlatformOutput)` implementation owns the output unit's device half: binding it, starting it under exclusive access, feeding it the device's rate. `AudioPlayer+Pipeline` owns the platform-blind half. The unit itself, `Audio/AudioOutputUnit`, is shared with iOS, and everything device-shaped in it (the bind, the HAL latency reads) is `TARGET_OS_OSX`. `(DevicesInternal)` owns the device policy, on `AudioPlayerInternal.h`'s private surface as the iOS `AudioPlayer+Recovery` is. Its public half, `(Devices)`, has its own header, which the macOS shell imports beside `AudioPlayer.h`.
+All device management: resolution, switching, the rate the pipeline runs at, and parking or falling back when a device vanishes. Its `(PlatformOutput)` implementation owns the output unit's device half: binding it, starting it under exclusive access, feeding it the device's rate. `AudioPlayer+Pipeline` owns the platform-blind half. The unit itself, `Audio/AudioOutputUnit`, is shared with iOS, and everything device-shaped in it (the bind, the HAL latency reads) is `TARGET_OS_OSX`. `(DevicesInternal)` owns the device policy. It is declared in `AudioPlayer+DevicesInternal.h`, with the device ivars and bit-perfect's `(BitPerfectInternal)`. Only `AudioPlayerInternal.h` imports that header, under `TARGET_OS_OSX`. So it is on the player's private surface, as the iOS `AudioPlayer+Recovery` is. Its public half, `(Devices)`, has its own header, which the macOS shell imports beside `AudioPlayer.h`.
 
 ### The unit waits on the HAL so the player queue never does
 
@@ -78,7 +78,7 @@ Vibe's own format writes arrive with the pipeline already at the rate, a no-op. 
 
 ## Bit-perfect output
 
-`AudioPlayer.setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:` (Settings > Audio) delivers each file's decoded samples to the chosen device unchanged.
+`AudioPlayer.setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:` (Settings > Audio) delivers each file's decoded samples to the chosen device unchanged. The mode is `AudioPlayer+BitPerfect`. Its public half, `(BitPerfect)`, is the setter and the report, in its own header, which the macOS shell imports beside `AudioPlayer.h`. The queue-side mechanism is `(BitPerfectInternal)`, declared in `AudioPlayer+DevicesInternal.h`.
 
 **Declick** (`AppSettings.declick`, default on, `Audio/AGENTS.md`) decides what the mode does at a transport edge. On, each play, seek, pause, resume, stop or track change gets the ≤10 ms declick ramp, and every other frame, a gapless boundary included, is unchanged. Off, the edge is a cut that leaves every sample untouched. It reaches the player as `AudioPlayer.declick` through `VibeSettingsLiveEffectDeclick`, with no rebuild. The crossfade never enters the mode: `effectiveCrossfadeMilliseconds` clamps it to the declick minimum, so with Declick off the mode applies no gain at all. The loopback verifier turns Declick off around its captures, which compare from the first frame.
 

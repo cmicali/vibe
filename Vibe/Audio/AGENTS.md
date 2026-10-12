@@ -4,7 +4,7 @@ The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFi
 
 ## The model in one page
 
-Vibe owns playback and renders it. There is no `AVAudioEngine`. One C function, `VibeMasterBusRender` (`AudioPlayer+Pipeline`), renders `voice bus → [varispeed] → [FX] → [meter] → [volume]` straight into the output's buffers, on both platforms.
+Vibe owns playback and renders it. There is no `AVAudioEngine`. One C function, `VibeMasterBusRender` (`AudioMasterBus`), renders `voice bus → [varispeed] → [FX] → [meter] → [volume]` straight into the output's buffers, on both platforms.
 
 - The **voice bus** (`AudioVoiceBus`) is decode → ring → per-frame gain → mix.
 - The **varispeed** is Vibe's own converter (`FX/AGENTS.md`). The **FX** units are Apple's DSP, hosted through the AudioUnit C API. Both are skipped while they have nothing to do.
@@ -18,7 +18,7 @@ One **output unit** pulls the render on both platforms: `AudioOutputUnit`, an ou
 - The transport hears three things from the bus, through a **drain** it runs itself: a voice went **live** (its first frames are buffered); the current voice passed its **boundary** into the queued successor (promote, `didAutoAdvance`); a voice **ended**. A current voice's end is `didFinishPlaying` on clean EOF or an attributed error on failure. A retiring voice's end feeds the output-liveness fold.
 - **Every fade exists only to keep the output click-free.** A ramp is evaluated per frame on the audio thread from the frame index, so it lands on its target exactly. **Declick** (Settings > Audio, default on) decides what a transport edge does: on, the ≤10 ms declick and every other frame untouched; off, a cut. A crossfade longer than the declick is the user's choice and fades either way. Bit-perfect output holds the crossfade at the declick, so with Declick off it applies no gain at all.
 
-The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` → `AudioPlayer+Pipeline.h` → the platform half.
+The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` → `AudioPlayer+Pipeline.h` → `AudioMasterBus.h` → the platform half.
 
 ## AudioPlayer
 
@@ -26,14 +26,18 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | --- | --- |
 | `AudioPlayer.h` | the public API, platform-free: the transport verbs, the `(State)` getters, the delegate |
 | `AudioPlayer.m` | the transport: init and teardown, play submission → open → settlement, pause/resume/seek/stop/finish, the voice vocabulary, the published tuple, bus-event interpretation, delegate delivery with submitted-play identity |
-| `AudioPlayerInternal.h` | the class extension the categories share: every ivar, the queue helpers, and the ownership statement |
-| `AudioPlayer+Pipeline` | the render pipeline and its lifetime: the master bus and `VibeMasterBusRender`, the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
+| `AudioPlayerInternal.h` | the class extension the categories share: every ivar but the mac device ivars (`Mac/Devices/AudioPlayer+DevicesInternal.h`), the queue helpers, and the ownership statement |
+| `AudioPlayer+Pipeline` | the render pipeline's player-queue side and its lifetime: the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
+| `AudioMasterBus` | the render, `VibeMasterBusRender`: the door, the slices, the stages in order and the volume, and the master bus's create and free. `AudioMasterBusInternal.h` is its layout, which the pipeline category writes |
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file), the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, with no player-queue waits |
-| `AudioFileHandle` | the parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), shared by playback and the metadata fallback; which decoder takes the file; reading a file still streaming, and reading ahead on a network mount (below) |
+| `AudioFileHandle` | the parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), shared by playback and the metadata fallback; which decoder takes the file; reading a file still streaming, and reading a file on a network mount through its read-ahead (below) |
+| `AudioFileHandle+MPEG.m` | dr_mp3's decode: the open, a headerless stream's estimated count and its settle, the seek, the reads and the packet decode |
+| `AudioFileHandleInternal.h` | the private header the two share: the ivars the decode reads, the core's reads and waits it calls, and the decode's methods the core calls |
 | `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, the stall watchers' start and suspension, and the signal probe. The watchdogs and the stack sampler are `Util/StallWatch` |
 | `AudioOutputUnit` | the hosted output unit both platforms pull the render with: its callback, gate, counters and its own HAL queue |
-| `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations; bit-perfect and exclusive output (`Mac/Devices/AGENTS.md`) |
+| `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations, and the mac's private device header (`Mac/Devices/AGENTS.md`) |
+| `Mac/Devices/AudioPlayer+BitPerfect` | bit-perfect and exclusive output: the format prepare and restore, the hog, and the report (`Mac/Devices/AGENTS.md`) |
 | `iOS/AudioPlayer+Recovery` | the unit's route rate and its lazy creation; session verdicts (`iOS/AGENTS.md`) |
 
 **`AudioPlayer.m` is the single writer of the state it publishes. Each category owns one vocabulary and declares its methods in its own header.** All of them share `AudioPlayerInternal.h`, which also declares `(PlatformOutput)` once for the two platform implementations. **That shared header is the cost of every split.** A category that pushes more state into it than it takes out of `AudioPlayer.m` is not worth making.
@@ -48,9 +52,17 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 
 `AudioVoiceBus.h` carries the contract. This is the shape.
 
+| File | Owns |
+| --- | --- |
+| `AudioVoiceBus.h` | the contract: voices, ramps, events, the snapshot, and `VibeVoiceBusRender`'s signature |
+| `AudioVoiceBusInternal.h` | the private header: the slot and mix structs, the record, every ivar, the `(Decoder)` methods the queue side calls, and the `(Testing)` seam |
+| `AudioVoiceBus.m` | the queue side: identity, starts and binds, ramps, stopped and withheld reads, the successor hand-off, kills, snapshots, the drain and inline decoding |
+| `AudioVoiceBusRender.m` | the audio thread: `VibeVoiceBusRender` and its mix helpers, in plain C |
+| `AudioVoiceBus+Decoder.m` | the decode pool's side: the prepare and its conversion, failures, the recycle, the fills, the converter feed, the chunk decode, the stream's end and its reopen |
+
 **Format.** The bus has one format for its life, the output's: float32 non-interleaved stereo at the output's rate. So a mode toggle or a device rate change rebuilds the segment, and the bus owns conversion. A file is read direct when its rate, sample format and channels are the bus's (`VibePCMFormatsMatch`, the one rule the bus, the pipeline and the bit-perfect splice share). Under bit-perfect output the prepare has moved the device and the output to the file's rate first, so a stereo file at that rate is the bitstream unchanged.
 
-Otherwise it is converted on the decode queue by a `VibeConverter` (`AudioResampler.h`), which also serves a device that refuses a file's rate. That is **r8brain-free-src on both platforms**: linear phase, its 24-bit preset, a 1% transition band, with no quality setting (`docs/audio-quality.md`; `Tests/Audio/ResamplerQualityTests.m` holds it to its bounds). It pulls float32 through a `VibeConverterInputProc`. A file that runs dry with the stream open answers no frames, which ends that fill and keeps the filter primed for a successor. r8brain has no end-of-stream call, so the stream's end is the silence flush below.
+Otherwise it is converted on the decode queue by a `VibeResampler` (`AudioResampler.h`), which also serves a device that refuses a file's rate. That is **r8brain-free-src on both platforms**: linear phase, its 24-bit preset, a 1% transition band, with no quality setting (`docs/audio-quality.md`; `Tests/Audio/ResamplerQualityTests.m` holds it to its bounds). It pulls float32 through a `VibeResamplerInputProc`. A file that runs dry with the stream open answers no frames, which ends that fill and keeps the filter primed for a successor. r8brain has no end-of-stream call, so the stream's end is the silence flush below.
 
 A channel difference is mixed first, at the file's own rate, through AudioToolbox's standard matrix (`kAudioFormatProperty_MatrixMixMap`). A 5.1 file's center and surrounds fold into stereo at −3 dB and its LFE is dropped. Mono goes into every channel, and a file with no standard layout keeps its first channels. So a converter carries only the bus's channels. Every file reaches the bus as the float32 its reader decodes. A lossy one's precision is left to the output's one rounding into the device.
 
@@ -185,7 +197,7 @@ A wait ends ready, failed or interrupted. A failed transfer is a read failure ca
 - **TRAP:** ExtAudioFile serves packets the lost read fetched after a later seek, so it is rebuilt over the same parser.
 - dr_wav's cursor never moved, and dr_mp3's seek rebuilds its decoder anyway, provided a lost read never shortens the packet count.
 
-**TRAP: an MP3 with no Xing, Info or VBRI frame states no packet count.** CoreAudio's parser counts one by reading every frame header to the end, so a stream of one would open only once downloaded. It opens uncounted instead, on a count from the frames of its head already on disk (`VibeUncountedMPEGPackets`). If they share the first's bit rate, the count is what that rate gives the audio's bytes. Otherwise it is the count at their average size. **Either is an estimate** (`lengthIsEstimated`), since a headerless file can change rate after its intro. It is kept ahead of the cursor, so the bus never takes it for the end. It is settled from the parser's count when the reads reach the stream's end, or at the first read once the download is complete, on the decode queue. Seeks land exactly either way, since a packet is a fixed number of frames. A free-format stream, or a head that does not walk, is still counted at open, waiting for its download.
+**TRAP: an MP3 with no Xing, Info or VBRI frame states no packet count.** CoreAudio's parser counts one by reading every frame header to the end, so a stream of one would open only once downloaded. It opens uncounted instead, on a count from the frames of its head already on disk (`VibeUncountedMPEGPackets`, `AudioFileHandle+MPEG.m`). If they share the first's bit rate, the count is what that rate gives the audio's bytes. Otherwise it is the count at their average size. **Either is an estimate** (`lengthIsEstimated`), since a headerless file can change rate after its intro. It is kept ahead of the cursor, so the bus never takes it for the end. It is settled from the parser's count when the reads reach the stream's end, or at the first read once the download is complete, on the decode queue. Seeks land exactly either way, since a packet is a fixed number of frames. A free-format stream, or a head that does not walk, is still counted at open, waiting for its download.
 
 - **TRAP:** the settle stores the length, then clears the flag with release ordering, and `lengthIsEstimated` reads it with acquire. A reader of both takes them as one pair (`lengthEstimated:`).
 - **TRAP:** while the length is an estimate the player's window follows it (`republishEstimatedWindowOnQueue`, at every drain, a seek and a stall). It grows with the length and never shrinks, so the position never freezes at a short estimate, and a stall saves the position heard. Settled, the window is republished once more, exactly, with `track.duration` and the optional `didSettleDurationOfTrack:`. The origin is untouched, so only the total moves.
@@ -195,30 +207,21 @@ A whole file pays one lookup per open and one nil check per fill. The coordinato
 
 ### Reading ahead on a network mount
 
-**A file on a network mount reads ahead** (`AudioFileHandle.m`, `VibeReadAheadRun`). The open decides before any I/O, and three things must hold:
+**A file on a network mount reads ahead** (`Loading/NetworkReadAhead`). The read-ahead itself is `Loading/AGENTS.md`'s: its thread, its blocks, its retries and its orphans. The open decides before any I/O, and three things must hold:
 
 - The opener passed an `interrupted` block, and it is not `VibeNeverWaitsForAStream`.
 - No transfer's availability answers for the URL.
-- The kernel's mount table says the file's mount is a network one.
+- The kernel's mount table says the file's mount is a network one (`VibeNetworkReadAheadApplies`).
 
-The handle reads that table with `getfsstat(MNT_NOWAIT)` and never stats the path, since a dead mount holds a stat for its timeout. `VibeMountReadsAhead` (`Loading/AudioFileOpenRules.h`) takes the mount with the longest prefix of the path, comparing spellings only as `VibeAliasFreePath` writes them. A mount without `MNT_LOCAL` is a network one. An unreadable table, a symlinked path, or a path no mount holds takes the direct road. The coordinator's opens and the waveform loader's read ahead. A nil block (the mac's converter, the debug BPM scan) and the metadata fallback read directly.
+The coordinator's opens and the waveform loader's read ahead. A nil block (the mac's converter, the debug BPM scan) and the metadata fallback read directly. **TRAP: both roads open the file nonblocking.** A FIFO with no writer then returns at once for `fstat` to refuse, and never parks an uncancellable open worker.
 
-**The read-ahead is one thread per handle**, named `com.vibe.readahead`, at a fixed User Initiated QoS, since a prefetch opens at Utility and then becomes the voice. It is the only thread that enters the kernel for the file. It opens the file with the direct road's flags, checks it, and notes its size in an availability with no part file (`Loading/AGENTS.md`). **TRAP: both roads open the file nonblocking.** A FIFO with no writer then returns at once for `fstat` to refuse, and never parks an uncancellable open worker.
-
-It then fetches 256 KB blocks. A range a blocked wait wants comes first, rounded out to whole blocks and started past any bytes already held. Otherwise it fetches ahead of the reader, up to 8 MB. An open that succeeds puts the reader back at the head (`noteReaderPosition:`), or an open that read the tail last would leave nothing fetched ahead of the audio. After each block it drops what lies more than one block behind the reader or past the 8 MB. The block behind serves an MP3 seek's preroll and dr_flac's bisection, and the file's first and last blocks are always kept. A handle holds about 9 MB this way, and a track on a share has up to three handles: the playing one, the parked prefetch and the waveform's.
-
-**A read the server fails never fails the availability, unless the file changed meanwhile.** The thread logs the first failure in a row, waits about 1 s, reopens the file and tries again, until its handle is gone. A reopened file whose size or mtime differs fails the availability with `ESTALE`, since its bytes would mix with the old file's blocks. The inode is not compared, since some SMB servers renumber a file across a reconnect. A dead server is then a wait, which the buffering hold and the stall below turn into a pause with Connection lost. A server back within the stall's span plays on by itself. Only the open's own `open` and `fstat` fail the open, with the direct road's errors. A persistent read error on bytes the open needs is retried, so that open fails at the open deadline as "Load timed out". **TRAP: a read of 0 bytes below the size is the file's end only when `fstat` says the file is now that short.** A network mount can read 0 bytes while it reconnects. Any other 0 is a failed read, logged as EIO and retried, since taken as the end it ends the track early. The thread records a real end once (`noteShortenedEnd:`).
+**A read the server fails never fails the open.** The read-ahead retries it until its handle is gone. Only the read-ahead's own `open` and `fstat` fail the open, with the direct road's errors. A persistent read error on bytes the open needs is retried, so that open fails at the open deadline as "Load timed out". A dead server is then a wait, which the buffering hold and the stall below turn into a pause with Connection lost.
 
 **Interrupted reads pause the fetch ahead.** `interruptReads` sets the availability's `readAheadPaused`, and the thread then fetches only a range a wait asks for. So a voice skipped away from stops pulling its file over the network. `allowReads` clears it and wakes the thread.
 
 **The handle holds no descriptor.** Every read waits for its bytes in the availability, as a stream's does, and is copied out of the blocks. A wait that is Ready with nothing copied is the end of the file. The open waits for byte 0, then takes the noted size. The open's canceller wakes only a transfer, so the open's waits ask its `interrupted` block again every 0.25 s. Every later interrupt comes with a wake from `interruptReads`. `holdStream` does nothing, since there is no transfer to hold. The QuickTime reader has no callback open, so its URL road finishes the availability first, which ends the thread. **An MP3 is counted exactly at open**, as a local file is. A headerless MP3 whose frames take longer than the open deadline to cross the wire fails to open. **The hold and the stall below apply unchanged.** `waitingForBytes` rises while a read waits for a block. A parked prefetch reads ahead too, and its progress counts against a stall only once the decoder reads it.
 
-**The handle's dealloc finishes the availability first**, with a "closed" error, and only then closes its decoders and parser. The thread exits once its current syscall returns, and closes its descriptor. A dead mount can hold that syscall for minutes, and a slow share for a while. Until it returns the thread is an orphan, counted process-wide. **Once eight are orphaned, a new read-ahead open waits** for one to exit, asking its `interrupted` block every 0.25 s. The open deadline still bounds it. The handle-open ceiling counts these threads apart from its six runs (`Loading/AGENTS.md`). `Read-ahead:` log lines mark each thread's start, its first failed read and its end.
-
-- **TRAP: the thread retains the availability only, never the handle**, so the handle's dealloc can finish the availability and end the thread.
-- **TRAP: the thread never holds the availability's lock across `open`, `pread` or `close`.** The player queue takes that lock through `interruptReads` and `wakeWaiters`.
-- **TRAP: the thread never finishes its availability with nil.** Complete would send its readers to a disk it never wrote.
-- **TRAP: the orphan count moves only under its own lock, at the handle's dealloc and at the thread's exit.** A thread still running at the dealloc is an orphan until it exits, and no other thread ever is. The two edges share one flags cell, and the second edge frees it.
+**The handle's dealloc finishes the availability first**, with a "closed" error, and only then closes its decoders and parser. The thread exits once its current syscall returns. Until then it is an orphan (`Loading/AGENTS.md`). An open waits while eight are orphaned, and the open deadline still bounds that wait.
 
 ### Buffering and the stall
 

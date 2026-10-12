@@ -20,7 +20,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioPlayer.h"
-#import "AudioPlayer+Devices.h"
+#import "AudioPlayer+BitPerfect.h"
 #import "AudioWaveformView.h"
 #import "Fonts.h"
 #import "MainMenuBuilder.h"
