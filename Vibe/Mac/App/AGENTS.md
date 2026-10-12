@@ -76,7 +76,7 @@ Restoration runs three utility workers plus one user-initiated lane for a grant 
 
 Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indonesian, so those users see its dialogs in English.
 
-## Launch and the last playlist
+## The last playlist
 
 **Launch order is grants, then drain, then restore, then the empty state.** Inside `restoreGrantedAccessWithCompletion:`, the tested `OpenBurstCoalescer.finishLaunchRestoring:revealEmpty:` calls `startAndDrainQueue` first. Only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and on the first launch only `loadWelcomeTrack` after it. Only when both find nothing does `revealEmptyStateNamingPlaylist:nil` end the launch grace (`Mac/MainWindow/AGENTS.md`).
 
