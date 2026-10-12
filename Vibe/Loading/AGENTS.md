@@ -4,7 +4,9 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 
 | File | Owns |
 | --- | --- |
-| `AudioFileMaterializationCoordinator` | the claim |
+| `AudioFileMaterializationCoordinator` | the claim, stage 1, and the snapshot |
+| `AudioFileMaterializationCoordinator+HandleOpen.m` | stage 2: the handle runs and the six-run ceiling. Its public call, `openURL:…`, is declared in the header's `(HandleOpen)` category |
+| `AudioFileMaterializationCoordinatorInternal.h` | the class extension both files share: the claim, waiter and handle-run records and every ivar but the debug counters. It also holds the test seams and stage 2's cross-file calls |
 | `AudioFileMaterializationTokens` | the request and open tokens. Each delivers its completion at most once, and its cancel detaches it from the coordinator |
 | `AudioWorkScheduler`, `AudioWorkAdmissionRules.h` | admission |
 | `AudioLoadingConfiguration` | the immutable limits and the open-timeout seam |

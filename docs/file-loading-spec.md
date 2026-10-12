@@ -87,7 +87,7 @@ Current production values, all reviewable.
 | Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
 | Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m` |
-| Live handle runs (shared production coordinator) | 6, refused at once, no pending, grace or configuration | `AudioFileMaterializationCoordinator.m` |
+| Live handle runs (shared production coordinator) | 6, refused at once, no pending, grace or configuration | `AudioFileMaterializationCoordinator+HandleOpen.m` |
 | Prefetch depth | 1 | `AudioLoadingConfiguration.m` |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |
 | Admission-exhausted retry delay | 0.25 s → 2 s escalating | `MetadataRetryRules.h` |

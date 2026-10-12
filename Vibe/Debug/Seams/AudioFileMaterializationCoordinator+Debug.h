@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Outstanding AudioFileHandle calls, lock-free, for the health probe. Never
 // overstates; a racing open may read low.
 - (uint64_t)handleOpensInFlight;
+// Stage 2's two edges of that count, on the state queue
+// (AudioFileMaterializationCoordinator+HandleOpen.m).
+- (void)countHandleOpenStarted;
+- (void)countHandleOpenCompleted;
 @end
 
 NS_ASSUME_NONNULL_END

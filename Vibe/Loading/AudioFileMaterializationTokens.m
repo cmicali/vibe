@@ -4,6 +4,7 @@
 //
 
 #import "AudioFileMaterializationTokens.h"
+#import "AudioFileMaterializationCoordinatorInternal.h"
 
 #import "AudioFileOpenRules.h"
 

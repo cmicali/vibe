@@ -58,6 +58,109 @@ typedef struct {
     uint64_t requestsAdmissionExhausted;
 } VibeAudioFileMaterializationCoordinatorSnapshot;
 
+typedef NS_ENUM(NSUInteger, VibeMaterializationLane) {
+    VibeMaterializationLaneInteractive = 0,
+    VibeMaterializationLaneBackground,
+};
+
+typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
+    VibeMaterializationClaimStateProbing = 0,
+    VibeMaterializationClaimStatePending,
+    VibeMaterializationClaimStateRefreshing,
+    VibeMaterializationClaimStateRunning,
+};
+
+@class AudioWorkScheduler;
+@class AudioWorkToken;
+@class CloudFileAvailability;
+
+// Stage 2: one purpose's AudioFileHandle open for one standardized path,
+// riding the path's stage-1 claim.
+@interface VibeAudioHandleRun : NSObject
+@property (nonatomic, copy) NSString *key;         // "purpose:path"
+@property (nonatomic, copy) NSString *path;
+@property (nonatomic, strong) NSURL *url;
+@property (nonatomic) VibeAudioFileOpenPurpose purpose;
+@property (nonatomic, strong, nullable) AudioFileOpenToken *waiter;
+@property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
+@property (nonatomic) uint64_t runGeneration;
+@property (nonatomic) BOOL runWasCancelled;
+// What the open's interrupted block answers, read on its worker.
+@property (atomic) BOOL openInterrupted;
+@property (nonatomic) NSTimeInterval submittedAt;
+@end
+
+@interface VibeAudioFileMaterializationWaiter : NSObject
+@property (nonatomic) uint64_t identifier;
+@property (nonatomic) VibeAudioFileMaterializationRole role;
+@property (nonatomic) NSTimeInterval submittedAt;
+@property (nonatomic, strong) AudioFileMaterializationRequestToken *token;
+@end
+
+// Owned apart from the coordinator, which probes do not retain. Counted before
+// the worker handoff so quiescence cannot slip through the dispatch gap.
+@interface VibeDatalessProbeActivity : NSObject
+- (void)beginAttempt;
+- (void)finishAttempt;
+- (uint64_t)attemptCount;
+@end
+
+@interface VibeAudioFileMaterializationClaim : NSObject
+@property (nonatomic, copy) NSString *path;
+@property (nonatomic, strong) NSURL *url;
+@property (nonatomic, strong) NSMutableDictionary<NSNumber *, VibeAudioFileMaterializationWaiter *> *waiters;
+@property (nonatomic) VibeAudioFileMaterializationRole effectiveRole;
+@property (nonatomic) VibeMaterializationLane lane;
+@property (nonatomic) VibeMaterializationClaimState state;
+@property (nonatomic) uint64_t ordinal;
+@property (nonatomic) uint64_t runGeneration;
+@property (nonatomic) NSTimeInterval deadline;
+@property (nonatomic) BOOL runWasCancelled;
+@property (nonatomic) NSUInteger inheritedCancelRestarts;
+@property (nonatomic) BOOL dataless;
+// The run counts against its lane's width. Only a dataless run does, so a
+// local read that stalls cannot keep a transfer waiting (releaseLaneForClaim:).
+@property (nonatomic) BOOL holdsLane;
+@property (nonatomic, strong, nullable) AudioWorkToken *probeToken;
+@property (nonatomic) BOOL yieldIfDatalessAfterProbe;
+@property (nonatomic, strong, nullable) id<AudioFileMaterializationOperation> operation;
+// Set while Running and readable: the transfer goes on, its playback and
+// prefetch waiters were served, and its handles read the part file through
+// it until the run settles. Its holders are the opens it dispatched and the
+// handles they returned.
+@property (nonatomic, strong, nullable) CloudFileAvailability *availability;
+@end
+
+// The coordinator's state, shared by stage 1 and stage 2.
+@interface AudioFileMaterializationCoordinator () {
+    // Claim state only; no filesystem or provider I/O on it.
+    dispatch_queue_t _stateQueue;
+    AudioWorkScheduler *_datalessProbeScheduler;
+    VibeDatalessProbeActivity *_datalessProbeActivity;
+    dispatch_queue_t _interactiveWorkerQueue;
+    dispatch_queue_t _backgroundWorkerQueue;
+    dispatch_source_t _pendingTimer;
+    NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
+    // Stage 2, keyed "purpose:path". Membership is the ceiling's count: a run
+    // stays until its uncancellable AudioFileHandle call returns.
+    NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
+    NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
+    NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
+    NSUInteger _interactiveRunningCount;
+    NSUInteger _backgroundRunningCount;
+    uint64_t _nextRequestIdentifier;
+    uint64_t _nextClaimOrdinal;
+    AudioLoadingConfiguration *_configuration;
+    VibeAudioFileMaterializationOperationFactory _operationFactory;
+    VibeAudioFileMaterializationDatalessProbe _datalessProbe;
+    VibeAudioFileMaterializationClock _clock;
+    VibeAudioFileOpener _fileOpener;
+}
+
+- (void)countSettledRequest:(VibeAudioFileMaterializationResult)result;
+
+@end
+
 @interface AudioFileMaterializationCoordinator (Internal)
 
 - (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
@@ -82,6 +185,19 @@ typedef struct {
 - (uint64_t)datalessProbesInFlight;
 
 - (VibeAudioFileMaterializationCoordinatorSnapshot)stateSnapshotForTesting;
+
+@end
+
+// Stage 2's calls from the other files, implemented in
+// AudioFileMaterializationCoordinator+HandleOpen.m.
+@interface AudioFileMaterializationCoordinator (HandleOpenInternal)
+
+- (void)detachOpenToken:(AudioFileOpenToken *)token;
+- (void)notifyDatalessForRun:(VibeAudioHandleRun *)run;
+- (void)handleRunTransferSettled:(VibeAudioHandleRun *)run
+                    runGeneration:(uint64_t)runGeneration
+                           result:(VibeAudioFileMaterializationResult)result
+                            error:(nullable NSError *)error;
 
 @end
 

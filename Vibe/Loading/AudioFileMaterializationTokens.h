@@ -2,8 +2,10 @@
 //  AudioFileMaterializationTokens.h
 //  Vibe
 //
-//  The coordinator's private side of its two tokens, and the calls a
-//  token's cancel makes back into it.
+//  The coordinator's private side of its two tokens, and the call a request
+//  token's cancel makes back into it. An open token's cancel calls
+//  detachOpenToken:, which AudioFileMaterializationCoordinatorInternal.h
+//  declares with the rest of stage 2.
 //
 
 #import "AudioFileMaterializationCoordinator.h"
@@ -41,7 +43,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioFileMaterializationCoordinator ()
 - (void)detachRequestToken:(AudioFileMaterializationRequestToken *)token;
-- (void)detachOpenToken:(AudioFileOpenToken *)token;
 @end
 
 NS_ASSUME_NONNULL_END

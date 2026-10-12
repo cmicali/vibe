@@ -989,6 +989,7 @@ targetTemplates:
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioFileMaterializationCoordinator+HandleOpen.m
       - path: Vibe/Loading/AudioFileMaterializationTokens.m
       - path: Vibe/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m

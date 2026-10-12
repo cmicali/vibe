@@ -118,6 +118,20 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
                                          completionQueue:(dispatch_queue_t)completionQueue
                                               completion:(VibeAudioFileMaterializationCompletion)completion;
 
+// YES while any claim has a playback or prefetch waiter whose stage 1 has not
+// settled, or a readable transfer still running under a live playback or
+// prefetch handle: the C1 rule's single source. While YES the coordinator yields
+// metadata-only dataless work itself, and settlement reopens admission, so
+// there is no release edge to miss. A metadata waiter may still join a
+// same-path foreground claim, and an already-local file is exempt. A snapshot:
+// a submission racing a rising edge is yielded before any provider operation.
+- (BOOL)isForegroundTransferActive;
+
+@end
+
+// Implemented in AudioFileMaterializationCoordinator+HandleOpen.m.
+@interface AudioFileMaterializationCoordinator (HandleOpen)
+
 // Stage 2: one current waiter per (purpose, standardized path); a later
 // request for that key rebinds delivery without another handle open. Both
 // purposes ride the path's stage-1 claim and open once it is Ready or, for a
@@ -137,15 +151,6 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
                  completionQueue:(dispatch_queue_t)completionQueue
                       onDataless:(nullable dispatch_block_t)onDataless
                       completion:(VibeAudioFileOpenCompletion)completion;
-
-// YES while any claim has a playback or prefetch waiter whose stage 1 has not
-// settled, or a readable transfer still running under a live playback or
-// prefetch handle: the C1 rule's single source. While YES the coordinator yields
-// metadata-only dataless work itself, and settlement reopens admission, so
-// there is no release edge to miss. A metadata waiter may still join a
-// same-path foreground claim, and an already-local file is exempt. A snapshot:
-// a submission racing a rising edge is yielded before any provider operation.
-- (BOOL)isForegroundTransferActive;
 
 @end
 
