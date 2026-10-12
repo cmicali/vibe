@@ -251,8 +251,8 @@
     CloudFileAvailability *stream = _stream;
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        [self shortenTheOpenDeadline];
         [self play:self->_streamURL paused:NO position:0];
+        [self shortenTheOpenDeadline];
     }];
     NSTimeInterval held = [self stallTheStream];
     XCTAssertGreaterThan(_player.duration, 1.9);
@@ -278,14 +278,15 @@
     [self streamingCopyOf:source prefix:44 + 28800 * 6 name:@"stalled.wav"];
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        [self shortenTheOpenDeadline];
         [self play:self->_streamURL paused:NO position:0];
+        [self shortenTheOpenDeadline];
     }];
     [self stallTheStream];
     // Both submitted before the queue takes the resume.
-    [_player debugBlockQueueForSeconds:0.2];
-    [_player resume];
-    [_player stop];
+    [self withPlayerQueueHeld:^{
+        [self->_player resume];
+        [self->_player stop];
+    }];
     [_player runSyncOnQueue:^{}];
     [_player runSyncOnQueue:^{}];
     [self render:4800];
@@ -302,9 +303,10 @@
     NSURL *local = [self fixture:@"noise-48000-16-2.wav"];
     AudioTrack *other = [AudioTrack withURL:local];
     NSUInteger starts = [self count:@"start"];
-    [_player debugBlockQueueForSeconds:0.2];
-    [_player resume];
-    [_player play:other atPosition:0 startPaused:NO];
+    [self withPlayerQueueHeld:^{
+        [self->_player resume];
+        [self->_player play:other atPosition:0 startPaused:NO];
+    }];
     [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
     [_player runSyncOnQueue:^{}];
     [_player runSyncOnQueue:^{}];

@@ -51,6 +51,7 @@ static BOOL VibeParseAudioLoadingDuration(NSString *text, double *value) {
             @"backgroundPending": @(self.maximumBackgroundPendingMaterializations),
             @"interactiveGrace": @(self.interactiveAdmissionGrace),
             @"backgroundGrace": @(self.backgroundAdmissionGrace),
+            @"probePendingGrace": @(self.datalessProbePendingGrace),
             @"retries": @(self.metadataRetryCount),
             @"timeoutBaseline": @(self.openTimeouts.noProgressSeconds),
             @"timeoutSilence": @(self.openTimeouts.progressSilenceSeconds),
@@ -140,6 +141,10 @@ static BOOL VibeParseAudioLoadingDuration(NSString *text, double *value) {
         else if ([key isEqualToString:@"background-grace"]) {
             parsed = VibeParseAudioLoadingDuration(text, &seconds);
             values.backgroundAdmissionGrace = seconds;
+        }
+        else if ([key isEqualToString:@"probe-pending-grace"]) {
+            parsed = VibeParseAudioLoadingDuration(text, &seconds);
+            values.datalessProbePendingGrace = seconds;
         }
         else if ([key isEqualToString:@"retries"]) {
             parsed = VibeParseNonnegativeInteger(text, &count);

@@ -95,6 +95,9 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels);
 - (BOOL)finishStream:(VibeStreamOutcome)outcome;
 - (VibeVoiceSnapshot)currentVoiceSnapshot;
 - (BOOL)renderUntil:(BOOL (^)(void))condition;
+// Holds the player queue while `submissions` runs, so everything it submits
+// is taken in one order once the queue resumes.
+- (void)withPlayerQueueHeld:(dispatch_block_t)submissions;
 - (void)shortenTheOpenDeadline;
 - (NSTimeInterval)stallTheStream;
 - (void)assertTheReplayOf:(NSData *)reference startsAt:(NSTimeInterval)held;

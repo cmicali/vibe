@@ -276,6 +276,7 @@
 // rebuild's stopReadingThen: is not held behind the stuck render.
 - (void)testAStoppedDecoderLeavesTheReopenWaitUnderAStuckRender {
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
+    [_bus debugSetRenderLeaveWaitSeconds:VIBE_TEST_GATE_TIMEOUT]; // only the stop may end the wait here
     NSURL *url = [self writePCM:[self noiseFrames:2000 channels:2 seed:81] rate:kRate channels:2 name:@"ended.wav"];
     VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
     dispatch_queue_t decoder = [_bus decodeQueueAtIndex:0];
@@ -837,12 +838,11 @@
         [old startVoiceWithFile:file atFrame:0 endFrame:0 gain:1 ramp:[self unity] paused:NO];
         XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         // The rebuild: the old bus is told to stop while its decoder is inside
-        // the first read, which finishes a moment later.
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-            dispatch_semaphore_signal(release);
-        });
+        // the first read, which then finishes. The stop goes first, so exactly
+        // that read lands; a timed release could let more turns run before it.
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [old stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
+        dispatch_semaphore_signal(release);
         XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
         XCTAssertEqual(file.framePosition, 4096); // the read that was in flight, and no more
     }

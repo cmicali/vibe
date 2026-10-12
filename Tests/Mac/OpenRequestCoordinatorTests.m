@@ -14,12 +14,27 @@
 @implementation OpenRequestCoordinatorTests {
     OpenRequestCoordinator *_coordinator;
     NSMutableArray<NSString *> *_deliveries;
+    // The deadlines armed, oldest first. A deadline elapses only when a test
+    // fires it, so no test waits on the clock.
+    NSMutableArray<dispatch_block_t> *_deadlines;
 }
 
 - (void)setUp {
     [super setUp];
     _deliveries = [NSMutableArray array];
+    _deadlines = [NSMutableArray array];
     _coordinator = [[OpenRequestCoordinator alloc] init];
+    NSMutableArray<dispatch_block_t> *deadlines = _deadlines;
+    _coordinator.deadlineScheduler = ^(NSTimeInterval delay, dispatch_block_t block) {
+        [deadlines addObject:block];
+    };
+}
+
+- (void)fireNextDeadline {
+    dispatch_block_t deadline = _deadlines.firstObject;
+    XCTAssertNotNil(deadline, @"no deadline armed");
+    [_deadlines removeObjectAtIndex:0];
+    deadline();
 }
 
 // Records deliveries so assertions read as the playlist-facing sequence.
@@ -126,18 +141,19 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
 // Once the first gap is abandoned, the second wedged walk is a gap of its own
 // that only a re-armed deadline frees.
 - (void)testASecondStragglerGetsItsOwnDeadline {
-    _coordinator.stragglerDeadline = 0.02;
     OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
     OpenRequestToken *second = [self beginAppending:YES tagged:@"second"];
     [self beginAppending:YES tagged:@"alsoWedged"];
     OpenRequestToken *fourth = [self beginAppending:YES tagged:@"fourth"];
     [_coordinator finishRequest:second rows:OpenRows(2) folderCount:0];
     [_coordinator finishRequest:fourth rows:OpenRows(4) folderCount:0];
+    XCTAssertEqual(_deadlines.count, 1u, @"one deadline per missing head");
 
-    [self waitForDeliveryCount:1];
+    [self fireNextDeadline];
     XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0"]));
+    XCTAssertEqual(_deadlines.count, 1u, @"re-armed for the second gap");
 
-    [self waitForDeliveryCount:2];
+    [self fireNextDeadline];
     XCTAssertEqualObjects(_deliveries, (@[@"second:append:2:0", @"fourth:append:4:0"]));
 
     [_coordinator finishRequest:wedged rows:OpenRows(9) folderCount:1];
@@ -147,7 +163,6 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
 // The older timer exits on the generation mismatch, so a replacement that
 // inherited its arming would wait for a deadline that never comes.
 - (void)testAReplacementGetsItsOwnDeadlineWhileAnOlderOneIsArmed {
-    _coordinator.stragglerDeadline = 0.02;
     [self beginAppending:NO tagged:@"oldWedged"];
     OpenRequestToken *oldSecond = [self beginAppending:YES tagged:@"oldSecond"];
     [_coordinator finishRequest:oldSecond rows:OpenRows(2) folderCount:0];
@@ -155,30 +170,31 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
     [self beginAppending:NO tagged:@"newWedged"];
     OpenRequestToken *newSecond = [self beginAppending:YES tagged:@"newSecond"];
     [_coordinator finishRequest:newSecond rows:OpenRows(5) folderCount:0];
+    XCTAssertEqual(_deadlines.count, 2u, @"the replacement armed its own");
 
-    [self waitForDeliveryCount:1];
+    [self fireNextDeadline];   // the old generation's: a no-op
+    XCTAssertEqual(_deliveries.count, 0u);
+    [self fireNextDeadline];
     XCTAssertEqualObjects(_deliveries, (@[@"newSecond:append:5:0"]));
 }
 
 // A gap that drains before its deadline leaves the old timer in flight.
 - (void)testALaterGapDoesNotInheritADrainedGapsDeadline {
-    _coordinator.stragglerDeadline = 0.3;
     OpenRequestToken *first = [self beginAppending:NO tagged:@"first"];
     OpenRequestToken *firstAppend = [self beginAppending:YES tagged:@"firstAppend"];
     [_coordinator finishRequest:firstAppend rows:OpenRows(2) folderCount:0];
-
-    [self spinRunLoopFor:0.2];
-    XCTAssertEqual(_deliveries.count, 0u);
+    XCTAssertEqual(_deadlines.count, 1u);
     [_coordinator finishRequest:first rows:OpenRows(1) folderCount:0];
     XCTAssertEqualObjects(_deliveries, (@[@"first:replace:1:0", @"firstAppend:append:2:0"]));
 
     OpenRequestToken *laterWedged = [self beginAppending:YES tagged:@"laterWedged"];
     OpenRequestToken *laterAppend = [self beginAppending:YES tagged:@"laterAppend"];
-    NSDate *laterGapStarted = [NSDate date];
     [_coordinator finishRequest:laterAppend rows:OpenRows(4) folderCount:0];
+    XCTAssertEqual(_deadlines.count, 2u, @"the later gap armed a deadline of its own");
 
-    [self waitForDeliveryCount:3];
-    XCTAssertGreaterThanOrEqual([[NSDate date] timeIntervalSinceDate:laterGapStarted], 0.2);
+    [self fireNextDeadline];   // the drained gap's, still in flight: a no-op
+    XCTAssertEqual(_deliveries.count, 2u);
+    [self fireNextDeadline];
     XCTAssertEqualObjects(_deliveries, (@[
         @"first:replace:1:0",
         @"firstAppend:append:2:0",
@@ -192,13 +208,12 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
 // A dropped link still resolving is held. A later append that finishes first
 // waits for it, and the deadline gives up on nothing.
 - (void)testAHeldRequestIsNeverAbandoned {
-    _coordinator.stragglerDeadline = 0.02;
     OpenRequestToken *links = [self beginAppending:YES tagged:@"links"];
     [_coordinator holdRequest:links];
     OpenRequestToken *files = [self beginAppending:YES tagged:@"files"];
     [_coordinator finishRequest:files rows:OpenRows(2) folderCount:0];
 
-    [self spinRunLoopFor:0.1];
+    [self fireNextDeadline];
     [_coordinator abandonStalledRequests];
     XCTAssertEqual(_deliveries.count, 0u);
 
@@ -210,18 +225,17 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
 // The release starts a whole deadline for what the head opens next, and that
 // deadline still frees a head whose expansion then wedges.
 - (void)testAReleasedRequestGetsAFullDeadline {
-    _coordinator.stragglerDeadline = 0.3;
     OpenRequestToken *links = [self beginAppending:YES tagged:@"links"];
     [_coordinator holdRequest:links];
     OpenRequestToken *files = [self beginAppending:YES tagged:@"files"];
     [_coordinator finishRequest:files rows:OpenRows(2) folderCount:0];
+    XCTAssertEqual(_deadlines.count, 1u);
 
-    [self spinRunLoopFor:0.2];
-    NSDate *released = [NSDate date];
     [_coordinator releaseRequest:links];
-    [self waitForDeliveryCount:1];
-    XCTAssertGreaterThanOrEqual([[NSDate date] timeIntervalSinceDate:released], 0.2,
-                                @"not the deadline armed before the release");
+    XCTAssertEqual(_deadlines.count, 2u, @"the release armed a whole deadline");
+    [self fireNextDeadline];   // the one armed before the release: a no-op
+    XCTAssertEqual(_deliveries.count, 0u, @"not the deadline armed before the release");
+    [self fireNextDeadline];
     XCTAssertEqualObjects(_deliveries, (@[@"files:append:2:0"]));
 
     [_coordinator finishRequest:links rows:OpenRows(1) folderCount:0];
@@ -242,24 +256,6 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
     XCTAssertEqualObjects(_deliveries, (@[@"files:append:2:0"]));
     [_coordinator finishRequest:wedged rows:OpenRows(9) folderCount:0];
     XCTAssertEqual(_deliveries.count, 1u);
-}
-
-// Spins the run loop rather than sleeping, because the deadline fires on main.
-- (void)waitForDeliveryCount:(NSUInteger)count {
-    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while (_deliveries.count < count && limit.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
-                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
-    XCTAssertEqual(_deliveries.count, count);
-}
-
-- (void)spinRunLoopFor:(NSTimeInterval)duration {
-    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:duration];
-    while (limit.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
-                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
-    }
 }
 
 - (void)testAbandonIsANoOpWithNothingWaiting {

@@ -277,6 +277,7 @@
     }];
     dispatch_sync([bus decodeQueueAtIndex:0], ^{});
     XCTAssertEqual([bus snapshotOfVoice:voice].endOfStream, 2000u);
+    [bus debugSetRenderLeaveWaitSeconds:VIBE_TEST_GATE_TIMEOUT]; // only the rebuild may end the wait here
     dispatch_group_t stuck = dispatch_group_create();
     dispatch_group_t rebuild = dispatch_group_create();
     [bus debugHoldRender:YES];

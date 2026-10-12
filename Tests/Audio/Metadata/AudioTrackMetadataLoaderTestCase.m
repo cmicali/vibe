@@ -4,6 +4,8 @@
 
 #import "AudioTrackMetadataLoaderTestCase.h"
 
+#import "AudioTrackMetadataLoaderInternal.h"
+
 static BOOL VibeMetadataLoaderCoordinatorIsSettled(
         VibeAudioFileMaterializationCoordinatorSnapshot snapshot) {
     return snapshot.claimCount == 0
@@ -197,6 +199,14 @@ materializationCoordinator:coordinator
         [elapsed fulfill];
     });
     [self waitForExpectations:@[elapsed] timeout:delay + VIBE_TEST_HANG_TIMEOUT];
+}
+
+- (NSMutableArray<dispatch_block_t> *)captureRetriesOf:(AudioTrackMetadataLoader *)loader {
+    NSMutableArray<dispatch_block_t> *retries = [NSMutableArray array];
+    loader.retryScheduler = ^(NSTimeInterval delay, dispatch_block_t block) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [retries addObject:block]; });
+    };
+    return retries;
 }
 
 @end

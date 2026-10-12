@@ -27,7 +27,7 @@
             arguments:@[@"background=3", @"local-parses=7", @"prefetch-depth=0",
                         @"interactive=5", @"interactive-pending=8",
                         @"background-pending=13", @"interactive-grace=17.5",
-                        @"background-grace=19.5", @"retries=23",
+                        @"background-grace=19.5", @"probe-pending-grace=21.5", @"retries=23",
                         @"timeout-baseline=45", @"timeout-silence=30"]
             error:&error];
 
@@ -42,6 +42,7 @@
     XCTAssertEqual(values.maximumBackgroundPendingMaterializations, 13u);
     XCTAssertEqualWithAccuracy(values.interactiveAdmissionGrace, 17.5, 0.001);
     XCTAssertEqualWithAccuracy(values.backgroundAdmissionGrace, 19.5, 0.001);
+    XCTAssertEqualWithAccuracy(values.datalessProbePendingGrace, 21.5, 0.001);
     XCTAssertEqual(values.metadataRetryCount, 23u);
     XCTAssertEqualWithAccuracy(values.openTimeouts.noProgressSeconds, 45, 0.001);
     XCTAssertEqualWithAccuracy(values.openTimeouts.progressSilenceSeconds, 30, 0.001);
@@ -179,6 +180,7 @@
             @"backgroundPending": @6,
             @"interactiveGrace": @5,
             @"backgroundGrace": @10,
+            @"probePendingGrace": @5,
             @"retries": @2,
             @"timeoutBaseline": @60,
             @"timeoutSilence": @60,

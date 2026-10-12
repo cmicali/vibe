@@ -69,8 +69,8 @@
     [[self readAhead] stallFrom:kReadAheadBlock];
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        if (shortDeadline) [self shortenTheOpenDeadline];
         [self play:url paused:NO position:0];
+        if (shortDeadline) [self shortenTheOpenDeadline];
     }];
     XCTAssertTrue([self await:_script.stalled], @"the read-ahead stalls");
     return url;
@@ -215,8 +215,8 @@
     [_script fail:EIO from:kReadAheadBlock always:YES];
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        [self shortenTheOpenDeadline];
         [self play:url paused:NO position:0];
+        [self shortenTheOpenDeadline];
     }];
     XCTAssertTrue([self await:_script.failed]);
     NSTimeInterval held = [self stallTheStream];
@@ -365,8 +365,8 @@
     _script.throttle = 250000;
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        [self shortenTheOpenDeadline];
         [self play:self->_streamURL paused:NO position:0];
+        [self shortenTheOpenDeadline];
     }];
     [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
     [_player prefetchTrack:[AudioTrack withURL:successor]];
