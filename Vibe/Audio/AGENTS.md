@@ -48,6 +48,14 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 
 `AudioVoiceBus.h` carries the contract. This is the shape.
 
+| File | Owns |
+| --- | --- |
+| `AudioVoiceBus.h` | the contract: voices, ramps, events, the snapshot, and `VibeVoiceBusRender`'s signature |
+| `AudioVoiceBusInternal.h` | the private header: the slot and mix structs, the record, every ivar, the `(Decoder)` methods the queue side calls, and the `(Testing)` seam |
+| `AudioVoiceBus.m` | the queue side: identity, starts and binds, ramps, stopped and withheld reads, the successor hand-off, kills, snapshots, the drain and inline decoding |
+| `AudioVoiceBusRender.m` | the audio thread: `VibeVoiceBusRender` and its mix helpers, in plain C |
+| `AudioVoiceBus+Decoder.m` | the decode pool's side: the prepare and its conversion, failures, the recycle, the fills, the converter feed, the chunk decode, the stream's end and its reopen |
+
 **Format.** The bus has one format for its life, the output's: float32 non-interleaved stereo at the output's rate. So a mode toggle or a device rate change rebuilds the segment, and the bus owns conversion. A file is read direct when its rate, sample format and channels are the bus's (`VibePCMFormatsMatch`, the one rule the bus, the pipeline and the bit-perfect splice share). Under bit-perfect output the prepare has moved the device and the output to the file's rate first, so a stereo file at that rate is the bitstream unchanged.
 
 Otherwise it is converted on the decode queue by a `VibeConverter` (`AudioResampler.h`), which also serves a device that refuses a file's rate. That is **r8brain-free-src on both platforms**: linear phase, its 24-bit preset, a 1% transition band, with no quality setting (`docs/audio-quality.md`; `Tests/Audio/ResamplerQualityTests.m` holds it to its bounds). It pulls float32 through a `VibeConverterInputProc`. A file that runs dry with the stream open answers no frames, which ends that fill and keeps the filter primed for a successor. r8brain has no end-of-stream call, so the stream's end is the silence flush below.

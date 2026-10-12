@@ -960,6 +960,10 @@ targetTemplates:
       # -Os reassociates float math, so the samples are the same.
       - path: Vibe/Audio/AudioVoiceBus.m
         compilerFlags: &render-path-flags ["-O2"]
+      - path: Vibe/Audio/AudioVoiceBusRender.m
+        compilerFlags: *render-path-flags
+      - path: Vibe/Audio/AudioVoiceBus+Decoder.m
+        compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioResampler.mm
       - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
         compilerFlags: *r8brain-flags
