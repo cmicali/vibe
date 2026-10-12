@@ -140,6 +140,9 @@ static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
     BOOL                    _queueStallWatcherRunning;
     NSUInteger              _diagnosticPhaseDepth;
     uint64_t                _renderClockFrames, _renderClockAdvancedAt, _renderClockStalledSince, _renderClockDropouts;
+    uint64_t                _renderClockLateCycles, _renderClockJumps, _renderClockSkippedFrames;
+    VibeVoiceID             _underrunVoice;     // the voice _underrunFrames last read
+    uint64_t                _underrunFrames;
 #endif
     // Teardowns parked behind a stuck render (afterRenderLeavesOnQueue:). A
     // stuck render is waited for once: later withdrawals park at once until a

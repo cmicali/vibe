@@ -85,7 +85,13 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 @property (nonatomic, readonly) uint64_t renderCycles;
 @property (nonatomic, readonly) double renderMeanMicroseconds;
 @property (nonatomic, readonly) double renderMaxMicroseconds;
-// Zeroes the four. Any thread; a cycle in flight lands in the new count.
+// Cycles whose callback outran the audio it rendered. Cumulative.
+@property (nonatomic, readonly) uint64_t lateCycles;
+// Cycles whose sample time did not follow the last one, and the frames the
+// device's clock skipped ahead across them. Cumulative; a start is not a jump.
+@property (nonatomic, readonly) uint64_t clockJumps;
+@property (nonatomic, readonly) uint64_t skippedFrames;
+// Zeroes all seven. Any thread; a cycle in flight lands in the new count.
 - (void)clearCounters;
 
 #if TARGET_OS_OSX

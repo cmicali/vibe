@@ -90,6 +90,18 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     return kind;
 }
 
+// The hardware a dropout is read against: each output's port type, the
+// session's rate, IO buffer and output latency. CarPlay is CarAudio.
+static NSString *VibeSessionHardwareDescription(AVAudioSession *session) {
+    NSMutableArray<NSString *> *ports = [NSMutableArray array];
+    for (AVAudioSessionPortDescription *output in session.currentRoute.outputs) {
+        [ports addObject:[NSString stringWithFormat:@"%@ \"%@\"", output.portType, output.portName]];
+    }
+    return [NSString stringWithFormat:@"%@, %.0f Hz, IO buffer %.1f ms, output latency %.1f ms",
+            ports.count ? [ports componentsJoinedByString:@" + "] : @"no output", session.sampleRate,
+            session.IOBufferDuration * 1000, session.outputLatency * 1000];
+}
+
 @interface AudioSessionController ()
 - (BOOL)activateSession;
 - (BOOL)activateForInterruptionResume;
@@ -178,7 +190,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
     // Only this explicit path clears route-loss and reset ownership; the
     // interruption-ended resume enters activateSession without it.
     if ([self activateSession]) {
-        LogInfo(@"AudioSession: activated");
+        LogInfo(@"AudioSession: activated on %@", VibeSessionHardwareDescription([AVAudioSession sharedInstance]));
         return YES;
     }
     [self restoreConfigurationRecoveryBlockers:blockersToRestoreOnFailure];
@@ -489,9 +501,9 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
                     VibeAudioSessionOutputRouteKindForRouteKind(routeKind)
                     outputLost:reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable
                     generation:&configurationRecoveryGeneration];
-    LogInfo(@"AudioSession: route change (%@) to %@: %@",
+    LogInfo(@"AudioSession: route change (%@) to %@: %@; %@",
             VibeRouteChangeReasonName(reason), routeName ?: @"unnamed",
-            VibeConfigurationActionName(action));
+            VibeConfigurationActionName(action), VibeSessionHardwareDescription([AVAudioSession sharedInstance]));
     // Published whatever the verdict: a new device, an override and a
     // category change are exactly the cases the indicator exists for.
     if ([self recordOutputRoute:routeKind name:routeName]) {

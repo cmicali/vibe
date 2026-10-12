@@ -89,6 +89,21 @@ OSStatus VibeOutputUnitRender(void *refCon, AudioUnitRenderActionFlags *actionFl
         if (nanos > atomic_load_explicit(&state->renderMaxNanos, memory_order_relaxed)) {
             atomic_store_explicit(&state->renderMaxNanos, nanos, memory_order_relaxed);
         }
+        if (state->sampleRate > 0 && nanos * state->sampleRate > frameCount * 1e9) {
+            atomic_fetch_add_explicit(&state->lateCycles, 1, memory_order_relaxed);
+        }
+        if (timestamp && (timestamp->mFlags & kAudioTimeStampSampleTimeValid)) {
+            if (!atomic_exchange_explicit(&state->clockRestart, 0, memory_order_acquire)
+                    && timestamp->mSampleTime != state->nextSampleTime) {
+                atomic_fetch_add_explicit(&state->clockJumps, 1, memory_order_relaxed);
+                if (timestamp->mSampleTime > state->nextSampleTime) {
+                    atomic_fetch_add_explicit(&state->skippedFrames,
+                                              (uint64_t)(timestamp->mSampleTime - state->nextSampleTime),
+                                              memory_order_relaxed);
+                }
+            }
+            state->nextSampleTime = timestamp->mSampleTime + frameCount;
+        }
     }
     return status;
 }
@@ -98,6 +113,9 @@ void VibeOutputUnitStateClearCounters(VibeOutputUnitState *state) {
     atomic_store_explicit(&state->cycles, 0, memory_order_relaxed);
     atomic_store_explicit(&state->renderNanos, 0, memory_order_relaxed);
     atomic_store_explicit(&state->renderMaxNanos, 0, memory_order_relaxed);
+    atomic_store_explicit(&state->lateCycles, 0, memory_order_relaxed);
+    atomic_store_explicit(&state->clockJumps, 0, memory_order_relaxed);
+    atomic_store_explicit(&state->skippedFrames, 0, memory_order_relaxed);
 }
 
 #pragma mark - The unit
@@ -259,6 +277,18 @@ static void VibeOutputUnitRunningChanged(void *refCon, AudioUnit unit, AudioUnit
 
 - (uint64_t)dropouts {
     return atomic_load_explicit(&_state->dropouts, memory_order_relaxed);
+}
+
+- (uint64_t)lateCycles {
+    return atomic_load_explicit(&_state->lateCycles, memory_order_relaxed);
+}
+
+- (uint64_t)clockJumps {
+    return atomic_load_explicit(&_state->clockJumps, memory_order_relaxed);
+}
+
+- (uint64_t)skippedFrames {
+    return atomic_load_explicit(&_state->skippedFrames, memory_order_relaxed);
 }
 
 - (uint64_t)renderCycles {
@@ -461,6 +491,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
     }
     if (status == noErr) {
         VibeOutputUnitStateInitialize(_state, format.channelCount, renderProc, refCon);
+        _state->sampleRate = format.sampleRate;
         status = AudioUnitInitialize(_unit);
     }
     _configureStatus = status;
@@ -507,6 +538,7 @@ static double VibeMillisecondsSinceUptime(uint64_t began) {
         // and this store must win, or the unit pulls the pipeline at a rate
         // the player has moved off. The stop bumps the generation before it
         // closes the gate, so one of the two sees the other.
+        atomic_store_explicit(&_state->clockRestart, 1, memory_order_release);
         atomic_store_explicit(&_state->gate, 1, memory_order_seq_cst);
         if (generation != atomic_load_explicit(&_runGeneration, memory_order_seq_cst)) {
             atomic_store_explicit(&_state->gate, 0, memory_order_seq_cst);
