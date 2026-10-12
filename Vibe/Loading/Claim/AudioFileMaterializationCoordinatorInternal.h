@@ -155,6 +155,14 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
     VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
     VibeAudioFileOpener _fileOpener;
+    // Debug builds only (AudioFileMaterializationCoordinator+Debug.m). Atomic
+    // for the health probe's lock-free read; written on the state queue.
+    _Atomic uint64_t _handleOpensStarted;
+    _Atomic uint64_t _handleOpensCompleted;
+    uint64_t _requestsReady;
+    uint64_t _requestsFailed;
+    uint64_t _requestsYielded;
+    uint64_t _requestsAdmissionExhausted;
 }
 
 - (void)countSettledRequest:(VibeAudioFileMaterializationResult)result;

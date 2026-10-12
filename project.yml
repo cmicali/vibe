@@ -1006,6 +1006,7 @@ targetTemplates:
         compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
+      - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens
       - path: Vibe/Loading/Claim/AudioFileMaterializationTokens.m
       - path: Vibe/Loading/Claim/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m

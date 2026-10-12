@@ -9,6 +9,8 @@
 
 #import "AudioFileMaterializationCoordinatorInternal.h"
 
+#include <stdatomic.h>
+
 // Guards all three, and is also the release broadcast. A hung open waits here,
 // not on a semaphore, so one release frees every held open without the caller
 // having to know how many there are.
@@ -99,6 +101,26 @@ static BOOL VibeHangInstalled;
     NSUInteger count = VibeHungOpens;
     [gate unlock];
     return count;
+}
+
+@end
+
+@implementation AudioFileMaterializationCoordinator (DebugCounters)
+
+// Started first: an open racing the two loads reads low, never one high,
+// which quiescence's zero-at-rest check would report as a stranded open.
+- (uint64_t)handleOpensInFlight {
+    uint64_t started = atomic_load(&_handleOpensStarted);
+    uint64_t completed = atomic_load(&_handleOpensCompleted);
+    return started > completed ? started - completed : 0;
+}
+
+- (void)countHandleOpenStarted {
+    atomic_fetch_add(&_handleOpensStarted, 1);
+}
+
+- (void)countHandleOpenCompleted {
+    atomic_fetch_add(&_handleOpensCompleted, 1);
 }
 
 @end
