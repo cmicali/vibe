@@ -1,5 +1,7 @@
 # Favorites and Search (iOS)
 
+This directory holds the Favorites tab, the search screen, and the Favorites store (`FavoritesStore`). It also holds the search screen's two sources: the walk over granted folders (`FileSearchIndex`) and the Dropbox search (`DropboxSearch`).
+
 The shell is `../AGENTS.md`.
 
 ## What the app can search

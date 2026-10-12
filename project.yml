@@ -288,7 +288,7 @@ targets:
     preBuildScripts:
       # build/generated/VibeGitInfo.h for the launch provenance block; reading
       # .git needs ENABLE_USER_SCRIPT_SANDBOXING: NO (set below).
-      - script: '"$SRCROOT/scripts/generate-git-info.sh"'
+      - script: '"$SRCROOT/scripts/build/generate-git-info.sh"'
         name: Generate Git Info
         basedOnDependencyAnalysis: false
         outputFiles:
@@ -567,7 +567,7 @@ targets:
       - path: Resources/vibe-theme.mp3
         buildPhase: resources
     preBuildScripts:
-      - script: '"$SRCROOT/scripts/generate-git-info.sh"'
+      - script: '"$SRCROOT/scripts/build/generate-git-info.sh"'
         name: Generate Git Info
         basedOnDependencyAnalysis: false
         outputFiles:

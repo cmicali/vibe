@@ -4,6 +4,8 @@ What the file-load and metadata subsystem does, as observable behavior. It spans
 
 The spec does **not** constrain mechanism. Holds or preemption, one coordinator or two, which object owns a timer: all are free, as long as every numbered behavior survives. File references are pointers for verification.
 
+Where this spec and `Vibe/Loading/AGENTS.md` overlap, this spec is the authority for behavior and its policy numbers. `Vibe/Loading/AGENTS.md` is the authority for how the code works.
+
 ---
 
 ## A. Definitions

@@ -1,5 +1,7 @@
 # Unit tests
 
+This directory holds the tests of both test targets, `VibeTests` and `VibeAudioTests`, and their shared helpers in `Support/`. It also holds two tools that are not test suites, `iOSDriver/` and `BenchComponents/`.
+
 `make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests` (below). Both targets are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
 
 `iOSDriver/` is **not** a test suite. It is the `vibe-debug` skill's touch driver, a resident XCUITest (`VibeiOSDriver`) started by `drive-ios.sh`, and `VibeTests`' `Tests` source entry excludes it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, excluded the same way.
@@ -50,7 +52,7 @@ OS provider state, shell routing, remote-command registration, output rebinding,
 
 ## Rendered audio
 
-`make test-audio` generates deterministic fixtures under `build/audio-fixtures`, self-tests the PCM comparator (`build/verify-bit-perfect`), then runs **VibeAudioTests**. It is host-less and compiles the production player, FX, decoder and loading machinery into its own derived data (`build/AudioDerivedData`), so `make -j2 test test-audio` runs both suites at once. It reuses `TestFilesystemGuard.m`. `make test-audio-summary` reads `build/AudioTestResults.xcresult`.
+`make test-audio` generates deterministic fixtures under `build/audio-fixtures`, self-tests the PCM comparator (`build/verify-bit-perfect`, compiled from `scripts/test/verify-bit-perfect.swift`), then runs **VibeAudioTests**. It is host-less and compiles the production player, FX, decoder and loading machinery into its own derived data (`build/AudioDerivedData`), so `make -j2 test test-audio` runs both suites at once. It reuses `TestFilesystemGuard.m`. `make test-audio-summary` reads `build/AudioTestResults.xcresult`.
 
 The suite lives in `AudioRender/`. `AudioPlayerRenderTests` is a base class with no tests, in `AudioPlayerRenderTestCase.h` and `.m`. Each topic is a subclass in its own file of the same name: `AudioPlayerRenderFidelityTests`, `…EdgesTests`, `…StreamTests`, `…ReadAheadTests`, `…EstimatedTests`, `…SignalTests`, `…PipelineTests`, `…DeviceTests`, `…OutputTests`, `…PitchTests` and `…LinkTests`. The parallel runner spreads the subclasses across processes. The slowest subclass sets the suite's wall time. A new test joins its topic's subclass. A subclass that outgrows the others is the one to split. `ARGS=-only-testing:VibeAudioTests/AudioPlayerRenderEdgesTests/testGaplessSplitSignalAcrossRenderBlocks` narrows a run.
 
@@ -67,7 +69,7 @@ The suite lives in `AudioRender/`. `AudioPlayerRenderTests` is a base class with
 
 A failed PCM comparison attaches the reference, the capture, aligned difference WAVs and the event and pipeline state to the result bundle. Metric assertions include their measured values.
 
-The fixture generator's `--render-tests` mode owns the source corpus; tests only create temporary slices and malformed inputs. Stock macOS encoders cover the core formats, CAF and W64 included. MP3, MP2, QTA and Ogg need ffmpeg and are skipped without it; CI installs it. The ISO/IEC 11172-4 Layer III compliance stream and its reference decode are ISO's, so the generator fetches them from FFmpeg's FATE mirror and checks pinned hashes. When that fails, `testDrMP3PassesTheISOComplianceStreamAtFullAccuracy` skips.
+The fixture generator (`scripts/test/generate-test-audio.sh`) owns the source corpus in its `--render-tests` mode. Tests only create temporary slices and malformed inputs. Stock macOS encoders cover the core formats, CAF and W64 included. MP3, MP2, QTA and Ogg need ffmpeg and are skipped without it; CI installs it. The ISO/IEC 11172-4 Layer III compliance stream and its reference decode are ISO's, so the generator fetches them from FFmpeg's FATE mirror and checks pinned hashes. When that fails, `testDrMP3PassesTheISOComplianceStreamAtFullAccuracy` skips.
 
 The pump proves the software path, **not** DAC samples, hardware negotiation, exclusivity or iOS session recovery. `make test-audio-loopback` and `make test-audio-device` opt into the `vibe-debug` verifier for those macOS boundaries. Hardware is never a CI prerequisite.
 

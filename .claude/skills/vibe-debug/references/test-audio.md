@@ -3,7 +3,7 @@
 Use the generated files in `Assets/test_audio_files/` (gitignored), never your own synthesis:
 
 ```bash
-.claude/skills/vibe-debug/scripts/generate-test-audio.sh   # idempotent; --force regenerates
+scripts/test/generate-test-audio.sh   # idempotent; --force regenerates
 ```
 
 | File | For |
@@ -72,7 +72,7 @@ Download progress (fake): 42% (5.0s) tone-long.wav   <- a stall
 make build CONFIG=Debug
 make build-test-blackhole
 open build/blackhole-drivers/VibeBlackHoleTests.pkg      # install, then restart CoreAudio or reboot
-.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 VIBE_NOW_PLAYING=0 VIBE_AUDIBLE=1 .claude/skills/vibe-debug/scripts/launch.sh
 V="$PWD/build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe"
 "$V" --debug-cmd settings_open audio

@@ -19,7 +19,7 @@
 #   buffering pause-buffering scrub-buffering stall drop throttle
 #   expired-token rev-change tail-fail slow-tail latency sign-out reupload
 # Needs: a Debug build up through launch-ios.sh; ffmpeg, lame, afconvert, jq;
-#   Assets/test_audio_files/tone-long.wav (generate-test-audio.sh), from which
+#   Assets/test_audio_files/tone-long.wav (scripts/test/generate-test-audio.sh), from which
 #   the six-minute fixtures are transcoded once into build/streaming-fixtures.
 # Out: <out-dir>/<scenario>.jsonl, every poll; summary.json, each scenario's
 #   measured numbers and failed checks. Exit 0 only when every check passed.
@@ -68,7 +68,7 @@ now() { jq -n now; }
 # A worker's parent has made them, and its siblings' folders are live.
 if [ -z "$CLAIMS" ]; then
 SOURCE="$ROOT/Assets/test_audio_files/tone-long.wav"
-[ -f "$SOURCE" ] || { echo "missing $SOURCE: run generate-test-audio.sh" >&2; exit 1; }
+[ -f "$SOURCE" ] || { echo "missing $SOURCE: run scripts/test/generate-test-audio.sh" >&2; exit 1; }
 mkdir -p "$FIX/source"
 make_fixture() {   # <name> <command...>: skipped when present
     local name="$1"; shift

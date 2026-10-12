@@ -23,6 +23,7 @@ A CUE sheet, beside its files or embedded in a FLAC, plays as rows. Each row is 
 
 | Command | What it does |
 | --- | --- |
+| `make help` | Every target, with the first sentence of its comment. |
 | `make build [CONFIG=Debug]` | macOS app; Release by default, into `build/DerivedData`. |
 | `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. With `CONFIG=Debug`, exactly CI's iOS Debug build. |
 | `make install-ios [CONFIG=Debug]` | iOS app onto a paired device, signed. `DEVICE=<name or id>` when more than one is paired. |
@@ -79,7 +80,7 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) is soak runs, leak a
 
 The **`vibe-perf` skill** is performance. VibeBenchComponents (`Tests/BenchComponents/`) drives the production code in-process and counts retired instructions, so two refs compare fairly on a busy machine (`perf.py compare main`). Measure a change that could move cost before and after (`make bench-components`). `docs/performance.md` charts every release, and `make bench-releases` regenerates it.
 
-Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate with the `vibe-debug` skill's `generate-test-audio.sh` rather than synthesizing your own.
+Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate it with `scripts/test/generate-test-audio.sh`. Never synthesize your own.
 
 **Before calling a feature unbuilt, look past `main`'s working tree.** A pull request is sometimes based on another feature branch, so merged work can sit off `main` for a while. `git log --all --oneline -S <symbol>` settles it.
 
@@ -93,7 +94,7 @@ Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` i
 
 ## Subsystem map
 
-Nested `AGENTS.md` files hold the detail. **Read the relevant one before changing anything it covers.** Docs follow the platform boundary. A shared subsystem's doc covers what both platforms have, and platform-specific detail lives in a doc under its `Mac/` or `iOS/` directory. `.md` files are excluded from every source entry, so a doc can go anywhere without touching the build.
+`docs/architecture.md` is the overview for human readers: the tree, each subsystem, the path from open to sound, and where to look for what. Nested `AGENTS.md` files hold the detail. **Read the relevant one before changing anything it covers.** Docs follow the platform boundary. A shared subsystem's doc covers what both platforms have, and platform-specific detail lives in a doc under its `Mac/` or `iOS/` directory. `.md` files are excluded from every source entry, so a doc can go anywhere without touching the build.
 
 - **`Vibe/Common/`** — what everything else is written in terms of: `AppSettings` (its macOS half is `Mac/`; `Mac/Theme/` is the theme store, the `AppTheme` record, its one sanitization gate, the archive form, the dice and the fonts), `VibeStrings.h`, the prefix header, `DocumentTypes`, the `VibeImage`/`VibeColor` aliases and the bounded image decode. No feature lives here.
 - **`Vibe/Audio/`** — playback engine, FX, waveform data, BPM/key analysis. `FX/` (the DJ master-bus segment, optional per player via `enableFX:`, and the pitch fader's stage), `Metadata/` (tags, cache, scan; `Artwork/` is embedded art and the shared thumbnails, and `Artwork/FolderArt/` the sidecar-cover fallback), `Waveform/` (data), `Analysis/` (tempo and key), `Levels/` (live FFT levels from the render's final samples), `Mac/Devices/` (CoreAudio HAL output devices), `iOS/` (audio session and output recovery) each have a doc.
@@ -168,7 +169,7 @@ Playback diagnostics are in `Audio/AGENTS.md`, hardware observation in `Audio/Ma
 
 ## Localization
 
-**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro. Keys are symbolic and stable (`menu.file`, `label.bpm`). The English text lives in the macro's default. **Run `make strings` after touching any UI string.** `make check-strings` fails when the catalog is stale. **Display names are never identifiers.** A registry key, a defaults value and a menu item's identifier stay separate from the localized label. Read the **`vibe-strings` skill** before editing `VibeStrings.h`, the catalogs or `scripts/extract-strings.sh`.
+**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro. Keys are symbolic and stable (`menu.file`, `label.bpm`). The English text lives in the macro's default. **Run `make strings` after touching any UI string.** `make check-strings` fails when the catalog is stale. **Display names are never identifiers.** A registry key, a defaults value and a menu item's identifier stay separate from the localized label. Read the **`vibe-strings` skill** before editing `VibeStrings.h`, the catalogs or `scripts/strings/extract-strings.sh`.
 
 ## Key patterns
 

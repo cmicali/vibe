@@ -84,15 +84,15 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 - `springboard tap|press|drag|type|tap_label|tree …` targets the Home screen and widget gallery. Start with `VIBE_SIGN_SIM=1` for widget work.
 - The runner disables XCTest's per-event quiescence waits, which never settle under Vibe's display link. That reaches XCTest internals and degrades to slow-but-working if an Xcode update renames them (`Tests/iOSDriver/VibeiOSDriverTests.m`).
 
-## Staleness: `install-ios.sh`
+## Staleness: `sim-install.sh`
 
-`install-ios.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
+`sim-install.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
 
 ## Per-session simulators and the build lock
 
 `sim-udid.sh` names the device `Vibe-<dir>-<hash>` from the checkout path plus `CLAUDE_CODE_SESSION_ID`. Each session therefore has its own app container, channel and touch driver (command dir `build/ios-driver/<UDID>`). Devices from ended sessions are deleted on every `sim-udid.sh` call once shut down and untouched for 12 hours. `VIBE_SIM_UDID` pins a device. `VIBE_SIM_NAME` renames it.
 
-Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
+Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
 
 ## iPad
 

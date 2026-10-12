@@ -63,8 +63,8 @@ For a quick signal with no app and no dataset, use the `vibe-debug` skill's `sca
 Real accuracy is GiantSteps. **Re-run it after any analyzer change**:
 
 ```bash
-scripts/validate-tempo.py --jobs 6            # ~35s for the full set; --sample N for a quick signal
-scripts/validate-key.py   --jobs 6
+scripts/analysis/validate-tempo.py --jobs 6            # ~35s for the full set; --sample N for a quick signal
+scripts/analysis/validate-key.py   --jobs 6
 ```
 
 Neither dataset is vendored. Point `--dataset` at a local clone with audio downloaded. Tempo scores the MIREX metrics (Accuracy1 within 4%, Accuracy2 forgiving 1/3, 1/2, 2, 3x). Key scores the MIREX weighting (1.0 exact, 0.5 fifth, 0.3 relative, 0.2 parallel). The baseline: **tempo Accuracy1 85.1%, Accuracy2 92.6%** over 652 files; **key 61.3% weighted, 54.7% exact** over 602 files.

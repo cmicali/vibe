@@ -1,5 +1,7 @@
 # The now-playing card (iOS)
 
+This directory holds the now-playing card: `PlayerViewController`, its track pager, and the pages (`TrackPageCell`). It also holds each page's FX pad and output-route indicator. `PageWaveformCoordinator` hands each page its waveform.
+
 The scrubber itself is `WaveformUI/iOS/AGENTS.md`. The shell is `../AGENTS.md`.
 
 ## PlayerViewController

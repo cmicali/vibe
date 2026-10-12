@@ -500,7 +500,7 @@ Slowing down moves everything in the file down with it, the top end included. At
 
 **Key lock is a different feature.** It changes the tempo and keeps the key, which needs a time-stretcher rather than a resampler. Every time-stretcher adds sounds of its own. The pitch fader adds none.
 
-`scripts/varispeed-quality/run.sh` measures Apple's Varispeed, r8brain at a fixed ratio and a prototype of this converter outside the player, with no audio device. It times them too, and measures a drag. It is the place to try a new filter design before it goes into the player.
+`scripts/analysis/varispeed-quality/run.sh` measures Apple's Varispeed, r8brain at a fixed ratio and a prototype of this converter outside the player, with no audio device. It times them too, and measures a drag. It is the place to try a new filter design before it goes into the player.
 
 ## How we test it
 

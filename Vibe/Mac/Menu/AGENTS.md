@@ -1,5 +1,7 @@
 # Menu bar (macOS)
 
+This directory holds the menu bar's builder (`MainMenuBuilder`) and the controllers of the Open Recent and Output submenus. It also holds the menu validation rules (`MenuValidationRules.h`) and the default shortcuts (`ShortcutRules.h`).
+
 There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `AppDelegate.applicationWillFinishLaunching:` calls it **after `MainPlayerController` exists**. There is one builder method per top-level menu. **An item that appears in more than one menu is built by a vended constructor** (`copyNameItemWithTarget:`, `copyFileItemWithTarget:`, `convertToFLACItemWithTarget:`), so it carries the same identifier, SF Symbol and action everywhere. The window-body context menu builds its copies from these. The playlist row menu shares only titles and symbols (`symbolItemWithTitle:`), under its own clicked-row actions and identifiers (`Playlist/Mac/AGENTS.md`).
 
 **Menu identifiers and the domain that validates each are `MenuValidationRules.h`.** Each identifier has one `kVibeMenu*` constant, and the literal appears nowhere else, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED** (and asserts in Debug). A new controller-targeted menu item must be added there, or it never enables.
