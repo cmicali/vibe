@@ -84,6 +84,8 @@ BOOL VibeIsClosedRange(NSURLRequest *request) {
                                       configuration:configuration];
     _client.retryDelayScale = 0.01;
     _mirror = [[DropboxMirror alloc] initWithClient:_client rootURL:_root downloadBudget:8];
+    // A held stream must never fall through to a ranged read under a test.
+    _mirror.streamedTagWait = VIBE_TEST_GATE_TIMEOUT;
     [_client adoptRefreshToken:@"R1" accountID:@"dbid:test"];
 }
 

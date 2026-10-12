@@ -112,7 +112,11 @@
 }
 
 + (BOOL)readsBands {
-    return NO;
+    return [self paletteKind] != VibeWaveformPaletteKindTheme;
+}
+
++ (VibeWaveformPaletteKind)paletteKind {
+    return VibeWaveformPaletteKindTheme;
 }
 
 - (void)updateColors:(BOOL)isDark {

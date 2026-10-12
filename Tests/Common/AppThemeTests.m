@@ -19,6 +19,7 @@
     XCTAssertEqualObjects(theme.waveformStyle, @"oversampling_detailed_x4");
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertTrue(theme.waveformShadeOverlaps);
+    XCTAssertEqualObjects(theme.waveformSpectrumPalette, @"rgb");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
@@ -472,6 +473,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
                               @"bundled:cupertino_dark.jpg");
         XCTAssertTrue([styles containsObject:theme.waveformStyle]);
         XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
+        XCTAssertNotEqualObjects(theme.waveformSpectrumPalette, @"custom");
         XCTAssertNotEqualObjects(theme.windowTint, @"custom");
         XCTAssertNotEqualObjects(theme.playlistTint, @"custom");
         XCTAssertNotEqualObjects(theme.volumeBar, @"custom");
@@ -496,8 +498,11 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     theme.playlistButtonGlyph = @"list.dash";
     [theme setFontFace:@"Georgia" size:23 forSlot:VibeFontSlotTitle];
     [theme setColor:VibeColorFromHexString(@"#101010F0") forBase:kVibeThemeColorPlaylistBackground dark:YES];
+    theme.waveformSpectrumPalette = @"custom";
     for (int roll = 0; roll < 40; roll++) {
         [theme randomizeColors];
+        // Custom draws the band wells the roll cleared.
+        XCTAssertEqualObjects(theme.waveformSpectrumPalette, @"rgb");
         XCTAssertEqualObjects(theme.waveformStyle, @"detailed");
         XCTAssertEqual(theme.windowCornerRadius, 8);
         XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.dash");

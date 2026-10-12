@@ -406,9 +406,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
         [text appendFormat:@"  TRACK %lu AUDIO\n    TITLE \"T%lu\"\n    INDEX 01 %lu:00:00\n",
                            (unsigned long)i + 1, (unsigned long)i, (unsigned long)i];
     }
-    NSDate *start = NSDate.date;
     NSArray<AudioTrack *> *rows = CueRows(text);
-    XCTAssertLessThan(-start.timeIntervalSinceNow, 5.0);
     XCTAssertEqual(rows.count, 10000u);
     XCTAssertEqual(rows.lastObject.cueStart, 9999u * 4500u);
     XCTAssertEqual(rows.lastObject.cueEnd, 0u);

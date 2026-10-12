@@ -54,8 +54,9 @@ typedef void (^OpenRequestDelivery)(NSArray<AudioTrack *> *rows, NSUInteger fold
 // for the tests.
 - (void)abandonStalledRequests;
 
-// How long a finished result waits behind an earlier one.
-@property (nonatomic) NSTimeInterval stragglerDeadline;
+// Test seam; the default schedules on the main queue. A block is a no-op
+// once a newer deadline is armed, so firing a stale one is safe.
+@property (nonatomic, copy) VibeScheduler deadlineScheduler;
 
 @end
 

@@ -60,6 +60,7 @@
     _format = busFormat;
     _queue = queue;
     _inlineDecoding = inlineDecoding;
+    atomic_init(&_renderLeaveWaitNanos, 100 * NSEC_PER_MSEC);
     if (!inlineDecoding) {
         for (NSUInteger i = 0; i < kVoiceSlots; i++) {
             _decodeQueues[i] = dispatch_queue_create("com.vibe.voicebus.decode",
@@ -454,6 +455,10 @@
 #if DEBUG
 - (void)debugHoldDecoder:(BOOL)hold {
     atomic_store_explicit(&_debugHoldDecoder, hold ? 1 : 0, memory_order_relaxed);
+}
+
+- (void)debugSetRenderLeaveWaitSeconds:(NSTimeInterval)seconds {
+    atomic_store(&_renderLeaveWaitNanos, (uint64_t)(seconds * NSEC_PER_SEC));
 }
 
 - (void)debugHoldRender:(BOOL)hold {

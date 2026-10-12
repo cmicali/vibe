@@ -46,7 +46,8 @@ mkdir -p build
 # files nothing reads; PIPESTATUS keeps xcodebuild's own status through the tee.
 # The iOS leg needs a destination; a generic simulator one boots nothing.
 # Implicit modules: explicit ones add a dependency scan per file, about a
-# twentieth of this build.
+# twentieth of this build. The timing summary at the end splits the time
+# between analysis and compilation.
 analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild args...]
     local scheme="$1" suffix="$2"
     shift 2
@@ -56,6 +57,7 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
     set +e
     xcodebuild analyze \
         -project Vibe.xcodeproj \
+        -showBuildTimingSummary \
         -scheme "$scheme" \
         -configuration "$CONFIGURATION" \
         -derivedDataPath build/AnalyzeDD \

@@ -275,6 +275,7 @@ typedef struct {
     reading.at -= capture.length / sizeof(float) / 2 - settle;
     capture = [self renderSeconds:1.5];
     reading = [self readSaw:capture from:reading loose:NO step:ratio end:INFINITY label:@"the splice"];
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u);
     XCTAssertEqual(_player.currentTrack, tracks[1]);
     [self assertBusLeadsSaw:reading capture:capture step:ratio ratio:ratio firstFrame:lengthA label:@"the splice"];

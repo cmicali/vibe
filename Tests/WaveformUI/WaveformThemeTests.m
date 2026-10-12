@@ -297,6 +297,89 @@ static AppTheme *ThreeBandRecord(NSDictionary *fields) {
                            NSColor.whiteColor));
 }
 
+static NSArray<VibeColor *> *SpectrumPalette(NSString *identifier, BOOL isDark) {
+    return [WaveformTheme spectrumColorsForIdentifier:identifier isDark:isDark customBands:@[]];
+}
+
+// RGB is the default and every unknown's: each band its own channel, opaque,
+// and the three close in lightness, so no band glares over the others. Blue
+// and Green are one hue each, darkest at the low band and lightest at
+// the high. Every light set is darker than its dark one, for white.
+- (void)testSpectrumPalettes {
+    for (int darkPass = 0; darkPass <= 1; darkPass++) {
+        BOOL isDark = darkPass == 1;
+        NSArray<VibeColor *> *rgb = SpectrumPalette(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, isDark);
+        XCTAssertEqualObjects([self themeFor:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE isDark:isDark].spectrumColors, rgb);
+        XCTAssertEqualObjects(SpectrumPalette(@"rekord_bin", isDark), rgb);
+        XCTAssertEqualObjects(SpectrumPalette(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM, isDark), rgb,
+                              @"Custom without its three wells");
+        CGFloat lightest = 0, darkest = 1;
+        for (VibeColor *color in rgb) {
+            lightest = MAX(lightest, Luminance(color));
+            darkest = MIN(darkest, Luminance(color));
+        }
+        XCTAssertLessThan(lightest - darkest, 0.12, @"dark %d", darkPass);
+        for (NSUInteger band = 0; band < 3; band++) {
+            XCTAssertEqualWithAccuracy(Alpha(rgb[band]), 1, 0.001);
+            CGFloat channels[3];
+            GetRGB(rgb[band], &channels[0], &channels[1], &channels[2]);
+            for (NSUInteger channel = 0; channel < 3; channel++) {
+                if (channel != band) {
+                    XCTAssertGreaterThan(channels[band], channels[channel], @"band %lu", (unsigned long)band);
+                }
+            }
+        }
+        struct { NSString *identifier; NSUInteger hue; } ramps[] = {
+            {SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE, 2},
+            {SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN, 1},
+        };
+        for (size_t i = 0; i < sizeof(ramps) / sizeof(ramps[0]); i++) {
+            NSArray<VibeColor *> *ramp = SpectrumPalette(ramps[i].identifier, isDark);
+            XCTAssertLessThan(Luminance(ramp[0]), Luminance(ramp[1]), @"%@", ramps[i].identifier);
+            XCTAssertLessThan(Luminance(ramp[1]), Luminance(ramp[2]), @"%@", ramps[i].identifier);
+            for (VibeColor *color in ramp) {
+                CGFloat channels[3];
+                GetRGB(color, &channels[0], &channels[1], &channels[2]);
+                XCTAssertGreaterThanOrEqual(channels[ramps[i].hue], channels[0], @"%@", ramps[i].identifier);
+                XCTAssertEqualWithAccuracy(Alpha(color), 1, 0.001);
+            }
+        }
+    }
+    for (NSString *palette in @[SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE,
+                                SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN]) {
+        for (NSUInteger band = 0; band < 3; band++) {
+            XCTAssertLessThan(Luminance(SpectrumPalette(palette, NO)[band]), Luminance(SpectrumPalette(palette, YES)[band]),
+                              @"%@ band %lu", palette, (unsigned long)band);
+        }
+    }
+}
+
+// A mac theme picks Spectrum's palette, and Custom draws the band wells,
+// which 3-Band's palette shares. Spectrum hides the waveform color as 3-Band
+// does, so its played side is Mono's too.
+- (void)testSpectrumTakesTheThemesPalette {
+    AppTheme *blue = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum",
+                                                        @"waveformSpectrumPalette": @"blue",
+                                                        @"waveformTheme": @"orange"}];
+    WaveformTheme *resolved = [WaveformTheme themeForAppTheme:blue isDark:YES artworkColor:nil];
+    XCTAssertEqualObjects(resolved.spectrumColors, SpectrumPalette(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE, YES));
+    XCTAssertTrue(SameRGB(resolved.playedColor, NSColor.whiteColor));
+
+    AppTheme *custom = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum",
+                                                          @"waveformSpectrumPalette": @"custom"}];
+    [custom setColor:[NSColor colorWithSRGBRed:1 green:0 blue:1 alpha:1] forBase:kVibeThemeColorWaveformLow dark:YES];
+    NSArray<VibeColor *> *wells = [WaveformTheme themeForAppTheme:custom isDark:YES artworkColor:nil].spectrumColors;
+    XCTAssertEqual(RGBOf(wells[0]), 0xff00ffu);
+    XCTAssertEqual(RGBOf(wells[1]), 0xffa600u, @"an unset well draws Rekord Bin's band");
+    XCTAssertEqual(RGBOf(wells[2]), 0xffffffu);
+
+    AppTheme *detailed = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"detailed",
+                                                            @"waveformSpectrumPalette": @"blue"}];
+    XCTAssertEqualObjects([WaveformTheme themeForAppTheme:detailed isDark:YES artworkColor:nil].spectrumColors,
+                          SpectrumPalette(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, YES),
+                          @"no band style, so the palette is not resolved");
+}
+
 // Hover clears the played color's luminance by 0.25 toward the appearance's
 // pole, saturating there, which keeps Mono's hover exactly the base.
 - (void)testHoverContrastHolds {

@@ -15,15 +15,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Receives each drained batch unexpanded.
 typedef void (^OpenBurstSink)(NSArray<NSURL *> *urls, BOOL append);
 
-// Test seam; the default schedules on the main queue. The coalescer makes a
-// superseded block a no-op itself.
-typedef void (^OpenBurstScheduler)(NSTimeInterval delay, dispatch_block_t block);
-
 @interface OpenBurstCoalescer : NSObject
 
 - (instancetype)initWithQuietPeriod:(NSTimeInterval)quietPeriod sink:(OpenBurstSink)sink;
+// The scheduler is a test seam; the default schedules on the main queue. The
+// coalescer makes a superseded block a no-op itself.
 - (instancetype)initWithQuietPeriod:(NSTimeInterval)quietPeriod
-                          scheduler:(OpenBurstScheduler)scheduler
+                          scheduler:(VibeScheduler)scheduler
                                sink:(OpenBurstSink)sink;
 
 // Drains the queue as a burst's first batch, so the rest of an open that

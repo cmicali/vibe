@@ -19,6 +19,7 @@
 * ios: Improved the widget's playhead, which now keeps up on long tracks
 * ios: Added the widget's own waveform theme, colors, and playhead line, under its own style
 * ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
+* Added the Spectrum waveform style, colored by each moment's bass, mids and highs, in RGB, Blue, Green or Custom colors
 * ios: Added album art for songs in iCloud and Dropbox that are not downloaded
 * ios: Improved Add Folder: it names iCloud Drive and opens the folder once added
 

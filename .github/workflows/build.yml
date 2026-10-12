@@ -9,8 +9,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Every job only reads the repo — upload-artifact needs no repo permission —
-# so the token carries nothing a compromised dependency could write with.
+# Every job only reads the repo. upload-artifact needs no repo permission, so
+# the token carries nothing a compromised dependency could write with.
 permissions:
   contents: read
 
@@ -19,41 +19,93 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Four jobs, deliberately: the account runs five macOS jobs at once, shared by
-# every run in flight, so each job past that waits for a slot, and the wait was
-# once half the wall time. A new check joins a job below rather than adding one.
+# Four macOS jobs, deliberately. The account runs five macOS jobs at once,
+# shared by every run in flight, and a job past that waits for a slot. A new
+# macOS check joins the macOS job that finishes first, so the four stay about
+# the same length. The run's wall time is its longest job.
+#
+# The two Linux jobs take no macOS slot. A check that needs only bash, git,
+# grep and jq belongs on Linux.
 jobs:
-  # The Release build of each app, analyzed. `xcodebuild analyze` compiles,
-  # links and signs the whole app before it analyzes, so the analyzing build IS
-  # the Release build, and a separate one would compile everything twice.
+  # Whether the change touches anything the macOS jobs build or check. A
+  # change to Markdown, docs/ or Assets/Web/ alone skips them. Pages deploys
+  # the web tree, and the Linux checks below read the Markdown. A job skipped
+  # by its `if` reports success, so a required check never waits on it.
+  # A rename counts both paths, so a source moved into docs/ still builds.
+  # Anything this cannot settle (a manual run, an API error, an unreachable
+  # base, 300 files or more) counts as code.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          code=true
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] \
+              && files="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$HEAD" --jq '.files[] | .filename, .previous_filename // empty')" \
+              && [ -n "$files" ] && [ "$(wc -l <<<"$files")" -lt 300 ] \
+              && ! grep -qvE '\.md$|^docs/|^Assets/Web/' <<<"$files"; then
+              code=false
+          fi
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+          echo "code=$code for $BASE...$HEAD"
+
+  # The repo-wide text checks: grep, awk and jq over the tree, no build. They
+  # run on every change, since vocabulary and layout read the Markdown too.
+  repo-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Grep-only: the mechanical half of AGENTS.md's Vocabulary section.
+      - name: Check naming vocabulary
+        run: make check-vocabulary
+
+      # The layout rule read off project.yml, plus the imports. A shared file
+      # may not NAME a Mac-only header, which the headermap would otherwise
+      # resolve and build.
+      - name: Check layout
+        if: ${{ !cancelled() }}
+        run: make check-layout
+
+      # Reports keys missing a translation and never fails. English-only keys
+      # are the expected state between a feature landing and the translation
+      # batch at the release cut. A red main for that whole window would train
+      # everyone to ignore the check. release.sh and release-appstore.sh block
+      # on it instead. Annotations here show the batch's worklist early.
+      - name: Report untranslated keys
+        if: ${{ !cancelled() }}
+        run: scripts/checks/check-translations.sh --github
+
+  # The Release build of the macOS app, analyzed. `xcodebuild analyze`
+  # compiles, links and signs the whole app before it analyzes, so the
+  # analyzing build IS the Release build. A separate one would compile
+  # everything twice.
   #
-  # clang's static analyzer fails the leg on any finding outside ThirdParty/.
+  # clang's static analyzer fails the job on any finding outside ThirdParty/.
   # project.yml has had the analyzer's checks on all along
-  # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
-  # is what makes them a gate rather than a setting nobody ran. Findings are
-  # not config-independent — the first one this gate caught showed up in
-  # Release and not in Debug — and Release is the configuration that ships.
-  #
-  # Both targets, because the iOS leg is what analyzes Vibe/iOS and the iOS
-  # halves of the shared subsystems; it found two real findings the first time
-  # it ran. The Release iOS build matters on its own too: every source under
-  # Vibe/Debug wraps its body in #if DEBUG, so Release is the only
-  # configuration that compiles those translation units empty, and it is what
-  # `make appstore-build-ios` archives. The iOS leg runs against a generic
-  # simulator destination, so nothing has to be booted, and signs nothing.
-  build:
+  # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION). This job
+  # is what makes them a gate rather than a setting nobody ran. Findings
+  # depend on the configuration. The first one this gate caught showed up in
+  # Release and not in Debug, and Release is the configuration that ships.
+  analyze-macos:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     # Deployment target is macOS 13, but the code compiles against the macOS 26
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
     # cannot build this.
     runs-on: macos-26
-    # A hung xcodebuild otherwise runs to the 360-minute default, at the
-    # macOS runner's 10x billing rate. 45 rather than 30: the macOS leg runs
-    # two whole-app analyze builds, Release and AppStore, which share nothing.
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        leg: [macos, ios]
+    # A hung xcodebuild otherwise runs to the 360-minute default, at the macOS
+    # runner's 10x billing rate.
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v7
@@ -64,40 +116,88 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-version --sdk macosx
 
-      # Only XcodeGen is missing from the runner image; jq ships with macOS 15+,
-      # so `brew bundle` has nothing else to do here. See the action for why
-      # this doesn't shell out to brew at all.
+      # Only XcodeGen is missing from the runner image. See the action for why
+      # this doesn't shell out to brew.
       - uses: ./.github/actions/setup-xcodegen
 
-      # The macOS leg signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no
-      # certificates or secrets are needed. Distribution signing lives in
+      # Signed ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no certificates
+      # or secrets are needed. Distribution signing lives in
       # scripts/release/release.sh.
-      - name: Build Release and analyze (${{ matrix.leg }})
-        run: scripts/build/analyze.sh Release ${{ matrix.leg }}
+      - name: Build Release and analyze (macOS)
+        run: scripts/build/analyze.sh Release macos
 
       - name: Verify code signature
-        if: matrix.leg == 'macos'
         run: |
           codesign --verify --deep --strict --verbose=2 \
             build/AnalyzeDD/Build/Products/Release/Vibe.app
 
-      # The configuration the Mac App Store archive uses, analyzed like
-      # Release, since only it compiles the code's App Store branches. It
-      # must carry no trace of the updater.
-      - name: Analyze AppStore and check it has no updater
-        if: matrix.leg == 'macos'
-        run: |
-          SKIP_GENERATE=1 scripts/build/analyze.sh AppStore macos
-          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
-            asc_require_no_updater build/AnalyzeDD/Build/Products/AppStore/Vibe.app'
+  # The same for the iOS app. It is what analyzes Vibe/iOS and the iOS halves
+  # of the shared subsystems, and it found two real findings the first time it
+  # ran. The Release iOS build matters on its own too. Every source under
+  # Vibe/Debug wraps its body in #if DEBUG, so Release is the only
+  # configuration that compiles those translation units empty, and it is what
+  # `make appstore-build-ios` archives. A generic simulator destination boots
+  # nothing and signs nothing.
+  analyze-ios:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
 
-  # Everything Debug: both apps' Debug builds (Vibe/Debug compiles only here,
-  # and the iOS one is the check that catches an AppKit leak into a shared
-  # directory), then both test suites. Nothing downstream uses these products,
-  # so they share one runner rather than each paying for a slot. The steps are
-  # independent, so each runs whatever an earlier one did (`!cancelled()`): a
-  # compile error in one app still reports the tests.
-  build-debug-and-test:
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - name: Build Release and analyze (iOS)
+        run: scripts/build/analyze.sh Release ios
+
+  # The builds and checks that need a Mac but not the analyzer. Nothing
+  # downstream uses their products. The steps are independent, so each runs
+  # whatever an earlier one did (`!cancelled()`).
+  build-and-check:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # clang and xcstringstool, no project.
+      - name: Check string catalog is in sync
+        run: make check-strings
+
+      # The caption-fit measurement compiles
+      # scripts/appstore/compose-app-store-overlay.swift with swiftc, no project.
+      - name: Validate App Store copy
+        if: ${{ !cancelled() }}
+        run: make appstore-validate-copy
+
+      - uses: ./.github/actions/setup-xcodegen
+        if: ${{ !cancelled() }}
+
+      # The configuration the Mac App Store archive uses. Only it compiles the
+      # code's App Store branches, and it must carry no trace of the updater.
+      # Built, not analyzed: those branches are a few #if blocks, and a second
+      # whole-app analyze cost as long as the first.
+      - name: Build AppStore and check it has no updater
+        if: ${{ !cancelled() }}
+        run: |
+          make build CONFIG=AppStore ARGS='ARCHS=arm64'
+          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
+            asc_require_no_updater build/DerivedData/Build/Products/AppStore/Vibe.app'
+
+      # Vibe/Debug compiles only in Debug, and this is the check that catches
+      # an AppKit leak into a shared directory.
+      - name: Build Debug (iOS, simulator)
+        if: ${{ !cancelled() }}
+        run: make build-ios CONFIG=Debug
+
+  # The macOS Debug build, then both test suites.
+  test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
     timeout-minutes: 30
 
@@ -109,35 +209,33 @@ jobs:
       - name: Install fixture encoder
         run: brew install ffmpeg
 
-      # The x86_64 slice, not the runner's arm64: the analyzing Release build
+      # The x86_64 slice, not the runner's arm64. The analyzing Release build
       # compiles arm64 alone, so this is where the shipping app's Intel half
       # (and its architecture #ifs) is proven to compile. Same cost either way.
-      - name: Build Debug (macos, x86_64)
+      - name: Build Debug (macOS, x86_64)
         run: make build CONFIG=Debug ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
 
-      - name: Build Debug (ios, simulator)
-        if: ${{ !cancelled() }}
-        run: make build-ios CONFIG=Debug
-
       # The VibeTests bundle is host-less pure logic: no app launch, no window
-      # server, no audio hardware, no permissions — so it needs nothing from
-      # the runner that a build doesn't already need. Anything requiring the
+      # server, no audio hardware, no permissions. It needs nothing from the
+      # runner that a build doesn't already need. Anything requiring the
       # running app lives in the vibe-debug command channel, which is not
-      # suited to unattended CI (it drives a real window and needs Screen
-      # Recording and Accessibility grants).
+      # suited to unattended CI. It drives a real window and needs Screen
+      # Recording and Accessibility grants.
       #
       # Beside it, the render suite: the real AudioPlayer and FX pipeline,
       # driven by the debug render pump, with no audio device or app. The two
-      # share nothing but the project (test-audio has its own derived data),
-      # and -k keeps one suite's failure from stopping the other. Their logs
-      # interleave; the summaries below read each suite's own result bundle.
+      # share nothing but the project (test-audio has its own derived data).
+      # -j3 also builds the render suite's bundle and its fixtures at the same time.
+      # -k keeps one suite's failure from stopping the other. Their logs
+      # interleave, and the summaries below read each suite's own result
+      # bundle.
       - name: Run unit and audio tests
         if: ${{ !cancelled() }}
-        run: make -k -j2 test test-audio
+        run: make -k -j3 test test-audio
 
-      # always(): the counts are most wanted precisely when a step above
-      # failed. They read the .xcresult, so they report the run either way and
-      # never change the job's outcome.
+      # always(): the counts are most wanted when a step above failed. They
+      # read the .xcresult, so they report the run either way and never change
+      # the job's outcome.
       - name: Test summary
         if: always()
         run: make test-summary
@@ -163,43 +261,3 @@ jobs:
           path: build/AudioTestResults.xcresult
           retention-days: 7
           if-no-files-found: ignore
-
-  # Everything that needs no XcodeGen, no generated project and no build —
-  # only clang + xcstringstool (Xcode), jq (ships with macOS 15+), swiftc and
-  # grep. They are one job because they share that, and so they report as one
-  # check rather than paying a runner startup each for work that takes seconds.
-  static-checks:
-    runs-on: macos-26
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check string catalog is in sync
-        run: make check-strings
-
-      # Reports keys missing a translation, never fails: English-only keys are
-      # the expected state between a feature landing and the translation batch
-      # at the release cut, and a red main for that whole window would train
-      # everyone to ignore the check. release.sh / release-appstore.sh block on
-      # it instead. Annotations here make the batch's worklist visible early.
-      - name: Report untranslated keys
-        run: scripts/checks/check-translations.sh --github
-
-      # The caption-fit measurement compiles scripts/appstore/compose-app-store-overlay.swift
-      # (swiftc, no project) — no pip installs since the compositor moved off
-      # Python/PIL.
-      - name: Validate App Store copy
-        run: make appstore-validate-copy
-
-      # Grep-only, so it rides this job rather than paying for a build: the
-      # mechanical half of AGENTS.md's Vocabulary section.
-      - name: Check naming vocabulary
-        run: make check-vocabulary
-
-      # Same: the layout rule (shared subsystems in both targets, Mac/ and iOS/
-      # the only platform markers) read off project.yml, plus the imports — a
-      # shared file may not NAME a Mac-only header, which the headermap would
-      # otherwise resolve and build.
-      - name: Check layout
-        run: make check-layout

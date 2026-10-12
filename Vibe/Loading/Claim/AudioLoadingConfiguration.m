@@ -29,6 +29,7 @@ VibeAudioLoadingConfigurationValues VibeAudioLoadingProductionConfigurationValue
     values.maximumBackgroundPendingMaterializations = 6;
     values.interactiveAdmissionGrace = 5.0;
     values.backgroundAdmissionGrace = 10.0;
+    values.datalessProbePendingGrace = 5.0;
     values.metadataRetryCount = 2;
     values.openTimeouts = VibeAudioOpenDefaultTimeoutConfiguration();
     return values;
@@ -82,6 +83,7 @@ static NSError *VibeInvalidConfigurationValue(NSString *field, NSNumber *value) 
                         kMaximumTunablePendingCount);
     VIBE_VALIDATE_DURATION(interactiveAdmissionGrace);
     VIBE_VALIDATE_DURATION(backgroundAdmissionGrace);
+    VIBE_VALIDATE_DURATION(datalessProbePendingGrace);
     VIBE_VALIDATE_COUNT(metadataRetryCount, 0, kMaximumTunableRetryCount);
     if (!isfinite(values.openTimeouts.noProgressSeconds)
             || values.openTimeouts.noProgressSeconds <= 0
@@ -117,6 +119,7 @@ static NSError *VibeInvalidConfigurationValue(NSString *field, NSNumber *value) 
                 values.maximumBackgroundPendingMaterializations;
         _interactiveAdmissionGrace = values.interactiveAdmissionGrace;
         _backgroundAdmissionGrace = values.backgroundAdmissionGrace;
+        _datalessProbePendingGrace = values.datalessProbePendingGrace;
         _metadataRetryCount = values.metadataRetryCount;
         _openTimeouts = values.openTimeouts;
     }
@@ -139,6 +142,7 @@ static NSError *VibeInvalidConfigurationValue(NSString *field, NSNumber *value) 
             _maximumBackgroundPendingMaterializations;
     values.interactiveAdmissionGrace = _interactiveAdmissionGrace;
     values.backgroundAdmissionGrace = _backgroundAdmissionGrace;
+    values.datalessProbePendingGrace = _datalessProbePendingGrace;
     values.metadataRetryCount = _metadataRetryCount;
     values.openTimeouts = _openTimeouts;
     return values;

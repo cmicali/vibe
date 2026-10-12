@@ -62,7 +62,8 @@ static AudioWaveform *VibePreviewWaveform(void) {
                                  x2OversamplingDetailedWaveformRenderer.class,
                                  x4OversamplingDetailedWaveformRenderer.class,
                                  x8OversamplingDetailedWaveformRenderer.class,
-                                 ThreeBandWaveformRenderer.class]) {
+                                 ThreeBandWaveformRenderer.class,
+                                 SpectrumWaveformRenderer.class]) {
             // A nil key raises; in Release an unoverridden subclass costs one
             // style, not the registry.
             NSString *identifier = [renderer styleIdentifier];
@@ -92,6 +93,11 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return ![identifier isEqualToString:@"sonic_cirrus"] && ![identifier isEqualToString:kCupertinoBasicIdentifier];
 }
 
++ (BOOL)supportsGradientForIdentifier:(NSString *)identifier {
+    return ![identifier isEqualToString:SpectrumWaveformRenderer.styleIdentifier] &&
+           ![identifier isEqualToString:kCupertinoBasicIdentifier];
+}
+
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier {
     return [identifier isEqualToString:kCupertinoBasicIdentifier] || [self supportsBarDensityForIdentifier:identifier];
 }
@@ -104,9 +110,24 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return identifier && [[self renderersByIdentifier][identifier] readsBands];
 }
 
++ (VibeWaveformPaletteKind)paletteKindForIdentifier:(NSString *)identifier {
+    Class renderer = identifier ? [self renderersByIdentifier][identifier] : nil;
+    return renderer ? [renderer paletteKind] : VibeWaveformPaletteKindTheme;
+}
+
++ (NSArray<VibeColor *> *)swatchColorsForIdentifier:(NSString *)identifier theme:(WaveformTheme *)theme {
+    switch ([self paletteKindForIdentifier:identifier]) {
+        case VibeWaveformPaletteKindBands:
+            return [theme.bandColors subarrayWithRange:NSMakeRange(0, 3)];
+        case VibeWaveformPaletteKindSpectrum:
+            return theme.spectrumColors;
+        case VibeWaveformPaletteKindTheme:
+            return @[theme.playedColor, theme.playedColor, theme.playedColor];
+    }
+}
+
 + (BOOL)drawsPlayheadLineForIdentifier:(NSString *)identifier chosen:(NSNumber *)chosen {
-    return chosen != nil ? chosen.boolValue
-                         : [identifier isEqualToString:[ThreeBandWaveformRenderer styleIdentifier]];
+    return chosen != nil ? chosen.boolValue : [self readsBandsForIdentifier:identifier];
 }
 
 // Hosts the REAL renderer in a detached layer, so the Settings preview and the

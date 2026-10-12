@@ -419,10 +419,14 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
     [self applyLevelMeterOnQueue];
 }
 
-- (void)pollOutputSignalDiagnosticsOnQueue:(AudioLevelMeter *)meter request:(uint64_t)request {
-    [self scheduleAfterSeconds:0.1 block:^{
-        if ([meter pollSignalDiagnostics:request]) {
-            [self pollOutputSignalDiagnosticsOnQueue:meter request:request];
+static const NSTimeInterval kSignalProbePollSeconds = 0.1;
+
+- (void)pollOutputSignalDiagnosticsOnQueue:(AudioLevelMeter *)meter request:(uint64_t)request
+                                   elapsed:(NSTimeInterval)elapsed {
+    [self scheduleAfterSeconds:kSignalProbePollSeconds block:^{
+        NSTimeInterval polled = elapsed + kSignalProbePollSeconds;
+        if ([meter pollSignalDiagnostics:request elapsedSeconds:polled]) {
+            [self pollOutputSignalDiagnosticsOnQueue:meter request:request elapsed:polled];
         }
     }];
 }
@@ -455,7 +459,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
         LogInfo(@"Signal: play %llu voice %llu %@ %@ unavailable: no active level meter (post-mix observation, not audible output)",
                 play, voice, track, reason);
     }
-    if (request) [self pollOutputSignalDiagnosticsOnQueue:meter request:request];
+    if (request) [self pollOutputSignalDiagnosticsOnQueue:meter request:request elapsed:0];
     _signalProbeRequest = request;
     if (!request) [self releaseSignalProbeOnQueue:0];
 #endif

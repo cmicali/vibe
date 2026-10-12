@@ -82,6 +82,7 @@ static NSString *WaveformKey(NSString *key, BOOL widget) {
     for (int widget = 0; widget <= 1; widget++) {
         appDefaults[WaveformKey(SETTING_WAVEFORM_THEME, widget)] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
         appDefaults[WaveformKey(SETTING_WAVEFORM_BAND_THEME, widget)] = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
+        appDefaults[WaveformKey(SETTING_WAVEFORM_SPECTRUM_PALETTE, widget)] = SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB;
         appDefaults[WaveformKey(SETTING_WAVEFORM_CENTERED, widget)] = @(YES);
     }
 #endif
@@ -178,6 +179,16 @@ static NSString *WaveformKey(NSString *key, BOOL widget) {
 - (void)setWaveformBandTheme:(NSString *)identifier forWidget:(BOOL)widget {
     [[NSUserDefaults standardUserDefaults] setObject:identifier
                                               forKey:WaveformKey(SETTING_WAVEFORM_BAND_THEME, widget)];
+}
+
+- (NSString *)waveformSpectrumPaletteForWidget:(BOOL)widget {
+    return VibeNormalizedWaveformSpectrumPalette([[NSUserDefaults standardUserDefaults]
+            stringForKey:WaveformKey(SETTING_WAVEFORM_SPECTRUM_PALETTE, [self readsWidgetCopy:widget])]);
+}
+
+- (void)setWaveformSpectrumPalette:(NSString *)identifier forWidget:(BOOL)widget {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier
+                                              forKey:WaveformKey(SETTING_WAVEFORM_SPECTRUM_PALETTE, widget)];
 }
 
 static NSString *WaveformCustomBandKey(NSUInteger band, BOOL isDark, BOOL widget) {

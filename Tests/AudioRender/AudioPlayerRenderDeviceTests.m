@@ -372,6 +372,7 @@
         [_player resume];
         [self settleUntil:^BOOL { return [self count:@"resume"] == 1; }];
         [self render:100000];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"finish"],1u,@"The replacement schedule must finish exactly once after resume");
     } @finally {
         [_player debugShutdown]; _player=nil;

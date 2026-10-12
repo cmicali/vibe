@@ -74,7 +74,7 @@ static const AudioObjectPropertyAddress kDevicesAddress = {
     NSMutableArray<void (^)(NSArray<AudioDevice *> *)> *_snapshotWaiters;
     BOOL _snapshotRetryScheduled;
     NSArray<AudioDevice *> *(^_enumerator)(BOOL);
-    void (^_retryScheduler)(NSTimeInterval, dispatch_block_t);
+    VibeScheduler _retryScheduler;
     // Consecutive sweeps discarded for a per-device read failure. Bounds how
     // long a permanently broken device can keep the whole list unpublished;
     // see kMaxIncompleteSweeps. Confined to _refreshQueue.
@@ -141,7 +141,7 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
 }
 
 - (instancetype)initWithEnumerator:(NSArray<AudioDevice *> *(^)(BOOL))enumerator
-                     retryScheduler:(void (^)(NSTimeInterval, dispatch_block_t))scheduler {
+                     retryScheduler:(VibeScheduler)scheduler {
     self = [super init];
     if (self) {
         _enumerator = [enumerator copy];

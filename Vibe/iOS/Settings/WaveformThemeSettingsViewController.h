@@ -6,6 +6,7 @@
 //  because Custom brings color wells. All four mac waveform themes are
 //  offered; album art's color is per page (root AGENTS.md). Under 3-Band the
 //  screen offers the band palettes instead: Rekord Bin, Dengine and Custom.
+//  Under Spectrum it offers Spectrum's: RGB, Blue, Green and Custom.
 //  The widget's copy of the screen edits the widget's settings, and shows
 //  only the dark wells, since the widget is always dark.
 //
@@ -17,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface WaveformThemeSettingsViewController : UITableViewController
 
 // The theme in force for the current style, resolved: an unknown identifier
-// reads as Mono, or as Rekord Bin under 3-Band.
+// reads as Mono, as Rekord Bin under 3-Band, or as RGB under Spectrum.
 + (NSString *)currentThemeDisplayNameForWidget:(BOOL)widget;
 
 - (instancetype)initForWidget:(BOOL)widget NS_DESIGNATED_INITIALIZER;

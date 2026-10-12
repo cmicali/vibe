@@ -98,7 +98,6 @@ NSString * const VibeAudioFileOpenErrorDomain = @"com.vibe.audio-file-open";
 static void *VibeMaterializationStateQueueKey = &VibeMaterializationStateQueueKey;
 static const NSUInteger kMaximumDatalessProbeRunningCount = 8;
 static const NSUInteger kMaximumDatalessProbePendingCount = 16;
-static const NSTimeInterval kDatalessProbePendingGrace = 5;
 
 @implementation AudioFileMaterializationCoordinator
 
@@ -174,7 +173,7 @@ static VibeAudioFileOpener const kProductionFileOpener =
                 qualityOfService:QOS_CLASS_USER_INITIATED
                 maximumRunningCount:kMaximumDatalessProbeRunningCount
                 maximumPendingCount:kMaximumDatalessProbePendingCount
-                pendingGrace:kDatalessProbePendingGrace];
+                pendingGrace:_configuration.datalessProbePendingGrace];
         dispatch_queue_attr_t interactiveAttributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0);
         _interactiveWorkerQueue = dispatch_queue_create(

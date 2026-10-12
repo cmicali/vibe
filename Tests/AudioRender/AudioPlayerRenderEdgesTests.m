@@ -193,6 +193,7 @@
         [_player prefetchTrack:[AudioTrack withURL:second]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self render:52800 - before];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
         XCTAssertEqual([self count:@"advance"], 1u, @"late %@", late);
         [self assertReference:reference capture:_capture skip:[self startupSkip] tolerance:0.0001f];
     }
@@ -369,6 +370,7 @@
         [_player play:tracks[0]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 3 && [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"advance"],3u); XCTAssertEqual([self count:@"finish"],1u);
         XCTAssertEqualObjects(_player.currentTrack,tracks.lastObject);
         XCTAssertEqualWithAccuracy(_player.duration,(96000-72007)/48000.0,0);
@@ -386,6 +388,7 @@
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         NSMutableData *twice=[reference mutableCopy]; [twice appendData:reference];
         [self assertReference:twice capture:[self renderSeconds:4.1] skip:[self startupSkip] tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1 && [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"advance"],1u,@"bit-perfect %@",mode); XCTAssertEqual([self count:@"finish"],1u);
         XCTAssertEqual(_player.currentTrack,track);
     }
@@ -444,6 +447,7 @@
         XCTAssertGreaterThan(started, 4 - fade - 0.25, @"%@ ms: started too early", crossfade);
         XCTAssertLessThan(started, 4 - fade + 0.1, @"%@ ms: started at %.2f s, after its crossfade was due", crossfade, started);
         XCTAssertGreaterThanOrEqual(overlapping * 0.05, fade / 2, @"%@ ms: the tracks barely overlapped", crossfade);
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
         XCTAssertEqual([self count:@"advance"], 1u); XCTAssertEqual([self count:@"finish"], 0u);
         XCTAssertEqual(_player.currentTrack, tracks[1]);
         XCTAssertTrue(_player.isPlaying);
@@ -462,6 +466,7 @@
     [self playParked:tracks];
     XCTAssertTrue(_player.gaplessArmed);
     [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1 && [self count:@"finish"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u); XCTAssertEqual([self count:@"finish"], 1u);
 }
 
@@ -484,6 +489,7 @@
         for (NSUInteger w = 0; w < a.count; w++) if (a[w].doubleValue > 0.1 && b[w].doubleValue > 0.1) overlapping++;
         if (raise.boolValue) XCTAssertGreaterThanOrEqual(overlapping, 8u, @"raised: the end crossfades");
         else XCTAssertLessThanOrEqual(overlapping, 1u, @"lowered: the end splices");
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
         XCTAssertEqual([self count:@"advance"], 1u, @"raise %@", raise);
         XCTAssertEqual(_player.currentTrack, tracks[1]);
     }
@@ -499,6 +505,7 @@
     NSData *capture = [self renderSeconds:1.5];
     XCTAssertEqualWithAccuracy(VibeToneAmplitude(capture, 2, 0, 48000, 440, NSMakeRange(4800, 12000)), 0.5, 0.02, @"the first 0.35 s is the short track alone");
     XCTAssertLessThan(VibeToneAmplitude(capture, 2, 0, 48000, 1000, NSMakeRange(4800, 12000)), 0.01);
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u);
 }
 
@@ -556,6 +563,7 @@
         [_player play:rows[0]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 2 && [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"advance"], 2u, @"block %@ bit-perfect %@", block, mode);
         XCTAssertEqual([self count:@"finish"], 1u);
         XCTAssertEqualObjects(_player.currentTrack, rows.lastObject);
@@ -578,6 +586,7 @@
     [thrice appendData:window];
     [thrice appendData:window];
     [self assertReference:thrice capture:[self renderSeconds:3.1] skip:[self startupSkip] tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 2 && [self count:@"finish"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 2u);
     XCTAssertEqual([self count:@"finish"], 1u);
 }
@@ -595,6 +604,7 @@
     [_player play:rows[0]];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0.0001f];
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u);
 }
 
@@ -610,6 +620,7 @@
     [_player play:rows[0]];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u);
 
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
@@ -776,6 +787,7 @@
         dispatch_semaphore_signal(release);
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
         XCTAssertEqual([self count:@"advance"], 1u);
     } @finally {
         dispatch_semaphore_signal(release);
@@ -805,6 +817,7 @@
         [self settleUntil:^BOOL { return self->_player.gaplessArmed || [self count:@"advance"] > 0; }];
         [self assertReference:decoded capture:[self renderSeconds:decoded.length / 8 / _rate + 0.1]
                          skip:[self startupSkip] tolerance:files[name].floatValue];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 2; }];
         XCTAssertEqual([self count:@"advance"], 2u, @"%@", name);
     }
     XCTSkipIf(missing.count, @"Optional encoder fixtures %@ unavailable; install ffmpeg and regenerate", missing);
@@ -820,6 +833,7 @@
         [self play:first paused:NO position:0]; [_player prefetchTrack:[AudioTrack withURL:second]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+        [self settleUntil:^BOOL { return [self count:@"advance"] >= 1 && [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"advance"],1u); XCTAssertEqual([self count:@"finish"],1u);
     }
     for (NSString *next in @[@"noise-44100-24-2.wav",@"noise-48000-24-1.wav"]) {
@@ -827,6 +841,7 @@
         [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
         [_player prefetchTrack:[AudioTrack withURL:[self fixture:next]]];
         [self renderSeconds:2.1]; XCTAssertFalse(_player.gaplessArmed);
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"advance"],0u); XCTAssertEqual([self count:@"finish"],1u);
     }
 }

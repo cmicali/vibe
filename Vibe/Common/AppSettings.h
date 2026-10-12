@@ -41,6 +41,13 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE          @"dengine"
 #define SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM           @"custom"
 
+// Spectrum's palettes, resolved to colors only by WaveformTheme. Custom draws
+// the band wells, which 3-Band's custom palette shares.
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB        @"rgb"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE       @"blue"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN      @"green"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM     @"custom"
+
 // The crossfade slider in milliseconds: off is 10, the declick minimum, then
 // tenths of a second up to three. The getter snaps any other stored value to
 // the nearest step.
@@ -89,9 +96,14 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (NSString *)waveformBandThemeForWidget:(BOOL)widget;
 - (void)setWaveformBandTheme:(NSString *)identifier forWidget:(BOOL)widget;
 
-// The custom palette's bands per appearance. band is 0 for low, 1 for mid and
-// 2 for high. Stored opaque as #RRGGBB, because the layers stack. nil when
-// unset or unparsable.
+// Spectrum's palette, apart from the other two for the same reason.
+// Normalized on read: an unknown identifier snaps to RGB.
+- (NSString *)waveformSpectrumPaletteForWidget:(BOOL)widget;
+- (void)setWaveformSpectrumPalette:(NSString *)identifier forWidget:(BOOL)widget;
+
+// The custom palette's bands per appearance, which 3-Band's and Spectrum's
+// Custom share. band is 0 for low, 1 for mid and 2 for high. Stored opaque as
+// #RRGGBB, because 3-Band's layers stack. nil when unset or unparsable.
 - (nullable VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark widget:(BOOL)widget;
 - (void)setWaveformCustomBandColor:(nullable VibeColor *)color band:(NSUInteger)band
                            forDark:(BOOL)isDark widget:(BOOL)widget;

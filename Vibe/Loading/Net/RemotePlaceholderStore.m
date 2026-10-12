@@ -70,6 +70,7 @@ static NSError *VibePOSIXError(void) {
         _streamsCondition = [[NSCondition alloc] init];
         _streams = [NSMutableDictionary dictionary];
         _fetching = [NSMutableSet set];
+        _streamedTagWait = kStreamedTagWaitSeconds;
         NSString *label = [NSString stringWithFormat:@"com.commonwealthrecordings.Vibe.%@-store",
                            self.logName.lowercaseString];
         _diskQueue = dispatch_queue_create(label.UTF8String,
@@ -374,7 +375,7 @@ static NSError *VibePOSIXError(void) {
 // range its stream is about to hold.
 - (nullable NSData *)streamedBytesOfURL:(NSURL *)url at:(uint64_t)offset length:(uint64_t)length {
     NSString *key = VibeComparablePath(url.path);
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kStreamedTagWaitSeconds];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:self.streamedTagWait];
     [_streamsCondition lock];
     CloudFileAvailability *stream = _streams[key];
     while (!stream && [_fetching containsObject:key] && [_streamsCondition waitUntilDate:deadline]) {
