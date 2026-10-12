@@ -586,29 +586,36 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     return snapshot;
 }
 
-// YES once the current voice has a block buffered. Also YES when no decode
-// turn can add one before the next render: no voice, a voice that is paused
-// or has ended, a decoder that waits for bytes, a stream written to its end,
-// or no turn queued or running.
-- (BOOL)nextBlockIsBuffered {
-    VibeVoiceSnapshot voice = [self currentVoiceSnapshot];
-    BOOL filling = (voice.state == VibeVoiceStateArmed || voice.state == VibeVoiceStateLive) && !voice.paused
+// A live voice a decode turn is filling: its next block is close. Held,
+// paused, waiting for bytes, ended or idle, nothing fills it soon.
+- (BOOL)voiceIsFilling:(VibeVoiceSnapshot)voice {
+    return (voice.state == VibeVoiceStateArmed || voice.state == VibeVoiceStateLive) && !voice.paused
             && voice.ended == VibeVoiceEndNone && !voice.waitingForBytes && voice.decoding
             && voice.written < voice.endOfStream;
-    return !filling || voice.written >= voice.consumed + _blockSize;
 }
 
 // A block at a time until the condition holds, against the hang guard. Each
 // block drains, so a decision taken there is in place at the next check.
-// Between blocks main runs in short slices until the decode pool has the next
-// block buffered. The inline fill is starved on the pool, so a block rendered
-// sooner would underrun.
+// Between blocks main always runs once, so deliveries land. While a decode
+// turn fills the voice, main runs in short slices until the next block is
+// buffered, since the inline fill is starved on the pool and a block rendered
+// sooner would underrun. Otherwise main runs for 1 ms. That keeps the frame
+// clock near wall time while a voice is held, so a wall-clock deadline such as
+// a stall's still lands before the frame clock's idle stop.
 - (BOOL)renderUntil:(BOOL (^)(void))condition {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition() && deadline.timeIntervalSinceNow > 0) {
         [self render:_blockSize];
-        while (![self nextBlockIsBuffered] && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate date]];
+        VibeVoiceSnapshot voice = [self currentVoiceSnapshot];
+        if (![self voiceIsFilling:voice]) {
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];
+            continue;
+        }
+        while ([self voiceIsFilling:voice] && voice.written < voice.consumed + _blockSize
+                && deadline.timeIntervalSinceNow > 0) {
             [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
+            voice = [self currentVoiceSnapshot];
         }
     }
     return condition();
