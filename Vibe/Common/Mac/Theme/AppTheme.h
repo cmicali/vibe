@@ -48,7 +48,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // bar's own color.
 #define SETTINGS_VALUE_VOLUME_WAVEFORM                      @"waveform"
 #define SETTINGS_VALUE_VOLUME_KNOB_BAR                      @"bar"
-// Top right swaps with the corner readouts on hover (MainWindow/APPEARANCE.md).
+// Top right swaps with the corner readouts on hover (MainWindow/LAYOUT.md).
 #define SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM               @"bottom"
 #define SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT            @"top_right"
 // When the volume slider shows.

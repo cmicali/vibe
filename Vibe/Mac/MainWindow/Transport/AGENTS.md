@@ -26,7 +26,7 @@ Every command but the effect keys goes through `performMenuCommandWithIdentifier
 
 ## FX toggles
 
-**The FX keys act only while this run has an `AudioFX` controls object and `AppSettings.audioFXAllowed` is true** (the FX setting, with bit-perfect output outranking it). Turning the setting off clears all five live states and stops the keys at once. The player disconnects the FX segment in the same output-stopped rebuild. The menu builder drops the fallback equivalents, and validation disables the items. **The five effect setters are the single funnel** for menus, keys and debug commands. Each calls `updateFXIndicators`, which re-reads the live `AudioFX` flags rather than the caller's intent. The codec line is the indicator (`../APPEARANCE.md`).
+**The FX keys act only while this run has an `AudioFX` controls object and `AppSettings.audioFXAllowed` is true** (the FX setting, with bit-perfect output outranking it). Turning the setting off clears all five live states and stops the keys at once. The player disconnects the FX segment in the same output-stopped rebuild. The menu builder drops the fallback equivalents, and validation disables the items. **The five effect setters are the single funnel** for menus, keys and debug commands. Each calls `updateFXIndicators`, which re-reads the live `AudioFX` flags rather than the caller's intent. The codec line is the indicator (`../LAYOUT.md`).
 
 ## Skips
 

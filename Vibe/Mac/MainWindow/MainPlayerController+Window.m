@@ -274,7 +274,7 @@
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSView *overlay = self.windowBackgroundOverlayView;
     // From the WINDOW: mid-flip a view can still report the outgoing
-    // appearance (APPEARANCE.md's refreshTintWashes trap).
+    // appearance (LAYOUT.md's refreshTintWashes trap).
     BOOL dark = self.window.effectiveAppearance.isDark;
     // An unset pair (a hand-edited import) draws the accessor's default.
     NSColor *color = VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle)
