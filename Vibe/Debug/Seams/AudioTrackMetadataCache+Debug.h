@@ -3,7 +3,8 @@
 //  Vibe
 //
 //  What the health oracle reads from background metadata materialization.
-//  Declaration-only, like AudioPlayer+Debug.h.
+//  The Debug category is declaration-only: the shipping class implements it.
+//  DebugMaterialization is implemented in AudioTrackMetadataCache+Debug.m.
 //
 
 #if DEBUG
@@ -24,6 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The versioned PINCache store name reported by clear_caches.
 + (NSString *)cacheName;
+
+@end
+
+@interface AudioTrackMetadataCache (DebugMaterialization)
 
 // Stage-2 file acquisitions queued, delayed or in flight. Zero at rest, so the
 // stress driver scores it as a pending counter. Main thread, like the rest of
