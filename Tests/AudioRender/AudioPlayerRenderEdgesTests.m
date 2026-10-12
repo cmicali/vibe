@@ -789,10 +789,13 @@
 - (void)testContiguousCueRowsOfCompressedFiles {
     NSDictionary<NSString *, NSNumber *> *files = @{@"cbr.mp3": @0, @"lossless.flac": @0,
                                                     @"lossy.m4a": @(kVibeAACDecodeTolerance)};
+    NSMutableArray<NSString *> *missing = [NSMutableArray array];
     for (NSString *name in files) {
         NSURL *url = [self fixture:name];
+        // The MP3 needs ffmpeg; one missing skips the test only once the rest has run.
         if (![NSFileManager.defaultManager fileExistsAtPath:url.path]) {
-            continue; // the optional encoder's fixture
+            [missing addObject:name];
+            continue;
         }
         NSData *decoded = VibePCM([self read:url]);
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
@@ -804,6 +807,7 @@
                          skip:[self startupSkip] tolerance:files[name].floatValue];
         XCTAssertEqual([self count:@"advance"], 2u, @"%@", name);
     }
+    XCTSkipIf(missing.count, @"Optional encoder fixtures %@ unavailable; install ffmpeg and regenerate", missing);
 }
 
 - (void)testGaplessShortSuccessorAndFormatMismatch {

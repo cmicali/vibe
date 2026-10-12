@@ -42,10 +42,16 @@ NSURL *VibeWriteEncoded(NSURL *url, AudioFileTypeID type, AudioStreamBasicDescri
     return [writer writeFromBuffer:buffer error:error] && [writer closeWithError:error] ? url : nil;
 }
 
+// A file of the gitignored corpus. CI has no corpus, so the case is optional
+// there. Anywhere else its absence is a skip, never a quiet pass.
 static NSURL *VibeAssetFixture(NSString *name) {
     NSString *tests = [NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent;
     NSString *path = [tests stringByAppendingPathComponent:[@"../../Assets/test_audio_files" stringByAppendingPathComponent:name]];
-    return [NSFileManager.defaultManager fileExistsAtPath:path] ? [NSURL fileURLWithPath:path.stringByStandardizingPath] : nil;
+    if ([NSFileManager.defaultManager fileExistsAtPath:path]) {
+        return [NSURL fileURLWithPath:path.stringByStandardizingPath];
+    }
+    XCTSkipIf(!getenv("CI"), @"%@ is missing; run scripts/test/generate-test-audio.sh", path);
+    return nil;
 }
 
 #pragma mark - Reading

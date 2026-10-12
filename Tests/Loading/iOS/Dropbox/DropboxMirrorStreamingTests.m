@@ -383,11 +383,15 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     if (wav) {
         [files addObject:wav];
     }
-    // The real encode with a seek table, when the gitignored corpus is here.
+    // The real encode with a seek table, from the gitignored corpus. CI has no
+    // corpus, so the case is optional there. Anywhere else its absence is a
+    // skip, never a quiet pass.
     NSString *tone = [[NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent
             stringByAppendingPathComponent:@"../../../../Assets/test_audio_files/tone.flac"].stringByStandardizingPath;
     if ([NSFileManager.defaultManager fileExistsAtPath:tone]) {
         [files addObject:[NSURL fileURLWithPath:tone]];
+    } else {
+        XCTSkipIf(!getenv("CI"), @"%@ is missing; run scripts/test/generate-test-audio.sh", tone);
     }
 
     const NSUInteger chunk = 32 * 1024;
