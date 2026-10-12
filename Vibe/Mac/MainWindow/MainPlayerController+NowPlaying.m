@@ -58,6 +58,7 @@
                                           rate:(loadingGap || self.audioPlayer.isBuffering) ? 0.0 : 1.0
                                        hasNext:self.playlistController.hasNextTrack
                                    hasPrevious:VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
+                                                                               self.playlistController.currentTrack != nil,
                                                                                self.audioPlayer.isStopped)];
 }
 

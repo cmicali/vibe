@@ -13,12 +13,13 @@
 @implementation PlaybackDeliveryRulesTests
 
 // On the first row, Previous restarts a loaded track. With nothing loaded
-// there is nothing to restart.
+// there is nothing to restart, even before an asynchronous stop lands.
 - (void)testPreviousIsAvailableOnTheFirstRowOnlyWithATrackLoaded {
-    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, YES));
-    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, NO));
-    XCTAssertTrue(VibePlaybackPreviousIsAvailable(NO, NO));
-    XCTAssertFalse(VibePlaybackPreviousIsAvailable(NO, YES));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, YES, YES));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, YES, NO));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(NO, YES, NO));
+    XCTAssertFalse(VibePlaybackPreviousIsAvailable(NO, YES, YES));
+    XCTAssertFalse(VibePlaybackPreviousIsAvailable(NO, NO, NO), @"a close whose stop has not landed");
 }
 
 - (void)testSeekSettlementMatchesRowsAndAcceptsEmptyOnlyWhileStopped {

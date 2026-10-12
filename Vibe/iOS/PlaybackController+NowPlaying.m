@@ -56,7 +56,8 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
                            state:state
                             rate:_player.isBuffering ? 0.0 : 1.0
                          hasNext:_playlist.hasNextTrack
-                     hasPrevious:VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack, _player.isStopped)];
+                     hasPrevious:VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack,
+                                                                 _playlist.currentTrack != nil, _player.isStopped)];
     [_widgetPublisher updateWithTrack:track
                              position:position
                              duration:duration

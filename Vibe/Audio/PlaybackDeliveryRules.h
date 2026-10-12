@@ -11,9 +11,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Previous moves to the previous row. On the first row it restarts the
 // loaded track instead. Both shells' Previous, the mac's menu item and the
-// system's Previous command use this, so they agree.
-static inline BOOL VibePlaybackPreviousIsAvailable(BOOL hasPreviousTrack, BOOL playerIsStopped) {
-    return hasPreviousTrack || !playerIsStopped;
+// system's Previous command use this, so they agree. The current track is
+// read too: stop is asynchronous, so a publish right after a close still
+// reads a player that is not stopped.
+static inline BOOL VibePlaybackPreviousIsAvailable(BOOL hasPreviousTrack, BOOL hasCurrentTrack,
+                                                   BOOL playerIsStopped) {
+    return hasPreviousTrack || (hasCurrentTrack && !playerIsStopped);
 }
 
 // An empty seek's settlement is meaningful only while still stopped. A real

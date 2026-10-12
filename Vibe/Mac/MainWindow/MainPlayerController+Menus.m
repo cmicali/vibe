@@ -186,7 +186,8 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
 
 - (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
     return VibeTransportMenuEnabled(menuItem.identifier, self.playlistController.hasNextTrack,
-            VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack, self.audioPlayer.isStopped),
+            VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
+                    self.playlistController.currentTrack != nil, self.audioPlayer.isStopped),
             [self hasVisiblePlaylistSelection],
             self.playlistController.currentTrack != nil, self.audioPlayer.isStopped);
 }

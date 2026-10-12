@@ -599,9 +599,10 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
 // Between blocks main always runs once, so deliveries land. While a decode
 // turn fills the voice, main runs in short slices until the next block is
 // buffered, since the inline fill is starved on the pool and a block rendered
-// sooner would underrun. Otherwise main runs for 1 ms. That keeps the frame
-// clock near wall time while a voice is held, so a wall-clock deadline such as
-// a stall's still lands before the frame clock's idle stop.
+// sooner would underrun. Otherwise main runs for 1 ms per block. A held voice
+// then still lets wall time pass, so a wall-clock deadline such as a stall's
+// lands well before the frame clock's 6 s idle stop. The frame clock runs a
+// few times faster than wall time there, not in step with it.
 - (BOOL)renderUntil:(BOOL (^)(void))condition {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition() && deadline.timeIntervalSinceNow > 0) {
