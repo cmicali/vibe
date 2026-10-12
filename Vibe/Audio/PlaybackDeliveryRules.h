@@ -9,6 +9,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
 
+// Previous moves to the previous row. On the first row it restarts the
+// loaded track instead. Both shells' Previous, the mac's menu item and the
+// system's Previous command use this, so they agree.
+static inline BOOL VibePlaybackPreviousIsAvailable(BOOL hasPreviousTrack, BOOL playerIsStopped) {
+    return hasPreviousTrack || !playerIsStopped;
+}
+
 // An empty seek's settlement is meaningful only while still stopped. A real
 // row is matched by identity, so another occurrence of its URL cannot own it.
 static inline BOOL VibePlaybackSeekSettlementIsCurrent(

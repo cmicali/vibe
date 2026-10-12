@@ -177,8 +177,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // its siblings are dropped here before they can park as waiters (seconds
     // on a cold provider). A token one below the live promoted generation is
     // still the user's; a real replace or a clear bumps past it.
-    uint64_t openIntentGeneration = atomic_load_explicit(&_openIntentGeneration, memory_order_acquire);
-    if (!VibeFolderSessionAddTokenIsCurrent(token, openIntentGeneration,
+    if (!VibeFolderSessionAddTokenIsCurrent(token, [self addRequestToken],
                                             _promotedOpenIntentGeneration)) {
         LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
         return;
@@ -244,8 +243,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     uint64_t openIntentGeneration = [self beginOpenIntent];
     // An empty open's settle, as finishOpenIntent: makes it: without the carry,
     // every later Add is captured at a generation nothing landed.
-    _landedOpenIntentGeneration = VibeFolderSessionLandedOpenIntentGeneration(
-            _landedOpenIntentGeneration, openIntentGeneration, NO, NO);
+    _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
+            _landedOpenIntentGeneration, openIntentGeneration);
     [self releaseAddWaitersAfterSettle];
 }
 
@@ -544,23 +543,23 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // TRAP: only the FIRST such Add may promote. Each promotion bumps the
     // generation, so two promoted Adds cancel each other and a selection
     // vanishes. The rest park as waiters, replayed when it settles.
-    if (VibeFolderSessionAddParks(appending, _landedOpenIntentGeneration, _promotedOpenInFlight)) {
-        if (!_addWaiters) {
-            _addWaiters = [NSMutableArray array];
+    BOOL promoting = NO;
+    if (appending && _landedOpenIntentGeneration == 0) {
+        if (_promotedOpenInFlight) {
+            if (!_addWaiters) {
+                _addWaiters = [NSMutableArray array];
+            }
+            NSArray<NSURL *> *parked = [urls copy];
+            // Weak: the waiter is stored on self.
+            __weak FolderSession *weakSelf = self;
+            [_addWaiters addObject:^{
+                [weakSelf beginOpenURLs:parked appending:YES expandsFile:NO grantedFolder:grantedFolder];
+            }];
+            return;
         }
-        NSArray<NSURL *> *parked = [urls copy];
-        // Weak: the waiter is stored on self.
-        __weak FolderSession *weakSelf = self;
-        [_addWaiters addObject:^{
-            [weakSelf beginOpenURLs:parked appending:YES expandsFile:NO grantedFolder:grantedFolder];
-        }];
-        return;
-    }
-    BOOL promoting = VibeFolderSessionAddPromotes(appending, _landedOpenIntentGeneration,
-                                                  _promotedOpenInFlight);
-    if (promoting) {
         appending = NO;
         expandsFile = YES;
+        promoting = YES;
         _promotedOpenInFlight = YES;
     }
     uint64_t openIntentGeneration = appending
@@ -617,9 +616,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 && VibeSearchRootCoversPath(VibeComparablePath(grantedFolder.path), path)) {
             root = grantedFolder;
         }
-        BOOL isSessionHoldRoot = [VibeComparablePath(sessionRoot.path) isEqualToString:path];
-        if (VibeFolderSessionKeepsSessionBookmark(sessionRoot != nil, isSessionHoldRoot,
-                                                  grant != nil, favoriteRoot != nil)) {
+        if (sessionRoot && !grant && !favoriteRoot
+                && ![VibeComparablePath(sessionRoot.path) isEqualToString:path]) {
             keepsSessionBookmark = YES;
         }
         // Only a start that returned YES is collected: the worker balances holds.
@@ -837,7 +835,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             // delivers base-then-additions, so a folder behind a file base
             // that claimed the base would rewrite the base bookmark and
             // reorder the union at the next relaunch.
-            if (VibeFolderSessionFolderClaimsBase(appending, contributors.count)) {
+            if (!appending && contributors.count == 1) {
                 folderURL = url;
             }
             else {
@@ -1001,8 +999,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             baseBookmark:(NSData *)baseBookmark
        additionBookmarks:(NSArray<NSData *> *)additionBookmarks {
     BOOL current = [self isCurrentOpenIntent:openIntentGeneration];
-    if (current && VibeFolderSessionAppendIsStale(appending, openIntentGeneration,
-                                                  _landedOpenIntentGeneration)) {
+    if (current && appending && _landedOpenIntentGeneration != openIntentGeneration) {
         LogWarn(@"FolderSession: dropping an append whose open never landed");
         current = NO;
     }
@@ -1018,8 +1015,10 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // captured at a generation nothing landed and Add is dead for the
         // session. Zero stays zero, so an Add is still promoted, and an append
         // carries nothing.
-        _landedOpenIntentGeneration = VibeFolderSessionLandedOpenIntentGeneration(
-                _landedOpenIntentGeneration, openIntentGeneration, appending, NO);
+        if (!appending) {
+            _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
+                    _landedOpenIntentGeneration, openIntentGeneration);
+        }
         if (appending) {
             // Delivered empty, never dropped: whoever asked is waiting to
             // hear how it landed, and nothing else will tell them.
@@ -1071,8 +1070,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     _addedFolderURLs = [addedFolders mutableCopy];
     // A restore of persisted additions; a multi-folder open is not an Add.
     _hasAdditions = restored && additionBookmarks.count > 0;
-    _landedOpenIntentGeneration = VibeFolderSessionLandedOpenIntentGeneration(
-            _landedOpenIntentGeneration, openIntentGeneration, NO, YES);
+    _landedOpenIntentGeneration = openIntentGeneration;
     _additionsPersisted = baseBookmark != nil;
     if (baseBookmark) {
         [NSUserDefaults.standardUserDefaults setObject:baseBookmark forKey:kFolderBookmarkKey];

@@ -24,7 +24,6 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "NSURLUtil.h"
-#import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
@@ -471,10 +470,12 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)previous {
+    // On the first row, Previous restarts the loaded track
+    // (VibePlaybackPreviousIsAvailable).
     if ([_playlist previous]) {
         [self playCurrentTrack];
     }
-    else {
+    else if (!_player.isStopped) {
         [_player seekToPosition:0];
     }
 }
@@ -482,7 +483,7 @@ static const NSUInteger kUIUpdateHz = 3;
 #pragma mark - Settings
 
 - (AudioTrack *)successorPrefetchTrack {
-    return [_playlist trackEndSuccessorUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd];
+    return _playlist.trackEndSuccessor;
 }
 
 - (void)applyTrackTransitionSettings {
@@ -515,6 +516,7 @@ static const NSUInteger kUIUpdateHz = 3;
     }
     _playlist.repeatMode = settings.repeatMode;
     _playlist.shuffleEnabled = settings.shuffleEnabled;
+    _playlist.pauseAtTrackEnd = settings.pauseAtTrackEnd;
     [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled
                            repeatMode:settings.repeatMode
                             available:shown];

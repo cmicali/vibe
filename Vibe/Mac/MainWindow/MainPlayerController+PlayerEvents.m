@@ -193,12 +193,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
     [self pauseUIUpdateTimer];
-    // Read from the playlist before the advance, whose play is async:
-    // the player still reads Stopped after an ordinary advance. Under Pause nothing has
-    // spliced, since successorPrefetchTrack parked nothing; this second read
-    // of the setting is load-bearing because it decides from the playlist.
-    BOOL advances = [self.playlistController
-            advanceAtTrackEndUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd];
+    // The playlist decides, On track end = Pause included. Its play is async,
+    // so the player still reads Stopped after an ordinary advance.
+    BOOL advances = [self.playlistController advanceAtTrackEnd];
     // Advancing, the cached duration must survive the Loading gap.
     if (!advances) {
         _currentTrackDuration = 0;

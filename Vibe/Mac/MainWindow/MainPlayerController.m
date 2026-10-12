@@ -831,7 +831,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (IBAction)previous:(nullable id)sender {
     // Refresh rides the funnel; see next:. On the first row, Previous restarts
-    // the track, as on iOS.
+    // the loaded track (VibePlaybackPreviousIsAvailable).
     if (![self.playlistController previous] && !self.audioPlayer.isStopped) {
         [self.audioPlayer seekToPosition:0];
     }
@@ -1062,7 +1062,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (AudioTrack *)successorPrefetchTrack {
-    return [self.playlistController trackEndSuccessorUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd];
+    return self.playlistController.trackEndSuccessor;
 }
 
 // TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
@@ -1079,7 +1079,8 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // The model and the system's controls, which show the same modes.
 - (void)pushTransportModesToPlaylist {
     AppSettings *settings = AppSettings.sharedInstance;
-    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled];
+    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled
+                           pauseAtTrackEnd:settings.pauseAtTrackEnd];
     [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
                                          repeatMode:settings.repeatMode
                                           available:YES];

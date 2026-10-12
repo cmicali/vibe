@@ -113,10 +113,7 @@
 - (void)testTransportBoundariesAndStoppedSkips {
     XCTAssertFalse(VibeTransportMenuEnabled(kVibeMenuNextTrack, NO, YES, YES, YES, NO));
     XCTAssertTrue(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, NO, YES, NO, YES, YES));
-    XCTAssertTrue(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, YES, NO, YES, YES, NO),
-                  @"on the first row, Previous restarts the loaded track");
-    XCTAssertFalse(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, YES, NO, YES, YES, YES));
-    XCTAssertFalse(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, YES, NO, YES, NO, NO));
+    XCTAssertFalse(VibeTransportMenuEnabled(kVibeMenuPreviousTrack, YES, NO, YES, YES, NO));
     for (NSString *identifier in @[kVibeMenuSkipForward, kVibeMenuSkipForwardMore,
             kVibeMenuSkipForwardMost, kVibeMenuSkipBack, kVibeMenuSkipBackMore, kVibeMenuSkipBackMost]) {
         XCTAssertTrue(VibeTransportMenuEnabled(identifier, NO, NO, NO, YES, NO));

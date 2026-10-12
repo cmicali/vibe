@@ -648,8 +648,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [self playIfMoved:[_model previous]];
 }
 
-- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd {
-    return [self playIfMoved:[_model advanceAtTrackEndUnlessPaused:pauseAtTrackEnd]];
+- (BOOL)advanceAtTrackEnd {
+    return [self playIfMoved:[_model advanceAtTrackEnd]];
 }
 
 - (BOOL)playIfMoved:(BOOL)moved {
@@ -660,17 +660,15 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return moved;
 }
 
-- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled {
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled
+        pauseAtTrackEnd:(BOOL)pauseAtTrackEnd {
     _model.repeatMode = repeatMode;
     _model.shuffleEnabled = shuffleEnabled;
+    _model.pauseAtTrackEnd = pauseAtTrackEnd;
 }
 
 - (AudioTrack *)trackEndSuccessor {
     return _model.trackEndSuccessor;
-}
-
-- (AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd {
-    return [_model trackEndSuccessorUnlessPaused:pauseAtTrackEnd];
 }
 
 - (NSArray<AudioTrack *> *)neighborhoodTracks {

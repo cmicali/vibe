@@ -72,6 +72,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Setting the value it already has keeps the order.
 @property (nonatomic) BOOL shuffleEnabled;
 
+// On track end = Pause. It outranks both modes: a track that plays out has no
+// successor. Next still moves.
+@property (nonatomic) BOOL pauseAtTrackEnd;
+
 // arc4random_uniform unless a test injects its own. Answers [0, upperBound).
 @property (nonatomic, copy, null_resettable) uint32_t (^randomBelow)(uint32_t upperBound);
 
@@ -134,20 +138,15 @@ NS_ASSUME_NONNULL_BEGIN
 // listener reaches them: what the metadata scan ranks first.
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
-// What follows a track that plays out, or nil to park: the current track
-// itself under Repeat One, otherwise nextTrack. Never a row neighbor.
+// What follows a track that plays out, or nil to park: nil under
+// pauseAtTrackEnd, the current track itself under Repeat One, otherwise
+// nextTrack. Every successor prefetch and both track-end reads ask this,
+// never a row neighbor.
 - (nullable AudioTrack *)trackEndSuccessor;
 
-// Moves to trackEndSuccessor, returning NO when it is nil. Under Repeat One
-// it re-sets the same index, which still notifies.
+// Moves to trackEndSuccessor, returning NO and moving nothing when it is nil.
+// Under Repeat One it re-sets the same index, which still notifies.
 - (BOOL)advanceAtTrackEnd;
-
-// The two ways a track end advances, with On track end = Pause outranking the
-// modes. The model reads no setting, so the shell passes it. Every successor
-// prefetch asks the first. The end callback asks the second, which moves
-// nothing and answers NO when the first is nil.
-- (nullable AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd;
-- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd;
 
 // Adopt a gapless boundary only while BOTH exact objects still describe it:
 // the finished track is current and the started one is trackEndSuccessor.

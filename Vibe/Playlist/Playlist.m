@@ -375,6 +375,9 @@
 }
 
 - (AudioTrack *)trackEndSuccessor {
+    if (_pauseAtTrackEnd) {
+        return nil;
+    }
     return _repeatMode == VibeRepeatModeOne ? self.currentTrack : self.nextTrack;
 }
 
@@ -419,22 +422,14 @@
 }
 
 - (BOOL)advanceAtTrackEnd {
+    if (!self.trackEndSuccessor) {
+        return NO;
+    }
     if (_repeatMode != VibeRepeatModeOne) {
         return [self next];
     }
-    if (_tracks.count == 0) {
-        return NO;
-    }
     [self moveCurrentIndexTo:_currentIndex];
     return YES;
-}
-
-- (AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd {
-    return pauseAtTrackEnd ? nil : self.trackEndSuccessor;
-}
-
-- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd {
-    return [self trackEndSuccessorUnlessPaused:pauseAtTrackEnd] != nil && [self advanceAtTrackEnd];
 }
 
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {

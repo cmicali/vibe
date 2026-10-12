@@ -462,8 +462,8 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
         }
         errors++;
         if (!failing) {
-            LogWarn(@"Read-ahead: reading %@ at %llu failed: %s; retrying every %.0f s", name, start + got,
-                    strerror(readError), kVibeReadAheadRetrySeconds);
+            LogWarn(@"Read-ahead: reading %@ at %llu failed: %s; retrying every %.1f s", name, start + got,
+                    strerror(readError), VibeReadAheadRetryPause());
             failing = YES;
         }
         // A timed wait on the availability. A finish ends the pause at once.

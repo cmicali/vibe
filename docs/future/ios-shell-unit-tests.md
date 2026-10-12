@@ -77,7 +77,7 @@ Host-less tests must call the shipping decisions. Drawing and navigation stay in
 
 ### 3. `PlaybackController`, by seams
 
-It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` and `WidgetPublisher`. Running it whole on the Mac means replacing the player, which costs more than the decisions are worth. Follow `PlaybackDeliveryRules.h` (`VibePlaybackShouldAdvanceAtTrackEnd`, shared with the mac). Move pure decisions into seams as they are touched: the Add settle, the metadata neighborhood, the empty-folder bring-forward, and which open URL context wins. Leave the player wiring to `make test-audio` and the channel.
+It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` and `WidgetPublisher`. Running it whole on the Mac means replacing the player, which costs more than the decisions are worth. Follow `Playlist.pauseAtTrackEnd`, which the mac shares. Move pure decisions into seams as they are touched: the Add settle, the metadata neighborhood, the empty-folder bring-forward, and which open URL context wins. Leave the player wiring to `make test-audio` and the channel.
 
 ## What stays in the simulator
 

@@ -12,6 +12,15 @@
 
 @implementation PlaybackDeliveryRulesTests
 
+// On the first row, Previous restarts a loaded track. With nothing loaded
+// there is nothing to restart.
+- (void)testPreviousIsAvailableOnTheFirstRowOnlyWithATrackLoaded {
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, YES));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(YES, NO));
+    XCTAssertTrue(VibePlaybackPreviousIsAvailable(NO, NO));
+    XCTAssertFalse(VibePlaybackPreviousIsAvailable(NO, YES));
+}
+
 - (void)testSeekSettlementMatchesRowsAndAcceptsEmptyOnlyWhileStopped {
     NSURL *url = [NSURL fileURLWithPath:@"/same.wav"];
     AudioTrack *track = [AudioTrack withURL:url], *otherRow = [AudioTrack withURL:url];

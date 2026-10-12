@@ -1137,33 +1137,28 @@ static Playlist *NumberedPlaylist(NSUInteger count) {
     XCTAssertFalse([playlist next]);
 }
 
-// On track end = Pause outranks every mode, and parks without moving.
+// On track end = Pause outranks every mode, and parks without moving. Next
+// still moves, and a splice into the old successor is refused.
 - (void)testPauseAtTrackEndOutranksEveryMode {
-    Playlist *playlist = NumberedPlaylist(2);
+    Playlist *playlist = NumberedPlaylist(3);
     playlist.currentIndex = 0;
-    XCTAssertEqual([playlist trackEndSuccessorUnlessPaused:NO], [playlist trackAtIndex:1]);
-    XCTAssertNil([playlist trackEndSuccessorUnlessPaused:YES]);
-    XCTAssertFalse([playlist advanceAtTrackEndUnlessPaused:YES]);
-    XCTAssertEqual(playlist.currentIndex, 0u);
-
-    playlist.currentIndex = 1;
-    for (NSNumber *pause in @[@NO, @YES]) {
-        XCTAssertNil([playlist trackEndSuccessorUnlessPaused:pause.boolValue]);
-        XCTAssertFalse([playlist advanceAtTrackEndUnlessPaused:pause.boolValue]);
-    }
-    // Repeat gives the last row a successor. Pause still outranks it.
-    for (NSNumber *mode in @[@(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
+    AudioTrack *first = playlist.currentTrack, *second = [playlist trackAtIndex:1];
+    XCTAssertEqual(playlist.trackEndSuccessor, second);
+    for (NSNumber *mode in @[@(VibeRepeatModeOff), @(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
         playlist.repeatMode = mode.integerValue;
-        playlist.currentIndex = 1;
-        XCTAssertNotNil([playlist trackEndSuccessorUnlessPaused:NO]);
-        XCTAssertNil([playlist trackEndSuccessorUnlessPaused:YES]);
-        XCTAssertFalse([playlist advanceAtTrackEndUnlessPaused:YES]);
-        XCTAssertEqual(playlist.currentIndex, 1u);
-        XCTAssertTrue([playlist advanceAtTrackEndUnlessPaused:NO]);
+        playlist.pauseAtTrackEnd = YES;
+        XCTAssertNil(playlist.trackEndSuccessor);
+        XCTAssertFalse([playlist advanceAtTrackEnd]);
+        XCTAssertFalse([playlist advanceFromTrack:first toTrack:second]);
+        XCTAssertFalse([playlist advanceFromTrack:first toTrack:first]);
+        XCTAssertEqual(playlist.currentIndex, 0u);
+        playlist.pauseAtTrackEnd = NO;
+        XCTAssertNotNil(playlist.trackEndSuccessor);
     }
-    [playlist clear];
-    XCTAssertNil([playlist trackEndSuccessorUnlessPaused:NO]);
-    XCTAssertFalse([playlist advanceAtTrackEndUnlessPaused:NO]);
+    playlist.repeatMode = VibeRepeatModeOff;
+    playlist.pauseAtTrackEnd = YES;
+    XCTAssertTrue([playlist next]);
+    XCTAssertEqual(playlist.currentTrack, second);
 }
 
 - (void)testGaplessAdoptionFollowsTheTrackEndSuccessor {

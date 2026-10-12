@@ -201,9 +201,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [[AppStats sharedInstance] playbackStopped];
-    // The second of On track end's two reads (root AGENTS.md): this one
-    // decides from the playlist alone.
-    if ([_playlist advanceAtTrackEndUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd]) {
+    // The playlist decides, On track end = Pause included (root AGENTS.md).
+    if ([_playlist advanceAtTrackEnd]) {
         [self playCurrentTrack];
         return;
     }
