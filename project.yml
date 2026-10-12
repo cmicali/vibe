@@ -816,6 +816,7 @@ targets:
       - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
+      - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m

@@ -1,8 +1,8 @@
 # Common/Mac: the macOS half of the store
 
-`AppSettings+Mac` is the `(Mac)` category on `AppSettings` (`../AGENTS.md`). It holds every mac-only preference with its identifiers and preset ladders, and the theme store. **A macOS reader imports `AppSettings+Mac.h` explicitly beside `AppSettings.h`.** The shared `AppSettings.m` reaches this half only through the hooks `AppSettingsInternal.h` declares. That header's class extension holds the ivars a category cannot. The theme record (`AppTheme`, its sanitization gate, colors, images, archive and dice) is `Theme/AGENTS.md`'s.
+`AppSettings+Mac` is the `(Mac)` category on `AppSettings` (`../AGENTS.md`). It holds every mac-only preference with its identifiers and preset ladders. **A macOS reader imports `AppSettings+Mac.h` explicitly beside `AppSettings.h`.** The theme store is the `(Themes)` category in `Theme/AppSettings+Themes`, and this doc covers it below. `AppSettings+Mac.h` imports its header, so a reader of the store needs no second import. The shared `AppSettings.m` reaches both categories only through the hooks `AppSettingsInternal.h` declares. That header's class extension holds the ivars a category cannot. It also holds the keys both categories read: the theme store's three, and the display keys `migrateThemeDisplaySettings` writes. The theme record (`AppTheme`, its sanitization gate, colors, images, archive and dice) is `Theme/AGENTS.md`'s.
 
-## The theme store
+## The theme store (`Theme/AppSettings+Themes`)
 
 **Three keys.**
 - `Appearance.userThemes` holds the user themes as flat records plus `id` and `name`.

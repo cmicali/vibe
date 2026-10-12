@@ -1,6 +1,6 @@
 # AppTheme: the theme record
 
-The theme record. The store that holds it (the keys, `currentThemeDidChange`, undo, the image sweep) is `../AGENTS.md`'s. The editor is `Mac/Settings/Themes/AGENTS.md`'s. Root `AGENTS.md`'s theme guarantee is stated here and in `../AGENTS.md`.
+The theme record. The store that holds it is `AppSettings+Themes`, in this directory. Its doc (the keys, `currentThemeDidChange`, undo, the image sweep) is `../AGENTS.md`. The editor is `Mac/Settings/Themes/AGENTS.md`'s. Root `AGENTS.md`'s theme guarantee is stated here and in `../AGENTS.md`.
 
 ## The guarantee
 
