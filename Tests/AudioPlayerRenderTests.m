@@ -573,23 +573,43 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     return YES;
 }
 
+// No bus answers no voice. A message to nil that returns a struct this large
+// leaves the struct unset.
 - (VibeVoiceSnapshot)currentVoiceSnapshot {
-    __block VibeVoiceSnapshot snapshot;
+    __block VibeVoiceSnapshot snapshot = {0};
     [_player runSyncOnQueue:^{
         AudioVoiceBus *bus = [self->_player valueForKey:@"voiceBus"];
-        snapshot = [bus snapshotOfVoice:[[self->_player valueForKey:@"voice"] unsignedLongLongValue]];
+        if (bus) {
+            snapshot = [bus snapshotOfVoice:[[self->_player valueForKey:@"voice"] unsignedLongLongValue]];
+        }
     }];
     return snapshot;
 }
 
+// YES once the current voice has a block buffered. Also YES when no decode
+// turn can add one before the next render: no voice, a voice that is paused
+// or has ended, a decoder that waits for bytes, a stream written to its end,
+// or no turn queued or running.
+- (BOOL)nextBlockIsBuffered {
+    VibeVoiceSnapshot voice = [self currentVoiceSnapshot];
+    BOOL filling = (voice.state == VibeVoiceStateArmed || voice.state == VibeVoiceStateLive) && !voice.paused
+            && voice.ended == VibeVoiceEndNone && !voice.waitingForBytes && voice.decoding
+            && voice.written < voice.endOfStream;
+    return !filling || voice.written >= voice.consumed + _blockSize;
+}
+
 // A block at a time until the condition holds, against the hang guard. Each
-// block drains, so a decision taken there is in place at the next check, and
-// the pause lets the decode pool and main run between them.
+// block drains, so a decision taken there is in place at the next check.
+// Between blocks main runs in short slices until the decode pool has the next
+// block buffered. The inline fill is starved on the pool, so a block rendered
+// sooner would underrun.
 - (BOOL)renderUntil:(BOOL (^)(void))condition {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition() && deadline.timeIntervalSinceNow > 0) {
         [self render:_blockSize];
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];
+        while (![self nextBlockIsBuffered] && deadline.timeIntervalSinceNow > 0) {
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
+        }
     }
     return condition();
 }
