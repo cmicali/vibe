@@ -15,6 +15,7 @@
 #import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
+#import "FileRow.h"
 #import "FileSearchRules.h"
 #import "LinkStore.h"
 #import "NSURLUtil.h"
@@ -22,6 +23,7 @@
 #import "PlaylistFile.h"
 #import "SearchFolderStore.h"
 #import "SettingsRules.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
 typedef NS_ENUM(NSInteger, VibeBrowserSection) {
@@ -68,145 +70,8 @@ static CGFloat VibePasteControlHeight(void) {
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending;
 @end
 
-void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *message) {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault handler:nil]];
-    [presenter presentViewController:alert animated:YES completion:nil];
-}
-
-UIViewController *VibeTopmostPresenter(UIViewController *root) {
-    UIViewController *presenter = root;
-    while (presenter.presentedViewController && !presenter.presentedViewController.isBeingDismissed) {
-        presenter = presenter.presentedViewController;
-    }
-    return presenter;
-}
-
-UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void)) {
-    return [UIAction actionWithTitle:title
-                               image:[UIImage systemImageNamed:symbol]
-                          identifier:nil
-                             handler:^(UIAction *action) {
-        handler();
-    }];
-}
-
-// A file or folder name: two lines, cut in the middle, so the ends that tell
-// two long names apart both show.
-void VibeApplyFileNameStyle(UIListContentConfiguration *content) {
-    content.textProperties.numberOfLines = 2;
-    content.textProperties.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    content.secondaryTextProperties.numberOfLines = 1;
-    content.secondaryTextProperties.color = UIColor.secondaryLabelColor;
-}
-
-// The mark on a row whose file is not downloaded: a tap waits on the network.
-UIView *VibeNotDownloadedMark(void) {
-    UIImageView *mark = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]];
-    mark.tintColor = UIColor.secondaryLabelColor;
-    return mark;
-}
-
-void VibeApplyRowContent(UITableViewCell *cell, UIListContentConfiguration *content, BOOL opening) {
-    static const NSInteger kOpeningSpinnerTag = 0x6f70656e;
-    if (opening) {
-        // The slot keeps its place under the spinner: a clear image of its size.
-        CGSize size = content.imageProperties.reservedLayoutSize;
-        if (size.width <= 0 || size.height <= 0) {
-            size = content.image.size;
-        }
-        content.image = [[[UIGraphicsImageRenderer alloc] initWithSize:size]
-                imageWithActions:^(UIGraphicsImageRendererContext *context) {}];
-    }
-    cell.contentConfiguration = content;
-    UIView *spinner = [cell.contentView viewWithTag:kOpeningSpinnerTag];
-    UILayoutGuide *slot = [cell.contentView isKindOfClass:UIListContentView.class]
-            ? ((UIListContentView *)cell.contentView).imageLayoutGuide : nil;
-    if (!opening || !slot) {
-        [spinner removeFromSuperview];
-        return;
-    }
-    if (!spinner) {
-        UIActivityIndicatorView *indicator = [[UIActivityIndicatorView alloc]
-                initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-        indicator.tag = kOpeningSpinnerTag;
-        indicator.translatesAutoresizingMaskIntoConstraints = NO;
-        [cell.contentView addSubview:indicator];
-        [NSLayoutConstraint activateConstraints:@[
-            [indicator.centerXAnchor constraintEqualToAnchor:slot.centerXAnchor],
-            [indicator.centerYAnchor constraintEqualToAnchor:slot.centerYAnchor],
-        ]];
-        spinner = indicator;
-    }
-    // A reload can stop a kept spinner, which then hides.
-    [(UIActivityIndicatorView *)spinner startAnimating];
-}
-
-BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView) {
-    UIWindow *window = cell.window;
-    if (!window) {
-        return NO;
-    }
-    CGRect rowInTable = [cell convertRect:cell.bounds toView:tableView];
-    CGRect visibleInTable = CGRectIntersection(rowInTable, tableView.bounds);
-    if (CGRectIsNull(visibleInTable) || CGRectIsEmpty(visibleInTable)) {
-        return NO;
-    }
-    CGRect visibleInWindow = [tableView convertRect:visibleInTable toView:window];
-    return !CGRectIsEmpty(CGRectIntersection(visibleInWindow, window.bounds));
-}
-
 // Rows past each end of the screen whose art is asked for with the visible ones.
 static const NSInteger kArtRowMargin = 20;
-
-// Drawn once, in both appearances: an image asset holding the light and the
-// dark tile follows the trait collection by itself, which a single rendered
-// image would not.
-UIImage *VibeFileTileImage(BOOL playlist) {
-    static UIImage *tiles[2];
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        CGRect bounds = CGRectMake(0, 0, kFileTileSide, kFileTileSide);
-        UIImageSymbolConfiguration *configuration =
-                [UIImageSymbolConfiguration configurationWithPointSize:17 weight:UIImageSymbolWeightMedium];
-        UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:bounds.size];
-        for (NSUInteger kind = 0; kind < 2; kind++) {
-            NSString *symbol = kind == 1 ? @"music.note.list" : @"waveform";
-            UIImage *(^draw)(UIUserInterfaceStyle) = ^UIImage *(UIUserInterfaceStyle style) {
-                UITraitCollection *traits = [UITraitCollection traitCollectionWithUserInterfaceStyle:style];
-                UIImage *glyph = [[UIImage systemImageNamed:symbol withConfiguration:configuration]
-                        imageWithTintColor:[UIColor.secondaryLabelColor resolvedColorWithTraitCollection:traits]
-                             renderingMode:UIImageRenderingModeAlwaysOriginal];
-                return [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
-                    [[UIColor.secondarySystemFillColor resolvedColorWithTraitCollection:traits] setFill];
-                    [[UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:kFileTileCornerRadius] fill];
-                    [glyph drawAtPoint:CGPointMake(CGRectGetMidX(bounds) - glyph.size.width / 2,
-                                                   CGRectGetMidY(bounds) - glyph.size.height / 2)];
-                }];
-            };
-            UIImage *tile = draw(UIUserInterfaceStyleLight);
-            [tile.imageAsset registerImage:draw(UIUserInterfaceStyleDark)
-                       withTraitCollection:[UITraitCollection traitCollectionWithUserInterfaceStyle:
-                                                    UIUserInterfaceStyleDark]];
-            tiles[kind] = tile;
-        }
-    });
-    return tiles[playlist ? 1 : 0];
-}
-
-void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *name, BOOL folder, UIImage *art) {
-    content.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
-    content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    if (folder) {
-        content.image = [UIImage systemImageNamed:@"folder"];
-        return;
-    }
-    content.image = art ?: VibeFileTileImage([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]);
-    content.imageProperties.cornerRadius = kFileTileCornerRadius;
-}
 
 // Each pasted item's URL and text, by the pasteboard types a drop is read
 // for (VibeDropURLsOfItems). The providers load off main. Completes on main.
@@ -1017,7 +882,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         }
         UIViewController *root = window.rootViewController ?: weakAnchor;
         if (file && root) {
-            [BrowserViewController confirmReplacingPlaylistOf:playback from:VibeTopmostPresenter(root)
+            [BrowserViewController confirmReplacingPlaylistOf:playback from:root.vibeTopmostPresenter
                                                   openingURLs:@[file] inFolder:NO token:token];
         }
     }];
@@ -1205,7 +1070,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         dispatch_block_t alert = ^{
             UIViewController *root = window.rootViewController;
             if (message && root) {
-                VibePresentAlert(VibeTopmostPresenter(root), STR_LINK_ERROR_TITLE, message);
+                [root.vibeTopmostPresenter vibePresentAlertWithTitle:STR_LINK_ERROR_TITLE message:message];
             }
         };
         BrowserViewController *strongSelf = weakSelf;
@@ -1312,8 +1177,8 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         }
         else if (read && strongSelf.viewIfLoaded.window) {
             NSError *invalid = [NSError errorWithDomain:VibeLinkErrorDomain code:VibeLinkErrorInvalid userInfo:nil];
-            VibePresentAlert(VibeTopmostPresenter(strongSelf), STR_LINK_ERROR_TITLE,
-                             [LinkStore messageForError:invalid brief:NO]);
+            [strongSelf.vibeTopmostPresenter vibePresentAlertWithTitle:STR_LINK_ERROR_TITLE
+                                                               message:[LinkStore messageForError:invalid brief:NO]];
         }
     });
 }
@@ -1386,7 +1251,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         }
         strongSelf->_walkingSubfolders = NO;
         if (folders.count == 0) {
-            VibePresentAlert(strongSelf, strongSelf->_title, STR_ERROR_FOLDER_EMPTY);
+            [strongSelf vibePresentAlertWithTitle:strongSelf->_title message:STR_ERROR_FOLDER_EMPTY];
             return;
         }
         void (^open)(void) = ^{
@@ -1673,9 +1538,9 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     NSURL *url = [self itemAtIndexPath:indexPath];
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = url.lastPathComponent;
-    VibeApplyFileNameStyle(content);
+    [content vibeApplyFileNameStyle];
     BOOL isFolder = indexPath.section == VibeBrowserSectionFolders;
-    VibeApplyFileIcon(content, url.lastPathComponent, isFolder, [_artTracks[url] cachedThumbnail]);
+    [content vibeApplyFileIconForName:url.lastPathComponent folder:isFolder art:[_artTracks[url] cachedThumbnail]];
     NSString *path = [_standardizedPath stringByAppendingPathComponent:url.lastPathComponent];
     EqualizerIndicatorView *equalizer = [cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]
             ? (EqualizerIndicatorView *)cell.accessoryView : nil;
@@ -1698,7 +1563,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         equalizer.audioOutputActive = NO;
     }
     cell.accessoryView = accessory;
-    VibeApplyRowContent(cell, content, [path isEqualToString:_playback.openingPath]);
+    [cell vibeApplyRowContent:content opening:[path isEqualToString:_playback.openingPath]];
     return cell;
 }
 
@@ -1732,7 +1597,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         if ([cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
             EqualizerIndicatorView *equalizer = (EqualizerIndicatorView *)cell.accessoryView;
             equalizer.audioOutputActive = _playback.audioOutputActive;
-            equalizer.presentationVisible = surface && VibeRowIsInViewport(cell, self.tableView);
+            equalizer.presentationVisible = surface && [cell vibeIsInViewportOfTableView:self.tableView];
         }
     }
 }
@@ -1819,7 +1684,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     else {
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
-    VibeApplyRowContent(cell, content, opening);
+    [cell vibeApplyRowContent:content opening:opening];
     return cell;
 }
 
@@ -1907,7 +1772,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
             }
             if (error) {
                 LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
-                VibePresentAlert(strongSelf, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
+                [strongSelf vibePresentAlertWithTitle:VibeNotLocalized(@"Dropbox")
+                                              message:STR_SETTINGS_DROPBOX_CONNECT_FAILED];
             }
             else if (DropboxMirror.shared.accountURL
                     && strongSelf.navigationController.topViewController == strongSelf) {
@@ -2058,7 +1924,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     }
     else {
         // Silence would read as a failed pick.
-        VibePresentAlert(self, STR_BROWSER_LOCATIONS, STR_SETTINGS_SEARCH_FOLDERS_COVERED);
+        [self vibePresentAlertWithTitle:STR_BROWSER_LOCATIONS message:STR_SETTINGS_SEARCH_FOLDERS_COVERED];
     }
 }
 
@@ -2175,9 +2041,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
     // The folder's name as recorded with the item: the path can outlive the
     // container it names, and then says nothing a user would recognize.
     content.secondaryText = item[@"location"];
-    VibeApplyFileNameStyle(content);
-    VibeApplyFileIcon(content, path, [item[@"folder"] boolValue], nil);
-    VibeApplyRowContent(cell, content, [VibeComparablePath(path) isEqualToString:_playback.openingPath]);
+    [content vibeApplyFileNameStyle];
+    [content vibeApplyFileIconForName:path folder:[item[@"folder"] boolValue] art:nil];
+    [cell vibeApplyRowContent:content opening:[VibeComparablePath(path) isEqualToString:_playback.openingPath]];
     return cell;
 }
 
@@ -2298,7 +2164,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     // In the add sheet the open already dismissed it.
     UIViewController *presenter = self.view.window ? self : self.navigationController.presentingViewController;
     if (presenter) {
-        VibePresentAlert(presenter, name, STR_ERROR_RECENT_UNAVAILABLE);
+        [presenter vibePresentAlertWithTitle:name message:STR_ERROR_RECENT_UNAVAILABLE];
     }
 }
 

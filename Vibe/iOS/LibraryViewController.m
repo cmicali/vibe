@@ -13,6 +13,7 @@
 #import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
+#import "FileRow.h"
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
@@ -365,7 +366,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
 }
 
 - (BOOL)isCellMateriallyVisible:(LibraryTrackCell *)cell {
-    return _equalizerSurfaceVisible && _viewPresentationVisible && VibeRowIsInViewport(cell, self.tableView);
+    return _equalizerSurfaceVisible && _viewPresentationVisible && [cell vibeIsInViewportOfTableView:self.tableView];
 }
 
 - (void)syncEqualizerActivityForCell:(LibraryTrackCell *)cell {

@@ -10,6 +10,7 @@
 #import "BrowserViewController.h"
 #import "DropboxMirror.h"
 #import "DropboxRules.h"
+#import "FileRow.h"
 #import "FileSearchIndex.h"
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
@@ -17,6 +18,7 @@
 #import "Playlist.h"
 #import "FavoritesStore.h"
 #import "SearchFolderStore.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
 // A folder scan's metadata stream costs a handful of rebuilds, not one per
@@ -482,7 +484,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         else {
             LogWarn(@"Dropbox: could not reach a search hit: %@", error.localizedDescription);
             // Silence would read as a tap that missed.
-            VibePresentAlert(self, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
+            [self vibePresentAlertWithTitle:VibeNotLocalized(@"Dropbox") message:STR_SETTINGS_DROPBOX_CONNECT_FAILED];
         }
     }];
 }
@@ -635,7 +637,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
     AudioTrack *track = [_playlist trackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    VibeApplyFileIcon(content, track.url.lastPathComponent, NO, track.cachedThumbnail);
+    [content vibeApplyFileIconForName:track.url.lastPathComponent folder:NO art:track.cachedThumbnail];
     content.text = track.displayTitle;
     content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
@@ -658,11 +660,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                                       reuseIdentifier:identifier];
     }
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    VibeApplyFileIcon(content, name, isFolder, nil);
+    [content vibeApplyFileIconForName:name folder:isFolder art:nil];
     content.text = name;
     content.secondaryText = folder;
-    VibeApplyFileNameStyle(content);
-    VibeApplyRowContent(cell, content, opening);
+    [content vibeApplyFileNameStyle];
+    [cell vibeApplyRowContent:content opening:opening];
     cell.accessoryView = notDownloaded ? VibeNotDownloadedMark() : nil;
     return cell;
 }

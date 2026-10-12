@@ -16,6 +16,7 @@
 #import "PlayerViewController.h"
 #import "Playlist.h"
 #import "SearchViewController.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -915,14 +916,14 @@ static const CGFloat kLandedRowScale = 0.1;
 }
 
 - (void)playback:(PlaybackController *)playback didGiveUpOpeningPath:(NSString *)path {
-    VibePresentAlert(VibeTopmostPresenter(self), path.lastPathComponent, STR_ERROR_OPEN_TOO_SLOW);
+    [self.vibeTopmostPresenter vibePresentAlertWithTitle:path.lastPathComponent message:STR_ERROR_OPEN_TOO_SLOW];
 }
 
 // "Open in Vibe" can arrive with the card presented.
 - (void)playback:(PlaybackController *)playback
         needsFolderOfSheetAtURL:(NSURL *)sheetURL
                       appending:(BOOL)appending {
-    UIViewController *presenter = VibeTopmostPresenter(self);
+    UIViewController *presenter = self.vibeTopmostPresenter;
     NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, VibeAppName(),
                          sheetURL.lastPathComponent];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
