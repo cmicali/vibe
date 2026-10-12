@@ -935,6 +935,7 @@ targets:
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Util/StallWatch.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
+      - path: Vibe/Audio/Mac/Devices/AudioPlayer+BitPerfect.m
       - path: Vibe/Audio/Levels/AudioLevelMeter.m
     settings:
       base:

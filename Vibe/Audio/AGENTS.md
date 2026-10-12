@@ -26,14 +26,15 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | --- | --- |
 | `AudioPlayer.h` | the public API, platform-free: the transport verbs, the `(State)` getters, the delegate |
 | `AudioPlayer.m` | the transport: init and teardown, play submission → open → settlement, pause/resume/seek/stop/finish, the voice vocabulary, the published tuple, bus-event interpretation, delegate delivery with submitted-play identity |
-| `AudioPlayerInternal.h` | the class extension the categories share: every ivar, the queue helpers, and the ownership statement |
+| `AudioPlayerInternal.h` | the class extension the categories share: every ivar but the mac device ivars (`Mac/Devices/AudioPlayer+DevicesInternal.h`), the queue helpers, and the ownership statement |
 | `AudioPlayer+Pipeline` | the render pipeline and its lifetime: the master bus and `VibeMasterBusRender`, the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file), the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, with no player-queue waits |
 | `AudioFileHandle` | the parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), shared by playback and the metadata fallback; which decoder takes the file; reading a file still streaming, and reading ahead on a network mount (below) |
 | `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, the stall watchers' start and suspension, and the signal probe. The watchdogs and the stack sampler are `Util/StallWatch` |
 | `AudioOutputUnit` | the hosted output unit both platforms pull the render with: its callback, gate, counters and its own HAL queue |
-| `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations; bit-perfect and exclusive output (`Mac/Devices/AGENTS.md`) |
+| `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations, and the mac's private device header (`Mac/Devices/AGENTS.md`) |
+| `Mac/Devices/AudioPlayer+BitPerfect` | bit-perfect and exclusive output: the format prepare and restore, the hog, and the report (`Mac/Devices/AGENTS.md`) |
 | `iOS/AudioPlayer+Recovery` | the unit's route rate and its lazy creation; session verdicts (`iOS/AGENTS.md`) |
 
 **`AudioPlayer.m` is the single writer of the state it publishes. Each category owns one vocabulary and declares its methods in its own header.** All of them share `AudioPlayerInternal.h`, which also declares `(PlatformOutput)` once for the two platform implementations. **That shared header is the cost of every split.** A category that pushes more state into it than it takes out of `AudioPlayer.m` is not worth making.

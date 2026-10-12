@@ -9,6 +9,7 @@
 #import "PlatformColor.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioPlayer+BitPerfect.h"
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
 #import "SettingsRules.h"
