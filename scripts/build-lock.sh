@@ -22,7 +22,7 @@ VIBE_BUILD_LOCK_DIR="${VIBE_BUILD_LOCK_DIR:-${ROOT:-$(cd "$(dirname "${BASH_SOUR
 
 vibe_build_lock_acquire() {
     # Already ours — this process, or an ancestor that exported it. Taking it
-    # again would deadlock (drive-ios.sh start calls install-ios.sh under it).
+    # again would deadlock (drive-ios.sh start calls sim-install.sh under it).
     if [ -n "${VIBE_BUILD_LOCK_HELD:-}" ]; then
         return 0
     fi

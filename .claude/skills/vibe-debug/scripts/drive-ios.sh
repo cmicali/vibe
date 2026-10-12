@@ -107,7 +107,7 @@ start)
             # the driver would silently drive whatever the device already held.
             # Install after the build, never before; a no-op when the bundles
             # match.
-            "$DIR/install-ios.sh" "$UDID"
+            "$DIR/sim-install.sh" "$UDID"
             echo '{"ok": true, "ready": true}'
             exit 0
         fi
@@ -127,7 +127,7 @@ status)
         # A driver outlives rebuilds, and a gesture against the old binary
         # looks exactly like one against the new. Checked here, not per
         # gesture, to keep the bundle hash off every tap.
-        if "$DIR/install-ios.sh" "$UDID" --check 2>/dev/null; then
+        if "$DIR/sim-install.sh" "$UDID" --check 2>/dev/null; then
             echo '{"ready": true, "appStale": false}'
         else
             echo '{"ready": true, "appStale": true}'

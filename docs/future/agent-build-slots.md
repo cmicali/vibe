@@ -14,7 +14,7 @@ Goal: each agent's Debug build gets its own executable, bundle id and container.
 
 The slot comes from `CLAUDE_CODE_SESSION_ID`, which Task subagents inherit. It never comes from the worktree name, since agents may share a checkout.
 
-**What exists.** `scripts/build-lock.sh` is the checkout-wide `mkdir` lock. `make project`'s generate, `make build-ios`, `make test-audio`, `drive-ios.sh start` and the skill's `install-ios.sh` hold it. `scripts/build.sh`, `make test`'s xcodebuild, `scripts/install-ios.sh`, `scripts/analyze.sh` and `asc_generate_and_archive` do not. A CoreSimulator-filtered `pgrep -x Vibe` loop is copied into seven scripts: `launch.sh`, `run.sh`, `screenshot-lib.sh`, `clear-caches.sh`, `capture-window.sh`, `run-torture.sh` and `reset-state.sh`.
+**What exists.** `scripts/build-lock.sh` is the checkout-wide `mkdir` lock. `make project`'s generate, `make build-ios`, `make test-audio`, `drive-ios.sh start` and the skill's `sim-install.sh` hold it. `scripts/build.sh`, `make test`'s xcodebuild, `scripts/install-ios.sh`, `scripts/analyze.sh` and `asc_generate_and_archive` do not. A CoreSimulator-filtered `pgrep -x Vibe` loop is copied into seven scripts: `launch.sh`, `run.sh`, `screenshot-lib.sh`, `clear-caches.sh`, `capture-window.sh`, `run-torture.sh` and `reset-state.sh`.
 
 ## Decisions
 

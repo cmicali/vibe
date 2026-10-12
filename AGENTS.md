@@ -79,7 +79,7 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) is soak runs, leak a
 
 The **`vibe-perf` skill** is performance. VibeBenchComponents (`Tests/BenchComponents/`) drives the production code in-process and counts retired instructions, so two refs compare fairly on a busy machine (`perf.py compare main`). Measure a change that could move cost before and after (`make bench-components`). `docs/performance.md` charts every release, and `make bench-releases` regenerates it.
 
-Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate with the `vibe-debug` skill's `generate-test-audio.sh` rather than synthesizing your own.
+Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate it with `scripts/test/generate-test-audio.sh`. Never synthesize your own.
 
 **Before calling a feature unbuilt, look past `main`'s working tree.** A pull request is sometimes based on another feature branch, so merged work can sit off `main` for a while. `git log --all --oneline -S <symbol>` settles it.
 

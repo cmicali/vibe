@@ -84,9 +84,9 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 - `springboard tap|press|drag|type|tap_label|tree …` targets the Home screen and widget gallery. Start with `VIBE_SIGN_SIM=1` for widget work.
 - The runner disables XCTest's per-event quiescence waits, which never settle under Vibe's display link. That reaches XCTest internals and degrades to slow-but-working if an Xcode update renames them (`Tests/iOSDriver/VibeiOSDriverTests.m`).
 
-## Staleness: `install-ios.sh`
+## Staleness: `sim-install.sh`
 
-`install-ios.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
+`sim-install.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
 
 ## Per-session simulators and the build lock
 

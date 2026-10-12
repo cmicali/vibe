@@ -3,7 +3,7 @@
 # that rule. A stale app is SILENT: it launches, answers and takes gestures
 # exactly like a fresh one.
 #
-# Usage: install-ios.sh <udid> [--check]
+# Usage: sim-install.sh <udid> [--check]
 #   (no flag)  install when nothing is installed or the bundles differ
 #   --check    install nothing; exit 1 when the installed app is stale
 #
@@ -22,7 +22,7 @@
 # through writing installs a torn app that answers like a whole one.
 set -euo pipefail
 
-[ "$#" -ge 1 ] || { echo "usage: install-ios.sh <udid> [--check]" >&2; exit 64; }
+[ "$#" -ge 1 ] || { echo "usage: sim-install.sh <udid> [--check]" >&2; exit 64; }
 UDID="$1"
 MODE="${2:-install}"
 

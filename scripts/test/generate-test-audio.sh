@@ -571,7 +571,7 @@ AUDIO_PY
     exit 0
 fi
 
-REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$REPO_ROOT/Assets/test_audio_files"
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1

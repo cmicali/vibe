@@ -40,7 +40,7 @@ VibeWidget/Info.plist
 # of .claude/ (skills, commands) stays tracked.
 /.claude/worktrees/
 
-# Generated test audio (.claude/skills/vibe-debug/scripts/generate-test-audio.sh)
+# Generated test audio (scripts/test/generate-test-audio.sh)
 /Assets/test_audio_files/
 
 # Byte-compiled Python, which appears under the skills' scripts/ whenever one

@@ -92,7 +92,7 @@ test: project check-cloud-scenarios
 	    test
 
 # One compiled PCM verifier shared by hardware and device-free audio tests.
-build/verify-bit-perfect: .claude/skills/vibe-debug/scripts/verify-bit-perfect.swift
+build/verify-bit-perfect: scripts/test/verify-bit-perfect.swift
 	@mkdir -p build
 	@swiftc -O $< -o $@
 
@@ -100,21 +100,21 @@ build/verify-bit-perfect: .claude/skills/vibe-debug/scripts/verify-bit-perfect.s
 # and the Debug app already running on VibeBlackHole 16ch. See
 # vibe-debug/references/test-audio.md.
 build-test-blackhole:
-	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --blackhole-drivers
+	@scripts/test/generate-test-audio.sh --blackhole-drivers
 
 AUDIO_DEVICE ?= BlackHole 2ch
 AUDIO_APP ?= $(abspath build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe)
 test-bit-perfect: AUDIO_DEVICE = VibeBlackHole 16ch
 test-bit-perfect: build/verify-bit-perfect
 	@build/verify-bit-perfect --self-test
-	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	@scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 	@build/verify-bit-perfect --acceptance "$(abspath build/audio-fixtures)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" --require-driver-fixtures $(ARGS)
 
 # The render suite produces real PCM without opening hardware. ARGS can narrow XCTest.
 AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
 test-audio: project build/verify-bit-perfect
 	@build/verify-bit-perfect --self-test
-	.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 	rm -rf $(AUDIO_RESULT_BUNDLE)
 	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
 	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData \
