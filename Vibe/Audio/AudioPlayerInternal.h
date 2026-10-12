@@ -101,6 +101,7 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     uint64_t                _nextSubmittedPlayIdentifier;
 
     // ---- Queue-confined transport state.
+    AudioLoadingConfiguration *_loadingConfiguration;
     // The play that owns the current voice. A promote keeps it; a newer play,
     // stop or failure clears it.
     uint64_t                _activeSubmittedPlayIdentifier;
@@ -165,6 +166,13 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
     NSDictionary            *_positionDiagnostic; // _stateLock; consumed once by main
     uint64_t                _firstRenderVoice;
 
+    // ---- Debug builds only. debugBufferingRecord's, under _stateLock: holds
+    // begun, how they ended.
+    NSUInteger              _debugBufferingHolds;
+    NSUInteger              _debugBufferingReleases;
+    NSUInteger              _debugBufferingStalls;
+    NSTimeInterval          _debugBufferingSinceUptime;
+    NSTimeInterval          _debugBufferingLastHeldSeconds;
 }
 
 #pragma mark - Read by the categories, written only by AudioPlayer.m
@@ -190,6 +198,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 @property (atomic, readwrite) NSInteger currentlyRequestedAudioDeviceId;
 
 #pragma mark - Queue-side helpers implemented in AudioPlayer.m
+
+// The designated init. `pump` is a VibeManualRenderPump under manual
+// rendering (AudioPlayer+Debug.m), nil otherwise.
+- (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID name:(NSString *)deviceName
+                         enableFX:(BOOL)enableFX delegate:(id<AudioPlayerDelegate>)delegate manualPump:(nullable id)pump;
 
 // Inline when already on _queue, where dispatch_sync would deadlock.
 - (void)runSyncOnQueue:(NS_NOESCAPE dispatch_block_t)block;

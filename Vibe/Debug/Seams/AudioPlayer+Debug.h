@@ -2,8 +2,9 @@
 //  AudioPlayer+Debug.h
 //  Vibe
 //
-//  Declaration-only: the implementations sit under #if DEBUG in the classes'
-//  own .m files, which keeps the shipping headers free of it.
+//  Declaration-only, which keeps the shipping headers free of #if DEBUG.
+//  AudioPlayer's half is implemented in AudioPlayer+Debug.m. AudioVoiceBus's
+//  sits under #if DEBUG in AudioVoiceBus.m.
 //
 
 #if DEBUG
@@ -12,6 +13,7 @@
 #import "AudioVoiceBus.h"
 #import <AVFAudio/AVFAudio.h>
 #import "AudioLevelMath.h"
+#import "VibeManualRenderPump.h"
 
 @class AudioLevelMeter;
 
@@ -23,6 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)debugSetCapture:(void (^ _Nullable)(AVAudioPCMBuffer *buffer))capture;
 - (void)debugShutdown;
 - (void)debugBlockQueueForSeconds:(NSTimeInterval)seconds;
+
+// --no-audio-hw's output: the pump stands in for the IO thread. Player queue
+// only; createOutputOnQueue is the caller.
+- (void)attachPumpOnQueue:(VibeManualRenderPump *)pump render:(VibeManualRenderBlock)render running:(BOOL (^)(void))running;
 
 // Frame-driven manual rendering only: while starved, no decode turn runs
 // before a slice, so the bus underruns and zero-fills, holding its position,

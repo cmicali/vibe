@@ -947,6 +947,7 @@ targets:
       - path: Vibe/Audio/AudioMasterBus.m
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
+      - path: Vibe/Debug/Seams/AudioPlayer+Debug.m   # the render suites drive the player through it
       - path: Vibe/Util/StallWatch.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+BitPerfect.m
