@@ -4,7 +4,7 @@ Read this before changing layout numbers, the glass chrome, the art-tint pipelin
 
 ## Layout
 
-The layout is programmatic: no nibs, absolute frames and autoresizing masks. **Every number lives in one named layout block at the top of `MainPlayerContentView.m`.** The one exception is the volume control's columns. The slider's width and its gap are at the top of `VolumeControlView.m`. Frames are authored at the design size, `kMainWindowContentWidth` × `kMainWindowDesignHeight`. Each subview's mask says how it stretches to the user's window size.
+The layout is programmatic: no nibs, absolute frames and autoresizing masks. **Every number lives in one named layout block, in `MainPlayerContentViewInternal.h`.** The view and its `+Construction` category both read it. The one exception is the volume control's columns. The slider's width and its gap are at the top of `VolumeControlView.m`. Frames are authored at the design size, `kMainWindowContentWidth` × `kMainWindowDesignHeight`. Each subview's mask says how it stretches to the user's window size.
 
 **The artist line clears the codec line's text, not its frame.** The codec text is right-aligned in a column sized for its worst case: a long codec string behind three FX symbols. Reserving that whole column would cost the artist line a third of its width at design size. `layoutArtistLineClearOfCodecLine` re-caps the artist line against what actually renders. It runs from both moving inputs: geometry through `resizeSubviewsWithOldSize:` (live drags included, reusing the last measured width) and text through `TrackDisplayController`'s compose. The layout block's static frame is the worst-case fallback. The title line only has to clear the shorter BPM line, which its shrink-to-fit width already does.
 
