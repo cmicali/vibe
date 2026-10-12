@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  What a cover may be called and which name wins, shared by the resolver and
-//  NSURLUtil's folder walk.
+//  FolderWalk.
 //
 
 #import <Foundation/Foundation.h>

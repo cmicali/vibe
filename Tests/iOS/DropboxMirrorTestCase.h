@@ -28,7 +28,7 @@
 #import "DropboxRules.h"
 #import "DropboxStubProtocol.h"
 #import "HTTPStub.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

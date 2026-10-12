@@ -17,7 +17,7 @@
 #import "MetadataScanOrderRules.h"
 #import "MetadataRetryRules.h"
 #import "MetadataParseCoordinator.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 #include <os/lock.h>
 
@@ -383,7 +383,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 #pragma mark - The materialization lane
 
 - (void)enqueueScanMaterialization:(MetadataScanEntry *)entry {
-    entry.local = ![NSURLUtil isDatalessFile:entry.url];
+    entry.local = ![PlaceholderFiles isDatalessFile:entry.url];
     BOOL kick = NO;
     BOOL dropped = NO;
     os_unfair_lock_lock(&_materializationLock);
@@ -709,7 +709,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     for (NSUInteger index = 0; index < waiting.count; index++) {
         MetadataScanEntry *entry = waiting[index];
         NSUInteger markGeneration = markGenerations[index].unsignedIntegerValue;
-        BOOL local = ![NSURLUtil isDatalessFile:entry.url];
+        BOOL local = ![PlaceholderFiles isDatalessFile:entry.url];
         BOOL demoted = NO;
         os_unfair_lock_lock(&_materializationLock);
         BOOL stillPending = [_pendingMaterializations containsObject:entry];
@@ -759,7 +759,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
         // Re-probed: a rule that rose since the pick must not requeue a file
         // the playback open has since downloaded.
-        entry.local = ![NSURLUtil isDatalessFile:entry.url];
+        entry.local = ![PlaceholderFiles isDatalessFile:entry.url];
         BOOL suspended = !priority && !entry.local
                 && [strongSelf->_materializationCoordinator isForegroundTransferActive];
         BOOL requeueBehindRule = NO;
@@ -802,7 +802,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         // the header is not blank until the whole file lands. A format TagLib
         // cannot parse is materialized as any cloud file is: CoreAudio's
         // facts need the whole file.
-        if ([NSURLUtil readsRemotePlaceholderByRange:entry.url]) {
+        if ([PlaceholderFiles readsRemotePlaceholderByRange:entry.url]) {
             [strongSelf completeMaterializationForEntry:entry
                                                priority:priority
                                                   token:nil
@@ -875,7 +875,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
     // Off the lock (I/O): a requeued entry re-ranks on fresh locality, and the
     // yield triage below judges against this rule sample.
-    entry.local = ![NSURLUtil isDatalessFile:entry.url];
+    entry.local = ![PlaceholderFiles isDatalessFile:entry.url];
     BOOL suspended = priority && result == VibeAudioFileMaterializationResultYielded
             && [_materializationCoordinator isForegroundTransferActive];
     os_unfair_lock_lock(&_materializationLock);

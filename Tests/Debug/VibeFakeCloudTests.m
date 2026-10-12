@@ -7,7 +7,7 @@
 #import "AudioFileMaterializationCoordinator.h"
 #import "CloudFileMaterializer.h"
 #import "DownloadProgressMonitor.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "VibeFakeCloud.h"
 
 @interface VibeFakeCloudTests : XCTestCase
@@ -304,13 +304,13 @@
     [VibeFakeCloud installWithTransferSeconds:0.001 datalessPercent:100];
     [VibeFakeCloud setUniformDurations:YES];
     NSURL *url = [NSURL fileURLWithPath:@"/fake/sticky.wav"];
-    XCTAssertTrue([NSURLUtil isDatalessFile:url]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:url]);
 
     CloudFileMaterializer *first = [CloudFileMaterializer new];
     NSError *error = nil;
     XCTAssertTrue([first materializeURL:url token:[first prepareMaterialization] onReadable:nil error:&error]);
     XCTAssertNil(error);
-    XCTAssertFalse([NSURLUtil isDatalessFile:url]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:url]);
     NSUInteger traceAfterFirst = [VibeFakeCloud traceEvents].count;
 
     CloudFileMaterializer *localReplay = [CloudFileMaterializer new];
@@ -320,11 +320,11 @@
                    @"an ordinary completed path is not downloaded again");
 
     [VibeFakeCloud setStickyDataless:YES];
-    XCTAssertTrue([NSURLUtil isDatalessFile:url]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:url]);
     CloudFileMaterializer *stickyReplay = [CloudFileMaterializer new];
     XCTAssertTrue([stickyReplay materializeURL:url
                                         token:[stickyReplay prepareMaterialization] onReadable:nil error:&error]);
-    XCTAssertTrue([NSURLUtil isDatalessFile:url]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:url]);
     XCTAssertEqual([VibeFakeCloud traceEvents].count, traceAfterFirst + 3);
     XCTAssertEqual([[VibeFakeCloud statistics][@"completed"] unsignedIntegerValue],
                    completedBefore + 2);

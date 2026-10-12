@@ -4,8 +4,8 @@
 
 #import "AudioPlayerRenderTestCase.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
-#import "NSURLUtil.h"
-#import "NSURLUtil+Debug.h"
+#import "PlaceholderFiles.h"
+#import "PlaceholderFiles+Debug.h"
 
 // A file still downloading: holds at its download's edge, stalls, failed transfers and the open deadline.
 @interface AudioPlayerRenderStreamTests : AudioPlayerRenderTests
@@ -21,7 +21,7 @@
                                                          toURL:url error:NULL]);
         dispatch_semaphore_t entered = dispatch_semaphore_create(0);
         dispatch_semaphore_t release = dispatch_semaphore_create(0);
-        [NSURLUtil setDatalessProbe:^BOOL(NSURL *probed) {
+        [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *probed) {
             if ([probed.lastPathComponent isEqual:url.lastPathComponent]) {
                 dispatch_semaphore_signal(entered);
                 dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW,
@@ -45,7 +45,7 @@
             [self play:[self fixture:@"noise-48000-16-2.wav"] paused:NO position:0];
             XCTAssertEqual([self count:@"start"], 1u, @"an unrelated file still opens");
         } @finally {
-            [NSURLUtil setDatalessProbe:nil];
+            [PlaceholderFiles setDatalessProbe:nil];
             // Twice: frees a second probe of this file, should one ever run.
             dispatch_semaphore_signal(release);
             dispatch_semaphore_signal(release);
@@ -61,7 +61,7 @@
     NSData *bytes = [NSData dataWithContentsOfURL:[self fixture:@"noise-48000-24-2.wav"]];
     NSURL *url = [_temporary URLByAppendingPathComponent:@"streaming.wav"];
     XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:url.path contents:nil attributes:@{NSFilePosixPermissions: @0}]);
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:url];
     XCTAssertTrue([[bytes subdataWithRange:NSMakeRange(0, 16)] writeToURL:part atomically:NO]);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:part size:bytes.length];
     [availability noteWrittenBytes:16];

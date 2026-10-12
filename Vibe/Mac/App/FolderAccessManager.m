@@ -4,7 +4,7 @@
 //
 
 #import "FolderAccessManagerInternal.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderAccessRules.h"
 #import "VibeStrings.h"

@@ -34,7 +34,7 @@ The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/
 
 Each is a race or an ordering rule. On local files a resolve takes a millisecond and hides it. On a cold provider it is wide open. A test with held provider calls makes it deterministic.
 
-Its header imports UIKit, but its implementation does not draw. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `NSURLUtil`, `PlaylistFile` and `SearchFolderStoreInternal.h`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `SearchFolderStore` uses `UIDevice` for a display name, which needs a platform boundary or a test seam first.
+Its header imports UIKit, but its implementation does not draw. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FilePaths.h`, `FolderWalk`, `PlaceholderFiles`, `PlaylistFile` and `SearchFolderStoreInternal.h`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `SearchFolderStore` uses `UIDevice` for a display name, which needs a platform boundary or a test seam first.
 
 Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores in with a temp defaults suite, or stub them at their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant, because `startAccessingSecurityScopedResource` answers NO, which the session treats as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
 

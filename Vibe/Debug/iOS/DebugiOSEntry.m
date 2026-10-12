@@ -15,8 +15,8 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
-#import "NSURLUtil.h"
-#import "NSURLUtil+Debug.h"
+#import "PlaceholderFiles.h"
+#import "PlaceholderFiles+Debug.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
 
@@ -60,7 +60,7 @@ static void VibeiOSStartLaunchProbes(void) {
         [RootViewController debugBeginFrameProbeForSeconds:0];
     }
     if ([arguments containsObject:@"--dataless-diag"]) {
-        [NSURLUtil setDatalessDiagnosticsEnabled:YES];
+        [PlaceholderFiles setDatalessDiagnosticsEnabled:YES];
     }
 }
 

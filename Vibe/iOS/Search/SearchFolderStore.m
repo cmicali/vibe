@@ -4,7 +4,7 @@
 //
 
 #import "SearchFolderStore.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
 
 #import <UIKit/UIKit.h>
 

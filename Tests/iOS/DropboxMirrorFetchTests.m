@@ -19,7 +19,7 @@
     _contents[@"/music/café.flac"] = [@"BYTES" dataUsingEncoding:NSUTF8StringEncoding];
     NSURL *track = [[self refresh:@"/Music"] URLByAppendingPathComponent:@"Café.flac"];
     [self installMirrorFetch];
-    XCTAssertTrue([NSURLUtil isDatalessFile:track]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:track]);
 
     CloudFileMaterializer *materializer = [CloudFileMaterializer new];
     NSError *error = nil;
@@ -30,8 +30,8 @@
     struct stat st = StatOf(track);
     XCTAssertEqual(st.st_mode & 0777, 0644);
     XCTAssertEqual(st.st_mtimespec.tv_sec, kStampSeconds);
-    XCTAssertFalse([NSURLUtil isDatalessFile:track]);
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:track].path]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:track]);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[PlaceholderFiles remotePlaceholderPartURL:track].path]);
 
     // By the listed id, composed as Dropbox sent it, though the URL's own
     // path comes back decomposed.
@@ -229,7 +229,7 @@
     XCTAssertEqualObjects(failure.domain, NSCocoaErrorDomain);
     XCTAssertEqual(failure.code, NSUserCancelledError);
     XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:track].path]);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[PlaceholderFiles remotePlaceholderPartURL:track].path]);
 }
 
 #pragma mark Resumed downloads

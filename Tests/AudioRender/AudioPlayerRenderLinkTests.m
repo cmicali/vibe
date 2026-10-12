@@ -7,7 +7,7 @@
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 // A link opened through LinkStore over HTTPStub: the probe, the placeholder,
 // the coordinator's streaming open of the store's fetch, and the client's
@@ -59,7 +59,7 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
     }];
     [self settleUntil:^BOOL { return failure != nil; }];
     XCTAssertNotNil(file, @"%@", failure);
-    XCTAssertTrue([NSURLUtil isDatalessFile:file], @"a placeholder under the registered root");
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:file], @"a placeholder under the registered root");
     return file;
 }
 
@@ -163,7 +163,7 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
 - (void)testALinkDroppedMidBodyResumesExactly {
     NSURL *url = [self link];
     NSUInteger drop = [self offsetOfSecond:1.2];
-    NSString *part = [NSURLUtil remotePlaceholderPartURL:url].path;
+    NSString *part = [PlaceholderFiles remotePlaceholderPartURL:url].path;
     NSString *path = [@"/" stringByAppendingString:kLinkFixture];
     for (int request = 0; request < [self requestsPerFetch]; request++) {
         [_stub queueStep:[HTTPStubStep dropAfter:drop ready:^BOOL {

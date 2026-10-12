@@ -1008,7 +1008,9 @@ targetTemplates:
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
       - path: Vibe/Audio/AudioOutputUnit.m
-      - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/FilePaths.m
+      - path: Vibe/Loading/PlaceholderFiles.m
+      - path: Vibe/Playlist/FolderWalk.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Util/Formatters.m

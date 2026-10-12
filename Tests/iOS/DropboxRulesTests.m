@@ -2,7 +2,7 @@
 //  DropboxRulesTests.m
 //
 //  The Dropbox decisions that need no network: PKCE, the wire encodings,
-//  entry reading and the version check; and NSURLUtil's remote placeholder
+//  entry reading and the version check; and PlaceholderFiles' remote placeholder
 //  rule, which the mirror's files are judged by.
 //
 
@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #import "DropboxRules.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 @interface DropboxRulesTests : XCTestCase
 @end
@@ -20,7 +20,7 @@
 @implementation DropboxRulesTests
 
 - (void)tearDown {
-    [NSURLUtil setRemotePlaceholderRoots:@[]];
+    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
     [super tearDown];
 }
 
@@ -183,7 +183,7 @@
     XCTAssertEqualObjects(VibeDropboxParentPath(@"/music/album/a.flac"), @"/music/album");
 }
 
-#pragma mark - NSURLUtil's remote placeholders
+#pragma mark - PlaceholderFiles' remote placeholders
 
 - (NSURL *)makeFileWithMode:(mode_t)mode size:(off_t)size {
     return [self makeFileWithMode:mode size:size in:NSTemporaryDirectory()];
@@ -214,17 +214,17 @@
     NSURL *ordinary = [self makeFileWithMode:0644 size:1 << 20 in:root];
     NSURL *outside = [self makeFileWithMode:0 size:1 << 20];
 
-    XCTAssertFalse([NSURLUtil isDatalessFile:placeholder], @"the mac never installs a backend");
-    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:placeholder]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:placeholder], @"the mac never installs a backend");
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:placeholder]);
 
-    [NSURLUtil setRemotePlaceholderRoots:@[[NSURL fileURLWithPath:root isDirectory:YES]]];
+    [PlaceholderFiles setRemotePlaceholderRoots:@[[NSURL fileURLWithPath:root isDirectory:YES]]];
     // An unreadable file elsewhere is merely unreadable: no backend serves it.
-    XCTAssertFalse([NSURLUtil isDatalessFile:outside]);
-    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:outside]);
-    XCTAssertTrue([NSURLUtil isDatalessFile:placeholder]);
-    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:placeholder]);
-    XCTAssertFalse([NSURLUtil isDatalessFile:ordinary]);
-    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:ordinary]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:outside]);
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:outside]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:placeholder]);
+    XCTAssertTrue([PlaceholderFiles isRemotePlaceholderFile:placeholder]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:ordinary]);
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:ordinary]);
 
     // It cannot be read past: the guarantee that nothing decodes zeros.
     XCTAssertLessThan(open(placeholder.fileSystemRepresentation, O_RDONLY), 0);
@@ -233,7 +233,7 @@
 
 - (void)testThePartFileIsAHiddenSibling {
     NSURL *url = [NSURL fileURLWithPath:@"/mirror/Album/01 Song.flac"];
-    XCTAssertEqualObjects([NSURLUtil remotePlaceholderPartURL:url].path,
+    XCTAssertEqualObjects([PlaceholderFiles remotePlaceholderPartURL:url].path,
                           @"/mirror/Album/.01 Song.flac.vibe-download");
 }
 

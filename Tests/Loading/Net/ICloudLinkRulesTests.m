@@ -422,7 +422,7 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqualObjects(error.domain, VibeHTTPErrorDomain);
     XCTAssertEqual(error.code, VibeHTTPErrorVersionChanged);
     XCTAssertTrue(IsPlaceholder(file));
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:file].path]);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[PlaceholderFiles remotePlaceholderPartURL:file].path]);
 }
 
 // A relaunch looks the share up afresh. Its address and Last-Modified are

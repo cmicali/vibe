@@ -15,7 +15,7 @@
 #import "CloudFileMaterializer.h"
 #import "DropboxMirror.h"
 #import "VibeFakeDropbox.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "Playlist.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
@@ -46,7 +46,7 @@ NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void) {
                         CloudFileAvailability *stream = [mirror availabilityForURL:track.url];
                         [playlistInMirror addObject:@{
                             @"dropboxPath": [mirror dropboxPathForURL:track.url] ?: NSNull.null,
-                            @"placeholder": @([NSURLUtil isRemotePlaceholderFile:track.url]),
+                            @"placeholder": @([PlaceholderFiles isRemotePlaceholderFile:track.url]),
                             @"stream": stream ? @{@"size": @(stream.size), @"writtenBytes": @(stream.writtenBytes),
                                                   @"windowBytes": @(stream.windowLength),
                                                   @"readers": @(stream.readerCount)} : NSNull.null,

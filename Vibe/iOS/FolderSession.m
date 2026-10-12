@@ -11,7 +11,8 @@
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "FolderWalk.h"
 #import "PlaylistFile.h"
 #import "SearchFolderStoreInternal.h"
 #import <stdatomic.h>
@@ -148,7 +149,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
         uint64_t openIntentGeneration = [self beginOpenIntent];
         dispatch_async(_workQueue, ^{
-            NSArray<AudioTrack *> *rows = [NSURLUtil rowsForFile:url];
+            NSArray<AudioTrack *> *rows = [FolderWalk rowsForFile:url];
             run_on_main_thread({
                 [self finishOpenIntent:openIntentGeneration appending:NO tracks:rows
                              folderURL:nil addedFolders:@[] selectedURL:nil restored:NO
@@ -777,7 +778,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             }
             if (listable) {
                 [self listFromDropboxIfMirrored:parent];
-                if ([self appendFresh:[NSURLUtil rowsInDirectory:parent sortedBy:sort]
+                if ([self appendFresh:[FolderWalk rowsInDirectory:parent sortedBy:sort]
                                    to:tracks
                                  seen:seenKeys] > 0) {
                     if (started) {
@@ -813,15 +814,15 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 [self listFromDropboxIfMirrored:folder];
             }
         }
-        NSArray<AudioTrack *> *produced = isDir ? [NSURLUtil rowsInDirectory:url sortedBy:sort]
-                                                : [NSURLUtil rowsForFile:url];
+        NSArray<AudioTrack *> *produced = isDir ? [FolderWalk rowsInDirectory:url sortedBy:sort]
+                                                : [FolderWalk rowsForFile:url];
         if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {
             if (started) {
                 [held stopAccessingSecurityScopedResource];
             }
             if (!isDir && !restored && !deniedSheetURL && produced.count == 0
                     && [PlaylistFile isCueExtension:url.pathExtension.lowercaseString]
-                    && [NSURLUtil isReadDenied:url.URLByDeletingLastPathComponent]) {
+                    && [FolderWalk isReadDenied:url.URLByDeletingLastPathComponent]) {
                 deniedSheetURL = url;
             }
             continue;

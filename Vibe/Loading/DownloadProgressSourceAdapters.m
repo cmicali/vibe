@@ -5,7 +5,7 @@
 
 #import "DownloadProgressSourceAdaptersInternal.h"
 #import "CloudFileMaterializer.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 #include <errno.h>
 #include <sys/stat.h>

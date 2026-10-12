@@ -5,7 +5,7 @@
 
 #import "TagLibAudioFile.h"
 #import "CloudFileMaterializer.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "NSString+CPPStrings.h"
 
 #include <map>

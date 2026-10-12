@@ -11,7 +11,7 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
 #import "MainPlayerController.h"
-#import "NSURLUtil.h"
+#import "FolderWalk.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
 #import "MainMenuBuilder.h"
@@ -101,15 +101,15 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [LinkStore.shared installAsRemoteBackend];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
-    [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
     }];
-    [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
+    [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
                                      artFilenameByDirectory:artFilenameByDirectory];
     }];
-    [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
+    [FolderWalk setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
 #if VIBE_DIRECT_DISTRIBUTION
@@ -473,9 +473,9 @@ static NSString *DebugUpdateFeed(void) {
     // Bookmark while the open's sandbox grant is live.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     // Read on main; the walk reads no setting itself.
-    [NSURLUtil expandAndFilterList:urls
-                          sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
+    [FolderWalk expandAndFilterList:urls
+                           sortedBy:AppSettings.sharedInstance.folderOpenSort
+                         completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
         [OpenRequestCoordinator.sharedCoordinator finishRequest:token
                                                            rows:rows
                                                     folderCount:folderCount];

@@ -12,7 +12,8 @@
 #import "FileRow.h"
 #import "FileSearchIndex.h"
 #import "FileSearchRules.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "PlaceholderFiles.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "Playlist.h"
@@ -440,7 +441,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
             }
             NSURL *local = [account URLByAppendingPathComponent:display];
             if ([NSFileManager.defaultManager fileExistsAtPath:local.path]
-                    && ![NSURLUtil isRemotePlaceholderFile:local]) {
+                    && ![PlaceholderFiles isRemotePlaceholderFile:local]) {
                 [downloaded addObject:lower];
             }
         }

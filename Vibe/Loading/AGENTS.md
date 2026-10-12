@@ -9,6 +9,7 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 | `AudioWorkScheduler`, `AudioWorkAdmissionRules.h` | admission |
 | `AudioLoadingConfiguration` | the immutable limits and the open-timeout seam |
 | `AudioFileOpenRules.h`, `AudioFileOpenTimeoutMath.h` | the decisions. Among them are the tail window a stream fetches for an open that reads a file's end, and `VibeMountReadsAhead`, which files read ahead |
+| `PlaceholderFiles` | which files are placeholders: the dataless test and the remote placeholder rule |
 | `CloudTransferRegistry` | which files are on the wire |
 | `DownloadProgressMonitor` | how far one transfer has come, for the registry |
 | `CloudFileMaterializer` | the abortable download of a placeholder, a provider's or a remote one |
@@ -17,6 +18,14 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 | `Net/` | files the app fetches itself over HTTP. Its doc is `Net/AGENTS.md` |
 
 The player's side of an open is `Audio/AGENTS.md`'s: the deadline, progress identity and prefetch. The sweep's retries against the foreground hold are `Audio/Metadata/AGENTS.md`'s. `docs/file-loading-spec.md` states the observable behavior across all of them. Three root `AGENTS.md` guarantees are implemented here: the foreground open outranks background downloads, the six-run handle ceiling, and a row shows the loading bar only while a transfer is running.
+
+## Placeholder files
+
+**`PlaceholderFiles` answers whether a file is here.** `isDatalessFile:` is the one verdict every background reader asks before it reads.
+
+**TRAP: `isDatalessFile:` is `SF_DATALESS` alone, never an `NSURL` resource value.** NSURL memoizes those per instance, so a placeholder would read "not downloaded" for its `AudioTrack`'s whole life.
+
+**The one other dataless verdict is the remote placeholder**, and only under a root that a remote backend installs (The remote fetch, below). A regular file its owner may not read (`VibeFileModeIsRemotePlaceholder`) stands for a remote file of its size and mtime. Its stat is real, so listing, sorting and the cache key treat it as the file. Any direct open fails rather than reading zeros, so the waveform loader and TagLib open without asking. `remotePlaceholderPartURL:` names the hidden sibling its bytes stream into. The path is tested before any stat, so a file under no root pays nothing. Under no root an unreadable file is merely unreadable. Both apps install the Links root at launch, so a root is always installed.
 
 ## One claim, two stages
 
@@ -109,7 +118,7 @@ Its sole production caller is `AudioFileMaterializationCoordinator`. The coordin
 
 **Stage 1 has two kinds of backend.** A provider's placeholder goes through `NSFileCoordinator`. A remote placeholder goes to the remote fetch installed for its root. The Links store is one on both platforms. The Dropbox mirror is one on iOS. The coordinator cannot tell them apart and must not. Both are a dataless verdict and a blocking, cancellable operation. Readable is a callback either may make, and only the remote one does.
 
-**A placeholder store installs its backend with `installAsRemoteBackend`** (`Net/AGENTS.md`), at launch, before any open. That calls `setRemoteRoot:fetch:read:availability:`, whose header states the root rules. A file goes to the backend of the longest root holding it. The mac installs the Links store. iOS installs the Dropbox mirror and the Links store (`iOS/Dropbox/AGENTS.md`). Every change also sets `NSURLUtil`'s remote placeholder roots, so the dataless verdict and the backend that answers it cannot disagree. An unreadable file under no root is never sent to a backend. It is merely unreadable.
+**A placeholder store installs its backend with `installAsRemoteBackend`** (`Net/AGENTS.md`), at launch, before any open. That calls `setRemoteRoot:fetch:read:availability:`, whose header states the root rules. A file goes to the backend of the longest root holding it. The mac installs the Links store. iOS installs the Dropbox mirror and the Links store (`iOS/Dropbox/AGENTS.md`). Every change also sets `PlaceholderFiles`' remote placeholder roots, so the dataless verdict and the backend that answers it cannot disagree. An unreadable file under no root is never sent to a backend. It is merely unreadable.
 
 A backend has three blocks (`CloudFileMaterializer.h` states each one's contract).
 - **The fetch** blocks the worker until the bytes have replaced the placeholder. **Unlike the provider path, its cancel stops the transfer**, not just the wait. A fetch that can be read before it completes also calls `onReadable`, at most once, from its own thread. `materializeURL:token:onReadable:error:` hands the caller's block straight through. The claim, its lane, the foreground hold and the loading bar run on until the fetch completes (One claim, two stages, above).
@@ -151,7 +160,7 @@ It then fetches 256 KB blocks. A range a blocked wait wants comes first, rounded
 
 ## Why the monitor and the materializer are not merged
 
-They look like one thing and are opposites in the two ways that matter. The monitor **observes and must never trigger** a download, and is main-thread only. The materializer **causes** one, can abort it, and must never run on main. Merged, "never triggers" and "triggers" would sit behind one name. The real overlap, whether the file is here yet, already lives in one place: `NSURLUtil.isDatalessFile:`.
+They look like one thing and are opposites in the two ways that matter. The monitor **observes and must never trigger** a download, and is main-thread only. The materializer **causes** one, can abort it, and must never run on main. Merged, "never triggers" and "triggers" would sit behind one name. The real overlap, whether the file is here yet, already lives in one place: `PlaceholderFiles.isDatalessFile:`.
 
 ## Configuration
 

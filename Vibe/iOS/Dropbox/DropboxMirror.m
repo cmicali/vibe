@@ -9,7 +9,8 @@
 
 #import "DropboxRules.h"
 #import "FileSearchRules.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
 #import "PlaylistFile.h"
 #import "RemotePlaceholderStoreInternal.h"

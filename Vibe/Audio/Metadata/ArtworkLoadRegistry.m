@@ -7,7 +7,7 @@
 #import "AudioTrackArtworkInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioWorkScheduler.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 static const NSUInteger kArtworkMaterializationMaximumFailures = 3;
 static const NSTimeInterval kArtworkAdmissionInitialRetryDelay = 0.1;
@@ -144,11 +144,11 @@ static const NSTimeInterval kArtworkAdmissionMaximumRetryDelay = 1.0;
 }
 
 // A remote placeholder's art is read by range by the rule the tag scan uses
-// (NSURLUtil readsRemotePlaceholderByRange:): materializing it would download
+// (PlaceholderFiles readsRemotePlaceholderByRange:): materializing it would download
 // the whole song to show its picture. It is still a network read, so it
 // waits out the user's open as the tag scan does.
 - (void)beginRequest:(ArtworkLoadRequest *)request {
-    BOOL byRange = request.sourceURL && [NSURLUtil readsRemotePlaceholderByRange:request.sourceURL];
+    BOOL byRange = request.sourceURL && [PlaceholderFiles readsRemotePlaceholderByRange:request.sourceURL];
     if (byRange && [_materializationCoordinator isForegroundTransferActive]) {
         [self scheduleAdmissionRetryForRequest:request];
         return;

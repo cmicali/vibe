@@ -8,7 +8,7 @@ The spec does **not** constrain mechanism. Holds or preemption, one coordinator 
 
 ## A. Definitions
 
-- **A1. Local and dataless.** A file is *local* when its contents are on disk. It is *dataless* when it is a File Provider or app-owned remote placeholder that needs a transfer (`NSURLUtil.isDatalessFile:`). Every rule that bounds or suspends downloads binds *transfers*. A local file never starts one and is exempt from all of them.
+- **A1. Local and dataless.** A file is *local* when its contents are on disk. It is *dataless* when it is a File Provider or app-owned remote placeholder that needs a transfer (`PlaceholderFiles.isDatalessFile:`). Every rule that bounds or suspends downloads binds *transfers*. A local file never starts one and is exempt from all of them.
 - **A2. Materialization.** Making a standardized path local: a provider or remote download, or a no-op for a local file. A remote stream can become readable before that operation completes. **At most one materialization operation exists per standardized path at any time.** Every interested party joins it rather than starting a second transfer. This is the most load-bearing rule in the subsystem.
 - **A3. Open.** Producing a usable `AudioFileHandle` for a purpose: playback or prefetch. Gapless opens nothing (B6). Purposes hold **independent handles** for the same path, since a handle has one stateful read position.
 - **A4. Roles.** Work competing for transfers is playback, prefetch, metadata for the current track ("priority"), metadata for the playlist sweep ("scan"), or artwork extraction. Playback and prefetch are *foreground*. The rest are *background*.

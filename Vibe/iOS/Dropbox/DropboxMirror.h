@@ -5,7 +5,7 @@
 //  The linked Dropbox account as local files, so everything that plays,
 //  tags, waveforms and caches a file works on Dropbox unchanged. Lazy: a
 //  Dropbox folder exists here only once something listed it, as a directory
-//  holding a placeholder per audio file (NSURLUtil's remote placeholders: the
+//  holding a placeholder per audio file (PlaceholderFiles' remote placeholders: the
 //  real size and mtime, no readable bytes) and the CUE sheets beside them.
 //  The placeholders, their fetch, the ranged read, and the download budget
 //  are RemotePlaceholderStore's. This class lists, names, and searches.

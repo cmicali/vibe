@@ -11,7 +11,7 @@
 
 #import "CloudFileMaterializer.h"
 #import "CloudFileMaterializer+Debug.h"
-#import "NSURLUtil+Debug.h"
+#import "PlaceholderFiles+Debug.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -26,7 +26,7 @@
 - (void)tearDown {
     [CloudFileMaterializer setFakeTransferProvider:nil acquireSlot:nil
                                        releaseSlot:nil didFinish:nil];
-    [NSURLUtil setDatalessProbe:nil];
+    [PlaceholderFiles setDatalessProbe:nil];
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     for (NSURL *root in _temporaryRoots) {
         [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
@@ -38,7 +38,7 @@
 // Both seams together, as VibeFakeCloud installs them.
 - (void)installFakeCloudCompleting:(NSMutableArray<NSNumber *> *)completions
                     chargingSeconds:(NSTimeInterval (^)(NSURL *url))charge {
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *candidate) {
         return YES;
     }];
     [CloudFileMaterializer setFakeTransferProvider:^NSTimeInterval(NSURL *candidate, NSString *role) {
@@ -75,7 +75,7 @@
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
     [self installFakeCloudCompleting:completions
                      chargingSeconds:^NSTimeInterval(NSURL *candidate) { return 0; }];
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *candidate) {
         return NO;
     }];
 
@@ -96,7 +96,7 @@
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
     [self installFakeCloudCompleting:completions
                      chargingSeconds:^NSTimeInterval(NSURL *candidate) { return 0.001; }];
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *candidate) {
         return NO;
     }];
 
@@ -114,7 +114,7 @@
     NSURL *url = [[NSURL fileURLWithPath:NSTemporaryDirectory()]
             URLByAppendingPathComponent:[NSUUID UUID].UUIDString];
     XCTAssertTrue([[NSMutableData dataWithLength:4096] writeToURL:url atomically:YES]);
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *candidate) {
         return [candidate isEqual:url];
     }];
 
@@ -133,7 +133,7 @@
 - (void)testCancelWhileQueuedForTheSlotAbandonsTheTransfer {
     NSURL *url = [NSURL fileURLWithPath:@"/fake/queued-track.flac"];
     NSMutableArray<NSNumber *> *completions = [NSMutableArray array];
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *candidate) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *candidate) {
         return YES;
     }];
     [CloudFileMaterializer setFakeTransferProvider:^NSTimeInterval(NSURL *candidate, NSString *role) {
@@ -673,17 +673,17 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     [CloudFileMaterializer setRemoteRoot:inner fetch:nil read:nil availability:nil];
     XCTAssertEqualObjects([self remoteReadOf:innerFile], @"outer");
     XCTAssertEqualObjects([self remoteReadOf:otherFile], @"other");
-    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
+    XCTAssertTrue([PlaceholderFiles isRemotePlaceholderFile:innerFile]);
 
     [CloudFileMaterializer setRemoteRoot:other fetch:nil read:nil availability:nil];
-    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:otherFile]);
-    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:otherFile]);
+    XCTAssertTrue([PlaceholderFiles isRemotePlaceholderFile:innerFile]);
 
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     XCTAssertNil([CloudFileMaterializer remoteReadForURL:innerFile]);
     XCTAssertNil([CloudFileMaterializer availabilityForURL:innerFile]);
-    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:innerFile]);
-    XCTAssertFalse([NSURLUtil isDatalessFile:innerFile]);
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:innerFile]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:innerFile]);
     XCTAssertEqualObjects(log, (@[@"read outer", @"read other"]));
 }
 

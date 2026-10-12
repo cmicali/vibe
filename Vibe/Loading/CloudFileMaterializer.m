@@ -4,7 +4,8 @@
 //
 
 #import "CloudFileMaterializer.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "PlaceholderFiles.h"
 #if DEBUG
 #import "CloudFileMaterializer+Debug.h"
 #endif
@@ -166,9 +167,9 @@ static NSError *VibeMaterializationCancelledError(void) {
         return [@([b[@"prefix"] length]) compare:@([a[@"prefix"] length])];
     }];
     sRemoteBackends = [backends copy];
-    // Set under the lock. Two racing installs then cannot leave NSURLUtil
-    // with the older roots. NSURLUtil's lock never takes this one.
-    [NSURLUtil setRemotePlaceholderRoots:[backends valueForKey:@"root"]];
+    // Set under the lock. Two racing installs then cannot leave PlaceholderFiles
+    // with the older roots. PlaceholderFiles' lock never takes this one.
+    [PlaceholderFiles setRemotePlaceholderRoots:[backends valueForKey:@"root"]];
     os_unfair_lock_unlock(&sRemoteLock);
 }
 
@@ -291,7 +292,7 @@ static NSError *VibeMaterializationCancelledError(void) {
 #endif
 
     // Inside the prepared call, so no caller bypasses it and strands its token.
-    if (![NSURLUtil isDatalessFile:url]) {
+    if (![PlaceholderFiles isDatalessFile:url]) {
         BOOL current = [self consumeLocalToken:token];
         if (!current && error) {
             *error = VibeMaterializationCancelledError();
@@ -299,7 +300,7 @@ static NSError *VibeMaterializationCancelledError(void) {
         return current;
     }
 
-    if ([NSURLUtil isRemotePlaceholderFile:url]) {
+    if ([PlaceholderFiles isRemotePlaceholderFile:url]) {
         return [self fetchRemoteURL:url token:token onReadable:onReadable error:error];
     }
 

@@ -2,7 +2,7 @@
 
 The application object and the app-wide services it owns. The test for this directory is ownership: **`AppDelegate` creates it, or the OS hands it to `AppDelegate`.** A service several features use but none owns lives here. A service one feature owns lives with that feature.
 
-`main.m` creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `NSURLUtil`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how a path utility in `Vibe/Util/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
+`main.m` creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `FolderWalk`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how the walk in `Vibe/Playlist/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
 
 ## Opening files is a funnel, not an event
 
@@ -15,7 +15,7 @@ Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a
 
 **Close invalidates the open coordinator before it unloads the playlist**, so a pending walk or a buffered append cannot reopen files the user closed. A replacing open uses the same invalidation.
 
-The walk is `NSURLUtil` (`Vibe/Util/`) on a four-wide queue. An unreachable mount cannot hold every later open hostage, and a burst of drops cannot spawn a thread each.
+The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable mount cannot hold every later open hostage, and a burst of drops cannot spawn a thread each.
 
 `DocumentTypes` lives in `Vibe/Common/`, because both targets declare document types. It seeds the ⌘O panel's filter and `DefaultAppRegistration` (`Mac/Settings/`). The panel then widens its filter to every type registered for those filename extensions.
 

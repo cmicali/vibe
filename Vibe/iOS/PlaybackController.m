@@ -23,7 +23,7 @@
 #import "CloudTransferRegistry.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
 #import "SettingsRules.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"

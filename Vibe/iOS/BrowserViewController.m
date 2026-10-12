@@ -18,7 +18,9 @@
 #import "FileRow.h"
 #import "FileSearchRules.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "FolderWalk.h"
+#import "PlaceholderFiles.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "PlaylistFile.h"
@@ -528,7 +530,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         NSArray<NSURL *> *folders = @[];
         NSArray<NSURL *> *playlists = @[];
         NSArray<NSURL *> *files = @[];
-        [NSURLUtil listDirectory:directory sortedBy:sort folders:&folders playlists:&playlists audio:&files];
+        [FolderWalk listDirectory:directory sortedBy:sort folders:&folders playlists:&playlists audio:&files];
         NSMutableSet<NSURL *> *placeholders = [NSMutableSet set];
         NSMutableDictionary<NSURL *, NSString *> *sizes = [NSMutableDictionary dictionary];
         // The songs, which may show cached art, and those whose bytes are
@@ -540,10 +542,10 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             if (song) {
                 [songs addObject:url];
             }
-            if ([NSURLUtil isRemotePlaceholderFile:url]) {
+            if ([PlaceholderFiles isRemotePlaceholderFile:url]) {
                 [placeholders addObject:url];
             }
-            else if (song && ![NSURLUtil isDatalessFile:url]) {
+            else if (song && ![PlaceholderFiles isDatalessFile:url]) {
                 [local addObject:url];
             }
             // A placeholder carries the remote size, so this is what a tap
@@ -1222,7 +1224,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray<NSURL *> *subfolders = @[];
             NSArray<NSURL *> *audio = @[];
-            [NSURLUtil listDirectory:directory sortedBy:sort folders:&subfolders playlists:NULL audio:&audio];
+            [FolderWalk listDirectory:directory sortedBy:sort folders:&subfolders playlists:NULL audio:&audio];
             NSUInteger songs = audio.count;
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (songs > 0) {

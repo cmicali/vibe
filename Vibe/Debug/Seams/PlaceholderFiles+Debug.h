@@ -1,5 +1,5 @@
 //
-//  NSURLUtil+Debug.h
+//  PlaceholderFiles+Debug.h
 //  Vibe
 //
 //  The dataless probe: makes chosen files answer isDatalessFile: as
@@ -12,13 +12,13 @@
 
 #if DEBUG
 
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 typedef BOOL (^VibeDatalessProbe)(NSURL *url);
 
-@interface NSURLUtil (Debug)
+@interface PlaceholderFiles (Debug)
 
 + (void)setDatalessProbe:(nullable VibeDatalessProbe)probe;
 

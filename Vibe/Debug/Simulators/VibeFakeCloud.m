@@ -10,8 +10,8 @@
 #import "CloudFileMaterializer+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "DownloadProgressMonitor+Debug.h"
-#import "NSURLUtil+Debug.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles+Debug.h"
+#import "PlaceholderFiles.h"
 
 #include <os/lock.h>
 
@@ -242,7 +242,7 @@ static void VibeResetScenarioLocked(void) {
     sInstalledAt = CFAbsoluteTimeGetCurrent();
     os_unfair_lock_unlock(&sLock);
 
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *url) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *url) {
         NSString *path = url.path;
         if (!path) {
             return NO;
@@ -483,7 +483,7 @@ static void VibeResetScenarioLocked(void) {
 }
 
 + (void)uninstall {
-    [NSURLUtil setDatalessProbe:nil];
+    [PlaceholderFiles setDatalessProbe:nil];
     [CloudFileMaterializer setFakeTransferProvider:nil acquireSlot:nil
                                        releaseSlot:nil didFinish:nil];
     [DownloadProgressMonitor setFakeProgressProvider:nil];

@@ -11,7 +11,8 @@
 #import "FileRow.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "FolderWalk.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
@@ -242,7 +243,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray<NSURL *> *audio = @[];
-            [NSURLUtil listDirectory:folderURL sortedBy:sort folders:NULL playlists:NULL audio:&audio];
+            [FolderWalk listDirectory:folderURL sortedBy:sort folders:NULL playlists:NULL audio:&audio];
             dispatch_async(dispatch_get_main_queue(), ^{
                 FavoritesViewController *strongSelf = weakSelf;
                 if (audio.count > 0) {

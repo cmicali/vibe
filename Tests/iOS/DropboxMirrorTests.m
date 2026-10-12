@@ -41,10 +41,10 @@
                                                      isDirectory:&isDirectory]);
     XCTAssertTrue(isDirectory);
 
-    [NSURLUtil setRemotePlaceholderRoots:@[_root]];
-    XCTAssertTrue([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"01 Song.flac"]]);
-    XCTAssertFalse([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"Album.cue"]]);
-    [NSURLUtil setRemotePlaceholderRoots:@[]];
+    [PlaceholderFiles setRemotePlaceholderRoots:@[_root]];
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:[folder URLByAppendingPathComponent:@"01 Song.flac"]]);
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:[folder URLByAppendingPathComponent:@"Album.cue"]]);
+    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
 }
 
 // Two refreshes of one folder share a sheet's part file, so they share one
@@ -164,7 +164,7 @@
 - (void)testARelistingKeepsAPartDatedToItsVersion {
     _listings[@"/music"] = @[FileEntry(@"/Music", @"a.flac", 5, kStamp)];
     NSURL *folder = [self refresh:@"/Music"];
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:[folder URLByAppendingPathComponent:@"a.flac"]];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:[folder URLByAppendingPathComponent:@"a.flac"]];
     XCTAssertTrue([[@"12345" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:part atomically:NO]);
     struct timeval times[2] = {{kStampSeconds, 0}, {kStampSeconds, 0}};
     XCTAssertEqual(utimes(part.fileSystemRepresentation, times), 0);

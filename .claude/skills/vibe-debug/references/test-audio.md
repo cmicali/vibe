@@ -36,7 +36,7 @@ The Loading state, the shimmer and the load-timeout error need an open that bloc
 "$V" --debug-cmd set_fake_cloud 0       # uninstall
 ```
 
-It replaces the three things the app asks about a file. `NSURLUtil.isDatalessFile:` answers YES for the chosen paths. `CloudFileMaterializer`'s coordinated read becomes a cancellable wait. `DownloadProgressMonitor` reports that wait's progress, in twelfths at 1 Hz, and a third of the corpus stalls partway. Everything above them runs unchanged. `VibeFakeCloud.h` is the contract. **The seconds are a base, not the answer**: each file's time comes from a hash of its path, 0.5x to 2x, with one in ten at 18x and one in fifty stuck past the open timeout. Sending it again re-arms the whole corpus.
+It replaces the three things the app asks about a file. `PlaceholderFiles.isDatalessFile:` answers YES for the chosen paths. `CloudFileMaterializer`'s coordinated read becomes a cancellable wait. `DownloadProgressMonitor` reports that wait's progress, in twelfths at 1 Hz, and a third of the corpus stalls partway. Everything above them runs unchanged. `VibeFakeCloud.h` is the contract. **The seconds are a base, not the answer**: each file's time comes from a hash of its path, 0.5x to 2x, with one in ten at 18x and one in fifty stuck past the open timeout. Sending it again re-arms the whole corpus.
 
 The log names each progress line's source (`fake`, `poll`, `iCloud` or `provider`):
 

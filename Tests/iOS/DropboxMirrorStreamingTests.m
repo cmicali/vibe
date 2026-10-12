@@ -279,7 +279,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     const NSUInteger chunk = 64 * 1024;
     NSData *bytes = PatternBytes(16 * chunk);
     NSURL *track = [self streamingTrack:bytes name:@"stream.flac" chunk:chunk];
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:track];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:track];
     [self recordAvailabilities];
     DropboxMirror *mirror = _mirror;
     __block _Atomic int readables = 0;
@@ -458,7 +458,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     for (NSNumber *changed in @[@YES, @NO]) {
         NSData *bytes = PatternBytes(1024 * 1024);
         NSURL *track = [self streamingTrack:bytes name:@"fails.flac" chunk:0];
-        NSURL *part = [NSURLUtil remotePlaceholderPartURL:track];
+        NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:track];
         [self recordAvailabilities];
         dispatch_semaphore_t blocked = dispatch_semaphore_create(0);
         dispatch_semaphore_t resume = dispatch_semaphore_create(0);
@@ -531,7 +531,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
 - (void)testAResumedFetchKeepsItsAvailability {
     NSData *bytes = PatternBytes(1024 * 1024);
     NSURL *track = [self streamingTrack:bytes name:@"resumed.flac" chunk:0];
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:track];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:track];
     [self recordAvailabilities];
     dispatch_semaphore_t resume = dispatch_semaphore_create(0);
     [self scriptDownloads:^DropboxStubResponse(NSInteger index, NSURLRequest *request) {

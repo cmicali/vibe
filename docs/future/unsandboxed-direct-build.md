@@ -68,7 +68,7 @@ An unsandboxed app is not free of permission panels; it trades the sandbox's for
   2. The deferred metadata sweep over a restored or dropped playlist. Same as 1.
   3. `FolderArtResolver` probing a directory beside a track. It only ever reads beside a file already in the playlist, so it cannot prompt for a location the playlist has not already touched; confirm.
   4. A playlist file that names entries in a different protected location than the one it was opened from. This is the case the grant panel covered; unsandboxed it becomes a system prompt, which is acceptable.
-- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `NSURLUtil`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
+- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `FolderWalk`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
 - A denied prompt is not asked again. Decide whether a row's unreadable state should point at System Settings > Privacy & Security > Files and Folders; not in the first version unless testing shows users get stuck.
 
 **Verify:** on a fresh macOS user account (or after `tccutil reset All com.commonwealthrecordings.Vibe`), walk the four cases with Allow and with Don't Allow, on the exported, notarized build, since TCC keys on the signature.

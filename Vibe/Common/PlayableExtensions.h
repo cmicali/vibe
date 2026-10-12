@@ -8,7 +8,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Every audio extension Vibe plays. Foundation-only so both readers can import
-// it: NSURLUtil imports PlaylistFile, so neither could own the set.
+// it: FolderWalk imports PlaylistFile, so neither could own the set.
 //
 // Must cover every spelling CFBundleDocumentTypes admits, conformance
 // included (com.microsoft.waveform-audio is wav, wave AND bwf;

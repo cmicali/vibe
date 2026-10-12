@@ -11,7 +11,7 @@
 
 #import "AudioTrackMetadataLoader+Debug.h"
 #import "MetadataLoaderTestFakes.h"
-#import "NSURLUtil+Debug.h"
+#import "PlaceholderFiles+Debug.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -13,7 +13,7 @@
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
 #import "NSURL+Hash.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 #import <os/lock.h>
 
@@ -235,7 +235,7 @@ static VibeAudioFileOpener const kProductionFileOpener =
                               NSURL *url, VibeAudioFileMaterializationRole role) {
         return [[VibeCloudFileMaterializationOperation alloc] initWithURL:url role:role];
     } datalessProbe:^BOOL(NSURL *url) {
-        return [NSURLUtil isDatalessFile:url];
+        return [PlaceholderFiles isDatalessFile:url];
     } clock:^NSTimeInterval{
         return NSProcessInfo.processInfo.systemUptime;
     } fileOpener:fileOpener];

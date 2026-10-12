@@ -23,7 +23,7 @@ typedef id<AudioFileMaterializationOperation> _Nonnull
         (^VibeAudioFileMaterializationOperationFactory)(
                 NSURL *url, VibeAudioFileMaterializationRole role);
 typedef NSTimeInterval (^VibeAudioFileMaterializationClock)(void);
-// YES when the contents are not local (production: NSURLUtil.isDatalessFile:).
+// YES when the contents are not local (production: PlaceholderFiles.isDatalessFile:).
 // Called concurrently on bounded workers; may block. An initial NO bypasses
 // transfer admission; a refresh's NO suppresses publication but keeps its
 // reserved lane until the operation settles.

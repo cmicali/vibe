@@ -1,18 +1,18 @@
 //
-//  NSURLUtilInternal.h
+//  FolderWalkInternal.h
 //  Vibe
 //
 //  The synchronous expansion steps, for the unit tests. Nothing but
-//  NSURLUtil.m and its tests imports it.
+//  FolderWalk.m and its tests imports it.
 //
 
-#import "NSURLUtil.h"
+#import "FolderWalk.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
 
-@interface NSURLUtil (Internal)
+@interface FolderWalk (Internal)
 
 // The nonempty audio anywhere under dir as rows; Name sorts by full path,
 // grouping subfolders.

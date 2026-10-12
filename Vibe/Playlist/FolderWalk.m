@@ -1,172 +1,42 @@
 //
-//  NSURLUtil.m
+//  FolderWalk.m
 //  Vibe
 //
 
-#import "NSURLUtilInternal.h"
-#if DEBUG
-#import "NSURLUtil+Debug.h"   // the dataless probe, declared out of the shipping header
-#endif
+#import "FolderWalkInternal.h"
 #import "AudioTrack.h"
 #import "FolderArtRules.h"
 #import "NSURL+Emptiness.h"
+#import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
 #import "PlaylistFile.h"
 
 #include <errno.h>
 #include <limits.h>
-#include <os/lock.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-// The remote backends' roots as comparable paths ending in "/", set at
-// launch. None means no file is a placeholder.
-static os_unfair_lock sRemoteRootLock = OS_UNFAIR_LOCK_INIT;
-static NSArray<NSString *> *sRemoteRootPrefixes;
-
-static NSArray<NSString *> *VibeRemoteRootPrefixes(void) {
-    os_unfair_lock_lock(&sRemoteRootLock);
-    NSArray<NSString *> *prefixes = sRemoteRootPrefixes;
-    os_unfair_lock_unlock(&sRemoteRootLock);
-    return prefixes;
-}
-
-NSString *VibeAliasFreePath(NSString *path) {
-    static NSString *const kDataVolumePrefix = @"/System/Volumes/Data/";
-    // /private itself is real; only these roots are aliases.
-    static NSArray<NSString *> *privateRoots;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        privateRoots = @[@"/private/tmp", @"/private/var", @"/private/etc"];
-    });
-    if ([path hasPrefix:kDataVolumePrefix]) {
-        path = [path substringFromIndex:kDataVolumePrefix.length - 1];
-    }
-    if (![path hasPrefix:@"/private/"]) {
-        return path;
-    }
-    for (NSString *privateRoot in privateRoots) {
-        if ([path isEqualToString:privateRoot] ||
-                [path hasPrefix:[privateRoot stringByAppendingString:@"/"]]) {
-            return [path substringFromIndex:@"/private".length];
-        }
-    }
-    return path;
-}
-
-// TRAP: never stringByStandardizingPath here. It stats the path to decide
-// whether to drop /private, and on a provider's folder that stat is IPC on
-// whichever thread asked: the Files browser named and compared folders with
-// it on main as each one opened.
-NSString *VibeComparablePath(NSString *path) {
-    if (!path) {
-        return nil;
-    }
-    // Only a path with something to resolve pays for the URL round trip.
-    BOOL resolves = [path containsString:@"/."] || [path containsString:@"//"]
-            || (path.length > 1 && [path hasSuffix:@"/"]);
-    NSString *standard = path;
-    if (resolves) {
-        standard = [NSURL fileURLWithPath:path isDirectory:NO].standardizedURL.path ?: path;
-        standard = [NSString pathWithComponents:standard.pathComponents];
-    }
-    return VibeAliasFreePath(standard);
-}
-
-BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path) {
-    NSArray<NSString *> *prefixes = VibeRemoteRootPrefixes();
-    if (prefixes.count == 0) {
-        return NO;
-    }
-    NSString *comparable = VibeComparablePath(path);
-    for (NSString *prefix in prefixes) {
-        if ([comparable hasPrefix:prefix]) {
-            return YES;
-        }
-    }
-    return NO;
-}
 
 // Installed at launch, read from the expansion workers: every access locks.
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
 static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
 static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
 
-#if DEBUG
-static VibeDatalessProbe sDatalessProbe;
-
-static VibeDatalessProbe DatalessProbe(void) {
-    @synchronized (NSURLUtil.class) {
-        return sDatalessProbe;
-    }
-}
-
-// See NSURLUtil+Debug.h. Behind an atomic flag, so the stat path pays one
-// relaxed load while it is off.
-static _Atomic(BOOL) sDatalessDiagEnabled;
-static NSMutableDictionary<NSString *, NSMutableDictionary *> *sDatalessDiag;
-static NSUInteger sDatalessDiagOverflow;
-static const NSUInteger kDatalessDiagDirectoryCap = 128;
-
-static void VibeRecordDatalessStat(NSURL *url, BOOL dataless, uint32_t flags, BOOL statFailed) {
-    NSString *directory = url.URLByDeletingLastPathComponent.path ?: @"?";
-    NSString *bucket = statFailed ? @"statFailed" : (dataless ? @"dataless" : @"local");
-    NSMutableDictionary *added = nil;
-    @synchronized (NSURLUtil.class) {
-        NSMutableDictionary *entry = sDatalessDiag[directory];
-        if (!entry) {
-            if (sDatalessDiag.count >= kDatalessDiagDirectoryCap) {
-                sDatalessDiagOverflow++;
-                return;
-            }
-            entry = [@{@"dataless": @0, @"local": @0, @"statFailed": @0} mutableCopy];
-            sDatalessDiag[directory] = entry;
-            added = entry;
-        }
-        entry[bucket] = @([entry[bucket] unsignedIntegerValue] + 1);
-        if (!statFailed) {
-            entry[@"lastFlags"] = [NSString stringWithFormat:@"0x%x", flags];
-        }
-    }
-    if (!added) {
-        return;
-    }
-    // Once per directory, outside the lock: a network mount can be slow to
-    // answer. This is the phone's report, since no channel reaches a device.
-    struct statfs fs;
-    if (statfs(url.fileSystemRepresentation, &fs) != 0) {
-        LogInfo(@"Dataless diag: %@: %@, flags 0x%x, no mount (%s)", directory, bucket, flags, strerror(errno));
-        return;
-    }
-    BOOL localMount = (fs.f_flags & MNT_LOCAL) != 0;
-    @synchronized (NSURLUtil.class) {
-        added[@"fsType"] = @(fs.f_fstypename);
-        added[@"mountedOn"] = @(fs.f_mntonname);
-        added[@"localMount"] = @(localMount);
-    }
-    LogInfo(@"Dataless diag: %@: %@, flags 0x%x, %s mounted on %s, %@",
-            directory, bucket, flags, fs.f_fstypename, fs.f_mntonname, localMount ? @"local mount" : @"network mount");
-}
-#endif
-
 static VibeWalkedDirectoriesHandler WalkedDirectoriesHandler(void) {
-    @synchronized (NSURLUtil.class) {
+    @synchronized (FolderWalk.class) {
         return sWalkedDirectoriesHandler;
     }
 }
 
 static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
-    @synchronized (NSURLUtil.class) {
+    @synchronized (FolderWalk.class) {
         return sBulkOpenDirectoriesHandler;
     }
 }
 
 
-@implementation NSURLUtil
+@implementation FolderWalk
 
 + (void)setPlaylistFolderGrantHandler:(VibePlaylistFolderGrantHandler)handler {
     @synchronized (self) {
@@ -185,100 +55,6 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
         sBulkOpenDirectoriesHandler = [handler copy];
     }
 }
-
-+ (void)setRemotePlaceholderRoots:(NSArray<NSURL *> *)roots {
-    NSMutableArray<NSString *> *prefixes = [NSMutableArray arrayWithCapacity:roots.count];
-    for (NSURL *root in roots) {
-        [prefixes addObject:[VibeComparablePath(root.path) stringByAppendingString:@"/"]];
-    }
-    os_unfair_lock_lock(&sRemoteRootLock);
-    sRemoteRootPrefixes = prefixes.count ? [prefixes copy] : nil;
-    os_unfair_lock_unlock(&sRemoteRootLock);
-}
-
-// The path first: a file under no root, as most are, pays no stat.
-+ (BOOL)isRemotePlaceholderFile:(NSURL *)url {
-    if (!VibePathIsUnderRemotePlaceholderRoot(url.path)) {
-        return NO;
-    }
-    struct stat st;
-    return stat(url.fileSystemRepresentation, &st) == 0 && VibeFileModeIsRemotePlaceholder(st.st_mode);
-}
-
-+ (BOOL)readsRemotePlaceholderByRange:(NSURL *)url {
-    return [NSURLUtil isRemotePlaceholderFile:url]
-            && [PlayableExtensions.tagParsed containsObject:url.pathExtension.lowercaseString];
-}
-
-NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
-
-+ (NSURL *)remotePlaceholderPartURL:(NSURL *)url {
-    NSString *name = [NSString stringWithFormat:@".%@%@", url.lastPathComponent, VibeRemotePlaceholderPartSuffix];
-    return [url.URLByDeletingLastPathComponent URLByAppendingPathComponent:name isDirectory:NO];
-}
-
-#if DEBUG
-+ (void)setDatalessProbe:(VibeDatalessProbe)probe {
-    @synchronized (self) {
-        sDatalessProbe = [probe copy];
-    }
-}
-#endif
-
-// TRAP: never second-guess SF_DATALESS with an NSURL resource value
-// (NSURLUbiquitousItemDownloadingStatus or any other). NSURL memoizes them per
-// instance, and these URLs live as long as their AudioTrack, so a placeholder
-// would read "not downloaded" forever and the metadata loader's locality
-// re-probes would never see it turn local.
-//
-// A provider whose placeholders carry no flag would read as local: the sweep
-// would parse them on its local workers, several downloads at once outside the
-// foreground hold. Fix it here, with a round trip per directory, not per file.
-+ (BOOL)isDatalessFile:(NSURL *)url {
-#if DEBUG
-    VibeDatalessProbe probe = DatalessProbe();
-    if (probe) {
-        return probe(url);
-    }
-#endif
-    struct stat st;
-    if (stat(url.fileSystemRepresentation, &st) != 0) {
-#if DEBUG
-        if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
-            VibeRecordDatalessStat(url, NO, 0, YES);
-        }
-#endif
-        return NO;
-    }
-    BOOL dataless = (st.st_flags & SF_DATALESS) != 0
-            || (VibeFileModeIsRemotePlaceholder(st.st_mode) && VibePathIsUnderRemotePlaceholderRoot(url.path));
-#if DEBUG
-    if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
-        VibeRecordDatalessStat(url, dataless, st.st_flags, NO);
-    }
-#endif
-    return dataless;
-}
-
-#if DEBUG
-+ (void)setDatalessDiagnosticsEnabled:(BOOL)enabled {
-    @synchronized (self) {
-        sDatalessDiag = enabled ? [NSMutableDictionary dictionary] : nil;
-        sDatalessDiagOverflow = 0;
-    }
-    atomic_store_explicit(&sDatalessDiagEnabled, enabled, memory_order_relaxed);
-}
-
-+ (NSDictionary *)datalessDiagnostics {
-    @synchronized (self) {
-        return @{
-            @"enabled": @(atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)),
-            @"directories": [sDatalessDiag copy] ?: @{},
-            @"overflowed": @(sDatalessDiagOverflow),
-        };
-    }
-}
-#endif
 
 // The directory a path resolves to, canonically spelled, or nil for a file or
 // a broken link.
@@ -559,7 +335,7 @@ static VibeReadAccess ReadAccessForURL(NSURL *url) {
 // access(2) calls it denied. A playlist naming one would then raise a grant
 // panel. It plays: the player downloads it.
 static VibeReadAccess PlaylistEntryAccess(NSURL *url) {
-    return [NSURLUtil isRemotePlaceholderFile:url] ? VibeReadAccessReadable : ReadAccessForURL(url);
+    return [PlaceholderFiles isRemotePlaceholderFile:url] ? VibeReadAccessReadable : ReadAccessForURL(url);
 }
 
 + (BOOL)isReadDenied:(NSURL *)url {
@@ -681,7 +457,7 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
     if ([url.pathExtension.lowercaseString isEqualToString:@"flac"]) {
         NSNumber *size = nil;
         [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
-        if (size.longLongValue >= kVibeEmbeddedCueMinimumBytes && ![self isDatalessFile:url]) {
+        if (size.longLongValue >= kVibeEmbeddedCueMinimumBytes && ![PlaceholderFiles isDatalessFile:url]) {
             NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:url];
             if (rows.count > 0) {
                 return rows;
@@ -802,11 +578,11 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
     NSUInteger inputCount = list.count;
     NSMutableSet<NSString*> *looseFileDirectories = [NSMutableSet set];
     NSUInteger expandedCount = 0;
-    NSArray<AudioTrack*> *rows = [NSURLUtil expandFileList:list
-                                                  sortedBy:sort
-                                               folderCount:folderCount
-                                      looseFileDirectories:looseFileDirectories
-                                             expandedCount:&expandedCount];
+    NSArray<AudioTrack*> *rows = [FolderWalk expandFileList:list
+                                                   sortedBy:sort
+                                                folderCount:folderCount
+                                       looseFileDirectories:looseFileDirectories
+                                              expandedCount:&expandedCount];
     NSMutableSet<NSString *> *supportedLooseDirectories = [NSMutableSet set];
     for (AudioTrack *row in rows) {
         [self noteLooseFileDirectoryOf:row.url into:supportedLooseDirectories];
@@ -830,7 +606,7 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
                     looseFileDirectories:(NSMutableSet<NSString*> *)looseFileDirectories
                            expandedCount:(NSUInteger *)expandedCount {
     NSMutableArray<AudioTrack*> *results = [[NSMutableArray alloc] initWithCapacity:list.count];
-    NSSet<NSString*> *supported = [NSURLUtil supportedExtensions];
+    NSSet<NSString*> *supported = [FolderWalk supportedExtensions];
     // Nothing can play an empty file. Second, so only extension matches pay
     // the stat, once per file however many rows it has. A walk's rows skip
     // it: the walk drops what it would, unplayable names and empty files.
@@ -909,7 +685,7 @@ static NSMutableArray<NSURL *> *VibeListedAudioURLs(NSURL *dir, VibeFolderOpenSo
 // working basename fallback. Entries still unreadable are skipped.
 #if TARGET_OS_OSX
 static VibePlaylistFolderGrantHandler PlaylistFolderGrantHandler(void) {
-    @synchronized (NSURLUtil.class) {
+    @synchronized (FolderWalk.class) {
         return sPlaylistFolderGrantHandler;
     }
 }

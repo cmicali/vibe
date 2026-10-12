@@ -5,7 +5,7 @@
 
 #import "TrackCommands.h"
 #import "AudioTrack.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 
 @implementation TrackCommands
 
@@ -46,7 +46,7 @@
 }
 
 + (BOOL)handsOutURL:(NSURL *)url {
-    return url.isFileURL && ![NSURLUtil isRemotePlaceholderFile:url];
+    return url.isFileURL && ![PlaceholderFiles isRemotePlaceholderFile:url];
 }
 
 + (void)copyNames:(NSArray<AudioTrack *> *)tracks {
