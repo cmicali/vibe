@@ -1,5 +1,7 @@
 # Unit tests
 
+This directory holds the tests of both test targets, `VibeTests` and `VibeAudioTests`, and their shared helpers in `Support/`. It also holds two tools that are not test suites, `iOSDriver/` and `BenchComponents/`.
+
 `make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests` (below). Both targets are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
 
 `iOSDriver/` is **not** a test suite. It is the `vibe-debug` skill's touch driver, a resident XCUITest (`VibeiOSDriver`) started by `drive-ios.sh`, and `VibeTests`' `Tests` source entry excludes it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, excluded the same way.

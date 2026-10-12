@@ -2,7 +2,7 @@
 
 A fast, minimal player for your music files for the Mac, iPhone, and iPad. No third-party engine, no account, no subscription.
 
-<img src="Assets/screenshot-basic.png" width="726" alt="Vibe screenshot">
+<img src="Assets/readme/screenshot-basic.png" width="726" alt="Vibe screenshot">
 
 Website: **[https://vibeplayer.app](https://vibeplayer.app)**
 
@@ -31,7 +31,7 @@ brew install cmicali/tap/vibe
 - **Speaks 30 languages**: fully localized, from Bulgarian to Vietnamese.
 
 <p align="center">
-  <img src="Assets/screenshot-playlist.png" width="726" alt="Vibe with its playlist open">
+  <img src="Assets/readme/screenshot-playlist.png" width="726" alt="Vibe with its playlist open">
 </p>
 
 ## Usage
@@ -56,7 +56,7 @@ These are the defaults. You can change every one in **Settings > Keyboard Shortc
 
 
 <p align="center">
-  <img src="Assets/screenshot-pitch.png" width="822" alt="Vibe with the pitch fader open">
+  <img src="Assets/readme/screenshot-pitch.png" width="822" alt="Vibe with the pitch fader open">
 </p>
 
 ### FX
@@ -76,7 +76,7 @@ Tap an FX key to latch the effect; hold it for momentary.
 Vibe ships with several built-in themes, and you can make your own in **Settings > Themes**. Start from the current look or duplicate a built-in. Then edit the window, fonts, colors, waveform, playlist and the no-artwork placeholder. Changes apply live. A theme exports as one file, custom artwork included, that anyone can import. See [docs/themes.md](docs/themes.md) for the full guide.
 
 <p align="center">
-  <img src="Assets/screenshot-themes.png" width="726" alt="Vibe in a custom theme">
+  <img src="Assets/readme/screenshot-themes.png" width="726" alt="Vibe in a custom theme">
 </p>
 
 ## On iPhone and iPad
@@ -84,9 +84,9 @@ Vibe ships with several built-in themes, and you can make your own in **Settings
 The iOS app shares the audio engine, waveform drawing, and tag and file handling with the Mac app. Its interface is native iOS, and it adds a Dropbox account.
 
 <p align="center">
-  <img src="Assets/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
-  <img src="Assets/screenshot-ios-iphone-seek.png" width="240" alt="Vibe on iPhone, waveform seek">
-  <img src="Assets/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
+  <img src="Assets/readme/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
+  <img src="Assets/readme/screenshot-ios-iphone-seek.png" width="240" alt="Vibe on iPhone, waveform seek">
+  <img src="Assets/readme/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
 </p>
 
 ## Audio quality and performance

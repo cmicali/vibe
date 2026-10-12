@@ -1,5 +1,7 @@
 # Main window (macOS)
 
+This directory holds the main window and its controller, `MainPlayerController`, with its categories. It also holds the window's body, the track and artwork display controllers, and the volume control.
+
 **Layout geometry, the Liquid Glass chrome, the art-tint pipeline and the codec line are `LAYOUT.md`. Read it before changing any of those.** `MainPlayerContentView` is the window's body. The volume control inside it is its own view, `VolumeControlView`. This file is behavior: the controller, display states, the playlist edits the shell owns, and the window's resize and drop rules. `Transport/` (bare keys, skips, FX toggles) and `Convert/` (the FLAC swap and its undo) have their own `AGENTS.md`.
 
 ## The controller

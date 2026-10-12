@@ -23,6 +23,7 @@ A CUE sheet, beside its files or embedded in a FLAC, plays as rows. Each row is 
 
 | Command | What it does |
 | --- | --- |
+| `make help` | Every target, with the first sentence of its comment. |
 | `make build [CONFIG=Debug]` | macOS app; Release by default, into `build/DerivedData`. |
 | `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. With `CONFIG=Debug`, exactly CI's iOS Debug build. |
 | `make install-ios [CONFIG=Debug]` | iOS app onto a paired device, signed. `DEVICE=<name or id>` when more than one is paired. |

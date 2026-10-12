@@ -6,11 +6,30 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: help compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
 	brew bundle
+
+# List every target with the first sentence of the comment block above it.
+# A target with no comment of its own prints with an empty description.
+help:
+	@awk ' \
+	    /^#/ { if (!inblock) { text = ""; done = 0 } inblock = 1; \
+	           line = $$0; sub(/^# ?/, "", line); \
+	           if (line == "" || line ~ /^ /) done = 1; \
+	           else if (!done) text = text (text == "" ? "" : " ") line; next } \
+	    { inblock = 0 } \
+	    /^$$/ { text = "" } \
+	    /^[a-z][a-z0-9-]*:/ && !/^[^:]*:[^=]*=/ { \
+	        name = substr($$0, 1, index($$0, ":") - 1); \
+	        if (!(name in seen)) { seen[name] = 1; names[++n] = name; \
+	            if (match(text, /\. /)) text = substr(text, 1, RSTART); \
+	            desc[name] = text; if (length(name) > width) width = length(name) } \
+	        text = "" } \
+	    END { for (i = 1; i <= n; i++) printf "  %-" width "s  %s\n", names[i], desc[names[i]] } \
+	' $(MAKEFILE_LIST)
 
 # Generate Vibe.xcodeproj from project.yml (requires xcodegen — `make setup`).
 # Under the build lock (scripts/build/build-lock.sh), taken per command: sessions
@@ -270,14 +289,14 @@ reset-state:
 run:
 	scripts/build/run.sh $(CONFIG)
 
-# Regenerate the README screenshots in Assets/ (debug build + real screen
+# Regenerate the README screenshots in Assets/readme/ (debug build + real screen
 # capture). Needs Screen Recording and Accessibility for the terminal, and
 # ALLOW_GLOBAL_INPUT=1 per run: it moves the real pointer.
 screenshots:
 	scripts/screenshots/generate-readme-screenshots.sh
 
 # The shipped App Store screenshots (2880x1800): the captures `screenshots`
-# leaves in Assets/ composited onto generated backgrounds. Needs no app, only
+# leaves in Assets/readme/ composited onto generated backgrounds. Needs no app, only
 # those captures; rerun `screenshots` first if the UI changed. LOCALE, not LANG
 # or LANGUAGE, which make would silently import from the environment. macOS
 # only; for iOS: scripts/appstore/appstore-generate-store-screenshots.sh --platform ios [LOCALE].

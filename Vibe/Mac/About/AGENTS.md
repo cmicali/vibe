@@ -1,5 +1,7 @@
 # About window (macOS)
 
+This directory holds the About window (`AboutWindowController`). It also holds the two views drawn in it, `VectorBallsView` and `VibeLinkLabel`.
+
 Vibe > About Vibe is a fixed 460×340 window with no nib, built in `init`. **`AppDelegate` is the only implementer of `showAboutWindow:`.** The app menu's item targets it directly. Settings > About's app-icon button is nil-targeted and reaches the same method up the responder chain. `AppDelegate` owns the single instance and keeps it alive across closes. `applyAuxiliaryWindowLevels` runs before each open, so a floating player cannot bury the window (`Mac/App/AGENTS.md`).
 
 ## VectorBallsView

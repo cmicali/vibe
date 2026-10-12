@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build the App Store screenshots by compositing the window captures in
-# Assets/ onto generated backgrounds.
+# Assets/readme/ onto generated backgrounds.
 #
 #   scripts/appstore/appstore-generate-store-screenshots.sh [--platform macos|ios] [lang]
 #   scripts/appstore/appstore-generate-store-screenshots.sh --all [--platform macos|ios]
@@ -43,16 +43,16 @@ if [ "${1:-}" = --creative ]; then
     ART="$ROOT/Assets/app-store/demo-music/artwork/soft-relay.png"
     "$COMPOSE_BIN" --header "$OUT/header.png" --canvas 3840x1646
     "$COMPOSE_BIN" --row "$ART" "$OUT/search-results.png" --canvas 3840x2560 \
-        "$ROOT/Assets/screenshot-ios-iphone-playlist.png" \
-        "$ROOT/Assets/screenshot-ios-iphone-player.png" \
-        "$ROOT/Assets/screenshot-ios-iphone-seek.png"
+        "$ROOT/Assets/readme/screenshot-ios-iphone-playlist.png" \
+        "$ROOT/Assets/readme/screenshot-ios-iphone-player.png" \
+        "$ROOT/Assets/readme/screenshot-ios-iphone-seek.png"
     # GitHub's social preview, uploaded by hand under the repo's Settings >
     # General: 1280x640, and under GitHub's 1 MB cap, which the PNG is not.
     # The repo card shows only rows 78-562, the band GitHub's template marks,
     # so the block is centred in that band with 63px clear above the text and
     # below the window; --block-y offsets the space above the headline's caps,
     # which the compositor's own centring counts as part of the block.
-    "$COMPOSE_BIN" "$ROOT/Assets/screenshot-basic.png" "$OUT/github-social-preview.png" \
+    "$COMPOSE_BIN" "$ROOT/Assets/readme/screenshot-basic.png" "$OUT/github-social-preview.png" \
         --canvas 1280x640 --width 0.70 --block-y 0.47 --headline Vibe --headline-scale 2.0 \
         --subhead "A fast, minimal player for your music files" --subhead-scale 1.48
     sips -s format jpeg -s formatOptions 90 "$OUT/github-social-preview.png" \
@@ -96,7 +96,7 @@ if ! "$LANGS" | grep -qx "$L"; then
     exit 64
 fi
 
-IN="$ROOT/Assets"
+IN="$ROOT/Assets/readme"
 COPY="$ROOT/Assets/app-store/copy/$L/$PLATFORM/screenshots.json"
 
 [ -f "$COPY" ] || {

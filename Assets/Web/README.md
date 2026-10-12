@@ -34,9 +34,9 @@ source. Nothing else notices a stale one.
 
 | Output | Source |
 | --- | --- |
-| `img/player.{png,webp}` | `Assets/screenshot-basic.png` |
-| `img/ios.{png,webp}` | `Assets/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
-| `img/ios-playlist.{png,webp}`, `img/ios-seek.{png,webp}` | `Assets/screenshot-ios-iphone-{playlist,seek}.png`, framed like `ios` |
+| `img/player.{png,webp}` | `Assets/readme/screenshot-basic.png` |
+| `img/ios.{png,webp}` | `Assets/readme/screenshot-ios-iphone-player.png`, corners rounded at the iPhone's own radius and scaled to 560px wide |
+| `img/ios-playlist.{png,webp}`, `img/ios-seek.{png,webp}` | `Assets/readme/screenshot-ios-iphone-{playlist,seek}.png`, framed like `ios` |
 | `img/store-*.webp` | the English macOS App Store screenshots in `Assets/app-store/screenshots/en/macos/`, 1600px wide, for the carousel |
 
 **The icons and the badge are outside the script**, so a passing `--check` says

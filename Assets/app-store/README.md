@@ -39,14 +39,14 @@ The iOS copy does NOT reuse the macOS text. BPM and key analysis, the pitch fade
 
 ```bash
 make appstore-validate-copy                         # every catalog language has all five files, within limits, captions fit
-make screenshots                                    # only if the UI changed: re-capture the macOS windows into Assets/
+make screenshots                                    # only if the UI changed: re-capture the macOS windows into Assets/readme/
 make appstore-generate-store-screenshots-all        # composite every language's macOS screenshots
 make appstore-generate-store-screenshots LOCALE=de  # one language while iterating
 scripts/appstore/appstore-generate-store-screenshots.sh --all --platform ios   # the iOS sets (no make target)
 make appstore-upload-metadata                       # upload copy and screenshots (the vibe-release skill)
 ```
 
-`make screenshots` needs a debug build, Screen Recording and Accessibility permission, and `ALLOW_GLOBAL_INPUT=1`. It captures the macOS windows only. The iOS composites read the `Assets/screenshot-ios-<device>-<shot>.png` captures, which are made by hand (below). Every language shares the same English window captures, since the window shows only song titles and artwork. A missing translation fails rather than shipping English captions.
+`make screenshots` needs a debug build, Screen Recording and Accessibility permission, and `ALLOW_GLOBAL_INPUT=1`. It captures the macOS windows only. The iOS composites read the `Assets/readme/screenshot-ios-<device>-<shot>.png` captures, which are made by hand (below). Every language shares the same English window captures, since the window shows only song titles and artwork. A missing translation fails rather than shipping English captions.
 
 **Adding a language.** Localize the app first (`docs/localization.md`). Then add `copy/<lang>/` for both platforms, and extend `ascLocale` if the uploader asks for a mapping. `make appstore-validate-copy` fails until the copy is complete.
 

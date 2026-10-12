@@ -12,7 +12,7 @@
 //     compose --row <art.png> <out.png> <left> <middle> <right> --canvas WxH
 //
 // A mock-up, unlike appstore-capture-app-screenshots.sh: it lays an
-// already-captured window (the alpha-channel PNGs in Assets/) over a generated
+// already-captured window (the alpha-channel PNGs in Assets/readme/) over a generated
 // background. Honest only because those captures are effectively opaque, so
 // the background is decoration around the window, never through it.
 //

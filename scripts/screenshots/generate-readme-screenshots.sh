@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regenerate the README window captures in Assets/, which the App Store and
+# Regenerate the README window captures in Assets/readme/, which the App Store and
 # web images are also derived from.
 #
 #   scripts/screenshots/generate-readme-screenshots.sh [shot ...]     # no args = all five
@@ -17,7 +17,7 @@ set -euo pipefail
 # shellcheck source=scripts/screenshots/screenshot-lib.sh
 source "$(dirname "$0")/screenshot-lib.sh"
 
-OUT_DIR="${OUT_DIR:-$ROOT/Assets}"
+OUT_DIR="${OUT_DIR:-$ROOT/Assets/readme}"
 APPEARANCE="${APPEARANCE:-dark}"
 # window (default) | merged | region — see capture().
 CAPTURE="${CAPTURE:-window}"

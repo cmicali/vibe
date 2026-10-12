@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Re-derive Assets/Web/img/'s screenshots from the captures in Assets/. --check
+# Re-derive Assets/Web/img/'s screenshots from the captures in Assets/readme/. --check
 # fails when a derivative no longer matches its source; nothing else notices.
 #
 # The window captures carry their own rounded corners and transparent margin,
@@ -15,10 +15,10 @@ CHECK=0
 
 # <source capture>:<web basename>
 PAIRS=(
-    "Assets/screenshot-basic.png:player"
-    "Assets/screenshot-ios-iphone-player.png:ios"
-    "Assets/screenshot-ios-iphone-playlist.png:ios-playlist"
-    "Assets/screenshot-ios-iphone-seek.png:ios-seek"
+    "Assets/readme/screenshot-basic.png:player"
+    "Assets/readme/screenshot-ios-iphone-player.png:ios"
+    "Assets/readme/screenshot-ios-iphone-playlist.png:ios-playlist"
+    "Assets/readme/screenshot-ios-iphone-seek.png:ios-seek"
     "Assets/app-store/screenshots/en/macos/02-playlist.png:store-playlist"
     "Assets/app-store/screenshots/en/macos/03-themes.png:store-themes"
     "Assets/app-store/screenshots/en/macos/04-pitch.png:store-pitch"
