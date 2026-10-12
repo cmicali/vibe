@@ -9,7 +9,8 @@
 
 #import "AudioTrack.h"
 #import "HTTPTransferClientInternal.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
 #import "RemotePlaceholderStoreInternal.h"
 #import "VibeStrings.h"
@@ -439,7 +440,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     NSURL *file = [directory URLByAppendingPathComponent:VibeLinkFileName(link, disposition, extension, playable) isDirectory:NO];
     if (existing && ![existing.lastPathComponent isEqualToString:file.lastPathComponent]) {
         [NSFileManager.defaultManager removeItemAtURL:existing error:NULL];
-        [NSFileManager.defaultManager removeItemAtURL:[NSURLUtil remotePlaceholderPartURL:existing] error:NULL];
+        [NSFileManager.defaultManager removeItemAtURL:[PlaceholderFiles remotePlaceholderPartURL:existing] error:NULL];
     }
     if (![LinkStore writePlaceholderAtURL:file size:size modified:modified]) {
         if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];

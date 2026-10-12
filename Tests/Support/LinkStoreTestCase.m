@@ -109,7 +109,7 @@
 }
 
 - (void)dropNextAnswerTo:(NSString *)path after:(NSUInteger)bytes partOf:(NSURL *)url {
-    NSString *part = [NSURLUtil remotePlaceholderPartURL:url].path;
+    NSString *part = [PlaceholderFiles remotePlaceholderPartURL:url].path;
     [_stub queueStep:[HTTPStubStep dropAfter:bytes ready:^BOOL {
         struct stat st;
         return stat(part.fileSystemRepresentation, &st) == 0 && (NSUInteger)st.st_size >= bytes;

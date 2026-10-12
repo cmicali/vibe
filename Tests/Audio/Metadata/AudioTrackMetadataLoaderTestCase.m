@@ -32,7 +32,7 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
                     @"vibe-metadata-loader-tests-%@", NSUUID.UUID.UUIDString]]
                                isDirectory:YES];
     NSMutableSet<NSString *> *localNames = _localNames;
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *url) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *url) {
         @synchronized (localNames) {
             return ![localNames containsObject:url.lastPathComponent];
         }
@@ -71,7 +71,7 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     } description:@"metadata parse coordinator did not settle during teardown"];
     XCTAssertEqualObjects(_owner.parseCoordinator.pendingCounts,
             (@{@"holders": @0, @"waiters": @0}));
-    [NSURLUtil setDatalessProbe:nil];
+    [PlaceholderFiles setDatalessProbe:nil];
     [NSFileManager.defaultManager removeItemAtURL:_testRootURL error:nil];
     [super tearDown];
 }

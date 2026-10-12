@@ -13,7 +13,11 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
-#import "AudioTrackMetadataLoaderInternal.h"
+#if __has_include("AudioTrackMetadataLoaderInternal.h")
+#import "AudioTrackMetadataLoaderInternal.h" // its name before it became the class's only header
+#else
+#import "AudioTrackMetadataLoader.h"
+#endif
 #import "MetadataParseCoordinator.h"
 
 #include <memory>

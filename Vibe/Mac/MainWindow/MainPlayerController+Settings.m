@@ -21,7 +21,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "Fonts.h"
 #import "MainMenuBuilder.h"
 #import "PlaylistTableView.h"

@@ -12,7 +12,7 @@
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 #import "MetadataParseCoordinator.h"
 
 NS_ASSUME_NONNULL_BEGIN

@@ -2,7 +2,7 @@
 
 **Status: Not built.** It stands on the Sparkle updater, the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker (`Vibe/Mac/App/AGENTS.md`, Updates). The updater is also what lets Phase 4's data migration reach existing users.
 
-Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Audio/Mac/Convert/AGENTS.md`, `Vibe/Audio/Metadata/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
+Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Audio/Mac/Convert/AGENTS.md`, `Vibe/Audio/Metadata/Artwork/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
 
 ## The feature
 
@@ -68,7 +68,7 @@ An unsandboxed app is not free of permission panels; it trades the sandbox's for
   2. The deferred metadata sweep over a restored or dropped playlist. Same as 1.
   3. `FolderArtResolver` probing a directory beside a track. It only ever reads beside a file already in the playlist, so it cannot prompt for a location the playlist has not already touched; confirm.
   4. A playlist file that names entries in a different protected location than the one it was opened from. This is the case the grant panel covered; unsandboxed it becomes a system prompt, which is acceptable.
-- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `NSURLUtil`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
+- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `FolderWalk`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
 - A denied prompt is not asked again. Decide whether a row's unreadable state should point at System Settings > Privacy & Security > Files and Folders; not in the first version unless testing shows users get stuck.
 
 **Verify:** on a fresh macOS user account (or after `tccutil reset All com.commonwealthrecordings.Vibe`), walk the four cases with Allow and with Don't Allow, on the exported, notarized build, since TCC keys on the signature.

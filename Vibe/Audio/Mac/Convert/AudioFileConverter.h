@@ -79,6 +79,29 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // the process exits.
 - (void)cancelConversionWithCompletion:(nullable void (^)(void))completion;
 
+// The FLAC that would sit beside sourceURL; the conversion and the menu rule
+// share it, so the item talks about the file the action writes.
++ (NSURL *)flacDestinationForURL:(NSURL *)sourceURL;
+
+// Warms the cached "does this track's FLAC already exist" answer that menu
+// validation reads, statting off the main thread. Call it whenever the track
+// the menus name changes, and after a conversion. Main thread; nil clears.
+- (void)refreshDestinationStateForTrack:(nullable AudioTrack *)track;
+
+// The enable-and-retitle rule for an idle Convert to FLAC item, in one place
+// so the menus that carry one cannot drift. Returns what the caller's
+// validateMenuItem: should return. The running case is the controller's — the
+// item becomes Cancel Conversion — so this is never asked while converting.
+- (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem forTrack:(nullable AudioTrack *)track;
+
+// The shared gate of registerUndoForConversion:'s inverse, below.
+@property (nonatomic, readonly, getter=isUndoRedoInFlight) BOOL undoRedoInFlight;
+
+@end
+
+// AudioFileConverter+Disposal.m.
+@interface AudioFileConverter (Disposal)
+
 // Trashes the file a finished conversion consumed, when Convert > Delete
 // Original was on at accept — a toggle flipped mid-encode applies to the next
 // conversion, never the one in flight. Trash rather than unlink, so it is
@@ -115,25 +138,9 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 - (void)verifyPlayableFileAtURL:(NSURL *)url
                      completion:(void (^)(BOOL playable, NSError *_Nullable error))completion;
 
-// The FLAC that would sit beside sourceURL; the conversion and the menu rule
-// share it, so the item talks about the file the action writes.
-+ (NSURL *)flacDestinationForURL:(NSURL *)sourceURL;
-
-// Warms the cached "does this track's FLAC already exist" answer that menu
-// validation reads, statting off the main thread. Call it whenever the track
-// the menus name changes, and after a conversion. Main thread; nil clears.
-- (void)refreshDestinationStateForTrack:(nullable AudioTrack *)track;
-
-// The enable-and-retitle rule for an idle Convert to FLAC item, in one place
-// so the menus that carry one cannot drift. Returns what the caller's
-// validateMenuItem: should return. The running case is the controller's — the
-// item becomes Cancel Conversion — so this is never asked while converting.
-- (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem forTrack:(nullable AudioTrack *)track;
-
 // The asynchronous inverse owns the shared gate and registers its opposite
 // synchronously, while NSUndoManager is still undoing/redoing. Only the row
 // swap and UI settlement belong to the shell; file ordering stays here.
-@property (nonatomic, readonly, getter=isUndoRedoInFlight) BOOL undoRedoInFlight;
 - (void)registerUndoForConversion:(VibeFLACConversionRecord *)record
                     undoManager:(NSUndoManager *)undoManager
                            swap:(void (^)(NSURL *from, NSURL *to))swap

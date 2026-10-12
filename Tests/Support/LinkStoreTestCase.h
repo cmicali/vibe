@@ -11,7 +11,7 @@
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "RemotePlaceholderStoreInternal.h"
 
 NS_ASSUME_NONNULL_BEGIN

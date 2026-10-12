@@ -19,9 +19,9 @@
 #import "MainWindow.h"
 #import "PlaylistController.h"
 #import "AudioTrack.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "VibeStrings.h"
 
 // Validation runs on every menu open and every bound keypress, a held skip

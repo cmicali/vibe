@@ -97,7 +97,7 @@ The sender long-presses a folder in Vibe, then Share, then Messages. The listene
 
 Phase 1 adds a source beside the account and consolidates nothing. Phase 2's target is a cost with no offsetting removal. It is argued on the workflow alone, since the share sheet is reachable no other way.
 
-**No new cross-directory guarantee.** The new rules (a link's file goes by its Dropbox-spelled name, and the links directory is the list of links) belong in `Vibe/iOS/Dropbox/AGENTS.md`.
+**No new cross-directory guarantee.** The new rules (a link's file goes by its Dropbox-spelled name, and the links directory is the list of links) belong in `Vibe/Loading/iOS/Dropbox/AGENTS.md`.
 
 ## Not doing
 

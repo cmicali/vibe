@@ -25,8 +25,8 @@
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
-#import "NSURLUtil+Debug.h"
+#import "PlaceholderFiles.h"
+#import "PlaceholderFiles+Debug.h"
 #import "RemotePlaceholderStoreInternal.h"
 #import "VibeFakeCloud.h"
 #import "VibeFakeHTTP.h"
@@ -56,7 +56,7 @@ static NSString *VibeLinkErrorName(VibeLinkError code) {
 
 static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
     if (file) {
-        return @{@"ok": @YES, @"file": file.path, @"placeholder": @([NSURLUtil isRemotePlaceholderFile:file])};
+        return @{@"ok": @YES, @"file": file.path, @"placeholder": @([PlaceholderFiles isRemotePlaceholderFile:file])};
     }
     BOOL linkError = [error.domain isEqualToString:VibeLinkErrorDomain];
     NSError *cause = error.userInfo[NSUnderlyingErrorKey];
@@ -84,7 +84,7 @@ static NSArray<NSDictionary *> *VibeLinkDirectories(LinkStore *store) {
         NSURL *file = [files contentsOfDirectoryAtURL:directory includingPropertiesForKeys:nil
                                               options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL].firstObject;
         CloudFileAvailability *stream = file ? [store availabilityForURL:file] : nil;
-        BOOL placeholder = file && [NSURLUtil isRemotePlaceholderFile:file];
+        BOOL placeholder = file && [PlaceholderFiles isRemotePlaceholderFile:file];
         [links addObject:@{
             @"directory": directory.lastPathComponent,
             @"record": [store indexOfDirectory:directory] ?: NSNull.null,
@@ -417,7 +417,7 @@ NSArray<NSDictionary *> *VibeDebugLoadingVerbs(void) {
                 [VibeFakeCloud clearTrace];
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // See NSURLUtil+Debug.h.
+            // See PlaceholderFiles+Debug.h.
             VibeDebugCmd(@"set_dataless_diag <on|off>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -425,13 +425,13 @@ NSArray<NSDictionary *> *VibeDebugLoadingVerbs(void) {
                         && ![tokens[1] isEqualToString:@"off"])) {
                     return VibeErrorJSON(@"usage: set_dataless_diag <on|off>");
                 }
-                [NSURLUtil setDatalessDiagnosticsEnabled:[tokens[1] isEqualToString:@"on"]];
+                [PlaceholderFiles setDatalessDiagnosticsEnabled:[tokens[1] isEqualToString:@"on"]];
                 return VibeJSONString(@{@"ok": @YES});
             }),
             VibeDebugCmd(@"dump_dataless_diag", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
-                return VibeJSONString([NSURLUtil datalessDiagnostics]);
+                return VibeJSONString([PlaceholderFiles datalessDiagnostics]);
             }),
         ];
     });

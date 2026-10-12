@@ -19,7 +19,8 @@
 #import "CloudFileMaterializer.h"
 #import "LinkStoreTestCase.h"
 #import "NSURL+Hash.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "PlaceholderFiles.h"
 
 static const char *const kRecordAttribute = "com.commonwealthrecordings.vibe.link";
 static const char *const kVersionAttribute = "com.commonwealthrecordings.Vibe.rev";
@@ -660,7 +661,7 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     }
     [self waitForExpectations:@[returned] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(fetchError.code, VibeHTTPErrorCancelled);
-    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:file].path],
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:[PlaceholderFiles remotePlaceholderPartURL:file].path],
                   @"the cancel keeps the part");
 
     XCTAssertEqualObjects([self resolvePath:@"/a.flac"], file);
@@ -694,7 +695,7 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     XCTAssertEqualObjects(error.domain, VibeHTTPErrorDomain);
     XCTAssertEqual(error.code, VibeHTTPErrorVersionChanged);
     XCTAssertTrue(IsPlaceholder(file));
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:file].path]);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[PlaceholderFiles remotePlaceholderPartURL:file].path]);
 }
 
 // A CDN's edges can each tag one file with an ETag of their own.
@@ -732,7 +733,7 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
 #pragma mark Kept parts
 
 - (void)keepPartOf:(NSURL *)file bytes:(NSData *)bytes version:(NSString *)version {
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:file];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:file];
     XCTAssertTrue([bytes writeToURL:part atomically:NO]);
     if (version) {
         setxattr(part.fileSystemRepresentation, kVersionAttribute, version.UTF8String, strlen(version.UTF8String), 0, 0);
@@ -875,10 +876,10 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     NSData *bytes = FlacBytes(4000);
     [self serve:bytes at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
     NSURL *file = [self resolvePath:@"/a.flac"];
-    XCTAssertFalse([NSURLUtil isDatalessFile:file], @"not installed yet");
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:file], @"not installed yet");
     [_store installAsRemoteBackend];
-    XCTAssertTrue([NSURLUtil isDatalessFile:file]);
-    XCTAssertTrue([NSURLUtil isDatalessFile:otherFile]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:file]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:otherFile]);
 
     NSError *error = nil;
     XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:file](file, 16, 32, &error),

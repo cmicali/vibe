@@ -21,7 +21,7 @@
 #import "FXPadView.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
-#import "NSURLUtil+Debug.h"
+#import "PlaceholderFiles+Debug.h"
 #import "UIImage+DominantColor.h"
 #import <objc/runtime.h>
 
@@ -141,17 +141,17 @@
 - (void)debugCheckWaveformPreparation:(NSString *)scenario
                           completion:(void (^)(NSDictionary *))completion {
     if ([scenario isEqualToString:@"refresh"]) {
-        BOOL wasEnabled = [[NSURLUtil datalessDiagnostics][@"enabled"] boolValue];
-        [NSURLUtil setDatalessDiagnosticsEnabled:YES];
+        BOOL wasEnabled = [[PlaceholderFiles datalessDiagnostics][@"enabled"] boolValue];
+        [PlaceholderFiles setDatalessDiagnosticsEnabled:YES];
         [self refreshWaveformWindow];
         [self fetchNeighborWaveforms];
         NSUInteger probes = 0;
-        for (NSDictionary *counts in [[NSURLUtil datalessDiagnostics][@"directories"] allValues]) {
+        for (NSDictionary *counts in [[PlaceholderFiles datalessDiagnostics][@"directories"] allValues]) {
             probes += [counts[@"local"] unsignedIntegerValue]
                     + [counts[@"dataless"] unsignedIntegerValue]
                     + [counts[@"statFailed"] unsignedIntegerValue];
         }
-        [NSURLUtil setDatalessDiagnosticsEnabled:wasEnabled];
+        [PlaceholderFiles setDatalessDiagnosticsEnabled:wasEnabled];
         completion(@{@"ok": @(probes == 0), @"filesystemProbes": @(probes)});
         return;
     }

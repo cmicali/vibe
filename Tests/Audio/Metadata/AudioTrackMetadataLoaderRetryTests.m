@@ -618,7 +618,7 @@
             [self expectationWithDescription:@"old mark locality probe entered"];
     NSObject *probeLock = [[NSObject alloc] init];
     __block BOOL shouldGateProbe = YES;
-    [NSURLUtil setDatalessProbe:^BOOL(NSURL *url) {
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *url) {
         BOOL gate = NO;
         if ([url isEqual:priority.url]) {
             @synchronized (probeLock) {

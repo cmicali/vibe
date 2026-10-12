@@ -8,7 +8,7 @@
 #import "AppSettings+Mac.h"
 #import "WindowAnimation.h"
 #import "AppDelegate.h" // drops enter the app's one open funnel; see performDragOperation:
-#import "LinkRules.h"
+#import "LinkDropRules.h"
 #import "MainPlayerController.h"
 #import "PitchControlPanel.h"
 #import "VibeStrings.h"

@@ -3,7 +3,7 @@
 //
 
 #import "AudioPlayerRenderTestCase.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import <objc/runtime.h>
 
 // Interleaved float PCM keeps the oracle independent of the render's buffers.
@@ -463,7 +463,7 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     _streamURL = [_temporary URLByAppendingPathComponent:name];
     XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:_streamURL.path contents:nil
                                                       attributes:@{NSFilePosixPermissions: @0}]);
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:_streamURL];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:_streamURL];
     XCTAssertTrue([[_streamBytes subdataWithRange:NSMakeRange(0, prefix)] writeToURL:part atomically:NO]);
     _stream = [[CloudFileAvailability alloc] initWithPartURL:part size:_streamBytes.length];
     [_stream noteWrittenBytes:prefix];

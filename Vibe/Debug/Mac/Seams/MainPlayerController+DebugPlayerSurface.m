@@ -51,9 +51,9 @@
     // Expands and plays directly, bypassing AppDelegate's open funnel (no
     // burst coalescing, no supersession). file_drag_drop and append exercise
     // the funnel.
-    [NSURLUtil expandAndFilterList:@[[NSURL fileURLWithPath:path]]
-                          sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<AudioTrack *> *expanded, NSUInteger folderCount) {
+    [FolderWalk expandAndFilterList:@[[NSURL fileURLWithPath:path]]
+                           sortedBy:AppSettings.sharedInstance.folderOpenSort
+                         completion:^(NSArray<AudioTrack *> *expanded, NSUInteger folderCount) {
         if (expanded.count > 0) {
             [self play:expanded];
         }

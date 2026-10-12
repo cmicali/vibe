@@ -39,7 +39,7 @@
 // A deliberate open like ⌘O and Open Recent, so it ends a Launch Services
 // burst rather than joining it, but with its own append decision. Past that
 // it is the one open funnel. urls may hold web links and .webloc files
-// (LinkRules.h). Each opens its resolved link, in drop order.
+// (LinkDropRules.h). Each opens its resolved link, in drop order.
 - (void)openDroppedURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append;
 
 // Escape on the player window. Every open still resolving its links stops,

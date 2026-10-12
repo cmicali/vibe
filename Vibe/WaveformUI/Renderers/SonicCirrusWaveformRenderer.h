@@ -4,8 +4,8 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
 
-@interface SonicCirrusWaveformRenderer : AudioWaveformRenderer
+@interface SonicCirrusWaveformRenderer : WaveformRenderer
 
 @end

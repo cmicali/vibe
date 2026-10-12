@@ -19,7 +19,7 @@
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
 #import "NSURL+Hash.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "RemotePlaceholderStoreInternal.h"
 
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.test-store";
@@ -32,7 +32,7 @@ static const NSUInteger kStallBytes = 5 * 64 * 1024;
 // A small format's window (AudioFileOpenRules.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 
-// What NSURLUtil reads as a placeholder under a registered root.
+// What PlaceholderFiles reads as a placeholder under a registered root.
 static BOOL IsPlaceholder(NSURL *url) {
     struct stat st = StatOf(url);
     return S_ISREG(st.st_mode) && VibeFileModeIsRemotePlaceholder(st.st_mode);
@@ -239,7 +239,7 @@ typedef struct {
 - (void)testAnInstalledPartTakesItsMtimeAndReplacesThePlaceholder {
     NSURL *url = [_album URLByAppendingPathComponent:@"a.flac"];
     XCTAssertTrue([RemotePlaceholderStore writePlaceholderAtURL:url size:5 modified:kStamp]);
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:url];
     [[NSData dataWithBytes:"BYTES" length:5] writeToURL:part atomically:NO];
 
     NSError *error = nil;
@@ -331,7 +331,7 @@ typedef struct {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:url], bytes);
     XCTAssertEqual(StatOf(url).st_mode & 0777, 0644);
     XCTAssertEqualObjects(url.cacheKey, key, @"the install keeps the placeholder's size and mtime");
-    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[NSURLUtil remotePlaceholderPartURL:url].path]);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[PlaceholderFiles remotePlaceholderPartURL:url].path]);
 }
 
 - (void)testAFetchTheLastReaderLeavesIsCancelledAndKeepsItsPart {
@@ -368,7 +368,7 @@ typedef struct {
     XCTAssertEqual(failure.code, VibeHTTPErrorCancelled);
     XCTAssertNil([_store availabilityForURL:url]);
     XCTAssertTrue(IsPlaceholder(url), @"the placeholder stands");
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:url];
     XCTAssertEqual(StatOf(part).st_size, (off_t)kStallBytes, @"kept for the next fetch to continue");
     char version[64] = {0};
     XCTAssertGreaterThan(getxattr(part.fileSystemRepresentation, kVersionAttribute, version, sizeof version - 1, 0, 0), 0);
@@ -523,10 +523,10 @@ typedef struct {
 - (void)testInstallingTheBackendRoutesTheRootToTheStore {
     NSData *bytes = PatternBytes(1024 * 1024);
     NSURL *url = [self placeholder:@"a.flac" bytes:bytes];
-    XCTAssertFalse([NSURLUtil isDatalessFile:url], @"no root yet");
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:url], @"no root yet");
     XCTAssertNil([CloudFileMaterializer remoteReadForURL:url]);
     [_store installAsRemoteBackend];
-    XCTAssertTrue([NSURLUtil isDatalessFile:url]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:url]);
 
     NSError *error = nil;
     XCTAssertEqualObjects([CloudFileMaterializer remoteReadForURL:url](url, 16, 32, &error),
@@ -568,7 +568,7 @@ typedef struct {
                                                                     indexAttribute:kIndexAttribute
                                                                     downloadBudget:1LL << 40];
     [rootless installAsRemoteBackend];
-    XCTAssertTrue([NSURLUtil isDatalessFile:url]);
+    XCTAssertTrue([PlaceholderFiles isDatalessFile:url]);
     XCTAssertNotNil([CloudFileMaterializer remoteReadForURL:url]);
 }
 

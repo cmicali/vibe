@@ -1,8 +1,8 @@
 # Waveform renderers
 
-The strategies both views draw through, the morph engine they share and the level mapping. `AudioWaveformRenderer` is the base. `WaveformRendererRegistry` is the one home of identifier to renderer and of the fallback chain for a persisted style, so the two platforms cannot drift on which styles exist. The renderer and morph-engine headers carry C++ and are for `.mm` importers only (`../AGENTS.md`). `WaveformRendererRegistry.h` (plain ObjC) and `WaveformLevelMath.h` (plain C) are the two a `.m` may import.
+The strategies both views draw through, the morph engine they share and the level mapping. `WaveformRenderer` is the base. `WaveformRendererRegistry` is the one home of identifier to renderer and of the fallback chain for a persisted style, so the two platforms cannot drift on which styles exist. The renderer and morph-engine headers carry C++ and are for `.mm` importers only (`../AGENTS.md`). A `.m` may import three headers here. `WaveformRendererRegistry.h` is plain ObjC. `WaveformLevelMath.h` holds the level mapping and the bar-count rules. `WaveformBarMath.h` holds the bar geometry. Both math headers are C++-free. `WaveformBarMath.h` needs CoreGraphics for its rects.
 
-**Compare styles by identifier, never by class.** Variants share classes. Wiggle is `DetailedAudioWaveformRenderer`, the oversampling trio share a file, and Cupertino subclasses Basic. The resolved registry identifier is what persists. Wiggle's is `wiggle_centered` whatever Centered says. The retired `wiggle` (Wiggle MC) is read only by the migrations that turn it into Wiggle with Centered off.
+**Compare styles by identifier, never by class.** Variants share classes. Wiggle is `DetailedWaveformRenderer`, the oversampling trio share a file, and Cupertino subclasses Basic. The resolved registry identifier is what persists. Wiggle's is `wiggle_centered` whatever Centered says. The retired `wiggle` (Wiggle MC) is read only by the migrations that turn it into Wiggle with Centered off.
 
 The registry's bake renders the real style into a bitmap with the caller's palette, density, width and levels. The settings preview and the iOS widget use it. Its synthetic preview sample includes fine transients, because a smooth envelope hides the Detailed family's sampling differences at thumbnail size. A bake never changes a live renderer's geometry. Under a theme's `playheadColor` the bake draws what the views draw: the waveform wholly played and the line at the progress (`../AGENTS.md`).
 
@@ -11,7 +11,7 @@ The registry's bake renders the real style into a bitmap with the caller's palet
 Two families and one flat style, split by how progress and hover quantize:
 
 - **Continuous**: Detailed, its oversampling variants, Wiggle and 3-Band. The played clip edge is the playhead. Hover lights a thin slice, or a whole loop for Wiggle so it does not flicker into dots between strokes.
-- **Block**: Basic, Cupertino and Sonic Cirrus. Hover lights the whole block under the cursor, and the played fill advances a block at a time. `VibeBlockIndexForX` and `VibeBlockBoundaryForProgress` (`AudioWaveformRenderer.h`) are the one home of both rules. **This is presentation only. The seek a hover or click reports stays continuous.**
+- **Block**: Basic, Cupertino and Sonic Cirrus. Hover lights the whole block under the cursor, and the played fill advances a block at a time. `VibeBlockIndexForX` and `VibeBlockBoundaryForProgress` hold both rules. Their one home is `WaveformBarMath.h`. **This is presentation only. The seek a hover or click reports stays continuous.**
 - **Cupertino Basic** is the Apple Music pill, the one style that never reads the samples. It has no morph engine, so settle and the convert dip are base no-ops and it never bakes. Having a waveform decides only whether the pill shows.
 
 **Wiggle draws its centerline directly.** It is a shape-layer stroke live and a source-in Core Graphics stroke in the bitmap, both from `VibeNewWigglePath`. Never expand it into a filled outline first. That repeats the stroker's work on every resize and morph frame.
@@ -50,7 +50,7 @@ Two families and one flat style, split by how progress and hover quantize:
 
 ## The envelope bake
 
-The envelope-image API (`AudioWaveformRenderer.h`, beside `supportsEnvelopeBake`) serves the iOS scrubber (`../iOS/AGENTS.md`). The mac view never calls it. Detailed and 3-Band implement it. **The bitmap must stay pixel-identical to the live layers.** So both paths share every geometry and color home:
+The envelope-image API (`WaveformRenderer.h`, beside `supportsEnvelopeBake`) serves the iOS scrubber (`../iOS/AGENTS.md`). The mac view never calls it. Detailed and 3-Band implement it. **The bitmap must stay pixel-identical to the live layers.** So both paths share every geometry and color home:
 
 - `fillBarRects` for bar geometry and pixel rounding. Bake workers use their own scratch, never the live mask's state.
 - `VibeNewBarMaskPath` for the bars' mask, one outline where the bars abut.

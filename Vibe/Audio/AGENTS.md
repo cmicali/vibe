@@ -1,6 +1,6 @@
 # Audio
 
-The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/`, `Mac/Convert/` and `iOS/`.
+The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Metadata/Artwork/FolderArt/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/`, `Mac/Convert/` and `iOS/`.
 
 ## The model in one page
 
@@ -207,7 +207,7 @@ A whole file pays one lookup per open and one nil check per fill. The coordinato
 
 ### Reading ahead on a network mount
 
-**A file on a network mount reads ahead** (`Loading/NetworkReadAhead`). The read-ahead itself is `Loading/AGENTS.md`'s: its thread, its blocks, its retries and its orphans. The open decides before any I/O, and three things must hold:
+**A file on a network mount reads ahead** (`Loading/Transfer/NetworkReadAhead`). The read-ahead itself is `Loading/AGENTS.md`'s: its thread, its blocks, its retries and its orphans. The open decides before any I/O, and three things must hold:
 
 - The opener passed an `interrupted` block, and it is not `VibeNeverWaitsForAStream`.
 - No transfer's availability answers for the URL.

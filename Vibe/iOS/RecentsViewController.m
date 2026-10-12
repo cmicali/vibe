@@ -8,7 +8,7 @@
 #import "BrowserViewController.h"
 #import "FileRow.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "PlaylistFile.h"
 #import "UIViewController+Alert.h"

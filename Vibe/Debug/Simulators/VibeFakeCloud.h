@@ -6,7 +6,7 @@
 //  placeholders, each takes a fixed time to "download", and a cancelled
 //  download leaves the file a placeholder. A real provider is slow,
 //  nondeterministic and needs an account, and placeholders cannot be staged by
-//  hand, so the three chokepoints are injected instead (NSURLUtil's dataless
+//  hand, so the three chokepoints are injected instead (PlaceholderFiles' dataless
 //  probe, CloudFileMaterializer's transfer, DownloadProgressMonitor's
 //  reporting) and everything above them runs unchanged. It tests the app's
 //  download ordering, not NSFileCoordinator's cancellation.

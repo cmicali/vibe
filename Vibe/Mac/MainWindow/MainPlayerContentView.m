@@ -9,7 +9,7 @@
 #import "SymbolButton.h"
 #import "DrawnControls.h"
 #import "ArtworkImageView.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "WaveformTheme.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
@@ -662,7 +662,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _headerTintView.autoresizingMask = _backgroundGlassView.autoresizingMask;
     [self addSubview:_headerTintView];
 
-    _waveformView = [[AudioWaveformView alloc] initWithFrame:
+    _waveformView = [[WaveformView alloc] initWithFrame:
             NSMakeRect(kHeaderContentX, kWaveformY, kHeaderContentWidth, kWaveformHeight)];
     _waveformView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     [self addSubview:_waveformView];

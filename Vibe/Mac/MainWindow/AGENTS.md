@@ -12,13 +12,13 @@
 
 ## Folder art invalidation
 
-`FolderArtResolver` (`Audio/Metadata/FolderArt/`) is the feature. This controller owns invalidation and redraw.
+`FolderArtResolver` (`Audio/Metadata/Artwork/FolderArt/`) is the feature. This controller owns invalidation and redraw.
 
 - The `FolderArt` effect calls `refreshFolderArt`, which calls `folderArtSettingDidChange`. **The resolver caches the setting on the cell-draw path, so this effect is the only way a write is ever seen.** It keeps settled answers.
 - A grant change (`FolderAccessManagerDidChangeNotification`) is narrower. It is observed here because a grant can change with the Files pane gone. `invalidateDirectoriesSettledWithoutGrant` forgets the no-grant answers and re-arms known cover reads.
 - `folderArtDidResolve:` fires for "none" as well as a cover. It coalesces a reload of the visible rows over a short delay. The resolver is serial, so a per-turn gate would coalesce nothing.
 
-Neither may wipe everything (`Audio/Metadata/FolderArt/AGENTS.md`).
+Neither may wipe everything (`Audio/Metadata/Artwork/FolderArt/AGENTS.md`).
 
 ## The UI tick
 
@@ -97,4 +97,4 @@ Undo and Redo forward from the window to its controller, so menu routing through
 
 **TRAP: a Finder drag delivers file-reference URLs** (`file:///.file/id=…`). Their `.path` re-resolves to wherever the file *is*. Everything downstream treats a track's URL as fixed: cache keys hash it, and the convert undo record restores to it. Unpinned, a converted source's URL follows the file into the Trash, and the undo restore becomes a move onto itself. **Testing with `open` never shows it.** `performDragOperation:` pins every file to `fileURLWithPath:`, and `didConvertTrack:` pins the undo record's source again.
 
-**The window takes files and web links** (`kVibeDropType*`, `LinkRules.h`). `draggingEntered:` decides once per drag, through `VibeDropURLsOfItems`, and draws the wells only for a drag it takes. A drag holding no file and no http or https link is refused. A link goes on as it came. The drop resolves the empty-state wells into append or replace **synchronously**, since the dragging session is gone by the time the expansion lands. `openDroppedItems:appending:` is the drop's whole road, shared with the debug channel's `file_drag_drop`. It ends in `AppDelegate.openDroppedURLs:appending:`, the one open funnel (`Mac/App/AGENTS.md`). The window's `cancelOperation:` is Escape's. It cancels the opens still resolving their links, and passes Escape on when there are none.
+**The window takes files and web links** (`kVibeDropType*`, `LinkDropRules.h`). `draggingEntered:` decides once per drag, through `VibeDropURLsOfItems`, and draws the wells only for a drag it takes. A drag holding no file and no http or https link is refused. A link goes on as it came. The drop resolves the empty-state wells into append or replace **synchronously**, since the dragging session is gone by the time the expansion lands. `openDroppedItems:appending:` is the drop's whole road, shared with the debug channel's `file_drag_drop`. It ends in `AppDelegate.openDroppedURLs:appending:`, the one open funnel (`Mac/App/AGENTS.md`). The window's `cancelOperation:` is Escape's. It cancels the opens still resolving their links, and passes Escape on when there are none.

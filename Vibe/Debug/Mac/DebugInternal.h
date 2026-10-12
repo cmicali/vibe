@@ -43,7 +43,7 @@
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
 #import "AudioFileConverter+Debug.h"
 #import "MusicalKey.h"
@@ -52,7 +52,7 @@
 #import "PitchControlPanel.h"
 #import "SymbolButton.h"
 #import "AppSettings.h"
-#import "NSURLUtil.h"
+#import "FolderWalk.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

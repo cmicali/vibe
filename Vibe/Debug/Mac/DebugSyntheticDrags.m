@@ -8,7 +8,7 @@
 
 #import "DebugInternal.h"
 #import "PlaylistTableView.h"
-#import "LinkRules.h"
+#import "LinkDropRules.h"
 
 #if DEBUG
 

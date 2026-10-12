@@ -803,14 +803,18 @@ targets:
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
+      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Disposal.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
+      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
+      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
+      - path: Vibe/Audio/Metadata/MetadataScanEntry.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
-      - path: Vibe/Audio/Metadata/FolderArt/FolderArtResolver.m
-      - path: Vibe/Audio/Metadata/FolderArt/FolderArtEntry.m
-      - path: Vibe/Audio/Metadata/FolderArt/FolderArtFileIO.m
-      - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
-      - path: Vibe/Audio/Metadata/EmbeddedThumbnailCache.m
-      - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
+      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
@@ -828,19 +832,19 @@ targets:
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
-      - path: Vibe/iOS/Dropbox/DropboxClient.m
-      - path: Vibe/iOS/Dropbox/DropboxMirror.m
+      - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
+      - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
       - path: Vibe/Util/Mac/NSView+DarkMode.m  # AppTheme's dynamic colors resolve through its appearance fold
       - path: Vibe/WaveformUI/WaveformTheme.m
       - path: Vibe/WaveformUI/Renderers/WaveformMorphEngine.mm
-      - path: Vibe/WaveformUI/Renderers/AudioWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/BasicAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/WaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/BasicWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/CupertinoWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/DetailedAudioWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/OversamplingDetailedAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/DetailedWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/OversamplingDetailedWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/SonicCirrusWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/ThreeBandWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm
@@ -879,7 +883,10 @@ targets:
           - "$(SRCROOT)/Vibe/Common"
           - "$(SRCROOT)/Vibe/NowPlaying"
           - "$(SRCROOT)/Vibe/Loading"
+          - "$(SRCROOT)/Vibe/Loading/Claim"
+          - "$(SRCROOT)/Vibe/Loading/Transfer"
           - "$(SRCROOT)/Vibe/Loading/Net"
+          - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
@@ -910,7 +917,6 @@ targets:
           # screen's state machine is testable here. The iOS sources compiled in
           # above are Foundation-only too.
           - "$(SRCROOT)/Vibe/iOS"
-          - "$(SRCROOT)/Vibe/iOS/Dropbox"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
@@ -979,27 +985,28 @@ targetTemplates:
       - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Loading/Claim/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/AudioFileHandle+MPEG.m
-      - path: Vibe/Loading/NetworkReadAhead.m
+      - path: Vibe/Loading/Transfer/NetworkReadAhead.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
-      - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Loading/AudioFileMaterializationTokens.m
-      - path: Vibe/Loading/AudioWorkScheduler.m
+      - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
+      - path: Vibe/Loading/Claim/AudioFileMaterializationTokens.m
+      - path: Vibe/Loading/Claim/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
-      - path: Vibe/Loading/CloudTransferRegistry.m
-      - path: Vibe/Loading/CloudFileMaterializer.m
-      - path: Vibe/Loading/CloudFileAvailability.m
-      - path: Vibe/Loading/DownloadProgressMonitor.m
-      - path: Vibe/Loading/DownloadProgressSourceAdapters.m
+      - path: Vibe/Loading/Transfer/CloudTransferRegistry.m
+      - path: Vibe/Loading/Transfer/CloudFileMaterializer.m
+      - path: Vibe/Loading/Transfer/CloudFileAvailability.m
+      - path: Vibe/Loading/Transfer/DownloadProgressMonitor.m
+      - path: Vibe/Loading/Transfer/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
       - path: Vibe/Loading/Net/LinkStore.m
@@ -1009,7 +1016,9 @@ targetTemplates:
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
       - path: Vibe/Audio/AudioOutputUnit.m
-      - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/FilePaths.m
+      - path: Vibe/Loading/PlaceholderFiles.m
+      - path: Vibe/Playlist/FolderWalk.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Util/Formatters.m

@@ -12,8 +12,17 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+#if __has_include("DetailedWaveformRenderer.h")
+#import "DetailedWaveformRenderer.h"
+#import "OversamplingDetailedWaveformRenderer.h"
+#else
 #import "DetailedAudioWaveformRenderer.h"
 #import "OversamplingDetailedAudioWaveformRenderer.h"
+// The drawing classes were AudioWaveform* before they took the Waveform* names.
+#define WaveformRenderer AudioWaveformRenderer
+#define DetailedWaveformRenderer DetailedAudioWaveformRenderer
+#define x4OversamplingDetailedWaveformRenderer x4OversamplingDetailedAudioWaveformRenderer
+#endif
 #import "SonicCirrusWaveformRenderer.h"
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
 #import "ThreeBandWaveformRenderer.h"
@@ -70,7 +79,7 @@ static NSData *VibeBenchComponentsUISublayerFrames(CALayer *parent) {
 
 // The Detailed family's bar mask as Core Graphics fills it at 2x, a coverage
 // byte a pixel: two builds' masks compared by what they cover.
-static NSData *VibeBenchComponentsUIMaskCoverage(AudioWaveformRenderer *renderer) {
+static NSData *VibeBenchComponentsUIMaskCoverage(WaveformRenderer *renderer) {
     CAShapeLayer *mask = [renderer valueForKey:@"_barMask"];
     size_t width = (size_t)(mask.bounds.size.width * 2), height = (size_t)(mask.bounds.size.height * 2);
     NSMutableData *coverage = [NSMutableData dataWithLength:width * height];
@@ -88,7 +97,7 @@ static NSData *VibeBenchComponentsUIMaskCoverage(AudioWaveformRenderer *renderer
 }
 
 // Typed as Detailed, which declared the bake before the base class did.
-static NSData *VibeBenchComponentsUIBakePixels(DetailedAudioWaveformRenderer *renderer, AudioWaveform *waveform) {
+static NSData *VibeBenchComponentsUIBakePixels(DetailedWaveformRenderer *renderer, AudioWaveform *waveform) {
     CGImageRef image = [renderer newEnvelopeImageForSize:renderer.parentLayer.bounds.size scale:2
                                                  samples:[renderer envelopeSamplesForWaveform:waveform]];
     NSData *pixels = image ? CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))) : nil;
@@ -98,7 +107,7 @@ static NSData *VibeBenchComponentsUIBakePixels(DetailedAudioWaveformRenderer *re
 
 struct VibeBenchComponentsUIRenderer {
     CALayer *parent;
-    AudioWaveformRenderer *renderer;
+    WaveformRenderer *renderer;
     WaveformMorphEngine *morph;
     std::shared_ptr<AudioWaveform> waveform;
 };
@@ -162,13 +171,13 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     auto detailed = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "detailed-resize", "frame", [detailed]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(detailed.get(), 800, 11);
-        detailed->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:detailed->parent bounds:bounds
-                                                                           isDark:YES];
+        detailed->renderer = [[DetailedWaveformRenderer alloc] initWithLayer:detailed->parent bounds:bounds
+                                                                      isDark:YES];
         detailed->renderer.normalizesLevels = YES;
         [detailed->renderer updateWaveform:bounds progress:0 waveform:detailed->waveform.get()];
         [detailed->renderer settleMorphImmediately];
         NSMutableData *envelopes = [NSMutableData data], *masks = [NSMutableData data];
-        DetailedAudioWaveformRenderer *renderer = (DetailedAudioWaveformRenderer *)detailed->renderer;
+        DetailedWaveformRenderer *renderer = (DetailedWaveformRenderer *)detailed->renderer;
         for (CGFloat width : {300.0, 801.0, 1600.0, 3000.0, 801.0}) {
             detailed->parent.bounds = CGRectMake(0, 0, width, 60);
             [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
@@ -196,8 +205,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     auto plain = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "detailed-plain-resize", "frame", [plain]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(plain.get(), 800, 11);
-        plain->renderer = [[DetailedAudioWaveformRenderer alloc] initWithLayer:plain->parent bounds:bounds
-                                                                        isDark:YES];
+        plain->renderer = [[DetailedWaveformRenderer alloc] initWithLayer:plain->parent bounds:bounds
+                                                                   isDark:YES];
         [plain->renderer updateWaveform:bounds progress:0 waveform:plain->waveform.get()];
         [plain->renderer settleMorphImmediately];
         return 60;
@@ -224,8 +233,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     auto x4 = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "oversampling-x4-resize", "frame", [x4]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(x4.get(), 800, 19);
-        x4->renderer = [[x4OversamplingDetailedAudioWaveformRenderer alloc] initWithLayer:x4->parent bounds:bounds
-                                                                                    isDark:YES];
+        x4->renderer = [[x4OversamplingDetailedWaveformRenderer alloc] initWithLayer:x4->parent bounds:bounds
+                                                                               isDark:YES];
         [x4->renderer updateWaveform:bounds progress:0 waveform:x4->waveform.get()];
         [x4->renderer settleMorphImmediately];
         // The mask settled at four widths, then with a span dipped to the
@@ -241,7 +250,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         [x4->renderer settleMorphImmediately];
         VibeBenchComponentsUIDump(@"ui-waveform-oversampling-x4-masks.raw", masks);
         VibeBenchComponentsUIDump(@"ui-waveform-oversampling-x4-bake.raw",
-                                  VibeBenchComponentsUIBakePixels((DetailedAudioWaveformRenderer *)x4->renderer,
+                                  VibeBenchComponentsUIBakePixels((DetailedWaveformRenderer *)x4->renderer,
                                                                   x4->waveform.get()));
         return 60;
     }, [x4]() {
@@ -255,8 +264,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
     VibeBenchComponentsAdd("ui-waveform", "oversampling-x4-load", "load", [loads, next]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(loads.get(), 800, 23);
         *next = VibeBenchComponentsUIWaveform(29);
-        loads->renderer = [[x4OversamplingDetailedAudioWaveformRenderer alloc] initWithLayer:loads->parent
-                                                                                       bounds:bounds isDark:YES];
+        loads->renderer = [[x4OversamplingDetailedWaveformRenderer alloc] initWithLayer:loads->parent
+                                                                                  bounds:bounds isDark:YES];
         [loads->renderer updateWaveform:bounds progress:0 waveform:loads->waveform.get()];
         [loads->renderer settleMorphImmediately];
         return 30;
