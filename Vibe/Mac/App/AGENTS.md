@@ -94,7 +94,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **The app does not opt into sudden termination.** Under it an idle quit is a SIGKILL with no callback, and the last playlist would not be written.
 
-**TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block. libdispatch does not drain the main queue re-entrantly, so a reply queued there never runs, and Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, uses the same queue for the same reason (`Audio/Mac/Convert/AGENTS.md`).
+**TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block. libdispatch does not drain the main queue re-entrantly, so a reply queued there never runs, and Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, uses the same queue for the same reason (`Mac/Convert/AGENTS.md`).
 
 ## Debug info
 

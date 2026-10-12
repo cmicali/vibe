@@ -260,6 +260,8 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Mac/Settings
         excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Mac/Convert
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
       - path: Resources/VectorBalls.metal.txt
@@ -800,9 +802,9 @@ targets:
       - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/Channel/DebugWireFormat.m
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
-      - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
-      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
-      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Disposal.m
+      - path: Vibe/Mac/Convert/AudioFileConverter.m
+      - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
+      - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
@@ -914,7 +916,7 @@ targets:
           - "$(SRCROOT)/Vibe/Debug/Simulators"
           - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
-          - "$(SRCROOT)/Vibe/Audio/Mac/Convert"
+          - "$(SRCROOT)/Vibe/Mac/Convert"
           # PINCache's angle-bracket self-import resolves from the vendored root.
           - "$(SRCROOT)/Vibe/ThirdParty"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
