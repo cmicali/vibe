@@ -1934,6 +1934,11 @@ static const NSTimeInterval kProbeGateTimeout = VIBE_TEST_GATE_TIMEOUT;
     XCTAssertTrue([self waitForCondition:^BOOL{
         return [self->_coordinator stateSnapshotForTesting].backgroundPendingCount == 2;
     }]);
+    // A dataless claim queued behind lane capacity has nothing on the wire, so
+    // its row shows no loading bar.
+    [self drainMainQueue];
+    XCTAssertFalse([CloudTransferRegistry.sharedRegistry
+            isTransferringURL:[self URLNamed:@"b.wav"]]);
 
     values.maximumBackgroundMaterializations = 2;
     [_coordinator applyConfiguration:[self configurationWithValues:values]];

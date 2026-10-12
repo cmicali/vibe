@@ -1203,7 +1203,7 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     @try {
         VibeVoiceID voice = [self startFile:[self open:url] gain:1 ramp:[self unity] paused:NO];
         [bus killVoice:voice];
-        for (NSUInteger poll = 0; poll < 1000; poll++) {
+        for (NSUInteger poll = 0; poll < 100; poll++) {
             [bus drainWithOutputRunning:NO handler:^(VibeVoiceID identifier, VibeVoiceEvent event) {
                 if (event == VibeVoiceEventEnded) ends++;
             }];

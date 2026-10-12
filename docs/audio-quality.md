@@ -491,7 +491,7 @@ Slowing down moves everything in the file down with it, the top end included. At
 
 **At 96 kHz the filter scales with the rate.** Vibe's converter measures −148 to −152 dB on every row above at 96 kHz. There, a 20 kHz tone stays at 0.00 dB at every setting, −16% included.
 
-**The timing stays exact.** While the fader is away from 0%, the converter plays every sample of the file once, in order, at exactly the fader's speed. The tests read this off a test signal through a seek, a pause, a gapless track change and a change of the output's sample rate. They also read every sample of a ten-minute track. The position Vibe shows is ahead of what you hear by the converter's short delay and nothing more. The track ends on time.
+**The timing stays exact.** While the fader is away from 0%, the converter plays every sample of the file once, in order, at exactly the fader's speed. The tests read this off a test signal through a seek, a pause, a gapless track change and a change of the output's sample rate. They also read every sample of a track six and a half minutes long. The position Vibe shows is ahead of what you hear by the converter's short delay and nothing more. The track ends on time.
 
 **Dragging the fader.** Apple's unit jumps to each new speed. While the fader moves, that adds side tones 60 to 63 dB below the music. Gliding across each block brings them down to −98 dB on an 8 kHz tone and −116 dB on a 1 kHz tone.
 

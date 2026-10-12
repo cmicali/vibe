@@ -277,13 +277,18 @@
                           (@[@"folder/Song.mp3"]));
 }
 
+// The sort reaches only what the walk expanded, so no order may re-sort the
+// user's own picks.
 - (void)testAnExplicitFileSelectionKeepsItsOrder {
     NSArray<NSURL *> *picked = @[[self makeFile:@"c.mp3"],
                                  [self makeFile:@"a.mp3"],
                                  [self makeFile:@"b.mp3"]];
 
-    XCTAssertEqualObjects([self expandAndFilter:picked folderCount:NULL],
-                          (@[@"c.mp3", @"a.mp3", @"b.mp3"]));
+    for (VibeFolderOpenSort sort = VibeFolderOpenSortName; sort <= VibeFolderOpenSortAsReceived; sort++) {
+        XCTAssertEqualObjects([self relativePaths:[NSURLUtil expandAndFilterList:picked sortedBy:sort
+                                                                     folderCount:NULL]],
+                              (@[@"c.mp3", @"a.mp3", @"b.mp3"]), @"sort %ld", (long)sort);
+    }
 }
 
 - (void)testAnEmptyFileIsDropped {
@@ -318,8 +323,11 @@
     [self makeFile:@"c.mp3"];
     NSURL *playlist = [self makeText:@"#EXTM3U\n#EXTINF:1,B\nb.mp3\na.mp3\nc.mp3\n" at:@"set.m3u"];
 
-    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL],
-                          (@[@"b.mp3", @"a.mp3", @"c.mp3"]));
+    for (VibeFolderOpenSort sort = VibeFolderOpenSortName; sort <= VibeFolderOpenSortAsReceived; sort++) {
+        XCTAssertEqualObjects([self relativePaths:[NSURLUtil expandAndFilterList:@[playlist] sortedBy:sort
+                                                                     folderCount:NULL]],
+                              (@[@"b.mp3", @"a.mp3", @"c.mp3"]), @"sort %ld", (long)sort);
+    }
 }
 
 static NSString *const kTwoTrackSheet =
