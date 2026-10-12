@@ -931,6 +931,7 @@ targets:
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
+      - path: Vibe/Audio/AudioMasterBus.m
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Util/StallWatch.m

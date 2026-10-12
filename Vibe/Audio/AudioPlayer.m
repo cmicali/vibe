@@ -10,6 +10,7 @@
 
 #import "AudioPlayer.h"
 #import "AudioPlayerInternal.h"
+#import "AudioMasterBusInternal.h"
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #import "AudioPlayer+Debug.h"

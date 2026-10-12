@@ -4,7 +4,7 @@ The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFi
 
 ## The model in one page
 
-Vibe owns playback and renders it. There is no `AVAudioEngine`. One C function, `VibeMasterBusRender` (`AudioPlayer+Pipeline`), renders `voice bus → [varispeed] → [FX] → [meter] → [volume]` straight into the output's buffers, on both platforms.
+Vibe owns playback and renders it. There is no `AVAudioEngine`. One C function, `VibeMasterBusRender` (`AudioMasterBus`), renders `voice bus → [varispeed] → [FX] → [meter] → [volume]` straight into the output's buffers, on both platforms.
 
 - The **voice bus** (`AudioVoiceBus`) is decode → ring → per-frame gain → mix.
 - The **varispeed** is Vibe's own converter (`FX/AGENTS.md`). The **FX** units are Apple's DSP, hosted through the AudioUnit C API. Both are skipped while they have nothing to do.
@@ -18,7 +18,7 @@ One **output unit** pulls the render on both platforms: `AudioOutputUnit`, an ou
 - The transport hears three things from the bus, through a **drain** it runs itself: a voice went **live** (its first frames are buffered); the current voice passed its **boundary** into the queued successor (promote, `didAutoAdvance`); a voice **ended**. A current voice's end is `didFinishPlaying` on clean EOF or an attributed error on failure. A retiring voice's end feeds the output-liveness fold.
 - **Every fade exists only to keep the output click-free.** A ramp is evaluated per frame on the audio thread from the frame index, so it lands on its target exactly. **Declick** (Settings > Audio, default on) decides what a transport edge does: on, the ≤10 ms declick and every other frame untouched; off, a cut. A crossfade longer than the declick is the user's choice and fades either way. Bit-perfect output holds the crossfade at the declick, so with Declick off it applies no gain at all.
 
-The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` → `AudioPlayer+Pipeline.h` → the platform half.
+The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` → `AudioPlayer+Pipeline.h` → `AudioMasterBus.h` → the platform half.
 
 ## AudioPlayer
 
@@ -27,7 +27,8 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | `AudioPlayer.h` | the public API, platform-free: the transport verbs, the `(State)` getters, the delegate |
 | `AudioPlayer.m` | the transport: init and teardown, play submission → open → settlement, pause/resume/seek/stop/finish, the voice vocabulary, the published tuple, bus-event interpretation, delegate delivery with submitted-play identity |
 | `AudioPlayerInternal.h` | the class extension the categories share: every ivar but the mac device ivars (`Mac/Devices/AudioPlayer+DevicesInternal.h`), the queue helpers, and the ownership statement |
-| `AudioPlayer+Pipeline` | the render pipeline and its lifetime: the master bus and `VibeMasterBusRender`, the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
+| `AudioPlayer+Pipeline` | the render pipeline's player-queue side and its lifetime: the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
+| `AudioMasterBus` | the render, `VibeMasterBusRender`: the door, the slices, the stages in order and the volume, and the master bus's create and free. `AudioMasterBusInternal.h` is its layout, which the pipeline category writes |
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file), the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, with no player-queue waits |
 | `AudioFileHandle` | the parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), shared by playback and the metadata fallback; which decoder takes the file; reading a file still streaming, and reading ahead on a network mount (below) |

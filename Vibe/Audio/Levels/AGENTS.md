@@ -14,7 +14,7 @@ The demand-driven output meter behind the shared equalizer indicator. It is sepa
 
 ## The meter in the render
 
-**The meter reads the final samples of the render, on both platforms.** It is the last stage of `VibeMasterBusRender` (`../AudioPlayer+Pipeline.h`) but the volume. It is after the bus, the varispeed and the FX returns, and before the mac's volume and the debug `--silent` zero. So the bars follow what reaches the device at full volume, wet tails included, and do not shrink with the volume slider.
+**The meter reads the final samples of the render, on both platforms.** It is the last stage of `VibeMasterBusRender` (`../AudioMasterBus.h`) but the volume. It is after the bus, the varispeed and the FX returns, and before the mac's volume and the debug `--silent` zero. So the bars follow what reaches the device at full volume, wet tails included, and do not shrink with the volume slider.
 
 **The meter is created at the first demand and kept.** `AudioPlayer.applyLevelMeterOnQueue` points the render at it and begins a publisher session while levels are wanted. It withdraws the pointer and ends the session otherwise, live and without waiting. **TRAP: a new session restarts the accumulator and the analyzer**, its partial window and references included (`AudioLevelMeter.m`). The meter is kept across demand changes, so the previous track's audio would otherwise open the next session's bars. **TRAP: the render reads the session once, at the callback's entry**, and both restarts on it and publishes into it. A callback that began before a remove-and-reinstall then publishes into the ended session, and the publisher drops it. Read again at publication, it would label the old session's audio as the new one's.
 
