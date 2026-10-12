@@ -49,7 +49,7 @@ done < <(find Vibe -name '*.h' ! -path '*/ThirdParty/*')
 stray_debug=$(grep -rlnE '^[[:space:]]*#if[[:space:]]+DEBUG' Vibe --include='*.h' 2>/dev/null \
         | grep -v ThirdParty | grep -v '^Vibe/Debug/' || true)
 if [ -n "$stray_debug" ]; then
-    fail "#if DEBUG in a shipping header — declare it as a category under Vibe/Debug/ instead (Mac/Introspection/ or iOS/):"
+    fail "#if DEBUG in a shipping header — declare it as a category under Vibe/Debug/ instead (Seams/, Mac/Seams/ or iOS/Seams/):"
     echo "$stray_debug" >&2
 fi
 

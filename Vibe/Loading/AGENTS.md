@@ -86,7 +86,7 @@ Best-effort download progress for a file being materialized, for `CloudTransferR
 
 **TRAP: `NSURLIsUbiquitousItemKey` is not an iCloud test.** Every File Provider item answers YES, a Dropbox file included. Only the `NSMetadataQuery` settles it. The query stops on an item iCloud does not index, rather than idling for the length of the download.
 
-`Vibe/Debug/VibeFakeCloud` stands in for the provider's reporting too. Its seam **replaces** the sources above. Under a fake transfer the file on disk is genuinely local, so the poll would answer a final 100% on its first tick. `DownloadProgressMonitor+Debug.h` carries the rule.
+`Vibe/Debug/Simulators/VibeFakeCloud` stands in for the provider's reporting too. Its seam **replaces** the sources above. Under a fake transfer the file on disk is genuinely local, so the poll would answer a final 100% on its first tick. `DownloadProgressMonitor+Debug.h` carries the rule.
 
 ## CloudFileMaterializer
 
@@ -135,4 +135,4 @@ They look like one thing and are opposites in the two ways that matter. The moni
 
 ## Configuration
 
-**`AudioLoadingConfiguration` is immutable once built, and its diagnostic surface is for tests and the debug channel only.** The safe tuning surface is the background lane width, the local parse concurrency and the prefetch depth. The interactive lanes, pending bounds, grace, retry count and `openTimeouts` are diagnostic. `Vibe/Debug/`'s category and the test suite replace them. Production code never does.
+**`AudioLoadingConfiguration` is immutable once built, and its diagnostic surface is for tests and the debug channel only.** The safe tuning surface is the background lane width, the local parse concurrency and the prefetch depth. The interactive lanes, pending bounds, grace, retry count and `openTimeouts` are diagnostic. `Vibe/Debug/Seams/`'s category and the test suite replace them. Production code never does.

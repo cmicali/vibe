@@ -4,7 +4,7 @@
 //
 //  The private surface MainPlayerController.m and its categories share. Only
 //  the debug channel imports it from outside; the channel's own additions stay
-//  in Debug/Mac/Introspection/MainPlayerController+Debug.h, so no production
+//  in Debug/Mac/Seams/MainPlayerController+Debug.h, so no production
 //  file declares a tool that does not ship.
 //
 

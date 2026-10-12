@@ -2,6 +2,18 @@
 
 How a running app is driven and read from outside, on both platforms. **The verbs are deliberately not listed here.** The list lives in the `vibe-debug` skill and in the channel's own unknown-command reply, so it cannot drift from the tables. This file is the structure: what the pieces are, which are shared, and where a new verb goes. Read the `vibe-debug` skill first to use the channel, and this file to change it.
 
+## Layout
+
+Each shared subdirectory matches a section below.
+
+- **`Channel/`** is the transport.
+- **`Verbs/`** holds the verbs both platforms answer, and the protocol they are written against.
+- **`Oracles/`** holds the oracles.
+- **`Simulators/`** holds the simulators.
+- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here.
+
+`Mac/` and `iOS/` hold each platform's table and verbs. Each has its own `Seams/` for the `+Debug` categories over that shell's classes.
+
 ## It is in both targets' sources and ships in neither
 
 `project.yml` lists `Vibe/Debug` as an ordinary shared subsystem, so the layout rule needs no exception for it. **Every file is wrapped in `#if DEBUG`**, which a Release build compiles to an empty object. The one header with anything outside it is `AudioLoadTiming.h`: its phase struct and a clock that reads 0 in Release, so the shipping loader's call sites need no `#if`.
@@ -32,8 +44,8 @@ iOS has no client. `debug-ios.sh` writes the command file straight into the simu
 
 What is left per platform is what genuinely differs:
 
-- **`Mac/`**: the command table (`DebugCommandTable.m`) plus the AppKit-only verbs: `DebugInput.m` (direct playlist selection, synthetic drop and reorder delegates, named gesture probes and raw input), `DebugScreenshot.m`, `DebugSettingsUI.m` (the structural Settings walker; the pane classes it keys off are in `Mac/Settings/AGENTS.md`), `DebugStateDump.m`, `DebugHealth.m` and `DebugBPMScan.mm`. `Mac/Introspection/` holds the declaration-only `+Debug` categories over the mac shell's classes, plus `MainPlayerController+DebugPlayerSurface`.
-- **`iOS/`**: the command table (`DebugCommands.m`), the verbs that stand in for touches the channel cannot synthesize (`expand_player`, `minimize_player`, `select_tab`, and the favorites, search, route and waveform verbs), and the `+Debug` categories over the iOS shell. All of them live here, not beside the classes they extend.
+- **`Mac/`**: the command table (`DebugCommandTable.m`) plus the AppKit-only verbs: `DebugInput.m` (direct playlist selection, synthetic drop and reorder delegates, named gesture probes and raw input), `DebugScreenshot.m`, `DebugSettingsUI.m` (the structural Settings walker; the pane classes it keys off are in `Mac/Settings/AGENTS.md`), `DebugStateDump.m`, `DebugHealth.m` and `DebugBPMScan.mm`. `Mac/Seams/` holds the `+Debug` categories over the mac shell's classes, plus `MainPlayerController+DebugPlayerSurface`.
+- **`iOS/`**: the command table (`DebugCommands.m`), the verbs that stand in for touches the channel cannot synthesize (`expand_player`, `minimize_player`, `select_tab`, and the favorites, search, route and waveform verbs), and the `+Debug` categories over the iOS shell in `iOS/Seams/`. All of them live here, not beside the classes they extend.
 
 **Gestures are not the channel's job on iOS.** No public API synthesizes a `UITouch` in-process. Taps and drags go through `drive-ios.sh` and the resident `VibeiOSDriver` XCUITest in `Tests/iOSDriver/`, which is not part of `VibeTests`.
 

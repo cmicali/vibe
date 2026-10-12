@@ -129,4 +129,4 @@ The Playlist tab: number (the shared `EqualizerIndicatorView` on the playing row
 
 ## Building and verifying
 
-The `vibe-debug` skill's "iOS: the simulator loop" section covers launch, feeding audio, screenshots and logs. `RootViewController+Debug` adopts the channel's protocol and composes `PlaybackController+Debug` and `PlayerViewController+Debug`. All three live in `Vibe/Debug/iOS/`. `expand_player`, `minimize_player` and `select_tab` exist because the channel cannot synthesize a touch; gestures go through `drive-ios.sh`. **Interruptions, route changes, background audio past lock and the lock-screen card need a real device.**
+The `vibe-debug` skill's "iOS: the simulator loop" section covers launch, feeding audio, screenshots and logs. `RootViewController+Debug` adopts the channel's protocol and composes `PlaybackController+Debug` and `PlayerViewController+Debug`. All three live in `Vibe/Debug/iOS/Seams/`. `expand_player`, `minimize_player` and `select_tab` exist because the channel cannot synthesize a touch; gestures go through `drive-ios.sh`. **Interruptions, route changes, background audio past lock and the lock-screen card need a real device.**

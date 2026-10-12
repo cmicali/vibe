@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  The private surface shared by PlaybackController.m and its categories; no
-//  other file imports it. The debug surface is Debug/iOS/PlaybackController+Debug.h.
+//  other file imports it. The debug surface is Debug/iOS/Seams/PlaybackController+Debug.h.
 //  This header is the cost of the split: a category that pushes more state in
 //  here than it takes out of PlaybackController.m is not worth making.
 //
