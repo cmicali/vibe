@@ -7,7 +7,7 @@
 //  -cancel cuts the wait short as it would a real one. It fakes the wait, not
 //  the cancellation: what is under test is the app's download ordering, which
 //  a real provider cannot exercise at a useful rate. VibeFakeCloud is the only
-//  installer. Declaration-only, like AudioPlayer+Debug.h.
+//  installer. Implemented in CloudFileMaterializer+Debug.m.
 //
 
 #if DEBUG
@@ -37,6 +37,13 @@ NS_ASSUME_NONNULL_BEGIN
                     acquireSlot:(nullable BOOL (^)(NSURL *url, NSString *role, BOOL (^cancelled)(void)))acquireSlot
                     releaseSlot:(nullable void (^)(NSURL *url, NSString *role))releaseSlot
                       didFinish:(nullable void (^)(NSURL *url, NSString *role, BOOL completed))didFinish;
+
+// materializeURL: calls this first. YES means the fake ran this transfer, and
+// *result is materializeURL:'s answer.
+- (BOOL)runFakeTransferForURL:(NSURL *)url
+                        token:(CloudFileMaterializationToken *)token
+                       result:(BOOL *)result
+                        error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
 @end
 

@@ -1011,6 +1011,7 @@ targetTemplates:
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Loading/Transfer/CloudTransferRegistry.m
       - path: Vibe/Loading/Transfer/CloudFileMaterializer.m
+      - path: Vibe/Debug/Seams/CloudFileMaterializer+Debug.m   # its materialize asks the fake first
       - path: Vibe/Loading/Transfer/CloudFileAvailability.m
       - path: Vibe/Loading/Transfer/DownloadProgressMonitor.m
       - path: Vibe/Debug/Seams/DownloadProgressMonitor+Debug.m   # its start asks the fake first
