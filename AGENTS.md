@@ -59,7 +59,9 @@ Anything that must be verified against the *running* app belongs in the debug co
 
 Every check above passes as happily on a 400-line addition as on a 40-line one, so none of them constrains complexity. This section does, and it is as much a part of done as they are.
 
-**The budget for a feature is zero new files and zero new types.** Fit it into whatever already owns the concern. The subsystem map says which. A new class, protocol, `*Rules.h` or directory is a request made *before* the code is written, argued on the feature's own terms. "It needs its own state machine" is the claim under question, not a reason for one.
+**The budget for a feature is zero new concepts.** Fit new behavior into whatever already owns the concern. The subsystem map says which. A new class, protocol, `*Rules.h` or directory for new behavior is a request made *before* the code is written, argued on the feature's own terms. "It needs its own state machine" is the claim under question, not a reason for one.
+
+**Organizing existing code needs no argument.** Splitting a file by concern is free. So is moving code to the directory that owns it. Such a change may add files and types. It adds no behavior.
 
 **Say what the change removes.** Every feature reports its net line count, new files, new types, and either what it deleted or unified or a plain statement that it consolidated nothing and why. A "nothing, because …" that reads badly is itself the finding: a feature that touches a subsystem and simplifies nothing in it is usually in the wrong place.
 
