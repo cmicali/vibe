@@ -10,7 +10,7 @@ The macOS half is the `(Mac)` category in `Mac/AppSettings+Mac`: every mac-only 
 
 **The store never applies effects.** A writer that needs an immediate follow-up requests a named `VibeSettingsLiveEffect` from `MainPlayerController+Settings`. That is a central, synchronous mapping. It calls the behavior owned by the affected object, and never writes a setting or posts a notification. The Settings window is `Vibe/Mac/Settings/`. iOS keeps the rule with two spellings (`iOS/Settings/AGENTS.md`). A display setting's writer posts `VibeNotifyDisplaySettingsChanged()` for the card. A track-transition setting's writer calls `PlaybackController.applyTrackTransitionSettings`.
 
-The one in-memory value is `windowAppearancePreviewStyle`. The Settings window's Appearance page holds it while open (`Mac/Settings/AGENTS.md`). `windowAppearance` answers it, and `setWindowAppearanceStyle:` clears it. It lives here because that accessor already holds the style-to-appearance ladder, so every consumer gets the preview.
+The one in-memory value is `windowAppearancePreviewStyle`. The Settings window's light/dark preview toggle holds it while its pane is open (`Mac/Settings/Appearance/AGENTS.md`). `windowAppearance` answers it, and `setWindowAppearanceStyle:` clears it. It lives here because that accessor already holds the style-to-appearance ladder, so every consumer gets the preview.
 
 ## The platform split
 
