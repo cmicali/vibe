@@ -1,6 +1,13 @@
 # AppTheme: the theme record
 
-One theme: a **sparse record** of appearance overrides, where a missing field means the factory look. The store that holds it (the keys, `currentThemeDidChange`, undo, the image sweep) is `../AGENTS.md`'s. The editor is `Mac/Settings/Appearance/AGENTS.md`'s. The guarantee (one sanitization gate, single and dual mode, the single-mode window pin) is root `AGENTS.md`'s.
+The theme record. The store that holds it (the keys, `currentThemeDidChange`, undo, the image sweep) is `../AGENTS.md`'s. The editor is `Mac/Settings/Appearance/AGENTS.md`'s. Root `AGENTS.md`'s theme guarantee is stated here and in `../AGENTS.md`.
+
+## The guarantee
+
+- **A theme is a sparse record over the factory defaults.** A missing field means the factory look. The built-in Vibe theme is the empty record.
+- **Sanitization is one gate, on `AppTheme`** (below). Imports, stored records, UI edits and the built-ins shipped as `Resources/Themes/*.json` all pass through it. `make test` validates the built-ins.
+- **Every store mutation refuses a built-in** (`+[AppTheme isBuiltInIdentifier:]`, `../AGENTS.md`). A casual toggle over a built-in lands in the divergence key, `Appearance.currentTheme`, until a theme is applied again.
+- **A theme is `single` or `dual` mode** (`mode`). Dual keeps a palette per appearance. Single keeps one color per field in the dark-keyed slot, and pins the window dark (`requiredWindowAppearance`, Colors below).
 
 ## The record and its schema
 
@@ -20,9 +27,9 @@ One theme: a **sparse record** of appearance overrides, where a missing field me
 
 ## The built-ins
 
-**A built-in is `Resources/Themes/<identifier>.json`** — the stem is the stable identifier, `name` the English display name — read through the same `recordFromJSONData:` gate as a user import. Adding one is the file (the directory is a folder reference in both the app and VibeTests, so no project edit) plus its identifier in `testBuiltInIdentifiers`, which keeps a dropped file loud. Order is `vibe` first, then alphabetical.
-
-**`testBundledThemesAreValid` is the gate and is load-bearing**: the import gate is tolerant — a typo'd key or bad color is silently dropped — and only the test's sanitizer round-trip makes that loud. Two consequences it enforces: **`vibe.json` stays field-free** (`testVibeBuiltInIsTheEmptyRecord`; the loader synthesizes the empty record if the file goes missing, since `vibe` is the store's snap-back anchor for unknown and deleted-active themes), and **a built-in that sets a radius spells `customCornerRadius: true`**, or the round-trip would see the gate add it. `cupertino` and `technical` are the dual-mode exemplars: a `custom` waveform theme forces both palettes, because an incomplete pair falls back to Mono rather than half-applying.
+**A built-in is `Resources/Themes/<identifier>.json`, read through the same `recordFromJSONData:` gate as a user import.** How to author and add one, and what `testBundledThemesAreValid` enforces, is `Resources/Themes-README.md`. Two facts are not authoring steps.
+- **`vibe` always exists.** It is the store's snap-back anchor for unknown and deleted active themes, so the loader synthesizes the empty record when `vibe.json` is missing.
+- **`cupertino` and `technical` are the dual-mode examples.** A `custom` waveform theme sets both palettes, because an incomplete pair falls back to Mono rather than half-applying.
 
 ## Colors
 
