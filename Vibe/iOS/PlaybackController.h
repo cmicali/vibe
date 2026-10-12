@@ -111,6 +111,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger currentIndex;
 // The open folder's display name, nil before anything was opened.
 @property (nonatomic, readonly, nullable) NSString *folderDisplayName;
+// YES once an Add has landed on the playlist now loaded, or it was restored
+// with additions: replacing it loses work a reopen does not bring back.
+@property (nonatomic, readonly) BOOL playlistHasAdditions;
 
 #pragma mark - Display state
 
@@ -162,6 +165,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)seekToProgress:(float)progress;
 - (void)seekToPosition:(NSTimeInterval)position;
 
+// Unloads everything, the twin of the mac's File > Close: the player, the
+// session with its scopes and persisted bookmarks (the next launch restores
+// nothing), the model, the sweep. Safe where a partial edit is not because it
+// is the whole playlist: no cursor survives to strand.
+- (void)clearPlaylist;
+
 #pragma mark - Settings
 
 // A Track transitions writer calls this (the store applies no effects): it
@@ -199,7 +208,11 @@ NS_ASSUME_NONNULL_BEGIN
 // no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable AudioTrack *)track;
 
-#pragma mark - Opening
+@end
+
+// The open and add roads, the row being opened, and the launch's restore
+// (PlaybackController+Opening.m).
+@interface PlaybackController (Opening)
 
 // "Open in Vibe" from Files or the share sheet.
 - (void)handleOpenURLContexts:(NSSet<UIOpenURLContext *> *)contexts;
@@ -218,12 +231,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 // FolderSession's, for the folder picked after needsFolderOfSheetAtURL:.
 - (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending;
-
-// Unloads everything, the twin of the mac's File > Close: the player, the
-// session with its scopes and persisted bookmarks (the next launch restores
-// nothing), the model, the sweep. Safe where a partial edit is not because it
-// is the whole playlist: no cursor survives to strand.
-- (void)clearPlaylist;
 
 // Appends without touching playback, the tab or the card. An Add onto nothing
 // is an Open (FolderSession).
@@ -256,10 +263,6 @@ NS_ASSUME_NONNULL_BEGIN
 // A replace that ended before reaching the session — its resolve failed, or
 // the user chose otherwise — has nothing to settle it.
 - (void)endOpeningForReplaceRequest:(uint64_t)token;
-
-// YES once an Add has landed on the playlist now loaded, or it was restored
-// with additions: replacing it loses work a reopen does not bring back.
-@property (nonatomic, readonly) BOOL playlistHasAdditions;
 
 // Nil for a single-file playlist and before anything was opened.
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
