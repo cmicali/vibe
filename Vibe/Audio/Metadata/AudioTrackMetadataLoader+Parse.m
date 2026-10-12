@@ -18,9 +18,7 @@
 #import "MetadataScanEntry.h"
 #import "MetadataParseCoordinator.h"
 
-#if DEBUG
 #import "AudioTrackMetadataLoader+Debug.h"
-#endif
 
 // NSURL+Hash cache keys never contain '#'.
 static NSString *VibeArchivedDisplayArtKey(NSString *cacheKey) {

@@ -2,9 +2,8 @@
 //  AudioTrackMetadataLoader+Debug.h
 //  Vibe
 //
-//  Declaration-only visibility into one loader's materialization lanes. The
-//  implementation is in AudioTrackMetadataLoader.m, beside the debug-only
-//  ivars.
+//  Visibility into one loader's materialization lanes. Implemented in
+//  AudioTrackMetadataLoader+Debug.m.
 //
 
 #if DEBUG

@@ -808,6 +808,7 @@ targets:
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
+      - path: Vibe/Debug/Seams/AudioTrackMetadataLoader+Debug.m   # the lane state the tests read
       - path: Vibe/Audio/Metadata/MetadataScanEntry.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
