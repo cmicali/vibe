@@ -98,7 +98,7 @@ Current production values, all reviewable.
 | Neighborhood offsets | +1, +2, −1 | `Playlist.neighborhoodTracks` |
 | Art requests (running / pending) | 2 / 5 | `ArtworkLoadRegistry` |
 | Art admission backoff | 0.1–1 s | same |
-| Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork.m` |
+| Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork+Loading.m` |
 | Thumbnail LRU | 16,384 entries | `EmbeddedThumbnailCache.m` |
 | Thumbnail size | 128 px | — |
 | Display rendition bound | 640 px mac / 1024 px iOS | `PlatformImage.h` |

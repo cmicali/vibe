@@ -816,6 +816,7 @@ targets:
       - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
       - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
       - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
       - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m

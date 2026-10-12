@@ -36,7 +36,7 @@ static const NSTimeInterval kArtworkLoadPendingGrace = 30;
 @property (nonatomic, readonly) NSUInteger registeredRequestCount;
 @end
 
-// Implemented in AudioTrackArtwork.m.
+// Implemented in AudioTrackArtwork+Loading.m.
 @interface AudioTrackArtwork (ArtworkLoadRegistrySupport)
 - (BOOL)prepareAsyncLoadReturningGeneration:(NSUInteger *)generation
                                   sourceURL:(NSURL * _Nullable * _Nonnull)sourceURL;
