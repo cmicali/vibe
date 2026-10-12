@@ -16,7 +16,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AudioLevelPublisher : NSObject
 
 // One coherent snapshot. NO, `out` untouched, when the current session has
-// published nothing. `sequence` (optional) identifies each publication.
+// published nothing or a coherent read fails. Invalid output arguments also
+// return NO. `sequence` (optional) identifies each publication.
 - (BOOL)copyLevels:(float *)out
               count:(NSUInteger)count
            sequence:(nullable uint64_t *)sequence;

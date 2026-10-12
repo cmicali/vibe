@@ -175,16 +175,12 @@
     XCTAssertFalse(VibeEditMenuKeepsItem(@"menu_cut"));
 }
 
-// File > Open and Open URL target the app delegate, which enables them
-// always. The player never validates them.
 - (void)testOpenAndOpenURLAreTheAppDelegatesNotThePlayers {
     [self assertIdentifiers:@[kVibeMenuOpen, kVibeMenuOpenLink] classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqualObjects(kVibeMenuOpenLink, @"menu_open_link");
     XCTAssertFalse([kVibeMenuOpenLink isEqualToString:kVibeMenuOpen]);
 }
 
-// Convert to FLAC hides with Convert off, and for a file under a remote root
-// whatever the setting.
 - (void)testConvertHidesWhenOffOrForAFileUnderARemoteRoot {
     XCTAssertFalse(VibeConvertMenuItemHidden(YES, NO));
     XCTAssertTrue(VibeConvertMenuItemHidden(NO, NO));

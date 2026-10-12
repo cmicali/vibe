@@ -97,8 +97,8 @@ static NSStringEncoding LikelyUTF16Encoding(const uint8_t *bytes, NSUInteger len
         text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
     }
     if (!text && data.length >= 2 && memchr(bytes, 0, data.length)) {
-        // No single-byte encoding holds a NUL, so this is UTF-16 the strict
-        // test declined; CP1252 would render it as NUL-riddled mojibake.
+        // After UTF-8 fails, NULs suggest UTF-16 without a clean signature.
+        // Try it before the single-byte fallbacks preserve those NULs.
         text = [[NSString alloc] initWithData:data
                                      encoding:LikelyUTF16Encoding(bytes, data.length)];
     }
@@ -187,8 +187,7 @@ static void EnumerateM3U(NSString *text, void (^block)(NSString *entry, NSString
         NSString *entryCue = cue;
         cue = nil;
         if ([entry rangeOfString:@"://"].location != NSNotFound) {
-            // A URL. file:// reduces to its path (M3U8 writers percent-encode);
-            // any other scheme is a stream, which the player does not do.
+            // M3U entries accept only file:// URLs and reduce them to paths.
             if (![entry.lowercaseString hasPrefix:@"file://"]) {
                 return;
             }
@@ -439,7 +438,7 @@ static NSString *M3UInfoName(AudioTrack *track) {
 
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory {
     // The trailing slash keeps /Music/Album from claiming /Music/Album2/x.mp3.
-    // Both sides standardize alike, stat-free.
+    // Both sides use the same path standardization.
     NSString *dir = directory.path.stringByStandardizingPath;
     NSString *prefix = [dir hasSuffix:@"/"] ? dir : [dir stringByAppendingString:@"/"];
     NSMutableString *text = [NSMutableString stringWithString:@"#EXTM3U\n"];

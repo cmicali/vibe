@@ -50,7 +50,7 @@ typedef NSData *_Nullable (^CloudFileRemoteRead)(NSURL *url, uint64_t offset, ui
                                                  NSError *__autoreleasing _Nullable *_Nullable error);
 
 // The same backend's streaming lookup: the availability of a file whose
-// transfer is writing it now, nil when none is, and then the file is whole.
+// transfer is writing it now. nil means no active stream is available.
 // It may answer nil only once that availability has finished, since a reader
 // that looked it up earlier may be waiting on it.
 typedef CloudFileAvailability *_Nullable (^CloudFileRemoteAvailability)(NSURL *url);

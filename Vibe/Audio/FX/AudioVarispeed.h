@@ -5,8 +5,8 @@
 //  The pitch fader's stage: a varispeed between the voice bus and the FX.
 //  At zero pitch it is a bit-perfect pass-through: the source goes straight
 //  to the output, nothing converted, delayed or copied. Off zero it is a
-//  Kaiser-windowed sinc, β 15.6 for about 150 dB of stopband, with 64 zero
-//  crossings each side. Its −6 dB point is 22 kHz at 48 kHz, the same
+//  Kaiser-windowed sinc, β 15.6 for about 150 dB of stopband, with a
+//  64-frame half-width before stretching. Its −6 dB point is 22 kHz at 48 kHz, the same
 //  fraction of any rate. Above a ratio of 1 the kernel is stretched by the
 //  ratio, so its cutoff follows the output's Nyquist and no input above it
 //  folds back. It reads the kernel from a polyphase table, with a cubic
@@ -79,7 +79,7 @@ BOOL VibeVarispeedEngaged(const VibeVarispeed *stage);  // the converter is in t
 double VibeVarispeedRatio(const VibeVarispeed *stage);
 // How late the stage plays the source, in output frames, while the pitch is
 // off zero: the kernel's half-width of input frames (64, and ceil(64 × ratio)
-// above 1) at the ratio. 0 at zero.
+// above 1) at the ratio. 0 at zero. Player queue: dereferences the table.
 double VibeVarispeedDelayFrames(const VibeVarispeed *stage);
 uint64_t VibeVarispeedRenders(const VibeVarispeed *stage);       // the converter's slices
 uint64_t VibeVarispeedHistoryWrites(const VibeVarispeed *stage); // into its history ring: none at zero pitch settled

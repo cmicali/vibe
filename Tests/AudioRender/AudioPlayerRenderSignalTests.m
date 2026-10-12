@@ -209,10 +209,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
 - (void)testSignalDiagnosticsExcludePreviousTrack {
     for (NSNumber *rate in @[@44100, @48000]) for (NSNumber *fx in @[@NO, @YES])
     for (NSNumber *fade in @[@10, @500]) for (NSNumber *silence in @[@300, @700, @1500]) {
-        // Under the pump the output cannot follow the file's rate, so a
-        // bit-perfect cut at another rate carries a few milliseconds of the old
-        // track past the cut in the converter's history. Real bit-perfect
-        // output sets the device to the file's rate; test only that case.
+        // Isolate the direct-rate cut. SRC retains filter history across it.
         if (!fx.boolValue && rate.doubleValue != 48000) continue;
         [self startPlayerAt:rate.doubleValue channels:2 fx:fx.boolValue bitPerfect:!fx.boolValue automatic:NO];
         _player.crossfadeMilliseconds = fade.integerValue;

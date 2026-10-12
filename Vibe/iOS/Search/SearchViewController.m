@@ -164,8 +164,6 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     }
 }
 
-// Cheap on every appearance: the same roots are a no-op. Builds only from a
-// screen that is up.
 - (BOOL)isBuildingFileIndex {
     return _fileIndex.isBuilding;
 }
@@ -192,7 +190,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     _viewPresentationVisible = YES;
-    // A scope left over from the last search made the next one look empty.
+    // An empty field starts a fresh search across all sources.
     if ([self currentQuery].length == 0 && _scope != VibeSearchSectionCount) {
         _scope = VibeSearchSectionCount;
         [self refreshScopeButtons];
@@ -773,9 +771,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
                afterDelay:kRefilterCoalesceInterval];
 }
 
-// A metadata delivery changes what the playlist's rows say, nothing else:
-// the files and Dropbox halves keep their answers, which a full re-filter
-// blanked and re-asked for on every delivery of a scan.
+// Metadata affects only playlist matches. Keep the file and Dropbox answers.
 - (void)refilterIfStale {
     _refilterScheduled = NO;
     if (_matchesStale && [self isMateriallyVisible]) {

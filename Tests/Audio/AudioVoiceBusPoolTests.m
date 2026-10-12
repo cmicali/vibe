@@ -132,8 +132,6 @@
     XCTAssertEqualWithAccuracy(out[0], 7.0f * in[128 * 2] + 0.5f * in[0], 1e-5);
 }
 
-// Every started voice ends exactly once, a pending one killed before it ever
-// had a slot included: the transport tracks fading voices by their end event.
 - (void)testAPendingVoiceKilledBeforeItsSlotStillEnds {
     NSData *source = [self noiseFrames:20000 channels:2 seed:13];
     NSURL *url = [self writePCM:source rate:kRate channels:2 name:@"pending-kill.wav"];
@@ -375,8 +373,6 @@
     [self assertCapture:capture equalsSource:[source subdataWithRange:NSMakeRange(4000 * 2 * sizeof(float), 4096 * 2 * sizeof(float))]];
 }
 
-// A stopped bus cannot hand its files to a replacement until every reader
-// has left, including a reader that finishes later than all the others.
 - (void)testStopReadingReportsOnceEveryDecoderHasLeft {
     self.continueAfterFailure = YES;
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
@@ -765,7 +761,6 @@
     [self assertLateSuccessorsKeepTheDrainSteady:@[first, second, third]];
 }
 
-// Repeat One: a second handle on the playing file, spliced into its own start.
 - (void)testAResampledSelfSpliceReturnsToSteady {
     NSURL *url = [self writePCM:[self noiseFrames:88200 channels:2 seed:944] rate:44100 channels:2 name:@"steady-self.wav"];
     [self assertLateSuccessorsKeepTheDrainSteady:@[url, url, url]];

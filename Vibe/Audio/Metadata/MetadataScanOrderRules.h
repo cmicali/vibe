@@ -19,9 +19,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL yieldedUnderHold;
 @end
 
-// Local first (a no-op materialization, so every local row lands before any
-// download), then untried before deferred, then neighborhood rank (NSNotFound
-// sorts last), then playlist row.
+// Pick local before dataless, then untried before deferred, then neighborhood
+// rank (NSNotFound sorts last), then playlist row. This orders admission;
+// independent parses can finish in another order.
 static inline BOOL VibeMetadataScanOrderedBefore(
         BOOL aLocal, BOOL aDeferred, NSUInteger aRank, NSUInteger aIndex,
         BOOL bLocal, BOOL bDeferred, NSUInteger bRank, NSUInteger bIndex) {

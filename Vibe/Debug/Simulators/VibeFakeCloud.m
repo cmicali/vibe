@@ -117,12 +117,8 @@ static NSTimeInterval VibeTransferSecondsForPath(NSString *path, NSTimeInterval 
     return base * spread;
 }
 
-// The Hashed mode's fraction. Quantized to kProgressChunks because a real
-// provider reports in ~1 Hz steps the indicator eases between (WaveformUI/
-// AGENTS.md); a per-tick ramp would exercise easing production never sees. A
-// third of the corpus stalls partway and resumes, the only way to test that
-// the fill never runs past what was reported. Which files stall, and where,
-// come off the path hash.
+// Quantized progress exercises the indicator's easing between reports.
+// A third of files stall and resume to test that the fill does not overshoot.
 static const NSUInteger kProgressChunks = 12;
 static const NSUInteger kStallPercent = 33;
 static const double kStallShareOfTransfer = 0.3;

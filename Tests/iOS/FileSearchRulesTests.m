@@ -1,11 +1,3 @@
-//
-//  FileSearchRulesTests.m
-//  VibeTests
-//
-//  What a search matches, then FolderSession's rules: which open the next
-//  launch restores, and whether an Add may still land. The headers ship only
-//  in VibeiOS but are Foundation-only, so they compile here.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -122,7 +114,6 @@
 
 #pragma mark - Root coverage
 
-// Shared by the index's pruning and the settings list's "already covered".
 - (void)testARootCoversItself {
     XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music"));
 }
@@ -284,7 +275,6 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
-// A found file has no tags, so its folder stands in for album and artist.
 - (void)testFileMatchesItsFolderName {
     FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
         @"Music/Kid A/01.mp3",

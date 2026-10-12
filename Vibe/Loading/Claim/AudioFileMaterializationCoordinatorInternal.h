@@ -25,8 +25,8 @@ typedef id<AudioFileMaterializationOperation> _Nonnull
 typedef NSTimeInterval (^VibeAudioFileMaterializationClock)(void);
 // YES when the contents are not local (production: PlaceholderFiles.isDatalessFile:).
 // Called concurrently on bounded workers; may block. An initial NO bypasses
-// transfer admission; a refresh's NO suppresses publication but keeps its
-// reserved lane until the operation settles.
+// transfer admission. A refresh's NO releases its reserved lane and settles
+// Ready without running the materialization operation.
 typedef BOOL (^VibeAudioFileMaterializationDatalessProbe)(NSURL *url);
 // Stage 2's one AudioFileHandle call. interrupted answers YES once the run is
 // cancelled, and the open's waits for a streaming file's bytes end on it.

@@ -14,8 +14,8 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // One file from cache check to materialization, with every row sharing its
-// standardized path, so the file materializes and parses once by construction
-// and its answer settles them all. A plain record, never a pre-built
+// standardized path. A successful parse settles them all; after a failure
+// the remaining rows may retry. A plain record, never a pre-built
 // operation, so everything pending stays re-rankable. The current track's file
 // is the same record holding a marked row, a second slot rather than a second
 // lane, so playlist replacement drops it like any row.

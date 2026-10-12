@@ -11,7 +11,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Apple Music's proportions.
 static const CGFloat kEstimatedRowHeight = 64;
 static const CGFloat kNumberColumnWidth = 26;
 static const CGFloat kArtTextGap = 14;
@@ -22,8 +21,7 @@ static const CGFloat kArtTextGap = 14;
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 @property (nonatomic) BOOL equalizerAudioOutputActive;
 @property (nonatomic) BOOL equalizerPresentationVisible;
-// YES while a provider transfer is running for this row's file. Outranks
-// playing: mid-open there is no output audio for the equalizer to show.
+// A transfer outranks the playing marker, including during streamed playback.
 @property (nonatomic, getter=isLoading) BOOL loading;
 @property (nonatomic) float loadingProgress;
 // YES when the row's height can have moved; a caller rendering in place then

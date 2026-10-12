@@ -700,8 +700,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 
 #pragma mark - Failure
 
-// A failed transfer is a read failure with its error, never a clean end, and
-// stays one.
 - (void)testAFailedTransferFailsTheBlockedReadWithItsError {
     NSError *transferError = [NSError errorWithDomain:@"com.vibe.test-transfer" code:7 userInfo:nil];
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
@@ -873,8 +871,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 
 #pragma mark - The part file and the whole one
 
-// The transfer can finish and rename its part over the URL between the
-// lookup and the open; the open then reads the whole file.
 - (void)testAPartRenamedBeforeTheOpenOpensTheFinishedFile {
     NSURL *source = VibeWriteWAV([self sourceNamed:@"renamed.wav"], VibeNoiseSamples(20000, 2), 44100, 2, 16, 20000 * 4);
     VibeGrowingFile *file = [self stream:source prefix:100];
@@ -926,8 +922,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     [self assertPCM:VibeDecode(handle, 4096, INT64_MAX, &error) equals:reference context:@"missing"];
 }
 
-// A file nothing streams opens as it always has: the lookup asked once, the
-// file itself read, and nothing waits.
 - (void)testAFileNothingStreamsOpensAsAWholeFile {
     NSURL *source = VibeWriteWAV([self sourceNamed:@"local.wav"], VibeNoiseSamples(20000, 2), 44100, 2, 16, 20000 * 4);
     AudioFileHandle *handle = [self openWhole:source];
@@ -1104,7 +1098,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
             context:@"streamed"];
 }
 
-// A prefetch joining a readable claim is served at once, its own handle.
 - (void)testAPrefetchJoiningAReadableTransferIsDeliveredAtOnce {
     VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
     AudioFileHandle *playback = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
@@ -1159,8 +1152,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     XCTAssertNotNil(handle);
 }
 
-// Every handle on a readable, running transfer gone and nothing waiting: the
-// transfer is cancelled, its lane and registry entry released.
 - (void)testAnAbandonedStreamIsCancelled {
     VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
     AudioFileHandle *handle = nil;
@@ -1174,8 +1165,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     XCTAssertFalse(_coordinator.isForegroundTransferActive);
 }
 
-// A prefetch handle still alive keeps the stream running when the playback
-// handle goes; the stream is cancelled only once it goes too.
 - (void)testALivePrefetchHandleKeepsTheStreamRunning {
     VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
     AudioFileHandle *playback = nil, *prefetch = nil;
@@ -1209,8 +1198,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     XCTAssertNotNil(handle);
 }
 
-// A transfer that never reports readable (the provider's road) delivers only
-// once complete, as before streaming.
 - (void)testATransferThatIsNeverReadableDeliversOnlyWhenComplete {
     VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:NO];
     __block AudioFileHandle *handle = nil;

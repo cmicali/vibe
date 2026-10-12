@@ -88,7 +88,6 @@ static const CGFloat kCellStripAspect = 2;
 // The mac's art: carries the 138pt row, so the strip's floor.
 static const CGFloat kCellArtSideCompact = 150;
 static const CGFloat kCellArtWidthFractionCompact = 0.5;
-// The mac's: 62% of its 150pt art.
 static const CGFloat kCellArtGradientHeight = 93;
 static const CGFloat kTransportButtonSideCompact = 46;
 static const CGFloat kCellGlyphScaleCompact = 31.0 / kCellGlyphPointSize;
@@ -533,7 +532,6 @@ static UIImage *TransportGradientImage(void) {
                                                  constant:kCellActionBarContentInset],
         [_routeView.trailingAnchor constraintEqualToAnchor:_actionBar.trailingAnchor
                                                   constant:-kCellActionBarContentInset],
-        // The pad's circle, at the bar's leading end.
         [_fxPadView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
         [_fxPadView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
                                                  constant:kCellActionBarInset],
@@ -603,7 +601,6 @@ static UIImage *TransportGradientImage(void) {
         [_artCard.topAnchor constraintEqualToAnchor:safe.topAnchor
                                            constant:kCellTopInsetLandscape],
 
-        // The info label hangs off the artist.
         [names.topAnchor constraintEqualToAnchor:_artistLabel.topAnchor],
         [names.bottomAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor],
         [_artistLabel.leadingAnchor constraintEqualToAnchor:_artCard.trailingAnchor
@@ -729,7 +726,6 @@ static UIImage *TransportGradientImage(void) {
     if (layout == _activeLayout) {
         return;
     }
-    // Signposts the swap, not the test that usually declines it.
     VibeSignpostBegin(cell_constraints);
     // Off before on: the outgoing body over-constrains the incoming one.
     [NSLayoutConstraint deactivateConstraints:_activeLayout ?: @[]];
@@ -849,10 +845,8 @@ static UIImage *TransportGradientImage(void) {
     [self setNeedsLayout];
 }
 
-// On the fonts the labels draw at now; Dynamic Type rescales them. The band is
-// the worst case. The codec line alone can leave it, line and gap, when the
-// setting is off or there is no readout yet — one setting for every page, so
-// the waveform's y still agrees across the pager.
+// Reserve the largest title and artist block at the current Dynamic Type size.
+// An absent codec line releases its height. The waveform stays bottom-anchored.
 - (void)updateHeaderMetrics {
     UIFont *artistFont = _artistLabel.font;
     UIFont *infoFont = _fileInfoLabel.font;

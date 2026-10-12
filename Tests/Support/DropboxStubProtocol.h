@@ -14,14 +14,9 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// A response: status, headers, body; or hang until the task is cancelled; or
-// answer only once `gate` is signalled, without holding the loader thread,
-// so other requests are answered meanwhile. A failure ends the load after
-// the body, a dropped connection, once failWhen answers YES; with status 0 it
-// comes before any response. With a chunk length the body goes out in
-// chunks, beforeChunk asked off the loading thread ahead of each, so a test
-// can hold the next one back; beforeResponse, asked the same way, holds
-// the response itself.
+// Gates and failWhen wait off the loader thread, up to VIBE_TEST_GATE_TIMEOUT.
+// A failure follows the body unless status is zero. beforeResponse and
+// beforeChunk run off the loader thread and can hold their delivery.
 typedef struct {
     NSInteger status;
     NSDictionary<NSString *, NSString *> *_Nullable headers;

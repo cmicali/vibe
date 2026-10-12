@@ -47,7 +47,6 @@ static VibeMusicalKey VibeTestAnalyzeKey(const std::vector<float> &audio,
     XCTAssertEqual(VibeTestAnalyzeKey(audio, {65536}), VibeMusicalKeyMake(9, 1)); // A minor
 }
 
-// The analysis frame here is 32768 samples with a 16384 hop.
 - (void)testResultIsIndependentOfBufferSizes {
     std::vector<float> audio = VibeTestAMinorChord(20.0);
     VibeMusicalKey reference = VibeTestAnalyzeKey(audio, {audio.size()});

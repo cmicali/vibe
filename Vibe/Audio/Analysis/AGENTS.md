@@ -16,8 +16,8 @@ While streaming it builds a power-spectrum spectral-flux onset envelope. At end 
 
 Two constants settle octave errors. Both were swept on GiantSteps:
 
-- **`kGridNormExponent`** (0.5) is the half-against-double test. The grid sum is normalized as `sum / count^exponent`. The faster grid wins exactly when the in-between beats average more than `2^-(1-exponent)` of the strong ones, 41% at 0.5.
-- **`kTempoPriorCenterBPM`** (140, spread 80) breaks genuine ties. A candidate T beats its half exactly when T < 4/3 of the center, so the crossover sits at ~187 BPM. It is load-bearing: a center of 120 costs 9 points of Accuracy1, a spread of 160 costs 6, and no prior costs 11. The cost is that a hip-hop or downtempo track can read 174 instead of 87.
+- **`kGridNormExponent`** (0.5) is the half-against-double test. The grid sum is normalized as `sum / count^exponent`. For nested grids with twice as many beats, the faster grid wins before the prior when the in-between beats average more than `2^exponent - 1` of the strong ones. That is 41% at 0.5.
+- **`kTempoPriorCenterBPM`** (140, spread 80) weights every phase-comb score. For equal comb scores, T beats its half when T < 4/3 of the center. The crossover sits at ~187 BPM. It is load-bearing: a center of 120 costs 9 points of Accuracy1, a spread of 160 costs 6, and no prior costs 11. The cost is that a hip-hop or downtempo track can read 174 instead of 87.
 
 The summation order and double accumulators are **accuracy-bearing**. Changing them changes results.
 
@@ -35,7 +35,7 @@ Three constants carry the accuracy, all swept on GiantSteps:
 - **`kBassTonicWeight`** (0.15). A second chroma over the bass band (`kBassMaxHz`, 250 Hz) votes on which note the bassline treats as the root. It *supplements* the full-range chroma. Band-limiting the whole chroma measured far worse.
 - **`kModeThirdWeight`** (0.45) scores the minor third against the major third. In a bare 12-bin correlation the interval that defines the mode is one bin among twelve.
 
-The last two exist because profile correlation finds a *scale*, not a tonal center. The relative, dominant and subdominant keys share that scale, and those confusions dominated the errors. The scoring is additive over a correlation in [-1, 1]. **The confidence gate stays on the correlation alone**: it answers "is this tonal at all", which the other two terms cannot.
+The last two exist because profile correlation finds a *scale*, not a tonal center. The relative, dominant and subdominant keys share many scale notes. Those confusions dominated the errors. The scoring is additive over a correlation in [-1, 1]. **The confidence gate stays on the correlation alone**: it answers "is this tonal at all", which the other two terms cannot.
 
 Frames are normalized to one vote and **never log-compressed**. Compressing raw magnitudes squashes loud passages harder than quiet ones.
 
@@ -43,13 +43,13 @@ The key type, Camelot and musical-name formatting and tag parsing live in `Audio
 
 ## Cost
 
-Both analyzers together run at roughly 6,000x realtime in Release, about a fifth of the decode they ride. The loader pipelines the decode against them, so they add CPU but no wall time. `scan_bpm`/`scan_key` report the `streamSeconds`/`finishSeconds` split, in Debug, where `-O0` inflates everything but vDSP.
+Both analyzers together run at roughly 6,000x realtime in Release, about a fifth of the decode they ride. The loader pipelines decode and analysis. Analysis adds wall time when it outlasts the overlapping decode. `scan_bpm`/`scan_key` report the `streamSeconds`/`finishSeconds` split, in Debug, where `-O0` inflates everything but vDSP.
 
-What is left in each is almost all FFT: 172 1024-point ones a second for tempo, 2.7 32768-point ones for key. Cheaper means fewer or smaller frames. **The tempo analyzer decimates a file at 88.2 kHz or more by a power of two first** (a windowed-sinc FIR through `vDSP_desamp`, its history carried across appends), since its frame and hop are in samples. At 96 kHz that halves its cost with Accuracy1 unchanged. 44.1 and 48 kHz files take no filter and no copy.
+At 44.1 kHz, the FFT rates are about 172 1024-point transforms per second for tempo and 2.7 32768-point transforms for key. Cheaper means fewer or smaller frames. **The tempo analyzer decimates a file at 88.2 kHz or more by a power of two first** (a windowed-sinc FIR through `vDSP_desamp`, its history carried across appends), since its frame and hop are in samples. At 96 kHz that halves its cost with Accuracy1 unchanged. 44.1 and 48 kHz files take no filter and no copy.
 
 Four measured rules hold the current floor:
 
-- **Every per-bin or per-sample reduction goes through vDSP**, never a written-out loop. A per-sample branch does not predict, and a single accumulator serializes on float-add latency.
+- **The spectral reductions go through vDSP.** A per-sample branch does not predict, and a single accumulator serializes on float-add latency.
 - **Touch only the band that votes.** The key's chroma band is a sixth of its spectrum, and the magnitude and fold passes run over it alone.
 - **A scatter becomes a run.** Within the band each semitone's bins are contiguous, so the chroma fold is one reduction per semitone. The phase comb is swept **a beat at a time rather than a phase at a time**: one vDSP add per beat scores every phase at once.
 - **`vDSP_DFT` is not a drop-in win over `vDSP_fft_zrip`.** It takes a third off the key's 32768-point frames and *loses* on tempo's 1024-point ones. Microbenchmarks mislead here. Measure a real decode.
@@ -69,7 +69,7 @@ scripts/analysis/validate-key.py   --jobs 6
 
 Neither dataset is vendored. Point `--dataset` at a local clone with audio downloaded. Tempo scores the MIREX metrics (Accuracy1 within 4%, Accuracy2 forgiving 1/3, 1/2, 2, 3x). Key scores the MIREX weighting (1.0 exact, 0.5 fifth, 0.3 relative, 0.2 parallel). The baseline: **tempo Accuracy1 85.1%, Accuracy2 92.6%** over 652 files; **key 61.3% weighted, 54.7% exact** over 602 files.
 
-Both analyzers rely on one framing guarantee: the buffer sizes the decoder hands an analyzer never reach its result. `Tests/Audio/Analysis/AudioBPMAnalyzerTests.mm` and `Tests/Audio/Analysis/AudioKeyAnalyzerTests.mm` pin it end to end with synthetic signals in arbitrary chunk sizes. It lives in `AnalysisFramerMath.h`, which frames a mono stream into fixed windows at a fixed hop. It splices only the frames that straddle a buffer boundary and reads every later one in place. It is C++, included only by the two analyzers. `Tests/Audio/Analysis/AnalysisFramerMathTests.mm` pins the arithmetic directly.
+Both analyzers rely on one framing guarantee: the buffer sizes the decoder hands an analyzer never reach its result. `Tests/Audio/Analysis/AudioBPMAnalyzerTests.mm` and `Tests/Audio/Analysis/AudioKeyAnalyzerTests.mm` pin it end to end with synthetic signals in arbitrary chunk sizes. It lives in `AnalysisFramerMath.h`, which frames a mono stream into fixed windows at a fixed hop. It splices only the frames that straddle a buffer boundary and reads every later one in place. It is C++, used by the two analyzers and its tests. `Tests/Audio/Analysis/AnalysisFramerMathTests.mm` pins the arithmetic directly.
 
 **TRAP: `0 < hopSize <= frameSize` is a precondition of that arithmetic.** Past it, a short buffer wraps `frameCount - base` into a huge resize and an overread, and a zero hop never advances. Both analyzers satisfy it, and the guard gives a future caller nothing rather than undefined behavior.
 

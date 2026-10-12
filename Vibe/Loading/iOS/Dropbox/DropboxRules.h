@@ -229,7 +229,7 @@ static inline BOOL VibeDropboxNameIsMirrored(NSString *name, NSSet<NSString *> *
 }
 
 // files/search_v2's answer as entries (the shape list_folder gives), kept
-// only when the mirror could hold them: folders, and mirrored files.
+// only for folders and mirrored files other than CUE sheets.
 static inline NSArray<NSDictionary *> *VibeDropboxSearchEntries(NSDictionary *_Nullable result,
                                                                  NSSet<NSString *> *playableExtensions) {
     NSMutableArray<NSDictionary *> *entries = [NSMutableArray array];
@@ -312,8 +312,7 @@ static inline BOOL VibeDropboxLocalMatchesEntry(off_t localSize, time_t localMod
 #pragma mark - Downloads
 
 // The sizes the downloads may reach before the oldest go back to
-// placeholders, the choices offered, smallest first. 10 GB, an album or two
-// hundred, which a phone can spare, is the default.
+// placeholders, smallest first. The default is 10 GB.
 static const NSInteger kVibeDropboxDownloadBudgets[] = {
     1000L * 1000 * 1000, 2000L * 1000 * 1000, 5000L * 1000 * 1000,
     10000L * 1000 * 1000, 20000L * 1000 * 1000, 50000L * 1000 * 1000,

@@ -35,7 +35,6 @@
 
 #pragma mark - Windows
 
-// 588 and 640 file frames per CD frame: exact.
 - (void)testACueWindowIsExactAt44100And48000 {
     XCTAssertTrue(NSEqualRanges(VibeCueWindow(75, 150, 44100, 10000000, NO), NSMakeRange(44100, 44100)));
     XCTAssertTrue(NSEqualRanges(VibeCueWindow(30, 105, 48000, 10000000, NO), NSMakeRange(19200, 48000)));

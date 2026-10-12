@@ -8,7 +8,7 @@ Vibe > About Vibe is a fixed 460×340 window with no nib, built in `init`. **`Ap
 
 "VIBE" as a dot matrix of shaded spheres spinning in 3D, on an `MTKView`. It sits above everything else in the window. Its clear color is transparent, so the record artwork and the text labels show through it. It takes no clicks, so the labels and the window's background drag still work.
 
-**The view lives only while the window is open.** `windowWillClose:` drops it with its Metal resources, so a closed About window holds no GPU state and no render loop. `showWindow:` builds a fresh one (`rebuildBallsView`), which also replays the intro. `windowDidChangeOcclusionState:` pauses the 60 fps render loop whenever the window cannot be seen.
+**The view lives only while the window is open.** `windowWillClose:` drops the view and its per-view Metal resources. The device and compiled pipeline stay cached for later opens. Closing stops the render loop. `showWindow:` builds a fresh one (`rebuildBallsView`), which also replays the intro. `windowDidChangeOcclusionState:` pauses the 60 fps render loop whenever the window cannot be seen.
 
 ## VibeLinkLabel
 

@@ -130,8 +130,8 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         // so it exists before first use; decode-side writes go through a
         // pointer snapshotted here.
         dispatch_async(_loaderQueue, ^{
-            // No memory cache (PINCache+VibeAudioCache): the view retains the
-            // one live waveform, and a replay re-reads from disk in a few ms.
+            // Views retain their live waveforms. Replays read the disk cache
+            // without pinning every entry in PINMemoryCache.
             self->_waveformCache = [PINCache audioCacheWithName:AudioWaveformCache.cacheName rootPath:rootPath];
         });
     }
@@ -445,14 +445,12 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 // The lookup-or-decode core, shared by the delegate delivery path above and
 // the debug pre-warm path (AudioWaveformCache+Debug.mm). It must be called on
 // _loaderQueue, with the cache key precomputed off-queue by the caller, since
-// the stat must not block this serial queue. The completion fires exactly once
-// — waveform nil on a cancelled or failed decode, wasCached YES on a disk hit
-// — either on the loader queue, for a hit or an early-out, or on a scheduler
-// worker, for a fresh decode. awaitPersist defers a fresh decode's completion
-// until the disk write lands, which gives the debug pre-warm its
-// done-means-persisted guarantee: `file_cache f && kill` must not lose the
-// entry. The delegate path passes NO, so UI delivery never queues behind
-// PINDiskCache.
+// the stat must not block this serial queue. A hit or early-out completes on
+// this queue; a decode completes on its worker; admission failure runs on
+// main. A caller that removes pending work owns its settlement. nil means
+// failed or cancelled, and wasCached marks a disk hit. awaitPersist waits for
+// the cache-write attempt before completion. Invalidation can suppress it.
+// The delegate path passes NO to deliver before that write.
 - (void)load:(AudioTrack *)track
     cacheKey:(NSString *)cacheKey
   withLoader:(AudioWaveformLoader *)loader
@@ -559,14 +557,8 @@ awaitPersist:(BOOL)awaitPersist
         if (!loader.isCancelled && !loader.isDetached) {
             [self.delegate audioWaveform:waveform didLoadData:1 forTrack:track];
         }
-        // The BPM and key are computed at the end of the decode pass, or
-        // carried by a cache hit, so they only ever exist on this final
-        // delivery. They are delivered even when the load was cancelled: a
-        // cancelled but complete decode still persisted values valid for its
-        // window, and the delegate matches the track against its playlist
-        // rather than the current track. Dropping them here would leave the
-        // analyzed track without them until its next play, purely because the
-        // cancel won a race.
+        // Completed analysis remains valid for its window after cancellation.
+        // The receiver matches playlist rows by sourceKey before installing it.
         [self deliverAnalysis:waveform forTrack:track];
     });
 }

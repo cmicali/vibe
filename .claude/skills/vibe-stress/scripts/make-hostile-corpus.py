@@ -28,7 +28,6 @@ from stress import AUDIO_SUFFIXES  # noqa: E402
 
 
 def pick_sources(source: pathlib.Path, rng, want):
-    """Real tracks, spread across folders rather than drawn from one album."""
     by_folder = {}
     for dirpath, dirnames, filenames in os.walk(source):
         dirnames[:] = [d for d in dirnames if not d.startswith(".")]

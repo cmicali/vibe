@@ -10,7 +10,7 @@ Concurrent agents build and run the macOS Debug app from one checkout. Every bui
 - One container means one channel. `VibeSweepStaleChannelFiles` (`DebugChannel.m`) deletes every `vibe-command-*`, `vibe-response-*` and `vibe-screenshot-*` file at launch. That destroys another agent's in-flight commands.
 - One container means shared `NSUserDefaults`, PINCaches and folder-access bookmarks. These corrupt an agent's test silently.
 
-Goal: each agent's Debug build gets its own executable, bundle id and container. Agents then cannot see, kill or interrogate each other. Release and App Store builds stay untouched. An unslotted build behaves exactly as today. iOS needs nothing, because `sim-udid.sh` already gives each session its own simulator.
+Goal: each agent's Debug build gets its own executable, bundle id and container. Agents then cannot see, kill or interrogate each other. Release and App Store builds stay untouched. An unslotted build behaves exactly as today. `sim-udid.sh` separates iOS simulators by checkout and `CLAUDE_CODE_SESSION_ID`. Sessions without that variable still share the checkout's default simulator unless they set `VIBE_SIM_NAME` or `VIBE_SIM_UDID`.
 
 The slot comes from `CLAUDE_CODE_SESSION_ID`, which Task subagents inherit. It never comes from the worktree name, since agents may share a checkout.
 

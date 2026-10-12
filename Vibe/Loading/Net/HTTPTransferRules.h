@@ -18,8 +18,9 @@ NS_ASSUME_NONNULL_BEGIN
 static const NSInteger kVibeHTTPMaximumAttempts = 4;
 
 // Seconds to wait before retrying, or a negative answer for "do not retry".
-// 429 is rate limiting and 503 a transient outage. Retry-After is honored but
-// capped, since a waiting download holds a materialization lane.
+// 429 is rate limiting and 503 a transient outage. A numeric Retry-After is
+// capped at 10 seconds. An absent or non-positive value uses one second.
+// HTTP-date values are not parsed.
 static inline NSTimeInterval VibeHTTPRetryDelay(NSInteger status, NSString *_Nullable retryAfter) {
     if (status != 429 && status != 503) {
         return -1;

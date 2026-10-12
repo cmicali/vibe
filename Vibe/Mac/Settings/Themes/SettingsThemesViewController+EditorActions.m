@@ -116,9 +116,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL builtIn = [AppTheme isBuiltInIdentifier:
             AppSettings.sharedInstance.activeThemeIdentifier];
     [_nameRow setCaption:builtIn ? STR_SETTINGS_THEME_BUILT_IN_COPY_CAPTION : nil];
-    // Single mode has one color per field: every pair collapses to its
-    // dark-keyed well, and the per-side rows lose their side in the title the
-    // debug walker addresses them by.
     BOOL single = theme.isSingleMode;
     [_windowTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                            : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
@@ -138,9 +135,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         views[2].hidden = single;
         views[3].hidden = single;
     }
-    // The band styles' hues name their bands. Neither offers the waveform
-    // color. 3-Band's wells stand in for it. Spectrum offers its palettes, and
-    // the wells under Custom.
     VibeWaveformPaletteKind kind = [WaveformRendererRegistry paletteKindForIdentifier:theme.waveformStyle];
     BOOL bandWells = kind == VibeWaveformPaletteKindBands ||
             (kind == VibeWaveformPaletteKindSpectrum &&
@@ -524,8 +518,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
                     write:^(AppTheme *theme, NSString *identifier) { theme.waveformTheme = identifier; }];
 }
 
-// Custom reveals the band wells unseeded: they show Rekord Bin's bands while
-// unset, which is what draws, as under 3-Band.
+// Unset Custom wells use Rekord Bin's bands without writing them.
 - (void)spectrumPaletteChanged:(id)sender {
     [self chooseFromPopUp:_spectrumPalettePopUp revealing:nil wells:@[] effect:VibeSettingsLiveEffectWaveformTheme
                     write:^(AppTheme *theme, NSString *identifier) { theme.waveformSpectrumPalette = identifier; }];
@@ -589,7 +582,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
         return;
     }
     if ([AppTheme isBuiltInIdentifier:active]) {
-        // Retyping the built-in's own name is no edit.
         if ([_nameField.stringValue isEqualToString:[settings displayNameForThemeIdentifier:active]]
                 || ![self forkBuiltInForEdit]) {
             [self refreshFromSettings];
@@ -633,11 +625,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self refreshFontValueLabels];
 }
 
-// A well stays bound to the shared color panel until deactivated, even
-// disabled or hidden, and would take the panel's next pick. TRAP: only an
-// active well is deactivated: deactivate creates the shared color panel when
-// none exists, and the panel's first layout brings up RenderBox's Metal
-// device and the GPU driver's 256 MB texture heap.
+// Hidden wells still receive color-panel picks until deactivated.
+// TRAP: deactivate only active wells. It can otherwise create the panel and Metal resources.
 - (void)closeEditorPanels {
     _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {

@@ -55,9 +55,6 @@
                    @"back at full volume, every frame continues the file exactly");
 }
 
-// A start plays at the volume it was left at, never ramping from full: with
-// Declick off, the first sample is already the file at exactly 1/8, and so is
-// the first after a resume from the idle stop.
 - (void)testAStartPlaysAtTheVolumeItWasLeftAt {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     _player.declick = NO;
@@ -84,10 +81,6 @@
                    @"the resume ramped");
 }
 
-// The output's rate moves under the pipeline (a device's or a route's under
-// the output unit, here the pump's): playing, the tone continues at the new
-// rate from the same position; paused, the position holds and the resume
-// continues there.
 - (void)testOutputRateChangeKeepsThePlayingAndPausedTrack {
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *url = [self fixture:@"1000.wav"];
@@ -559,7 +552,6 @@
     }
 }
 
-// An RME takes ~215 ms to start, a waking DAC seconds.
 - (void)testASlowDeviceStartHoldsNeitherThePlayNorThePlayerQueue {
     self.continueAfterFailure = YES;
     dispatch_semaphore_t entered = dispatch_semaphore_create(0), release = dispatch_semaphore_create(0);
@@ -608,7 +600,6 @@
     }];
 }
 
-// The path, stage by stage, as the Settings window and dump_audio_path read it.
 - (void)testAudioPathReportsEveryStage {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"noise-44100-16-2.wav"] paused:NO position:0];
@@ -737,9 +728,7 @@
     [self renderPastIdleStopExpectingIdleEdges:3];
 }
 
-// The delay at 60 BPM declares a 25 s tail: ten seconds after the pause the
-// output is still rendering it, which is when a fixed timer released the
-// session under it.
+// A fixed idle deadline must not cut off a longer effect tail.
 - (void)testATailLongerThanTenSecondsHoldsTheOutputFromIdle {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
@@ -762,7 +751,6 @@
     XCTAssertTrue(_player.outputIdle);
 }
 
-// A resume inside the idle stop's delay cancels it: no edge, then or later.
 - (void)testAResumeBeforeTheIdleStopLeavesNothingToRelease {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
@@ -961,8 +949,7 @@
     [self checkDecodeFailureForSuccessor:NO afterFrames:0 superseded:YES repeatedURL:NO];
 }
 
-// A hung device holds its HAL reads 30 s: the rate a bind follows is the one
-// the player queue waits for, and it waits at most its bound.
+// Hold the HAL rate read past the player queue's wait limit.
 - (void)testAHungDeviceRateReadHoldsThePlayerQueueOnlyForItsBound {
     dispatch_semaphore_t release = dispatch_semaphore_create(0);
     __block _Atomic bool returned = false;

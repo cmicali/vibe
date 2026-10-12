@@ -21,7 +21,6 @@
     BOOL _hovered;
 }
 
-// Measured off the System Settings reference.
 static const CGFloat kInlineBadgeDiameter = 19;
 static const CGFloat kInlineBadgeGap = 8;
 static const CGFloat kInlineEdgeInset = 3.5;
@@ -60,7 +59,6 @@ static const CGFloat kInlineTitleInset = 10;
     if (!self.selectedItem.image) {
         return 0;
     }
-    // An image-only value (a glyph choice) advances by the image alone.
     if (self.selectedItem.title.length == 0) {
         return ceil(self.selectedItem.image.size.width);
     }
@@ -202,7 +200,6 @@ static const CGFloat kInlineTitleInset = 10;
     _sectionStack = stack;
     NSSize paneSize = [self naturalPaneSize];
 
-    // System Settings' light content area is white, the cards a step darker.
     SettingsFillView *view = [[SettingsFillView alloc]
             initWithFrame:NSMakeRect(0, 0, paneSize.width, paneSize.height)];
     view.darkColor = NSColor.clearColor;
@@ -279,10 +276,7 @@ static const CGFloat kInlineTitleInset = 10;
 }
 
 // Recomputed, never a high-water mark, so hiding a row gives the height back.
-// measure NO takes each sibling's last measurement: a hidden pane cannot have
-// moved, so a visible pane's change costs one solve, not one per pane. Even
-// measuring, a pane whose layout signature holds keeps its last size, so
-// reopening the window solves only for what changed while it was closed.
+// Reuse sibling measurements until their layout signatures change.
 + (void)applySharedSizeToPanes:(NSArray<__kindof NSViewController *> *)panes measure:(BOOL)measure {
     NSSize shared = NSMakeSize(kSettingsPaneWidth, kSettingsPaneMinHeight);
     for (NSViewController *pane in panes) {
@@ -330,13 +324,10 @@ static const CGFloat kInlineTitleInset = 10;
     if (!self.view.window.isVisible) {
         return;
     }
-    // TRAP: measuring is two full solves (11 ms on the theme editor), and every
-    // regained key and closed menu refreshes the pane, so it is taken only when
-    // something that can move the size changed since the last one.
+    // TRAP: key and menu events refresh this pane. Only layout changes justify two full solves.
     if ([[self layoutSignature] isEqualToString:_measuredLayoutSignature]) {
         return;
     }
-    // Rows shown or hidden on screen: a live search marks what just appeared.
     [self searchableRowsDidChange];
     if (_searchQuery) {
         [self applySearchMarks];

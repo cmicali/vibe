@@ -1,6 +1,3 @@
-//
-// Fixed-slot admission without pre-dispatched pending work.
-//
 
 #import <XCTest/XCTest.h>
 

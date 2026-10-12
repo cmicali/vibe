@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  Demand-driven FFT analysis for the five-bar equalizer, fed the render's
-//  final samples. The meter lives from the first demand, replaced only when
-//  the output's rate or the normalization mode changes.
+//  final samples. The meter lives from the first demand. Rate or mode changes
+//  replace it. An iOS media-services reset discards it too.
 //
 
 #import <AVFAudio/AVFAudio.h>

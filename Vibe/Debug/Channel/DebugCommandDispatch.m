@@ -57,7 +57,6 @@ BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
 }
 
 NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
-    // An empty array would make the length below (NSUInteger)-1.
     if (tokens.count < 2) {
         return @"";
     }

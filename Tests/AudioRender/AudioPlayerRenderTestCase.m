@@ -114,7 +114,7 @@ AudioTrack *VibeCueRow(NSURL *url, NSUInteger start, NSUInteger end) {
     return [[AudioTrack alloc] initWithURL:url cueStart:start cueEnd:end title:nil performer:nil sheet:nil trackNumber:0];
 }
 
-// Stereo noise no excerpt of which repeats, so an alignment cannot slip.
+// Deterministic noise supplies distinct markers for alignment.
 NSData *VibeUniqueNoise(NSUInteger frames, uint32_t seed) {
     NSMutableData *data = [NSMutableData dataWithLength:frames * 2 * sizeof(float)];
     float *p = data.mutableBytes;
@@ -246,9 +246,8 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertEqualObjects(pcm,VibePCM([self read:url]),@"Lossless decode %@",url.lastPathComponent);
     return pcm;
 }
-// TRAP: the player hands each delegate event to main by an async hop. On a
-// loaded runner it lands after the last block's run-loop turn now and then.
-// Settle a count that must have risen (settleUntil:) before asserting it.
+// TRAP: delegate events arrive asynchronously on main.
+// Settle a count that must rise before asserting it.
 - (NSUInteger)count:(NSString *)event {
     NSUInteger count=0; for (NSDictionary *entry in _events) if ([entry[@"event"] isEqual:event]) count++; return count;
 }
@@ -258,9 +257,8 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
     XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
 }
-// The drain runs inside debugRenderFrames:, so every delegate call a slice
-// caused is queued on main when it returns. A marker queued behind them lands
-// them all. A run-loop turn of a few microseconds did not, reliably.
+// The render drain queues its delegate calls before returning.
+// A main-queue marker behind them waits for every delivery.
 - (void)landMainQueue {
     __block BOOL landed = NO;
     dispatch_async(dispatch_get_main_queue(), ^{ landed = YES; });
@@ -587,15 +585,9 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
             && voice.written < voice.endOfStream;
 }
 
-// A block at a time until the condition holds, against the hang guard. Each
-// block drains, so a decision taken there is in place at the next check.
-// Between blocks main always runs once, so deliveries land. While a decode
-// turn fills the voice, main runs in short slices until the next block is
-// buffered, since the inline fill is starved on the pool and a block rendered
-// sooner would underrun. Otherwise main runs for 1 ms per block. A held voice
-// then still lets wall time pass, so a wall-clock deadline such as a stall's
-// lands well before the frame clock's 6 s idle stop. The frame clock runs a
-// few times faster than wall time there, not in step with it.
+// Run main between slices so deliveries and wall-clock deadlines progress.
+// Wait for active decode work to fill the next block before pulling it.
+// The pump's frame clock advances independently of wall time.
 - (BOOL)renderUntil:(BOOL (^)(void))condition {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition() && deadline.timeIntervalSinceNow > 0) {
@@ -615,8 +607,7 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     return condition();
 }
 
-// A half-second open deadline. Applied after the open has landed, so only a
-// stall is under it, which snapshots it at its hold.
+// Apply after open settles so only the subsequent stall uses this deadline.
 - (void)shortenTheOpenDeadline {
     VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
     values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
@@ -640,8 +631,7 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     return held;
 }
 
-// The replay's first 4800 frames are the reference's from within a frame of
-// `held`: its start truncates the seconds.
+// Allow the two-frame search margin for seconds-to-frame conversion.
 - (void)assertTheReplayOf:(NSData *)reference startsAt:(NSTimeInterval)held {
     [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
     [_capture setLength:0];

@@ -36,7 +36,7 @@
 }
 
 // Every gate is checked here, at arming time; the bus refuses on its own if
-// the voice's stream has already ended.
+// the voice is already dead.
 - (void)maybeArmSuccessorOnQueue {
     if (_successorTrack || !_voice || !_prefetchedFile || !_prefetchedTrack) {
         return;
@@ -103,9 +103,8 @@
 }
 
 // A long crossfade's track end: the park starts as a voice of its own while
-// the current one fades out beside it, the promote's delivery without its
-// splice. Without this a long crossfade only lost gapless: the track played
-// out, and the shell's play: of the next found nothing audible to fade from.
+// the current one fades out beside it. Starting before the current track ends
+// gives the outgoing fade audio to play.
 - (void)maybeCrossfadeIntoParkOnQueue {
     AudioTrack *startedTrack = _prefetchedTrack;
     AudioFileHandle *startedFile = _prefetchedFile;

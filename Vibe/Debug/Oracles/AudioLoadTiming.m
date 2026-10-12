@@ -9,7 +9,6 @@
 
 #import <os/lock.h>
 
-// Enough to hold a folder-sized profiling run without growing without bound.
 static const NSUInteger kMaxRecordedLoads = 256;
 
 @interface AudioLoadTiming ()

@@ -1,28 +1,28 @@
 # Vibe
 
-> A fast, minimal player for your music files on Mac. Plays audio files you
+> A fast, minimal player for your music files on Mac, iPhone and iPad. Plays audio files you
 > own — on disk, or in a file provider such as iCloud Drive or Dropbox — with
-> a seekable full-track waveform, a turntable-style pitch fader and DJ
-> performance FX. It is not a streaming client: there is no catalogue, no
-> library to import, no account and no subscription.
+> a seekable full-track waveform and DJ performance FX. There is no catalogue,
+> library to import, Vibe account or subscription. The Mac also has a
+> turntable-style pitch fader.
 
-Vibe is a native macOS app written in Objective-C on its own CoreAudio playback
+Vibe is a native macOS and iOS app written in Objective-C on its own CoreAudio playback
 engine, with no third-party audio engine. It is free, open source under
-Apache 2.0, and available on the Mac App Store or as a direct download.
+Apache 2.0, and available on the App Store. macOS also has a direct download.
 
-- Requires macOS 13 Ventura or later, Apple silicon or Intel.
+- Requires macOS 13 Ventura or later (Apple silicon or Intel), or iOS 26 or later.
 - Formats: MP3, MP2, AAC/ADTS, FLAC, MP4/M4A/M4B/M4R, CAF, W64, Ogg Opus and
   Vorbis, QTA (Voice Memos), AIFF, WAV, and CUE sheets — all played by Vibe's
-  own engine, lossless at full resolution.
+  own engine. Vorbis and QTA require macOS. Audio is decoded to float32.
 - No library or database: drop a file or folder on the window and it plays.
   Tags, artwork and BPM are read in the background and cached to disk.
 - Files may live anywhere the Files system can reach — a local disk, an
   external drive, iCloud Drive, Dropbox or another file provider. Vibe asks
   the operating system to fetch a cloud file and shows its download progress;
-  it never talks to the provider itself.
-- For DJs: a turntable-style pitch fader, skips measured in bars rather than
-  seconds when the tempo is known, and performance FX on the keyboard — a
-  low-kill filter, a reverb wash, and delays locked to the track's BPM.
+  iOS also has a direct Dropbox connection.
+- Both platforms have BPM detection and DJ FX: low-kill, reverb and delays
+  locked to the track's BPM. The Mac adds a pitch fader, key analysis,
+  keyboard FX controls and skips measured in bars when the tempo is known.
 - Localized into 30 languages.
 - Open URL… plays an audio file from a web address. Plain http is allowed
   only to the local network. The download is kept for replay.
@@ -37,7 +37,7 @@ Apache 2.0, and available on the Mac App Store or as a direct download.
 
 - [Home](https://vibeplayer.app/): what the app is, with screenshots.
 - [Privacy policy](https://vibeplayer.app/privacy): what Vibe stores locally,
-  and the one kind of request it makes.
+  and its network requests.
 - [Download (.dmg)](https://vibeplayer.app/download/latest): always the
   current notarized universal disk image — a redirect to the release asset on
   GitHub, where an arm64-only alternate is also available.

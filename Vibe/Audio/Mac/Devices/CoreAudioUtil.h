@@ -60,7 +60,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Asks the device itself whether it still exists, rather than a snapshot that
 // may not have caught up with an unplug. YES only when confirmed; a failed
-// read answers NO (see VibeDeviceIsConfirmedDead).
+// read answers NO unless the HAL confirms a bad object (VibeDeviceIsConfirmedDead).
 + (BOOL)deviceIsConfirmedDead:(AudioDeviceID)deviceID;
 
 // kAudioDevicePropertyTransportType. An optional refinement: the sweep keeps a
@@ -75,7 +75,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The device's first output stream: its id, its current physical format and,
 // when asked for, the formats it offers. availableFormats is malloc'd and
 // owned by the caller (free() it); it is NULL with count 0 when the stream
-// lists none. Both NULL skips that enumeration, a HAL query of its own that
+// lists none or enumeration fails. Both NULL skips that enumeration, a HAL query of its own that
 // a reader of the current format alone has no use for.
 + (BOOL)readOutputStream:(AudioStreamID *)stream
           physicalFormat:(AudioStreamBasicDescription *)format
@@ -143,8 +143,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Everything the HAL will say about one device, for Save Debug Info: identity,
 // liveness and exclusive ownership, rates and buffer, the latency it declares,
-// its clock, and its first output stream's formats and controls. Strings and
-// numbers only, and a property the device does not answer is simply absent.
+// its clock, and its first output stream's formats and controls. Dictionaries,
+// arrays, strings and numbers only. Unreadable optional properties are omitted.
 // Every read goes through coreaudiod, so call it off main.
 + (NSDictionary<NSString *, id> *)diagnosticDescriptionOfDeviceID:(AudioDeviceID)deviceID;
 

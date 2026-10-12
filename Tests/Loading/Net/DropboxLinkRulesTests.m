@@ -1,9 +1,3 @@
-//
-//  DropboxLinkRulesTests.m
-//
-//  Open URL's Dropbox share links: which links get dl=1, that the share-link
-//  rewrite asks this file, and that LinkStore opens one (DropboxLinkStoreTests).
-//
 
 #import <XCTest/XCTest.h>
 

@@ -1,13 +1,3 @@
-//
-//  ICloudLinkRulesTests.m
-//
-//  Open URL's iCloud Drive share links: which links are iCloud's, what a
-//  lookup's answer says, the download address, and how long a lookup is
-//  reused. Then what LinkStore makes of iCloud's answers over HTTPStub
-//  (ICloudLinkStoreTests): the lookup before each request and its resends, a
-//  lookup again for an expired address, the checksum as the version, and the
-//  shares that open nothing.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -76,7 +66,6 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertNil(VibeICloudLinkShortGUID(nil));
 }
 
-// The client looks it up. The link itself is fetched from nowhere.
 - (void)testAnICloudDriveLinkIsAcceptedAndNotRewritten {
     NSURL *link = [NSURL URLWithString:@"https://www.icloud.com/iclouddrive/0b9AbCdEfGhIjKlMnOpQrStUv#Song"];
     XCTAssertEqual(VibeLinkURLAcceptance(link), VibeLinkErrorNone);
@@ -157,7 +146,6 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertNil(file);
 }
 
-// Never a crash, and never the server's failure.
 - (void)testAnyOtherAnswerIsUnreadable {
     NSMutableArray *answers = [NSMutableArray arrayWithObjects:@[], @{}, @"text", @{@"results": @[]},
                                @{@"results": @"x"}, @{@"results": @[@"x"]}, @{@"results": @[@{}]}, nil];
@@ -203,7 +191,6 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertEqual(VibeICloudLinkFileOfLookup(nil, NULL), VibeLinkErrorICloudUnreadable);
 }
 
-// A field of another type than its record's is no field.
 - (void)testAFieldOfAnotherShapeIsIgnored {
     NSMutableDictionary *lookup = Lookup();
     NSMutableDictionary *fields = ICloudResult(lookup)[@"rootRecord"][@"fields"];
@@ -216,8 +203,6 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertEqualObjects(file[@"name"], @"Link");
 }
 
-// ${f} takes the name, percent-encoded, and the signature's items are kept as
-// they came.
 - (void)testTheDownloadAddressCarriesTheName {
     NSString *address = @"https://cvws.icloud-content.com/B/AbC-dEf/${f}?o=A_b&e=1791587082&s=x%2By";
     NSURL *url = VibeICloudLinkDownloadURL(address, @"Café / Mix [CD2].flac");
@@ -232,7 +217,6 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
     XCTAssertNil(VibeICloudLinkDownloadURL(@"http://cvws.icloud-content.com/B/x/${f}", @"n.mp3"), @"https only");
 }
 
-// The lookup's name names the link's file, as iCloud's own echo of it would.
 - (void)testTheLookupsNameNamesTheFile {
     NSString *link = @"https://www.icloud.com/iclouddrive/0b9AbCdEf#Song";
     NSString *echo = @"attachment; filename=\"Song%20One%20%5BCD2%5D.flac\"; "
@@ -244,7 +228,6 @@ static VibeLinkError FileOf(id answer, NSDictionary **file) {
                           @"Café; a=b \"x\".flac", @"a separator in the name stays encoded");
 }
 
-// By age alone, never by the address's expiry: that is in iCloud's clock.
 - (void)testAnAddressIsSentForTenMinutes {
     NSTimeInterval at = 1000000;
     XCTAssertTrue(VibeICloudLinkAddressIsFresh(at, at));
@@ -366,8 +349,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 1u, @"every request reuses the probe's lookup");
 }
 
-// An address can expire mid-download. Its refusal is looked up again, and
-// the resend goes on from the byte it reached, under the same checksum.
 - (void)testAnExpiredAddressIsLookedUpAgainAndResumes {
     NSData *bytes = FlacBytes(200000);
     [self serveICloud:bytes checksum:kChecksum];
@@ -391,7 +372,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertTrue([fetches[2].URL.query containsString:@"s=second"], @"the fresh address");
 }
 
-// The fresh address's own refusal is no expiry. The read fails as denied.
 - (void)testAnAddressRefusedAfterALookupAgainFails {
     NSData *bytes = FlacBytes(4000);
     [self serveICloud:bytes checksum:kChecksum];
@@ -406,8 +386,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqual([_stub requestsToPath:LookupPath()].count, 2u, @"looked up again once, not twice");
 }
 
-// A refreshed lookup naming another checksum is another file. The bytes
-// written are of the first, so the download fails and its part goes.
 - (void)testAnotherChecksumMidDownloadFails {
     NSData *bytes = FlacBytes(200000);
     [self serveICloud:bytes checksum:kChecksum];
@@ -450,7 +428,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqualObjects([sent.firstObject valueForHTTPHeaderField:@"Range"], @"bytes=0-15");
 }
 
-// A relaunch's lookup naming another checksum opens another version.
 - (void)testAnotherChecksumOnAFreshLookupIsAnotherVersion {
     NSData *bytes = FlacBytes(200000);
     [self serveICloud:bytes checksum:kChecksum];
@@ -470,7 +447,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], changed);
 }
 
-// Every request waiting on a lookup shares the one in flight.
 - (void)testConcurrentRequestsShareOneLookup {
     NSData *bytes = FlacBytes(4000);
     [self serveICloud:bytes checksum:kChecksum];
@@ -523,7 +499,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqual(_stub.requests.count, 1u);
 }
 
-// Neither is the server's failure.
 - (void)testAGoneShareAndAnUnreadableAnswerFailClearly {
     [self serveICloud:FlacBytes(4000) checksum:kChecksum];
     [self queueLookup:JSONData(@{@"results": @[@{@"serverErrorCode": @"NOT_FOUND", @"requireAppleLogin": @NO}]})];
@@ -584,8 +559,6 @@ static NSString *ICloudPath(NSString *checksum) {
     XCTAssertEqual([_stub requestsToPath:LookupPath()].count, lookups + 3, @"the first, the throttled, and its resend");
 }
 
-// A lookup the replaced sessions answer is handed to its waiters, and not
-// kept: it names the old server's address.
 - (void)testALookupFromReplacedSessionsIsNotKept {
     NSData *bytes = FlacBytes(4000);
     [self serveICloud:bytes checksum:kChecksum];

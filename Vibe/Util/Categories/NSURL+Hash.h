@@ -16,8 +16,9 @@
 @interface NSURL (Hash)
 
 // "<size>-<mtime_us>-<sha1(path)>" of the symlink-resolved path, from one stat
-// and no content read. Misses on a rewrite, rename or move. nil when the stat
-// fails; callers must then skip caching.
+// and no content read. Changes with size, mtime or resolved path. A rewrite
+// that preserves size and mtime keeps the key. nil when the stat fails;
+// callers must then skip caching.
 - (nullable NSString *)cacheKey;
 
 // A stat-free "which track is this" key (the widget's): hex SHA-1 of the

@@ -37,7 +37,7 @@ void VibeEmbeddedThumbnailCacheSetLimitOverride(NSUInteger limit) {
 @implementation EmbeddedThumbnailNode
 @end
 
-// O(1) per operation: every row draw hits it.
+// Lookup, recency updates and each eviction are O(1). Every row draw hits it.
 @implementation EmbeddedThumbnailCache {
     NSMutableDictionary<EmbeddedThumbnailKey *, EmbeddedThumbnailNode *> *_images;
     __unsafe_unretained EmbeddedThumbnailNode *_mostRecent;

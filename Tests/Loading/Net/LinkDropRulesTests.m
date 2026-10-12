@@ -1,9 +1,3 @@
-//
-//  LinkDropRulesTests.m
-//
-//  What a drop or a paste opens: which items are web links, how a .webloc is
-//  read, and the order a drop opens in.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -41,13 +35,11 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
                           @[U(@"http://nas.local/a.flac")]);
 }
 
-// A pasted link often carries spaces and a newline.
 - (void)testTextAroundOneLinkIsTrimmed {
     NSArray *items = @[@{kVibeDropTypeText: @"  \n https://example.com/a.mp3\t\n"}];
     XCTAssertEqualObjects(VibeDropURLsOfItems(items), @[U(@"https://example.com/a.mp3")]);
 }
 
-// Text that is not one web link adds nothing, so the drag is refused.
 - (void)testTextThatIsNoLinkAddsNothing {
     for (NSString *text in @[@"", @"  ", @"hello world", @"example.com/a.mp3", @"/Users/me/a.mp3",
                              @"Listen: https://example.com/a.mp3", @"https://"]) {
@@ -57,7 +49,6 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
     XCTAssertEqualObjects(VibeDropURLsOfItems(@[]), @[]);
 }
 
-// Only http and https are links. Another scheme is refused at the drag.
 - (void)testOnlyHTTPAndHTTPSAreLinks {
     for (NSString *link in @[@"ftp://example.com/a.mp3", @"javascript:alert(1)", @"mailto:a@example.com",
                              @"data:audio/mpeg;base64,AAAA", @"file:///Users/me/a.mp3", @"vibe://open"]) {
@@ -85,8 +76,6 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
     XCTAssertFalse(VibeDropHasLinks(@[]));
 }
 
-// A paste opens its first web link. Files and text that is not one link are
-// skipped. Nothing found is the invalid-link error.
 - (void)testAPasteOpensItsFirstWebLink {
     NSArray *items = @[@{kVibeDropTypeText: @"hello world"},
                        FileItem(@"file:///Users/me/Music/a.flac"),
@@ -139,7 +128,6 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
     XCTAssertNil(VibeLinkURLOfWebloc(nil));
 }
 
-// One drop, several links: each once, in drop order.
 - (void)testSeveralLinksOpenInDropOrderOnce {
     NSArray *items = @[@{kVibeDropTypeURL: @"https://b.example.com/2.mp3"},
                        @{kVibeDropTypeText: @"https://a.example.com/1.mp3"},
@@ -156,9 +144,6 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
                                     U(@"https://b.example.com/3.mp3")]));
 }
 
-// Files and links open together, in the order they were dropped. A .webloc
-// stands where it was dropped. One that cannot be read drops out, as does
-// a link it repeats.
 - (void)testFilesAndLinksOpenInDropOrder {
     NSURL *first = [NSURL fileURLWithPath:@"/Users/me/Music/1.flac"];
     NSURL *folder = [NSURL fileURLWithPath:@"/Users/me/Music/Album" isDirectory:YES];

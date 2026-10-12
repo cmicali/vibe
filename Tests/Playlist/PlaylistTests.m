@@ -243,8 +243,6 @@
     XCTAssertEqual([playlist getIndexForTrack:nil], -1);
 }
 
-// A tempo belongs to what was analyzed: every row sounding the same window —
-// a duplicate included — and no other row of the file.
 - (void)testStampingReachesEveryRowSoundingTheWindowAndNoOtherRowOfTheFile {
     Playlist *playlist = [Playlist new];
     [playlist replaceAllWithTracks:@[CueRowOf(@"mix.flac", 0, 4500), CueRowOf(@"mix.flac", 4500, 0),
@@ -293,8 +291,6 @@
     XCTAssertEqual([playlist getIndexForTrack:outgoing], -1);
 }
 
-// Converting a sheet's image moves each row to the new file with its window
-// and names, so the rows still sound what they did.
 - (void)testReplaceCarriesACueRowsWindowAndNames {
     Playlist *playlist = [Playlist new];
     [playlist replaceAllWithTracks:@[CueRowOf(@"mix.wav", 4500, 9000)] startingAtIndex:NSNotFound];

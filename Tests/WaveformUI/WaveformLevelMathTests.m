@@ -100,7 +100,6 @@ static const float kPureRGB[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     XCTAssertEqualWithAccuracy((rgb)[2], (b), 1e-5f); \
 } while (0)
 
-// A lone band is its primary, whatever its level.
 - (void)testSpectrumLoneBandIsItsPrimary {
     float rgb[3];
     const float levels[] = {0.05f, 0.5f, 1.0f};
@@ -113,8 +112,6 @@ static const float kPureRGB[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     }
 }
 
-// Low and high alike make the additive sum, a purple no single tone makes,
-// and a louder band leads by its energy squared.
 - (void)testSpectrumMixesAdditivelyByEnergy {
     float rgb[3];
     VibeSpectrumColor((const float[]){0.6f, 0, 0.6f}, kPureRGB, rgb);
@@ -127,9 +124,6 @@ static const float kPureRGB[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     AssertRGB(rgb, 0, 1, 0);
 }
 
-// Silence is the primaries' plain mean, a gray that reads on either
-// background. A dim palette stays as dim as its primaries, so a light
-// appearance's darker set keeps reading on white.
 - (void)testSpectrumKeepsThePrimariesBrightness {
     float rgb[3];
     VibeSpectrumColor((const float[]){0, 0, 0}, kPureRGB, rgb);

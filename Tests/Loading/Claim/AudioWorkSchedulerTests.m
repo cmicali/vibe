@@ -1,6 +1,3 @@
-//
-// Fixed-slot audio work admission and pending cancellation.
-//
 
 #import <XCTest/XCTest.h>
 

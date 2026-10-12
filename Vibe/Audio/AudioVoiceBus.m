@@ -177,8 +177,8 @@
     return [self slotCountInState:VibeVoiceStateNone];
 }
 
-// A full pool is a skip storm with long crossfades. The oldest retiring voice
-// is the quietest, so it is the one to cut; its slot frees at the next render.
+// Long crossfades can exhaust the pool during a skip storm. Cut the oldest
+// retiring voice. The render ends it before the drain recycles its slot.
 - (void)cutOldestRetiringVoice {
     NSUInteger oldest = NSNotFound;
     uint64_t order = UINT64_MAX;

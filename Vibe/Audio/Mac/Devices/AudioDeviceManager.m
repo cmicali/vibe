@@ -15,8 +15,7 @@ static const AudioObjectPropertyAddress kDefaultOutputDeviceAddress = {
         kAudioObjectPropertyElementMain
 };
 
-// Setup is a HAL client connection plus one enumeration, about 20-50ms. This
-// is every synchronous caller's ceiling on waiting for it, not a target.
+// Bounds each synchronous wait for HAL listener setup and the first sweep.
 static const NSTimeInterval kListenerSetupWait = 0.25;
 
 // How many consecutive sweeps may be discarded for a per-device property-read
@@ -157,9 +156,7 @@ static OSStatus devicePropertyChangedCallback(AudioObjectID inObjectID,
         _eventLog = [[AudioDeviceEventLog alloc] init];
 #endif
         dispatch_group_enter(_listenerSetupGroup);
-        // Setup runs here, not inline: these are the process's first CoreAudio
-        // calls, bringing up the HAL connection costs about 20ms, and the
-        // singleton is first touched on main before first paint.
+        // Keep HAL connection setup off main before the first paint.
         dispatch_async(_refreshQueue, ^{
             if (!self->_enumerator) {
                 // Deliver HAL notifications on the HAL's own thread rather than

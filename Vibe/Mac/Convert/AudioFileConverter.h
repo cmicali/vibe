@@ -50,7 +50,7 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 @interface AudioFileConverter : NSObject
 
 // Main thread. YES from accept until the completion runs; menu validation
-// disables on it — concurrent encodes would race for one destination name.
+// changes the item to Cancel. Concurrent encodes could race for one path.
 @property (readonly, getter=isConverting) BOOL converting;
 
 // Encode progress, on the main thread at about one-percent steps, with the
@@ -60,7 +60,7 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
 // Encodes track's file to the FLAC beside it — foo.wav becomes foo.flac —
 // copies the tags across and moves it into place. Asynchronous; completion
 // runs on the main thread with the URL actually written, which differs from
-// the sibling path when the sandbox forced a save panel. Never overwrites the
+// the sibling path when a save panel chose another location. Never overwrites the
 // automatic sibling destination; a save-panel replacement happens only after
 // the panel confirms it and may never name the source itself. window hosts the
 // panel; nil makes a denied sibling write fail. A dismissed panel reports

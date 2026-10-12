@@ -30,7 +30,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## The number gutter
 
-**The gutter has three states. In precedence they are loading, playing and number.** `configureNumberCell:row:track:isCurrentRow:` sets all three on every configure, so a reused cell cannot carry another row's state. It also reassigns `levelSource` every time, so a reused view releases its old source before declaring demand. Loading is `CloudTransferRegistry`'s `isTransferringURL:` (root `AGENTS.md`), drawn by `LoadingIndicatorView` in the equalizer's slot. Loading outranks playing because there is no output audio during the open.
+**The gutter has three states. In precedence they are loading, playing and number.** `configureNumberCell:row:track:isCurrentRow:` sets all three on every configure, so a reused cell cannot carry another row's state. It also reassigns `levelSource` every time, so a reused view releases its old source before declaring demand. Loading is `CloudTransferRegistry`'s `isTransferringURL:` (root `AGENTS.md`), drawn by `LoadingIndicatorView` in the equalizer's slot. It stays visible until the transfer ends, including during streamed playback.
 
 **A registry change or a structural edit reconfigures the visible number cells in place** (`reconfigureVisibleNumberCells`, with `makeIfNecessary:NO`). Never use `reloadData` or a row reload here. Either rebuilds the playing row's `EqualizerIndicatorView` out from under its demand balancing.
 
@@ -59,7 +59,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 **`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadData`, which would otherwise keep a stale selection by row index. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
 
-**Every start goes through `playStartPaused:`.** So `playWillStartHandler` fires after submission for a parked start as for an ordinary one. No caller reaches `AudioPlayer` directly.
+**Row starts go through `playStartPaused:`.** `playWillStartHandler` fires after submission for parked and ordinary starts. The shell's `replayTrack:intent:` submits directly to `AudioPlayer` to preserve position (`Mac/MainWindow/AGENTS.md`).
 
 **`currentIndexDidChangeHandler` is the one current-index funnel. A structural edit does not raise it.** The shell's removal and reorder funnels refresh once from the final state, and a second edge would reconcile one edit twice.
 

@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Runs operation, timing it as a named phase of a device or pipeline change.
 - (BOOL)performDiagnosticPhase:(NSString *)phase device:(NSInteger)deviceID operation:(BOOL (^)(void))operation;
 
-// Submission-side hooks. Main thread; they return a stamp for the queue side.
+// Submission-side hooks. Any thread; they return a stamp for the queue side.
 - (uint64_t)noteSubmittedPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track position:(NSTimeInterval)position paused:(BOOL)paused;
 - (uint64_t)noteSubmittedAction:(NSString *)action position:(NSTimeInterval)position;
 
@@ -65,9 +65,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)noteRetiringAudioSilentOnQueue;
 
 // Beta builds record the first UI position beyond each published playing
-// position, so a late display can be told from late audio. Main thread.
+// position, so a late display can be told from late audio. Player queue.
 - (void)notePublishedPlayingPosition:(NSTimeInterval)position track:(nullable AudioTrack *)track voice:(VibeVoiceID)voice;
-// The body of the public noteDisplayedPosition:forTrack:, which AudioPlayer.m forwards here.
+// Main thread. The body of the public noteDisplayedPosition:forTrack:.
 - (void)recordDisplayedPosition:(NSTimeInterval)position forTrack:(nullable AudioTrack *)track;
 
 @end

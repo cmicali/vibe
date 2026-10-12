@@ -269,7 +269,6 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects(CueRowSummaries(text), (@[@"a.flac 0-90000 -/- #1", @"a.flac 90000-0 -/- #3"]));
 }
 
-// Against the last KEPT start, so one broken track cannot take the rest with it.
 - (void)testCueBackwardsDropIsMeasuredAgainstTheLastKeptStart {
     NSString *text = @"FILE \"a.flac\" WAVE\n"
                       "  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
@@ -316,7 +315,6 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects(CueRowSummaries(text), (@[@"a.flac 0-4500 One/P1 #1", @"a.flac 4500-0 -/- #2"]));
 }
 
-// The sheet's TITLE names the album, which Vibe shows for no file.
 - (void)testCueTheSheetTitleNamesNoRow {
     NSString *text = @"TITLE \"The Album\"\nFILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n";
     XCTAssertEqualObjects(CueRowSummaries(text), (@[@"a.flac 0-0 -/- #1"]));
@@ -373,7 +371,6 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects(CueRows(@"FILE\nTRACK\nINDEX\nTITLE\nPERFORMER\nREM\n"), @[]);
 }
 
-// Every keyword run together on one line: one FILE line, and no track.
 - (void)testCueNoLineBreaksAtAll {
     NSMutableString *text = [NSMutableString string];
     for (NSUInteger i = 0; i < 200; i++) {
@@ -480,8 +477,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects(CueRowSummaries(text), (@[@"a.flac 0-4500 -/- #1", @"a.flac 4500-0 -/- #2"]));
 }
 
-// No audio the sheet names goes missing: a FILE none of whose tracks survived
-// plays whole, as every FILE did before sheets had rows.
+// A FILE with no surviving windows still plays whole.
 - (void)testCueAFileWhoseTracksAllDropPlaysWhole {
     NSString *text = @"FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
                       "FILE \"b.flac\" WAVE\n  TRACK 02 AUDIO\n    TITLE \"No index\"\n"
@@ -633,8 +629,6 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects([self rowFilesForSheet:@"Mix.cue" inDir:dir], (@[@"a.wav", @"b.wav"]));
 }
 
-// Readable nowhere still yields the primary, so the caller can tell a sandbox
-// denial from a missing file.
 - (void)testCueAnUnreadableImageStillYieldsThePrimaryCandidate {
     NSURL *dir = [self makeTempDirWithFiles:@[] playlistName:@"Mix.cue"
                                        text:@"FILE \"missing.wav\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"];
@@ -646,7 +640,6 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects([self rowFilesForSheet:@"Mix.cue" inDir:dir], @[]);
 }
 
-// A FILE naming something NSURL cannot hold leaves no row with a nil URL.
 - (void)testCueEntryWithNULsResolvesWithoutCrashing {
     NSURL *dir = [self makeTempDirWithFiles:@[] playlistName:@"placeholder.txt" text:@""];
     NSMutableData *data = [NSMutableData data];
@@ -770,7 +763,6 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
     XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:[junk URLByAppendingPathExtension:@"gone"]], @[]);
 }
 
-// A block cut short still yields what it holds whole, and never reads past it.
 - (void)testATruncatedBlockReadsNoFurtherThanItHolds {
     NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 44100), @0, @NO],
                                             @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);

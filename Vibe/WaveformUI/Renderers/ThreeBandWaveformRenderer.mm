@@ -10,15 +10,12 @@
 #include <vector>
 #include <cmath>
 
-// Each band's full height as a share of the broadband reference: dance
-// masters' measured balance, the mids and highs well under the lows, with the
-// outer edge at Detailed's height (Renderers/AGENTS.md has the measurements).
+// Smaller mid and high shares keep those weaker bands visible beside lows.
 static const float kBandShareOfFullScale[kAudioWaveformBandCount] = {1.0f, 0.48f, 0.48f};
 
 // Spectrum's bars carry their color levels after their heights.
 static const NSUInteger kSpectrumSamplesPerBar = 2 * kAudioWaveformBandCount;
 
-// The unplayed side's level against the played.
 static const float kUnplayedOpacity = 0.5f;
 
 // Painter's order — singles, pairs, all three — so at every height the layer
@@ -26,9 +23,7 @@ static const float kUnplayedOpacity = 0.5f;
 static const NSUInteger kLayerCount = 7;
 static const NSUInteger kLayerForBands[8] = {0, 0, 1, 3, 2, 4, 5, 6};
 
-// One bar's three bands as half-heights in points; answers the tallest.
-// Silence keeps every bar style's hairline, in the all-bands color its tie
-// gives it.
+// Silence keeps the all-bands hairline.
 static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat minimumHeight, CGFloat *half) {
     CGFloat tallest = 0;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
@@ -42,16 +37,9 @@ static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat min
     return tallest;
 }
 
-// Each layer one mirrored polygon through the bars' centers, out to the
-// lowest band of its set, appended to the caller's paths. The outline is the
-// tallest band, built when one is given. The hover slice is masked to it, and
-// Spectrum passes no paths and fills it alone. The envelopes nest as
-// their sets do, since a set's lowest band is never above a subset's, so the
-// painter's order alone colors each height by the bands reaching it, and the
-// fill's antialiasing smooths the steps between bars. Grounded, each stands on
-// the baseline at its whole height, and they nest the same way. The live
-// layers and the bake both draw from here, which keeps them pixel-identical;
-// points is the caller's scratch. A bar's heights lead its stride samples.
+// Nested band sets paint in order through the bar centers.
+// The optional outline follows the tallest band. Spectrum fills only it.
+// Live layers and bakes share this geometry and the caller's scratch.
 static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outline, std::vector<CGPoint> *points,
                                   CGSize size, const float *samples, NSUInteger count, NSUInteger stride,
                                   CGFloat minimumHeight, BOOL centered) {
@@ -93,7 +81,6 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
     }
 }
 
-// spectrumColors as sRGB components, for VibeSpectrumColor.
 static void VibeSpectrumPrimaries(NSArray<VibeColor *> *colors, float primaries[3][3]) {
     for (NSUInteger band = 0; band < kAudioWaveformBandCount; band++) {
         CGFloat rgb[3] = {};
@@ -104,11 +91,8 @@ static void VibeSpectrumPrimaries(NSArray<VibeColor *> *colors, float primaries[
     }
 }
 
-// Spectrum's fill: one pixel per backing pixel across the width. Each pixel
-// blends the colors of the two bars whose centers it lies between. The live
-// layer and the bake both draw it at its own width, and the two match. It is
-// one row tall, because a bar's color does not vary with height. It reads each
-// bar's color levels, which follow its heights.
+// One row at backing resolution, interpolated between bar centers.
+// Color levels follow the heights in each bar's samples.
 static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, const float primaries[3][3],
                                        CGFloat width, CGFloat scale) CF_RETURNS_RETAINED;
 static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, const float primaries[3][3],
@@ -144,7 +128,6 @@ static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, c
     return strip;
 }
 
-// A side's mask stops at its level, in the bar styles' ramp.
 static NSArray *VibeThreeBandSideColors(CGFloat level, BOOL flat) {
     NSMutableArray *stops = [NSMutableArray array];
     for (VibeColor *color in VibeBarRampColors([VibeColor colorWithWhite:1 alpha:level], flat)) {
@@ -162,19 +145,15 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 @implementation ThreeBandWaveformRenderer {
     CALayer *_container;
-    // The seven band layers, drawn once, under one mask that gives each side
-    // its level. It dims the composited stack, so the outer rings never show
-    // through the inner ones. Spectrum's one strip, masked to the outline,
-    // stands in their place.
+    // Dim the composited stack so outer rings cannot show through inner ones.
+    // Spectrum uses one masked strip in place of the seven band layers.
     CALayer *_bands;
     CAShapeLayer *_bandLayers[kLayerCount];
     BOOL _spectrum;
     NSUInteger _samplesPerBar;
     CALayer *_spectrumFill;
     CAShapeLayer *_spectrumOutline;
-    // The primaries the strip was drawn with, and their sRGB components. A
-    // theme resolves on every artwork change, and the strip is remade only
-    // when they change.
+    // Reuse the strip when artwork changes leave its primaries unchanged.
     NSArray<VibeColor *> *_stripColors;
     float _stripPrimaries[3][3];
     CALayer *_sides;
@@ -260,7 +239,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [_container addSublayer:_hoverHost];
 }
 
-// The ramp's aim follows the anchoring.
 - (void)setCentered:(BOOL)centered {
     if (self.centered == centered) return;
     [super setCentered:centered];
@@ -271,15 +249,10 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [CATransaction commit];
 }
 
-// Spectrum's color is what it shows, so it never takes the ramp. Ramped, the
-// lower half dimmed to brown.
 - (BOOL)drawsFlat {
     return self.theme.flatFill || _spectrum;
 }
 
-// The theme gives the band fills in this layer order, or Spectrum's
-// primaries. It gives the ramp, or none, and the hover slice, an affordance
-// rather than a band.
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
     [CATransaction begin];
@@ -298,13 +271,9 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     }
 }
 
-// A bar a point, up to the waveform's chunks: the energy windows follow the
-// drawn width rather than every bar style's 1/1024 floor, so a zoom resolves
-// each kick where floored bars a beat long alias against it into a swell.
-// Spectrum draws a bar a backing pixel, since its strip is a pixel a column
-// already. Its per-beat peaks then track the audio more closely, not less.
-// The count follows the scale at the last update. A move to another display
-// changes it at the next resize or track.
+// Use per-bar windows so zoom can resolve individual hits.
+// Spectrum samples per backing pixel; 3-Band samples per point.
+// Both cap at kVibeWaveformMaxBars, independent of the chunk count.
 - (NSUInteger)barCountForWidth:(CGFloat)width {
     CGFloat scale = _spectrum ? VibeBackingScaleForLayer(self.parentLayer) : 1;
     NSUInteger count = (NSUInteger)llround(clampMin(width * scale, 1));
@@ -383,13 +352,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // kick as it is.
 static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 
-// Each bar's levels are its own window's (barCountForWidth:), held still
-// through a resize by its reach. The mean squares land first, so Normalize
-// reads them where the bars are its columns. Normalize and Gain apply to all
-// three bands alike. Spectrum's bars then carry their color levels: the bar's
-// own window, without the reach or the clamp. The reach takes each band's
-// loudest window apart, so every bar held both the kick and the hats, and
-// every color mixed to olive.
+// Heights use the reach window. Spectrum colors use the same pass's own
+// window before clamping. Reach would blend neighboring hits' colors.
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     std::vector<float> scratch(_spectrum ? count * kSpectrumSamplesPerBar : 0);
     float *heights = _spectrum ? scratch.data() : out;
@@ -417,15 +381,9 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     }
 }
 
-// Normalize's reference is the loudest band against its share, so the tallest
-// band at the track's loudest column draws at full height: the full mix's
-// reference left every band short of it. It keeps
-// VibeWaveformFullScaleRMSForColumns's rules — the whole track, the 1,024
-// columns, the fixed ceiling — but is its own so that within the columns it
-// reads the mean squares the fill just took: measuring them through the
-// waveform again cost a fifth of every resize frame's instructions. Past the
-// columns it measures 1,024 of them the same way, so the reference does not
-// step as a resize crosses 1,024 bars.
+// Normalize against the loudest band relative to its share.
+// Reuse the fill's mean squares up to 1,024 bars. Beyond that, measure
+// 1,024 columns to keep the reference stable across resizes.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
     if (!self.normalizesLevels || !waveform->isComplete()) {
@@ -447,7 +405,6 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
 
-// The morph's rebuild callback.
 - (void)rebuildPaths {
     const std::vector<float> &samples = [_morph displayedSamples];
     NSUInteger count = samples.size() / _samplesPerBar;

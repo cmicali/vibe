@@ -34,13 +34,13 @@ The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable
 - **The waveform shows its loading shimmer while a drop resolves** (`beginLinkResolveFeedbackAppending:`). An append over a shown track shows nothing, since that track stays. Every delivery ends the shimmer once no drop is resolving (`endLinkResolveFeedbackIfIdle`). It runs after the play, so a replacing open keeps the shimmer for its own open. A superseded drop ends it when its links settle, since nothing delivers for it.
 - **Escape on the player window cancels every open still resolving** (`cancelLinkOpens`). So does a newer replacing open, Open URL's included. A cancelled open opens nothing, its files included, and the Open URL panel closes.
 
-**The outgoing network entitlement is for Open URL alone** (`ENABLE_OUTGOING_NETWORK_CONNECTIONS`, `project.yml`). Nothing else in the mac app makes a request. App Transport Security allows plain http only on the local network (`NSAllowsLocalNetworking`). `VibeLinkURLAcceptance` draws the same line before any request. macOS 15 and later ask the user before the first request to a local host (`NSLocalNetworkUsageDescription`).
+**Open URL uses the outgoing network entitlement** (`ENABLE_OUTGOING_NETWORK_CONNECTIONS`, `project.yml`) in every macOS configuration. App Transport Security allows plain http only on the local network (`NSAllowsLocalNetworking`). `VibeLinkURLAcceptance` draws the same line before any request. macOS 15 and later ask the user before the first request to a local host (`NSLocalNetworkUsageDescription`).
 
 ## Sandbox grants
 
 `FolderAccessManager` is the bookmark store. It resolves at launch, merges what an open or a drop grants, persists, and answers `canReadInsideDirectory:` before anything touches the disk. It lives here because its readers are the app delegate, the folder-art resolver and the main window. The Files pane only displays it.
 
-**Asking is separate from storing.** `FolderAccessManager+GrantPanel` is the one path that raises a panel: the grant a playlist file needs for the folder its entries live in. A playlist file grants that file alone, not the audio it names. The panel blocks a background expansion worker until a human answers. **Powerbox prompts must not stack, so it serializes on its own gate.** No unit test can reach it. The rest of the manager never blocks and is covered by `FolderAccessCoverageTests`.
+**Asking is separate from storing.** `FolderAccessManager+GrantPanel` is the one path that raises a panel: the grant a playlist file needs for the folder its entries live in. A playlist file grants that file alone, not the audio it names. The panel blocks a background expansion worker until a human answers. **Powerbox prompts must not stack, so it serializes on its own gate.** No unit test can reach it. The store performs bookmark I/O on workers and never raises a panel. `FolderAccessCoverageTests` covers its path rules.
 
 **The auto-add hook is the open funnel** (`openURLsWithRestoredAccess:token:` calls `noteOpenedURLs:`). It bookmarks only directories outside an active grant and outside ~/Music, which the entitlement covers.
 
@@ -90,7 +90,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 ## Quitting
 
-**A quit leaves the screen first and finishes afterwards.** `applicationShouldTerminate:` orders out every window and drops the Dock tile and menu bar (`NSApplicationActivationPolicyProhibited`). It detaches the player's delegate, so nothing auto-advances. Then it waits off main for what a quit owes: `AudioPlayer.prepareForTermination`, and a conversion's cancel. `prepareForTermination` puts a bit-perfect device's format back and releases its hog, which waits on the device (about 0.2 s on a USB DAC, bounded at 1.5 s). `applicationWillTerminate:` then only flushes stats and calls `saveLastPlaylist`.
+**A quit leaves the screen first and finishes afterwards.** `applicationShouldTerminate:` orders out every window and drops the Dock tile and menu bar (`NSApplicationActivationPolicyProhibited`). It detaches the player's delegate, so nothing auto-advances. Then it waits off main for what a quit owes: `AudioPlayer.prepareForTermination`, and a conversion's cancel. `prepareForTermination` puts a bit-perfect device's format back and releases its hog, which waits on the device. Format confirmation polls for up to 1.5 s. Individual HAL calls can block beyond that deadline. `applicationWillTerminate:` then only flushes stats and calls `saveLastPlaylist`.
 
 **The app does not opt into sudden termination.** Under it an idle quit is a SIGKILL with no callback, and the last playlist would not be written.
 
@@ -98,7 +98,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 ## Debug info
 
-`DebugInfo` is the report behind Settings > Advanced > Save Debug Info. The debug channel's `dump_debug_info` returns the same text. **It is passive.** It reads and changes nothing, so it is safe to save in the middle of the problem it describes.
+`DebugInfo` is the report behind Settings > Advanced > Save Debug Info. The debug channel's `dump_debug_info` returns the same text. **It is passive.** It collects diagnostics without changing playback or settings.
 
 It is two calls because of two threads. `VibeDebugInfoSnapshot` reads on main what only main may read: the controller, the windows, every stored setting. It reads `position`, which never waits on the player queue. `VibeDebugInfoText` does the slow part off main. It collects the log, then allows two seconds each for the hardware, player and audio-path sections. A section that times out reports its cached value with its capture time, or unavailable. Each section allows one outstanding worker across all exports, so a hung driver cannot pile up workers. `block_player` is a debug-only fault for testing the export during a queue stall.
 
@@ -111,6 +111,6 @@ It is two calls because of two threads. `VibeDebugInfoSnapshot` reads on main wh
 
 **`NSDockTile+Util`**: the Dock tile and the app icon behind it.
 - `setDockIcon:shaped:` composes artwork onto the icon grid off main. With the theme's App icon shape off, it installs the picture as it is.
-- `setAppIcon:shaped:` composes a theme's custom icon the same way into `NSApp.applicationIconImage`, so the Dock, the app switcher and the About surfaces agree. Nil resets to the bundle icon.
+- `setAppIcon:shaped:` composes a theme's custom icon synchronously on main and assigns `NSApp.applicationIconImage`. The Dock, app switcher and About surfaces read that image. Nil resets to the bundle icon.
 - `resetToAppIcon` puts the application's icon back in the tile. It reads the icon live, so a custom icon shows through.
 - The file's `TRAP:`s are the authority. One view is installed for good and only its image swaps, since detaching and re-installing a view leaks a 256KB dock-tile context per transition. Assigning `applicationIconImage` replaces the tile's content view, so every install re-attaches ours. **Each custom-icon-then-reset round trip of `applicationIconImage` also leaks one 256KB context inside AppKit's setter**, so `setAppIcon:shaped:` assigns only on a change.

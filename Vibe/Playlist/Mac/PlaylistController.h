@@ -30,10 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Attaching also wires double-click, the drag masks and the row menu.
 @property (weak) PlaylistTableView *tableView;
 
-// Fires as a play is submitted, before the player has opened anything: its
-// didBeginLoading waits out a 0.5 s slow-open grace, and until then the
-// header would describe the previous track. Every start, parked or not,
-// raises it.
+// Fires at play submission to refresh the header before the open settles.
+// didBeginLoading may arrive later or never fire for a fast open.
+// Every start, parked or not, raises it.
 @property (nonatomic, copy, nullable) void (^playWillStartHandler)(void);
 
 // The mac's one current-index funnel: every play, skip, gapless advance and
@@ -71,8 +70,8 @@ NS_ASSUME_NONNULL_BEGIN
 // into view. Opens nothing: the shell follows with play or playStartPaused:.
 - (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index;
 
-// The parked twin of play: nothing renders until playPause. The one start
-// funnel; no caller reaches the player directly.
+// The row-start funnel. A parked start opens at zero and waits for resume.
+// The shell submits position-preserving replays directly to the player.
 - (void)playStartPaused:(BOOL)startPaused;
 
 // Adds tracks to the end without touching playback or currentIndex.
@@ -92,7 +91,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Playlist's: what follows a track that plays out, or nil to park.
 - (nullable AudioTrack *)trackEndSuccessor;
 
-// Playlist's: the next, the one after and the previous, in play order.
+// Playlist's metadata neighborhood, in play order.
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
 // The track end's advance: moves to trackEndSuccessor and plays it, as next

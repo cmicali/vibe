@@ -1,6 +1,6 @@
 # Localization
 
-English is the source language. Every user-facing string is declared in `Vibe/Common/VibeStrings.h`. Translations live in three catalogs in `Resources/`: `Localizable.xcstrings` for the app's strings, `InfoPlist.xcstrings` for the bundle name, copyright and document-type names, and `ThemeNames.xcstrings` for the built-in themes' names. The app ships every language in those catalogs. To list them, run `jq -r '[.strings[].localizations | keys] | flatten | unique' Resources/Localizable.xcstrings`.
+English is the source language. Every user-facing string is declared in `Vibe/Common/VibeStrings.h`. Translations live in three catalogs in `Resources/`: `Localizable.xcstrings` for the app's strings, `InfoPlist.xcstrings` for bundle metadata, the local-network usage description and document-type names, and `ThemeNames.xcstrings` for the built-in themes' names. The widget's catalog is derived from `widget.*` by `make strings`. The app ships the catalog languages. To list them, run `jq -r '[.strings[].localizations | keys] | flatten | unique' Resources/Localizable.xcstrings`.
 
 The `vibe-strings` skill (`.claude/skills/vibe-strings/SKILL.md`) has the full pipeline and the translation conventions.
 
@@ -10,7 +10,7 @@ The `vibe-strings` skill (`.claude/skills/vibe-strings/SKILL.md`) has the full p
 2. Run `make strings` to sync the catalog. It needs `jq` (`make setup`). The build does not extract strings.
 3. Translate the new key into every language in `Resources/Localizable.xcstrings`, in Xcode's catalog editor or in the JSON. Extraction never changes a translation's text. Rewording the English flips its translations to `needs_review`, and they keep shipping until reviewed.
 
-`make check-strings` fails when the catalog is out of sync with the source. That includes a key whose last call site is gone, so delete its `VibeStrings.h` entry. `make check-translations` fails when any key in any catalog is missing a language. Both release paths run it.
+`make check-strings` fails when the catalog is out of sync with the source. Extraction expands every registry macro. When its last call site is removed, delete its `VibeStrings.h` entry and catalog key too. `make check-translations` fails when any key in any catalog is missing a language. Both release paths run it.
 
 ## Adding a language
 
@@ -23,7 +23,7 @@ The `vibe-strings` skill (`.claude/skills/vibe-strings/SKILL.md`) has the full p
 Pass the language as a launch argument. It applies to that run only and changes nothing system-wide:
 
 ```bash
-open build/DerivedData/Build/Products/Debug/Vibe.app --args -AppleLanguages '(fr)'
+open -a build/DerivedData/Build/Products/Debug/Vibe.app --args -AppleLanguages '(fr)'
 ```
 
 Quit any running copy first, or `open` just brings the existing one to the front. To open a file too, put it before `--args`.

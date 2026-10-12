@@ -2,8 +2,7 @@
 //  FolderWalkInternal.h
 //  Vibe
 //
-//  The synchronous expansion steps, for the unit tests. Nothing but
-//  FolderWalk.m and its tests imports it.
+//  Synchronous expansion steps for FolderWalk.m, its tests and the bench harness.
 //
 
 #import "FolderWalk.h"

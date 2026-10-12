@@ -36,8 +36,9 @@ NS_ASSUME_NONNULL_BEGIN
 // calls updateForTrack: again.
 @property (nonatomic, copy) void (^artDidResolveHandler)(void);
 
-// nil while the default shows. Set only by a generation- and target-matched
-// install, so it never carries a previous track's color.
+// The installed image's color, nil for the default. It stays with the
+// previous image during an unresolved transition. New installs match their
+// generation and target.
 @property (nonatomic, readonly, nullable) NSColor *dominantArtColor;
 
 // On main whenever dominantArtColor settles.

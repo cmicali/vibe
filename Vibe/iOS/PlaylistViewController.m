@@ -92,7 +92,6 @@ static NSString *const kTrackCellIdentifier = @"track";
 
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = kEstimatedRowHeight;
-    // The rule starts at the title.
     self.tableView.separatorInset =
             UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kFileTileSide + kArtTextGap, 0, 0);
     [self.tableView registerClass:PlaylistTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
@@ -219,7 +218,6 @@ static NSString *const kTrackCellIdentifier = @"track";
                                          animated:YES];
 }
 
-// Title, star and empty state all follow what is open.
 - (void)refreshChrome {
     // Not self.title, which is also the tab's title.
     self.navigationItem.title = _playback.folderDisplayName ?: STR_TAB_PLAYLIST;

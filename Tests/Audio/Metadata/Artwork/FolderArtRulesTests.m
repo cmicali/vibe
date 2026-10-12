@@ -29,8 +29,6 @@
 }
 
 - (void)testJPGForEveryNameOutranksAnyOtherExtension {
-    // A folder holding both cover.png and folder.jpg gets the .jpg: it is the
-    // one the ripper that wrote the audio also wrote.
     XCTAssertLessThan(VibeFolderArtCandidateRank(@"folder.jpg"), VibeFolderArtCandidateRank(@"cover.png"));
     XCTAssertLessThan(VibeFolderArtCandidateRank(@"front.jpg"), VibeFolderArtCandidateRank(@"cover.png"));
     XCTAssertLessThan(VibeFolderArtCandidateRank(@"album.png"), VibeFolderArtCandidateRank(@"cover.jpeg"));

@@ -38,8 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 // retained. Defaults to NO.
 @property (nonatomic, getter=isActive) BOOL active;
 
-// <0 is indeterminate (the pulse); >=0 fills. A control never given a
-// fraction is indeterminate.
+// <0 is indeterminate. The pulse continues until the fill is at least one
+// point wide. A control never given a fraction is indeterminate.
 @property (nonatomic) float progress;
 
 // Overrides the appearance-derived colour, as EqualizerIndicatorView.barColor

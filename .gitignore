@@ -25,7 +25,7 @@ DerivedData/
 !default.perspectivev3
 /*.gcno
 
-# AppCode
+# IDE state
 .idea/
 # clang's compilation database. `make compile-commands` writes it.
 /compile_commands.json
@@ -45,8 +45,7 @@ VibeWidget/Info.plist
 # Generated test audio (scripts/test/generate-test-audio.sh)
 /Assets/test_audio_files/
 
-# Byte-compiled Python, which appears under the skills' scripts/ whenever one
-# of them is imported rather than run.
+# Python bytecode.
 __pycache__/
 *.pyc
 
@@ -68,9 +67,7 @@ __pycache__/
 # App Store Connect API keys must never be committed, wherever they're dropped.
 *.p8
 
-# wrangler's local cache for scripts/web/deploy-web.sh. Holds the Cloudflare
-# account id it last talked to, never a token — the token lives in
-# .release-env, above — but it is machine state either way.
+# Local Wrangler state.
 /.wrangler/
 
 # Claude

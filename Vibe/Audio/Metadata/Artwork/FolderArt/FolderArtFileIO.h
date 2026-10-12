@@ -2,7 +2,7 @@
 //  FolderArtFileIO.h
 //  Vibe
 //
-//  The resolver's two POSIX calls on a candidate cover. Never on main: a cover
+//  The resolver's file probe and bounded read. Never on main: a cover
 //  on a sleeping disk or a dataless placeholder blocks.
 //
 
@@ -10,7 +10,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Past this it is a scan or a print master; the folder settles as having none.
+// Reject oversized covers before allocating their input buffer.
 static const unsigned long long kMaxArtFileBytes = 20ull * 1024 * 1024;
 
 // A regular file of plausible size. lstat here and O_NOFOLLOW below: a link

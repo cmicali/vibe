@@ -19,11 +19,8 @@ typedef NS_ENUM(NSInteger, VibePlayerScreenState) {
     VibePlayerScreenStateTrack,   // a live playhead: playing, or paused on real audio
 };
 
-// ORDER IS THE CONTRACT. Loading and Parked come before Error because in both
-// the player's getters serve the outgoing track or zero, so the times must
-// rest whatever else is true; a failure on a parked track keeps the park's
-// resting times. playerDuration reads 0 while Loading and while nothing is
-// open.
+// Loading and Parked outrank Error. The player may still describe the outgoing
+// track. A parked failure with no duration keeps resting times.
 static inline VibePlayerScreenState VibeResolvePlayerScreenState(
         NSUInteger trackCount,
         BOOL trackStartPending,

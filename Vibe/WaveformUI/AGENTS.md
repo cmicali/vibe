@@ -2,13 +2,13 @@
 
 The *rendering* half of the waveform system. The data, its decoding and caching, is `Audio/Waveform/`, and tempo and key are `Audio/Analysis/`. This level holds what both views resolve before they draw. **`Renderers/` (the strategies, the morph engine, the level mapping), `Mac/` (the `NSView`) and `iOS/` (the scrubber) each have their own `AGENTS.md`.**
 
-Everything here compiles into both targets, so it is AppKit- and UIKit-free apart from the `VibeColor` alias. `WaveformZoomMath.h` is the iOS scrubber's zoom floor. It is shared only because it is plain arithmetic (`iOS/AGENTS.md`).
+The shared files compile into both targets. They use platform color APIs behind target guards. The platform views live under `Mac/` and `iOS/`. `WaveformZoomMath.h` is the iOS scrubber's zoom floor. It is shared only because it is plain arithmetic (`iOS/AGENTS.md`).
 
 ## The theme
 
 The root `AGENTS.md` guarantee says the theme beats the style's palette, each view resolves it, and `album_art` rides the artwork install path. This directory's half follows.
 
-**`WaveformTheme`'s `themeForIdentifier:isDark:artworkColor:customPlayed:customUnplayed:` is the only home of the identifier-to-colors rules.** It returns `playedColor`, `unplayedColor` and `hoverColor`. Each platform maps its store through one method. macOS uses `themeForAppTheme:isDark:artworkColor:`, which reads `AppSettings.currentTheme`'s record and is guarded `TARGET_OS_OSX`. The player view and the settings preview both call it, so a new waveform field is mapped once. iOS uses `themeForSettings:isDark:artworkColor:`, which reads the loose `waveformTheme` keys.
+**`WaveformTheme`'s `themeForIdentifier:isDark:artworkColor:customPlayed:customUnplayed:` is the only home of the identifier-to-colors rules.** It returns `playedColor`, `unplayedColor` and `hoverColor`. Each platform maps its store through one method. macOS uses `themeForAppTheme:isDark:artworkColor:`, which reads `AppSettings.currentTheme`'s record and is guarded `TARGET_OS_OSX`. The player view and the settings preview both call it, so a new waveform field is mapped once. iOS uses `themeForSettings:widget:isDark:artworkColor:`. It reads the card’s settings or the widget’s copies.
 
 **Each color carries its side's resting level in its alpha. Renderers own only their ramp shapes**, and scale every stop against that level (`VibeColorWithScaledAlpha`, `Common/PlatformColor.h`). `WaveformTheme.m` names the built-in levels. A custom well's alpha sets its side's whole intensity and persists in the hex (`#RRGGBBAA`). A renderer that hard-codes an alpha breaks every theme at once.
 
@@ -20,7 +20,7 @@ The root `AGENTS.md` guarantee says the theme beats the style's palette, each vi
 
 **`playheadColor` is the playhead line, and nil means no line.** With nil, the played and unplayed boundary is the playhead. With a color, the whole waveform draws as played and a solid line the height of the seek band marks the position. **No renderer reads it.** Each view hands its renderer a progress of 1 and draws the line itself (`VibePlayheadLineRect`, `Renderers/WaveformBarMath.h`). The mac's line moves across the waveform. The scrubber's stays at center while the content moves. macOS sets it from the theme's `waveformPlayheadLine` and the `kVibeThemeColorWaveformPlayhead` pair (`Common/Mac/Theme/AGENTS.md`). iOS sets it from `AppSettings.waveformPlayheadLineForWidget:`, which is nil until chosen. While nil, `WaveformRendererRegistry`'s `drawsPlayheadLineForIdentifier:chosen:` answers the style's default, which is the line for 3-Band and Spectrum. The iOS line is the appearance's contrast pole. The widget's bakes never set it: under a line they bake the whole strip as played, and the widget draws the line (`iOS/Widget/AGENTS.md`).
 
-**The album-art clamp tests perceptual luminance, not HSB brightness.** HSB brightness is hue-blind and passes a too-dark pure blue. The clamp blends toward the appearance's contrast pole. The unplayed side is then desaturated toward the color's own luminance gray, which keeps the clamp intact. The hover color comes from the played color by the same luminance test, so the highlight survives any custom palette. `WaveformThemeTests` pins both.
+**The album-art clamp tests weighted RGB brightness.** It uses `0.299R + 0.587G + 0.114B` without linearizing the components. HSB brightness would accept a dark pure blue. The clamp blends toward the appearance's contrast pole. Desaturation preserves the same weighted brightness. The hover color moves toward the contrast pole by up to 0.25 at full alpha. A color already at that pole has no headroom. `WaveformThemeTests` pins these rules.
 
 ## The loading indicator
 

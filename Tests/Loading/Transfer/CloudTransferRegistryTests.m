@@ -178,8 +178,6 @@
     XCTAssertEqual(_observerCallbacks, 2u, @"one per transition, on its own turn");
 }
 
-// The row list and the player model both hear every change; a removed or
-// released observer hears nothing.
 - (void)testEveryObserverHearsEachCoalescedChange {
     VibeTestTransferObserver *model = [[VibeTestTransferObserver alloc] init];
     VibeTestTransferObserver *removed = [[VibeTestTransferObserver alloc] init];
@@ -198,8 +196,6 @@
     XCTAssertEqual(removed.changes, 0u);
 }
 
-// The open deadline's feed: every raw movement, uncoalesced and on the call,
-// with the transfer's path; none once the transfer ended.
 - (void)testMovementReachesObserversUncoalescedUntilTheTransferEnds {
     VibeTestTransferObserver *model = [[VibeTestTransferObserver alloc] init];
     model.moves = [NSMutableArray array];

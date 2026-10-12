@@ -46,12 +46,7 @@ enum TargetPlatform: String {
 
     var asc: Platform { self == .macos ? .macOS : .iOS }
 
-    // Each ASC screenshot set and its subdirectory of
-    // screenshots/<lang>/<platform>/. iPhone and iPad are separate sets, and
-    // the iPad one is required because TARGETED_DEVICE_FAMILY is 1,2.
-    //
-    // There is no APP_IPHONE_69: ASC's own list of valid values, drawn out by a
-    // deliberately invalid POST, tops out at 6.7", so this is not a Bagbutik gap.
+    // iPhone and iPad require separate sets.
     var screenshotSets: [(dir: String, type: ScreenshotDisplayType)] {
         switch self {
         case .macos: return [(dir: "", type: .appDesktop)]

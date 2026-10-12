@@ -81,8 +81,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// Distinct bytes at every offset, so a range answered from the wrong place
-// shows.
+// A deterministic pattern for detecting misplaced range reads.
 static inline NSData *PatternBytes(NSUInteger count) {
     NSMutableData *data = [NSMutableData dataWithLength:count];
     uint8_t *bytes = data.mutableBytes;

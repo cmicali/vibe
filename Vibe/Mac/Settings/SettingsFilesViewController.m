@@ -76,7 +76,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     NSButton *addButton = [NSButton buttonWithTitle:STR_SETTINGS_ADD_FOLDER
                                              target:self action:@selector(addFolder:)];
     _addCommonButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:YES];
-    // Unprobed, for layout; refreshFromSettings probes.
+    // Unprobed until viewWillAppear; offer candidates during initial layout.
     [self rebuildCommonFolderMenu];
     _removeButton = [NSButton buttonWithTitle:STR_SETTINGS_REMOVE_FOLDER
                                        target:self action:@selector(removeFolder:)];

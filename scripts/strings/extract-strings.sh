@@ -159,11 +159,8 @@ if [ -n "$STRAY" ]; then
     exit 1
 fi
 
-# A translation whose format specifiers differ from the English draws a
-# literal %@, or crashes on a type it was not given. Rewording a default keeps
-# its key and its translations, so a reword that adds or drops a specifier, or
-# moves the string to another surface, needs a NEW key. Run on both paths: the
-# mismatch is made by `make strings`, whose author should hear of it there.
+# Keep translations compatible with the arguments at each call site.
+# A change to the argument list needs a new key.
 check_specifiers() {
     local mismatched
     mismatched=$(jq -r '

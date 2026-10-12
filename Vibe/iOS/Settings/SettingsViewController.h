@@ -1,11 +1,4 @@
-//
-//  SettingsViewController.h
-//  Vibe (iOS)
-//
-//  The settings root: Playback, Appearance, Files and About, each its own
-//  screen, in the mac sidebar's order. This screen owns no setting. The model is handed down for Playback, the one
-//  group whose writes reach the player.
-//
+// Settings navigation. Playback and Appearance receive the shared playback model.
 
 #import <UIKit/UIKit.h>
 

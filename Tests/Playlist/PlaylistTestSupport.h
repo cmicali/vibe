@@ -1,11 +1,3 @@
-//
-//  PlaylistTestSupport.h
-//  VibeTests
-//
-//  The helpers the Playlist tests share: rows at fixed paths, index sets, and
-//  an observer that records each event. PlaylistTests, PlaylistEditTests and
-//  PlaylistRepeatAndShuffleTests use them.
-//
 
 #import <Foundation/Foundation.h>
 

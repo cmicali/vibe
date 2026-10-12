@@ -134,8 +134,8 @@ NS_ASSUME_NONNULL_BEGIN
 // splice armed is the one next lands on.
 - (nullable AudioTrack *)nextTrack;
 
-// The next track, the one after it and the previous one, in the order a
-// listener reaches them: what the metadata scan ranks first.
+// The next track, the row two slots ahead in this cycle, and the previous
+// one. Missing entries are omitted. The metadata scan ranks these first.
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
 // What follows a track that plays out, or nil to park: nil under
@@ -163,7 +163,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Every row holding url — the same file can sit in the playlist more than
 // once, and a caller acting on a file has to reach all of them. Empty for nil.
-// O(1), by NSURL equality.
+// Indexed by NSURL equality; returns a copy of the matching row set.
 - (NSIndexSet *)indexesOfTracksWithURL:(nullable NSURL *)url;
 
 // The first row holding url, off the same index.

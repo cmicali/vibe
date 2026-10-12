@@ -23,7 +23,7 @@ The short files end after eight seconds. Pause early, or use `tone-long.wav`, wh
 
 **The MP3s need `lame` or `ffmpeg`.** Without either, the generator skips them with a note. `afconvert` cannot stand in: macOS ships an MP3 decoder and no encoder.
 
-**Every ffmpeg call is bounded and writes its output whole or not at all.** Use the generator's `ffmpeg_out` or `scripts/bench/bench.py`'s `ffmpeg()`. TRAP: ffmpeg's native `vorbis` encoder never exits once almost no audio reaches it, so a window cut from a real file clamps `-ss` to `ffprobe`'s duration (the generator's `TRAP:` comment).
+**Every ffmpeg call is bounded and writes its output whole or not at all.** Use the generator's `ffmpeg_out` or `scripts/bench/bench.py`'s `ffmpeg()`. TRAP: ffmpeg's native `vorbis` encoder can hang on empty input, so a window cut from a real file clamps `-ss` to `ffprobe`'s duration (the generator's `TRAP:` comment).
 
 ## A slow cloud open
 
@@ -45,7 +45,7 @@ Download progress (fake): 17% (1.0s) tone-long.wav
 Download progress (fake): 42% (5.0s) tone-long.wav   <- a stall
 ```
 
-**On macOS it never streams a waveform.** The fake waits for the whole file, as a real provider's download does there. On the mac only a link streams, and `set_fake_http` serves one. To watch a waveform fill in, pace the decode: `file_clear_cache <file>`, `set_waveform_decode_seconds 8`, then open it.
+**On macOS it never streams a waveform.** The fake waits for the whole file, as a real provider's download does there. On the mac links can stream through `set_fake_http`. Network mounts use read-ahead instead of the fake-provider wait. To watch a waveform fill in, pace the decode: `file_clear_cache <file>`, `set_waveform_decode_seconds 8`, then open it.
 
 **TRAP: `next` alone often proves nothing.** `didStartPlaying:` prefetches the following track, so the next open is answered from the parked handle and starts instantly. Aim at a track that is not the parked one: `previous`, a distant row, or an `open`.
 
@@ -85,7 +85,7 @@ open -a "$PWD/build/DerivedData/Build/Products/Debug/Vibe.app" "$PWD/build/audio
 make test-bit-perfect ARGS='--force-volume' > build/bit-perfect-acceptance.ndjson
 ```
 
-Granting the directory covers the temporary M3U files the run writes beside the WAVs. Enabling bit-perfect bypasses Audio FX live. The verifier turns Declick off for its captures and restores it at exit, since a capture is compared from its first frame.
+Granting the directory covers the temporary M3U files the run writes beside the WAVs. Enabling bit-perfect bypasses Audio FX live. The verifier turns Declick off for its captures and restores it at exit, although the comparator still excludes the first 50 ms.
 
 What the run does to the machine:
 

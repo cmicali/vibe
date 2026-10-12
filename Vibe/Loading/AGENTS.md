@@ -97,7 +97,7 @@ Best-effort download progress for a file being materialized, for `CloudTransferR
 
 **The UI fraction is whole-percent coalesced. Transfer liveness is not.** Only a finite, strictly positive raw increase is movement. An initial zero, a repeat, a backward step, a negative value and NaN never extend the player's deadline. The fake source passes zero through the same rule. `DownloadProgressRules.h`, header-only and tested, holds both decisions: `VibeDownloadProgressIsMovement` for liveness, and `VibeDownloadPollShouldPublish` for the poll.
 
-**The poll publishes only when a clear `SF_DATALESS` and the allocated blocks both say the file is here.** Every measured provider flags its placeholders: Dropbox on both platforms, and iCloud Drive. The blocks half guards a provider that would not. It would otherwise read a download not yet begun as a motionless 100%. With no positive fraction the monitor reports nothing, never a zero.
+**The poll reports positive partial fractions. It marks the file materialized only when `SF_DATALESS` is clear and allocated bytes reach the logical size.** Every measured provider flags its placeholders: Dropbox on both platforms, and iCloud Drive. The allocated-size check guards providers that do not. With no positive fraction the poll reports nothing.
 
 **TRAP: `NSURLIsUbiquitousItemKey` is not an iCloud test.** Every File Provider item answers YES, a Dropbox file included. Only the `NSMetadataQuery` settles it. The query stops on an item iCloud does not index, rather than idling for the length of the download.
 

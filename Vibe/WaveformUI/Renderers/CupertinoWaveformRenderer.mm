@@ -28,8 +28,8 @@ static const CGFloat kCupertinoBarWidth = 1;
                          pitch:width / count];
 }
 
-// ±level rather than the peak envelope: every bar is centered on the midline
-// and its height is the column's energy, the level Sonic Cirrus draws.
+// Symmetric samples use the column's energy instead of its peak envelope.
+// The centered setting still decides where the resulting bar stands.
 - (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     [self fillEnergyLevels:out + 1 count:count stride:2 waveform:waveform];
     for (NSUInteger i = 0; i < count; i++) {
@@ -59,8 +59,7 @@ static const CGFloat kCupertinoBarWidth = 1;
 
 #pragma mark - Cupertino Basic
 
-// A little taller than Apple Music's ~7pt. The hover growth says "this is the
-// control"; the column only says where the seek would land.
+// Hover growth marks the control. The column marks the seek position.
 static const CGFloat kPillHeight = 9;
 static const CGFloat kPillHoverHeight = 16;
 static const CGFloat kPillHoverGrowDuration = 0.18;

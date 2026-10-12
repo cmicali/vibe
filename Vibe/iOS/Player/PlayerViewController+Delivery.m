@@ -2,8 +2,8 @@
 //  PlayerViewController+Delivery.m
 //  Vibe (iOS)
 //
-//  A delivery can arrive after the track has changed, so it is matched against
-//  the current track (or the sourceKey it was loaded for) before it is applied.
+//  The coordinator matches waveform deliveries by sourceKey. Scrub events
+//  apply only to the bound view. Pager holds release by the view that took them.
 //
 
 #import "PlayerViewController+Delivery.h"

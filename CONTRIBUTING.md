@@ -27,11 +27,11 @@ Editors other than Xcode read `compile_commands.json`, clang's compilation datab
 make compile-commands
 ```
 
-It covers both apps and `VibeTests` in Debug. Rerun it after adding or renaming a file, and after `make clean`. clangd-based editors, such as VS Code with the clangd extension or Zed, need nothing more.
+It covers both apps and `VibeTests` in Debug. Rerun it after adding or renaming a file, and after `make clean`. clangd-based editors use this database for compiler flags and include paths.
 
 **CLion.** Use File > Open, pick `compile_commands.json`, and choose **Open as Project**. If an `.idea` folder is already there, move it aside first. CLion reuses an existing project instead of asking.
 
-Never open Vibe as a Makefile project. CLion's Makefile mode runs `make clean` when it loads. That deletes `build/` and `Vibe.xcodeproj`, and it still finds nothing to index.
+Use the compilation database project. CLion's Makefile loading can run the clean target. Here, `make clean` deletes `build/` and `Vibe.xcodeproj`.
 
 Mark these folders as Excluded (right-click > Mark Directory as > Excluded): `build`, `Vibe.xcodeproj`, `debug`, `.claude/worktrees`, and `Assets/test_audio_files`. `.claude/worktrees` holds full copies of the repo. Indexing it duplicates every symbol.
 
@@ -43,11 +43,11 @@ To build and debug from CLion, set up three things:
 
 Debug then builds the app and launches it under LLDB.
 
-CLion's default engine has only basic Objective-C support, and none for Objective-C++. Highlighting and navigation in `.m` files are limited, and `.mm` files are worse. The Classic engine plugin has full support. clangd-based editors support both languages fully.
+CLion's full Objective-C and Objective-C++ support requires its Classic engine plugin. See [JetBrains' engine guide](https://www.jetbrains.com/help/clion/working-with-source-code.html) for the current support and installation steps.
 
 ## Tests
 
-`make test` runs the suite in `Tests/`. Please add tests when you change or add something.
+`make test` runs the host-less unit and orchestration tests and the cloud-runner oracles. `make test-audio` checks the real player and FX with full PCM comparisons and signal-quality checks. Read [Tests/AGENTS.md](Tests/AGENTS.md) before adding tests. Checks that need a running app belong in the debug command channel.
 
 ## Localization
 

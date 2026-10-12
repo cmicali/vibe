@@ -4,24 +4,16 @@
 Not a stress profile: flapping the system default moves audio for every app,
 so this is run deliberately, and it restores the default when it stops.
 
-It hunts a silent stop seen once in 15 physical power-cycles: `stopped` at
-position 0, no resume, nothing logged. Neither a new AudioDeviceID nor the
-`could not read output channels` warning explains it, so it needs volume.
-
-A clean run clears Vibe's rebind path, not the hardware path: `vanish`
-destroys a software aggregate that returns in microseconds, while a real DAC
-waking from sleep takes seconds. Only physical power-cycling tests that.
+Software-device changes exercise the rebind path. They do not reproduce a
+physical DAC's power-cycle timing.
 
 Oracles per flap: playing before and after with a moving position,
 check_consistency, the app alive; dump_health against a baseline every
 --health-every flaps (outputDropouts and renderRefusals fail on any rise);
 a final quiesce with every pending counter at zero.
 
-TRAP: JUDGE THE HEAP AT REST, NOT WHILE RUNNING. A running sample counts
-allocations in flight: it read ~5 KB/flap of growth while the at-rest heap fell
-from ~21 MB to ~9.7 MB and stayed flat, and a no-flap control grew as fast.
-Read the --rest-every series; the summary prints both so the running one is
-never quoted alone.
+TRAP: Judge heap growth at rest. Running samples include work in flight.
+Use the --rest-every series.
 
     device-flap.py --corpus ~/Music/big --device <id> --flaps 200
     device-flap.py --corpus ~/Music/big --device <id> --device-b <id> --mode move --gone-ms 800
@@ -39,8 +31,7 @@ REPO = HERE.parents[3]
 HELPER_SRC = HERE / "device-flap.swift"
 DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
-# Dotted paths into dump_health. footprintBytes is absent: it is the
-# allocator's high-water mark and wanders hundreds of MB at rest.
+# Footprint includes retained allocator pages. Use live heap for this oracle.
 HEALTH_KEYS = (
     "process.mallocLiveBytes",
     "process.fileDescriptors",
@@ -271,9 +262,7 @@ def main():
             break
 
         state, pos = app.playback()
-        # TRAP: "playing" is intent, not sound. With the output rendering
-        # nothing, every flap read playing at 0.0s and the run passed
-        # vacuously; a position that does not move is a silent stop too.
+        # TRAP: "playing" alone can hide a stalled output. Require position movement.
         if state == "playing":
             time.sleep(0.5)
             state, moved = app.playback()

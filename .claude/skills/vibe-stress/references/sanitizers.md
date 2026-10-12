@@ -36,7 +36,7 @@ launchctl unsetenv TSAN_OPTIONS
 
 `stress.py` always relaunches through `launch.sh`, so options set in the shell never reach the app; `run-torture.sh` direct-execs and takes them from its environment (`TSAN_OPTIONS=… run-torture.sh …`), its report in `build/stress/torture-app.log`, the app's stderr.
 
-Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). Reports land as `log_path.<pid>`; TSan creates the file only on the first report, so **no file means no race**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
+Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). Reports land as `log_path.<pid>`; Confirm that the instrumented app launched and could write its report. TSan creates the file on the first report: **no file means no report was written**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
 
 **`--client-app`** runs a plain build as the channel *client* against the instrumented app: an instrumented client costs ~2.4 s per op against ~0.13 s. Build both from the same source.
 
@@ -44,7 +44,7 @@ Build to a **separate** derived-data path so the plain Debug build stays usable,
 
 - **plain Debug**: fastest, most iterations; logic, assertions and hangs.
 - **`-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES`**: ~3x slower; aim it at malformed files, where input reaches TagLib's C++.
-- **`-enableThreadSanitizer YES`**: a separate build, incompatible with ASan. Matters most: the threading contract — every pipeline mutation on the serial player queue, non-blocking UI-facing getters, delegate callbacks on main — is exactly what it validates, and a race there is invisible to every other oracle.
+- **`-enableThreadSanitizer YES`**: a separate build, incompatible with ASan. Matters most: the threading contract — every pipeline mutation on the serial player queue, non-blocking UI-facing getters, delegate callbacks on main — is a major target. TSan detects races exercised by the run; a clean run does not prove their absence.
 
 ## Cheap variants on the plain build
 

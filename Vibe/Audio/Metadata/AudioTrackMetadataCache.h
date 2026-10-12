@@ -27,8 +27,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)cancelScan;
 
 // The track the user just started, ahead of the scan: a cache hit publishes
-// at user-initiated QoS; a miss takes a MetadataPriority claim, joining a
-// same-path foreground open. A no-op once parsed, so cheap on every start.
+// at user-initiated QoS. A miss takes a MetadataPriority claim or reads a
+// remote placeholder by range. A claim can join a same-path foreground open.
+// A no-op once parsed, so cheap on every start.
 // Main thread only.
 - (void)loadMetadataNow:(AudioTrack *)track;
 

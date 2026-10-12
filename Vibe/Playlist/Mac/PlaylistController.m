@@ -499,9 +499,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return view;
 }
 
-// Precedence loading, playing, number: during the open there is no output, so
-// the equalizer would be dots. Every state is set unconditionally, so a reused
-// cell cannot carry a previous row's.
+// Precedence loading, playing, number, including during streamed playback.
+// Set every state so a reused cell cannot carry a previous row's state.
 - (void)configureNumberCell:(NSTableCellView *)view
                         row:(NSInteger)row
                       track:(AudioTrack *)track

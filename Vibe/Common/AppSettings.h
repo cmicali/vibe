@@ -178,10 +178,9 @@ void VibeNotifyDisplaySettingsChanged(void);
 
 #pragma mark Player display
 
-// What the player shows, each platform under the key it shipped, so no stored
-// choice moved when these became shared. The store applies none: a mac writer
-// requests VibeSettingsLiveEffectTrackDisplay, an iOS writer ends on
-// VibeNotifyDisplaySettingsChanged.
+// Display choices use each platform's shipped keys. The store applies none.
+// A mac writer requests VibeSettingsLiveEffectTrackDisplay. An iOS writer
+// ends on VibeNotifyDisplaySettingsChanged.
 //
 // NO (default) shows the duration on the right, YES the minus-prefixed
 // remaining time.

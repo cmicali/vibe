@@ -72,7 +72,6 @@ static NSData *DropboxStubBody(NSURLRequest *request) {
         return;
     }
     if (response.gate) {
-        // Delivered on this thread, the client's, once the gate opens.
         _gated = response;
         NSThread *loader = NSThread.currentThread;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{

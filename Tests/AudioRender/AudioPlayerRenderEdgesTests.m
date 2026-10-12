@@ -418,10 +418,7 @@
     }
 }
 
-// The reported bug: with a crossfade set, continuous play crossfaded nothing,
-// because the track played out and the next play: found nothing audible.
-// The parked track must start its crossfade before the end, the two must
-// overlap at constant power, and the shell hears one auto-advance.
+// The successor must start before the outgoing track ends for the fades to overlap.
 - (void)testATrackEndCrossfadesIntoTheParkedTrack {
     NSArray<NSURL *> *urls = [[self toneTracksOfSeconds:4 and:4] valueForKey:@"url"];
     for (NSNumber *crossfade in @[@500, @2000]) {
@@ -456,8 +453,6 @@
     }
 }
 
-// Crossfade off is the splice: the same two tracks continue sample for
-// sample, no overlap and no gap.
 - (void)testATrackEndWithTheCrossfadeOffIsGapless {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
     NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:1 and:1];
@@ -495,8 +490,6 @@
     }
 }
 
-// A track shorter than twice the crossfade is still heard: its crossfade
-// takes at most half of it.
 - (void)testAShortTrackIsHeardBeforeItsCrossfade {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
     _player.crossfadeMilliseconds = 3000;
@@ -509,8 +502,6 @@
     XCTAssertEqual([self count:@"advance"], 1u);
 }
 
-// Nothing parked — the end of the playlist, or Pause at track end — is the
-// ordinary track end, crossfade or not.
 - (void)testATrackEndWithNothingParkedFinishes {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     _player.crossfadeMilliseconds = 2000;
@@ -551,7 +542,6 @@
     [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];
 }
 
-// Rows of one file tile it, and play through as the file did.
 - (void)testContiguousCueRowsPlayAsOneRecording {
     NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
     NSData *reference = VibePCM([self read:url]);
@@ -571,7 +561,6 @@
     }
 }
 
-// Repeat One on a cue row replays its window, not its file.
 - (void)testACueRowSplicesIntoItsOwnWindow {
     NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
     NSData *reference = VibePCM([self read:url]);
@@ -591,8 +580,6 @@
     XCTAssertEqual([self count:@"finish"], 1u);
 }
 
-// Through the resampler, contiguous rows meet the resampled whole file within
-// the gapless contract.
 - (void)testContiguousCueRowsContinueTheResampler {
     NSURL *url = [self fixture:@"noise-44100-24-2.wav"];
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
@@ -696,7 +683,6 @@
     }
 }
 
-// A rate change re-voices a cue row inside its window.
 - (void)testAnOutputRateChangeKeepsACueRowInsideItsWindow {
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *url = [self fixture:@"1000.wav"];

@@ -32,7 +32,7 @@ Previous never wraps.
 
 **Shuffle is a play order of row objects walked by a cursor.** Entries before the cursor are played, the cursor is the current row, and entries after it are unplayed. The rows themselves never reorder. Because the order holds objects, a move needs nothing, and a remove or insert only drops or adds its own entries. A **manual pick** (`setCurrentIndex:` from outside next and previous) swaps the picked row into the next slot, or moves a played one out of the history. Nothing else repeats. Appends and an undo's inserts join the unplayed part at random. A removal never wraps.
 
-Under Repeat All the next cycle is a fresh shuffle. Its first entry is never the track that just ended (the seam guard). It is made on first ask and kept, so the successor a gapless splice armed is the one Next lands on. Any edit to the order drops it, except the convert swap, which swaps its entry. `randomBelow` is injectable, so `PlaylistRepeatAndShuffleTests` walks seeded orders.
+Under Repeat All the next cycle is a fresh shuffle. With more than one row, its first entry cannot be the track that just ended. The next cycle is made on first ask and kept. A gapless splice and Next therefore use the same successor. An edit to the play order drops the next cycle. The convert swap replaces its entry in both cycles. `randomBelow` is injectable for seeded tests in `PlaylistRepeatAndShuffleTests`.
 
 **TRAP: an open passes its start row to `replaceAllWithTracks:startingAtIndex:`. It never sets `currentIndex` after.** Under shuffle that set is a manual pick, which marks the order's random first row played without it ever sounding. `NSNotFound` lets the model choose: row 0, or under shuffle the order's random first.
 

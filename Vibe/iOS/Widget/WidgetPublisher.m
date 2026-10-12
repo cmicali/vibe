@@ -17,20 +17,14 @@
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
 
-// A track change makes two reloads. The title goes first, and the waveform's
-// bake follows a few hundred ms later. At one reload a second, the bake's
-// reload waited most of a second.
+// Allow the title and the later waveform bake to request separate reloads.
 static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;
 
 // A seek detector against the widget's own extrapolation; looser than the lock
 // screen's, since a widget entry spans seconds.
 static const NSTimeInterval kWidgetPositionTolerance = 2.0;
 
-// While a track plays, the widget's timeline is asked for again this often.
-// Its first entries step the playhead every few seconds, and only cover two
-// minutes (VibeWidget.swift), so a reload must come before they run out. The
-// reloads are free of WidgetKit's budget while this app is the Now Playing
-// app, which it is whenever this timer runs.
+// Request fresh dense entries during playback. WidgetKit controls delivery.
 static const NSTimeInterval kWidgetPlayingReloadInterval = 60;
 
 // Pixels. The large widget draws it at up to 190pt, at 3x.
@@ -225,10 +219,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
 }
 
-// The one place the plist is written. TRAP: the images must land before the
-// plist, which the widget reads first; otherwise the new title shows with no
-// art for as long as the encode takes. The sweep runs LAST and spares the
-// outgoing track's images, which a just-read previous plist still names.
+// TRAP: write artwork before the plist. The waveform bake may follow later.
+// Sweep last and spare the outgoing track images that a reader may still need.
 - (void)commitState:(VibeWidgetState *)state artwork:(UIImage *)artwork
        writeArtwork:(BOOL)writeArtwork {
     if (writeArtwork) {
@@ -253,10 +245,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     });
 }
 
-// On _queue. One reload per burst of writes, each reload being an extension
-// launch, and at most four a second: a burst costs one trailing reload. The
-// first of a quiet period goes at once — the app may be suspended before a
-// timer fires — and the trailing one always goes.
+// Queue-only. Throttle requests to four per second with one trailing request.
+// Queue the first request at once before the app can be suspended.
 - (void)scheduleReload {
     if (_reloadQueued) {
         return;
@@ -276,8 +266,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
 }
 
-// On a structural change or a seek, never a plain tick, which the widget
-// extrapolates itself. Cheapest tests first.
+// The widget extrapolates steady playback. Check for state changes and drift.
 - (BOOL)needsPublishForTrack:(AudioTrack *)track
                      playing:(BOOL)playing
                     duration:(NSTimeInterval)duration

@@ -8,7 +8,7 @@ is one `script -` invocation, which is what drives it faster than the fuzzer.
 
 Oracles between bursts: the app is alive, check_consistency is clean, and
 dump_health's fds / hosted units / pending counters / live heap have not run
-away. --seed N replays an identical op sequence.
+away. --seed N repeats choices when the app returns the same state.
 """
 
 import argparse
@@ -96,7 +96,6 @@ def phase_mixed(rng, st, n):
 
 
 def phase_boundary(rng, st, n):
-    """Walk off the end of the playlist and back: the end-of-playlist park."""
     ops = []
     while len(ops) < n:
         ops += ["next"] * rng.randint(8, 20)

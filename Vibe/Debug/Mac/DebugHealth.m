@@ -97,10 +97,8 @@ static NSUInteger VibeOpenFileDescriptorCount(void) {
     return (NSUInteger)(bytes / (int)PROC_PIDLISTFD_SIZE);
 }
 
-// The split phys_footprint cannot make: hundreds of megabytes of footprint
-// over a live heap of twenty is the allocator holding freed pages, not a leak,
-// and only the live bytes tell the two apart. Every registered zone is summed,
-// CoreAudio's caulk zones included; a per-zone breakdown is vmmap's job.
+// Live allocations help distinguish retained objects from freed pages the
+// allocator still holds. Sum every registered zone.
 static void VibeMallocBytes(uint64_t *live, uint64_t *reserved) {
     *live = 0;
     *reserved = 0;
@@ -195,12 +193,8 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // AudioFileHandle calls the OS still owes an answer. Not drainable — a
-    // never-returning open cannot be cancelled — so nonzero at rest means work
-    // that will never finish, and it belongs here rather than in the
-    // diagnostics so a stranded open holds the settle open and names itself.
-    // Read lock-free rather than through debugState: quiesce polls every 100ms
-    // and must not take the coordinator's state queue.
+    // Outstanding handle opens retain admission capacity until they return.
+    // Read lock-free because quiesce polls this every 100ms.
     out[@"handleOpensInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight]);
     return out;
@@ -274,8 +268,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"tableRows": @(controller.playlistTableView.numberOfRows),
             @"playerLoading": @(player.isLoading),
             @"gaplessArmed": @(player.isGaplessArmed),
-            // Hosted units, the FX chain's: created once and kept, so a
-            // count that moves is a rebuild that leaked.
+            // Warm every effect before comparing against a leak baseline.
             @"hostedUnits": counts[@"hostedUnits"],
             // The bus's drain timer: on only while the output runs voices, so
             // 1 at rest is a wakeup the idle guarantee forbids.

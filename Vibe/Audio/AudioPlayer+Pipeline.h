@@ -26,8 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Creates the output — the hosted unit on the system default at that
 // device's rate on macOS; on iOS the pipeline at the route's rate, the unit
-// itself made at the first start; the debug pump under --no-audio-hw — and
-// the master bus it pulls; the init path and the iOS media-services rebuild
+// itself made at the first start; the debug pump under --no-audio-hw.
+// Configures the existing master bus. Init and the iOS media-services rebuild
 // must configure them identically.
 - (void)createOutputOnQueue;
 // Makes `unit` the output unit and routes its later failures back to the queue:
@@ -70,8 +70,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Follows a format change under the pipeline (the iOS route's rate, the debug
 // pump's): stops the output, adopts the format, rebuilds the bus keeping the
-// current track, and restarts a playing output. NO when refused; the player
-// is then Stopped or parked Paused, with an error sent. macOS device changes
+// current track, and restarts a playing output. NO when refused. A bus rebuild
+// failure stops playback; a restart failure parks it Paused. Both send an error.
+// A format-adoption refusal returns NO directly. macOS device changes
 // go through AudioPlayer+Devices instead.
 - (BOOL)followOutputFormatOnQueue:(AVAudioFormat *)format;
 
@@ -98,7 +99,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)clearRenderRefusalsOnQueue;
 
 // Makes the source segment what the mode wants — the bus at the output's
-// format, with a varispeed unless bit-perfect output is on — building or
+// format, with a varispeed for ordinary macOS playback — building or
 // rebuilding it with the output stopped. `rebuilt` reports whether every
 // voice died with the old segment, so the caller re-voices. NO when it
 // cannot be built.

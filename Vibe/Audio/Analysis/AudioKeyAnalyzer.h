@@ -13,9 +13,8 @@
 //  each frame normalized to one vote. finish() correlates the accumulated 12-bin
 //  chroma against the 24 rotations of a major and a minor key profile
 //  (Sha'ath's EDM-tuned revision of the Krumhansl-Schmuckler profiles) and
-//  returns the best-correlated key, or VibeMusicalKeyNone when the best
-//  correlation is too weak to trust — percussion, noise, speech, or heavy
-//  atonality.
+//  adds bass-tonic and major/minor-third support to choose a key. It returns
+//  VibeMusicalKeyNone when that key's profile correlation is too weak.
 //
 
 #import <Foundation/Foundation.h>

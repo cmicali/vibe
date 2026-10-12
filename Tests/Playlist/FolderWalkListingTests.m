@@ -169,8 +169,6 @@
                           @[]);
 }
 
-// The iOS listing takes a sheet as the walk does: its rows in its place, its
-// file claimed.
 - (void)testASheetInTheListingStandsInForItsFile {
     [self makeFile:@"a.mp3"];
     [self makeFile:@"mix.flac"];

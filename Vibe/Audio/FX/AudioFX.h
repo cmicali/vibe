@@ -19,7 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 //                   +-> 1/8 delay send  -> lanes -> pans -> sum -+-> lowCut -> +
 //                   +-> 1/16 delay send -> lanes -> pans -> sum -+
 //
-// Apple's units (AUNBandEQ, MatrixReverb, AUDelay) do the DSP, rendered in
+// Apple's units (AUNBandEQ, MatrixReverb on macOS or AUReverb2 on iOS,
+// and AUDelay) do the DSP, rendered in
 // place by VibeFXChainRender; gates, pans and sums are buffer math. A stage
 // renders only while it has work and is reset and skipped otherwise, so idle
 // effects cost nothing and dormant FX are sample-exact.
@@ -45,8 +46,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL connected;
 
 // Whether a send is in the render (gate open, or its declared tail still
-// ringing), and the longest such tail, 0 while unhosted: the idle stop waits
-// for a tail, at most that long. Player-queue only.
+// ringing), and the longest declared tail across all hosted sends.
+// Unhosted values are NO and 0. The idle stop waits at most that long.
+// Player-queue only.
 @property (nonatomic, readonly) BOOL sendsActive;
 @property (nonatomic, readonly) NSTimeInterval longestTailSeconds;
 

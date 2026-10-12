@@ -586,7 +586,6 @@ static const NSUInteger kNavigationHistoryLimit = 50;
     if (_location) {
         [to addObject:_location];
     }
-    // Already the location, so arriving there records nothing.
     _location = target;
     [self goToLocation:target];
 }

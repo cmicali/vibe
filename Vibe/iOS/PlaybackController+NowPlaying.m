@@ -44,7 +44,6 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
     NowPlayingPlaybackState state = VibeNowPlayingStateForPlayer(playing, _player.isPaused);
     AudioTrack *track = self.displayedTrack;
     NSTimeInterval position = _trackStartPending ? 0 : _player.position;
-    // The player's duration is 0 while pending or parked.
     NSTimeInterval playerDuration = _player.duration;
     NSTimeInterval duration = playerDuration > 0 ? playerDuration : track.duration;
     // A buffering hold is Playing at rate 0, so the lock screen's clock holds

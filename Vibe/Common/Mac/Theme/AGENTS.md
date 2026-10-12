@@ -7,7 +7,7 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 - **A theme is a sparse record over the factory defaults.** A missing field means the factory look. The built-in Vibe theme is the empty record.
 - **Sanitization is one gate, on `AppTheme`** (below). Imports, stored records, UI edits and the built-ins shipped as `Resources/Themes/*.json` all pass through it. `make test` validates the built-ins.
 - **Every store mutation refuses a built-in** (`+[AppTheme isBuiltInIdentifier:]`, `../AGENTS.md`). A casual toggle over a built-in lands in the divergence key, `Appearance.currentTheme`, until a theme is applied again.
-- **A theme is `single` or `dual` mode** (`mode`). Dual keeps a palette per appearance. Single keeps one color per field in the dark-keyed slot, and pins the window dark (`requiredWindowAppearance`, Colors below).
+- **A theme is `single` or `dual` mode** (`mode`). Dual keeps a palette per appearance. Single uses the dark-keyed appearance colors and pins the window dark (`requiredWindowAppearance`, Colors below). Button colors follow the artwork and keep both slots.
 
 ## The record and its schema
 
@@ -33,7 +33,7 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 
 ## Colors
 
-**A pair is keyed by its exported base name** (`kVibeThemeColor*`): `colorForBase:dark:` and `setColor:forBase:dark:` are the slots, and the only way in. Under single mode both force the dark-keyed slot from either side; the light halves lie dormant, never mirrored or consumed, so a mode flip round-trips. `requiredWindowAppearance` is nil for a dual theme.
+**A pair is keyed by its exported base name** (`kVibeThemeColor*`): `colorForBase:dark:` and `setColor:forBase:dark:` are the slots, and the only way in. Under single mode appearance pairs use the dark-keyed slot. Their light halves stay stored for a mode change. Art-keyed button pairs keep both slots active. `requiredWindowAppearance` is nil for a dual theme.
 
 **The four `resolved*Color` accessors are the one home of override-over-semantic-fallback**, and `DefaultColorForBase` the only spelling of what an unset slot draws as (the label pairs' semantic fallback under that side, the solid cover, the neutral tint wash and row fill, Mono's resting levels): the window and playlist covers, the row fills, the editor's wells and the seed a popup writes when it reveals a pair all read it. `displayColorForBase:dark:` pins any pair to one side for the wells.
 
@@ -69,7 +69,7 @@ The file store and the image cache are `AppTheme+Images`. **Eleven fields name a
 
 ## The archive form (`AppTheme+Archive`)
 
-**A theme naming any image exports as a ZIP of `theme.json` plus its images, the dormant half included; one naming none stays plain JSON.** A built-in's `bundled:` image travels even though this build ships it — the build that opens the archive may not be this one. `AppThemeInternal.h` is the seam between the record and its categories. It declares the schema tables they share and the record's ivars.
+**A theme with any readable image exports as a ZIP of `theme.json` plus its images.** The dormant half is included. If no referenced image can be read, the export is plain JSON. A built-in's `bundled:` image travels because the receiving build may not ship it. `AppThemeInternal.h` is the seam between the record and its categories. It declares the schema tables they share and the record's ivars.
 
 **Entries are named by slot** (`artwork_default_front`/`_back`, `app_icon`, `button_<name>_dark`/`_light`, each field's stem in its `VibeThemeFieldSpecs()` row), `theme.json` referencing them bare: a content hash or a resource filename reads as nothing to a person opening the ZIP. Two fields naming one image share its entry. The prefix never travels, and `JSONDataForRecord:name:entryNames:` applies the rename *after* sanitization because the gate admits only the prefixed shapes and would drop a bare name.
 

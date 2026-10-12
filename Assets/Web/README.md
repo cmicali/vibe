@@ -159,55 +159,15 @@ Then attach `vibeplayer.app` under the project's Custom
 domains. With the zone in the same account, Cloudflare writes the CNAME and
 issues the certificate itself.
 
-### The stylesheet's cache TTL
+### Asset caching
 
-Pages serves HTML as `max-age=0` but everything else at four hours. It ignores
-`Cache-Control` from `_headers` for its own assets, though it honours the rest
-of that file. That has two consequences, and the second is the one that bites:
+Run `scripts/web/web-stamp-assets.sh` after changing the stylesheet or images.
+It puts each file's content hash in its local `src`, `href` and `srcset` URLs.
+A changed asset gets a new URL. Unchanged assets keep their cached copies.
+Deployment runs the stamp script with `--check` and refuses stale references.
 
-1. A browser pairs fresh markup with a four-hour-old stylesheet, so a layout
-   change renders under the old rules and looks broken rather than stale.
-2. Fixing the TTL at the edge only helps the *next* fetch. A browser already
-   holding a copy under the old TTL will not ask again until it expires, so
-   the fix appears not to work for hours.
-
-Only changing the URL solves (2). `scripts/web/web-stamp-assets.sh` writes each
-asset's content hash into the `?v=` on every page that references it. That
-covers the stylesheet **and every image under `img/`**, so a changed file is a
-changed URL and no cache is consulted. `deploy-web.sh` runs it with `--check`
-and refuses to publish a mismatch.
-
-Each image is hashed on its own rather than sharing one stamp, so changing a
-single screenshot does not force every visitor to re-fetch the rest.
-
-With the URL versioned, a given URL's bytes never change. So a Transform Rule
-on the zone caches the stamped form for a year and the unstamped form not at
-all:
-
-    /styles.css?v=…   ->  public, max-age=31536000, immutable
-    /styles.css       ->  public, max-age=0, must-revalidate
-
-**An unstamped image is not merely a stale picture.** The CDN serves the new
-bytes at once (`cf-cache-status: REVALIDATED`), while a browser that visited
-before keeps drawing the old image for the rest of the four-hour TTL. That
-reads as a deploy that silently failed. A second deploy changes nothing and
-seems to confirm that wrong diagnosis.
-
-### The old domain
-
-`vibe.commonwealthrecordings.com` 301s to `vibeplayer.app`. The redirect is a
-Redirect Rule on the `commonwealthrecordings.com` zone, not anything in this
-repo:
-
-    when   http.host eq "vibe.commonwealthrecordings.com"
-    then   301 -> concat("https://vibeplayer.app", http.request.uri.path)
-           preserve query string
-
-It is a *dynamic* redirect, so the path carries over: `/privacy/` on the old
-host lands on `/privacy/`, not the front page. The hostname has to keep
-resolving through Cloudflare for the rule to fire. So it needs a proxied
-placeholder record (`AAAA vibe -> 100::`) while it is detached from the Pages
-project.
+Cloudflare cache rules and the old-domain redirect are configured outside this
+repo. Check the zone configuration when changing them.
 
 ## App Store Connect
 

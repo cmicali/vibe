@@ -188,7 +188,7 @@
       "extractionState": "manual"
     },
     "widget.intent.next": {
-      "comment": "Name of the widget's skip-to-next-track action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that skips to the next track.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -374,7 +374,7 @@
       "extractionState": "manual"
     },
     "widget.intent.play_pause": {
-      "comment": "Name of the widget's play/pause action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that plays or pauses audio. A command, not a status.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -560,7 +560,7 @@
       "extractionState": "manual"
     },
     "widget.intent.previous": {
-      "comment": "Name of the widget's skip-to-previous-track action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that skips to the previous track.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -746,7 +746,7 @@
       "extractionState": "manual"
     },
     "widget.intent.seek": {
-      "comment": "Name of the widget's seek action — jump to a position in the current track — as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that seeks within the current track.",
       "localizations": {
         "bg": {
           "stringUnit": {

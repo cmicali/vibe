@@ -1,11 +1,3 @@
-//
-//  NSImageUtilTests.m
-//  VibeTests
-//
-//  Pins squareCroppedImage: the centered-square crop that keeps a non-square
-//  cover from letterboxing in the square frames that display it. Also pins
-//  dominantColor, the hue vote behind the art tint.
-//
 
 #import <XCTest/XCTest.h>
 #import <AppKit/AppKit.h>

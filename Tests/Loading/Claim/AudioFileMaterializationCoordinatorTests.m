@@ -1,11 +1,3 @@
-//
-//  AudioFileMaterializationCoordinatorTests.m
-//  VibeTests
-//
-//  Stage 1, the path claims. The foreground hold is
-//  AudioFileMaterializationCoordinatorForegroundTests. The handle runs of
-//  stage 2 are AudioFileMaterializationCoordinatorHandleOpenTests.
-//
 
 #import "AudioFileMaterializationCoordinatorTestCase.h"
 #import "CloudTransferRegistry.h"

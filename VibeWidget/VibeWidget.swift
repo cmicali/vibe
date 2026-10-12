@@ -12,18 +12,8 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import WidgetKit
 
-// A widget is not a live view: WidgetKit renders each entry once, ahead of
-// time, and the home screen shows the entry whose date has arrived. So motion
-// costs entries, and entries are budgeted. The first kDenseEntries step the
-// playhead every kPlayheadStep: two minutes, which the app replaces well
-// before they run out, since it reloads the timeline once a minute while a
-// track plays (WidgetPublisher). The rest of the track is covered by
-// kTailEntries, spread to its end, so a reload WidgetKit holds back costs a
-// coarse playhead and not a frozen one. TRAP: a fixed step ran out — 24
-// entries at 5 s is 115 s — and a longer track's head then FROZE there,
-// because ordinary playback publishes nothing (the widget's own arithmetic
-// is the playhead) and .atEnd asks for a fresh timeline on WidgetKit's
-// schedule, not the track's.
+// TRAP: keep coarse entries through track end if WidgetKit delays a reload.
+// The app requests a reload each minute to replenish the dense entries.
 private let kPlayheadStep: TimeInterval = 5
 private let kDenseEntries = 24
 private let kTailEntries = 8
@@ -33,13 +23,9 @@ private let kBlurSide: CGFloat = 96
 struct VibeEntry: TimelineEntry {
     let date: Date
     let state: VibeWidgetState?
-    // Decoded once per timeline and shared by every entry, rather than read
-    // from disk per render: the same three files back all of them, and the
-    // extension's memory limit is small.
+    // Share decoded images across entries to stay within the extension’s memory cap.
     let artwork: UIImage?
-    // Pre-blurred once per timeline rather than per entry: the background is
-    // pixel-identical across every entry, and a blur in a process with a hard
-    // memory cap is not something to repeat 24 times for one result.
+    // Share the blur too; it is identical across entries.
     let blurredArtwork: UIImage?
     let played: UIImage?
     let unplayed: UIImage?
@@ -49,9 +35,7 @@ struct VibeEntry: TimelineEntry {
 }
 
 struct VibeProvider: TimelineProvider {
-    // One per process, not per timeline: a CIContext is a Metal device and its
-    // pipelines, tens of milliseconds and several MB, in a process with a hard
-    // memory cap.
+    // Reuse the Metal context across timelines in this memory-limited process.
     private static let blurContext = CIContext()
 
     func placeholder(in context: Context) -> VibeEntry { .empty }
@@ -64,15 +48,10 @@ struct VibeProvider: TimelineProvider {
         let now = Date()
         let first = loadEntry(at: now, family: context.family)
         guard let state = first.state, state.hasTrack, state.playing, state.duration > 0 else {
-            // Paused, parked or empty: one entry, held until the app publishes
-            // again. Nothing moves, so nothing needs re-rendering.
+            // Hold until the app publishes again.
             completion(Timeline(entries: [first], policy: .never))
             return
         }
-        // Dense to the window's end or the track's, whichever is first, then
-        // coarse to the track's end, always landing the last entry there. The
-        // app reloads on every transport event, and the track's end is one, so
-        // .atEnd is only the fallback for an app killed mid-track.
         let remaining = max(0, state.duration - state.position(at: now))
         let dense = min(remaining, Double(kDenseEntries - 1) * kPlayheadStep)
         var offsets = Array(stride(from: 0, through: dense, by: kPlayheadStep))
@@ -95,9 +74,8 @@ struct VibeProvider: TimelineProvider {
         // The Lock Screen draws in the system's tint: no artwork, no
         // background, and only the played image, as a shape.
         let lockScreen = [.accessoryCircular, .accessoryRectangular, .accessoryInline].contains(family)
-        // The state's OWN images, named by its track: three separate reads,
-        // but a publish landing between them can only make one of these nil,
-        // never hand this title another track's cover.
+        // Track-named images prevent a concurrent publish from pairing this title
+        // with another track’s artwork.
         let artwork = lockScreen ? nil : image(state.artworkURL)
         return VibeEntry(date: date, state: state,
                          artwork: artwork,
@@ -111,9 +89,7 @@ struct VibeProvider: TimelineProvider {
         return UIImage(data: data)
     }
 
-    // Blurred at a small size and stretched where it is drawn. A background
-    // this blurred has no detail to lose, and the 576px art cost 36 times the
-    // pixels. The radius is a share of the image: 40px suited 256px art.
+    // Downsample before the blur to limit intermediate image memory.
     private func blurred(_ artwork: UIImage) -> UIImage {
         guard let full = CIImage(image: artwork) else { return artwork }
         let scale = min(1, kBlurSide / max(full.extent.width, full.extent.height))
@@ -129,11 +105,8 @@ struct VibeProvider: TimelineProvider {
     }
 }
 
-// The gallery shows the kinds in this order, and each kind's sizes smallest
-// first, whatever order families lists them in (tested: a medium listed first
-// still came second). TRAP: the original kind keeps its small and medium, since
-// both shipped, and a placed widget belongs to its kind. Moving either size to
-// another kind would break every copy of it on someone's Home Screen.
+// TRAP: a placed widget belongs to its kind. Keep the shipped small and
+// medium families on the original kind.
 @main
 struct VibeWidgetBundle: WidgetBundle {
     var body: some Widget {

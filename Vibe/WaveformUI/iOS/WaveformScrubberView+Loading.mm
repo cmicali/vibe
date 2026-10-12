@@ -48,8 +48,8 @@
     [_loadingIndicator layoutInBounds:_loadingTrackBounds];
 }
 
-// Follows the playhead: showLoadingIndicator runs at progress 0, and the
-// shell's next tick restores the real position.
+// An empty view starts loading at progress 0. Follow the shell's next
+// position update without interrupting an unchanged fill span.
 //
 // TRAP: keep the rect test. This is the one relayout that can land
 // mid-download, and a duration-0 relayout snaps an easing fill to its target;

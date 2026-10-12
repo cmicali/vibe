@@ -14,8 +14,8 @@
 // layers[i*2] is bar i's top, layers[i*2 + 1] its mirror. The constants are
 // shared by the morph's vscale, rebuildLayerFrames and the seek band, so they
 // cannot disagree on the scale.
-static const CGFloat kBarAmplitudeOfHeight = 0.75;  // full bar height as a fraction of the view height
-static const CGFloat kTopLineRatio = 0.70;          // top bar's share of the height; the mirror gets the rest
+static const CGFloat kBarAmplitudeOfHeight = 0.75;  // height scale before the top and mirror factors
+static const CGFloat kTopLineRatio = 0.70;          // top multiplier; the mirror is (1 - ratio) of the top
 static const CGFloat kBlockWidthRatio = 0.75;       // bar width as a fraction of the bar pitch
 static const CGFloat kBottomBarSpacing = 2;         // gap between the top baseline and the mirror bars
 

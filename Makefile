@@ -276,7 +276,7 @@ web-set-version:
 brew-set-version:
 	scripts/release/brew-set-version.sh $(V) $(ARGS)
 
-# Build a universal (arm64 + x86_64) Release signed for the Mac App Store and
+# Build a universal (arm64 + x86_64) AppStore archive signed for the Mac App Store and
 # run App Store Connect's validation, WITHOUT submitting. See
 # scripts/appstore/release-appstore.sh for the required credentials.
 appstore-build:
@@ -369,7 +369,7 @@ check-vocabulary:
 	scripts/checks/check-vocabulary.sh
 
 # Fail if the tree breaks AGENTS.md's layout rule; the script's header states
-# the five assertions.
+# the assertions.
 check-layout:
 	scripts/checks/check-layout.sh
 

@@ -42,10 +42,9 @@ FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
 // when the image cannot be rasterized. Callers asking repeatedly memoize.
 FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Nullable image);
 
-// Whether the bottom `fraction` of the image reads as dark (mean relative
-// luminance under the midpoint), so a control over it can pick its color from
-// the picture. YES when the image cannot be rasterized, the safer guess for
-// light controls.
+// Whether the bottom `fraction` reads as dark. Uses mean weighted brightness
+// of gamma-encoded sRGB components, not linear-light luminance. Controls use
+// this to pick their color. YES when the image cannot be rasterized.
 FOUNDATION_EXPORT BOOL VibeImageLowerBandIsDark(VibeImage *_Nullable image, CGFloat fraction);
 
 NS_ASSUME_NONNULL_END

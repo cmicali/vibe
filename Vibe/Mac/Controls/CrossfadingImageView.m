@@ -19,7 +19,6 @@ static CALayerContentsGravity GravityForImageScaling(NSImageScaling scaling,
         case NSImageScaleAxesIndependently: return kCAGravityResize;
         case NSImageScaleNone:              return kCAGravityCenter;
         case NSImageScaleProportionallyDown:
-            // It already fits, so it is drawn at natural size, like the view.
             if (imageSize.width <= boundsSize.width && imageSize.height <= boundsSize.height) {
                 return kCAGravityCenter;
             }

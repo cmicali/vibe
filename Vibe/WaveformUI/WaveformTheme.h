@@ -32,9 +32,8 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
 @property (readonly) VibeColor *playedColor;
 @property (readonly) VibeColor *unplayedColor;
 
-// playedColor's hue at full alpha, shifted toward the contrast pole until its
-// luminance clears the played color's by ~0.25, so the highlight reads under
-// any palette.
+// The played color at full alpha, moved toward the contrast pole by up to
+// 0.25 in weighted RGB brightness. Colors at the pole have no headroom.
 @property (readonly) VibeColor *hoverColor;
 
 // identifier is a SETTINGS_VALUE_WAVEFORM_THEME_* value; an unknown one
@@ -47,8 +46,8 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
-// The resolved colors as hex: played, unplayed, the bands and Spectrum's.
-// Equal signatures draw alike, so a view re-bakes only when this changes.
+// Played, unplayed, band and Spectrum colors as hex.
+// Key other drawing inputs separately, including flatFill and playheadColor.
 @property (readonly) NSString *paletteSignature;
 
 // Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the

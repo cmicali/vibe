@@ -4,7 +4,7 @@
 //
 //  A stand-in for the provider's progress reporting, so a stress run can drive
 //  the loading indicator's determinate half with no file provider. VibeFakeCloud
-//  is its only installer. This class keeps the tick, the whole-percent gate and
+//  is its only installer. This class keeps the tick, the progress-change gate and
 //  the cancel; which files and how far along belong to the installer.
 //  Implemented in DownloadProgressMonitor+Debug.m.
 //

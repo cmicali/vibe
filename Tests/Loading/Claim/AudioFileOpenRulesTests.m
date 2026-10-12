@@ -1,8 +1,3 @@
-//
-// Standardized-path identity for bounded audio-open claims, the
-// delivery/detach race, the tail a stream fetches ahead, and which mount
-// reads ahead.
-//
 
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
@@ -124,8 +119,6 @@ static BOOL VibeReadsAheadIn(NSData *table, NSString *path) {
     return VibeMountReadsAhead(table.bytes, (int)(table.length / sizeof(struct statfs)), path) != NULL;
 }
 
-// The longest mount name that is a whole-component prefix decides, and
-// MNT_LOCAL alone says local; root holds what nothing else does.
 - (void)testTheLongestMountPrefixDecidesAndMNTLocalSaysLocal {
     NSData *table = VibeMountTable(@{@"/": @YES, @"/Volumes/Media": @NO, @"/Volumes/Media/Local": @YES,
                                      @"/Volumes/Disk": @YES, @"/System/Volumes/Data": @YES});
@@ -170,7 +163,6 @@ static BOOL VibeReadsAheadIn(NSData *table, NSString *path) {
     XCTAssertTrue(VibeReadsAheadIn(aliased, @"/System/Volumes/Data/private/var/share/a.flac"));
 }
 
-// No table, or no mount holding the path, is the direct road.
 - (void)testNoMountIsTheDirectRoad {
     XCTAssertTrue(VibeMountReadsAhead(NULL, 0, @"/Volumes/Media/a.flac") == NULL);
     NSData *table = VibeMountTable(@{@"/Volumes/Media": @NO});

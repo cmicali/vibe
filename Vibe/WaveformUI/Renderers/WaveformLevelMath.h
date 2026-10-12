@@ -36,15 +36,9 @@ static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, f
     return fminf(powf(level * gain, exponent), 1.0f);
 }
 
-// Spectrum's color for one bar from its low, mid and high levels, each an
-// sRGB primary. The weights are the squares of the bands' energies, so the
-// loudest band leads the hue. Weighted by the energies alone, a quieter band
-// pulled every mix toward olive and brown. The mix is then brightened back to
-// the primaries' own brightness, as an additive mix is. Low and high alone
-// make the two primaries' sum, a purple. No single tone can make it. A lone
-// band is its primary exactly. Silence is the primaries' plain mean, a gray
-// left unbrightened. Brightened, the light set's gray would vanish on white.
-// Only the levels' ratios matter, so they may run past the clamp.
+// Mix sRGB primaries by the fourth power of the band RMS ratios.
+// Restore the weighted primary brightness. Silence uses the plain mean.
+// Levels may exceed one; only their ratios matter.
 static inline void VibeSpectrumColor(const float *levels, const float primaries[3][3], float *rgb) {
     float weights[3];
     float total = 0;
@@ -77,7 +71,7 @@ static inline void VibeSpectrumColor(const float *levels, const float primaries[
 }
 
 // A bar's level averages energy over a column no finer than 1/1024 of the
-// track (~0.4s, the momentary-loudness scale), however fine the bars: RMS over
+// track, regardless of the drawn bar count. RMS over
 // less than a beat converges back to peak, and the oversampling styles'
 // one-chunk bars would peg on every kick. Only the level is floored; the
 // min/max shape keeps per-bar resolution.

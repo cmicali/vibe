@@ -26,8 +26,8 @@ enum {
     // one decode and one IO cycle. Fills yield after each chunk so voices
     // handing off the same file never queue behind a full fill.
     kLiveThresholdFrames = kDecodeChunkFrames,
-    // Below this the drain re-kicks the decoder. Half a ring is ~0.7 s at
-    // every rate, against a ≤10 ms poll and a sub-10 ms chunk decode.
+    // Below this the drain re-kicks the decoder. Half a ring holds at least
+    // 0.5 s. The player's steady drain interval is 100 ms.
     kLowWaterDivisor = 2,
     // Free slots at or below which a start cuts the oldest retiring voice.
     kFreeSlotReserve = 2,
@@ -75,7 +75,7 @@ typedef struct {
 } VibeVoiceStamp;
 
 // The slot the audio thread reads. Plain C, no pointers to Objective-C.
-// The comments name each field's ONE writer; every other party only reads.
+// The comments name active writers. Binding and recycling initialize fields.
 typedef struct {
     // Queue, before the generation's release-store publishes the allocation.
     // The generation is also the seqlock's version over every field a bind
@@ -85,7 +85,7 @@ typedef struct {
     _Atomic uint64_t armedWritten;
     _Atomic uint64_t armedConsumed;
     // A VibeVoiceState, None while the slot is free. Queue: free→armed,
-    // armed→dead. Decoder: armed→live. Audio thread: live→dead.
+    // armed→dead. Decoder: armed→live or armed→dead. Audio thread: live→dead.
     _Atomic int32_t state;
     // Decoder. `written` is the ring's producer index, absolute for the slot's
     // life; `endOfStream` and `boundary` are absolute too, kUnset until known.
@@ -183,7 +183,7 @@ static inline AudioTimeStamp VibeStampRead(const VibeVoiceStamp *field) {
     AVAudioPCMBuffer *readBuffer;    // the file's processing format
     AVAudioPCMBuffer *mixBuffer;     // the bus's channels at the file's rate, what a resampler takes after the mix
     AVAudioPCMBuffer *stageBuffer;   // the bus format, what the ring takes; one per slot for the bus's life
-    NSData *mixMap;                  // Float32[source channels][bus channels], when the widths differ
+    NSData *mixMap;                  // Float32[source channels][bus channels], when channel counts or layouts differ
     NSError *failure;               // decoder writes, queue reads under _tableLock
     NSDictionary *conversion;        // how the file reaches the bus, for conversionOfVoice:; _tableLock; nil = direct
     // The resampler's frames: what it has been fed since it was made, and the
@@ -245,7 +245,7 @@ static inline AudioTimeStamp VibeStampRead(const VibeVoiceStamp *field) {
     AudioVoiceRecord *_records[kVoiceSlots];
     NSMutableArray<AudioVoiceRecord *> *_pending;
     NSMutableArray<NSNumber *> *_endedPending; // killed before a slot; the next drain reports them ended
-    // id → slot, for the one cross-thread lookup (snapshotOfVoice:). Never
+    // id → slot and record data for cross-thread lookups. Never
     // taken by the audio thread; never held across a queue hop.
     os_unfair_lock _tableLock;
     VibeVoiceID _slotIdentifiers[kVoiceSlots];

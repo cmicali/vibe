@@ -31,8 +31,9 @@ typedef struct VibeFXChain VibeFXChain;
 // every render that read it. Player queue.
 - (VibeFXChain *)chain;
 
-// Idle effects render nothing, which the tests read. Any thread.
+// Player queue: reads the hosting.
 - (NSUInteger)hostedUnitCount;
+// Render calls across all units. Any thread.
 - (uint64_t)unitRenders;
 
 @end

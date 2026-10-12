@@ -25,8 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)isM3UExtension:(NSString *)extension;
 
 // Decodes playlist bytes to text: a UTF-16 BOM, then a BOM-less UTF-16
-// signature, then UTF-8, then Windows-1252 and Latin-1 for legacy writers, so
-// a non-empty file always decodes.
+// signature, UTF-8, a NUL-based UTF-16 fallback, then Windows-1252 and Latin-1.
+// Latin-1 ensures non-empty input decodes.
 + (nullable NSString *)textFromData:(NSData *)data;
 
 // A lookup bucket folded for case and Unicode normalization, never a file's
@@ -64,8 +64,8 @@ NS_ASSUME_NONNULL_BEGIN
 // URL>" — the window in CD frames, the names percent-encoded — so it reads back
 // as the same row. A path is written relative to directory when the track sits
 // under it and absolute otherwise; nil means absolute throughout. LF line
-// endings, and the result reads back through m3uEntriesInText: and
-// rowsForPlaylistAtURL: unchanged.
+// endings. Names containing backslashes do not round-trip: the reader treats
+// them as Windows path separators.
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks
            relativeToDirectory:(nullable NSURL *)directory;
 

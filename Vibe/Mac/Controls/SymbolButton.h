@@ -4,7 +4,7 @@
 //
 //  A borderless icon button drawing an SF Symbol. The symbol is rendered into
 //  an alpha mask over a flat color layer, so that state changes stay color
-//  fades composited on the render server. No asset-catalog images are involved.
+//  fades composited on the render server. A custom image can replace it.
 //
 
 #import <Cocoa/Cocoa.h>

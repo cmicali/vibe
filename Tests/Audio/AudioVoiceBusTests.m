@@ -158,8 +158,6 @@
            equalsSource:[source subdataWithRange:NSMakeRange(3000 * 8, 17000 * 8)]];
 }
 
-// The next window of one file continues it sample for sample: two handles on
-// one file, the successor seeking to where the voice stopped reading.
 - (void)testWindowsOfOneFileContinueExactlyAtEveryBlockSize {
     NSData *whole = [self noiseFrames:48001 channels:2 seed:132];
     NSURL *url = [self writePCM:whole rate:kRate channels:2 name:@"image.wav"];
@@ -199,8 +197,6 @@
     [self assertCapture:[capture subdataWithRange:NSMakeRange(0, 9000 * 8)] equalsSource:whole];
 }
 
-// A stream reopened after its end was declared reads its successor over the
-// successor's window, not from frame 0.
 - (void)testAReopenedStreamReadsItsSuccessorsWindow {
     NSData *first = [self noiseFrames:2000 channels:2 seed:134];
     NSData *second = [self noiseFrames:30000 channels:2 seed:135];
@@ -220,7 +216,6 @@
     [self assertCapture:[capture subdataWithRange:NSMakeRange(0, expected.length)] equalsSource:expected];
 }
 
-// The window and a successor's window ride a pending start through its bind.
 - (void)testAPendingStartKeepsItsWindowAndItsSuccessorsThroughTheBind {
     NSURL *fillerURL = [self writePCM:[self noiseFrames:20000 channels:2 seed:136] rate:kRate channels:2 name:@"filler.wav"];
     NSData *whole = [self noiseFrames:12000 channels:2 seed:137];
@@ -282,7 +277,6 @@
     }
 }
 
-// A window resampled on its own is the reference conversion of that excerpt.
 - (void)testAResampledWindowIsTheConversionOfItsExcerpt {
     NSData *whole = [self noiseFrames:44100 channels:2 seed:139];
     NSURL *url = [self writePCM:whole rate:44100 channels:2 name:@"whole441.wav"];

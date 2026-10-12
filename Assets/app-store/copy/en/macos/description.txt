@@ -4,16 +4,16 @@ Waveform view
 Vibe draws every track as a full waveform across the window. Click anywhere on it to seek.
 
 Fast
-Vibe is built to be small and fast. Tags, artwork, and waveforms are read in the background and cached so the next open is instant.
+Vibe is built to be small and fast.
 
 Just plays your files
 Drop a file or a folder - from your disk, iCloud Drive, or Dropbox - and it plays. There is no database to rebuild and no library to manage.
 
 Vibe's own audio engine
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe's own CoreAudio engine, with high-quality sample-rate conversion. Lossless files play at full resolution.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe's own CoreAudio engine, with high-quality sample-rate conversion.
 
 Bit-perfect mode
-Bit-perfect and exclusive mode send audio to your output device exactly as-is, for the best possible audio quality.
+Bit-perfect mode matches the file’s sample rate when the device supports it. Exclusive mode reserves the device for Vibe.
 
 Built with DJs in mind
 Vibe includes turntable-style pitch control, BPM and key analysis, bar-accurate skips, and performance FX.

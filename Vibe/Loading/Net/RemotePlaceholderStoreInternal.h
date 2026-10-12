@@ -25,9 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
            modified:(time_t)modified
               error:(NSError *__autoreleasing _Nullable *_Nullable)error;
 
-// Serial: every change to the store's directories, so two changes to one
-// directory never interleave. The downloads are counted, evicted, and removed
-// on it too.
+// Serial directory reconciliation, index updates and download-budget work.
+// A download installs its completed part on the client's delivery queue.
 @property (nonatomic, readonly) dispatch_queue_t diskQueue;
 
 // The index on a directory, read from its xattr once and cached. Nil for
@@ -83,10 +82,10 @@ NS_ASSUME_NONNULL_BEGIN
                                          NSError *_Nullable error))completion;
 // The mtime downloaded bytes take at their install, negative for none. The
 // default is the mtime the placeholder at url has now. The cache key is made
-// from it, so it must not move across the install.
+// from it. Preserve it only when the response still describes the same file.
 - (time_t)modificationTimeOfMetadata:(nullable NSDictionary *)metadata forURL:(NSURL *)url;
-// Whether url's server answers a Range. NO means no tail read and no ranged
-// read: the tags come once the file is local. The default is YES.
+// Whether url's server answers a Range. NO disables tail and network tag reads.
+// A tag read can still use bytes already held by its live stream. Default YES.
 - (BOOL)readsByRangeAtURL:(NSURL *)url;
 // Where the downloads the budget counts live, nil for none. The default is
 // rootURL.

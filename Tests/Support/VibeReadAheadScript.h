@@ -27,7 +27,7 @@ static const uint64_t kReadAheadBlock = 256 * 1024;
 // No read-ahead thread alive and none orphaned. The counts are process-wide.
 @property (class, nonatomic, readonly) BOOL threadsGone;
 
-// Signalled once per read that stalls, and per read that fails.
+// Separate signals for a read that stalls and a read that fails.
 @property (nonatomic, readonly) dispatch_semaphore_t stalled;
 @property (nonatomic, readonly) dispatch_semaphore_t failed;
 @property (atomic) useconds_t throttle;

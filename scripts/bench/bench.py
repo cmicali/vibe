@@ -91,8 +91,7 @@ SEEK_FILES = ['mp3-v0', 'aac-256', 'flac-24-192', 'mp3-320-60min', 'mp3-v0-60min
 SEEKS_PER_FILE = 40
 WAVEFORM_FILES = ['mp3-320', 'flac-16-44', 'flac-24-192', 'mp3-320-60min', 'flac-24-352']
 FX_FILE = 'flac-24-192'
-# The pitch fader's varispeed at full throw: a non-integer ratio on top of the
-# rate conversion. (file, percent)
+# (file, pitch percent); varispeed runs after sample-rate conversion.
 PITCH_CASES = [('flac-24-192', 8), ('mp3-320', -8)]
 LIBRARY_ALBUMS, LIBRARY_TRACKS, LIBRARY_SECONDS = 30, 20, 30
 
@@ -102,13 +101,8 @@ def ffmpeg(*args, limit=60):
     name beside it and renames it only on success, so no exists() check or
     corpus_hash() takes a partial file. `limit` is seconds of wall clock.
 
-    TRAP: ffmpeg's native `vorbis` encoder, the only one Homebrew's build has,
-    never exits once almost no audio reaches it (a FLAC seeked near or past its
-    end): one spun 35 hours writing 1.5 GB, ignoring -t and SIGTERM. So a window
-    cut from a real file clamps -ss to ffprobe's duration, and the limit is an
-    alarm inside ffmpeg, which survives the exec. Not timeout=: it cannot end
-    an orphan whose parent died first, and it polls, adding up to 30 ms to
-    every call."""
+    TRAP: the native Vorbis encoder can hang on an empty input. The alarm
+    survives exec and still bounds the encoder if this parent exits."""
     out = Path(args[-1])
     partial = out.with_name('.partial.' + out.name)
     try:
@@ -185,7 +179,6 @@ def make_corpus():
             inputs += ['-i', str(art)]
             maps += ['-map', f'{art_input}:v', '-c:v', 'copy', '-disposition:v', 'attached_pic']
         tags = ['-metadata', f'title=Bench {name}', '-metadata', 'artist=Vibe Bench', '-metadata', 'album=Corpus']
-        # The slowest, an hour of MP3, takes 40 s on an M4 Max.
         ffmpeg(*inputs, *maps, '-ar', str(spec['rate']), '-ac', str(spec['channels']), *spec['codec'], *tags, str(out),
                limit=60 + spec['seconds'] // 6)
     if not (library / '.complete').exists():
@@ -219,9 +212,7 @@ def make_corpus():
 
 
 def corpus_hash(extra=False):
-    """The app benchmarks' corpus; with `extra`, the component benchmarks' too
-    (perf.py adds extra/). Each suite hashes only its own files, so a run that
-    creates extra/ midway cannot change the app benchmarks' hash under them."""
+    """Hash relative paths and sizes, not contents. Exclude component extras by default."""
     digest = hashlib.sha256()
     for path in sorted(CORPUS.rglob('*')):
         if not extra and path.relative_to(CORPUS).parts[0] == 'extra':
@@ -251,9 +242,8 @@ CLOCK_UPTIME_RAW = 8
 def uptime_ns():
     """The probe's clock, so its launch stamps and these compare.
 
-    TRAP: not time.monotonic_ns(). Its origin depends on the Python: the
-    Xcode/system 3.9 counts from its own process start, so an interval from a
-    probe stamp came out as minus the machine's awake time since boot."""
+    TRAP: use the probe's clock and origin. A Python monotonic clock may
+    have a different origin."""
     return libc.clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
 
 
@@ -304,10 +294,8 @@ def measure_usage(pid, seconds):
 
 
 def wait_quiet(pid, below_pct=15.0, windows=4, limit=30.0):
-    """Until the process has used under below_pct of a core for `windows`
-    consecutive quarter seconds: background analysis has finished. The bar is
-    low because analysis of a long file can run well under half a core, while
-    no version's steady playback reaches 10%."""
+    """Wait for consecutive low-CPU samples. This estimates quiet playback;
+    it does not prove that background analysis has finished."""
     start, calm = time.monotonic(), 0
     while time.monotonic() - start < limit:
         calm = calm + 1 if measure_usage(pid, 0.25)['cpu_pct'] < below_pct else 0
@@ -407,9 +395,8 @@ class App:
         """(reply, handled ns, received ns). repost: keep posting while waiting,
         for a command sent before the app has registered for the notification.
 
-        Intervals start at `handled`, not at the send: the app deletes the
-        command file as it starts on it, so the file's disappearance is the
-        start of the app's own work, free of delivery and directory listing."""
+        `handled` estimates when processing starts from the command file's
+        disappearance. It still includes the observer's polling delay."""
         cid = str(uuid.uuid4()).upper()
         path = self.tmp / f'vibe-command-{cid}.json'
         reply_path = self.tmp / f'vibe-response-{cid}.txt'
@@ -502,13 +489,8 @@ def fresh_home():
 # ---------------------------------------------------------------- scenarios
 
 
-# TRAP: poll gently. dump_state runs on the app's main thread and a round trip
-# is half a millisecond, so a tight loop is thousands of requests a second: it
-# pins the main thread and 1.8, whose dump_state is heaviest, then takes tens
-# of seconds to start a track or land a seek, measuring the benchmark instead
-# of the app. Nothing is lost by it: the position is the output device's
-# rendered audio, so a reply handled at T showing position P says rendering
-# began at T - P, and every interval is back-dated that way.
+# TRAP: frequent dump_state calls load the app's main thread. Poll gently
+# and estimate render start from the reported position.
 POLL_S = 0.025
 
 
@@ -588,9 +570,7 @@ def scenario_launch(label, home, rep):
 
 
 def scenario_playback(label, home, rep):
-    """Every format opened cold: time to play, then steady playback cost once
-    its analysis has finished, then seeks. Ends with the FX worst case and a
-    paused idle."""
+    """Cold opens, playback cost after the low-CPU wait, seeks, FX and paused idle."""
     out = {}
     rng = random.Random(1000 + rep)
     app = App(label, home)
@@ -759,7 +739,7 @@ def ensure_probe():
 
 
 def run_version(label, ref, reps, corpus, idle):
-    if not app_executable(label).exists():  # a build from before the process was VibeBenchApp lacks it
+    if not app_executable(label).exists():
         build(label, ref)
     commit = (BENCH / 'apps' / label / 'commit').read_text().strip()
     (BENCH / 'homes').mkdir(parents=True, exist_ok=True)

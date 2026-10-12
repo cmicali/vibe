@@ -52,7 +52,7 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
 
 #if !defined(NDEBUG)
 
-// Every TagLib file is opened through this class, so this precedes any parse.
+// Install the listener before this class starts its first metadata parse.
 + (void)initialize {
     if (self != AudioTrackMetadata.class) {
         return; // +initialize runs for subclasses too
@@ -260,10 +260,10 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url
                           displayArtData:(NSData *_Nullable __autoreleasing *_Nullable)displayArtData {
     AudioTrackMetadata *metadata = [[AudioTrackMetadata alloc] initWithURL:url];
-    // Encoded here, off the display cache; the originals are released below.
+    // Encoding must not populate the display cache during a playlist scan.
     NSData *encodedThumbnail = [metadata encodeThumbnailDataIfNeeded];
     if (!encodedThumbnail && metadata.artwork.hasEmbeddedArt) {
-        // The row thumbnail must then come from the rendition.
+        // The fresh row keeps its originals. Cache hits use the rendition.
         LogWarn(@"Thumbnail encode produced nothing for art-bearing %@",
                 url.path.lastPathComponent);
     }
@@ -293,7 +293,7 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
 
         TagLib::File *file = fileRef.file();
 
-        // Only artist and title come from the tag: a tagless file parses OK.
+        // A valid file without tags still supplies audio properties.
         if (TagLib::Tag *tag = fileRef.tag()) {
             NSString *tagArtist = [[NSString stringWithStdString:tag->artist().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
             NSString *tagTitle = [[NSString stringWithStdString:tag->title().to8Bit(true)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];

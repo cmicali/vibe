@@ -3,9 +3,9 @@
 //  Vibe
 //
 //  One path-keyed claim from dataless placeholder to AudioFileHandle: stage 1
-//  makes the contents local, stage 2 is the purpose-keyed handle opens riding
-//  it. A token owns delivery, not the claim: cancelling a waiter never erases
-//  a path whose stat or open may still be blocked in the OS.
+//  makes the contents readable, stage 2 is the purpose-keyed handle opens riding
+//  it. A token owns delivery. Cancelling suppresses its completion. A dispatched
+//  OS call keeps its worker slot until it returns.
 //
 
 #import <Foundation/Foundation.h>

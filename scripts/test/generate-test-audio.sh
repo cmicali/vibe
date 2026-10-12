@@ -39,16 +39,8 @@
 #                                parser with the MP4 art above
 set -euo pipefail
 
-# ffmpeg_out <output> <ffmpeg arguments...>: ffmpeg into <output>, whole or not
-# at all (it writes a hidden name beside it and renames it only on success, so
-# no [ -s ] check takes a partial file), within FFMPEG_LIMIT seconds, 100 times
-# the slowest encode here.
-# TRAP: ffmpeg's native vorbis encoder, the only one Homebrew's build has, never
-# exits once almost no audio reaches it (a FLAC seeked near or past its end):
-# one spun 35 hours writing 1.5 GB, ignoring -t and SIGTERM. So a window cut
-# from a real file clamps -ss to ffprobe's duration, and the limit is perl's
-# alarm (macOS has no timeout(1)), which survives the exec and so ends ffmpeg
-# even after this script has gone.
+# Publish only complete encodes. Failed runs remove their partial output.
+# TRAP: Vorbis encoding can stall on an empty input window. The alarm survives exec.
 FFMPEG_LIMIT=60
 ffmpeg_out() {
     local out="$1" partial status=0

@@ -1,7 +1,3 @@
-//
-// The duration strings every time label renders through, and the
-// locale-dependent number strings behind the kHz/BPM and pitch readouts.
-//
 
 #import <XCTest/XCTest.h>
 

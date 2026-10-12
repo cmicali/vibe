@@ -219,8 +219,6 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     }
 }
 
-// Grounded, Cupertino's bars stand as Basic's, so they take Basic's ramp
-// rather than the fade mirrored about the midline.
 - (void)testGroundedCupertinoTakesBasicsRamp {
     VibeColor *color = [VibeColor colorWithWhite:1 alpha:0.8];
     DetailedWaveformRenderer *cupertino = (DetailedWaveformRenderer *)[self rendererForStyle:@"cupertino"];
@@ -450,8 +448,6 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     }
 }
 
-// Wiggle MC is Wiggle with Centered off: its identifier is gone, and only the
-// migrations read it (AppThemeStoreTests).
 - (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
     NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
     XCTAssertFalse([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]);
@@ -771,7 +767,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     return std::vector<float>(levels, levels + samples.length / sizeof(float));
 }
 
-// A bar a point, up to the waveform's chunks.
 - (void)testThreeBandBarsFollowTheDrawnWidth {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
     for (std::array<CGFloat, 2> widthAndBars : {std::array<CGFloat, 2>{512, 512}, {3000, 3000}, {20000, 8192}}) {
@@ -806,7 +801,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertEqualWithAccuracy(zoomed[0], zoomed[8], 1e-6);
 }
 
-// Each layer is one outline through the bars, never a shape per bar.
 - (void)testThreeBandDrawsOneOutlinePerLayer {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
     WaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
@@ -893,7 +887,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
 }
 
-// The playhead splits the mask over one set of band layers.
 - (void)testThreeBandProgressSplitsTheSides {
     WaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
     CGFloat width = renderer.parentLayer.bounds.size.width;
@@ -905,7 +898,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertEqual(VibeThreeBandLayers(renderer).count, kThreeBandLayers);
 }
 
-// The hover slice's outline is the tallest band, built only while it shows.
 - (void)testThreeBandBuildsItsHoverOutlineOnlyWhileShown {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
@@ -925,8 +917,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertTrue(hoverHost.hidden);
 }
 
-// 3-Band and Spectrum read the bands, and each paints a palette of its own.
-// Every other style paints the waveform theme.
 - (void)testOnlyTheBandStylesReadTheBands {
     for (NSString *identifier in WaveformRendererRegistry.availableIdentifiers) {
         BOOL spectrum = [identifier isEqualToString:@"spectrum"];
@@ -944,8 +934,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
                    VibeWaveformPaletteKindTheme);
 }
 
-// A theme's swatch shows the band styles' own colors and every other style's
-// played color, an unregistered one included.
 - (void)testSwatchColorsFollowTheStyle {
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     NSArray<VibeColor *> *played = @[theme.playedColor, theme.playedColor, theme.playedColor];
@@ -976,9 +964,6 @@ static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
     return (uint32_t)p[0] << 16 | (uint32_t)p[1] << 8 | p[2];
 }
 
-// Spectrum settled on these bands under a flat theme: its bake's center pixel,
-// after checking the live tree is one strip under one outline whose center
-// agrees with the bake.
 - (uint32_t)spectrumCenterRGBForBands:(std::array<float, 3>)bands theme:(WaveformTheme *)theme {
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
     WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
@@ -1004,9 +989,6 @@ static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
     return baked;
 }
 
-// A lone band is its primary. Low with high, each at its share of the
-// reference (0.48 for the high, squared as a mean square), is a purple neither
-// primary is, which no single tone makes.
 - (void)testSpectrumFillsTheOutlineWithEachBarsMix {
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     theme.flatFill = YES;
@@ -1025,9 +1007,7 @@ static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
     XCTAssertNotEqual(purple, high);
 }
 
-// Each bar takes its color from its own window. Bars alternating a lone low
-// and a lone high keep their primaries. The heights' reach would hand every
-// bar both bands, and every bar would draw the same purple.
+// The height reach would mix neighboring bands into identical colors.
 - (void)testSpectrumColorsEachBarByItsOwnWindow {
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     theme.flatFill = YES;
@@ -1053,7 +1033,6 @@ static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
     }
 }
 
-// The outline is the tallest band, as 3-Band's outer edge is.
 - (void)testSpectrumOutlineIsTheTallestBand {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);

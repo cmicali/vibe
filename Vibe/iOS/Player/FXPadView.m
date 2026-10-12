@@ -8,14 +8,11 @@
 #import "AudioFXMath.h"
 #import "VibeStrings.h"
 
-// The pad's side at most; the extent caps it on a small window.
 static const CGFloat kFXPadSide = 260;
-// How far short of the superview's safe edges the pad stops growing.
 static const CGFloat kFXPadMargin = 16;
 static const CGFloat kFXPadCornerRadius = 20;
 // The pill's and the captions' weight at rest, the route control's own.
 static const CGFloat kFXPadRestingAlpha = 0.6;
-// The circle under the finger, and the fingertip it stands for.
 static const CGFloat kFXPadCursorDiameter = 44;
 static const CGFloat kFXPadCursorFillAlpha = 0.3;
 static const CGFloat kFXPadCursorStrokeAlpha = 0.8;
@@ -84,7 +81,6 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     [self addSubview:_pillLabel];
 
     _padView = [[UIVisualEffectView alloc] initWithEffect:nil];
-    // The captions and the cursor are white, whatever the appearance.
     _padView.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     _padView.userInteractionEnabled = NO;
     _padView.hidden = YES;
@@ -170,9 +166,7 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     return CGRectMake(CGRectGetMinX(bounds), CGRectGetMaxY(bounds) - side, side, side);
 }
 
-// The finger as the pad's position: the press point is 0 on both axes and
-// the pad's right and top edges are 1, so the axis is however much of the
-// pad lies beyond the press, never less than a usable span.
+// Normalize from the press point. The minimum span avoids jumps in small pads.
 - (CGPoint)positionForPoint:(CGPoint)point {
     CGFloat spanX = MAX(CGRectGetMaxX(_padFrame) - _origin.x, kFXPadMinimumSpan);
     CGFloat spanY = MAX(_origin.y - CGRectGetMinY(_padFrame), kFXPadMinimumSpan);

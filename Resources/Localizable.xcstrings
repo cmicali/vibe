@@ -1118,7 +1118,7 @@
       "extractionState": "manual"
     },
     "a11y.playlist.menu": {
-      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.",
+      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It opens a menu with Settings and Clear Playlist.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -6698,7 +6698,7 @@
       "extractionState": "manual"
     },
     "browser.subfolders_capped": {
-      "comment": "iOS Files tab: alert message after Play with Subfolders or Add with Subfolders stopped early because the folder holds more songs than one playlist takes. %lu is the limit, a round number such as 2,000.",
+      "comment": "iOS: alert after a subfolder walk reaches its file or folder limit. %lu is the approximate song limit, such as 2,000.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -10418,7 +10418,7 @@
       "extractionState": "manual"
     },
     "label.convert.save_message": {
-      "comment": "Message atop the save panel that appears when the app may not write next to the source file.",
+      "comment": "Message atop the save panel for the converted FLAC. The panel can be requested by the save-location setting or a failed move beside the source.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20648,7 +20648,7 @@
       "extractionState": "manual"
     },
     "menu.context.add_favorite": {
-      "comment": "iOS: long-press menu item on a FOLDER in the Files tab; stars it so it appears on the Favorites tab, without opening it or changing the playlist. %@ is the app name. It is named because the system's own 'Favorite' item sits in the same menu, and without it the two read as near-duplicates and neither says whose favorites it means. Keep the %@ — the app name is not translated, but the grammar around it is.",
+      "comment": "iOS folder menu: adds a folder to Vibe's Favorites. %@ is the app name. Keep the placeholder.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20834,7 +20834,7 @@
       "extractionState": "manual"
     },
     "menu.context.add_to_playlist": {
-      "comment": "iOS: long-press menu item and swipe action on a Favorites row, the long-press action on a file or folder in the Files tab, and the accessibility label of the playlist screen's plus button, which opens the system picker. Adds tracks to the end of the playlist without interrupting what is playing.",
+      "comment": "iOS: appends tracks without interrupting playback. Also labels the playlist plus button, which opens the Add to Playlist browser.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23996,7 +23996,7 @@
       "extractionState": "manual"
     },
     "menu.edit.remove_from_playlist": {
-      "comment": "Edit menu item, and the same command in the playlist row menu: takes one track out of the playlist. The audio file stays on disk — nothing is deleted, moved or trashed — so use a verb that means taking something off a list, as Music does, not one that means deleting a file.",
+      "comment": "Removes selected playlist rows without deleting their files. Use the term for taking an item off a list.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33110,7 +33110,7 @@
       "extractionState": "manual"
     },
     "menu.view.theme.edit": {
-      "comment": "Theme submenu item: opens Settings on the theme editor. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Theme submenu item: opens the Themes pane in Settings. Ends with an ellipsis.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36644,7 +36644,7 @@
       "extractionState": "manual"
     },
     "settings.advanced": {
-      "comment": "Settings window: the Advanced pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
+      "comment": "Settings window: the Advanced pane's sidebar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -38504,7 +38504,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.audio_path.direct": {
-      "comment": "Settings, Advanced pane, Audio group: decoder readout when the file needs no conversion — its samples reach the mixing bus unchanged.",
+      "comment": "Advanced pane, Audio: decoded samples need no rate or channel conversion before the mixing bus.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -39620,7 +39620,7 @@
       "extractionState": "stale"
     },
     "settings.advanced.audio_path.meter_label": {
-      "comment": "Settings, Advanced pane, Audio group: label beside the analyzer behind the equalizer bars — on with its rate while the bars are shown, else off. Ends with a colon.",
+      "comment": "Advanced pane, Audio: shows whether the level analyzer is active and its sample rate. Ends with a colon.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -40736,7 +40736,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.audio_path.off": {
-      "comment": "Settings, Advanced pane, Audio group: readout of a stage that is not in the path — the pitch at zero, the effects disabled, the meter not shown.",
+      "comment": "Advanced pane, Audio: a stage is bypassed or inactive.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -52640,7 +52640,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.show_traffic_lights": {
-      "comment": "Settings, Appearance pane, Window group: switch showing or hiding the main window's custom close and minimize buttons. The buttons are the red and yellow macOS-style dots. The default is on.",
+      "comment": "Appearance switch: shows the close, minimize and zoom buttons on the player window.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -53756,7 +53756,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.album_art": {
-      "comment": "Theme editor, Transport group: row beside the artwork preview pair (one per appearance under Light & Dark Modes, one under Single Mode) showing the placeholder image used when a track has no artwork; clicking a preview opens a file panel to pick a square JPEG or PNG.",
+      "comment": "Theme editor, Player display: placeholder artwork when a track has none. One image in Single Mode, or a dark/light pair. A preview opens a square JPEG or PNG chooser.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -57848,7 +57848,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_next": {
-      "comment": "Theme editor, Player group: row beside the dropdown choosing the next-track button's symbol, or a custom image.",
+      "comment": "Theme editor, Playback buttons: chooses the next button's symbol or custom image.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -58592,7 +58592,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_play": {
-      "comment": "Theme editor, Player group: row beside the dropdown choosing the play/pause button's symbol pair, or custom images.",
+      "comment": "Theme editor, Playback buttons: chooses the play/pause symbols or custom images.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -59150,7 +59150,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.button_playlist": {
-      "comment": "Theme editor, Player group: row beside the dropdown choosing the playlist toggle button's symbol, or a custom image.",
+      "comment": "Theme editor, Playback buttons: chooses the playlist button's symbol or custom image.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -59708,7 +59708,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.color_artist": {
-      "comment": "Theme editor: row beside an artist color's wells. In the Window group it governs the secondary text — the artist lines and the playlist's number and length columns; in the Playlist group, shown while its custom color switch is on, the playlist's artist lines alone.",
+      "comment": "Theme editor: artist colors in Player display, or the custom playlist artist-column colors in Playlist.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -59894,7 +59894,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.color_info": {
-      "comment": "Theme editor, Window group: row beside the color wells for the header's codec and BPM/key readouts.",
+      "comment": "Theme editor, Track information: colors for codec, tempo and key readouts.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -60266,7 +60266,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.color_times": {
-      "comment": "Theme editor, Window group: row beside the color wells for the two time labels.",
+      "comment": "Theme editor, Track information: colors for elapsed and total or remaining time.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -60452,7 +60452,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.color_title": {
-      "comment": "Theme editor: row beside a title color's wells. In the Window group it governs the header title and the playlist titles; in the Playlist group, shown while its custom color switch is on, the playlist's track titles alone.",
+      "comment": "Theme editor: title colors in Player display, or the custom playlist title-column colors in Playlist.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -61010,7 +61010,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.corner_radius_value": {
-      "comment": "Theme editor: the corner-radius slider's live readout, e.g. '20 px'. %ld is the radius in pixels.",
+      "comment": "Theme editor: corner-radius readout. %ld is the displayed value. Keep the px unit.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -62498,7 +62498,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.export": {
-      "comment": "Settings, Themes pane: button that saves the selected theme as a JSON file. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Themes pane: exports a theme as JSON, or as a ZIP with its referenced images. Ends with an ellipsis.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -62870,7 +62870,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.font_info": {
-      "comment": "Theme editor, Fonts group: row for the font of the times and the codec and BPM/key readouts.",
+      "comment": "Theme editor, Track information: font for time, codec, tempo and key readouts.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63242,7 +63242,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.font_playlist": {
-      "comment": "Theme editor, Fonts group: row for the playlist rows' font.",
+      "comment": "Theme editor, Playlist: font for playlist rows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63428,7 +63428,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.font_playlist_duration": {
-      "comment": "Theme editor, Fonts group: row for the font of the playlist's duration column.",
+      "comment": "Theme editor, Playlist: font for the duration column.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63614,7 +63614,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.font_select": {
-      "comment": "Theme editor, Fonts group: button opening the system font panel for that row's font. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Theme editor: opens the font panel for this row. Ends with an ellipsis.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63800,7 +63800,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.font_value": {
-      "comment": "Theme editor, Fonts group: the current choice, e.g. 'Helvetica Neue 23 pt'. %1$@ is the font's name, %2$ld its size in points.",
+      "comment": "Theme editor: current font. %1$@ is its name. %2$ld is its size in points.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -64916,7 +64916,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.import": {
-      "comment": "Add menu item: opens a file chooser for a theme JSON file. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Themes pane: opens a chooser for a theme JSON or ZIP file. Ends with an ellipsis.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -65102,7 +65102,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.import_failed": {
-      "comment": "Alert shown when an imported file could not be read as a theme JSON.",
+      "comment": "Alert when a file cannot be read as a theme JSON or ZIP.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -65846,7 +65846,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.mode_single": {
-      "comment": "Theme editor, Appearance dropdown: the theme keeps one color per field and always uses it, whatever the system or Vibe appearance setting says.",
+      "comment": "Theme editor: uses one appearance palette and keeps the window dark. Button colors still follow the artwork behind them.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -69380,7 +69380,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.standard": {
-      "comment": "Theme editor: choice beside Corner radius meaning the window keeps macOS's usual corner rounding; the other choice, Custom, shows a slider.",
+      "comment": "Theme editor: uses Vibe's default corner radius. The Custom choice shows a slider.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -70496,7 +70496,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.caption": {
-      "comment": "Theme editor: caption under the volume slider's Location row. In the top-right corner the slider appears while the pointer is over its spot, and the file info, status icons, tempo and key fade out for it; they come back when the pointer leaves. 'Track information' is the heading of the editor's group for those readouts. No trailing period.",
+      "comment": "Theme editor: explains the top-right slider location. When the slider appears it replaces the track information. The Show setting controls its visibility.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -70682,7 +70682,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.top_right": {
-      "comment": "Theme editor, volume slider location choice: the player window's top-right corner, above the waveform, where it swaps with the track information while the pointer is over it. The default.",
+      "comment": "Theme editor: places the slider in the player's top-right corner. It replaces track information when visible. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -71612,7 +71612,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_waveform": {
-      "comment": "Theme editor, volume slider bar or knob color choice: the waveform's played color. The default for both. Pairs with 'Artwork color'.",
+      "comment": "Theme editor: uses the waveform's played color for the slider bar or knob. The bar defaults to this. The knob defaults to Same as bar.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -72728,7 +72728,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.waveform_style": {
-      "comment": "The waveform drawing style: in the Mac theme editor's Player group, the row beside its dropdown — the same choice as the Appearance pane's Style row, named in full there because the row sits among the player's other rows; on the iOS settings screen, the heading above the list of styles.",
+      "comment": "Waveform drawing-style choice in the Mac theme editor and the iOS Appearance screen.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75518,7 +75518,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_custom_dark_label": {
-      "comment": "Settings: label for the waveform color wells (custom colors, or the 3-Band style's bands) used while the app is in dark mode. Beside the wells on the Mac; a section header on iPhone and iPad.",
+      "comment": "Settings: label for the waveform color wells (custom waveform colors or Low, Mid and High colors) used while the app is in dark mode. Beside the wells on the Mac; a section header on iPhone and iPad.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75704,7 +75704,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_custom_light_label": {
-      "comment": "Settings: label for the waveform color wells (custom colors, or the 3-Band style's bands) used while the app is in light mode. Beside the wells on the Mac; a section header on iPhone and iPad.",
+      "comment": "Settings: label for the waveform color wells (custom waveform colors or Low, Mid and High colors) used while the app is in light mode. Beside the wells on the Mac; a section header on iPhone and iPad.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75890,7 +75890,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag.seek": {
-      "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform scrubs through the track like a slider — playback jumps to where the mouse is released — and the window stays put.",
+      "comment": "General pane: dragging the waveform previews a seek. Releasing jumps playback to that position.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76076,7 +76076,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag.window": {
-      "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform moves the whole window, and only a click without movement jumps playback. The default.",
+      "comment": "General pane: dragging the waveform moves the window. A click seeks. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76262,7 +76262,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag_label": {
-      "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the mouse on the waveform does. The key keeps its historical settings.appearance prefix.",
+      "comment": "General pane, Behavior group: chooses what dragging the waveform does.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -80168,7 +80168,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.window_tint_custom_dark_label": {
-      "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in dark mode.",
+      "comment": "Theme editor: label for a custom color used in dark appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -80354,7 +80354,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.window_tint_custom_light_label": {
-      "comment": "Settings, Appearance pane: label beside the custom window tint color well used while the app is in light mode.",
+      "comment": "Theme editor: label for a custom color used in light appearance.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -82772,7 +82772,7 @@
       "extractionState": "manual"
     },
     "settings.convert.destination.ask": {
-      "comment": "Settings, Convert pane, converted-file destination choice: every conversion shows a save panel asking where to put the FLAC.",
+      "comment": "Files pane, FLAC conversion: asks for a save location for each conversion.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -82958,7 +82958,7 @@
       "extractionState": "manual"
     },
     "settings.convert.destination.beside": {
-      "comment": "Settings, Convert pane, converted-file destination choice: the FLAC is written into the same folder as the source file. The default.",
+      "comment": "Files pane, FLAC conversion: tries to save beside the source. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -85562,7 +85562,7 @@
       "extractionState": "manual"
     },
     "settings.files": {
-      "comment": "Settings window: the Files pane's toolbar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.",
+      "comment": "Settings window: the Files pane's sidebar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -85934,7 +85934,7 @@
       "extractionState": "manual"
     },
     "settings.files.album_art.file_only": {
-      "comment": "Settings, Files pane, album art choice: use only the artwork stored inside the song file, and show nothing for a song carrying none.",
+      "comment": "Files pane: uses embedded artwork only. A track without usable artwork shows the theme's default image.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -86120,7 +86120,7 @@
       "extractionState": "manual"
     },
     "settings.files.album_art.folder": {
-      "comment": "Settings, Files pane, album art choice: prefer the artwork stored inside the track's own file, and for a track carrying none use a cover image file sitting beside it in the same folder. The default.",
+      "comment": "Files pane: prefers usable embedded artwork. Otherwise it looks for a cover beside the file. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -88166,7 +88166,7 @@
       "extractionState": "manual"
     },
     "settings.general": {
-      "comment": "Settings window: the General pane's toolbar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
+      "comment": "Settings window: the General pane's sidebar item, and the window's title while that pane is selected. macOS uses this same name in every app's settings.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -90026,7 +90026,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect": {
-      "comment": "Settings, Audio pane: switch that sends each file's audio to the chosen output device unchanged — the device's sample rate and bit depth follow the file.",
+      "comment": "Audio Output switch: requests the file sample rate and a suitable device bit depth. The status reports whether unchanged delivery is verified.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -90584,7 +90584,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.caption_off": {
-      "comment": "Settings, Audio Output pane: the first line of the caption under the Bit-perfect output switch, always shown: what the mode does. The device's sample rate and bit depth follow each file, and no resampling, volume change or effect touches the audio.",
+      "comment": "Caption describing the requested bit-perfect mode. The status below reports device limits or processing that prevents unchanged delivery.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -93374,7 +93374,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.volume": {
-      "comment": "Bit-perfect output status: macOS is scaling the audio in software because the device's volume is below full. %@ is the volume as a whole-number percentage; %% is a literal percent sign.",
+      "comment": "Bit-perfect status: the reported device volume is below full. %@ is its whole-number percentage. %% prints a percent sign.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -93560,7 +93560,7 @@
       "extractionState": "manual"
     },
     "settings.general.declick": {
-      "comment": "Settings, Audio pane: switch below Volume control. On, playback ramps the volume over the first and last few milliseconds of every start, stop, pause, seek and track change so the edge cannot click; off, it cuts, leaving every sample untouched. A short noun phrase for removing clicks.",
+      "comment": "Audio Output switch: short volume ramps reduce clicks at transport changes. A short noun phrase for removing clicks.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -98210,7 +98210,7 @@
       "extractionState": "manual"
     },
     "settings.general.window_section": {
-      "comment": "Settings: heading above the window rows — always on top and lock window position in the General pane; window appearance, window controls and the Dock icon in the Appearance pane; the window's look in the theme editor. One key for all, the word being the same; the key keeps its historical settings.general prefix.",
+      "comment": "Settings heading for window behavior and appearance rows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -108998,7 +108998,7 @@
       "extractionState": "manual"
     },
     "settings.shortcuts.submenu_item": {
-      "comment": "Settings, Keyboard Shortcuts pane: a command inside a submenu, such as 'Size: Small'. %1$@ is the submenu's title, %2$@ the item's.",
+      "comment": "Keyboard Shortcuts pane: a command inside a submenu, such as 'Width: Small'. %1$@ is the submenu title. %2$@ is the item title.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -114020,7 +114020,7 @@
       "extractionState": "manual"
     },
     "waveform.style.spectrum": {
-      "comment": "Waveform style name: the DJ-player style that colors each moment by its mix of bass, mids and highs, red for bass through green to blue for highs. Translate as the word for a frequency spectrum.",
+      "comment": "Waveform style name: colors each moment by its mix of bass, mids and highs. Translate as the word for a frequency spectrum.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -114764,7 +114764,7 @@
       "extractionState": "manual"
     },
     "widget.intent.next": {
-      "comment": "Name of the widget's skip-to-next-track action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that skips to the next track.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -114950,7 +114950,7 @@
       "extractionState": "manual"
     },
     "widget.intent.play_pause": {
-      "comment": "Name of the widget's play/pause action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that plays or pauses audio. A command, not a status.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -115136,7 +115136,7 @@
       "extractionState": "manual"
     },
     "widget.intent.previous": {
-      "comment": "Name of the widget's skip-to-previous-track action, as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that skips to the previous track.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -115322,7 +115322,7 @@
       "extractionState": "manual"
     },
     "widget.intent.seek": {
-      "comment": "Name of the widget's seek action — jump to a position in the current track — as it appears in the Shortcuts app's action list. A command, not a label.",
+      "comment": "Title of the widget action that seeks within the current track.",
       "localizations": {
         "bg": {
           "stringUnit": {

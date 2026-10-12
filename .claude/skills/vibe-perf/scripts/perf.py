@@ -244,8 +244,6 @@ def run_binary(binary, filter_re, reps, json_out, quiet=False):
 
 
 def built(binary, filter_re):
-    """The benchmark names a binary has: a ref that could not build a benchmark
-    file lacks that file's."""
     args = [str(binary), '--list'] + (['--filter', filter_re] if filter_re else [])
     return set(subprocess.run(args, check=True, capture_output=True, text=True).stdout.split())
 
@@ -413,8 +411,6 @@ def measure_release(label, ref, reps):
 
 
 def releases(args):
-    """The page's component charts: measure each version, store it in
-    results.json, redraw docs/performance.md."""
     reps = option(args, '--reps', 5, int)
     new_machine = bench.switch(args, '--new-machine')
     results = bench.load_results()

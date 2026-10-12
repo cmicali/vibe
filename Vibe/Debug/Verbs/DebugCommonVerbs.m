@@ -42,15 +42,10 @@ NSString *VibeDebugPlayerStateName(AudioPlayer *player) {
 // How many filenames dump_state lists before summarising the rest.
 static const NSUInteger kMaxListedFiles = 100;
 
-// A runaway guard: one main-queue turn per jump, so even this costs under a
-// second.
 static const NSUInteger kMaxBurstJumps = 5000;
 
-// Track changes at the rate the main queue takes them. One channel command per
-// jump costs ~80ms (~2.4s under ThreadSanitizer), too slow for threads to
-// collide; in-process, a jump lands every main-queue turn. Re-dispatched, not
-// looped: a tight loop on main would starve the deliveries it races. The LCG
-// makes a burst reproducible from its seed.
+// Re-dispatch each jump so main-queue deliveries can race the burst.
+// The LCG makes the row sequence reproducible from its seed.
 static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
                            NSUInteger remaining, uint32_t state) {
     id<VibeDebugPlayerSurface> strongSurface = surface;

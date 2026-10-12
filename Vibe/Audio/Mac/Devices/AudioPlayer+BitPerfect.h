@@ -16,11 +16,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioPlayer (BitPerfect)
 
-// Bit-perfect output. While on, each track's settlement sets the chosen
-// device to the file's rate and word length, and the source segment is the
-// bus at the file's own format, without varispeed;
-// the only gain ever applied is the declick at each transport edge, and none
-// with AudioPlayer.declick off, when every edge is a cut. The shell owns
+// Bit-perfect output requests the file's rate and a suitable physical format.
+// OutputFormatRules.h selects a fallback when the device cannot match them.
+// The bus follows the device rate and has no varispeed or FX. Declick controls
+// the transport ramps. Player volume still applies and is reported when below
+// full. The shell owns
 // the rest of the pruning (minimum crossfade, hidden pitch fader) and only
 // turns this on for an eligible device — explicitly chosen, on a transport
 // that carries bits unchanged (OutputFormatRules.h). Either direction

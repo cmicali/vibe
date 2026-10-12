@@ -64,7 +64,7 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         // tmp: a shell cp into ~/Library/Containers/<id>/ trips macOS 14+
         // app-data protection, while inherited fds cross the sandbox freely.
         // The staged file has no extension; CoreAudio identifies the format
-        // by content (verified for WAV/FLAC/MP4/ADTS).
+        // by content.
         BOOL isScanBPM = [args.firstObject isEqualToString:@"scan_bpm"];
         if (isScanBPM || [args.firstObject isEqualToString:@"scan_key"]) {
             const char *verb = args.firstObject.UTF8String;

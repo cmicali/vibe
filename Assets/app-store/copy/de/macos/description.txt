@@ -4,16 +4,16 @@ Wellenform-Ansicht
 Vibe zeichnet jeden Titel als komplette Wellenform über das Fenster. Ein Klick an eine beliebige Stelle springt dorthin.
 
 Schnell
-Vibe ist klein und schnell gebaut. Tags, Artwork und Wellenformen liest Vibe im Hintergrund und cacht sie — das nächste Öffnen geht sofort.
+Vibe ist klein und schnell gebaut.
 
 Spielt einfach deine Dateien
 Lege eine Datei oder einen Ordner ab — von deiner Festplatte, aus iCloud Drive oder Dropbox — und sie spielt. Keine Datenbank, die neu aufgebaut werden muss, und keine Mediathek, die gepflegt werden will.
 
 Vibes eigene Audio-Engine
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, abgespielt über Vibes eigene CoreAudio-Engine mit hochwertiger Abtastratenkonvertierung. Lossless-Dateien spielen in voller Auflösung.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, abgespielt über Vibes eigene CoreAudio-Engine mit hochwertiger Abtastratenkonvertierung.
 
 Bit-perfekter Modus
-Bit-perfekt und Exclusive Mode geben Audio exakt unverändert an dein Ausgabegerät weiter, für die bestmögliche Klangqualität.
+Der bit-perfekte Modus übernimmt die Abtastrate der Datei, wenn das Gerät sie unterstützt. Der exklusive Modus reserviert das Gerät für Vibe.
 
 Für DJs gebaut
 Vibe bringt einen Tempo-Regler im Turntable-Stil mit, BPM- und Tonart-Analyse, taktgenaue Sprünge und Performance-FX.

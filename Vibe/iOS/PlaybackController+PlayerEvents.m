@@ -2,10 +2,8 @@
 //  PlaybackController+PlayerEvents.m
 //  Vibe (iOS)
 //
-//  Two rules govern this file. Every callback can be stale, so each handler
-//  matches the delivered track against the playlist's current one first.
-//  AudioPlayer.stop fires no callback, so nothing here advances off it;
-//  track-end and skip-past-end both funnel through didFinishPlaying:.
+//  Track callbacks must match the current row. AudioPlayer rejects superseded
+//  play settlements by submission identity. Stop sends no transport or track-end callback.
 //
 
 #import "PlaybackController+PlayerEvents.h"

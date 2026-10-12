@@ -20,15 +20,8 @@ static const NSInteger kArtRowMargin = 20;
     return _artCache;
 }
 
-// The rows on screen and a margin, not the folder: one merely browsed is not
-// parsed whole.
-//
-// TRAP: only files whose bytes are on the device go to loadMetadata:. Its
-// cache miss reads the tags from the file, which for a Dropbox placeholder is
-// ranged requests and for a provider's dataless file a download: browsing a
-// folder costs nothing a row does not say. Every other song goes to
-// loadCachedMetadata:, which answers from the metadata cache and reads
-// nothing on a miss.
+// TRAP: send remote and dataless rows only to loadCachedMetadata:.
+// A normal cache miss would fetch tags or download the file just to browse it.
 - (void)loadArtForVisibleRows {
     if (_songFiles.count == 0 || !self.viewIfLoaded.window) {
         return;

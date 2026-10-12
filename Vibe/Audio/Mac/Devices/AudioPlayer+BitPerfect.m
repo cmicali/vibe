@@ -208,7 +208,7 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
         }
     }
     // The pipeline follows the device: the bus, the FX segment and the unit
-    // all run at its rate, so nothing resamples.
+    // all run at its rate. Any file-rate conversion stays in the voice decoder.
     if (current.mSampleRate > 0 && current.mSampleRate != [self masterBusFormatOnQueue].sampleRate) {
         [self applyOutputRateOnQueue:current.mSampleRate];
     }

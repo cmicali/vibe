@@ -233,10 +233,7 @@
     [self waitForExpectationsWithTimeout:VIBE_TEST_HANG_TIMEOUT handler:nil];
 }
 
-// The iOS-written entry archives no thumbnail; the has-art flag is the only
-// record that the file carries art. Read as artless, it would leave the pager
-// on the placeholder for good and hand the folder's cover to a file with its
-// own art.
+// A missing thumbnail must not override the stored fact that embedded art exists.
 - (void)testACacheHitWithNoThumbnailButKnownArtStillReadsTheFile {
     NSData *embedded = [self embeddedArtData];
     __block BOOL extracted = NO;

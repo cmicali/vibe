@@ -295,12 +295,10 @@ AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate) {
 
 // The four sections run side by side, so a sample costs one section's
 // latency: mid's lowpass takes its highpass's output from two samples back,
-// which leaves no lane waiting on another within a sample, and direct form I
-// leaves one FMA on each recurrence. vDSP_biquad runs a setup's sections one
-// after another, at 2.6x the cost. The mid band lags the others by two
-// samples, a shift no chunk can see. Double, since a 300 Hz pole at 352.8 kHz
-// sits close enough to the unit circle that float's rounding shows in the
-// energies.
+// which leaves no lane waiting on another within a sample. Direct form I
+// leaves one FMA on each recurrence. The mid band lags the others by two
+// samples. Double precision limits rounding near the unit circle at high
+// sample rates.
 void AudioWaveformBandSplit::addSumSquares(const float* mono, NSUInteger numFrames, float* sums) {
     // Locals, so the stores through sums cannot alias the state.
     simd_double4 x1 = this->x1, x2 = this->x2, y1 = this->y1, y2 = this->y2;

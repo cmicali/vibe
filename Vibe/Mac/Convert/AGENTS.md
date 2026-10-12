@@ -1,6 +1,6 @@
 # Converting to FLAC (macOS only)
 
-Convert > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it. This is the app's only write path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve. The controller half, the playlist swap and undo UI settlement, is `Mac/MainWindow/Convert/AGENTS.md`.
+Convert > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it. This is the app's audio-file conversion path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve. The controller half, the playlist swap and undo UI settlement, is `Mac/MainWindow/Convert/AGENTS.md`.
 
 **The encoder is CoreAudio's** (`AudioFileHandle`'s writing side, an ExtAudioFile created as `kAudioFileFLACType`), so there is no new dependency. The app is sandboxed and ships in the App Store, so ffmpeg is not an option.
 
@@ -14,7 +14,7 @@ Convert > Convert to FLAC and the window body's right-click item re-encode the *
 
 1. **A plain move.** It works when the grant was a folder.
 2. **A coordinated move against an `NSFilePresenter`** whose `primaryPresentedItemURL` is the source. It works for a single-file grant.
-3. **An `NSSavePanel`** pre-filled with the folder and name. Its own grant always works.
+3. **An `NSSavePanel`** pre-filled with the folder and name. The chosen URL carries a write grant. The move can still fail.
 
 `AppSettings.convertAsksWhereToSave` (Settings > Files) goes straight to the panel when a window exists. It is snapshotted at accept, like the delete toggle. Ask-mode also lifts the destination-exists refusal and its menu disable.
 
@@ -43,7 +43,7 @@ A crash or kill can leave `vibe-convert-<uuid>.flac` in the container's tmp. `in
 
 ## Tags, progress and disposal
 
-`FLACTagCopier` carries the source's tag over with TagLib: `setProperties` for the scalars (its `PropertyMap` normalizes ID3 spellings to Vorbis ones, `TBPM` → `BPM`) plus the front cover. It opens the header-sniffed container rather than trusting the extension or cached metadata. A failure is fatal to the conversion: the temp is removed and the original stays, so Delete Original can never turn a tag-copy failure into metadata loss.
+`FLACTagCopier` copies TagLib's supported scalar properties to Vorbis comments and copies one picture. It prefers the front cover and otherwise keeps the first nonempty picture. Unsupported tag fields are omitted. It opens the header-sniffed container rather than trusting the extension or cached metadata. A failure is fatal to the conversion: the temp is removed and the original stays, so Delete Original can never turn a tag-copy failure into metadata loss.
 
 The encode must reach the source's declared frame count, and the finished FLAC must reopen with that count, before tags or placement. A zero-frame read before the declared end is truncation, not EOF. The temp is removed and the source is untouched.
 
@@ -61,4 +61,4 @@ Placement gets one final positive validation before success reaches the controll
 
 All disposal and verification run on their own serial dispose queue, not the converter queue, so an undo never waits out an encode. Completions land on main. Both moves run inside coordinated writes, because a FLAC placed by the related-item rung has a sandbox extension that rides the presenter's coordination. The restore's move refuses to overwrite. The verifier is positive: a destructive handoff needs proof that the file opened and carries audio.
 
-**TRAP: menu validation must never stat the file system.** It runs on main on every menu open, and a stat on an unreachable network mount blocks until the mount times out. `validateConvertMenuItem:forTrack:` reads a cached FLAC-already-exists answer that each validation re-warms off main. It is stale by at most one menu open, which is safe because the conversion re-checks before writing. The Edit menu's undo items likewise read `NSUndoManager`'s stack alone.
+**TRAP: menu validation must never stat the file system.** It runs on main on every menu open, and a stat on an unreachable network mount blocks until the mount times out. `validateConvertMenuItem:forTrack:` reads a cached FLAC-already-exists answer that each validation re-warms off main. The answer stays stale until its worker finishes. The conversion re-checks before writing. The Edit menu's undo items likewise read `NSUndoManager`'s stack alone.

@@ -34,8 +34,6 @@ static NSMutableDictionary<NSString *, NSNumber *> *sVersions;
 // The host of iCloud's signed addresses. The lookup's is the client's own
 // (kVibeICloudLinkLookupURL).
 static NSString *const kVibeFakeHTTPSignedHost = @"cvws.icloud-content.com";
-// How long a signed address lives unless an expiry fault says otherwise.
-// iCloud's own live about 15 minutes.
 static const NSTimeInterval kVibeFakeHTTPAddressLifetime = 15 * 60;
 
 static NSArray<NSString *> *VibeFakeHTTPFaultKinds(void) {

@@ -73,7 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The one matching rule for a saved device, most specific first: the device
 // UID (the unit), then the model UID (the same model on another USB port), then
-// the name (settings saved before either existed). Empty never matches.
+// the name as the final fallback. Empty never matches.
 + (nullable AudioDevice *)deviceForUID:(nullable NSString *)uid
                               modelUID:(nullable NSString *)modelUID
                                   name:(nullable NSString *)name

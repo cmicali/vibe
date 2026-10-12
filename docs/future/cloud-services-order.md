@@ -7,14 +7,14 @@
 - **The Mac needs no native client.** Dropbox, iCloud Drive, OneDrive, Google Drive and Box all arrive as File Providers. The materializer downloads a placeholder whole and the open waits for it. Network shares read by range and read ahead.
 - **iOS has one native client, Dropbox,** with its own mirror and streaming. Every other source comes through the Files picker as a provider folder, downloaded whole. An SMB volume from the Files app is a live network mount, read in place.
 - **Single shared files from Dropbox, Google Drive and iCloud Drive play through Open URL** on both platforms, with no account.
-- **Google Drive's File Provider fails on iOS.** Picking from it showed an error, and files and folders would not open. A native client is the only way to play a Drive library there.
+- **Recheck Google Drive's Files integration before building a client.** Earlier device checks failed to open its files and folders. That result does not establish the behavior of later provider versions.
 
 ## The order
 
 ### 0. Probes still to run
 
 - **USB on iOS.** What a USB drive picked in the Files app is. A Debug build launched with `--dataless-diag` logs each picked directory's mount and dataless verdict (the `vibe-debug` skill's on-device log section).
-- **Google's restricted-scope inquiry for `drive.readonly`.** Item 4 assumes Google approves it. Verification takes weeks, so send it early. It needs no engineering.
+- **Google's restricted-scope inquiry for `drive.readonly`.** Item 4 assumes Google approves it. Ask about the scope before committing to the client.
 - **A sleeping server on iOS.** On the Mac a dropped server stalled playback silently before the read-ahead. iOS was not tried.
 
 ### 1. iCloud Drive on iOS

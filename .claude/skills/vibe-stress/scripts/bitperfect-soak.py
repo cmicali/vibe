@@ -10,9 +10,9 @@ Settle-paced on purpose, not a torture phase: a format switch needs about a
 second to confirm, and torture's 10-70 ops/s leaves the mode in `switchFailed`
 and the hog never taken while still reporting PASSED.
 
-REQUIRES a device the mode can drive (`VibeBitPerfectDeviceEligible`: never
-Bluetooth, AirPlay or System Output) and a corpus of mixed sample rates, or the
-rate-follow assertion proves nothing.
+Requires an eligible device and a corpus with mixed sample rates.
+System Output is ineligible. The Advanced override can admit excluded transports.
+A single-rate corpus cannot exercise rate following.
 
 TRAP: exclusive output hogs the device, and hogging the system default MOVES
 the default elsewhere while held. The run releases it; a SIGKILL leaves it.
@@ -65,7 +65,6 @@ def file_format(path):
 
 
 def helper_json(helper, mode, device, *extra):
-    """The helper's one-line JSON reply to `mode` on `device`, or {}."""
     try:
         out = subprocess.run([str(helper), mode, str(device), "0", *extra],
                              capture_output=True, text=True, timeout=30).stdout

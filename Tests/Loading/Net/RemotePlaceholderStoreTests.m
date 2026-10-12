@@ -1,12 +1,3 @@
-//
-//  RemotePlaceholderStoreTests.m
-//
-//  The placeholder store over the plain HTTPTransferClient, HTTPStub, and a
-//  per-test temp root: the placeholder and the install, the directory index,
-//  the fetch that streams and its tail window, the ranged read, the budget,
-//  and the backend it installs. The subclass below says only which URL a
-//  placeholder stands for and whether its server reads by range.
-//
 
 #import <XCTest/XCTest.h>
 

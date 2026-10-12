@@ -2,7 +2,7 @@
 """Validate Vibe's tempo detection against the GiantSteps tempo dataset.
 
 Runs the debug build's `scan_bpm` verb over the dataset's audio and scores the
-results with the standard MIREX tempo metrics:
+results with two tempo-accuracy measures:
 
   Accuracy1  detected tempo within TOLERANCE of the ground truth
   Accuracy2  within TOLERANCE of the truth or of a metrical multiple of it
@@ -17,7 +17,7 @@ caches, a running Vibe left alone), so files scan in parallel.
 The dataset is not vendored; point --dataset at a local clone of
 https://github.com/GiantSteps/giantsteps-tempo-dataset with audio downloaded.
 Annotations v2 (Schreiber & Müller's crowdsourced revision) are the default
-ground truth, as in current literature; --annotations v1 selects the original.
+ground truth; --annotations v1 selects the original.
 """
 
 import argparse

@@ -13,7 +13,6 @@
 
 typedef NS_ENUM(NSInteger, VibeSettingsSection) {
     VibeSettingsSectionGroups = 0,
-    // Alone: it changes nothing.
     VibeSettingsSectionAbout,
     VibeSettingsSectionCount,
 };
@@ -55,7 +54,6 @@ static NSString *const kGroupCellIdentifier = @"group";
                                                                     : VibeSettingsGroupRowCount;
 }
 
-// The mac Settings sidebar's words and symbols.
 - (NSString *)titleForRowAtIndexPath:(NSIndexPath *)indexPath {
     if ((VibeSettingsSection)indexPath.section == VibeSettingsSectionAbout) {
         return STR_SETTINGS_ABOUT;

@@ -3,7 +3,8 @@
 //  Vibe
 //
 //  Trashing the source, undo and redo of a conversion, and the trash, restore
-//  and verify primitives under them. All of it runs on the dispose queue.
+//  and verify primitives under them. File I/O runs on the dispose queue.
+//  Undo registration and callbacks run on main.
 //
 
 #import "AudioFileConverterInternal.h"
@@ -253,7 +254,7 @@ static NSString *VibeFileStat(NSURL *url) {
         if (!moved && !error) {
             error = coordinationError; // coordination failed; the accessor never ran
         }
-        // Trust the file, not the API: restored means a stat sees it there.
+        // Require both a successful move and a file at the destination.
         BOOL atDestination = [NSFileManager.defaultManager fileExistsAtPath:originalURL.path];
         NSString *result = [NSString stringWithFormat:
                 @"Restore result for %@: moved=%d, destination now %@, trash item now %@%@%@",

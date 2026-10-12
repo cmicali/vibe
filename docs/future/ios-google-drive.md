@@ -6,7 +6,7 @@
 
 **A native client is feasible, on the same local-file playback model as Dropbox.** The work is account authorization, remote identity, listing reconciliation and shell integration. It needs no new decoder, player or audio transport. Start with a short spike before committing to Dropbox parity.
 
-**The Files route does not work.** Picking from Google Drive's File Provider in the Files picker kept showing an error, and files and folders would not open. So a native client is the only way to play a Drive library on iOS.
+**Recheck Google Drive's Files integration before building a client.** Earlier device checks failed to open its files and folders. That result does not establish the behavior of later provider versions.
 
 **This plan assumes Google approves `drive.readonly`.** The inquiry has not been sent. Two questions decide the rest:
 
@@ -25,7 +25,7 @@ A Drive client and store follow that shape. Its subclass hooks hold the OAuth co
 
 **Scope.** Browsing an existing library needs `https://www.googleapis.com/auth/drive.readonly`. `drive.metadata.readonly` gives no audio bytes. Full `drive` grants writes. `drive.file` covers only app-created or picked items. Both broad read scopes are restricted ([scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)).
 
-**Verification.** Restricted scopes are limited to listed app categories, and a music player is not listed. Google's minimum-scope guidance allows `drive.readonly` when a file browser cannot reasonably use per-file selection ([guidance](https://support.google.com/cloud/answer/13807380?hl=en)). The concrete limitation: opening an album folder, resolving its playlists, and finding later additions. Prepare a homepage, privacy policy, verified domain, scope justification and a demo of connect, browse, play and disconnect. Do not promise a paid security audit or an exemption from one. Ask for a determination for a device-only design, with tokens, names, tags, art and audio kept between Google and the device ([verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification), [assessment](https://support.google.com/cloud/answer/13465431)). Review takes weeks, so start it early.
+**Verification.** Restricted scopes are limited to listed app categories, and a music player is not listed. Google's minimum-scope guidance allows `drive.readonly` when a file browser cannot reasonably use per-file selection ([guidance](https://support.google.com/cloud/answer/13807380?hl=en)). The concrete limitation: opening an album folder, resolving its playlists, and finding later additions. Prepare a homepage, privacy policy, verified domain, scope justification and a demo of connect, browse, play and disconnect. Do not promise a paid security audit or an exemption from one. Ask for a determination for a device-only design, with tokens, names, tags, art and audio kept between Google and the device ([verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification), [assessment](https://support.google.com/cloud/answer/13465431)). Ask before committing to the client.
 
 **The mobile Picker is the fallback only if Google refuses.** It grants `drive.file` for picked files. Whether picking a folder grants the files inside it is undocumented, so a probe must settle it first ([Picker](https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker)).
 
@@ -34,7 +34,7 @@ A Drive client and store follow that shape. Its subclass hooks hold the OAuth co
 - Create an **iOS OAuth client** for Vibe's bundle id. The installed-app flow supports PKCE and a custom-scheme redirect, with no client secret ([installed-app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)). Use `ASWebAuthenticationSession` and `NSURLSession`, as the Dropbox client does. Register the callback in `project.yml`.
 - Use a separate Keychain identity. Key the store on an opaque account id, not an email. `about.get`'s `permissionId` is the candidate to verify.
 - A testing-mode OAuth project's refresh tokens expire after seven days. Expiry, revocation and org policy must lead to a clear reconnect state, never endless retries.
-- It is an optional connection to a file source, not a Vibe account, so App Review guideline 4.8 does not apply. Say so in the review notes.
+- Explain in App Review notes that this connects a file source and does not create a Vibe account. Confirm the applicable sign-in requirements before release.
 
 ## API surface
 

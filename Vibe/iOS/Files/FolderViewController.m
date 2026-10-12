@@ -31,8 +31,7 @@ static NSString *const kItemCellIdentifier = @"item";
 static const CFTimeInterval kRelistInterval = 60;
 // A larger selection lifts its first rows only: the rest would be a blur.
 static const NSUInteger kMaximumLiftedRows = 6;
-// Play with Subfolders stops here: a library's root would otherwise become
-// one playlist. Whole folders are taken, so the count can run a little over.
+// Whole folders can exceed this audio-entry limit. CUE expansion adds more rows.
 static const NSUInteger kMaximumSubfolderTracks = 2000;
 static const NSUInteger kMaximumSubfolders = 500;
 // A listing at least this long gets the filter field; a short one is read
@@ -386,7 +385,6 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 
 #pragma mark - Opening
 
-// Every open is one of PlaybackController's roads.
 - (void)addURLs:(NSArray<NSURL *> *)urls {
     if (urls.count == 0) {
         return;
@@ -602,7 +600,6 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 
 #pragma mark - PlaybackObserver
 
-// The playing file's row carries the equalizer.
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
     _playingPath = VibeComparablePath(playback.currentTrack.url.path);
     if (self.viewIfLoaded.window && ![self isSelecting]) {
@@ -694,7 +691,6 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 
 #pragma mark - The playing row's equalizer
 
-// The Playlist tab's row marker, at that row's size; one per playing row.
 - (EqualizerIndicatorView *)makeEqualizer {
     EqualizerIndicatorView *equalizer = [[EqualizerIndicatorView alloc] initWithFrame:CGRectMake(0, 0, 16, 14)];
     equalizer.levelSource = _playback;

@@ -367,9 +367,7 @@
     float sparse = [self progressForMode:VibeFakeCloudProgressSparse transferSeconds:30 atLeast:0];
     XCTAssertEqualWithAccuracy(sparse, 0, 0.0001,
             @"sparse progress has no step before its ten-second cadence");
-    // The stall ramps to its ceiling over the first 40% of the transfer and
-    // holds there. Eight seconds puts the ceiling 3.2 s in, with a plateau
-    // the poll cannot miss.
+    // The ceiling starts 3.2 s into this transfer and stays until completion.
     float stall = [self progressForMode:VibeFakeCloudProgressStall transferSeconds:8 atLeast:0.37];
     XCTAssertEqualWithAccuracy(stall, 0.4, 0.03);
 }

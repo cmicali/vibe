@@ -1,10 +1,4 @@
-//
-//  AudioPlayerRenderTestCase.h
-//
-//  The render suite's base class, AudioPlayerRenderTests. The file is named
-//  for its role, and the class keeps its name. It holds no tests. Each topic
-//  is a subclass in its own AudioPlayerRender<Topic>Tests.m beside it.
-//
+// Shared capture, comparisons and delegate traces. This base class runs no tests.
 
 #import <XCTest/XCTest.h>
 #import "AudioFixtures.h"

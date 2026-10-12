@@ -13,7 +13,7 @@
 
 // Decodes and persists a file's waveform, BPM and key through the normal
 // lookup-or-decode path, without cancelling or delivering to the current load.
-// A fresh decode completes only after the disk write. Main-thread completion:
+// A fresh decode waits for the disk write attempt. Main-thread completion:
 // ok is NO on failure, wasCached means no decode ran, bpm 0 and key -1 mean
 // none detected.
 - (void)cacheWaveformForURL:(NSURL *)url

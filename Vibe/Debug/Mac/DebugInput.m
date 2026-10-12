@@ -372,7 +372,7 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
         [NSApp postEvent:VibeMouseEvent(right ? NSEventTypeRightMouseUp : NSEventTypeLeftMouseUp,
                                         location, windowNumber, 1, 0.0) atStart:NO];
     }
-    else { // mouse_move
+    else {
         NSEventType type = !haveButton ? NSEventTypeMouseMoved
                 : (right ? NSEventTypeRightMouseDragged : NSEventTypeLeftMouseDragged);
         [NSApp postEvent:VibeMouseEvent(type, location, windowNumber, 0, haveButton ? 1.0 : 0.0)

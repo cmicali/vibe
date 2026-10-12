@@ -1,10 +1,8 @@
 # Third-party notices
 
-Vibe itself is licensed under Apache 2.0 (see `LICENSE`). It has no package
-manager: every third-party component is vendored under `Vibe/ThirdParty/` and
-compiled directly into both app targets, so all of it ships inside each binary and
-all of it is covered here. Sparkle is the exception: a prebuilt framework that
-ships only inside the direct-download Mac app.
+Vibe is licensed under Apache 2.0 (see `LICENSE`). Third-party sources are
+vendored under `Vibe/ThirdParty/` and compiled into both app targets.
+Sparkle is a prebuilt framework in the direct-download Mac app only.
 
 ## Summary
 
@@ -21,7 +19,7 @@ ships only inside the direct-download Mac app.
 | dr_wav | `Vibe/ThirdParty/dr_wav/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | Sparkle | `Vibe/ThirdParty/Sparkle/` | MIT, with its bundled components' permissive notices |
 
-## TagLib — and why the election matters
+## TagLib
 
 TagLib is **dual-licensed**: each source file offers the GNU Lesser General
 Public License 2.1 *or* the Mozilla Public License 1.1, at the recipient's
@@ -31,18 +29,6 @@ headers with no license block of their own) and the two UTF8-CPP headers,
 which are separately licensed and covered below.
 
 **Vibe elects the Mozilla Public License 1.1.**
-
-This is deliberate, not incidental. TagLib is *statically* compiled into the
-app targets, and the LGPL's static-linking obligation — supplying object files
-or otherwise letting a user relink the application against a modified TagLib —
-cannot be satisfied through App Store distribution, on the Mac or on iOS. MPL 1.1 is file-level
-copyleft: it governs the TagLib files themselves and does not reach the
-proprietary code they are linked with, so it permits exactly this arrangement.
-The dual license exists to make that election possible.
-
-The obligation the election carries: **modifications to TagLib's own source
-files must be published under MPL 1.1.** Keeping the vendored copy unmodified,
-or confining changes to Vibe's own files, keeps this trivially satisfied.
 
 Copyright (C) 2002-2008 Scott Wheeler and the TagLib contributors.
 License text: <https://www.mozilla.org/MPL/1.1/>
@@ -65,23 +51,17 @@ Copyright 2006 Nemanja Trifunovic.
 Copyright (c) 2015 Pinterest. All rights reserved.
 Copyright (c) 2013 Tumblr, Inc.
 
-Licensed under the Apache License, Version 2.0. The full text ships with each
-component, at `Vibe/ThirdParty/PINCache/LICENSE.txt` and
-`Vibe/ThirdParty/PINOperation/LICENSE.txt`. Neither upstream project ships a
-`NOTICE` file, so no additional attribution text is required beyond this
-entry. Vibe modifies `PINCache/PINDiskCache.m` and
+Licensed under the Apache License, Version 2.0. The source copies include the full text at `Vibe/ThirdParty/PINCache/LICENSE.txt` and
+`Vibe/ThirdParty/PINOperation/LICENSE.txt`. Vibe modifies `PINCache/PINDiskCache.m` and
 `PINOperation/PINOperationQueue.m`. Each change is marked `Vibe:` in its file
 (`Vibe/ThirdParty/AGENTS.md`).
-
-Because Vibe is itself Apache 2.0, these two impose no obligation the project's
-own license does not already carry.
 
 ## r8brain-free-src
 
 Sample rate converter designed by Aleksey Vaneev of Voxengo.
 
 Copyright (c) 2013-2026 Aleksey Vaneev. Licensed under the MIT License; the
-full text ships at `Vibe/ThirdParty/r8brain/LICENSE.txt` (upstream's `LICENSE`,
+full text is vendored at `Vibe/ThirdParty/r8brain/LICENSE.txt` (upstream's `LICENSE`,
 renamed so the build leaves it out of the bundles). The author asks for the
 credit line above in the documentation of software that uses it.
 

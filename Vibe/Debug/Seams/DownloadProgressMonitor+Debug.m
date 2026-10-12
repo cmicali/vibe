@@ -11,7 +11,6 @@
 
 #include <os/lock.h>
 
-// The fake matches the File Provider publication's measured cadence.
 static const NSTimeInterval kFakeProgressIntervalSeconds = 1.0;
 
 // TRAP: the debug driver writes this from its command path while monitors

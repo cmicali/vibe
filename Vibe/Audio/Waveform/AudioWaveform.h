@@ -7,8 +7,8 @@
 #include <simd/simd.h>
 #include <cmath>
 
-// The interleaved-to-mono downmix shared by the waveform chunker and the BPM
-// analyzer: one mix per decode buffer rather than one per consumer. For mono
+// The waveform chunker, BPM and key analyzers share one mono mix per buffer.
+// For mono
 // input it returns the buffer itself, with no copy. Otherwise it averages the
 // channels, which are interleaved as L0 R0 L1 R1 and so on, into scratch, and
 // returns scratch. scratch must hold numFrames floats.
@@ -17,8 +17,7 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
     if (channels <= 1) {
         return buffer;
     }
-    // The last add and the scale in one pass: vDSP_vasm rounds the sum, then
-    // the product, as the add and vsmul it replaces did.
+    // vDSP_vasm rounds the sum before scaling it.
     float scale = 1.0f / (float)channels;
     if (channels == 2) {
         vDSP_vasm(buffer, 2, buffer + 1, 2, &scale, scratch, 1, numFrames);
@@ -93,10 +92,8 @@ struct AudioWaveformCacheChunk {
     }
 
 private:
-    // min, max, sum of squared samples, frame count. Energy is a sum plus a
-    // weight rather than a stored mean so that merging — partial decode
-    // buffers into one chunk, chunks into one drawn column — stays exact and
-    // order-independent whatever the pieces' frame counts.
+    // min, max, sum of squared samples, frame count. Keeping the sum and
+    // count preserves the relative weight of unequal pieces when merging.
     float values[4];
 };
 
@@ -123,14 +120,13 @@ public:
     // the bands', low to high per bar, into bandMeanSquares; either may be
     // null, and the bands are zeros without bands. At reach 0 a bar's window
     // is the bar itself, its edges anywhere in a chunk. At reach 1 it is the
-    // loudest bar-long window within half a bar of its own, each band its
-    // own, so a kick counts whole in the bar it falls in wherever the bar's
-    // edges are: with hard edges a kick is taken whole, split or missed as a
-    // resize moves them, and bars about a beat long ripple with every point
-    // of width. Between, the two are blended. A window past the track's
+    // loudest of five bar-long windows spaced a quarter bar apart, centered
+    // on its own window. Each band chooses separately. This reduces height
+    // changes as a resize moves a bar edge across a transient. Intermediate
+    // reach blends the own-window and loudest answers. A window past the track's
     // edge, or past the end of a load still streaming, is the mean of the
-    // frames it does cover. ownBandMeanSquares, when given, takes the bands'
-    // values at reach 0 from the same pass, laid out as bandMeanSquares.
+    // frames it does cover. ownBandMeanSquares uses the same band layout at
+    // reach 0. It requires a non-null bandMeanSquares and shares its pass.
     void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares,
                            float* ownBandMeanSquares = nullptr);
     // The loader's own verdict, carried on the data: a decode it accepts can
@@ -140,7 +136,7 @@ public:
     inline bool isComplete() const noexcept { return complete; }
     inline void markComplete() noexcept { complete = true; }
     // How far a streaming decode has filled the chunks, which fill in order:
-    // the first with no frames is the edge. 1 once complete.
+    // the first with no frames is the edge. Complete or empty waveforms return 1.
     double getDecodedFraction();
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
         if (index < numChunks) { chunks[index] = chunk; }
@@ -188,7 +184,7 @@ extern const int kCodableAudioWaveformVersion;
 @property (nonatomic) AudioWaveform *waveform;
 
 // The detected tempo; 0 means unknown or undetectable. It is not conceptually
-// waveform data, but it is the product of the same full-file decode pass and
+// waveform data, but it is the product of the same track-window decode pass and
 // shares the waveform's cache key and lifecycle, so it rides along in this
 // archive rather than paying for a second decode into a cache of its own.
 @property (nonatomic) float bpm;
@@ -201,8 +197,7 @@ extern const int kCodableAudioWaveformVersion;
 
 // Whether the decode ran each analyzer, so a request asking for one this
 // entry skipped misses and decodes again: turning detection on reaches files
-// first decoded while it was off. An archive from before the flags reads YES,
-// keeping its old meaning rather than re-decoding every cached file.
+// first decoded with detection off. An absent archived flag reads YES.
 @property (nonatomic) BOOL bpmAnalyzed;
 @property (nonatomic) BOOL keyAnalyzed;
 

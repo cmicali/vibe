@@ -400,7 +400,7 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
     }
 
     // The FLAC's declared source depth, the file format's flag: 16 bits for
-    // an integer source of at most 16, else 24, the format's ceiling. The
+    // an integer source of at most 16, else 24. The
     // encoder rounds the float32 read to it without dither, so integer
     // sources up to 24 bits are exact. TRAP: fed Int32 buffers, the encoder
     // wraps a positive full-scale sample to negative full scale.

@@ -219,7 +219,7 @@ static const double kVibeWaveformGainMaxDB = 12;
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *shortcutOverrides;
 
 // While on: no FX, no varispeed, the crossfade at the declick minimum, and
-// each track sets the device to the file's rate and word length.
+// each track requests the file's rate and a suitable device sample format.
 //
 // This and exclusiveOutput are remembered per device UID, surviving unplug.
 // The plain accessors read the saved device's; System Output has no UID and

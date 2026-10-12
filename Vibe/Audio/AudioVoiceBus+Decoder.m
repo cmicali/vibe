@@ -453,12 +453,11 @@ static uint32_t VibeResamplerSupplyInput(void *userData, uint32_t maxFrames, con
 }
 
 // Reads one chunk of the voice's file into the stage buffer, in the bus
-// format. The file's end is a read that comes up short or empty — never
-// framePosition == length alone, which a truncated file never reaches — or
-// the voice's end frame, and drains the stream: a resampler is told nothing of
-// it until the stream is flushing, when silence pushes its tail out up to the
-// frames fed, at the bus rate (streamEndForRecord:written:). *final says the
-// end is out.
+// format. A successful read drains the stream at a short or empty result,
+// the declared file length, or the voice's end frame. A truncated file need
+// not reach its declared length. The resampler keeps its tail until flushing.
+// Silence then pushes it out up to the frames fed, at the bus rate
+// (streamEndForRecord:written:). *final says the end is out.
 - (uint32_t)produceChunkForSlot:(NSUInteger)slot final:(BOOL *)final {
     AudioVoiceRecord *record = _records[slot];
     BOOL flushing = record->stream == VibeStreamFlushing;
@@ -567,7 +566,8 @@ static uint32_t VibeResamplerSupplyInput(void *userData, uint32_t maxFrames, con
     }
     if (record->stream == VibeStreamDrained) {
         // The file ran out with the stream open. A successor read the same
-        // way continues it here, the boundary at what is written; one that
+        // way continues it here. Its boundary counts frames fed at the bus
+        // rate, including output the resampler still holds. A successor that
         // needs a resampler of its own, or the render nearing the end, ends
         // it first, the tail after the last frame. With none named, a
         // resampler stays open while the render is far from the end, so a

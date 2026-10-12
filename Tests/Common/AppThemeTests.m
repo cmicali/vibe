@@ -1,9 +1,3 @@
-//
-// AppTheme's record contract: the same sanitization gates a JSON import, a
-// stored record and a UI edit, records stay sparse against the defaults, and
-// the built-ins are exactly what they claim — vibe the empty record,
-// sonic_cirrus its waveform overrides.
-//
 
 #import "AppThemeTestCase.h"
 
@@ -139,9 +133,6 @@
     XCTAssertEqualObjects([AppTheme sanitizedRecord:theme.dictionaryRepresentation], @{});
 }
 
-// A glyph field is free text in the symbol-name shape, like a font face: the
-// record does not know the symbol catalog, and the draw site falls back for
-// a name this macOS lacks. Anything outside the shape drops to the default.
 - (void)testGlyphsKeepTheSymbolNameShape {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:@{
         @"playlistButtonGlyph": @"  music.note.list ",
@@ -165,10 +156,6 @@
     XCTAssertEqualObjects(number.playButtonGlyph, @"play.fill");
 }
 
-// Every image field takes a custom: or bundled: reference and drops anything
-// else. customImageForKey: answers nil for the factory and for a reference
-// whose file is gone, so the app icon and buttons fall back to their own
-// factory art.
 - (void)testEveryImageFieldTakesOneReferenceShape {
     NSArray<NSString *> *keys = AppTheme.imageFieldKeys;
     XCTAssertEqualObjects(keys, (@[@"appIcon", @"defaultArtworkDark", @"defaultArtworkLight",
@@ -268,8 +255,6 @@
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"frosted");
 }
 
-// Frosted is solid's color with the glass panes kept over it, so both take
-// the color pair and only they do.
 - (void)testFrostedAndSolidTakeTheBackgroundColor {
     for (NSString *style in @[@"glass", @"frosted", @"solid", @"clear"]) {
         BOOL colored = [style isEqualToString:@"frosted"] || [style isEqualToString:@"solid"];
@@ -374,8 +359,6 @@
     XCTAssertEqualObjects(theme.dictionaryRepresentation, @{});
 }
 
-// Every pair, by the base key the editor's wells bind by: unset it displays
-// the constant its surface paints, set it displays its own override.
 - (void)testDisplayColorIsTheOverrideOrThePairsConstant {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     NSArray<NSString *> *bases = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed,
@@ -764,8 +747,6 @@ static CGFloat Brightness(NSString *hex) {
     }));
 }
 
-// The export walks the groups the field table names, so a new group's fields
-// export as surely as they import.
 - (void)testEveryGroupExportsInEditorOrder {
     NSDictionary *record = @{@"mode": @"single", @"titleFontSize": @24, @"infoFontSize": @11,
                              @"waveformTheme": @"orange", @"playlistFontSize": @12};

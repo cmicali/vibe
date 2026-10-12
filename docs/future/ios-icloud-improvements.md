@@ -4,7 +4,7 @@
 
 ## Device check
 
-On a real device, check that an iCloud eviction keeps the file's size and modification date. The metadata cache key reads both, so a changed attribute turns a cached thumbnail into a miss. The simulator's fake cloud provider proved the rest.
+On a real device, check that an iCloud eviction keeps the file's size and modification date. The metadata cache key reads both, so a changed attribute turns a cached thumbnail into a miss. The fake provider does not establish real-device eviction behavior.
 
 ## Browser follow-ups
 
@@ -12,7 +12,7 @@ These apply to local folders, Dropbox and granted provider folders alike. Each n
 
 | Follow-up | Today, and the decision needed |
 | --- | --- |
-| Empty folder Add or Play | Adding a folder that holds only subfolders adds nothing. A nonrecursive Play can land nothing silently. Play and Add with Subfolders exist, bounded at 2,000 songs or 500 folders. Decide how an empty result explains or offers that action, without making an ordinary folder action recurse. |
+| Empty folder Add or Play | Adding a folder that holds only subfolders adds nothing. A nonrecursive Play can land nothing silently. Play and Add with Subfolders exist, with a soft limit of 2,000 files and a 500-folder limit. The last folder and CUE expansion can exceed the song count. Decide how an empty result explains or offers that action, without making an ordinary folder action recurse. |
 | Duplicate additions | Files already in the playlist are skipped with no message and no row mark. Decide how an all-duplicate Add differs from an empty folder, and whether rows show playlist membership. |
 | Download-progress legibility | The card draws transfer progress along the waveform line. Whether it reads well during a slow transfer is unknown. Measure on a constrained link before changing it. |
 | Add feedback outside Files | Files rows animate when added. Recents and Search adds do not. iPad rows fade in place. Decide whether those need confirmation, including empty and duplicate results. |

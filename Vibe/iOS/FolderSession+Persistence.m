@@ -44,8 +44,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
         // and the landing re-persists anyway.
         NSArray<NSURL *> *urls = [self resolveBookmarksConcurrently:bookmarks
                                               openIntentGeneration:openIntentGeneration];
-        // Only a restore where NOTHING resolved fails. A dead base's
-        // surviving additions restore, the first becoming the base.
+        // A dead base does not prevent surviving additions from restoring.
         if (urls.count == 0 || ![self isCurrentOpenIntent:openIntentGeneration]) {
             if (urls.count == 0) {
                 LogWarn(@"FolderSession: no persisted bookmark resolves");

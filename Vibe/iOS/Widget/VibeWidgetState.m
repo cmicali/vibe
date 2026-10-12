@@ -31,7 +31,7 @@ static NSString *const kKeyPlayheadLine = @"playheadLine";
 
 // Bumped when a field's meaning changes; an unknown version draws the empty
 // state until the next publish.
-static const NSInteger kStateVersion = 3;   // 3: playheadLine
+static const NSInteger kStateVersion = 3;
 
 @implementation VibeWidgetState
 

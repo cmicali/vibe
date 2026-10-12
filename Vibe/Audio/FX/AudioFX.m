@@ -28,10 +28,8 @@ static const float kLowKillFlatBandwidth = 2.0f;
 static const int kLowKillSweepSteps = 40;
 static const uint64_t kLowKillSweepStepMicroseconds = 2000;
 // A move of the engaged filter within this ratio is written to the unit
-// directly instead of swept: the pad's frames arrive finer than the sweep's
-// steps (about 7% a frame for a one-second full-height swipe, against 6% a
-// step), so sweeping each would restart forty timers per frame to move one
-// step. A larger jump (a flick, the toggle) still sweeps from where it sits.
+// directly instead of swept. This avoids restarting a sweep on each drag
+// frame. A larger jump still sweeps from the current frequency.
 static const float kLowKillDirectMoveRatio = 1.12f;
 // How long a parked EQ keeps rendering for that residue before it is reset
 // and skipped.
@@ -230,7 +228,7 @@ static inline void VibeFXPanInto(float *const lane[2], float *const out[2], UInt
     }
 }
 
-// Slewed per frame, so a target written mid-block lands smoothly.
+// Read the target once per block and slew toward it per frame.
 static inline void VibeFXGate(VibeFXStage *stage, float *const in[2], float *const out[2], UInt32 frames,
                               float slew) CA_REALTIME_API {
     float gain = stage->gain;
@@ -724,8 +722,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 
 // The player withdrew the chain from the render first. Every tail and sweep
-// leaves at once, nothing is written to the units until the next connect,
-// and the stages rest once a render already inside has left.
+// leaves at once. Park the EQ here and defer stage resets until the render
+// has left. Later intent writes wait for the next connect.
 - (void)disconnectOnQueue {
     if (!_connected) {
         return;

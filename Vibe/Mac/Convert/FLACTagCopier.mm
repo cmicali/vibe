@@ -37,7 +37,6 @@ std::unique_ptr<TagLib::File> openUncompressedSource(
     }
     std::unique_ptr<TagLib::File> file;
     if (sourceContainer == VibeUncompressedContainerWAV) {
-        // All three spellings are plain RIFF WAVE; RIFF::WAV::File reads them.
         file = std::make_unique<TagLib::RIFF::WAV::File>(stream);
     }
     else if (sourceContainer == VibeUncompressedContainerAIFF) {
@@ -121,9 +120,8 @@ BOOL VibeCopyTagsToFLAC(NSString *sourcePath, NSString *flacPath,
             return NO;
         }
 
-        // PropertyMap normalizes every format's keys — ID3's TBPM becomes
-        // Vorbis's BPM — so one assignment carries all the scalars; tags with
-        // no Vorbis spelling are dropped.
+        // PropertyMap normalizes supported keys, including TBPM to BPM.
+        // Unsupported fields are omitted.
         flac.setProperties(source->properties());
 
         if (TagLib::ID3v2::Tag *sourceTag = id3v2TagOf(source.get())) {

@@ -19,8 +19,8 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-// All nullable: a failed parse sets only the filename-derived title, and any
-// field can be absent from the file or the cache entry.
+// Any field can be absent from the file or the cache entry. A failed parse
+// keeps the filename title and any facts read before the failure.
 @property (copy, nullable, readonly) NSString *title;
 @property (copy, nullable, readonly) NSString *artist;
 @property (copy, nullable, readonly) VibeAudioFileFormat fileType;
@@ -36,9 +36,8 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 // it, since the zero default is C major.
 @property (assign, readonly) VibeMusicalKey key;
 
-// YES only when TagLib opened the file. A NO instance carries only the
-// filename title and must never be cached, or it shadows the real tags until
-// the cache key changes.
+// YES after a completed TagLib or CoreAudio parse. Never cache a NO instance:
+// its fallback or partial facts would shadow real tags until the key changes.
 @property (readonly) BOOL parsedOK;
 
 // Non-blocking: already-decoded art or nil, never a decode.

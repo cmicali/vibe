@@ -2,9 +2,8 @@
 //  AudioTrackArtwork.h
 //  Vibe
 //
-//  One metadata row's art state behind the AudioTrackMetadata facade; only
-//  the metadata implementation and tests import this. Its last section is
-//  the state AudioTrackArtwork.m and its +Loading category share.
+//  One metadata row's art state behind the AudioTrackMetadata facade.
+//  AudioTrackArtworkInternal.h holds the state shared with +Loading.
 //
 
 #import <Foundation/Foundation.h>
@@ -53,7 +52,8 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 // the loader re-stamps.
 @property (nonatomic, copy, nullable) AudioTrackArchivedDisplayArtProvider archivedDisplayArtProvider;
 
-// The original bytes, for cutting the rendition; nil after discardArtData.
+// The original bytes for cutting the rendition. discardArtData releases them
+// only when the row has thumbnail bytes or no usable embedded art.
 // Metadata workers only.
 - (nullable NSData *)artDataForArchivedDisplayArt;
 

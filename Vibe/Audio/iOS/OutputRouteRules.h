@@ -5,10 +5,8 @@
 //  What the audio is coming out of, as the card's indicator draws it, and the
 //  fold onto the coarser kind AudioSessionRecoveryRules.h decides with.
 //
-//  Two enums, one classification. The recovery rule only ever needed
-//  none/built-in/external, and this is the finer answer the same scan already
-//  produces; deriving one from the other is what stops the two from
-//  disagreeing about what counts as external once a port kind is added.
+//  The recovery rule reads none/built-in/external. Derive it from the display
+//  kind to keep both consumers aligned when a port kind is added.
 //
 //  The portType -> kind mapping is deliberately NOT here: the AVAudioSessionPort
 //  constants are AVFoundation's API, and re-spelling their string values would
@@ -23,9 +21,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSUInteger, VibeOutputRouteKind) {
-    // No outputs at all: what an AVAudioSession that has never been activated
-    // can report, so it means "nothing has claimed the output yet" rather
-    // than "silence".
+    // No reported outputs, including before activation or after route loss.
     VibeOutputRouteKindNone,
     VibeOutputRouteKindBuiltInSpeaker,
     VibeOutputRouteKindBuiltInReceiver,
@@ -60,8 +56,8 @@ VibeAudioSessionOutputRouteKindForRouteKind(VibeOutputRouteKind kind) {
 // possessive ("AirPods de Chris", "ChrisのAirPods", a German "#2" suffix), so the
 // match is a substring anywhere, never an English pattern, and each probe runs
 // before the one it contains. A renamed or unrecognised device draws the
-// generic external glyph, and the name label beside it carries the truth — so
-// a wrong guess is never worse than no guess.
+// generic external glyph when no known substring matches. The system's device
+// name is shown beside the glyph.
 static inline NSString *VibeOutputRouteBluetoothSymbolName(NSString *_Nullable deviceName) {
     if ([deviceName containsString:@"AirPods Max"]) {
         return @"airpodsmax";

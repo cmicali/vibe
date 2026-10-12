@@ -25,7 +25,6 @@
     XCTAssertEqual(VibeLowKillCutoffHz(YES, NO), kLowKillCutoffHz);
 }
 
-// Including while the toggle reads off: the boost runs the filter on its own.
 - (void)testTheBoostOutranksTheToggle {
     XCTAssertEqual(VibeLowKillCutoffHz(YES, YES), kLowKillCutoffHz * kLowKillBoostMultiplier);
     XCTAssertEqual(VibeLowKillCutoffHz(NO, YES), kLowKillCutoffHz * kLowKillBoostMultiplier);
@@ -66,8 +65,6 @@
     }
 }
 
-// The mac's momentary boost is reachable on the pad: it sits inside the
-// sweep, not past its ceiling.
 - (void)testThePadReachesTheMacsCutoffs {
     XCTAssertLessThan(kLowKillCutoffHz * kLowKillBoostMultiplier, kFXPadLowCutMaxHz);
     XCTAssertGreaterThan(kLowKillCutoffHz, kLowKillParkedHz);
@@ -140,7 +137,6 @@
 
 #pragma mark - Lane feedback
 
-// One lane revolution is two hops.
 - (void)testLaneFeedbackIsThePerHopDecaySquared {
     XCTAssertEqualWithAccuracy(VibeDelayLaneFeedbackPercent(75.0f), 56.25f, 1e-4);
     XCTAssertEqualWithAccuracy(VibeDelayLaneFeedbackPercent(50.0f), 25.0f, 1e-4);

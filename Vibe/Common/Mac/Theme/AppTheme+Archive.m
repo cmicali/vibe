@@ -30,8 +30,6 @@ static uint32_t VibeCRC32(NSData *data) {
     return crc ^ 0xFFFFFFFF;
 }
 
-// DOS date (high half) and time. Zero would extract as 1979-11-29, so entries
-// carry the wall time; the 7-bit year clamps to 1980-2107 rather than wrap.
 static uint32_t VibeDOSTimestampNow(void) {
     NSDateComponents *now = [NSCalendar.currentCalendar
             components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |

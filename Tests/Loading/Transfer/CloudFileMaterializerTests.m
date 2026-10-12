@@ -274,7 +274,6 @@
             (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
 }
 
-// AIFF and some WAVs read at exactly the size: the end, never a wait.
 - (void)testAvailabilityAnswersARangeAtOrPastTheSizeAtOnce {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
     XCTAssertEqual([availability waitForBytesAt:100 length:4 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
@@ -282,8 +281,6 @@
     XCTAssertEqual([availability waitForBytesAt:10 length:0 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
 }
 
-// A range is clipped to the size, so one running past it waits only for the
-// last byte; notes only move forward.
 - (void)testAvailabilityWaitsForTheRangeClippedToTheSize {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
     [availability noteWrittenBytes:60];
@@ -309,8 +306,6 @@
     XCTAssertEqual([availability waitForBytesAt:50 length:50 windowInto:NULL capacity:0 copied:NULL interrupted:nil deadline:nil error:NULL], CloudFileAvailabilityReady);
 }
 
-// A failed transfer fails every wait, a blocked one with its error, and
-// bytes already written too: nothing read from it can be trusted.
 - (void)testAvailabilityFailureFailsEveryWaitWithItsError {
     NSError *failure = [NSError errorWithDomain:@"com.vibe.test-transfer" code:3 userInfo:nil];
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
@@ -327,8 +322,6 @@
     XCTAssertEqualObjects(error, failure);
 }
 
-// An interrupt ends a wait that would block, from another thread, and never
-// a range already readable.
 - (void)testAvailabilityInterruptEndsOnlyAWaitThatBlocks {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
     [availability noteWrittenBytes:10];
@@ -490,7 +483,6 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertNil([availability readyBytesAt:0 length:10], @"finished: the part is the file by now");
 }
 
-// The last reader leaving calls back each time, and nothing else does.
 - (void)testAvailabilityCallsBackWhenItsLastReaderGoes {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
     __block NSUInteger gone = 0;
@@ -511,8 +503,6 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertEqual(availability.readerCount, 0u);
 }
 
-// The remote fetch is handed the caller's readable callback as it is, and
-// nil when there is none.
 - (void)testTheRemoteFetchIsHandedTheReadableCallback {
     char resolved[PATH_MAX];
     NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
@@ -553,7 +543,6 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
 }
 
-// The streaming lookup is asked only while a backend installs one.
 - (void)testTheStreamingLookupAnswersOnlyWhileInstalled {
     NSURL *url = [NSURL fileURLWithPath:@"/remote/track.flac"];
     XCTAssertNil([CloudFileMaterializer availabilityForURL:url]);
@@ -623,7 +612,6 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     return bytes ? [[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] : nil;
 }
 
-// Two roots each reach their own blocks, and a root inside another wins over it.
 - (void)testEachRootReachesItsOwnBackendAndTheLongestRootWins {
     NSURL *outer = [self makeTemporaryRoot];
     NSURL *inner = [outer URLByAppendingPathComponent:@"inner" isDirectory:YES];
@@ -687,7 +675,6 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertEqualObjects(log, (@[@"read outer", @"read other"]));
 }
 
-// Each URL's read is its own backend's, and nil under no root.
 - (void)testTheRemoteReadIsPerURL {
     NSURL *first = [self makeTemporaryRoot];
     NSURL *second = [self makeTemporaryRoot];
@@ -727,8 +714,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     [availability waitForWorkUntil:[NSDate distantPast] wanted:&offset length:&length readerPosition:&position];
 }
 
-// Contiguous blocks answer a range across their boundary, as much as the
-// capacity takes, clipped to the size; a gap waits until a block fills it.
 - (void)testBlocksServeARangeAcrossTheirBoundaryAndAGapWaits {
     NSData *file = WindowPattern(300);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -763,8 +748,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(memcmp(read.bytes, (const uint8_t *)file.bytes + 190, 64), 0);
 }
 
-// A block the blocks already hold is ignored; one overlapping them replaces
-// every block it overlaps. Past the size, nothing is installed.
 - (void)testABlockAlreadyHeldIsIgnoredAndAnOverlapReplaces {
     NSData *file = WindowPattern(400);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -789,8 +772,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(availability.windowLength, 200u, @"past the size");
 }
 
-// With no part file the size is unknown, so a wait waits; once noted, a range
-// at or past it is the end, with nothing copied. Only an error finishes it.
 - (void)testWithNoPartFileAWaitBeforeTheSizeBlocksAndTheEndCopiesNothing {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
     XCTAssertNil(availability.partURL);
@@ -816,8 +797,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertThrows([availability finishWithError:nil]);
 }
 
-// A shortened end makes a wait at or past it the end, wakes one blocked
-// there, and clips copies; it never raises the size.
 - (void)testAShortenedEndIsTheEndAndNeverRaisesTheSize {
     NSData *file = WindowPattern(100);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -846,8 +825,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(copied, 30u, @"a held block is clipped to the end");
 }
 
-// Progress counts every block byte once, at install, and the bytes noted, so
-// a drop never lowers it.
 - (void)testProgressOnlyGrows {
     NSData *file = WindowPattern(1000);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -905,8 +882,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual([transfer heldEndAt:10], 600u, @"the window is dropped once the disk reaches it");
 }
 
-// Noting the reader's position wakes the writer's wait for work, which then
-// reports it. A transfer ignores it.
 - (void)testNotingTheReaderPositionWakesTheWriter {
     NSData *file = WindowPattern(1000);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -932,8 +907,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(at, 0u, @"a transfer ignores it");
 }
 
-// A drop keeps the block at byte 0, the block ending at the size, and a block
-// a blocked wait wants; with no wait blocked, that one goes too.
 - (void)testADropKeepsTheFirstTheLastAndTheWantedBlocks {
     NSData *file = WindowPattern(500);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -971,8 +944,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(Probe(availability, 490, 10, buffer, 16, &copied), CloudFileAvailabilityReady);
 }
 
-// A reader blocking wakes the writer's wait for work with the range it
-// wants; its read once a block lands clears it.
 - (void)testABlockedReaderWakesTheWritersWaitForWork {
     NSData *file = WindowPattern(1000);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -1000,8 +971,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(length, 0u, @"no wait is blocked");
 }
 
-// A reader entering another block wakes the writer's wait for work; reads
-// within one block do not. A finish wakes it, and it answers NO from then on.
 - (void)testACrossedBlockAndAFinishWakeTheWritersWaitForWork {
     NSData *file = WindowPattern(300);
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
@@ -1034,8 +1003,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     XCTAssertEqual(availability.windowLength, 0u);
 }
 
-// Setting the pause wakes nobody; clearing it wakes the writer's wait for
-// work. The deadline alone returns it otherwise.
 - (void)testClearingThePauseWakesTheWritersWaitForWork {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
     [availability noteSize:100];
@@ -1094,8 +1061,6 @@ static void TakeNews(CloudFileAvailability *availability) {
     }
 }
 
-// With no part file the deadline is honored: short or long, the wait ends
-// Interrupted, never before it.
 - (void)testWithNoPartFileTheDeadlineIsHonored {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
     [availability noteSize:100];

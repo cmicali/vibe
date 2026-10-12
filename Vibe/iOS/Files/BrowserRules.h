@@ -79,8 +79,7 @@ static inline NSUInteger VibeBrowserRootLocationIndex(VibeBrowserRootSection sec
 
 // The recents' file URLs, from the paths they recorded. A launch's pruning
 // keeps every link these name.
-// TRAP: never fileURLWithPath: alone. It stats the path, and a recent on an
-// unreachable SMB share then holds main for the connect's 30 s timeout.
+// TRAP: pass isDirectory: to avoid a blocking stat of an unreachable path on main.
 static inline NSArray<NSURL *> *VibeRecentItemURLs(NSArray *items) {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
     for (id item in items) {

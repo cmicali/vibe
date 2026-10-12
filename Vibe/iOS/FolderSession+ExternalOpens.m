@@ -14,10 +14,7 @@
 
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
     if (!openInPlace) {
-        // An inbox copy, readable without a scope. It skips the worker:
-        // Documents/Inbox sits under Documents, so with Documents as the base
-        // the coverage rule would expand the copy into the whole Inbox. Its
-        // rows still come off main: a large FLAC's are read from its header.
+        // Skip directory expansion for inbox copies. Read CUE and FLAC rows off main.
         NSURL *url = urls.firstObject;
         if (!url) {
             return;
@@ -82,7 +79,6 @@
     _addedFolderURLs = [NSMutableArray array];
     _hasAdditions = NO;
     _additionsPersisted = NO;
-    // Nothing has landed, so the next Add is promoted to an Open.
     _landedOpenIntentGeneration = 0;
     _promotedOpenInFlight = NO;
     _promotedOpenIntentGeneration = 0;

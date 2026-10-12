@@ -2,14 +2,7 @@
 //  WaveformThemeSettingsViewController.h
 //  Vibe (iOS)
 //
-//  Settings > Appearance > Waveform theme; not a SettingsChoiceViewController
-//  because Custom brings color wells. All four mac waveform themes are
-//  offered; album art's color is per page (root AGENTS.md). Under 3-Band the
-//  screen offers the band palettes instead: Rekord Bin, Dengine and Custom.
-//  Under Spectrum it offers Spectrum's: RGB, Blue, Green and Custom.
-//  The widget's copy of the screen edits the widget's settings, and shows
-//  only the dark wells, since the widget is always dark.
-//
+//  The widget edits only dark colors because its background is always dark.
 
 #import <UIKit/UIKit.h>
 

@@ -1,9 +1,7 @@
 name: Pages
 
-# Publishes Assets/Web to GitHub Pages. The same directory is the build output
-# of the Cloudflare Pages project serving vibeplayer.app, so
-# the two hosts always ship the identical tree; the page names the Cloudflare
-# URL as canonical.
+# Publish Assets/Web to GitHub Pages. Cloudflare uses the same source directory
+# through a separate local deployment. The page names vibeplayer.app as canonical.
 on:
   push:
     branches: [main]
@@ -19,8 +17,7 @@ permissions:
   pages: write
   id-token: write
 
-# A newer push supersedes a queued deploy, but never cancels one already
-# publishing — a half-uploaded artifact would take the live site with it.
+# Allow an active deployment to finish before publishing another.
 concurrency:
   group: pages
   cancel-in-progress: false
