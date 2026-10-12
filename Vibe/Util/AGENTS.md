@@ -24,7 +24,7 @@ Two placements are not what the file names suggest.
 
 ## Categories
 
-**Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit or UIKit class belongs in `Mac/` or `iOS/`. A portable one belongs in `Categories/`, and one on the app's own classes beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class differs per target (root `AGENTS.md`, Vocabulary).
+**Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit or UIKit class belongs in `Mac/` or `iOS/`. A portable one with no feature belongs in `Categories/`. One that serves a feature, such as `PINCache+VibeAudioCache` for the audio caches, belongs in that feature's directory. One on the app's own classes belongs beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class differs per target (root `AGENTS.md`, Vocabulary).
 
 ## StallWatch samples stuck threads
 

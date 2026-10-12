@@ -4,8 +4,8 @@
 //
 //  The read-ahead's test seam (NetworkReadAhead): which files read ahead, and
 //  what each of its reads does. Both are process-wide. A test sets them for
-//  its own URLs and clears them in tearDown. Implemented in AudioFileHandle.m,
-//  which forwards to NetworkReadAhead.m's functions below.
+//  its own URLs and clears them in tearDown. The category forwards to
+//  NetworkReadAhead.m's functions below.
 //
 
 #if DEBUG

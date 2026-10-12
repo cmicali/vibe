@@ -93,4 +93,4 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 ## Track commands
 
-**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `NSURLUtilTests`). Menu validation reads no file, so Copy File stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.
+**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `FolderWalkTests`). Menu validation reads no file, so Copy File stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.

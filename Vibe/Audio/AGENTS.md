@@ -1,6 +1,6 @@
 # Audio
 
-The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Metadata/Artwork/FolderArt/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/` and `iOS/`. Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `AudioFileFormat` names the codecs that the metadata display and the converter share.
+The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Metadata/Artwork/FolderArt/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/` and `iOS/`. Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `AudioFileFormat` names the codecs that the metadata display and the converter share. `PINCache+VibeAudioCache` is the disk-cache policy that the metadata and waveform caches share.
 
 ## The model in one page
 
