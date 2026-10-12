@@ -15,7 +15,7 @@
 #import "AudioFX.h"
 #import "AudioFXMath.h"
 #import "AudioPlayer.h"
-#import "AudioPlayer+Diagnostics.h"
+#import "StallWatch.h"
 #import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -226,7 +226,7 @@ static const NSUInteger kUIUpdateHz = 3;
     _sceneActive = sceneActive;
     LogInfo(@"Scene: %@", sceneActive ? @"active" : @"inactive");
     _updateTimer.windowVisible = sceneActive;
-    [AudioPlayer noteSceneActive:sceneActive];
+    VibeStallWatchNoteSceneActive(sceneActive);
     [self syncLevelsEnabled];
     if (sceneActive) {
         // The one moment a widget can have been removed (WidgetPublisher.h).

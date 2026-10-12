@@ -43,3 +43,7 @@ The playable extension set is `Common/PlayableExtensions`. The walk's filter and
 ## Categories
 
 **Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit or UIKit class belongs in `Mac/` or `iOS/`. A portable one belongs in `Categories/`, and one on the app's own classes beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class differs per target (root `AGENTS.md`, Vocabulary).
+
+## StallWatch samples stuck threads
+
+**`StallWatch` is the beta stall log's watchdogs and stack sampler.** It reads no player state. The player starts the watchers and suspends the queue's one while it has nothing that can stall (`Audio/AGENTS.md`, diagnostics). It also samples the output's IO thread through `VibeFindThread` and `VibeSampleStack`. Everything but the scene flag is compiled only under `VIBE_VERBOSE_LOGGING`.

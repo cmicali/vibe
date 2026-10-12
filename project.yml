@@ -980,6 +980,7 @@ targets:
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
+      - path: Vibe/Util/StallWatch.m
       - path: Vibe/Audio/AudioVoiceBus.m
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioResampler.mm
