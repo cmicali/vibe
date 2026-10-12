@@ -6,8 +6,7 @@
 //  the loading indicator's determinate half with no file provider. VibeFakeCloud
 //  is its only installer. This class keeps the tick, the whole-percent gate and
 //  the cancel; which files and how far along belong to the installer.
-//  Implemented in DownloadProgressMonitor.m (declaration-only, like
-//  AudioPlayer+Debug.h).
+//  Implemented in DownloadProgressMonitor+Debug.m.
 //
 //  TRAP: the fake REPLACES every real source rather than joining them. Under
 //  the fake cloud the file on disk is genuinely local, so the allocated-size
@@ -28,6 +27,10 @@ typedef float (^VibeFakeDownloadProgress)(NSURL *url);
 @interface DownloadProgressMonitor (Debug)
 
 + (void)setFakeProgressProvider:(nullable VibeFakeDownloadProgress)provider;
+
+// The monitor's start calls this first. YES means the fake owns this monitor
+// and the real sources never start.
+- (BOOL)startFakeProgress;
 
 @end
 

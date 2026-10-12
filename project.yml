@@ -1012,6 +1012,7 @@ targetTemplates:
       - path: Vibe/Loading/Transfer/CloudFileMaterializer.m
       - path: Vibe/Loading/Transfer/CloudFileAvailability.m
       - path: Vibe/Loading/Transfer/DownloadProgressMonitor.m
+      - path: Vibe/Debug/Seams/DownloadProgressMonitor+Debug.m   # its start asks the fake first
       - path: Vibe/Loading/Transfer/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
