@@ -6,7 +6,7 @@
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
 
-@class AudioWaveformRenderer;
+@class WaveformRenderer;
 @class CodableAudioWaveform;
 @class WaveformTheme;
 
@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Builds an identifier returned by resolveStyleIdentifier:, including variants
 // that share a class. Resolve once, then store and construct that same choice.
-+ (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
++ (WaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 // Localized display name, falling back to the identifier itself.
@@ -28,10 +28,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier;
 + (BOOL)supportsLevelsForIdentifier:(NSString *)identifier;
-// Whether the style draws AudioWaveformRenderer.centered: every style but Sonic
+// Whether the style draws WaveformRenderer.centered: every style but Sonic
 // Cirrus and the pill.
 + (BOOL)supportsCenteringForIdentifier:(NSString *)identifier;
-// AudioWaveformRenderer.readsBands, for a persisted style; NO for nil or an
+// WaveformRenderer.readsBands, for a persisted style; NO for nil or an
 // unregistered one.
 + (BOOL)readsBandsForIdentifier:(nullable NSString *)identifier;
 // iOS, whose playhead line is a loose setting: the user's choice, and until

@@ -1,5 +1,5 @@
 //
-//  AudioWaveformRenderer.h
+//  WaveformRenderer.h
 //  Vibe
 //
 
@@ -107,7 +107,7 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 
 @class WaveformMorphEngine;
 
-@interface AudioWaveformRenderer : NSObject {
+@interface WaveformRenderer : NSObject {
 @protected
     // Bar renderers install their geometry callback; flat controls leave this nil.
     WaveformMorphEngine *_morph;

@@ -7,7 +7,7 @@
 //  AudioTrackMetadataLoader+Parse.m.
 //
 
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioLoadingConfiguration.h"

@@ -7,14 +7,14 @@
 //  rendition's sidecar.
 //
 
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "PINCache.h"
 #import "AudioTrack.h"
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
-#import "AudioTrackArtworkInternal.h"
+#import "AudioTrackArtwork.h"
 #import "MetadataScanEntry.h"
 #import "MetadataParseCoordinator.h"
 

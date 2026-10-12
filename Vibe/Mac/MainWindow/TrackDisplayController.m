@@ -7,8 +7,8 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "MainPlayerContentView.h"
-#import "AudioWaveformView.h"
-#import "AudioWaveformView+Loading.h" // the shimmer and empty-state pass-throughs
+#import "WaveformView.h"
+#import "WaveformView+Loading.h" // the shimmer and empty-state pass-throughs
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
@@ -19,7 +19,7 @@
 #import "NSView+DarkMode.h"
 
 @implementation TrackDisplayController {
-    __weak AudioWaveformView *_waveformView;
+    __weak WaveformView *_waveformView;
     __weak NSTextField      *_bpmTextField;
     // The change guard for the elapsed label, in whole wall-clock seconds —
     // the formatter truncates, so that is when its text can change. A value

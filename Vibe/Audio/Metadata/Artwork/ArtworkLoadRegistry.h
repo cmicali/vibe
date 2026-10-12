@@ -9,7 +9,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioTrackArtworkInternal.h" // the class the hook category extends
+#import "AudioTrackArtwork.h" // the class the hook category extends
 #import "PlatformTypes.h"
 
 @class AudioFileMaterializationCoordinator;

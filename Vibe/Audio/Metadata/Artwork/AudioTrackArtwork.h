@@ -1,5 +1,5 @@
 //
-//  AudioTrackArtworkInternal.h
+//  AudioTrackArtwork.h
 //  Vibe
 //
 //  One metadata row's art state behind the AudioTrackMetadata facade; only

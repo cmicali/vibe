@@ -24,11 +24,11 @@
     }
 }
 
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
+- (void)waveformView:(WaveformView *)waveformView didSeek:(float)percentage {
     [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
 }
 
-- (void)audioWaveformViewDidResolveTheme:(AudioWaveformView *)waveformView {
+- (void)waveformViewDidResolveTheme:(WaveformView *)waveformView {
     [self.playerContentView applyVolumeColors];
 }
 

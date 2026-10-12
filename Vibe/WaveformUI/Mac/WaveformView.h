@@ -1,5 +1,5 @@
 //
-//  AudioWaveformView.h
+//  WaveformView.h
 //  Vibe
 //
 
@@ -7,14 +7,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@protocol AudioWaveformViewDelegate;
+@protocol WaveformViewDelegate;
 @class CodableAudioWaveform;
 
 // A pure rendering surface: draws what it is handed and reports seeks.
 // Loading and caching are MainPlayerController's AudioWaveformCache.
-@interface AudioWaveformView : NSView
+@interface WaveformView : NSView
 
-@property (nullable, weak) id <AudioWaveformViewDelegate> delegate;
+@property (nullable, weak) id <WaveformViewDelegate> delegate;
 
 @property CGFloat progress;
 
@@ -51,12 +51,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@protocol AudioWaveformViewDelegate <NSObject>
+@protocol WaveformViewDelegate <NSObject>
 
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage;
+- (void)waveformView:(WaveformView *)waveformView didSeek:(float)percentage;
 // Every resolution of the theme: its settings, the appearance, the artwork
 // color.
-- (void)audioWaveformViewDidResolveTheme:(AudioWaveformView *)waveformView;
+- (void)waveformViewDidResolveTheme:(WaveformView *)waveformView;
 
 @end
 

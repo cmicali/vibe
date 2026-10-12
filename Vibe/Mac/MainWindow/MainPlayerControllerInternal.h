@@ -17,7 +17,7 @@
 
 @class ArtworkDisplayController;
 @class AudioTrack;
-@class AudioWaveformView;
+@class WaveformView;
 @class MainPlayerContentView;
 @class NowPlayingController;
 @class PlaylistTableView;
@@ -70,7 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) NSView *windowBackdropView;
 @property (weak) NSView *windowBackgroundOverlayView;
 // Per-track rendering goes through trackDisplay; this is for wiring.
-@property (weak) AudioWaveformView *waveformView;
+@property (weak) WaveformView *waveformView;
 
 // The debug channel is its only setter. An always-nil block pointer keeps
 // `#if DEBUG` out of this header.

@@ -9,7 +9,7 @@
 
 #if DEBUG
 
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

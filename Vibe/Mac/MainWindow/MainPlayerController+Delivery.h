@@ -12,13 +12,13 @@
 #import "MainPlayerController.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (Delivery) <AudioTrackMetadataCacheDelegate,
                                             AudioWaveformCacheDelegate,
-                                            AudioWaveformViewDelegate>
+                                            WaveformViewDelegate>
 @end
 
 NS_ASSUME_NONNULL_END

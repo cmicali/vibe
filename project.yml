@@ -839,11 +839,11 @@ targets:
       - path: Vibe/Util/Mac/NSView+DarkMode.m  # AppTheme's dynamic colors resolve through its appearance fold
       - path: Vibe/WaveformUI/WaveformTheme.m
       - path: Vibe/WaveformUI/Renderers/WaveformMorphEngine.mm
-      - path: Vibe/WaveformUI/Renderers/AudioWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/BasicAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/WaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/BasicWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/CupertinoWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/DetailedAudioWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/OversamplingDetailedAudioWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/DetailedWaveformRenderer.mm
+      - path: Vibe/WaveformUI/Renderers/OversamplingDetailedWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/SonicCirrusWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/ThreeBandWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm

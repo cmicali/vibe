@@ -1,9 +1,9 @@
 //
-//  BasicAudioWaveformRenderer.mm
+//  BasicWaveformRenderer.mm
 //  Vibe
 //
 
-#import "BasicAudioWaveformRenderer.h"
+#import "BasicWaveformRenderer.h"
 #import "VibeStrings.h"
 #import "PlatformColor.h"
 
@@ -11,7 +11,7 @@
 
 #define kBasicBarWidth 3
 
-@implementation BasicAudioWaveformRenderer
+@implementation BasicWaveformRenderer
 
 + (NSString *)styleIdentifier {
     return @"basic";

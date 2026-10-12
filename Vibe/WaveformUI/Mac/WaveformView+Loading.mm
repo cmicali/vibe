@@ -1,16 +1,16 @@
 //
-//  AudioWaveformView+Loading.mm
+//  WaveformView+Loading.mm
 //  Vibe
 //
 //  When to show LoadingIndicator, and the empty line — that control at rest,
 //  so it reads its height and colour from LoadingIndicatorMath.h.
 //
 
-#import "AudioWaveformView+Loading.h"
-#import "AudioWaveformViewInternal.h"
+#import "WaveformView+Loading.h"
+#import "WaveformViewInternal.h"
 #import "NSView+DarkMode.h"
 
-@implementation AudioWaveformView (Loading)
+@implementation WaveformView (Loading)
 
 - (void)showLoadingIndicator {
     if (_loadingIndicator) {

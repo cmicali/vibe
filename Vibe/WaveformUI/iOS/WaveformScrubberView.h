@@ -2,7 +2,7 @@
 //  WaveformScrubberView.h
 //  Vibe (iOS)
 //
-//  The iOS counterpart of AudioWaveformView: the same registry, renderers,
+//  The iOS counterpart of WaveformView: the same registry, renderers,
 //  morph engine and waveform data, hosted in a UIView. DJ semantics: the
 //  play position is fixed at the view's horizontal center and the zoomed
 //  waveform scrolls beneath it; a drag moves the content 1:1 and seeks on

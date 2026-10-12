@@ -1,10 +1,10 @@
 //
-//  AudioWaveformView.mm
+//  WaveformView.mm
 //  Vibe
 //
 
-#import "AudioWaveformViewInternal.h"
-#import "AudioWaveformView+Loading.h"
+#import "WaveformViewInternal.h"
+#import "WaveformView+Loading.h"
 #import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
@@ -15,7 +15,7 @@
 // A press that travels further than this is a drag, not a click.
 static const CGFloat kWaveformDragHysteresis = 4;
 
-@implementation AudioWaveformView {
+@implementation WaveformView {
     NSString                    *_styleIdentifier;
     CGFloat                     _progress;
     NSUInteger                  _progressTracker;
@@ -114,7 +114,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
                                               artworkColor:self.artworkThemeColor];
     _currentWaveformRenderer.theme = theme;
     [_currentWaveformRenderer updateColors:isDark];
-    [self.delegate audioWaveformViewDidResolveTheme:self];
+    [self.delegate waveformViewDidResolveTheme:self];
 }
 
 - (void)refreshThemeColors {
@@ -231,8 +231,8 @@ static const CGFloat kWaveformDragHysteresis = 4;
     NSPoint mouseLoc = [self convertPoint:e fromView:nil];
     if (wasDragSeeking) {
         // May legitimately end outside the view: no containment test.
-        [self.delegate audioWaveformView:self
-                                 didSeek:(float) ([self clampedSeekX:mouseLoc.x] / self.bounds.size.width)];
+        [self.delegate waveformView:self
+                            didSeek:(float) ([self clampedSeekX:mouseLoc.x] / self.bounds.size.width)];
         if (!NSPointInRect(mouseLoc, self.bounds)) {
             [self hideHoverIndicator];
         }
@@ -253,7 +253,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
     if ([self mouse:mouseLoc inRect:[self bounds]]) {
         CGFloat x = mouseLoc.x - self.bounds.origin.x;
         float p = (float) (x / self.bounds.size.width);
-        [self.delegate audioWaveformView:self didSeek:p];
+        [self.delegate waveformView:self didSeek:p];
     }
 }
 
@@ -474,7 +474,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     if (target == _progress) {
         return NO;
     }
-    [self.delegate audioWaveformView:self didSeek:(float)target];
+    [self.delegate waveformView:self didSeek:(float)target];
     return YES;
 }
 

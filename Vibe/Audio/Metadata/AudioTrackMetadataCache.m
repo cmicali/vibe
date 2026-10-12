@@ -6,7 +6,7 @@
 #import <stdatomic.h>
 
 #import "AudioTrackMetadataCacheInternal.h"
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioLoadingConfiguration.h"
 #import "PINCache.h"

@@ -1,24 +1,24 @@
 //
-//  AudioWaveformViewInternal.h
+//  WaveformViewInternal.h
 //  Vibe
 //
-//  Private to AudioWaveformView.mm and its loading category.
+//  Private to WaveformView.mm and its loading category.
 //
 
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioWaveform.h"
-#import "AudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
 #import "LoadingIndicator.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 
-@interface AudioWaveformView () {
+@interface WaveformView () {
     // Owned by the loading category; nil when not showing.
     LoadingIndicator*           _loadingIndicator;
     CALayer*                    _placeholderLayer;
 
-    AudioWaveformRenderer*      _currentWaveformRenderer;
+    WaveformRenderer*           _currentWaveformRenderer;
 }
 
 // Strong: the wrapper owns the C++ AudioWaveform whose raw pointer the

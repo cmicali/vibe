@@ -1,12 +1,12 @@
 //
-//  AudioWaveformRenderer.mm
+//  WaveformRenderer.mm
 //  Vibe
 //
 
-#import "AudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 
-@implementation AudioWaveformRenderer {
+@implementation WaveformRenderer {
     CGFloat _hoverHighlightX;
 }
 

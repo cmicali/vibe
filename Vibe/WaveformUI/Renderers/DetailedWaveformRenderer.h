@@ -1,14 +1,14 @@
 //
-//  DetailedAudioWaveformRenderer.h
+//  DetailedWaveformRenderer.h
 //  Vibe
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface DetailedAudioWaveformRenderer : AudioWaveformRenderer
+@interface DetailedWaveformRenderer : WaveformRenderer
 
 // Wiggle shares the envelope's layers, progress, morph and bitmap bake.
 // wiggle:YES is valid only on this class, not on its bar-style subclasses.

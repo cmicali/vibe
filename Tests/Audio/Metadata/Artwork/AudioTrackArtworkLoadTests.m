@@ -7,7 +7,7 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioFileMaterializationCoordinatorInternal.h"
-#import "AudioTrackArtworkInternal.h"
+#import "AudioTrackArtwork.h"
 #import "AudioWorkScheduler.h"
 
 @interface ArtworkLoadTestMaterializationOperation : NSObject <AudioFileMaterializationOperation>

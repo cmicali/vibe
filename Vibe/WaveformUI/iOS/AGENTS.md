@@ -4,7 +4,7 @@
 
 The renderer draws the whole track across a *virtual* width: the view width divided by `visibleFraction` (0.48 at rest). **A `UIScrollView` carries it.** The virtual width is the content size, and the insets are half a view on each side. So `contentOffset.x == progress·virtualWidth - centerX`, and both ends of the track park under the center. UIKit supplies the drag, the deceleration and the rubber-band at both ends. `decelerationRate` is `Fast`.
 
-The view is split like the mac's. `WaveformScrubberView.mm` is the core: the scroll, the zoom, the renderer and theme, progress, accessibility, `cancelInteraction`, `resetWaveformContentState` and layout. `+Bitmap.mm` is the picture: `prepareForWaveformLoad`, `showWaveform:`, the bake store, the throttle, the bake, segments, the install and the reveal. `+Loading.mm` is the loading indicator. `+Gestures.mm` is the touch scrub, the tap and the pinch. `WaveformScrubberViewInternal.h` is the private surface they share. It holds the ivars and the cross-file methods. It is ObjC++ only, because it imports `AudioWaveformRenderer.h`.
+The view is split like the mac's. `WaveformScrubberView.mm` is the core: the scroll, the zoom, the renderer and theme, progress, accessibility, `cancelInteraction`, `resetWaveformContentState` and layout. `+Bitmap.mm` is the picture: `prepareForWaveformLoad`, `showWaveform:`, the bake store, the throttle, the bake, segments, the install and the reveal. `+Loading.mm` is the loading indicator. `+Gestures.mm` is the touch scrub, the tap and the pinch. `WaveformScrubberViewInternal.h` is the private surface they share. It holds the ivars and the cross-file methods. It is ObjC++ only, because it imports `WaveformRenderer.h`.
 
 ## Zoom
 
@@ -70,7 +70,7 @@ Normalize and Gain are mac settings (`AppSettings+Mac.h`). This scrubber sets `n
 
 **TRAP: never show the renderer's live tree here.** It is a multi-screen layer under a mask of thousands of rects. The render server scan-converts it on the CPU on every frame it moves, and a scrub over it ran at 30 Hz or less on a phone.
 
-The Detailed family and 3-Band bake through the envelope-image API (`AudioWaveformRenderer.h`), with samples read on main and pixels drawn off it. Every other style draws whole through `WaveformRendererRegistry`'s `newImageForCodableWaveform:`, once all played and once all unplayed.
+The Detailed family and 3-Band bake through the envelope-image API (`WaveformRenderer.h`), with samples read on main and pixels drawn off it. Every other style draws whole through `WaveformRendererRegistry`'s `newImageForCodableWaveform:`, once all played and once all unplayed.
 
 **TRAP: `installEnvelopeImage:` must drop the standing bitmap first.** Without the removal, the old layer stays in the scroll's tree for the life of the view. **TRAP: crop the played side inside the install's transaction.** That transaction is top-level and commits at once. Left to the next pass, the new played layer showed at zero width for a frame, and the played side blinked at every swap.
 

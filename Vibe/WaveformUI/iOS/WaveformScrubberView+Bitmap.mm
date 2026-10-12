@@ -187,7 +187,7 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
         return;
     }
     _lastBakeAt = CACurrentMediaTime();
-    AudioWaveformRenderer *renderer = _renderer;
+    WaveformRenderer *renderer = _renderer;
     CGFloat scale = [self displayScale];
     // Past the texture ceiling a layer renders BLANK: a layout wide enough that
     // even the resting zoom overflows (the zoom floor keeps a pinch out) bakes

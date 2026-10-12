@@ -8,7 +8,7 @@
 @class SymbolButton;
 @class VibeSlider;
 @class ArtworkImageView;
-@class AudioWaveformView;
+@class WaveformView;
 @class PlaylistTableView;
 @class PlaylistDropZoneView;
 
@@ -76,7 +76,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSView *headerTintView;
 @property (readonly) NSView *playlistTintView;
 @property (readonly) ArtworkImageView *albumArtImageView;
-@property (readonly) AudioWaveformView *waveformView;
+@property (readonly) WaveformView *waveformView;
 
 @property (readonly) NSTextField *artistTextField;
 @property (readonly) NSTextField *titleTextField;

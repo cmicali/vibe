@@ -1,16 +1,16 @@
 //
-//  OversamplingDetailedAudioWaveformRenderer.mm
+//  OversamplingDetailedWaveformRenderer.mm
 //  Vibe
 //
 
-#import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "OversamplingDetailedWaveformRenderer.h"
 #import "VibeStrings.h"
 
 // Fixed counts at every width: the sub-pixel overlap is the look. 1,024 is
 // Detailed's count at its 512pt design width.
 static const NSUInteger kOversamplingBaseBars = 1024;
 
-@implementation x2OversamplingDetailedAudioWaveformRenderer
+@implementation x2OversamplingDetailedWaveformRenderer
 
 + (NSString *)styleIdentifier {
     return @"oversampling_detailed_x2";
@@ -27,7 +27,7 @@ static const NSUInteger kOversamplingBaseBars = 1024;
 
 @end
 
-@implementation x4OversamplingDetailedAudioWaveformRenderer
+@implementation x4OversamplingDetailedWaveformRenderer
 
 + (NSString *)styleIdentifier {
     return @"oversampling_detailed_x4";
@@ -43,7 +43,7 @@ static const NSUInteger kOversamplingBaseBars = 1024;
 
 @end
 
-@implementation x8OversamplingDetailedAudioWaveformRenderer
+@implementation x8OversamplingDetailedWaveformRenderer
 
 + (NSString *)styleIdentifier {
     return @"oversampling_detailed_x8";

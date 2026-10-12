@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "BasicAudioWaveformRenderer.h"
+#import "BasicWaveformRenderer.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -16,7 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 // device pixel or two, so a continuous fill or a thin hover column would
 // light a pixel of one or nothing, and both advance a whole bar at a time.
 // Only the bar width, the envelope and the ramp are its own.
-@interface CupertinoWaveformRenderer : BasicAudioWaveformRenderer
+@interface CupertinoWaveformRenderer : BasicWaveformRenderer
 
 @end
 
@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 // samples — the geometry is the scrubber, not the envelope — so it sits
 // outside the morph engine, the convert sweep has nothing here to dip, and
 // having a waveform at all only decides whether the pill shows.
-@interface CupertinoBasicWaveformRenderer : AudioWaveformRenderer
+@interface CupertinoBasicWaveformRenderer : WaveformRenderer
 
 @end
 

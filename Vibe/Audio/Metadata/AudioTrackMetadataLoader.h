@@ -1,5 +1,5 @@
 //
-//  AudioTrackMetadataLoaderInternal.h
+//  AudioTrackMetadataLoader.h
 //  Vibe
 //
 //  One sweep over one playlist; the current track is a priority record in

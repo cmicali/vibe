@@ -1,9 +1,9 @@
 //
-//  DetailedAudioWaveformRenderer.mm
+//  DetailedWaveformRenderer.mm
 //  Vibe
 //
 
-#import "DetailedAudioWaveformRenderer.h"
+#import "DetailedWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 #import "PlatformTypes.h"
 #import "PlatformColor.h"
@@ -133,7 +133,7 @@ static void VibeFillBars(CGRect *rects, NSUInteger count, const float *samples, 
     }
 }
 
-@implementation DetailedAudioWaveformRenderer {
+@implementation DetailedWaveformRenderer {
     BOOL _wiggle;
     // One mask for the whole stack: masking each gradient would rasterize and
     // ship the same bar path twice per morph frame.
@@ -189,8 +189,8 @@ static const CGFloat kDetailedBarPitch = 0.5;
                        wiggle:(BOOL)wiggle {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
-        NSAssert(!wiggle || self.class == DetailedAudioWaveformRenderer.class,
-                 @"Wiggle variants require DetailedAudioWaveformRenderer's geometry hooks");
+        NSAssert(!wiggle || self.class == DetailedWaveformRenderer.class,
+                 @"Wiggle variants require DetailedWaveformRenderer's geometry hooks");
         _wiggle = wiggle;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]

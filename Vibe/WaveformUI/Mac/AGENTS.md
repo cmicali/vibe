@@ -1,8 +1,8 @@
 # The waveform view (macOS only)
 
-`AudioWaveformView` is a CALayer-based `NSView` that draws through the shared renderers in `../Renderers/`. **It is a pure rendering surface.** `MainPlayerController` owns the `AudioWaveformCache` and requests loads. It forwards deliveries through `TrackDisplayController`'s pass-throughs: `prepareForWaveformLoad` to reset, then `showWaveform:`.
+`WaveformView` is a CALayer-based `NSView` that draws through the shared renderers in `../Renderers/`. **It is a pure rendering surface.** `MainPlayerController` owns the `AudioWaveformCache` and requests loads. It forwards deliveries through `TrackDisplayController`'s pass-throughs: `prepareForWaveformLoad` to reset, then `showWaveform:`.
 
-`AudioWaveformView+Loading` holds the two states with no waveform. `AudioWaveformViewInternal.h` is the private surface they share.
+`WaveformView+Loading` holds the two states with no waveform. `WaveformViewInternal.h` is the private surface they share.
 
 ## The three states
 

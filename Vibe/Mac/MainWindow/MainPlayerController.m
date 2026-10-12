@@ -25,7 +25,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
 #import "CloudTransferRegistry.h"
 #import "FolderArtResolver.h"

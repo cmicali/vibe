@@ -4,12 +4,12 @@
 
 #import "WaveformRendererRegistry.h"
 #import "AppSettings.h"
-#import "AudioWaveformRenderer.h"
-#import "DetailedAudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
+#import "DetailedWaveformRenderer.h"
 #import "SonicCirrusWaveformRenderer.h"
-#import "BasicAudioWaveformRenderer.h"
+#import "BasicWaveformRenderer.h"
 #import "CupertinoWaveformRenderer.h"
-#import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "OversamplingDetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
 #import "VibeStrings.h"
 
@@ -54,14 +54,14 @@ static AudioWaveform *VibePreviewWaveform(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSMutableDictionary<NSString *, Class> *registry = [NSMutableDictionary new];
-        for (Class renderer in @[BasicAudioWaveformRenderer.class,
+        for (Class renderer in @[BasicWaveformRenderer.class,
                                  CupertinoWaveformRenderer.class,
                                  CupertinoBasicWaveformRenderer.class,
                                  SonicCirrusWaveformRenderer.class,
-                                 DetailedAudioWaveformRenderer.class,
-                                 x2OversamplingDetailedAudioWaveformRenderer.class,
-                                 x4OversamplingDetailedAudioWaveformRenderer.class,
-                                 x8OversamplingDetailedAudioWaveformRenderer.class,
+                                 DetailedWaveformRenderer.class,
+                                 x2OversamplingDetailedWaveformRenderer.class,
+                                 x4OversamplingDetailedWaveformRenderer.class,
+                                 x8OversamplingDetailedWaveformRenderer.class,
                                  ThreeBandWaveformRenderer.class]) {
             // A nil key raises; in Release an unoverridden subclass costs one
             // style, not the registry.
@@ -73,7 +73,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
             }
             registry[identifier] = renderer;
         }
-        registry[kWiggleIdentifier] = DetailedAudioWaveformRenderer.class;
+        registry[kWiggleIdentifier] = DetailedWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -126,7 +126,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
     CALayer *layer = [CALayer layer];
     layer.bounds = bounds;
     layer.contentsScale = scale;
-    AudioWaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
+    WaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
             layer:layer bounds:bounds isDark:dark];
     renderer.theme = theme;
     renderer.barDensity = barDensity;
@@ -191,7 +191,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
                : NULL;
 }
 
-+ (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
++ (WaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     Class renderer = [self renderersByIdentifier][identifier];
     NSAssert(renderer, @"Resolve the waveform style before constructing its renderer");

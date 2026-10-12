@@ -6,7 +6,7 @@
 // no monitor spans I/O or a decode.
 //
 
-#import "AudioTrackArtworkInternal.h"
+#import "AudioTrackArtwork.h"
 #import "ArtworkLoadRegistry.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioWorkScheduler.h"

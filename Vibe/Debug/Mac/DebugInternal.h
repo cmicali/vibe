@@ -43,7 +43,7 @@
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
 #import "AudioFileConverter+Debug.h"
 #import "MusicalKey.h"

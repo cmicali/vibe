@@ -6,7 +6,7 @@
 //  foreground gate, and each completion's settlement and retry.
 //
 
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"

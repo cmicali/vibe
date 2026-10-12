@@ -19,7 +19,7 @@
 #import "MainWindow.h"
 #import "PlaylistController.h"
 #import "AudioTrack.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
 #import "PlaceholderFiles.h"
 #import "VibeStrings.h"

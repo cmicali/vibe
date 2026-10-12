@@ -3,7 +3,7 @@
 Tags, their disk cache, the playlist scan and embedded artwork. The artwork classes live in `Artwork/`. `Artwork/FolderArt/` is the sidecar-cover fallback, and it has its own `AGENTS.md`.
 
 - `AudioTrackMetadataCache` is the facade, and `AudioTrackMetadataLoader` the one sweep behind it (private).
-- The loader is one object in three files. `AudioTrackMetadataLoader.m` is its life and the sweep's stage 1. `+Materialization.m` is the lane: priority marks, the two slots, the foreground gate and each completion's settlement. `+Parse.m` is the cache read, the parse, installation, settlement and publication, with the display-art rendition's sidecar. `AudioTrackMetadataLoaderInternal.h` holds its ivars and each file's shared methods. `MetadataScanEntry` holds its two records, the scan entry and the priority mark.
+- The loader is one object in three files. `AudioTrackMetadataLoader.m` is its life and the sweep's stage 1. `+Materialization.m` is the lane: priority marks, the two slots, the foreground gate and each completion's settlement. `+Parse.m` is the cache read, the parse, installation, settlement and publication, with the display-art rendition's sidecar. `AudioTrackMetadataLoader.h` holds its ivars and each file's shared methods. `MetadataScanEntry` holds its two records, the scan entry and the priority mark.
 - `MetadataParseCoordinator` is the per-path owner/waiter table and nothing else.
 - `AudioTrackMetadata` is the immutable tags plus the display-facing art API.
 - `TagLibAudioFile` is the TagLib side of the parse: the file factory, the ranged stream, the format name and the embedded-art read. Its header is C++, so only `.mm` files import it.

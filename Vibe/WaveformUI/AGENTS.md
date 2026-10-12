@@ -38,4 +38,4 @@ Neither view is adjustable with nothing loaded. The iOS `accessibilityIdentifier
 
 ## ObjC++ boundary
 
-The renderers and views are `.mm` for the C++ sample vectors. **Keep C++ types out of any header a plain ObjC `.m` imports.** `WaveformTheme.h`, `WaveformZoomMath.h` and the renderers' two math headers are safe here. `Renderers/AudioWaveformRenderer.h` and `Renderers/WaveformMorphEngine.h` bring in `AudioWaveform.h` and `<vector>`, so only `.mm` files may import them.
+The renderers and views are `.mm` for the C++ sample vectors. **Keep C++ types out of any header a plain ObjC `.m` imports.** `WaveformTheme.h`, `WaveformZoomMath.h` and the renderers' two math headers are safe here. `Renderers/WaveformRenderer.h` and `Renderers/WaveformMorphEngine.h` bring in `AudioWaveform.h` and `<vector>`, so only `.mm` files may import them.

@@ -4,7 +4,7 @@
 //
 
 #import "ArtworkLoadRegistry.h"
-#import "AudioTrackArtworkInternal.h"
+#import "AudioTrackArtwork.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioWorkScheduler.h"
 #import "PlaceholderFiles.h"

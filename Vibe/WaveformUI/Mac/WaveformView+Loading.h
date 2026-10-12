@@ -1,5 +1,5 @@
 //
-//  AudioWaveformView+Loading.h
+//  WaveformView+Loading.h
 //  Vibe
 //
 //  What the strip shows with no waveform: LoadingIndicator's waveform style
@@ -7,11 +7,11 @@
 //  is loaded.
 //
 
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface AudioWaveformView (Loading)
+@interface WaveformView (Loading)
 
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;

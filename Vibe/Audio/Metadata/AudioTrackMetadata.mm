@@ -7,7 +7,7 @@
 #import "AudioTrackMetadataInternal.h"
 #import "AudioFileHandle.h"
 #import "AudioTrack.h"
-#import "AudioTrackArtworkInternal.h"
+#import "AudioTrackArtwork.h"
 #import "TagLibAudioFile.h"
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"

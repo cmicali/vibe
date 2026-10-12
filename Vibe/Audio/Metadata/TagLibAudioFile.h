@@ -8,7 +8,7 @@
 
 #import <Foundation/Foundation.h>
 #import "AudioFileFormat.h"
-#import "AudioTrackArtworkInternal.h"
+#import "AudioTrackArtwork.h"
 
 #include <memory>
 #include <tfile.h>

@@ -3,12 +3,12 @@
 //  Vibe (iOS)
 //
 //  Private to WaveformScrubberView.mm and its Bitmap, Loading and Gestures
-//  categories. ObjC++ only, since it brings in AudioWaveformRenderer.h.
+//  categories. ObjC++ only, since it brings in WaveformRenderer.h.
 //
 
 #import "WaveformScrubberView.h"
 #import "AudioWaveform.h"
-#import "AudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
 #import "LoadingIndicator.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -21,7 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
     // The renderer only samples for the bake and is never shown: its layers
     // live here, hidden, at virtual size so its bar counts match the bitmap's.
     CALayer                 *_rendererHost;
-    AudioWaveformRenderer   *_renderer;
+    WaveformRenderer        *_renderer;
     // The palette a style without a fast bake is drawn in: the renderer's,
     // minus the playhead line, which this view draws itself.
     WaveformTheme           *_bakeTheme;
