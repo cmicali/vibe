@@ -6,7 +6,7 @@
 #import "AudioPlayer+Pipeline.h"
 #import "AudioPlayerInternal.h"
 #import "AudioMasterBusInternal.h"
-#import "AudioFX.h"
+#import "AudioFX+Pipeline.h"
 #import "AudioTrack.h"
 #import "AudioVarispeed.h"
 #if TARGET_OS_OSX

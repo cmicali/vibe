@@ -7,7 +7,7 @@
 //
 
 #import "AudioMasterBus.h"
-#import "AudioFX.h"
+#import "AudioFX+Pipeline.h"
 #import "AudioLevelMeter.h"
 #import "AudioVarispeed.h"
 #include <stdatomic.h>
