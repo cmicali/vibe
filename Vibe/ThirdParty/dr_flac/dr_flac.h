@@ -2894,7 +2894,8 @@ static drflac_bool32 drflac__seek_bits(drflac_bs* bs, size_t bitsToSeek)
 
 /*
 This function moves the bit streamer to the first bit after the sync code (bit 15 of the of the frame header). It will also update the
-CRC-16. It gives up once it has searched past the stream position limit.
+CRC-16. The stream position limit is checked only while passing over stretches of the cache that hold no 0xFF byte. So the search gives up
+at the first such stretch past the limit, and bytes that hold 0xFF are searched past it.
 */
 static drflac_bool32 drflac__find_and_seek_to_next_sync_code(drflac_bs* bs, drflac_uint64 limit)
 {
@@ -4883,7 +4884,7 @@ static DRFLAC_INLINE drflac_bool32 drflac__decode_samples_with_residual__rice__n
     return DRFLAC_TRUE;
 }
 
-/* The common orders, up to 12, get a loop of their own each. */
+/* Orders up to 12 are the common ones. Each far vector count they use (0, 1 or 2, for orders 1-4, 5-8 and 9-12) gets its own copy of the loop. */
 static drflac_bool32 drflac__decode_samples_with_residual__rice__neon_32(drflac_bs* bs, drflac_uint32 count, drflac_uint8 riceParam, drflac_uint32 order, drflac_int32 shift, const drflac_int32* coefficients, drflac_int32* pSamplesOut, drflac_uint32 farVectorCount)
 {
     switch (farVectorCount)
@@ -5321,11 +5322,7 @@ static drflac_bool32 drflac__decode_samples__lpc(drflac_bs* bs, drflac_uint32 bl
 }
 
 
-/*
-The side channel of a stereo frame of a 32-bit stream has 33 bits per sample, more than the 32-bit decoding path can hold, so it's decoded
-to 64-bit samples here. Its residuals still fit in 32 bits, and its predictions in 64. The subframe header has already been read, and
-bitsPerSample excludes the wasted bits.
-*/
+/* Reads a signed integer of 1 to 33 bits, sign extended to 64 bits. */
 static drflac_bool32 drflac__read_int64_upto_33(drflac_bs* bs, unsigned int bitCount, drflac_int64* pResult)
 {
     drflac_uint32 hi = 0;
@@ -5353,6 +5350,11 @@ static drflac_bool32 drflac__read_int64_upto_33(drflac_bs* bs, unsigned int bitC
     return DRFLAC_TRUE;
 }
 
+/*
+The side channel of a stereo frame of a 32-bit stream has 33 bits per sample, more than the 32-bit decoding path can hold, so it's decoded
+to 64-bit samples here. Its residuals still fit in 32 bits, and its predictions in 64. The subframe header has already been read, and
+bitsPerSample excludes the wasted bits.
+*/
 static drflac_bool32 drflac__decode_subframe_s64(drflac_bs* bs, const drflac_subframe* pSubframe, drflac_uint32 blockSize, drflac_uint32 bitsPerSample, drflac_int64* pSamples)
 {
     static const drflac_int32 fixedCoefficients[5][4] = {
@@ -5531,8 +5533,8 @@ static void drflac__decorrelate_frame_with_33_bit_side(drflac* pFlac)
 }
 
 /*
-Reads the next frame header, giving up once it has searched past the stream position limit. *pHeaderOut is only written when a header
-is found: the fields of a candidate that turns out to be a false sync code must not end up in the caller's header.
+Reads the next frame header. It gives up past the stream position limit as drflac__find_and_seek_to_next_sync_code() does. *pHeaderOut is
+only written when a header is found: the fields of a candidate that turns out to be a false sync code must not end up in the caller's header.
 */
 static drflac_bool32 drflac__read_next_flac_frame_header_before(drflac_bs* bs, drflac_uint8 streaminfoBitsPerSample, drflac_uint64 limit, drflac_frame_header* pHeaderOut)
 {
@@ -5860,7 +5862,7 @@ static drflac_bool32 drflac__decode_subframe(drflac_bs* bs, drflac_frame* frame,
     }
 
     /*
-    A left-side or right-side stream's side channel whose wasted bits leave it one bit holds 0 or -2^bitsPerSample, which the read functions
+    A left-side or right-side frame's side channel whose wasted bits leave it one bit holds 0 or -2^bitsPerSample, which the read functions
     scale by 2^(32 - bitsPerSample) to 0 modulo 2^32, the arithmetic they do, but with a shift by 32, which C leaves undefined. Samples of 0
     get there without one. Mid-side doesn't scale the side channel so far.
     */
@@ -6057,7 +6059,10 @@ static drflac_result drflac__seek_flac_frame(drflac* pFlac)
 
     pFlac->currentFLACFrame.pcmFramesRemaining = 0;
 
-    /* A frame drflac__decode_flac_frame() rejects is rejected here too, so passing over frames and decoding them agree on where each one is. */
+    /*
+    The frame header checks drflac__decode_flac_frame() makes are made here too, so passing over frames and decoding them agree on where each
+    one is. A negative LPC shift is not checked here, so a frame with one is passed over here but fails to decode.
+    */
     channelCount = drflac__get_channel_count_from_channel_assignment(pFlac->currentFLACFrame.header.channelAssignment);
     if (pFlac->currentFLACFrame.header.blockSizeInPCMFrames > pFlac->maxBlockSizeInPCMFrames || channelCount != (int)pFlac->channels) {
         result = DRFLAC_ERROR;
@@ -6136,8 +6141,9 @@ static drflac_uint64 drflac__get_first_pcm_frame_of_flac_frame(drflac* pFlac, co
 /*
 Whether the FLAC frame with header pNext can be the one after the frame with header pPrevious, which has a block size of 0 at the start of
 the stream. *pLostPCMFrames is set to the PCM frames between them, lost to a damaged header whose frame was passed over looking for the
-next sync code. A frame that starts before the previous one ends does not follow it, nor does one past a gap that would end past the end of
-the stream: it's far more likely a false sync code than the other side of a gap.
+next sync code. A frame that starts before the previous one ends does not follow it. Nor does a frame after a gap when the stream's length
+is unknown, when there is no silence to fill the gap, or when it would end past the end of the stream. Such a frame is far more likely a
+false sync code than the other side of a gap.
 */
 static drflac_bool32 drflac__is_next_flac_frame(drflac* pFlac, const drflac_frame_header* pPrevious, const drflac_frame_header* pNext, drflac_uint64* pLostPCMFrames)
 {
@@ -6389,7 +6395,8 @@ static drflac_uint64 drflac__get_max_bytes_of_pcm_frames(drflac* pFlac, drflac_u
 /*
 Finds the first FLAC frame at or after the current position, and before the stream position limit, whose frame header and whole-frame CRC
 check out, and decodes it. It's for a position that isn't known to be the start of a frame, where a sync code can be a false one, so a
-frame that does not check out is skipped here. The frame starts the stream afresh: any silence for lost frames that was pending is not.
+frame that does not check out is skipped here. The frame starts the stream afresh. Any silence for lost frames that was pending is dropped,
+and so is the frame that was waiting behind it.
 */
 static drflac_bool32 drflac__find_and_decode_next_valid_flac_frame(drflac* pFlac, drflac_uint64 limit)
 {
@@ -6618,7 +6625,10 @@ static drflac_bool32 drflac__seek_to_pcm_frame__seek_table(drflac* pFlac, drflac
         return DRFLAC_FALSE;
     }
 
-    /* A damaged seek table can have an offset no stream could reach, and a seek to it would be a long walk to nowhere. */
+    /*
+    A damaged seek table can have an offset no stream could reach. drflac__seek_to_byte() moves at most 0x7FFFFFFF bytes per seek call, so
+    reaching such an offset could take billions of calls.
+    */
     if (pFlac->pSeekpoints[iClosestSeekpoint].flacFrameOffset > drflac__get_max_bytes_of_pcm_frames(pFlac, pFlac->pSeekpoints[iClosestSeekpoint].firstPCMFrame)) {
         return DRFLAC_FALSE;
     }
@@ -6667,8 +6677,8 @@ static drflac_bool32 drflac__seek_to_pcm_frame__seek_table(drflac* pFlac, drflac
     /* Getting here means we need to use a slower algorithm because the binary search method failed or cannot be used. */
 
     /*
-    If we are seeking forward and the closest seekpoint is _before_ the current sample, we just seek forward from where we are. Otherwise we start seeking
-    from the seekpoint's first sample.
+    If we are seeking forward and the closest seekpoint is _before_ the current sample, we just seek forward from where we are. Otherwise we decode
+    forward from the frame at the seekpoint's offset.
     */
     if (pcmFrameIndex >= pFlac->currentPCMFrame && pFlac->pSeekpoints[iClosestSeekpoint].firstPCMFrame <= pFlac->currentPCMFrame) {
         /* Optimized case. Just seek forward from where we are. */
@@ -8733,7 +8743,10 @@ static drflac* drflac_open_with_metadata_private(drflac_read_proc onRead, drflac
         }
     }
 
-    /* A stream that doesn't say how long it is can't show its duration or be seeked by bisection until its length is found. */
+    /*
+    A stream that doesn't say how long it is has a totalPCMFrameCount of 0 until its length is found. Until then a seek can't be clamped to
+    its end or done by bisection.
+    */
     if (init.hasStreamInfoBlock && init.container == drflac_container_native && pFlac->totalPCMFrameCount == 0) {
         drflac__find_unknown_total_pcm_frame_count(pFlac);
     }
@@ -11548,8 +11561,8 @@ static DRFLAC_INLINE void drflac_read_pcm_frames_f32__decode_right_side__referen
 {
     drflac_uint64 i;
     for (i = 0; i < frameCount; ++i) {
-        drflac_uint32 side  = (drflac_uint32)pInputSamples0[i] << unusedBitsPerSample + pFlac->currentFLACFrame.subframes[0].wastedBitsPerSample);
-        drflac_uint32 right = (drflac_uint32)pInputSamples1[i] << unusedBitsPerSample + pFlac->currentFLACFrame.subframes[1].wastedBitsPerSample);
+        drflac_uint32 side  = (drflac_uint32)pInputSamples0[i] << (unusedBitsPerSample + pFlac->currentFLACFrame.subframes[0].wastedBitsPerSample);
+        drflac_uint32 right = (drflac_uint32)pInputSamples1[i] << (unusedBitsPerSample + pFlac->currentFLACFrame.subframes[1].wastedBitsPerSample);
         drflac_uint32 left  = right + side;
 
         pOutputLeft[i*stride] = (float)((drflac_int32)left  / 2147483648.0);
@@ -12035,8 +12048,8 @@ static DRFLAC_INLINE void drflac_read_pcm_frames_f32__decode_mid_side(drflac* pF
 static DRFLAC_INLINE void drflac_read_pcm_frames_f32__decode_independent_stereo__reference(drflac* pFlac, drflac_uint64 frameCount, drflac_uint32 unusedBitsPerSample, const drflac_int32* pInputSamples0, const drflac_int32* pInputSamples1, float* pOutputLeft, float* pOutputRight, drflac_uint64 stride)
 {
     for (drflac_uint64 i = 0; i < frameCount; ++i) {
-        pOutputLeft[i*stride] = (float)((drflac_int32)((drflac_uint32)pInputSamples0[i] << unusedBitsPerSample + pFlac->currentFLACFrame.subframes[0].wastedBitsPerSample)) / 2147483648.0);
-        pOutputRight[i*stride] = (float)((drflac_int32)((drflac_uint32)pInputSamples1[i] << unusedBitsPerSample + pFlac->currentFLACFrame.subframes[1].wastedBitsPerSample)) / 2147483648.0);
+        pOutputLeft[i*stride] = (float)((drflac_int32)((drflac_uint32)pInputSamples0[i] << (unusedBitsPerSample + pFlac->currentFLACFrame.subframes[0].wastedBitsPerSample)) / 2147483648.0);
+        pOutputRight[i*stride] = (float)((drflac_int32)((drflac_uint32)pInputSamples1[i] << (unusedBitsPerSample + pFlac->currentFLACFrame.subframes[1].wastedBitsPerSample)) / 2147483648.0);
     }
 }
 #endif
@@ -12174,7 +12187,7 @@ static DRFLAC_INLINE void drflac_read_pcm_frames_f32__decode_independent_stereo(
 /*
 One FLAC frame's stereo f32 conversion, for its channel assignment. Always inlined, and called with a constant stride, so that the interleaved
 and the planar layouts each get their own copy of the conversions with the stride folded in: with a stride that varies, the compiler keeps
-the layout's test inside every loop and stops unrolling them, which cost the interleaved read about 3%.
+the layout's test inside every loop and stops unrolling them, which slows the interleaved read.
 */
 static DRFLAC_INLINE void drflac__read_pcm_frames_f32__stereo(drflac* pFlac, drflac_uint64 frameCount, drflac_uint32 unusedBitsPerSample, const drflac_int32* pInputSamples0, const drflac_int32* pInputSamples1, float* pOutputLeft, float* pOutputRight, drflac_uint64 stride)
 {
