@@ -5,7 +5,9 @@ Tags, their disk cache, the playlist scan and embedded artwork. `FolderArt/`, th
 - `AudioTrackMetadataCache` is the facade, and `AudioTrackMetadataLoader` the one sweep behind it (private).
 - `MetadataParseCoordinator` is the per-path owner/waiter table and nothing else.
 - `AudioTrackMetadata` is the immutable tags plus the display-facing art API.
+- `TagLibAudioFile` is the TagLib side of the parse: the file factory, the ranged stream, the format name and the embedded-art read. Its header is C++, so only `.mm` files import it.
 - `AudioTrackArtwork` is one row's art lifecycle (private behind the metadata). `ArtworkLoadRegistry` is its admission counters, a file boundary, not a second owner.
+- `EmbeddedThumbnailCache` is the decoded thumbnails every row shares, in one bounded LRU.
 
 **Do not add a runner, driver or second coordinator.** Straight-line metadata work goes in the loader, per-row art work in `AudioTrackArtwork`. The lettered items cited (`spec A1`, `J4`, `J6`) are `docs/file-loading-spec.md`'s.
 
@@ -42,7 +44,7 @@ A loader snapshots `AudioLoadingConfiguration`, so a settings change reaches onl
 
 **A parse never waits for a download, and never reads ahead.** Both fallback opens, the FLAC-length one included, pass `VibeNeverWaitsForAStream` (`AudioFileHandle.h`, compared by identity). Against a file a transfer is still writing, the open fails at once, and the facts come once the file is on disk. On a network share the open reads the file directly, as TagLib's parse does.
 
-**TRAP: the TagLib parse must refuse what that open refuses.** TagLib's FLAC sniff takes FLAC in Ogg, which playback refuses. So no Ogg stream parses as FLAC (`AudioTrackMetadata.mm`), and such a file is a failed parse, not a row that looks playable.
+**TRAP: the TagLib parse must refuse what that open refuses.** TagLib's FLAC sniff takes FLAC in Ogg, which playback refuses. So no Ogg stream parses as FLAC (`TagLibAudioFile.mm`). Such a file is a failed parse, not a row that looks playable.
 
 **A file neither reads is a failed parse: filename-fallback metadata, never cached.** The holder and every waiter get their own fallback copies, so no row stays unresolved. Installation and publication compare the exact metadata object under the track monitor. A racing success replaces a fallback, and the stale fallback's delivery drops.
 
@@ -54,7 +56,7 @@ A loader snapshots `AudioLoadingConfiguration`, so a settings change reaches onl
 
 **Across all rows, at most two art reads or decodes run and five wait** (`ArtworkLoadRegistry.h`). A request past the bound is dropped *before* it marks the row pending, so the next redraw re-requests it (spec J6). Only a source-file extraction asks for `MetadataPriority` materialization. A remote placeholder's art is read by range as its tags are (`beginRequest:`), or a lost rendition would download the whole song to show its picture. It still waits out a foreground transfer, as the scan does. An in-memory decode or the folder fallback uses worker admission without materializing the song. `Yielded`, `AdmissionExhausted` and worker rejection retry at a capped 0.1–1 s backoff without spending the three-failure budget. `Failed` spends it. A generation captured at admission must still match before a worker claims extraction or stores its result.
 
-**Parsed metadata is compacted before publication**: a 128px thumbnail is encoded, then the original bytes released. Rows hold only those bytes. Decoded thumbnails live in one 16,384-entry LRU, flushed on an iOS memory warning, with each entry removed when its row's artwork deallocates. Only the display path populates it, so a playlist-wide scan cannot evict visible pixels. A miss enters a two-running, 126-pending decode bound. A main-thread notification then redraws only visible rows still showing that metadata. **Staleness has one fence**: every data change replaces the row's identity key and clears its pending flag, so a decode is current exactly when its captured key is still installed. Full art decodes on demand at no more than 1024px. Which surfaces use the thumbnail is the root guarantee.
+**Parsed metadata is compacted before publication**: a 128px thumbnail is encoded, then the original bytes released. Rows hold only those bytes. Decoded thumbnails live in one 16,384-entry LRU (`EmbeddedThumbnailCache`), flushed on an iOS memory warning, with each entry removed when its row's artwork deallocates. Only the display path populates it, so a playlist-wide scan cannot evict visible pixels. A miss enters a two-running, 126-pending decode bound. A main-thread notification then redraws only visible rows still showing that metadata. **Staleness has one fence**: every data change replaces the row's identity key and clears its pending flag, so a decode is current exactly when its captured key is still installed. Full art decodes on demand at no more than 1024px. Which surfaces use the thumbnail is the root guarantee.
 
 **Compaction also archives a display-art rendition beside the entry.** It has a `#displayArt`-suffixed key in the same store, on the same LRU and age terms. `kVibeArchivedDisplayArtDimension` is 640 on the mac and 1024 on iOS, the size of the live decode it stands in for. Bytes within the bound are archived verbatim. Larger art is downscaled with its aspect kept, since the square crop is display-time policy and Now Playing gets uncropped art. **The rendition lives only on disk: rows never retain it.** The parse hands it to the loader as an out-param, so per-row memory stays at the 128px bytes.
 

@@ -6,11 +6,13 @@
 #import "FavoritesViewController.h"
 
 #import "AppSettings.h"
-#import "BrowserViewController.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
+#import "FileRow.h"
 #import "PlaybackController.h"
+#import "PlaybackController+ReplacePrompt.h"
 #import "NSURLUtil.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
 static NSString *const kFavoriteCellIdentifier = @"favorite";
@@ -98,9 +100,9 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     content.text = favorite.name;
     // Nil, not empty, so the row draws one line.
     content.secondaryText = favorite.location.length > 0 ? favorite.location : nil;
-    VibeApplyFileNameStyle(content);
-    VibeApplyFileIcon(content, nil, YES, nil);
-    VibeApplyRowContent(cell, content, [self favoriteIsOpening:favorite]);
+    [content vibeApplyFileNameStyle];
+    [content vibeApplyFileIconForName:nil folder:YES art:nil];
+    [cell vibeApplyRowContent:content opening:[self favoriteIsOpening:favorite]];
     return cell;
 }
 
@@ -258,13 +260,12 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 }
 
 - (void)playFolderURL:(NSURL *)folderURL token:(uint64_t)token {
-    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:@[folderURL] inFolder:NO
-                                                token:token];
+    [_playback confirmReplacingPlaylistFrom:self openingURLs:@[folderURL] inFolder:NO token:token];
 }
 
 // The row stays: a signed-out provider or an unmounted volume is temporary.
 - (void)showUnavailableAlertForFavorite:(FavoriteFolder *)favorite {
-    VibePresentAlert(self, favorite.name, STR_ERROR_FAVORITE_UNAVAILABLE);
+    [self vibePresentAlertWithTitle:favorite.name message:STR_ERROR_FAVORITE_UNAVAILABLE];
 }
 
 @end

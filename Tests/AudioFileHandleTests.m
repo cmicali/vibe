@@ -11,7 +11,7 @@
 
 #import "AudioFileHandle.h"
 #import "AudioFixtures.h"
-#import "NSURL+AudioOpen.h"
+#import "NSURL+Emptiness.h"
 
 @interface AudioFileHandleTests : XCTestCase
 @property (strong) NSURL *fixtureDirectory;

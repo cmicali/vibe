@@ -589,6 +589,23 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_ABOUT_WEB            NSLS(@"settings.about.web",                           @"Website",                  @"Settings, About pane on both platforms: row title beside the link to the app's website. Keep it to one word.")
 #define STR_SETTINGS_ABOUT_SUPPORT        NSLS(@"settings.about.support",                       @"Support",                  @"Settings, About pane on both platforms: row title beside the link to the app's support page, where a user gets help or reports a problem.")
 
+#define STR_SETTINGS_TRANSITIONS_SECTION NSLS(@"settings.playback.transitions", @"Track transitions", @"Settings, Playback: heading above the On track end and Crossfade settings, on both platforms.")
+#define STR_SETTINGS_CONTROLS_SECTION NSLS(@"settings.playback.controls", @"Playback controls", @"macOS Settings: Playback controls")
+#define STR_SETTINGS_CONVERT_SECTION NSLS(@"settings.files.conversion", @"FLAC conversion", @"macOS Settings: FLAC conversion")
+#define STR_SETTINGS_WAVEFORM_LEVELS_CAPTION NSLS(@"settings.appearance.waveform_levels_caption", @"Size waveform to fit vertically", @"macOS Settings, Appearance pane: caption under Normalize waveform. Applies to all themes. Changes the waveform display only. Playback volume is unchanged.")
+#define STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE NSLS(@"settings.appearance.waveform_levels_unavailable", @"%@ does not support waveform height", @"macOS Settings: caption when the selected waveform style does not support waveform height controls. %@ is the localized waveform style name.")
+#define STR_SETTINGS_THEME_CURRENT NSLS(@"settings.appearance.current_theme", @"Current theme", @"macOS Settings: Current theme")
+#define STR_SETTINGS_THEME_MODIFIED NSLS(@"settings.appearance.modified", @"%@ (Modified)", @"macOS Settings: %@ (Modified)")
+#define STR_SETTINGS_THEME_REVERT NSLS(@"settings.appearance.revert", @"Revert", @"macOS Settings: Revert")
+#define STR_SETTINGS_THEME_PREVIEW NSLS(@"settings.appearance.preview", @"Preview appearance", @"macOS Settings: Preview appearance")
+#define STR_SETTINGS_APPEARANCE_SINGLE_THEME_CAPTION NSLS(@"settings.appearance.single_theme_caption", @"The %@ theme uses one palette and keeps the window in dark appearance", @"macOS Settings, Appearance pane: caption under Window appearance when the light/dark choice is unavailable because the active theme uses a single palette, which keeps the window dark. %@ is the theme's name, chosen on the Themes pane.")
+#define STR_SETTINGS_THEME_ON_DARK_ART NSLS(@"settings.appearance.on_dark_art", @"On dark artwork", @"macOS Settings: On dark artwork")
+#define STR_SETTINGS_THEME_ON_LIGHT_ART NSLS(@"settings.appearance.on_light_art", @"On light artwork", @"macOS Settings: On light artwork")
+#define STR_SETTINGS_THEME_UNDO_REMOVE NSLS(@"settings.appearance.undo_remove", @"Undo Remove Theme", @"macOS Settings: Undo Remove Theme")
+#define STR_SETTINGS_THEME_UNDO_EDIT NSLS(@"settings.appearance.undo_edit", @"Undo Theme Edit", @"macOS Settings: Undo Theme Edit")
+#define STR_SETTINGS_THEME_REDO_REMOVE NSLS(@"settings.appearance.redo_remove", @"Redo Remove Theme", @"macOS Edit menu and toolbar: repeat the theme removal that was undone.")
+#define STR_SETTINGS_THEME_REDO_EDIT NSLS(@"settings.appearance.redo_edit", @"Redo Theme Edit", @"macOS Edit menu and toolbar: repeat a theme edit that was undone.")
+
 #pragma mark - Accessibility labels
 
 // Only the controls with no menu counterpart; the transport buttons reuse the
@@ -684,6 +701,12 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_WIDGET_WAVEFORM_MATCH NSLS(@"settings.widget_waveform.match_app", @"Match app", @"iOS settings screen, widget waveform style list: the first row, meaning the widget draws in whatever style the app is set to rather than one of its own. Keep it short — it sits in a narrow value column.")
 #define STR_SETTINGS_WIDGET_SECTION NSLS(@"settings.appearance.widget_section", @"Widget", @"iOS settings screen, Appearance: title of the group for the home-screen widget's waveform, below the app's Waveform group. Use the system's word for a home-screen widget.")
 
+#define STR_PLAYER_FX_PILL         NSLS(@"player.fx_pill",         @"FX",           @"iOS: the label on the small round button in the full-screen player's bottom bar that opens the effects pad when touched. 'FX' is the DJ term for effects; keep it very short — the button is a 56-point circle.")
+#define STR_PLAYER_FX_AXIS_LOW_CUT NSLS(@"player.fx_axis.low_cut", @"LOW CUT ↑",    @"iOS: caption in the top-left corner of the effects pad naming its vertical axis: dragging up raises a low-cut (high-pass) filter that removes the bass. Keep the arrow; upper case is the pad's style.")
+#define STR_PLAYER_FX_AXIS_REVERB_DELAY NSLS(@"player.fx_axis.reverb_delay", @"REVERB → DELAY", @"iOS: caption in the bottom-right corner of the effects pad naming its horizontal axis: dragging right adds reverb, and past the middle a beat-synced delay (echo) on top. Keep the arrow; upper case is the pad's style.")
+#define STR_A11Y_ADD_FAVORITE      NSLS(@"a11y.favorite.add",      @"Add to Favorites",      @"iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.")
+#define STR_A11Y_PLAYLIST_MENU     NSLS(@"a11y.playlist.menu",     @"Options",               @"iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.")
+
 #pragma mark - Home-screen widget
 
 #define STR_WIDGET_DESCRIPTION    NSLS(@"widget.description",    @"What Vibe is currently playing.", @"iOS widget gallery: the one-line description under every Vibe widget's name, shown while the user is choosing a widget to add. Vibe is the app name.")
@@ -762,29 +785,5 @@ static inline NSString *VibeAppName(void) {
 #define STR_A11Y_PLAYER_OUTPUT_ROUTE NSLS(@"a11y.player.output_route", @"Output Device", @"iOS: accessibility label for the button on the full-screen player that opens the system list of AirPlay and Bluetooth devices to play through.")
 #define STR_A11Y_PLAYER_FX_PAD     NSLS(@"a11y.player.fx_pad",     @"Effects pad",  @"iOS: accessibility label for the FX pad on the full-screen player — a touch pad that applies DJ effects (a low-cut filter, reverb, delay) while a finger holds it.")
 #define STR_A11Y_PLAYER_FX_PAD_HINT NSLS(@"a11y.player.fx_pad_hint", @"Touch and drag. Up cuts the bass, right adds reverb and then delay. Lift to release.", @"iOS: accessibility hint for the FX pad on the full-screen player, explaining the drag: the vertical axis is a low-cut filter, the horizontal axis adds reverb then delay, and lifting the finger turns every effect off.")
-#define STR_PLAYER_FX_PILL         NSLS(@"player.fx_pill",         @"FX",           @"iOS: the label on the small round button in the full-screen player's bottom bar that opens the effects pad when touched. 'FX' is the DJ term for effects; keep it very short — the button is a 56-point circle.")
-#define STR_PLAYER_FX_AXIS_LOW_CUT NSLS(@"player.fx_axis.low_cut", @"LOW CUT ↑",    @"iOS: caption in the top-left corner of the effects pad naming its vertical axis: dragging up raises a low-cut (high-pass) filter that removes the bass. Keep the arrow; upper case is the pad's style.")
-#define STR_PLAYER_FX_AXIS_REVERB_DELAY NSLS(@"player.fx_axis.reverb_delay", @"REVERB → DELAY", @"iOS: caption in the bottom-right corner of the effects pad naming its horizontal axis: dragging right adds reverb, and past the middle a beat-synced delay (echo) on top. Keep the arrow; upper case is the pad's style.")
-#define STR_A11Y_ADD_FAVORITE      NSLS(@"a11y.favorite.add",      @"Add to Favorites",      @"iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.")
-#define STR_A11Y_PLAYLIST_MENU     NSLS(@"a11y.playlist.menu",     @"Options",               @"iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.")
-
-
-#pragma mark - macOS settings clarity
-#define STR_SETTINGS_TRANSITIONS_SECTION NSLS(@"settings.playback.transitions", @"Track transitions", @"Settings, Playback: heading above the On track end and Crossfade settings, on both platforms.")
-#define STR_SETTINGS_CONTROLS_SECTION NSLS(@"settings.playback.controls", @"Playback controls", @"macOS Settings: Playback controls")
-#define STR_SETTINGS_CONVERT_SECTION NSLS(@"settings.files.conversion", @"FLAC conversion", @"macOS Settings: FLAC conversion")
-#define STR_SETTINGS_WAVEFORM_LEVELS_CAPTION NSLS(@"settings.appearance.waveform_levels_caption", @"Size waveform to fit vertically", @"macOS Settings, Appearance pane: caption under Normalize waveform. Applies to all themes. Changes the waveform display only. Playback volume is unchanged.")
-#define STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE NSLS(@"settings.appearance.waveform_levels_unavailable", @"%@ does not support waveform height", @"macOS Settings: caption when the selected waveform style does not support waveform height controls. %@ is the localized waveform style name.")
-#define STR_SETTINGS_THEME_CURRENT NSLS(@"settings.appearance.current_theme", @"Current theme", @"macOS Settings: Current theme")
-#define STR_SETTINGS_THEME_MODIFIED NSLS(@"settings.appearance.modified", @"%@ (Modified)", @"macOS Settings: %@ (Modified)")
-#define STR_SETTINGS_THEME_REVERT NSLS(@"settings.appearance.revert", @"Revert", @"macOS Settings: Revert")
-#define STR_SETTINGS_THEME_PREVIEW NSLS(@"settings.appearance.preview", @"Preview appearance", @"macOS Settings: Preview appearance")
-#define STR_SETTINGS_APPEARANCE_SINGLE_THEME_CAPTION NSLS(@"settings.appearance.single_theme_caption", @"The %@ theme uses one palette and keeps the window in dark appearance", @"macOS Settings, Appearance pane: caption under Window appearance when the light/dark choice is unavailable because the active theme uses a single palette, which keeps the window dark. %@ is the theme's name, chosen on the Themes pane.")
-#define STR_SETTINGS_THEME_ON_DARK_ART NSLS(@"settings.appearance.on_dark_art", @"On dark artwork", @"macOS Settings: On dark artwork")
-#define STR_SETTINGS_THEME_ON_LIGHT_ART NSLS(@"settings.appearance.on_light_art", @"On light artwork", @"macOS Settings: On light artwork")
-#define STR_SETTINGS_THEME_UNDO_REMOVE NSLS(@"settings.appearance.undo_remove", @"Undo Remove Theme", @"macOS Settings: Undo Remove Theme")
-#define STR_SETTINGS_THEME_UNDO_EDIT NSLS(@"settings.appearance.undo_edit", @"Undo Theme Edit", @"macOS Settings: Undo Theme Edit")
-#define STR_SETTINGS_THEME_REDO_REMOVE NSLS(@"settings.appearance.redo_remove", @"Redo Remove Theme", @"macOS Edit menu and toolbar: repeat the theme removal that was undone.")
-#define STR_SETTINGS_THEME_REDO_EDIT NSLS(@"settings.appearance.redo_edit", @"Redo Theme Edit", @"macOS Edit menu and toolbar: repeat a theme edit that was undone.")
 
 #endif /* VibeStrings_h */

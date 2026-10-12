@@ -10,6 +10,7 @@
 #import "ArtworkLoadRegistry.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioWorkScheduler.h"
+#import "EmbeddedThumbnailCache.h"
 #import "FolderArtResolver.h"
 #import "PlatformImage.h"
 
@@ -21,16 +22,6 @@ static const NSUInteger kMaxEmbeddedArtExtractionFailures = 3;
 // poll; it only gates the next pass that asks.
 static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
 
-// A session's scrolled rows stay decoded (spec H): <=128px RGBA, ~64 KiB each,
-// ~1 GiB only at 16k distinct rows. iOS flushes it on a memory warning rather
-// than carrying a byte cap.
-static const NSUInteger kEmbeddedThumbnailCacheCount = 16384;
-// Test-only; 0 is the production bound.
-static NSUInteger sEmbeddedThumbnailCacheLimitOverride = 0;
-static NSUInteger VibeEmbeddedThumbnailCacheLimit(void) {
-    return sEmbeddedThumbnailCacheLimitOverride
-            ?: kEmbeddedThumbnailCacheCount;
-}
 static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
 // Parked blocks for visible rows, unrelated to the pixel cache's count.
 static const NSUInteger kEmbeddedThumbnailDecodePendingCount = 126;
@@ -56,182 +47,6 @@ static inline BOOL VibeEmbeddedArtFactHasArt(VibeEmbeddedArtFact fact) {
 static inline BOOL VibeEmbeddedArtFactIsSettled(VibeEmbeddedArtFact fact) {
     return fact == VibeEmbeddedArtFactArtless
             || fact == VibeEmbeddedArtFactHasArtSettled;
-}
-
-// An explicit LRU: NSCache treats its limits as suggestions, and this bound
-// must hold.
-@interface EmbeddedThumbnailKey : NSObject <NSCopying>
-@end
-
-@implementation EmbeddedThumbnailKey
-- (id)copyWithZone:(NSZone *)zone {
-    (void)zone;
-    return self;
-}
-@end
-
-// TRAP: _images is the sole owner of every node; the links are unowned (strong
-// ones would cycle along the chain). Safe only because every removal unlinks
-// the node first, in the same critical section.
-@interface EmbeddedThumbnailNode : NSObject
-@property (nonatomic, strong) VibeImage *image;
-@property (nonatomic, strong) EmbeddedThumbnailKey *key;
-@property (nonatomic, unsafe_unretained, nullable) EmbeddedThumbnailNode *newer;
-@property (nonatomic, unsafe_unretained, nullable) EmbeddedThumbnailNode *older;
-@end
-
-@implementation EmbeddedThumbnailNode
-@end
-
-@interface EmbeddedThumbnailCache : NSObject
-- (nullable VibeImage *)imageForKey:(EmbeddedThumbnailKey *)key;
-- (void)setImage:(VibeImage *)image forKey:(EmbeddedThumbnailKey *)key;
-- (void)removeImageForKey:(EmbeddedThumbnailKey *)key;
-- (void)removeAllImages;
-@property (nonatomic, readonly) NSUInteger count;
-@end
-
-// O(1) per operation: every row draw hits it.
-@implementation EmbeddedThumbnailCache {
-    NSMutableDictionary<EmbeddedThumbnailKey *, EmbeddedThumbnailNode *> *_images;
-    __unsafe_unretained EmbeddedThumbnailNode *_mostRecent;
-    __unsafe_unretained EmbeddedThumbnailNode *_leastRecent;
-}
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        _images = [NSMutableDictionary dictionary];
-    }
-    return self;
-}
-
-#pragma mark - Recency list. All four run with the monitor held.
-
-- (void)unlinkNode:(EmbeddedThumbnailNode *)node {
-    if (node.newer) {
-        node.newer.older = node.older;
-    }
-    else if (_mostRecent == node) {
-        _mostRecent = node.older;
-    }
-    if (node.older) {
-        node.older.newer = node.newer;
-    }
-    else if (_leastRecent == node) {
-        _leastRecent = node.newer;
-    }
-    node.newer = nil;
-    node.older = nil;
-}
-
-- (void)linkNodeAtHead:(EmbeddedThumbnailNode *)node {
-    node.older = _mostRecent;
-    node.newer = nil;
-    _mostRecent.newer = node;
-    _mostRecent = node;
-    if (!_leastRecent) {
-        _leastRecent = node;
-    }
-}
-
-- (void)touchNode:(EmbeddedThumbnailNode *)node {
-    if (_mostRecent == node) {
-        return;
-    }
-    [self unlinkNode:node];
-    [self linkNodeAtHead:node];
-}
-
-// Unlink before the removal that frees, so a caller may pass the unowned
-// _leastRecent.
-// TRAP: the strong local is load-bearing. Once the row is gone the dictionary
-// and the node hold the key's only references (copyWithZone: returns self),
-// so the removal would otherwise hash a key its own value had just freed.
-- (void)evictNode:(EmbeddedThumbnailNode *)node {
-    EmbeddedThumbnailKey *key = node.key;
-    [self unlinkNode:node];
-    [_images removeObjectForKey:key];
-}
-
-#pragma mark -
-
-- (VibeImage *)imageForKey:(EmbeddedThumbnailKey *)key {
-    @synchronized (self) {
-        EmbeddedThumbnailNode *node = _images[key];
-        if (!node) {
-            return nil;
-        }
-        [self touchNode:node];
-        return node.image;
-    }
-}
-
-- (void)setImage:(VibeImage *)image forKey:(EmbeddedThumbnailKey *)key {
-    @synchronized (self) {
-        EmbeddedThumbnailNode *node = _images[key];
-        if (node) {
-            node.image = image;
-            [self touchNode:node];
-        }
-        else {
-            node = [[EmbeddedThumbnailNode alloc] init];
-            node.image = image;
-            node.key = key;
-            _images[key] = node;
-            [self linkNodeAtHead:node];
-        }
-        while (_images.count > VibeEmbeddedThumbnailCacheLimit() && _leastRecent) {
-            [self evictNode:_leastRecent];
-        }
-    }
-}
-
-- (void)removeImageForKey:(EmbeddedThumbnailKey *)key {
-    @synchronized (self) {
-        EmbeddedThumbnailNode *node = _images[key];
-        if (node) {
-            [self evictNode:node];
-        }
-    }
-}
-
-- (void)removeAllImages {
-    @synchronized (self) {
-        // The unowned ends must not outlive the nodes.
-        _mostRecent = nil;
-        _leastRecent = nil;
-        [_images removeAllObjects];
-    }
-}
-
-- (NSUInteger)count {
-    @synchronized (self) {
-        return _images.count;
-    }
-}
-
-@end
-
-
-static EmbeddedThumbnailCache *VibeEmbeddedThumbnailCache(void) {
-    static EmbeddedThumbnailCache *cache;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        cache = [[EmbeddedThumbnailCache alloc] init];
-#if !TARGET_OS_OSX
-        // No pressure eviction of its own; visible rows re-request.
-        [[NSNotificationCenter defaultCenter]
-                addObserverForName:UIApplicationDidReceiveMemoryWarningNotification
-                            object:nil
-                             queue:nil
-                        usingBlock:^(NSNotification *note) {
-            (void)note;
-            [cache removeAllImages];
-        }];
-#endif
-    });
-    return cache;
 }
 
 static AudioWorkScheduler *VibeEmbeddedThumbnailDecodeScheduler(void) {
@@ -505,7 +320,7 @@ static ArtworkLoadRegistry *VibeExistingArtworkLoadRegistry(void) {
 
 // Applies from the next setImage:; the caller clears the cache around it.
 + (void)setDecodedThumbnailCacheLimitForTesting:(NSUInteger)limit {
-    sEmbeddedThumbnailCacheLimitOverride = limit;
+    VibeEmbeddedThumbnailCacheSetLimitOverride(limit);
 }
 
 + (void)clearDecodedThumbnailCacheForTesting {

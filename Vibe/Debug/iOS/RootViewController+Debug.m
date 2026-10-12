@@ -28,6 +28,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
 #import "PlaybackController.h"
+#import "PlaybackController+ReplacePrompt.h"
 #import "AudioFX.h"
 #import "Playlist.h"
 
@@ -412,7 +413,7 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
 }
 
 - (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *, NSError *))completion {
-    [BrowserViewController openLinkString:link replacingPlaylistOf:self.playback from:self completion:completion];
+    [self.playback openLinkString:link replacingPlaylistFrom:self completion:completion];
 }
 
 - (BrowserViewController *)debugActiveBrowser {

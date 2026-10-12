@@ -30,7 +30,7 @@ The playable extension set is `Common/PlayableExtensions`. The walk's filter and
 
 ## Traps
 
-**Every audio file is opened through `AudioFileHandle` (`Audio/`). `NSURL+AudioOpen` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. Its rule is `VibeStatIsEmptyOrDirectory`, for the folder walk, which has a stat in hand. There is no preflight. A handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
+**Every audio file is opened through `AudioFileHandle` (`Audio/`). `NSURL+Emptiness` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. Its rule is `VibeStatIsEmptyOrDirectory`, for the folder walk, which has a stat in hand. There is no preflight. A handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
 
 **TRAP: the emptiness test is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`.** A dataless cloud file has its true size but zero allocated blocks, so an allocation test would reject every cloud track. `stat()` never materializes the file.
 
@@ -43,3 +43,7 @@ The playable extension set is `Common/PlayableExtensions`. The walk's filter and
 ## Categories
 
 **Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit or UIKit class belongs in `Mac/` or `iOS/`. A portable one belongs in `Categories/`, and one on the app's own classes beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class differs per target (root `AGENTS.md`, Vocabulary).
+
+## StallWatch samples stuck threads
+
+**`StallWatch` is the beta stall log's watchdogs and stack sampler.** It reads no player state. The player starts the watchers and suspends the queue's one while it has nothing that can stall (`Audio/AGENTS.md`, diagnostics). The player also samples the output's IO thread through `VibeFindThread` and `VibeSampleStack`. Everything but the scene flag is compiled only under `VIBE_VERBOSE_LOGGING`.

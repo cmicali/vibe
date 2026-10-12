@@ -121,7 +121,18 @@ def tool_spec(src, dumped):
 
     def path_of(source):
         return source if isinstance(source, str) else source.get('path', '')
-    sources = [s for s in app['sources'] if path_of(s) != 'main.m' and not path_of(s).startswith('Resources')]
+
+    def without_main(source):
+        # Older checkouts keep main.m at the repo root, newer ones under
+        # Vibe/Mac/App. A directory entry must not bring it in beside the
+        # harness's own main.
+        if '.' in Path(path_of(source)).name:
+            return source
+        source = {'path': source} if isinstance(source, str) else dict(source)
+        source['excludes'] = list(source.get('excludes', [])) + ['main.m', '**/main.m']
+        return source
+    sources = [without_main(s) for s in app['sources']
+               if Path(path_of(s)).name != 'main.m' and not path_of(s).startswith('Resources')]
     sources.append({'path': 'Tests/BenchComponents', 'excludes': ['**/*.md', '**/*.py']})
     settings = json.loads(json.dumps(app.get('settings', {})))
     for block in [settings.get('base', {})] + list(settings.get('configs', {}).values()):

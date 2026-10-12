@@ -156,7 +156,6 @@ targets:
     type: application
     platform: macOS
     sources:
-      - path: main.m                          # repo root, outside Vibe/
       # One recursive entry per top-level subsystem rather than `- path: Vibe`,
       # so a new top-level boundary is a deliberate edit.
       #
@@ -785,7 +784,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
-      - path: Vibe/Audio/PINCache+VibeAudioCache.m
+      - path: Vibe/Util/Categories/PINCache+VibeAudioCache.m
       - path: Vibe/ThirdParty/PINCache/PINCache.m
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
@@ -830,6 +829,7 @@ targets:
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioFileMaterializationTokens.m
       - path: Vibe/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
@@ -840,6 +840,7 @@ targets:
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtEntry.m
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/EmbeddedThumbnailCache.m
       - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
       - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Common/AppSettings.m
@@ -848,11 +849,13 @@ targets:
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/CloudFileAvailability.m
       - path: Vibe/Loading/DownloadProgressMonitor.m
       - path: Vibe/Loading/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
       - path: Vibe/Loading/Net/LinkStore.m
+      - path: Vibe/Loading/Net/LinkClient.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -865,14 +868,14 @@ targets:
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
-      - path: Vibe/Util/Mac/TrackCommands.m
+      - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
-      - path: Vibe/Util/Categories/NSURL+AudioOpen.m
+      - path: Vibe/Util/Categories/NSURL+Emptiness.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
@@ -980,6 +983,7 @@ targets:
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
+      - path: Vibe/Util/StallWatch.m
       - path: Vibe/Audio/AudioVoiceBus.m
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioResampler.mm
@@ -1001,6 +1005,7 @@ targets:
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioFileMaterializationTokens.m
       - path: Vibe/Loading/AudioWorkScheduler.m
       - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
@@ -1015,16 +1020,18 @@ targets:
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Debug/VibeWorkTally.m
       - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/CloudFileAvailability.m
       - path: Vibe/Loading/DownloadProgressMonitor.m
       - path: Vibe/Loading/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
       - path: Vibe/Loading/Net/LinkStore.m
+      - path: Vibe/Loading/Net/LinkClient.m
       - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
-      - path: Vibe/Util/Categories/NSURL+AudioOpen.m
+      - path: Vibe/Util/Categories/NSURL+Emptiness.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
     settings:

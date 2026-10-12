@@ -2,7 +2,7 @@
 
 The application object and the app-wide services it owns. The test for this directory is ownership: **`AppDelegate` creates it, or the OS hands it to `AppDelegate`.** A service several features use but none owns lives here. A service one feature owns lives with that feature.
 
-`main.m` at the repo root creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `NSURLUtil`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how a path utility in `Vibe/Util/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
+`main.m` creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `NSURLUtil`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how a path utility in `Vibe/Util/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
 
 ## Opening files is a funnel, not an event
 
@@ -104,3 +104,11 @@ It is two calls because of two threads. `VibeDebugInfoSnapshot` reads on main wh
 - **The log is all of Vibe's own lines, the audio frameworks' lines at any stored level, and anyone's errors**, capped at the newest 100,000 lines. Device trouble is reported in the frameworks' lines. Without `VIBE_VERBOSE_LOGGING` (root `AGENTS.md`), Vibe's info and debug lines were never stored, and the report cannot recover them.
 - **It covers this run only.** The log store is scoped to the current process, so a user must save before quitting.
 - **The audio path** (`audioPath`) is the render chain stage by stage, from source file to output device. Settings > Advanced's Audio group and the debug channel's `dump_audio_path` read the same model.
+
+## The Dock tile
+
+**`NSDockTile+Util`**: the Dock tile and the app icon behind it.
+- `setDockIcon:shaped:` composes artwork onto the icon grid off main. With the theme's App icon shape off, it installs the picture as it is.
+- `setAppIcon:shaped:` composes a theme's custom icon the same way into `NSApp.applicationIconImage`, so the Dock, the app switcher and the About surfaces agree. Nil resets to the bundle icon.
+- `resetToAppIcon` puts the application's icon back in the tile. It reads the icon live, so a custom icon shows through.
+- The file's `TRAP:`s are the authority. One view is installed for good and only its image swaps, since detaching and re-installing a view leaks a 256KB dock-tile context per transition. Assigning `applicationIconImage` replaces the tile's content view, so every install re-attaches ours. **Each custom-icon-then-reset round trip of `applicationIconImage` also leaks one 256KB context inside AppKit's setter**, so `setAppIcon:shaped:` assigns only on a change.

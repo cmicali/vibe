@@ -31,7 +31,7 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file), the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, with no player-queue waits |
 | `AudioFileHandle` | the parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), shared by playback and the metadata fallback; which decoder takes the file; reading a file still streaming, and reading ahead on a network mount (below) |
-| `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, stall watchers and the signal probe |
+| `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, the stall watchers' start and suspension, and the signal probe. The watchdogs and the stack sampler are `Util/StallWatch` |
 | `AudioOutputUnit` | the hosted output unit both platforms pull the render with: its callback, gate, counters and its own HAL queue |
 | `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations; bit-perfect and exclusive output (`Mac/Devices/AGENTS.md`) |
 | `iOS/AudioPlayer+Recovery` | the unit's route rate and its lazy creation; session verdicts (`iOS/AGENTS.md`) |
@@ -61,7 +61,7 @@ A channel difference is mixed first, at the file's own rate, through AudioToolbo
 - **WAV, W64, RF64 and AIFF files are decoded by dr_wav** the same way, when they hold a coding it decodes. Anything else in those containers stays Apple's. No file the parser names another container is offered to it (`VibeDrWAVReadsContainer`, inside `openWAV`), so a CAF, M4A or Ogg open never pays its read.
 - The vendored dr_ copies carry Vibe's fixes (`ThirdParty/AGENTS.md`). AAC decodes to float natively.
 - Ogg is CoreAudio's own reader and decoders: Opus on both platforms, Vorbis on macOS only. iOS's Ogg reader refuses a Vorbis file, so its open fails there.
-- **TRAP: FLAC in Ogg is refused at the parser open**, since that reader reports it no length and decodes only its first page. The metadata fallback opens the same way, and the TagLib parse refuses it as FLAC, so its row fails to parse rather than look playable (`AudioFileHandle.m`, `AudioTrackMetadata.mm`, `testFLACInOggIsRefused`).
+- **TRAP: FLAC in Ogg is refused at the parser open**, since that reader reports it no length and decodes only its first page. The metadata fallback opens the same way. The TagLib parse refuses it as FLAC. Its row then fails to parse rather than look playable (`AudioFileHandle.m`, `TagLibAudioFile.mm`, `testFLACInOggIsRefused`).
 
 `audioPathSnapshot` reports the source segment and the conversions in force.
 
@@ -251,7 +251,7 @@ With `VIBE_VERBOSE_LOGGING=1` the player logs:
 - `Recovery:` explains device decisions.
 - `Stall:` reports main-thread, player-queue and output-render-clock stalls. It also reports IO cycles the output unit wrote as silence because the render returned an error (`outputDropouts`, cumulative, in `debugRenderCounts` and `dump_health`, beside `renderMeanMicros` and `renderMaxMicros`).
 
-A stuck thread is sampled 250 ms in and every 500 ms after, six times at most. The player queue is sampled through the pool thread draining it (`THREAD_IDENTIFIER_INFO`), and a stalled render clock through the output's IO thread. `block_render`, `block_main_deep` and `block_player` exercise the three paths. **An idle beta wakes nothing.** The main thread is watched by a run loop observer whose watchdog runs only while passes happen. The player queue's 100 ms ping ticks only while the output runs or a device phase is in flight (`performDiagnosticPhase:`). The render clock is read at every drain. On iOS a main-thread stall while the scene is not foreground-active is marked as such (`noteSceneActive:`), since iOS redraws a leaving app for the app-switcher snapshot.
+A stuck thread is sampled 250 ms in and every 500 ms after, six times at most. The player queue is sampled through the pool thread draining it (`THREAD_IDENTIFIER_INFO`), and a stalled render clock through the output's IO thread. `block_render`, `block_main_deep` and `block_player` exercise the three paths. **An idle beta wakes nothing.** The main thread is watched by a run loop observer whose watchdog runs only while passes happen. The player queue's 100 ms ping ticks only while the output runs or a device phase is in flight (`performDiagnosticPhase:`). The render clock is read at every drain. On iOS a main-thread stall while the scene is not foreground-active is marked as such (`VibeStallWatchNoteSceneActive`), since iOS redraws a leaving app for the app-switcher snapshot.
 
 **TRAP: the unified log truncates a message near 1 KB**, so a sample spans numbered `Stall stack:` lines. Vibe's frames are offsets into the executable. `atos -o <dSYM DWARF> -arch arm64 -l 0x100000000 <0x100000000 + offset>` names them, which is why each beta's dSYM is kept.
 

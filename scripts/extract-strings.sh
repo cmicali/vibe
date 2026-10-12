@@ -57,7 +57,6 @@ while IFS= read -r -d '' file; do
 done < <(find "$REPO_ROOT/Vibe" \( -name '*.m' -o -name '*.mm' -o -name '*.h' \) \
              -not -path '*/ThirdParty/*' -not -path '*/Debug/*' \
              -not -path "$REGISTRY" -print0 | sort -z)
-SOURCES+=("$REPO_ROOT/main.m")
 
 # The genstrings-compatible mode: NSLocalizedString and its siblings.
 xcrun xcstringstool extract "${SOURCES[@]}" \

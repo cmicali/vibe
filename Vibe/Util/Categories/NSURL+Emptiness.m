@@ -1,11 +1,11 @@
 //
-//  NSURL+AudioOpen.m
+//  NSURL+Emptiness.m
 //  Vibe
 //
 
-#import "NSURL+AudioOpen.h"
+#import "NSURL+Emptiness.h"
 
-@implementation NSURL (AudioOpen)
+@implementation NSURL (Emptiness)
 
 // stat() never materializes the file.
 - (BOOL)isEmptyOrDirectory {

@@ -18,7 +18,7 @@ typedef VibeImage *_Nullable (^AudioTrackThumbnailDecoder)(NSData *_Nonnull data
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The TagLib read AudioTrackMetadata.mm supplies; blocking, never called
+// The TagLib read TagLibAudioFile.mm supplies; blocking, never called
 // with the monitor held.
 typedef NS_ENUM(NSUInteger, VibeEmbeddedArtExtractionResult) {
     VibeEmbeddedArtExtractionReadFailed,

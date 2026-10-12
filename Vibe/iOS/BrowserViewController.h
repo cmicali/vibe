@@ -36,34 +36,6 @@ NS_ASSUME_NONNULL_BEGIN
 // is pushed alone. A file in it is scrolled to and selected for a moment.
 - (void)showDirectory:(NSURL *)directory highlighting:(nullable NSURL *)file;
 
-// Opens urls as the playlist — one through openFileURL:inFolder:, several
-// through openURLs:openInPlace: — asking first when the playlist was built by
-// hand, with Add Instead as the other answer. Every screen whose tap replaces
-// the playlist comes through here. `token` is PlaybackController's
-// replaceRequestTokenOpening:, taken when the user asked: a caller with asynchronous
-// work first (a bookmark to resolve, a Dropbox folder to list) is dropped
-// here when another open was asked for meanwhile, or an older tap landing
-// late would replace what the user chose last.
-+ (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
-                              from:(UIViewController *)presenter
-                       openingURLs:(NSArray<NSURL *> *)urls
-                          inFolder:(BOOL)inFolder
-                             token:(uint64_t)token;
-
-// Open URL: the typed link resolved (LinkStore), then its file opened alone
-// through confirmReplacing…, which asks when the playlist was built by hand.
-// It asks over what is on top of anchor's window when the link settles. The
-// sheet, the add sheet, or the card may have come or gone by then. The
-// replace token is taken now, so a later open supersedes it. A link that
-// fails leaves the playlist as it is. Never the inbox road: it does not
-// persist. Completion on main, with exactly one of file and error, before
-// the replace question. The returned block cancels the resolve on main, as
-// LinkStore's does.
-+ (dispatch_block_t)openLinkString:(NSString *)string
-                replacingPlaylistOf:(PlaybackController *)playback
-                               from:(UIViewController *)anchor
-                         completion:(nullable void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
-
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them
 // into the Playlist tab when the tracks land; this screen knows no tabs.
@@ -75,34 +47,5 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL equalizerSurfaceVisible;
 
 @end
-
-// The pieces the other screens' rows and alerts share with the browser's.
-void VibePresentAlert(UIViewController *presenter, NSString *title, NSString *message);
-// What an alert goes over: the top of root's presentation stack, the add
-// sheet or the card, past one being dismissed.
-UIViewController *VibeTopmostPresenter(UIViewController *root);
-UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void));
-// Two lines, cut in the middle, secondary line in the secondary color.
-void VibeApplyFileNameStyle(UIListContentConfiguration *content);
-// The accessory of a row whose file is not downloaded.
-UIView *VibeNotDownloadedMark(void);
-// The side of a file or track row's icon — its art or its tile — and what
-// every such row reserves, so the names line up.
-static const CGFloat kFileTileSide = 40;
-static const CGFloat kFileTileCornerRadius = 8;
-// A row's icon where it has no art: a waveform tile, or a note list for a
-// CUE sheet or an M3U.
-UIImage *VibeFileTileImage(BOOL playlist);
-// A list row's icon slot: the folder glyph, else the art, else the tile the
-// name's extension asks for, at the tile's size and reserved in every row.
-void VibeApplyFileIcon(UIListContentConfiguration *content, NSString *_Nullable name, BOOL folder,
-                       UIImage *_Nullable art);
-// Installs content, with a spinner in the icon slot while the open the row
-// asked for runs. Every configuration of such a row goes through here, so a
-// reused cell loses the spinner.
-void VibeApplyRowContent(UITableViewCell *cell, UIListContentConfiguration *content, BOOL opening);
-// Inside the table's viewport and the window: window attachment alone also
-// counts the cells UIKit prepares beyond the screen.
-BOOL VibeRowIsInViewport(UITableViewCell *cell, UITableView *tableView);
 
 NS_ASSUME_NONNULL_END
