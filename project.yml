@@ -766,6 +766,7 @@ targets:
   VibeTests:
     type: bundle.unit-test
     platform: macOS
+    templates: [hostless-test-sources]
     sources:
       # The bundled built-in themes, so the suite's loader reads the SAME
       # files the app ships and testBundledThemesAreValid gates a theme PR.
@@ -799,85 +800,31 @@ targets:
       - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/Channel/DebugWireFormat.m
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
-      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m
-      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
-      - path: Vibe/Audio/AudioTrack.m
-      # The render path, optimized as the shipped app is, so the long render
-      # tests do not run -O0 code that never ships. Neither -O2 nor the app's
-      # -Os reassociates float math, so the samples are the same.
-      - path: Vibe/Audio/AudioVoiceBus.m
-        compilerFlags: &render-path-flags ["-O2"]
-      - path: Vibe/Audio/AudioResampler.mm
-      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
-        compilerFlags: *r8brain-flags
-      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
-        compilerFlags: *r8brain-flags
-      - path: Vibe/Audio/FX/AudioFX.m
-        compilerFlags: *render-path-flags
-      - path: Vibe/Audio/FX/AudioVarispeed.m
-        compilerFlags: *render-path-flags
-      - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
-      - path: Vibe/Audio/AudioFileFormat.m
-      - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Loading/AudioLoadingConfiguration.m
-      - path: Vibe/Audio/AudioFileHandle.m
-      - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Loading/AudioFileMaterializationTokens.m
-      - path: Vibe/Loading/AudioWorkScheduler.m
-      - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
-      - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
-      - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtResolver.m
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtEntry.m
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
       - path: Vibe/Audio/Metadata/EmbeddedThumbnailCache.m
       - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
-      - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m
-      - path: Vibe/Loading/CloudFileMaterializer.m
-      - path: Vibe/Loading/CloudFileAvailability.m
-      - path: Vibe/Loading/DownloadProgressMonitor.m
-      - path: Vibe/Loading/DownloadProgressSourceAdapters.m
-      - path: Vibe/Loading/Net/HTTPTransferClient.m
-      - path: Vibe/Loading/Net/RemotePlaceholderStore.m
-      - path: Vibe/Loading/Net/LinkStore.m
-      - path: Vibe/Loading/Net/LinkClient.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
-      - path: Vibe/Audio/Mac/Devices/AudioDevice.m
-      - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
-      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
-      - path: Vibe/Audio/AudioOutputUnit.m
       - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
-      - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Util/UIUpdateTimer.m
-      - path: Vibe/Playlist/PlaylistFile.m
-      - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Mac/About/VibeLinkLabel.m
-      - path: Vibe/Util/Formatters.m
-      - path: Vibe/Util/Categories/NSURL+Hash.m
-      - path: Vibe/Util/Categories/NSURL+Emptiness.m
-      - path: Vibe/Util/Categories/NSURL+FileIdentity.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
       - path: Vibe/iOS/Dropbox/DropboxClient.m
@@ -896,7 +843,6 @@ targets:
       - path: Vibe/WaveformUI/Renderers/SonicCirrusWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/ThreeBandWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm
-      - path: Vibe/Debug/Oracles/VibeWorkTally.m
     settings:
       base: &hostless-test-settings
         PRODUCT_NAME: "$(TARGET_NAME)"
@@ -976,23 +922,44 @@ targets:
   VibeAudioTests:
     type: bundle.unit-test
     platform: macOS
+    templates: [hostless-test-sources]
     sources:
       - path: Tests/AudioRender
       - path: Tests/Support/TestFilesystemGuard.m
       - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
-      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
-      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # its sessionConfiguration
       - path: Tests/Support/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
-      - path: Vibe/Audio/FX/AudioVarispeed.m
-        compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Util/StallWatch.m
+      - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
+      - path: Vibe/Audio/Levels/AudioLevelMeter.m
+    settings:
+      base:
+        <<: *hostless-test-settings
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeAudioTests
+    dependencies:
+      - sdk: AppKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: Accelerate.framework
+
+targetTemplates:
+  # The production sources both test targets compile. A file only one
+  # target compiles goes in that target's own list.
+  hostless-test-sources:
+    sources:
+      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
+      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
+      - path: Vibe/Audio/AudioTrack.m
+      # The render path, optimized as the shipped app is, so the long render
+      # tests do not run -O0 code that never ships. Neither -O2 nor the app's
+      # -Os reassociates float math, so the samples are the same.
       - path: Vibe/Audio/AudioVoiceBus.m
-        compilerFlags: *render-path-flags
+        compilerFlags: &render-path-flags ["-O2"]
       - path: Vibe/Audio/AudioResampler.mm
       - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
         compilerFlags: *r8brain-flags
@@ -1000,7 +967,9 @@ targets:
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
-      - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Audio/FX/AudioVarispeed.m
+        compilerFlags: *render-path-flags
+      - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Loading/AudioLoadingConfiguration.m
@@ -1014,18 +983,10 @@ targets:
       - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
       - path: Vibe/Loading/AudioFileMaterializationTokens.m
       - path: Vibe/Loading/AudioWorkScheduler.m
-      - path: Vibe/Loading/CloudTransferRegistry.m
-      - path: Vibe/Audio/PlaybackRequestCoordinator.m
-      - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
-      - path: Vibe/Audio/Mac/Devices/AudioDevice.m
-      - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
-      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
-      - path: Vibe/Audio/AudioOutputUnit.m
-      - path: Vibe/Audio/Levels/AudioLevelMeter.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
-      - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
-      - path: Vibe/Debug/Oracles/VibeWorkTally.m
+      - path: Vibe/Audio/PlaybackRequestCoordinator.m
+      - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Loading/CloudFileMaterializer.m
       - path: Vibe/Loading/CloudFileAvailability.m
       - path: Vibe/Loading/DownloadProgressMonitor.m
@@ -1034,23 +995,18 @@ targets:
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
       - path: Vibe/Loading/Net/LinkStore.m
       - path: Vibe/Loading/Net/LinkClient.m
+      - path: Vibe/Audio/Mac/Devices/AudioDevice.m
+      - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
+      - path: Vibe/Audio/AudioOutputUnit.m
       - path: Vibe/Util/NSURLUtil.m
-      - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
+      - path: Vibe/Util/Formatters.m
+      - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSURL+Emptiness.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
-      - path: Vibe/Util/Categories/NSURL+Hash.m
-    settings:
-      base:
-        <<: *hostless-test-settings
-        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeAudioTests
-    dependencies:
-      - sdk: AppKit.framework
-      - sdk: AVFoundation.framework
-      - sdk: AudioToolbox.framework
-      - sdk: CoreAudio.framework
-      - sdk: Accelerate.framework
+      - path: Vibe/Debug/Oracles/VibeWorkTally.m
 
 schemes:
   VibeAudioTests:

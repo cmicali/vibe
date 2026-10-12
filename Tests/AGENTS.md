@@ -92,7 +92,7 @@ The pump proves the software path, **not** DAC samples, hardware negotiation, ex
 
 **Never put test files under `Vibe/`.** Both app targets recurse whole shared subsystem directories, so a test file there is compiled into both shipping apps. `Tests/` is named by no app target.
 
-**Sources under test are compiled into the test target, not linked from the app.** A test for a new file adds that file to the target's source list in `project.yml`. Keep the list curated, and keep TagLib out of it.
+**Sources under test are compiled into the test target, not linked from the app.** A test for a new file adds that file to a source list in `project.yml`. A file both test targets compile goes in the `hostless-test-sources` template. A file only one target compiles goes in that target's own list. Keep the lists curated, and keep TagLib out of them.
 
 **Where a test needs an `AudioTrackMetadata`, use a duck-typed fake cast to the property type.** `AudioTrackTests.m` declares `FakeTrackMetadata : NSObject` and installs it through `AudioTrackInternal.h`. `AudioTrack` only sends messages to its metadata and never names the class.
 
