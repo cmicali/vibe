@@ -388,6 +388,23 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 1, YES), linked);
 }
 
+- (void)testALocationRowMapsToItsIndexInTheStore {
+    for (NSNumber *linked in @[@NO, @YES]) {
+        NSArray<NSNumber *> *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, linked.boolValue, 3, NO);
+        NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
+        for (NSUInteger row = 0; row <= rows.count; row++) {
+            NSUInteger index = VibeBrowserRootLocationIndex(VibeBrowserRootSectionLocations, row, linked.boolValue, 3);
+            BOOL location = row < rows.count && rows[row].integerValue == VibeBrowserRootRowLocation;
+            XCTAssertEqual(index == NSNotFound, !location, @"row %lu, linked %@", (unsigned long)row, linked);
+            if (location) {
+                [indexes addObject:@(index)];
+            }
+        }
+        XCTAssertEqualObjects(indexes, (@[@0, @1, @2]));
+    }
+    XCTAssertEqual(VibeBrowserRootLocationIndex(VibeBrowserRootSectionActions, 2, NO, 3), (NSUInteger)NSNotFound);
+}
+
 - (void)testThePasteRowFollowsOpenURLOnlyWithALinkOnTheClipboard {
     NSArray *expected = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)];
     XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, YES, 1, YES), expected);
