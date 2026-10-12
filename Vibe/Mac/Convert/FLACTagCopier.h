@@ -20,7 +20,7 @@ extern "C" {
 // metadata. Unknown means conversion must stop before replacing the source.
 VibeUncompressedContainer VibeSniffUncompressedContainer(NSString *sourcePath);
 
-// Copies the scalar tags and front-cover picture into the FLAC and saves it.
+// Copies supported scalar tags and one picture, preferring the front cover.
 // The source is revalidated against sourceContainer so a file changed during
 // conversion cannot be opened through the wrong reader. NO means conversion
 // must fail rather than discard metadata. Free functions keep the TagLib

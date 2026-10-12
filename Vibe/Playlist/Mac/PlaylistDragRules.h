@@ -47,8 +47,7 @@ static inline void
 VibePlaylistGatherSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
                                     NSUInteger finalDestination,
                                     void (NS_NOESCAPE ^enumerator)(NSUInteger from, NSUInteger to)) {
-    // The unique slot whose preceding-source count subtracts back to
-    // finalDestination.
+    // Find a slot whose preceding-source count subtracts back to finalDestination.
     __block NSUInteger slot = finalDestination;
     [sourceIndexes enumerateIndexesUsingBlock:^(NSUInteger source, BOOL *stop) {
         if (source < slot) {
@@ -80,8 +79,8 @@ VibePlaylistGatherSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
 // The moveRowAtIndex:toIndex: calls, in order and EVOLVING coordinates, that
 // realize the model's move of sourceIndexes to destinationIndexes. One side is
 // always contiguous: a gather (the drag) or its undo, a scatter, which is the
-// reverse gather's pairs reversed and swapped. Emits nothing for input the
-// model would refuse.
+// reverse gather's pairs reversed and swapped. Callers validate the ranges
+// and ensure one side is contiguous. Empty or unequal-count sets emit nothing.
 static inline void
 VibePlaylistMoveSequenceEnumerate(NSIndexSet *_Nullable sourceIndexes,
                                   NSIndexSet *_Nullable destinationIndexes,

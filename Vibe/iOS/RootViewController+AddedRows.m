@@ -8,9 +8,8 @@
 // An Add in the Files tab changes nothing on its own screen, so its rows say
 // what happened: they lift when asked for, fly into the Playlist tab when the
 // tracks land, and set back down when nothing did (all already there, or a
-// folder with no songs directly inside). Every Add ends in a settle event,
-// so there is no timer: a lift that outlives its Add is a bug, and
-// check_consistency reports one (liftedRowTimes).
+// folder with no songs directly inside). Append settlements or a superseding
+// open release the rows. check_consistency reports stranded lifts (liftedRowTimes).
 static const NSTimeInterval kRowLiftDuration = 0.25;
 static const NSTimeInterval kRowFlightDuration = 0.7;
 static const NSTimeInterval kRowFlightStagger = 0.07;
@@ -110,7 +109,6 @@ static const CGFloat kLandedRowScale = 0.1;
                 row.center = target;
                 row.transform = CGAffineTransformMakeScale(kLandedRowScale, kLandedRowScale);
             }];
-            // Solid for most of the way, gone as it reaches the tab.
             [UIView addKeyframeWithRelativeStartTime:0.7 relativeDuration:0.3 animations:^{
                 row.alpha = 0;
             }];

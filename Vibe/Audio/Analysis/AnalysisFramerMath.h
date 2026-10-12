@@ -4,8 +4,7 @@
 //
 //  The boundary-straddling stream framer both analyzers run their DSP behind:
 //  the guarantee that the buffer sizes the decoder happens to hand an analyzer
-//  never reach its result lives in this one function. C++ only — it is
-//  included from the analyzers' .mm files and nowhere else.
+//  never reach its result lives in this one function. C++ only.
 //
 
 #pragma once
@@ -45,7 +44,7 @@ static inline void VibeAnalysisFrameStream(std::vector<float> &pending,
             process(pending.data() + offset);
             offset += hopSize;
         }
-        if (offset < carried) { // not even the first straddling frame is whole yet
+        if (offset < carried) { // the next straddling frame is incomplete
             pending.erase(pending.begin(), pending.begin() + (long)offset);
             return;
         }

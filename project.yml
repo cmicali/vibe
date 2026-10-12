@@ -23,11 +23,8 @@ configs:
 # Shared between the app targets so a second platform cannot drift from the
 # first on where TagLib, PINCache and the generated git-info header live.
 settingGroups:
-  # THE version, for every target: both apps ship under one bundle identifier,
-  # so they must carry the same number, and a per-target copy drifts silently.
-  # A release bumps these two lines, and a stable one also sets
-  # VIBE_BETA_DEBUG to 0 (the vibe-release skill); the release scripts read
-  # the number back out of the BUILT app.
+  # Keep the app and widget versions together. Release scripts read the built app.
+  # A stable release also sets VIBE_BETA_DEBUG to 0 (vibe-release).
   vibe-version:
     MARKETING_VERSION: "1.16-beta4"
     CURRENT_PROJECT_VERSION: 311
@@ -98,11 +95,8 @@ settings:
     # The beta switch: 1 for a beta, 0 for a stable release. It sets
     # VIBE_VERBOSE_LOGGING below and the Beta updates default on the mac.
     VIBE_BETA_DEBUG: 1
-    # 1 for betas: info, debug and warn are persisted at Default, so Save Debug
-    # Info retrieves them, and every timed playback step is recorded, so a
-    # report with nothing logged means the path was not taken. 0 for a stable
-    # release: info and debug are stream-only, and only steps over their
-    # threshold are recorded.
+    # At 1, info and debug use Default level and all timed steps are logged.
+    # At 0, info and debug need live streaming. Only slow timed steps are logged.
     VIBE_VERBOSE_LOGGING: $(VIBE_BETA_DEBUG)
     # Nothing else fails on a compiler warning: the analyze gate matches only
     # checker findings. If a toolchain warns on vendored code, give that file a
@@ -183,11 +177,7 @@ targets:
       # in neither.
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      # Vendored code is not restyled, so the analyzer skips it: its findings
-      # would never be fixed, and it is a third of the files analyzed. The
-      # -Xclang pair only takes effect under the analyzer. For the same reason
-      # its doc comments are not checked as HTML: TagLib 2.3's
-      # textidentificationframe.h closes a list it no longer opens.
+      # Keep vendored diagnostics out of first-party analysis and documentation checks.
       - path: Vibe/ThirdParty
         excludes:
           - "**/.DS_Store"
@@ -329,7 +319,7 @@ targets:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
         # Sparkle's. The AppStore configuration strips every SU* key from the
-        # built Info.plist (the script below). The feed and the key are
+        # built Info.plist (the post-build script above). The feed and the key are
         # permanent: every shipped build trusts them.
         SUFeedURL: "$(VIBE_SPARKLE_FEED_URL)"
         SUPublicEDKey: "$(VIBE_SPARKLE_PUBLIC_KEY)"
@@ -607,22 +597,16 @@ targets:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default
                 UISceneDelegateClassName: VibeiOSSceneDelegate
-        # Files-app integration: open-in-place from Files/share sheet, and a
-        # visible on-device Documents folder.
-        #
-        # UIFileSharingEnabled is a product decision: the app's Documents
-        # directory is a permanent search root (LocationStore), and this is
-        # the only way to put anything in it. The app keeps no state there.
+        # Expose Documents in Files. It is a permanent search root.
+        # Keep internal app state elsewhere.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         # The Dropbox app's key (DropboxMirror). Not a secret: the sign-in is
         # PKCE, which needs none, and the redirect it pairs with is the
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
-        # The mac target's "Audio Files", "Audiobook" and "CUE Sheet" entries,
-        # so InfoPlist.xcstrings localizes all three. No Folder claim (Launch
-        # Services folder handling is a mac concept), no M3U (iOS reads none)
-        # and no related-item FLAC entry (Convert is not compiled on iOS).
+        # Share the localized audio, audiobook and CUE declarations.
+        # The iOS shell reads M3U files but declares no M3U document type here.
         CFBundleDocumentTypes:
           - CFBundleTypeName: "Audio Files"
             CFBundleTypeRole: "Viewer"
@@ -976,9 +960,7 @@ targetTemplates:
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Audio/AudioTrack.m
-      # The render path, optimized as the shipped app is, so the long render
-      # tests do not run -O0 code that never ships. Neither -O2 nor the app's
-      # -Os reassociates float math, so the samples are the same.
+      # Optimize the render path for long PCM comparisons without enabling fast math.
       - path: Vibe/Audio/AudioVoiceBus.m
         compilerFlags: &render-path-flags ["-O2"]
       - path: Vibe/Audio/AudioVoiceBusRender.m

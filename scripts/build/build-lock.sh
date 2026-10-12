@@ -2,13 +2,8 @@
 # The checkout-wide build lock. Source it for the two functions, or run it as
 # `build-lock.sh <command> [args ...]` to hold the lock for one command.
 #
-# Each session has its own simulator (sim-udid.sh), but the build tree is
-# shared by every session in the checkout: Vibe.xcodeproj, build/DerivedData
-# and the products every session installs from. Unserialized, xcodegen rewrites
-# the project under a live xcodebuild, two xcodebuilds clobber one products dir
-# (a 1-2 minute start measured at twelve, compiling nothing), and `simctl
-# install` copies a bundle another session is still linking. Only the build is
-# serialized; gestures, screenshots and the channel stay concurrent.
+# Participating callers serialize project generation, builds and simulator installs.
+# Other commands can still touch the shared checkout and build tree.
 #
 # Sourced use, from a script that has ROOT set:
 #     . "$ROOT/scripts/build/build-lock.sh"

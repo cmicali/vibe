@@ -243,15 +243,10 @@ static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unich
     return nil;
 }
 
-// What a command's menu item carries: none when its shortcut lands on a
-// reserved key, or on a key a command earlier in table order holds. The first
-// keeps an override stored before its key was reserved, such as a ⌘V from
-// before Edit > Paste, from shadowing the system's item. The second resolves a
-// duplicate as the key monitor does, so an override stored before a default
-// arrived on its key keeps the key: Open URL's ⌘U. Each layout argument is
-// read for one kind only. layoutKeyCode is the key a character shortcut's
-// letter is on, kVibeShortcutKeyMask for none. layoutCharacter is the
-// lowercase character a key-code shortcut types, 0 for none.
+// Reserved keys carry no equivalent. Duplicate bindings go to the first
+// command in table order, as in the key monitor.
+// layoutKeyCode maps a character default, or kVibeShortcutKeyMask for none.
+// layoutCharacter maps a physical key, or 0 for none.
 static inline VibeShortcut VibeShortcutForMenuItem(NSString *identifier, VibeShortcut shortcut,
         unsigned short layoutKeyCode, unichar layoutCharacter, NSDictionary *_Nullable overrides) {
     if (shortcut == kVibeShortcutNone) {

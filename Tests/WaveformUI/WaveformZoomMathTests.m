@@ -46,7 +46,6 @@ static CGFloat PhoneMinimum(void) {
     }
 }
 
-// At least twice as deep as the resting zoom.
 - (void)testShippingLayoutsAffordRealZoom {
     XCTAssertLessThan(PhoneMinimum(), kVibeWaveformDefaultZoomFraction / 2);
     XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPadWidth, kPadHeight, kPadScale),
@@ -93,7 +92,6 @@ static CGFloat PhoneMinimum(void) {
     XCTAssertEqual(VibeWaveformClampVisibleFraction(4.0, 0.1), 1);
 }
 
-// The whole track cannot hide a geometry bug behind a plausible zoom.
 - (void)testGarbageDrawsTheWholeTrack {
     XCTAssertEqual(VibeWaveformClampVisibleFraction(NAN, 0.1), 1);
     XCTAssertEqual(VibeWaveformClampVisibleFraction(-1, 0.1), 1);

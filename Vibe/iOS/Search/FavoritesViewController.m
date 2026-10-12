@@ -172,8 +172,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 
 #pragma mark - Opening
 
-// The row stays selected while the bookmark resolves, the only sign the tap
-// landed.
+// Keep the selection until the resolve lands; openingPath also drives the spinner.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     FavoriteFolder *favorite = _favorites[(NSUInteger)indexPath.row];
     // A second tap on the row still opening gives it up.

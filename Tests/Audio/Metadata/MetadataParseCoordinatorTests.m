@@ -355,9 +355,7 @@
 }
 
 #if DEBUG
-// dump_health reports these and the stress driver bounds them. A counter stuck
-// at zero reads exactly like a clean run, and a live sample almost never lands
-// inside a microseconds-long parse, so it is pinned here.
+// A counter stuck at zero would make the health oracle report a clean run.
 - (void)testDebugPendingCountsTrackHoldersAndWaiters {
     MetadataParseCoordinator *coordinator = [MetadataParseCoordinator new];
     NSString *key = @"/private/tmp/counted.flac";

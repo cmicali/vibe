@@ -113,7 +113,6 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     }
 }
 
-// Bound with Shift, the effect's release still matches when Shift went up first.
 - (void)testARemappedEffectKeyReleasesWithoutItsModifier {
     BOOL enabled = AppSettings.sharedInstance.audioFXEnabled;
     AppSettings.sharedInstance.audioFXEnabled = YES;
@@ -217,8 +216,6 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
                                             kVibeMenuNextTrack, kVibeMenuSkipForward]));
 }
 
-// The physical key decides: a Greek layout's characters on the default key
-// codes still skip, and a remap moves the command off its old key.
 - (void)testBindingsMatchThePhysicalKeyAndFollowARemap {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     XCTAssertNil([monitor handleKeyEvent:[self key:kKeyA characters:@"α" type:NSEventTypeKeyDown time:10
@@ -260,8 +257,6 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     XCTAssertEqualObjects(self.commands, @[]);
 }
 
-// A key-code binding that lands on a fixed system shortcut after a layout
-// switch yields to it.
 - (void)testAReservedCharacterBeatsAKeyCodeBinding {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     AppSettings.sharedInstance.shortcutOverrides = @{
@@ -323,8 +318,6 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     XCTAssertEqualObjects(self.commands, @[], @"the menu bar performs");
 }
 
-// Convert to FLAC bound to K with Convert switched off: its item is hidden,
-// so K acts as unbound rather than being eaten.
 - (void)testAHiddenCommandPassesItsKeyOn {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     AppSettings.sharedInstance.shortcutOverrides = @{kVibeMenuConvertToFLAC: @(VibeShortcutMake(kKeyK, 0))};
@@ -336,7 +329,6 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     XCTAssertEqualObjects(self.commands, @[kVibeMenuConvertToFLAC]);
 }
 
-// M has no meaning of its own in any build: unbound it passes, bound it acts.
 - (void)testMIsAnOrdinaryKey {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     NSEvent *m = [self down:kKeyM];

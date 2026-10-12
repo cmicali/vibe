@@ -207,8 +207,6 @@ static double VibeTestStep(double previous, double current) {
     VibeVarispeedFree(stage);
 }
 
-// At zero pitch, every slice size from 1 to 4096 is the source exactly, and
-// the stage copies nothing.
 - (void)testZeroPitchIsTheSourceAtEverySliceSize {
     VibeVarispeed *stage = VibeVarispeedCreate(2, kMaxFrames);
     float left[kMaxFrames], right[kMaxFrames];

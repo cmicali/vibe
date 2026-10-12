@@ -6,7 +6,7 @@ The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox 
 
 ## What the listener gets
 
-1. With Vibe installed, a tap on `vibeplayer.app/p/<id>` opens Vibe. The track appears as a one-row playlist with its title, art and the loading bar, and plays once its head arrives.
+1. With Vibe installed, a tap on `vibeplayer.app/p/<id>` opens Vibe. The track appears as a one-row playlist with its title, art and the loading bar, and plays when its format has enough bytes to open.
 2. Without Vibe, the tap lands on a page: the title, the art, an App Store button, a Download for Mac button and the original link.
 3. On the mac, the link opens the same way, through a universal link or the `vibe://` scheme the page falls back to.
 
@@ -43,12 +43,12 @@ The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox 
 
 SoundCloud is a product decision before it is code.
 
-- **The API needs a registered app, and registration needs an Artist Pro subscription** ([register an app](https://developers.soundcloud.com/docs/api/register-app)). Client credentials cover public playback with no user sign-in. Play stream requests are capped at 15,000 a day per app ([rate limits](https://developers.soundcloud.com/docs/api/rate-limits)). Tokens are capped at 50 per 12 hours per app, so the resolve function keeps its token in KV for its hour.
+- **The API needs a registered app, and registration needs an Artist Pro subscription** ([register an app](https://developers.soundcloud.com/docs/api/register-app)). Client credentials cover public playback with no user sign-in. Play stream requests are capped at 15,000 a day per app ([rate limits](https://developers.soundcloud.com/docs/api/rate-limits)). Tokens are capped at 50 per 12 hours per app, so the resolve function reuses tokens until their reported expiry.
 - **A full track streams as HLS AAC only** ([deprecation notice](https://developers.soundcloud.com/blog/api-streaming-urls)). The rest is a 30 second preview MP3. Vibe has no HLS reader, so the HTTP road can play only previews. Some tracks answer no stream at all.
 - **Every streams request needs the token** ([soundcloud/api#478](https://github.com/soundcloud/api/issues/478)). The answer redirects to a signed CDN URL that needs none. SoundCloud has said playback without a user sign-in may be deprecated.
 - **The terms require attribution and forbid caching.** The row shows the SoundCloud name and links to the track page. The part file is deleted at the end of the play.
 
-oEmbed answers the title, author and a 500×500 thumbnail for every track, so a record with no stream still gets a page with a button to SoundCloud.
+Use oEmbed metadata when available. A track without a playable stream can still link to SoundCloud.
 
 Bandcamp, Mixcloud and YouTube are not planned. None offers a plain audio URL to a third party.
 
@@ -56,31 +56,15 @@ Bandcamp, Mixcloud and YouTube are not planned. None offers a plain audio URL to
 
 A second iOS target, `VibeClip`, built from the shared subsystems and one screen. It opens from the same `/p/<id>` link and offers the full app. A link invocation allows 50 MB, which fits the engine.
 
-**Not in the first cut.** An App Clip cannot use Background Modes, so the audio stops at the lock screen. A music player that stops there is a demo. It is also a fourth target over the shared directories, so `check-layout`'s two-target assertion becomes three. Build it only if the landing page is shown to lose people.
+**Not in the first cut.** An App Clip cannot use Background Modes, so the audio stops at the lock screen. A music player that stops there is a demo. It also adds an app target over the shared directories. Update `check-layout` to check that target. Build it only if the landing page is shown to lose people.
 
-## Link probes
+## Implementation constraints
 
-Google Drive's and iCloud Drive's answers are in the headers of `GoogleDriveLinkRules.h` and `ICloudLinkRules.h`. Dropbox's, measured on real file links:
+Use the current host-specific rules in `Vibe/Loading/Net/`. They own share-link rewriting, naming and error classification. Recheck provider behavior before building the service.
 
-- **`dl=1` answers a 302 to `dl.dropboxusercontent.com`**, with a new host and path on every request. That host answers `Range` with 206 and `Content-Range`, a 128-byte suffix included.
-- **The `ETag` is stable** across requests and fresh redirects. It is unquoted, so compare it as an opaque string.
-- **`If-Range` is ignored.** A wrong `ETag` there still answers 206. So the transfer checks every response's `ETag` itself.
-- **The type and name are useless.** A GET answers `application/binary` and a HEAD `application/json`. `Content-Disposition` names the file `unspecified`. So classify by host and name the track from the link's path.
-- **A password link** redirects to `www.dropbox.com/sm/password…`, then a 200 HTML page. Name it from the redirect's path.
-- **A deleted link** answers a 200 HTML page on `www.dropbox.com`. A good link always ends on `dl.dropboxusercontent.com`, so any other final host means the link is gone.
-- **A redirect URL keeps serving the version it was issued for**, for at least 20 minutes. So one play's resends reuse its redirect URL. A new play starts from the share link.
-- **A file replaced through the desktop client ends its share link.** The link then answers the deleted page. So a changed Dropbox file usually means a dead link, not a new `ETag`.
+Keep Pages Functions outside the static tree. GitHub Pages serves only static files. Verify the KV binding and token permissions in each Cloudflare environment. Serve the AASA file as JSON without a redirect and check it through Apple's CDN on the production domain.
 
-## Cloudflare facts
-
-Probed on a preview branch of the `vibe` Pages project, never on production.
-
-- **Pages Functions** at `functions/p/[id].js` answer `/p/<id>` beside the static tree. The generated `_routes.json` includes only `/p/*`, so a static request never runs a function.
-- **Wrangler finds `functions/` in the directory it runs from**, not the one it uploads. Inside `Assets/Web` the functions would upload as static files, and GitHub Pages would publish their source. So keep them beside `Assets/Web`, and run wrangler from their parent in `deploy-web.sh`. GitHub Pages serves no functions, so `/p/` and `/share` are Cloudflare only, as `/download` is.
-- **The release token cannot reach KV** (error 10000, since it has only Pages Edit). Make the namespace in the dashboard and bind it there. A binding is per environment and reaches only later deployments.
-- **The AASA file** needs a `_headers` rule to be served as `application/json`. Apple's CDN check needs it on the production domain.
-- **After a deploy, check the deployment's own URL.** The branch alias served the previous deployment for about a minute.
-- The mac and iOS targets share one bundle id, so one AASA entry covers both: `4UEV752JH4.com.commonwealthrecordings.Vibe`.
+The macOS and iOS targets share `com.commonwealthrecordings.Vibe`. Confirm their signed application identifiers before writing the AASA entry.
 
 ## Phases
 
@@ -95,7 +79,7 @@ Probed on a preview branch of the `vibe` Pages project, never on production.
 
 - **The privacy page says Vibe has no servers** (`Assets/Web/privacy/index.html`). A Vibe link reaches vibeplayer.app for its record. The page, the App Store privacy label and the store copy must say so. The service stores no submitter data, and the app sends it only the link's id.
 - **The links depend on the domain.** A lost record is a dead link.
-- **A link's bytes come from where it points.** A revoked Dropbox link or a removed SoundCloud track ends every Vibe link to it. A file replaced in the Dropbox desktop client also ends its share link. The app says which.
+- **A link's bytes come from where it points.** A revoked Dropbox link or a removed SoundCloud track ends every Vibe link to it. Provider changes can invalidate a share link. The app must report the failure.
 - **SoundCloud's terms and its stream cap.** Over the cap, the page answers its SoundCloud button instead of a stream.
 
 ## Not doing

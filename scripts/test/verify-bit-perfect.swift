@@ -1,7 +1,7 @@
 #!/usr/bin/env swift
 // Full-file PCM oracle over a loopback device. Capture starts before playback
-// and only the first 50 ms (the measured player-volume settling interval) is
-// excluded, so the alignment marker must be non-silent and nonperiodic: use
+// and excludes the first 50 ms. The alignment marker must be non-silent and
+// nonperiodic: use
 // generate-test-audio.sh --render-tests fixtures.
 //
 //   <file> <seconds> [device] [--play-app <binary>] [--set-rate] [--force-volume]
@@ -695,8 +695,7 @@ if acceptance || blackholeCheck {
     }
     _ = debug(binary, ["set_pause_at_track_end", "off"])
     _ = debug(binary, ["set_reopen_playlist", "off"])
-    // Every capture is compared sample-exact from its first frame, and with
-    // declick on a bit-perfect start ramps its first 10 ms.
+    // Disable the startup gain ramp for fidelity checks.
     _ = debug(binary, ["set_declick", "off"])
     func fixture(_ name: String) -> String { fileURL.appendingPathComponent(name).path }
     func started(_ path: String, active: Bool) {

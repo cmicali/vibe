@@ -15,8 +15,8 @@
 
 // The pipeline takes the route's rate now; the unit is made at the first
 // start, after the play has activated the session. Reading the session's
-// rate claims nothing, and no audio object exists before a play asks for
-// one, so a cold launch cannot stop another app's audio.
+// rate claims no output. Deferring RemoteIO creation keeps a cold launch
+// from stopping another app's audio.
 - (void)prepareOutputOnQueue {
     double rate = AVAudioSession.sharedInstance.sampleRate;
     [self setMasterBusFormatOnQueue:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate > 0 ? rate : 44100 channels:2]];

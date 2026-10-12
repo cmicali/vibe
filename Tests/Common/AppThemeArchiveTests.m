@@ -83,8 +83,7 @@
     NSDictionary *record = @{@"defaultArtworkDark": stored, @"waveformTheme": @"orange"};
     NSData *zip = [AppTheme archiveDataForRecord:record name:@"Art Theme"];
     XCTAssertNotNil(zip);
-    // A zeroed DOS date is legal but extracts as 1979-11-29. Checked loosely:
-    // the field packing is what breaks, not the clock.
+    // Check date packing without tying the assertion to the current day.
     const uint8_t *raw = zip.bytes;
     NSUInteger dosDate = raw[12] | (raw[13] << 8);
     XCTAssertGreaterThanOrEqual(1980 + (dosDate >> 9), 2020u, @"year");

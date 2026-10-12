@@ -366,7 +366,6 @@ static const CGFloat kShortcutColumnWidth = 120;
     if (_reloadingList) {
         return;
     }
-    // A click elsewhere abandons a recording.
     [self endRecording];
     [self refreshControls];
 }

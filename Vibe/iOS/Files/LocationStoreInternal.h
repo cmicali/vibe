@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  The grant FolderSession retains; a removed entry's scope stops only when
-//  every grant ends. Only LocationStore.m and FolderSession.m import it.
+//  every grant ends. FolderSession holds grants across opens and playback.
 //
 
 #import "LocationStore.h"

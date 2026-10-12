@@ -134,8 +134,8 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
 
 // TRAP: the picture is only ever this bitmap; never show the renderer's
 // live tree. It is a multi-screen layer under a mask of thousands of rects,
-// which the render server scan-converts on the CPU each frame it moves: a
-// scrub over it ran at 30 Hz or less on a phone.
+// which the render server scan-converts on the CPU each frame it moves.
+// Scrolling a bitmap avoids that work.
 
 // A bake scheduled or in flight can no longer install.
 - (void)invalidatePendingBake {
@@ -171,9 +171,8 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
 }
 
 // A finished bake installs while the epoch holds, even if a newer delivery
-// arrived, and a request mid-bake waits rather than running beside it:
-// discarding full-size pixel work per delivery was a large share of the app's
-// CPU.
+// arrived. A request mid-bake waits. This avoids discarding expensive pixel
+// work for each streaming delivery.
 - (void)bakeEnvelopeForRequest:(NSUInteger)request {
     if (request != _bakeRequest || !self.waveform) {
         return;

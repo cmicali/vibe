@@ -53,8 +53,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     }
     [self clearErrorMask];
     [self.metadataCache loadMetadataNow:track];
-    // This callback is the slow-open threshold, so a fast play never flashes
-    // the indicator, nor builds a monitor it would cancel moments later.
+    // A dataless verdict or the slow-open timer reaches this callback.
+    // Fast local opens show no loading indicator.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
     if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
@@ -131,7 +131,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
     self.replayResumeTrack = nil; // the live position publishes from here
     // First, so a quick second Next finds the park. nil past the end drops
-    // it. The prefetch's registration preempts any background transfer.
+    // it. Its claim yields metadata-only dataless transfers.
     [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
@@ -139,8 +139,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self.trackDisplay hideWaveformLoadingIndicator];
     // A cue row reopens as its sheet, which names it.
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.cueSheetURL ?: track.url];
-    // The playing track jumps the scan queue. Again after didBeginLoading:'s
-    // request, which skipped the parse while the file was dataless.
+    // Retry the priority request after opening. A dataless-file parse may
+    // have yielded during didBeginLoading:.
     [self.metadataCache loadMetadataNow:track];
     [self startPendingMetadataLoad];
     _currentTrackDuration = self.audioPlayer.duration;

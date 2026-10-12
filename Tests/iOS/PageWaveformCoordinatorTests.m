@@ -1,9 +1,4 @@
-//
-// The iOS pager's waveform bookkeeping: N pages against one load-at-a-time
-// cache, pointing that load and dropping deliveries that no longer belong.
-// The cache is a duck-typed fake (Tests/AGENTS.md); the coordinator sends it
-// three messages.
-//
+// The cache is a duck-typed fake. Superseded decodes can still deliver.
 
 #import <XCTest/XCTest.h>
 

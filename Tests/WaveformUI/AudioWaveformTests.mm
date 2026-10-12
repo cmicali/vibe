@@ -85,7 +85,6 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
             [self previewPixelsForStyle:@"basic" theme:orange barDensity:1 barWidth:1 normalize:NO gainDB:0]);
 }
 
-// iOS's rule: until the user chooses, only 3-Band draws the line.
 - (void)testPlayheadLineIsThreeBandsDefaultUntilChosen {
     for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
         XCTAssertEqual([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:nil],
@@ -202,8 +201,6 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     }
 }
 
-// Grounded, Cupertino's bars stand as Basic's, so they take Basic's ramp
-// rather than the fade mirrored about the midline.
 - (void)testGroundedCupertinoTakesBasicsRamp {
     VibeColor *color = [VibeColor colorWithWhite:1 alpha:0.8];
     DetailedWaveformRenderer *cupertino = (DetailedWaveformRenderer *)[self rendererForStyle:@"cupertino"];
@@ -433,8 +430,6 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     }
 }
 
-// Wiggle MC is Wiggle with Centered off: its identifier is gone, and only the
-// migrations read it (AppThemeStoreTests).
 - (void)testWaveformRegistryBuildsDistinctStylesThatShareAClass {
     NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
     XCTAssertFalse([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]);
@@ -752,7 +747,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     return std::vector<float>(levels, levels + samples.length / sizeof(float));
 }
 
-// A bar a point, up to the waveform's chunks.
 - (void)testThreeBandBarsFollowTheDrawnWidth {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
     for (std::array<CGFloat, 2> widthAndBars : {std::array<CGFloat, 2>{512, 512}, {3000, 3000}, {20000, 8192}}) {
@@ -787,7 +781,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertEqualWithAccuracy(zoomed[0], zoomed[8], 1e-6);
 }
 
-// Each layer is one outline through the bars, never a shape per bar.
 - (void)testThreeBandDrawsOneOutlinePerLayer {
     AudioWaveform waveform = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
     WaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
@@ -874,7 +867,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     }
 }
 
-// The playhead splits the mask over one set of band layers.
 - (void)testThreeBandProgressSplitsTheSides {
     WaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
     CGFloat width = renderer.parentLayer.bounds.size.width;
@@ -886,7 +878,6 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertEqual(VibeThreeBandLayers(renderer).count, kThreeBandLayers);
 }
 
-// The hover slice's outline is the tallest band, built only while it shows.
 - (void)testThreeBandBuildsItsHoverOutlineOnlyWhileShown {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};
     AudioWaveform waveform = VibeThreeBandTestWaveform(bands);

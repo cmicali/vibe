@@ -7,8 +7,9 @@
 //
 //  - A generation fences each prefetch's open, so a superseded one cannot
 //    park a stale handle.
-//  - A parked handle holds an open fd: a file rewritten before the play plays
-//    the bytes as prefetched.
+//  - A parked local handle keeps its descriptor across a path replacement.
+//    It does not snapshot bytes against in-place writes. Network handles may
+//    instead read through an availability.
 //  - An open still in flight at play: is not adopted. A play of the same
 //    track races it with its own open; an unrelated park is cancelled first;
 //    the winner clears the loser's park before a late delivery can make the

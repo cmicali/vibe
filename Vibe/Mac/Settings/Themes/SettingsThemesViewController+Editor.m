@@ -372,7 +372,6 @@ static const CGFloat kImageBadgeInset = 1.5;
 }
 
 - (SettingsSectionView *)buildPlayerSection {
-    // Appearance-keyed, so it joins the single-mode collapse.
     NSStackView *artPair = [self darkLightPairWithDark:
             [self imageClusterForKey:kVibeThemeImageDefaultArtworkDark]
             light:[self imageClusterForKey:kVibeThemeImageDefaultArtworkLight]];
@@ -401,7 +400,6 @@ static const CGFloat kImageBadgeInset = 1.5;
     return [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYER_SECTION rows:rows];
 }
 
-// The Player section's waveform block, from the style to the playhead color.
 - (NSArray<SettingsRowView *> *)buildWaveformRows {
     _waveformPopUp = [self waveformStylePopUpButton];
     NSStackView *densityCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
@@ -620,7 +618,6 @@ static const CGFloat kImageBadgeInset = 1.5;
     _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
             control:[self wellForDark:NO base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
 
-    // Automatic or Custom, the wells beside the choice while Custom.
     _playlistColorPopUps = [NSMutableDictionary dictionary];
     _playlistColorPairs = [NSMutableDictionary dictionary];
     NSMutableArray<SettingsRowView *> *playlistColorRows = [NSMutableArray array];

@@ -13,9 +13,8 @@ static NSUInteger VibeDockIconGeneration = 0;
 static const CGFloat kVibeDockIconCanvasSize = 512;
 
 // TRAP: setting the tile's contentView to nil and installing a view again
-// leaks a 256KB dock-tile context per transition (788MB over a 42-minute
-// soak). So one view is installed and only its image swaps; the reset draws
-// the icon into it rather than detach it.
+// leaks a dock-tile context per transition. Keep one view installed and swap
+// its image. Reset draws the app icon into the same view.
 static NSImageView *VibeDockIconView = nil;
 static NSImage *VibeDockAppIcon = nil;
 
@@ -143,7 +142,7 @@ static NSImage* CreateMacStyleIconFromImage(NSImage *sourceImage, CGFloat canvas
     // instance on main, and NSImageRep's first-draw caching is not documented
     // thread-safe.
     NSImage *imageCopy = [image copy];
-    // Off main: a several-ms render that would land at track start.
+    // Keep image composition off the track-start UI path.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         NSImage *customIcon = CreateMacStyleIconFromImage(imageCopy, size);
         if (!customIcon) {

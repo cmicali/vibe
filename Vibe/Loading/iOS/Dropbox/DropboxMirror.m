@@ -21,7 +21,7 @@ NSNotificationName const VibeDropboxDownloadsDidChangeNotification = @"VibeDropb
 NSString *const VibeDropboxDownloadsBytesKey = @"bytes";
 
 NSString *const VibeDropboxDownloadBudgetKey = @"VibeiOSDropboxDownloadBudget";
-// A search answers in one page; nobody scrolls past this on a phone.
+// Search uses the first page only.
 static const NSInteger kSearchResultLimit = 50;
 // A part file this old belongs to a download that died with the process.
 static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;

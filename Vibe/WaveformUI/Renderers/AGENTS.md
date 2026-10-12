@@ -12,7 +12,7 @@ Two families and one flat style, split by how progress and hover quantize:
 
 - **Continuous**: Detailed, its oversampling variants, Wiggle and 3-Band. The played clip edge is the playhead. Hover lights a thin slice, or a whole loop for Wiggle so it does not flicker into dots between strokes.
 - **Block**: Basic, Cupertino and Sonic Cirrus. Hover lights the whole block under the cursor, and the played fill advances a block at a time. `VibeBlockIndexForX` and `VibeBlockBoundaryForProgress` hold both rules. Their one home is `WaveformBarMath.h`. **This is presentation only. The seek a hover or click reports stays continuous.**
-- **Cupertino Basic** is the Apple Music pill, the one style that never reads the samples. It has no morph engine, so settle and the convert dip are base no-ops and it never bakes. Having a waveform decides only whether the pill shows.
+- **Cupertino Basic** is the Apple Music pill, the one style that never reads the samples. It has no morph engine, so settle and the convert dip are base no-ops and it has no envelope bake. The registry can still render its layers into a bitmap. Having a waveform decides only whether the pill shows.
 
 **Wiggle draws its centerline directly.** It is a shape-layer stroke live and a source-in Core Graphics stroke in the bitmap, both from `VibeNewWigglePath`. Never expand it into a filled outline first. That repeats the stroker's work on every resize and morph frame.
 
@@ -40,9 +40,9 @@ Two families and one flat style, split by how progress and hover quantize:
 
 - **`identity` is compare-only and never dereferenced.** It cannot false-match, because the view retains the old waveform while the new one is allocated.
 - **A geometry change rebuilds at once. A content change eases.** A settled waveform's count change installs the new samples in one rebuild. A resize mid-morph resamples the displayed bars and keeps easing, so loading, gain and the convert sweep survive a resize.
-- **A nil to non-nil identity flip always rebuilds.** A silent track's all-zero waveform equals the collapsed target, but it draws hairlines. `barMinHeight` is 1 with a waveform and 0 without, and both families read it from the engine.
+- **A nil to non-nil identity flip rebuilds even when the samples are unchanged.** A silent track's all-zero waveform equals the collapsed target, but it draws hairlines. `barMinHeight` is 1 with a waveform and 0 without, and both families read it from the engine.
 - **The Detailed family pixel-rounds only when settled.** Rounding mid-morph quantizes the motion into visible steps.
-- **`settleImmediately` exists because every morph frame is a full-view repaint.** For Detailed that is a 4,096-bar mask path, and a couple of pager cells easing at once blow a scroll's frame budget. The base forwards it as `settleMorphImmediately`.
+- **`settleImmediately` exists because every morph frame is a full-view repaint.** Detailed can rebuild thousands of bars per frame. Settling an unseen renderer avoids that work. The base forwards it as `settleMorphImmediately`.
 
 ## The convert sweep
 
@@ -62,13 +62,13 @@ The envelope-image API (`WaveformRenderer.h`, beside `supportsEnvelopeBake`) ser
 
 ## 3-Band
 
-A DJ player's 3-band display: the low, mid and high bands' levels. **It is its own class because its fill is seven colored layers.** Every other bar style fills one theme gradient through one mask. The morph engine carries three samples per bar. **The bands exist only in a waveform decoded for a request that asked for them** (`readsBandsForIdentifier:`, `Audio/Waveform/AGENTS.md`). A waveform without them draws the silent hairline until the band decode lands.
+A DJ player's 3-band display: the low, mid and high bands' levels. **It is its own class because its fill is seven colored layers.** The Detailed family uses a theme gradient and one bar mask. Sonic Cirrus colors discrete layers. The morph engine carries three samples per bar. **The bands exist only in a waveform decoded for a request that asked for them** (`readsBandsForIdentifier:`, `Audio/Waveform/AGENTS.md`). A waveform without them draws the silent hairline until the band decode lands.
 
 **Each height shows the set of bands reaching it.** Each layer is one polygon through the bars' centers, out to the lowest band of its set. It is mirrored about the midline or stands on the baseline. The layers paint in order: the three bands alone, the three pairs, then all three. A set's lowest band is never above a subset's, so the envelopes nest and the painter's order alone colors them. The fill's antialiasing smooths the steps between bars. Pixel-snapped columns would read as stair steps. `VibeAddThreeBandPaths` is the one home of the geometry, for the live layers and the bake alike. It also builds the hover slice's outline while the slice shows. 3-Band shares Detailed's band, seek band and hover slice (`VibeBarVScale`).
 
 **The energy windows follow the drawn width, not the 1/1024 floor.** There is one bar per point, up to the waveform's 8,192 chunks (`kVibeWaveformMaxBars`), each with its own window and the reach above. Zoomed in, the scrubber's bars get short enough to draw each kick. Floored at 1/1024, a zoomed bar spans most of a beat, and kick and gap alias against the beat into a slow swell. Bars finer than a point flicker between kick and gap from bar to bar.
 
-**Each band is measured against the broadband reference scaled by a per-band share** (`kBandShareOfFullScale`). The shares keep dance masters' measured balance, where the mids sit about 12 dB under the lows and the highs about 17 dB under. One shared reference drew hi-hats as slivers. Equal shares swamped the strip in the all-bands core. The shares also put the outer edge where Detailed draws it. Over 55 masters the median is 0.78 against Detailed's 0.81, and full height is reached in 19% of columns against Detailed's 22%.
+**Each band is measured against the broadband reference scaled by a per-band share** (`kBandShareOfFullScale`). The smaller mid and high shares keep those weaker bands visible beside the lows.
 
 **Normalize measures the loudest band against its share**, not the full mix, so the tallest band at the loudest column reaches full height. **3-Band is its own reference, for speed.** Within 1,024 bars it reads the mean squares the fill just took. Past that it measures 1,024 columns the same way, so the reference does not step as a resize crosses 1,024 bars. The iOS scrubber always normalizes, so there the shares set only the balance. Gain moves all three bands alike.
 

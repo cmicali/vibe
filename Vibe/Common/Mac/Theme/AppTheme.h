@@ -43,9 +43,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS               @"always"
 
 // The volume slider's bar: the window tint's mono (the system slider),
-// artwork and custom, plus the waveform's played color (the default). Its knob
-// takes the same ladder and default, mono the system's white pill, plus the
-// bar's own color.
+// artwork and custom, plus the waveform's played color (the default). The knob
+// adds the bar's color and uses it by default. Mono draws the system's white pill.
 #define SETTINGS_VALUE_VOLUME_WAVEFORM                      @"waveform"
 #define SETTINGS_VALUE_VOLUME_KNOB_BAR                      @"bar"
 // Top right swaps with the corner readouts on hover (MainWindow/LAYOUT.md).
@@ -311,8 +310,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 
 // Never nil: the named image, or the factory record image for "", an unknown
 // name or a missing file — the placeholder's fallback. Cached for the app's
-// lifetime, safe because custom names are content hashes and bundled images
-// immutable per build. Other slots use customImageForKey:.
+// lifetime for bundled images. Custom entries are bounded by the image-field
+// count. Their content hashes prevent stale hits. Other slots use customImageForKey:.
 + (NSImage *)imageForReference:(nullable NSString *)reference;
 
 // YES when a valid reference names an image that is not there. The only way

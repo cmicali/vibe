@@ -90,7 +90,7 @@
 }
 
 - (void)testM3UFileURLWithRawSpacesSurvives {
-    // Sloppy writers skip percent-encoding; NSURL refuses the URL outright.
+    // Accept paths from writers that omit percent-encoding.
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:@"file:///Users/me/My Song.mp3\n"],
                           @[@"/Users/me/My Song.mp3"]);
 }
@@ -397,7 +397,6 @@
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"], @[]);
 }
 
-// Parsed as M3U, every FILE line would read as a filename.
 - (void)testAnUppercaseCueExtensionStillParsesAsCue {
     NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3"]
                                playlistName:@"ALBUM.CUE"
@@ -488,8 +487,6 @@
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.aif");
 }
 
-// Every playable extension is a fallback: a sheet naming the pre-transcode
-// file finds the m4a.
 - (void)testAWavEntryRecoversToAnM4ABesideIt {
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.m4a"]
                                playlistName:@"album.cue"
@@ -510,7 +507,6 @@
     }
 }
 
-// APE is not playable, so the entry resolves to the primary it named.
 - (void)testAnApeBesideTheEntryIsNotAFallback {
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.ape"]
                                playlistName:@"mix.m3u"
@@ -605,8 +601,6 @@ static NSURL *Directory(NSString *path) {
     XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:305,Björk - Jóga\n/Music/A/x.mp3\n");
 }
 
-// No tags: the filename-derived single line, underscores read as spaces, the
-// same rule the rows and the header draw by.
 - (void)testM3UInfoLineFallsBackToTheFilenameTitleAndUnknownDuration {
     NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/01_My_Track.mp3")]
                                 relativeToDirectory:nil];
@@ -751,8 +745,6 @@ static NSURL *Directory(NSString *path) {
                                  "/Music/mix.flac\n");
 }
 
-// A row running to its file's end has no stop time; one starting at the
-// file's first frame, no start time.
 - (void)testAnUnsetWindowSideIsNotWritten {
     NSString *last = [PlaylistFile m3uTextForTracks:@[CueRowAt(@"/M/mix.flac", 4500, 0, @"B", nil, @"/M/mix.cue", 2)]
                                 relativeToDirectory:nil];
@@ -764,8 +756,6 @@ static NSURL *Directory(NSString *path) {
     XCTAssertTrue([first containsString:@"stop-time=60.000"]);
 }
 
-// The line describes the next entry and no other, even when that entry is a
-// stream the reader drops.
 - (void)testAVibeCueLineBelongsToTheNextEntryOnly {
     NSData *data = [@"#VIBE-CUE:1,0,4500,A,,file:///M/mix.cue\n/M/mix.flac\n/M/b.flac\n"
                      "#VIBE-CUE:2,4500,0,B,,file:///M/mix.cue\nhttps://example.com/live\n/M/c.flac\n"
@@ -790,8 +780,6 @@ static NSURL *Directory(NSString *path) {
     }
 }
 
-// A saved playlist opened later resolves its entries as ever and keeps each
-// cue row's window.
 - (void)testASavedPlaylistOpensWithItsCueRows {
     NSURL *dir = [self makeTempDirWithFiles:@[@"mix.flac"] playlistName:@"set.m3u"
                                        text:@"#EXTM3U\n#VIBE-CUE:2,4500,0,Two,DJ,file:///elsewhere/mix.cue\nmix.flac\n"];

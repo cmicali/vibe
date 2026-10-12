@@ -14,11 +14,11 @@ Two placements are not what the file names suggest.
 
 ## Formatters joins every info line
 
-**`infoLineFromFields:` is the one join behind the codec line and the tempo line, and the only place the ` | ` separator is written.** It drops empty fields and joins the rest, so a caller hands over what it has. `tempoLineWithBPM:keyText:` builds the tempo and key line through it, for both shells. What each passes in is its own doc's. **The key is always the last field**, since the mac colors it as the line's suffix.
+**`infoLineFromFields:` joins the codec and tempo fields with ` | `.** It drops empty fields and keeps the rest in order. `tempoLineWithBPM:keyText:` builds both shells' tempo and key line through it. Each shell's doc describes its fields. **The key is always the last field.** The mac colors it as the line's suffix.
 
 ## Traps
 
-**Every audio file is opened through `AudioFileHandle` (`Audio/`). `NSURL+Emptiness` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. Its rule is `VibeStatIsEmptyOrDirectory`, for the folder walk, which has a stat in hand. There is no preflight. A handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
+**Playback and waveform decoding open files through `AudioFileHandle` (`Audio/`).** Tag parsing has its own readers. **`NSURL+Emptiness` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. Its rule is `VibeStatIsEmptyOrDirectory`. The folder walk passes the stat it already has. There is no decoder preflight. A failed handle open closes its descriptor (`AudioFileHandle.h`, `Audio/AGENTS.md`).
 
 **TRAP: the emptiness test is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`.** A dataless cloud file has its true size but zero allocated blocks, so an allocation test would reject every cloud track. `stat()` never materializes the file.
 

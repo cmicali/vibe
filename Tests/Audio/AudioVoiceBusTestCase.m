@@ -36,7 +36,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [super tearDown];
 }
 
-// Interleaved float PCM at `rate`/`channels`, written as a float WAV.
 - (NSURL *)writePCM:(NSData *)interleaved rate:(double)rate channels:(NSUInteger)channels name:(NSString *)name {
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels];
     AVAudioFrameCount frames = (AVAudioFrameCount)(interleaved.length / channels / sizeof(float));
@@ -86,7 +85,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     [self makeBusAtRate:rate channels:channels inlineDecoding:YES];
 }
 
-// With a real decode queue, for the race tests: the fills are the bus's own.
 - (void)makeBusAtRate:(double)rate channels:(NSUInteger)channels inlineDecoding:(BOOL)inlineDecoding {
     [self makeBusWithFormat:[[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:(AVAudioChannelCount)channels]
              inlineDecoding:inlineDecoding];
@@ -129,8 +127,6 @@ static void FillNoise(float *samples, NSUInteger count, uint32_t seed) {
     return [_bus startVoiceWithFile:file atFrame:0 endFrame:0 gain:gain ramp:ramp paused:paused];
 }
 
-// One render of `frames`, appended to `capture` interleaved, with the fill
-// before and the drain after, exactly as the pump does around a slice.
 - (BOOL)render:(uint32_t)frames into:(NSMutableData *)capture {
     [_bus fillInline];
     BOOL silence = [self renderWithoutFilling:frames into:capture];

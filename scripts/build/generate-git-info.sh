@@ -4,7 +4,7 @@
 # launch provenance. The app targets' pre-build phase; also runnable by hand.
 #
 # Rewritten only when its contents change, so an unchanged git state forces no
-# recompile. With no git, every field is "unknown" and the build proceeds.
+# recompile. Without git, commit and branch are "unknown" and dirty is 0.
 
 set -euo pipefail
 

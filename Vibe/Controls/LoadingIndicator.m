@@ -242,11 +242,8 @@ static const CFTimeInterval kPulseHalfPeriod = 0.9;
     [self reconcilePulse];
 }
 
-// The pulseAlpha style's indeterminate motion: the whole track breathes
-// between its resting alpha and the peak. It is what tells "still waiting on
-// the provider" apart from a determinate fill parked at zero, and — like the
-// sweep — it runs entirely on the compositor: no timer, no app-side frames.
-// The first fill sample retires it; a revert to indeterminate brings it back.
+// Pulse until a fill at least one point wide exists. Zero and sub-point
+// progress still pulse. The compositor owns the motion; no app timer runs.
 - (void)reconcilePulse {
     if ([self paletteMetrics].pulseAlpha <= 0 || !_track || _fill) {
         [_track removeAnimationForKey:@"pulse"];

@@ -3,8 +3,8 @@
 // Vibe
 //
 // The lock covers _directories only and is never held across a stat, read or
-// decode: main takes it on every cell draw. Only background paths mutate or
-// trim the history, except scheduleResolveOfDirectory:'s O(1) mark.
+// decode: main takes it on every cell draw. Drawing paths only read cached
+// images or schedule a resolve. Bulk updates and invalidation also take it.
 //
 
 #import "FolderArtResolverInternal.h"
@@ -84,7 +84,6 @@ static NSString *const kNoArtMarker = @"";
 #if TARGET_OS_OSX
         return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
 #else
-        // Everything the app can name is inside FolderSession's one scope.
         return YES;
 #endif
     }];

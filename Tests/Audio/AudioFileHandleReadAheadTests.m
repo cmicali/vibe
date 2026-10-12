@@ -59,9 +59,6 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     }
 }
 
-// A missing file, an empty one and a directory fail to open as the direct
-// road fails them: the same domain, code and words. The thread that found it
-// exits uncounted.
 - (void)testAReadAheadOpenFailsAsTheDirectOpenDoes {
     [self readAhead];
     NSURL *empty = [_network URLByAppendingPathComponent:@"empty.wav"];
@@ -152,9 +149,6 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
             context:@"the rest, once the server answers"];
 }
 
-// While reads are interrupted the read-ahead fetches nothing new: its
-// progress stays where the read in flight left it, and grows again, to the
-// whole file, after allowReads.
 - (void)testProgressStaysFlatWhileReadsAreInterrupted {
     VibeReadAheadScript *script = [self readAhead];
     const uint64_t block = kReadAheadBlock;
@@ -174,8 +168,6 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertTrue([self eventually:^BOOL { return handle.bytesWritten == size; }], @"%llu of %llu", handle.bytesWritten, size);
 }
 
-// A read the server fails is tried again after a pause, and the decode
-// completes exactly, never seeing the failure.
 - (void)testAFailedReadIsRetriedAndTheDecodeCompletesExactly {
     VibeReadAheadScript *script = [self readAhead];
     [script fail:EIO from:kReadAheadBlock always:NO];
@@ -188,9 +180,6 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertEqual([script readsAt:kReadAheadBlock], 2u, @"failed once, then read");
 }
 
-// A file replaced on the server while a read fails, with another size, is
-// never read on: the reopen finds it changed and fails the reads with
-// ESTALE. None of its bytes reach the decode beside the old file's.
 - (void)testAFileReplacedWhileAReadFailsFailsTheReads {
     VibeReadAheadScript *script = [self readAhead];
     [script fail:EIO from:kReadAheadBlock always:NO];
@@ -478,10 +467,6 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertEqual([script readsAt:2 * block], 2u, @"a block far behind was dropped and read again");
 }
 
-// A handle let go while its thread waits out a failed read's pause ends the
-// thread, and the read is never tried again. The failed read returns only
-// once the handle is gone. The pause's first wait then sees the finish,
-// whatever the scheduling.
 - (void)testAHandleGoneDuringTheRetryPauseEndsItsThreadWithoutARetry {
     VibeReadAheadScript *script = [self readAhead];
     [script fail:EIO from:kReadAheadBlock always:NO];

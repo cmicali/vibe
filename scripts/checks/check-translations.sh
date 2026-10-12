@@ -20,7 +20,7 @@
 # Usage:
 #   scripts/checks/check-translations.sh            fail on any missing translation
 #                                                   (or: make check-translations)
-#   scripts/checks/check-translations.sh --github   report only, always exit 0
+#   scripts/checks/check-translations.sh --github   missing languages warn instead of failing
 
 set -euo pipefail
 

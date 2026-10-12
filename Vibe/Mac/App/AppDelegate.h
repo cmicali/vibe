@@ -44,8 +44,8 @@
 - (BOOL)cancelLinkOpens;
 
 // Open URL: a drop's road with the one typed link. Its file opens as a
-// replace. The request is taken at the call. A later open supersedes it,
-// and a replacing one cancels it. A link that fails or is cancelled leaves
+// replace. The request is taken at the call. A later replacing open
+// supersedes and cancels it. A link that fails or is cancelled leaves
 // the playlist as it is. A failure that is still current then shows in the
 // header. Completion on main, with exactly one of file and error. The
 // returned block cancels, on main.

@@ -1,10 +1,3 @@
-//
-//  DropboxRulesTests.m
-//
-//  The Dropbox decisions that need no network: PKCE, the wire encodings,
-//  entry reading and the version check; and PlaceholderFiles' remote placeholder
-//  rule, which the mirror's files are judged by.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -137,7 +130,6 @@
     XCTAssertFalse(VibeDropboxNameIsMirrored(@"notes", playable));
 }
 
-// One Dropbox folder, two spellings, one directory (DropboxRules.h).
 - (void)testAComponentLandsOnTheExistingSpelling {
     XCTAssertEqualObjects(VibeDropboxLocalName(@"music", VibeDropboxNameIndex(@[@"Podcasts", @"Music"])), @"Music");
     XCTAssertEqualObjects(VibeDropboxLocalName(@"CAFÉ", VibeDropboxNameIndex(@[@"café"])), @"café");
@@ -237,8 +229,6 @@
                           @"/mirror/Album/.01 Song.flac.vibe-download");
 }
 
-// A saved budget is one of the choices: absent, 10 GB; off the list, the
-// nearest.
 - (void)testASavedDownloadBudgetIsOneOfTheChoices {
     XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(0)], 10000L * 1000 * 1000);
     for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {

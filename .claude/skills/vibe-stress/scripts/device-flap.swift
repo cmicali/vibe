@@ -84,9 +84,7 @@ case "move":
     Thread.sleep(forTimeInterval: goneMs / 1000.0)
     emit(["ok": ok, "mode": "move", "target": target, "defaultAfter": readDefault()])
 
-// One long-lived process, so the original default is restored once at the end
-// rather than after every step. Creates nothing, so unlike vanish it cannot
-// degrade coreaudiod.
+// Restore the original default once after the whole rotation.
 case "rotate":
     guard args.count >= 5 else {
         emit(["ok": false, "error": "rotate needs a comma-separated device list"]); exit(64)

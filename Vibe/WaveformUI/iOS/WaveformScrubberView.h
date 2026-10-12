@@ -5,8 +5,8 @@
 //  The iOS counterpart of WaveformView: the same registry, renderers,
 //  morph engine and waveform data, hosted in a UIView. DJ semantics: the
 //  play position is fixed at the view's horizontal center and the zoomed
-//  waveform scrolls beneath it; a drag moves the content 1:1 and seeks on
-//  release, both ends give and spring back, a tap nudges to the tapped point
+//  waveform scrolls beneath it. A drag moves the content 1:1 and seeks when
+//  its coast ends. Both ends spring back. A tap seeks to the tapped point
 //  in the visible window, and a pinch changes the zoom about the playhead.
 //
 
@@ -46,8 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Repaints are gated per device pixel, so a timer can write it unconditionally.
 @property (nonatomic) CGFloat progress;
 
-// YES through a scrub's drag, coast and bounce and a live pinch; the owner
-// suppresses timer progress writes meanwhile.
+// YES through a scrub's drag, coast and bounce. A pinch counts only when it
+// has a pending seek. Pure zoom keeps following playback.
 @property (nonatomic, readonly) BOOL isScrubbing;
 
 // Whether there is waveform data to manipulate; an unloaded scrubber stays

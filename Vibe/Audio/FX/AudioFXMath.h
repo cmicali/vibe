@@ -8,7 +8,7 @@
 #import <Foundation/Foundation.h>
 #import "HelperMacros.h" // clampRange
 
-// Low-kill high-pass cutoff while engaged: bass and kick gone, mids untouched.
+// Low-kill high-pass cutoff while engaged.
 static const float kLowKillCutoffHz = 200.0f;
 // A held W: double the toggle's cutoff.
 static const float kLowKillBoostMultiplier = 2.0f;
@@ -22,7 +22,7 @@ static const float kLowKillParkedHz = 20.0f;
 static const float kDelayDefaultBPM = 120.0f;
 
 // The iOS pad's ceilings: Y sweeps the cutoff from parked to here on a log
-// curve (the mac's boost sits a third of the way up); X is the reverb across
+// curve; X is the reverb across
 // the axis, with the 1/8-note delay blending in past the onset.
 static const float kFXPadLowCutMaxHz = 1200.0f;
 static const float kFXPadDelayOnset = 0.5f;

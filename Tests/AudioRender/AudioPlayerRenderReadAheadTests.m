@@ -81,7 +81,6 @@
             (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) == 0;
 }
 
-// The player queue answers another thread within the hang guard.
 - (void)assertTheQueueAnswers:(NSString *)context {
     dispatch_semaphore_t answered = dispatch_semaphore_create(0);
     AudioPlayer *player = _player;

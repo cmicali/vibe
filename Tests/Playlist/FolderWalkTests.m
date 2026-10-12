@@ -1,9 +1,3 @@
-//
-//  FolderWalkTests.m
-//
-//  What a drop expands to: the folder walk's filtering, ordering and skips,
-//  playlist files, and the sandbox grant an unreadable entry raises.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -277,8 +271,6 @@
                           (@[@"folder/Song.mp3"]));
 }
 
-// The sort reaches only what the walk expanded, so no order may re-sort the
-// user's own picks.
 - (void)testAnExplicitFileSelectionKeepsItsOrder {
     NSArray<NSURL *> *picked = @[[self makeFile:@"c.mp3"],
                                  [self makeFile:@"a.mp3"],
@@ -349,8 +341,6 @@ static NSString *const kTwoTrackSheet =
     XCTAssertEqualObjects(rows[1].cueSheetURL.path.stringByStandardizingPath, sheet.path.stringByStandardizingPath);
 }
 
-// The sheet sorts among the audio and stands in for its image, which
-// appears once, as its rows.
 - (void)testASheetInAWalkedFolderClaimsItsFile {
     [self makeFile:@"folder/a.mp3"];
     [self makeFile:@"folder/mix.flac"];
@@ -585,7 +575,6 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     XCTAssertEqualObjects(rows, (@[@"folder/mix.flac"]));
 }
 
-// A sheet whose image is gone adds nothing and claims nothing.
 - (void)testAWalkedSheetNamingAMissingImageAddsNoRows {
     [self makeFile:@"folder/a.mp3"];
     [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"gone.flac"]
@@ -756,7 +745,6 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
 
 #pragma mark - Dataless files
 
-// Every installed root scopes the placeholder rule, and only those do.
 - (void)testEveryRemoteRootScopesThePlaceholderRule {
     NSURL *first = [self makeFile:@"first/a.mp3"];
     NSURL *second = [self makeFile:@"second/b.mp3"];
@@ -943,7 +931,6 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
 }
 
-// Only the covered set ends this.
 - (void)testALinkCycleTerminates {
     [self makeFile:@"library/Song.mp3"];
     [self makeLink:@"library/loop" to:@"library"];
@@ -956,7 +943,6 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
 }
 
-// A duplicate here is a duplicate playlist row.
 - (void)testALinkIntoAnAlreadyWalkedSubtreeListsItOnce {
     [self makeFile:@"library/album/Song.mp3"];
     [self makeLink:@"library/shortcut" to:@"library/album"];

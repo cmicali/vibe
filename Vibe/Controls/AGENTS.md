@@ -26,7 +26,7 @@ The **waveform style** is the hairline midline both waveform views draw. The vie
 
 **TRAP: when the sweep is reinstalled, carry the running animation's phase over**, or the band snaps back to the left edge. The phase is elapsed time plus the previous carry-over. `animationForKey:` returns a copy that keeps `timeOffset`, so dropping it loses the phase on every reinstall after the first. `beginTime` is 0 until the first transaction commit stamps it. Treat elapsed as 0 then.
 
-The **row style** is a small round-ended pill for the 16pt number gutter. **It builds no shimmer** (`hasShimmer`), since a sweep that small reads as flicker. Its indeterminate motion is a slow whole-pill alpha pulse (`pulseAlpha`). A static pill would read as a bar stuck at zero, and a provider's transfer can sit indeterminate for a long time. The first fill sample retires the pulse.
+The **row style** is a small round-ended pill for the 16pt number gutter. **It builds no shimmer** (`hasShimmer`). A sweep that small reads as flicker. Its indeterminate motion is a slow whole-pill alpha pulse (`pulseAlpha`). The pulse continues through zero and sub-point progress. A fill at least one point wide retires it.
 
 `LoadingIndicatorMath.h` holds the per-style metrics and is the seam under test. **`LoadingIndicatorMathTests` pins the waveform style's numbers**, so adding or tuning a style cannot move what both waveform views draw. The macOS empty-state line reads the waveform style's height and track alpha from the same header, so it cannot drift from the loading track.
 

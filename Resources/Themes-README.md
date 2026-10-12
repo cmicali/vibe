@@ -14,7 +14,7 @@ Every `<identifier>.json` in `Resources/Themes/` ships in the mac app as a read-
 
 `version` is `kVibeThemeRecordVersion` (currently 2). Then come `name`, an optional `description` that the app ignores, and one object per group. The groups are `window`, `player`, `info`, `volume`, `waveform` and `playlist`, in that order. Each holds only the fields the theme changes from the factory look. A missing field or a missing group means the default.
 
-Keys are local to their group (`window.cornerRadius`, `waveform.style`, `playlist.durationFontFace`). The full set is `VibeThemeFieldSpecs()` in `Vibe/Common/Mac/Theme/AppTheme.m`. Colors are `#RRGGBB[AA]`, with a `…Dark`/`…Light` suffix per appearance. A theme with `"window": {"mode": "single"}` uses only the `…Dark` slots.
+Keys are local to their group (`window.cornerRadius`, `waveform.style`, `playlist.durationFontFace`). The full set is `VibeThemeFieldSpecs()` in `Vibe/Common/Mac/Theme/AppTheme.m`. Colors are `#RRGGBB[AA]`, with a `…Dark`/`…Light` suffix per appearance. A theme with `"window": {"mode": "single"}` uses the dark slots for appearance-based pairs. Transport button pairs follow the artwork brightness and keep both slots.
 
 **`testBundledThemesAreValid` is the gate.** The app's import silently drops a typo'd key or a malformed color. The test fails any file whose keys or values would not survive the sanitizer unchanged. A built-in that sets a corner radius must also set `window.customCornerRadius` to `true`, or the round trip fails.
 

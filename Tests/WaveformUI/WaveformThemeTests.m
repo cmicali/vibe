@@ -72,7 +72,6 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(Alpha(light.unplayedColor), 0.89, 0.001);
 }
 
-// Album art with no color, or a grayscale one, is Mono's answer.
 - (void)testAlbumArtFallsBackToMonoForMissingOrGrayArt {
     WaveformTheme *nilArt = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                        isDark:YES artworkColor:nil
@@ -86,9 +85,8 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertTrue(SameRGB(grayArt.playedColor, NSColor.blackColor));
 }
 
-// A saturated art color is blended toward the appearance's contrast pole until
-// its luminance clears the bar, keeping its hue. HSB brightness would pass a
-// pure blue untouched (B is already 1.0) though it reads far too dark.
+// Weighted RGB brightness catches dark saturated colors that HSB brightness
+// would pass unchanged, such as pure blue.
 - (void)testAlbumArtClampsLuminanceTowardThePole {
     CGFloat r, g, b;
 
@@ -114,8 +112,7 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(0.299 * r + 0.587 * g + 0.114 * b, 0.45, 0.005);
     XCTAssertGreaterThan(r, b);                           // still reads yellow
 
-    // Already legible: no level correction, only the mute — the hue pulled
-    // halfway to its own luminance gray, which leaves that luminance alone.
+    // Muting toward the weighted gray preserves the brightness measure.
     NSColor *midGreen = [NSColor colorWithRed:0.2 green:0.8 blue:0.3 alpha:1];
     WaveformTheme *asIs = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART
                                                      isDark:YES artworkColor:midGreen
@@ -129,8 +126,6 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertGreaterThan(g, r);                           // still reads green
 }
 
-// The custom pair passes through as stored, alpha included — a well's alpha
-// is its side's resting level.
 - (void)testCustomCarriesItsAlphas {
     NSColor *played = [NSColor colorWithRed:0 green:0.8 blue:1 alpha:0.6];
     NSColor *unplayed = [NSColor colorWithRed:1 green:1 blue:1 alpha:0.25];
@@ -142,7 +137,6 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertEqualWithAccuracy(Alpha(theme.hoverColor), 1.0, 0.001);
 }
 
-// Custom with either color missing is Mono's answer.
 - (void)testCustomFallsBackToMonoWhenEitherColorIsUnset {
     NSColor *teal = [NSColor colorWithRed:0 green:0.7 blue:0.7 alpha:1];
     WaveformTheme *missing = [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
@@ -157,7 +151,6 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertTrue(SameRGB(set.unplayedColor, NSColor.whiteColor));
 }
 
-// An unknown identifier resolves as mono rather than raising or going dark.
 - (void)testUnknownIdentifierResolvesAsMono {
     WaveformTheme *theme = [self themeFor:@"lava_lamp" isDark:YES];
     XCTAssertTrue(SameRGB(theme.playedColor, NSColor.whiteColor));
@@ -297,8 +290,7 @@ static AppTheme *ThreeBandRecord(NSDictionary *fields) {
                            NSColor.whiteColor));
 }
 
-// Hover clears the played color's luminance by 0.25 toward the appearance's
-// pole, saturating there, which keeps Mono's hover exactly the base.
+// Hover moves weighted RGB brightness toward the contrast pole by up to 0.25.
 - (void)testHoverContrastHolds {
     NSColor *orange = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];
     struct { NSString *identifier; NSColor *played; NSColor *unplayed; } cases[] = {

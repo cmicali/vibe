@@ -18,7 +18,6 @@
 }
 
 - (BOOL)debugBackgroundMaterializationHeld {
-    // Stopped and settled means no foreground claims, so this must read NO.
     return [AudioFileMaterializationCoordinator.sharedCoordinator
             isForegroundTransferActive];
 }

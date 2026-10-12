@@ -75,8 +75,7 @@ NS_ASSUME_NONNULL_BEGIN
 // and not necessarily the playlist's current track.
 - (nullable AudioTrack *)debugDisplayedTrack;
 
-// Whether that track's open is in flight. Loading reports a zero position and
-// duration by contract, so several checks stand down for it.
+// The shell's Loading state. Checks must allow an unsettled open here.
 - (BOOL)debugIsLoading;
 
 // The varispeed rate the app's labels and Now Playing divide file time by, for

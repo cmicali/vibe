@@ -211,10 +211,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // Takes the persisted identifier, never the localized name, and
             // refuses an unknown one, since the renderer's fallback would make
             // a typo look like a style.
-            //
-            // TRAP: Wiggle is `wiggle_centered`, centered or not; the retired
-            // `wiggle` (Wiggle MC) is refused like any unknown style.
-            VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                        VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSArray<NSString *> *available = [WaveformRendererRegistry availableIdentifiers];
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_waveform_style <%@>",
@@ -389,8 +386,8 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             }),
             // Keystrokes neither the channel nor the touch driver can
             // synthesize. Both verbs go through the screen's own methods, so
-            // the matching and the open are a real search's. `search` replies
-            // when the table settles, since the files half answers off a walk.
+            // the matching and open use the real search path. The reply waits for
+            // stable row counts or the six-second polling limit.
             VibeDebugCmd(@"search <query>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *query = tokens.count > 1 ? tokens[1] : @"";
                 BOOL started = [controller debugSearchQuery:query
@@ -472,9 +469,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 [browser pasteItemProviders:@[VibeDebugPasteProvider(VibeRestArgument(tokens))]];
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            // Writes the clipboard from inside the app. A paste of the app's own
-            // copy never asks. simctl pbcopy left the iOS 27 simulator's
-            // clipboard empty.
+            // An app-owned clipboard item avoids the cross-app paste permission prompt.
             VibeDebugCmd(@"set_clipboard <text> | clear", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_clipboard <text> | clear");

@@ -14,9 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Both targets' entitlements carry it; a mismatch makes containerURL nil.
 extern NSString *const kVibeWidgetAppGroup;
 
-// A Darwin notification loadState posts. A read IS the signal that a widget
-// exists (WidgetKit spawns the extension only to render one), and it is how a
-// widget added in the background turns the app's publishing back on.
+// Posted by loadState to enable publishing, including during gallery previews.
 extern const char *const kVibeWidgetReadNotification;
 
 @interface VibeWidgetState : NSObject

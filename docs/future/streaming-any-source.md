@@ -6,11 +6,11 @@
 
 - **Renaming `CloudFileAvailability`.** Wait until there is a writer that is not a file.
 - **One shared table of live availabilities** in place of the lookup block passed to `setRemoteRoot:fetch:read:availability:`. A read-ahead is per handle and needs no lookup. Do it only if the mirror's own stream table can go with it.
-- **Deleting the two shells' open-deadline relays.** Each shell forwards registry movement to `noteOpenProgressForOpenRequestIdentifier:` (`PlaybackController+PlayerEvents.m`, `MainPlayerController+PlayerEvents.m`). The player could observe `CloudTransferRegistry` for its own open's path instead. The deadline still hears only the registry, so a read-ahead's open gets the 60 s no-progress span. A read-ahead must never publish to the registry, since a row shows the loading bar only for a transfer.
+- **Deleting the two shells' open-deadline relays.** Each shell forwards registry movement to `noteOpenProgressForOpenRequestIdentifier:` (`PlaybackController+PlayerEvents.m`, `MainPlayerController+PlayerEvents.m`). The player could observe `CloudTransferRegistry` directly. It would still match movement to the current open identifier. The deadline still hears only the registry, so a read-ahead's open gets the 60 s no-progress span. A read-ahead must never publish to the registry, since a row shows the loading bar only for a transfer.
 - **Metadata and TagLib reads on a share.** They stay direct, blocking reads on sweep workers. Routing TagLib through a waiting stream is a second project. Revisit only if a share is shown to hang the app.
 - **Read-ahead on local external volumes.** Unmeasured.
-- **Skipping the dataless `stat` probe on network mounts.** On a dead mount the probe and the read-ahead thread's `open` still take the SMB timeout, about 30 s.
-- **The main thread's `noteNewRecentDocumentURL:` at each track start** (`performPerTrackRefreshForStartedTrack:`). AppKit stats the file there. A flaky SMB server blocked main for 350 to 430 ms. A server that stops answering could hold main for the SMB timeout.
+- **Skipping the dataless `stat` probe on network mounts.** On a dead mount the probe and the read-ahead thread's `open` still take the SMB timeout, whose duration the app cannot bound.
+- **The main thread's `noteNewRecentDocumentURL:` at each track start** (`performPerTrackRefreshForStartedTrack:`). AppKit stats the file there. A server that stops answering can block main in that call.
 - **The mac draws no buffering on screen.** It publishes rate 0 to Now Playing during a hold. The waveform's loading indicator would wipe the waveform and its click-seek, so it is not used for this.
 
 ## Needs a device
@@ -31,12 +31,11 @@ Measured on macOS 27 with a probe that opens a dataless file, `pread`s 64 KB, th
 | iCloud Drive, 106 MB WAV | blocked 2.6 s | the whole file |
 | iCloud Drive, 180 MB MP3 | blocked 12.3 s, 0 bytes on disk meanwhile | the whole file |
 
-- **macOS File Providers can deliver ranges, and these two do not.** `NSFileProviderPartialContentFetching` lets a provider answer a POSIX read of a dataless file with only the range read. A provider may still answer with the whole item, so the protocol promises nothing.
+- **macOS File Providers can deliver ranges. These probes returned whole files.** `NSFileProviderPartialContentFetching` lets a provider answer a POSIX read of a dataless file with only the range read. A provider may still answer with the whole item, so the protocol promises nothing.
 - **Dropbox's Mac extension has it, switched off.** It implements `fetchPartialContents` behind a server-set "streaming gate". The probe's log shows the system asking for 65,536 bytes and the extension answering with the whole file.
 - **The bytes downloaded so far are out of reach.** The download grows in a scratch file under the provider's domain, which macOS refuses to list. The progress feed (`DownloadProgressMonitor.h`) is a count, not the bytes.
-- **iCloud Drive has no partial fetch.**
 - **Only a POSIX read can get a range.** File coordination requests the whole file. Vibe's provider road is `NSFileCoordinator` (`CloudFileMaterializer materializeURL:`), so even a streaming provider hands Vibe whole files. An app cannot ask for a range or learn ahead of time whether it will get one. A file still dataless after a read returned came from a provider that streams.
-- **iOS File Providers cannot stream.** The SDK marks the protocol `API_UNAVAILABLE(ios)`.
+- **This partial-fetch protocol is unavailable on iOS.** The SDK marks it `API_UNAVAILABLE(ios)`.
 - **A network filesystem reads by range.** SMB, NFS, AFP and WebDAV mounts hold ordinary files. On iOS, a folder picked from the Files app's SMB server is a live `lifs` mount without `MNT_LOCAL`, with no dataless flag.
 
 ## Decoder reads
@@ -58,7 +57,7 @@ An MP3 with no Xing, Info or VBRI frame opens on a length estimated from its hea
 
 ## Writers that serve the wanted range, each on evidence
 
-- **Dropbox seeks ahead by range.** A ranged read answers the wanted range into a block, pinned to the `rev`. It helps M4A, WAV and FLAC with a seek table. It helps little for MP3 and for FLAC with no seek table. Compare it with sparse storage before adding a mechanism.
+- **Dropbox already reads ahead by range.** A ranged read answers the wanted range into a block, pinned to the `rev`. It helps M4A, WAV and FLAC with a seek table. It helps little for MP3 and for FLAC with no seek table. Compare it with sparse storage before adding a mechanism.
 - **A File Provider that delivers ranges.** Use the read-ahead over a dataless file and skip the `NSFileCoordinator` download. Only for a provider the probe has shown to stream, since on any other the first read downloads the whole file with no cancel. Dropbox's Mac extension is the likeliest first. Re-run the probe on each Dropbox release.
 - **Another service's own client** is a separate product decision ([Google Drive](ios-google-drive.md)). A sequential client can use today's availability as it is.
 

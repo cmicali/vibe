@@ -126,17 +126,9 @@
 // Layer III's synthesis delay: dr_mp3's drain and Apple's zero fill differ
 // over this many frames at a file's end, and the handle skips it at the start.
 static const NSUInteger kLayer3DecoderDelay = 529;
-// The ISO/IEC 11172-4 Layer III compliance stream, scored on its Annex A
-// thresholds against the reference decode: full accuracy is an RMS error
-// below 2^-15/sqrt(12) with no sample off by more than 2^-14. dr_mp3 passes with
-// the margin of a float decoder (about 140x measured, 50x required), so a
-// regression to 16-bit output fails here. Apple's decoder is 16-bit on arm64
-// and sits on the line, within limited accuracy; its x86_64 build decodes to
-// float and passes as dr_mp3 does (about 150x). The handle drops the decoder's
-// 529-frame delay, so its frame 0 is the reference's frame 529. The last 529
-// frames are left out of both scores: the stream ends in a truncated frame the
-// reference decoder decoded and CoreAudio's parser does not serve, so there
-// dr_mp3's drain and Apple's zero fill both meet audio the file does not hold.
+// Require a 50x margin below the full-accuracy RMS threshold to catch int16 output.
+// Align past the 529-frame synthesis delay. Exclude the final 529 frames:
+// CoreAudio does not serve the truncated final packet used by the reference.
 - (void)testDrMP3PassesTheISOComplianceStreamAtFullAccuracy {
     NSURL *url = [self fixture:@"iso-compl.mp3"];
     NSString *referencePath = [self fixture:@"iso-compl.f32"].path;
@@ -288,10 +280,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     AudioFileClose(parser);
     return offsets;
 }
-// An MPEG-1 Layer III frame's private bits are its encoder's to use, so a file
-// with them set in every frame decodes exactly as the file does. dr_mp3
-// upstream read them as the first granule's scfsi, which then reused the
-// previous granule's scalefactors and misread the rest.
+// Private bits must not be read as scfsi scalefactor-reuse flags.
 - (void)testDrMP3IgnoresPrivateBits {
     AudioFileHandle.appleMPEGDecoder = NO;
     for (NSString *name in @[@"cbr.mp3", @"mono.mp3"]) {
@@ -319,11 +308,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     XCTAssertEqual(file.fileFormat.streamDescription->mFramesPerPacket, 576u);
     [self assertSeeksOf:file match:[self readToEnd:file] block:576 name:@"8 kbps MPEG-2"];
 }
-// Mixed blocks at 8 kHz (MPEG 2.5), which the generator codes directly since no
-// encoder writes them, decode as FFmpeg's float decoder does, its frame 529 the
-// handle's frame 0. Upstream's band table there reordered past the granule and
-// scaled three bands by stale scalefactors. The generator leaves the blocks'
-// long part empty, since decoders transform it differently at this rate.
+// The generator codes MPEG 2.5 mixed blocks directly. Leave the long part
+// empty because decoders transform it differently at 8 kHz.
 - (void)testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes {
     NSString *referencePath = [self optionalFixture:@"mixed-8k.f32"].path;
     AudioFileHandle.appleMPEGDecoder = NO;
@@ -418,15 +404,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     streaminfo[13] &= 0xF0;
     memset(streaminfo + 14, 0, 4);
 }
-// dr_flac plays legal FLACs Apple's codec refuses, and ones the upstream copy
-// could not seek (every frame's first residual partition empty) or decode
-// (Rice partition orders past 8, in a 24-bit stream and in a 32-bit one's
-// 33-bit side channel), bit for bit: each decodes to the PCM it was encoded
-// from, a 32-bit one rounded once to float32 in each side-channel mode, and
-// every seek reads what the continuous decode holds there. The empty-partition file is played again with no length
-// in STREAMINFO, as a streamed encode leaves it, and again with a megabyte of
-// zeros after it, as a download that reserved its size leaves it: dr_flac
-// finds the length from its last frames, and the player plays all of it.
+// Exercise empty residual partitions, large Rice orders and 33-bit side
+// channels. Unknown-length variants must find the last valid frame.
 - (void)testDrFLACDecodesWhatTheFileHolds {
     NSDictionary<NSString *, NSString *> *sources = @{
         @"flac-zero-residual.flac": @"noise-48000-24-2.wav", @"flac-block16.flac": @"noise-48000-24-2.wav",
@@ -682,16 +661,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     uint32_t size = bigEndian ? CFSwapInt32HostToBig((uint32_t)file.length - 8) : CFSwapInt32HostToLittle((uint32_t)file.length - 8);
     [file replaceBytesInRange:NSMakeRange(4, 4) withBytes:&size];
 }
-// What damages WAVs and AIFFs in the wild, done to lossless.aiff and
-// noise-48000-24-2.wav. A chunk after the audio, as Ableton Live writes its
-// tags, leaves every seek where a read from the start is: dr_wav upstream took
-// SSND's offset and block size fields for audio, and landed forward seeks late.
-// A file cut short plays what it holds, and a COMM count past it or a data
-// size of 0xFFFFFFFF, as a recording never finalized leaves it, is capped at
-// it. A fmt chunk after the data is found. A damaged ADPCM block is silence in
-// its place, every other frame where it was. An MS ADPCM file cut inside a
-// block keeps what it holds of it. One whose coefficient table is not the
-// standard seven decodes with its own table, as Apple's decoder does.
+// Trailing AIFF chunks must not shift seeks into SSND's offset fields.
+// Malformed sizes and ADPCM blocks must preserve the remaining valid audio.
 - (void)testDrWAVSurvivesWhatDamagesFiles {
     self.continueAfterFailure = YES;
     NSData *aiff = [NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]];

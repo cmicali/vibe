@@ -23,7 +23,7 @@ Five drivers, five questions:
 
 ## Running each suite
 
-**Stress.** Every run is reproducible. The seed prints first, every op is journaled as NDJSON under `build/stress/`, and `--replay` re-runs a journal verbatim, which is **the exact reproduction**. `--seed N` regenerates the same op sequence only while the app answers the same, since row selections, drop coordinates and theme and menu picks read live state. Without the seed or the journal a fuzz failure is nearly worthless.
+**Stress.** Every run records its commands. The seed prints first, every op is journaled as NDJSON under `build/stress/`, and `--replay` re-runs a journal verbatim, which reproduces the commands but cannot reproduce asynchronous scheduling. `--seed N` regenerates the same op sequence only while the app answers the same, since row selections, drop coordinates and theme and menu picks read live state. Without the seed or the journal a fuzz failure is nearly worthless.
 
 ```bash
 make stress CORPUS=~/Music/big
@@ -62,7 +62,7 @@ make torture PLAYLIST=~/Music/big                      # APP= defaults to the De
 make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40 --seed N"
 ```
 
-**Run it through `run-torture.sh`, never `torture.py` by hand.** The wrapper asserts that exactly one mac instance is up, that it is the intended binary, and that the caches are cold. The app outlives the run, so its output goes to `build/stress/torture-app.log`. TRAP: `make torture … | tee log` never sees EOF, because the direct-exec'd app inherits the pipe and outlives the run. Redirect a torture or stress run to a file (`> log 2>&1`) and quit the instance yourself between runs. **Cold caches are the point**: the delivery races only open while a scan is in flight as playback starts, so a warm pass proves far less than it looks.
+**Run it through `run-torture.sh`, never `torture.py` by hand.** The wrapper asserts that exactly one mac instance is up, that it is the intended binary, and that the caches are cold. The app outlives the run, so its output goes to `build/stress/torture-app.log`. The wrapper redirects the app’s three streams, so piping the runner does not wait for the app to exit. Quit the test instance between runs. **Cold caches are the point**: the delivery races only open while a scan is in flight as playback starts, so a warm pass proves far less than it looks.
 
 **Cloud scenarios.** One fresh app launch per scenario. Run `make check-cloud-scenarios` (the runner's oracle tests, also part of `make test`) first.
 
@@ -96,12 +96,12 @@ The suite takes about ten minutes, and silence reads as stalled. Run it with its
 - **TRAP: a rebind pays for the device it leaves as well as the one it joins.** Binding to a new device waits for the old device's IO to stop. Read the stop line before attributing a cost. Bind cost does not track device quality.
 - The output unit waits on the HAL on its own queue, so a play submitted during a rebind is admitted at once, within a few milliseconds. A play that waits the bind out on the player queue is the regression. Submit a `play_index` every 0.35 s during a rotation and read `Timeline: play N admitted after X ms on player queue` against the bind and start lines.
 
-**Real output.** The drivers default to the pump. Real-HAL coverage is opt-in with `VIBE_AUDIBLE=silent`, and silent HAL playback does not pull auto-switching AirPods.
+**Real output.** The drivers default to the pump. Real-HAL coverage is opt-in with `VIBE_AUDIBLE=silent`, with buffers zeroed. Select the intended device before opening audio. Silence alone does not prevent Bluetooth switching.
 
 - **TRAP: "playing" is intent, not sound, and a locked Mac can deliver none.** With the lock screen's password prompt up, no process may get a render callback on any device, while output units start and stop cleanly. Unlocking fixes it; a coreaudiod restart does not. Run real-output suites (torture or any profile under `VIBE_AUDIBLE=silent`, device-flap, bit-perfect) on an unlocked Mac. When one fails with stuck `retiredFades` or a still position, check `dump_audio_path`'s output `renderCycles` before suspecting the engine.
 - **TRAP: an occluded, paused app is deferred by the OS, on the pump too.** Once the window is covered and nothing plays, the whole process can sleep: timers do not fire and the channel's wake-up is not serviced for up to about 20 s. The client times out (`exit 1`) against an idle main thread with no stall report. The cloud scenarios that pause then fail with `could not restore On track end`. `launch.sh` and `run-torture.sh` order the window front after every launch (`raise_window`) and warn when it stays occluded. `-NSAppSleepDisabled YES` alone does not prevent it. A sleeping display or locked screen occludes every window, so that warning means wake and unlock the Mac.
 
-**Bit-perfect and exclusive output.** `bitperfect-soak.py` is the only suite that exercises them. Per track, at settle pace, it asserts status Active, the device at **that file's** rate (read from `afinfo`, never from the app), the bus and output unit at that rate, no varispeed, `rateExact`, `formatConfirmed`, `channelsMatch` and `depthOK` true, and the hog held. Then a mode toggle must release the hog and return to Active or Idle, with the device's nominal rate back where it started, read from the HAL.
+**Bit-perfect and exclusive output.** `bitperfect-soak.py` checks settled mode transitions. `make test-bit-perfect` covers the loopback acceptance matrix. Per track, at settle pace, it asserts status Active, the device at **that file's** rate (read from `afinfo`, never from the app), the bus and output unit at that rate, no varispeed, `rateExact`, `formatConfirmed`, `channelsMatch` and `depthOK` true, and the hog held. Then a mode toggle must release the hog and return to Active or Idle, with the device's nominal rate back where it started, read from the HAL.
 
 ```bash
 .claude/skills/vibe-stress/scripts/bitperfect-soak.py --corpus Assets/test_audio_files/rates \
@@ -126,7 +126,7 @@ launchctl setenv TSAN_OPTIONS \
 launchctl unsetenv TSAN_OPTIONS        # session-wide until unset
 ```
 
-`-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no race**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
+`-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
 
 ## Named gesture tests, separate from stress
 
@@ -162,7 +162,7 @@ Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `c
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` returned, mostly 0 after a heavy run.
 - `--ignore-metric NAME` stands down a finding that is already diagnosed, so it stops masking later findings.
 
-Every metric was audited against an external tool (`references/health-metrics.md`). **Do the same before trusting a new one.**
+Cross-check new metrics against the external tools in `references/health-metrics.md`.
 
 ## Shrink to repro
 
@@ -192,6 +192,6 @@ Every metric was audited against an external tool (`references/health-metrics.md
 ## Supporting files
 
 - `references/profiles.md`: every stress profile and torture phase, the single-purpose op kinds, the corpus builders, what this driver cannot reach.
-- `references/health-metrics.md`: the `pending` counter catalog, what is stable at rest, the footprint investigation, the metric audit.
+- `references/health-metrics.md`: the `pending` counter catalog, what is stable at rest, footprint limits and external cross-checks.
 - `references/cloud-scenarios.md`: the scenario rules, the registry and XFAIL contract, live versus XCTest ownership, `block_main`.
 - `references/sanitizers.md`: getting a report out of a sandboxed app, the three builds, malloc-debug variants, `--client-app`.

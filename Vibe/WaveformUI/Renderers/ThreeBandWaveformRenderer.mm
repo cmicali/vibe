@@ -10,9 +10,7 @@
 #include <vector>
 #include <cmath>
 
-// Each band's full height as a share of the broadband reference: dance
-// masters' measured balance, the mids and highs well under the lows, with the
-// outer edge at Detailed's height (Renderers/AGENTS.md has the measurements).
+// Smaller mid and high shares keep those weaker bands visible beside lows.
 static const float kBandShareOfFullScale[kAudioWaveformBandCount] = {1.0f, 0.48f, 0.48f};
 
 // The unplayed side's level against the played.

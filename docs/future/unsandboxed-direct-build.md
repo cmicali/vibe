@@ -10,7 +10,7 @@ Each phase builds, passes `make test` and can be verified alone. Read first: the
 - The **direct-download** build (Developer ID, `make release`) runs without the App Sandbox, keeping the hardened runtime and notarization.
 - What a direct-download user gains:
   - No folder grants. A playlist file's entries, a sidecar cover, and a remembered playlist are readable wherever they live, with no grant panel and no Settings > Files grant list to maintain.
-  - A converted FLAC always lands beside its source, never through a save panel.
+  - A converted FLAC can land beside its source without a sandbox grant. Read-only destinations and the save-location setting still need a panel.
   - Folder art works for every folder, not only ones with an active grant.
 - What they pay: macOS's own privacy prompts (below) replace the sandbox's, and the app's data moves once, out of its container.
 
@@ -20,8 +20,8 @@ Each phase builds, passes `make test` and can be verified alone. Read first: the
 
 `ENABLE_APP_SANDBOX: YES` is set on the `Vibe` target for every configuration. Debug and Release sign with `Vibe-Direct.entitlements`, which adds Sparkle's installer exceptions. AppStore signs with `Vibe.entitlements`. Both get `network.client` from `ENABLE_OUTGOING_NETWORK_CONNECTIONS`, for Open URL. The code that depends on the sandbox:
 
-- **`FolderAccessManager`** (`Vibe/Mac/App/`, about 710 lines with its grant panel): the security-scoped bookmark store, launch restoration with its deadlines and lanes, and `canReadInsideDirectory:`. Readers: `AppDelegate` (the launch order grants → drain → restore, and the playlist-grant handler, which calls the grant panel's `requestAccessForPlaylistFolder:`), `FolderArtResolver` (`canReadInsideDirectory:`), `MainPlayerController`, `SettingsFilesViewController` (the grant list), and `DebugInfo`.
-- **`AudioFileConverter+Sandbox`** (159 lines): the three rungs that get the encoded file out of the container's tmp — plain move, related-item coordinated move, save panel.
+- **`FolderAccessManager`** (`Vibe/Mac/App/`): the security-scoped bookmark store, launch restoration with its deadlines and lanes, and `canReadInsideDirectory:`. Readers: `AppDelegate` (the launch order grants → drain → restore, and the playlist-grant handler, which calls the grant panel's `requestAccessForPlaylistFolder:`), `FolderArtResolver` (`canReadInsideDirectory:`), `MainPlayerController`, `SettingsFilesViewController` (the grant list), and `DebugInfo`.
+- **`AudioFileConverter+Sandbox`**: the three rungs that get the encoded file out of the container's tmp — plain move, related-item coordinated move, save panel.
 - **Security-scope calls on plain URLs**: `PlaylistController`'s drag-out (`startAccessingSecurityScopedResource` per dragged track) and `ArtworkImageView`'s art drag. Both already tolerate a `NO` answer.
 - **`+realHomeDirectory`** (`getpwuid`): correct in both modes.
 - **Where state lives**: defaults, the PINCache disk caches (`NSCachesDirectory`), `LastPlaylist.m3u` and `ThemeArt/` (`NSApplicationSupportDirectory/<bundle id>/`), saved window state. Sandboxed, all of it resolves under `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/`.
@@ -49,7 +49,7 @@ The budget is zero new files and zero new types: each item is a branch at the to
   - `requestAccessForPlaylistFolder:` answers `YES` without the panel. `FolderAccessManager+GrantPanel` is not compiled into the path.
   Do not delete the stored bookmarks key on an unsandboxed launch: a user who moves back to the App Store build keeps a separate container anyway, and the direct defaults never had them.
 - **Settings > Files**: the granted-folders section and Add Common Folder are absent unsandboxed. Check what remains in the pane and whether it still earns a pane.
-- **Converter**: no code change expected. Rung 1, the plain move, always succeeds for a writable folder; a read-only destination still falls to the panel rung, which is the right behavior. The encode's temporary file now lives in the per-user `NSTemporaryDirectory()` rather than the container's; confirm the launch sweep of `vibe-convert-<uuid>.flac` targets `NSTemporaryDirectory()` and not a container path. `convertAsksWhereToSave` keeps its meaning.
+- **Converter**: no code change expected. Rung 1 tries the plain move. A failed move still falls through to coordination and the save panel. The encode's temporary file now lives in the per-user `NSTemporaryDirectory()` rather than the container's; confirm the launch sweep of `vibe-convert-<uuid>.flac` targets `NSTemporaryDirectory()` and not a container path. `convertAsksWhereToSave` keeps its meaning.
 - **Folder art**: the "no active grant, leave untouched" rule answers `YES` everywhere through `canReadInsideDirectory:`. The reason behind the rule still stands in a new form: **unasked-for background work must never raise a permission panel**, and unsandboxed the panels are TCC's (Phase 3).
 - **Drag-out scopes** (`PlaylistController`, `ArtworkImageView`): unchanged; `startAccessingSecurityScopedResource` answers `NO` for a plain URL and both sites already handle it.
 - **`DebugInfo`**: report sandboxed or not, and the state directory in use.
@@ -83,9 +83,9 @@ Assuming the read is silent:
 
 - One-time, at the top of launch, before `AppSettings` or any cache is touched, only when `!VIBE_SANDBOXED`, only when a marker default is absent, and only when the container exists:
   - **Defaults**: read the container's `Library/Preferences/<bundle id>.plist` and import its keys into standard defaults, skipping the stored folder-grant bookmarks.
-  - **Application Support**: copy `<bundle id>/LastPlaylist.m3u` and `<bundle id>/ThemeArt/`. The last playlist is absolute paths, so it survives the move; stored themes reference `ThemeArt` by a path under the support directory, so confirm whether those references are relative or need rewriting.
+  - **Application Support**: copy `<bundle id>/LastPlaylist.m3u` and `<bundle id>/ThemeArt/`. The last playlist is absolute paths, so it survives the move; image references are `custom:<hash>.<ext>` values resolved under the current `ThemeArt` directory.
   - **Caches**: do not copy. The metadata and waveform caches rebuild, and they are the bulk of the container. State this in the release notes: the first launch re-scans.
-  - **Stats** (`AppStats`): wherever they are stored, they move with the defaults or the support directory; confirm which.
+  - **Stats** (`AppStats`): move the statistics stored in defaults with the other preferences.
   - Set the marker last, so an interrupted migration reruns. The import is copy-only and idempotent.
 - **The container is never deleted or modified.** A user who returns to the App Store build finds it as they left it. The two builds' states diverge from the moment of migration, in both directions, and that is accepted and documented rather than synchronized.
 - It lives in `AppDelegate`, as one function. If it will not fit there without a new file, that is argued then, not assumed now.

@@ -151,10 +151,9 @@
     LogInfo(@"Metadata sweep: %lu tracks", (unsigned long)tracks.count);
 }
 
-// Stage 1: the cache check never reads audio, so a dataless file cannot block
-// it, and high priority drains it before any parse gets a worker. A bounded
-// worker set walks the records in order, never one operation per row: a
-// playlist can hold over 100,000 rows.
+// Stage 1 reads attributes and cache entries without downloading audio.
+// Scan parses wait for its barrier; priority parses are exempt. A bounded
+// worker set walks the records instead of allocating one operation per row.
 - (void)enqueueStageOneWorkersForWorklist:(NSArray<MetadataScanEntry *> *)worklist {
     if (worklist.count == 0) {
         return;
@@ -184,10 +183,8 @@
     }
 }
 
-// Every miss takes the materialization path, even a local one, which settles
-// at once: one route to TagLib whatever the probe answered. The first row
-// reads for the file, so on a hit a cue sheet's forty rows cost one stat and
-// one unarchive.
+// Every miss takes the materialization path, including local files. The
+// first row reads for the file; a cache hit serves every row of a cue sheet.
 - (void)cacheCheckEntry:(MetadataScanEntry *)entry {
     AudioTrack *track = entry.tracks.firstObject;
     // An earlier loader may have resolved it since it was queued.

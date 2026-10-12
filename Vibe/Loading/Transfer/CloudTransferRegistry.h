@@ -48,8 +48,7 @@ NS_ASSUME_NONNULL_BEGIN
 // YES only while a transfer is running for url's standardized path.
 - (BOOL)isTransferringURL:(NSURL *)url;
 
-// <0 while no fraction is known (always, on iOS against a third-party
-// provider; DownloadProgressMonitor.h) and when nothing is transferring;
+// <0 while no fraction is known or nothing is transferring.
 // isTransferringURL: is the gate. A zero sample stays indeterminate.
 - (float)progressForURL:(NSURL *)url;
 

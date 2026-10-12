@@ -4,16 +4,16 @@ Bølgeformvisning
 Vibe tegner hvert nummer som en fuld bølgeform hen over vinduet. Klik hvor som helst på den for at spole.
 
 Hurtig
-Vibe er bygget lille og hurtig. Tags, albumbilleder og bølgeformer læses i baggrunden og caches, så næste åbning sker med det samme.
+Vibe er bygget lille og hurtig.
 
 Afspiller bare dine filer
 Slip en fil eller en mappe — fra din disk, iCloud Drive eller Dropbox — og den spiller. Der er ingen database at genopbygge og intet bibliotek at holde styr på.
 
 Vibes egen lydmotor
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, afspillet gennem Vibes egen CoreAudio-motor med samplerate-konvertering i høj kvalitet. Lossless-filer afspilles i fuld opløsning.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV og FLAC, afspillet gennem Vibes egen CoreAudio-motor med samplerate-konvertering i høj kvalitet.
 
 Bit-perfect-tilstand
-Bit-perfect og eksklusiv tilstand sender lyden til din udgangsenhed præcis som den er, for den bedst mulige lydkvalitet.
+Bit-perfect-tilstand matcher filens samplerate, hvis enheden understøtter den. Eksklusiv tilstand reserverer enheden til Vibe.
 
 Bygget med DJ’s i tankerne
 Vibe har en pitchfader i pladespillerstil, BPM- og toneartsanalyse, taktnøjagtige spring og performance-FX.

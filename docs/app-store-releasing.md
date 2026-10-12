@@ -58,7 +58,7 @@ Everything the product page shows lives in `Assets/app-store/`. Its `README.md` 
 
 `make appstore-upload-metadata` writes one platform's page per run: `--platform macos` by default, `ARGS="--platform ios"` for the other. The skill has the flags and the traps.
 
-The uploader writes only to an **editable** version: Prepare for Submission, or a rejected state. Once a release goes live, none exists, so the first upload of each cycle passes `--create-version <MARKETING_VERSION>`. Forgetting it is harmless: the run stops at "need exactly one editable macOS version" and lists every version's state. If a version is already editable, a *different* string errors rather than opening a second page. Later runs need no flag. The version made here is the same record the §5 build attaches to, so this step can run before or after §5.
+The uploader accepts Prepare for Submission, Ready for Review, Waiting for Review, Developer Rejected, Rejected, Metadata Rejected and Invalid Binary. `editableStates` in `ASCUpload.swift` lists these states. Once a release goes live, none exists, so the first upload of each cycle passes `--create-version <MARKETING_VERSION>`. Forgetting it is harmless: the run stops at "need exactly one editable macOS version" and lists every version's state. If a version is already editable, a *different* string errors rather than opening a second page. Later runs need no flag. The version made here is the same record the §5 build attaches to, so this step can run before or after §5.
 
 **Release notes are not a field on a platform's first version.** ASC answers `Attribute 'whatsNew' cannot be edited at this time` and fails the run at its first locale, having written nothing. The tool sees that the platform has no other version, leaves the attribute out, and prints that `whats-new.txt` is not uploaded for that platform. Under Universal Purchase this is the normal case for a newly added platform.
 
@@ -89,7 +89,7 @@ The rest is manual, in App Store Connect:
 
 ### What the reviewer sees
 
-This is the likeliest rejection. Vibe bundles no music. A reviewer opening the iOS app for the first time sees an empty playlist and no obvious way forward.
+Vibe bundles no music. A reviewer opening the iOS app for the first time sees an empty playlist.
 
 **`Assets/app-store/review-notes.txt` is the explanation.** Paste it into App Review Information → Notes, and into TestFlight's Beta App Review Information. Nothing uploads it. It explains the empty first launch, the four ways to get audio in, the formats, why the widget draws a placeholder until the app has played once, background audio, and the privacy answer.
 
@@ -109,7 +109,7 @@ Re-check this when the widget grows. Reading a shared setting (`NSUserDefaults i
 
 ## 6. After approval
 
-Release the version, or let auto-release do it. The version stops being editable at submission, so a later metadata fix means `--create-version` on the next version. The next cycle starts at §2.
+Release the version, or let auto-release do it. Once it is live, the uploader needs a new editable version for later copy changes. The next cycle starts at §2.
 
 ## Troubleshooting
 

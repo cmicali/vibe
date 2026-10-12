@@ -12,15 +12,11 @@
 
 static VibeDebugChannelExecutor gExecutor;
 
-// Joins a command's log line to its reply's.
 static NSString *VibeDebugLogTag(NSString *commandId) {
     return commandId.length > 8 ? [commandId substringToIndex:8] : (commandId ?: @"?");
 }
 
-// Every reply is logged, so a failure is visible even to a client that threw
-// the reply away. Errors are Warn and whole; successes are Info and trimmed,
-// since some replies run to tens of kilobytes. Only a short reply is parsed:
-// nothing large is an error.
+// Parse short error replies for warning logs. Trim other replies to bound log size.
 static void VibeLogDebugReply(NSString *commandId, NSString *response) {
     NSString *tag = VibeDebugLogTag(commandId);
     if (response.length < 4096 && [response containsString:@"\"error\""]) {
@@ -122,10 +118,7 @@ static void VibeHandleDebugCommandFiles(void) {
     draining = NO;
 }
 
-// Anything present before the channel is live belongs to a dead client:
-// responses and screenshots nobody collected, and, dangerously, commands a
-// killed client left behind, which the next drain would otherwise EXECUTE
-// (a days-old convert_to_flac delete).
+// Remove old commands before listening. Replaying a previous run can mutate files.
 static void VibeSweepStaleChannelFiles(void) {
     NSString *tmpDir = NSTemporaryDirectory();
     NSArray<NSString *> *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:tmpDir error:nil];

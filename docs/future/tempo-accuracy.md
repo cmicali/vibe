@@ -1,6 +1,6 @@
 # Future: improving tempo detection accuracy
 
-**Status: Not built.** The baseline: `AudioBPMAnalyzer` scored **Accuracy1 85.1%, Accuracy2 92.6%** over the 652 scorable files of the GiantSteps tempo dataset (annotations v2). The analyzer has been optimized for speed since, with its 140/0.5 constants unchanged. Re-measure before acting with `scripts/analysis/validate-tempo.py --jobs 6`. How the analyzer works is `Audio/Analysis/AGENTS.md`.
+**Status: Not built.** The baseline: `AudioBPMAnalyzer` scored **Accuracy1 85.1%, Accuracy2 92.6%** over the 652 scorable files of the GiantSteps tempo dataset (annotations v2). The current prior center and grid exponent are 140 BPM and 0.5. Re-measure before acting with `scripts/analysis/validate-tempo.py --jobs 6`. How the analyzer works is `Audio/Analysis/AGENTS.md`.
 
 ## Where the error is
 
@@ -13,7 +13,7 @@
 | house, electro-house, progressive-house | 95–96% | electronica | 65.4% |
 | techno | 93.3% | glitch-hop | 58.8% |
 
-**This drives the work.** The analyzer is at its ceiling on four-to-the-floor material and loses 20 to 40 points on syncopated material. First ask which of those the app's listeners play.
+These measurements suggest testing multi-band evidence on syncopated material. Re-run the baseline before comparing a change.
 
 ## Already tried, so not tried again
 
@@ -37,11 +37,11 @@ Risk: moderate. It can come out worse. One build and a corpus run per experiment
 
 ## Proposal 2: a learned model
 
-Every method above the mid-80s on this dataset is learned. Schreiber and Müller's CNN reaches about 87% Accuracy1 and 97% Accuracy2. Classical DSP tops out about where Vibe is.
+A learned tempo model is another option if the multi-band experiment does not meet the accuracy goal. Compare candidates on the same files before choosing one.
 
-- **Inference is easy.** Core ML runs a small tempo CNN fast, it is public API, and a mel-spectrogram front end can reuse the existing decode pass.
+- **Measure inference.** Prototype a Core ML model and its spectrogram front end on a phone.
 - **The model is hard.** Training needs a corpus and a pipeline that do not exist here. Several published tempo models are research-only. `THIRD-PARTY-NOTICES.md` and `ThirdParty/AGENTS.md` apply to weights as much as to source.
-- **The payoff is small.** Perhaps two points of Accuracy1 over a good multi-band analyzer, for a trained artifact that cannot be reasoned about or hand-tuned.
+- **The payoff is unmeasured.** Compare accuracy, runtime and model size with the multi-band result.
 
 **Do proposal 1 first.** It is cheap and reversible, and it targets the same failures. If it lands near 90%, the case for a model largely goes away.
 

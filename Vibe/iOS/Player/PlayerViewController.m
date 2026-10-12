@@ -88,11 +88,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     [self buildUI];
 
     _waveformCache = [[AudioWaveformCache alloc] init];
-    // Once: an entry cached before tempo detection existed here carries no
-    // BPM, and a cache hit never re-analyzes, so those tracks would show no
-    // tempo and echo at the default for as long as the entry lived. Ahead of
-    // the first load on the cache's serial queue, so no lookup sees the old
-    // entries.
+    // Queue the one-time invalidation before the first cache lookup.
     if (![NSUserDefaults.standardUserDefaults boolForKey:kWaveformTempoBackfillKey]) {
         [_waveformCache invalidateWithCompletion:nil];
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
@@ -154,7 +150,6 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     [self refreshWaveformWindow];
 }
 
-// Reachable because the display link holds a weak proxy.
 - (void)dealloc {
     [_scrollLink invalidate];
 }
@@ -517,7 +512,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
             _elapsedLabel.text = elapsed;
         }
         _remainingTimeControl.text = VibeRightTimeText(position, duration);
-        // The only waveform write while paused.
         if (!_waveformView.isScrubbing && !_playback.seekInFlight) {
             _waveformView.progress = position / duration;
         }
@@ -612,8 +606,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
     [self scrollToCurrentPageAnimated:animated];
-    // In this order: the current page's disk read goes ahead of the
-    // neighbors' on the cache's serial queue.
+    // Request the current page before optional neighbor reads.
     [self requestCurrentWaveform];
     [_waveformCoordinator pruneAroundIndex:playback.currentIndex];
     [self fetchNeighborWaveforms];
@@ -627,7 +620,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // page. Each view releases its own pager hold without committing a seek.
 - (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
     [self applyPlaybackLoadingToVisiblePages];
-    // Every holder is an FXPadView or a WaveformScrubberView.
     [_pagerHoldViews.allObjects makeObjectsPerformSelector:@selector(cancelInteraction)];
     // Only the current page reads Next from the play order.
     [self applyPlayOrderToVisiblePages];

@@ -396,8 +396,6 @@ typedef struct {
     XCTAssertEqualObjects(self.log.lastObject[@"range"], @"bytes=0-15", @"the probe");
 }
 
-// The fake answers iCloud's lookup for a share named after a file at its
-// root, and serves the file at the signed address the lookup names.
 - (void)testAnICloudLinkOpensFromTheFake {
     LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
     NSError *error = nil;
@@ -418,8 +416,6 @@ typedef struct {
                           [NSData dataWithContentsOfURL:[_served URLByAppendingPathComponent:@"tone.flac"]]);
 }
 
-// An expiry fault hands out an address already expired. Its refusal is
-// looked up again, and the fresh address answers.
 - (void)testAnExpiredAddressIsLookedUpAgain {
     LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
     XCTAssertTrue([VibeFakeHTTP addFaultOfKind:@"expiry" file:nil after:0 seconds:0 rate:0 status:0 once:@YES]);

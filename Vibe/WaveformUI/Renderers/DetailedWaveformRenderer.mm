@@ -67,14 +67,9 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     return line;
 }
 
-// The bars' mask. Bars that abut, as Detailed's do at a width of their pitch,
-// are one outline along their tops and back along their bottoms, with a step
-// only where the level changes: under the nonzero rule it covers what their
-// rects cover, in at most four path elements a bar where a rect apiece is
-// five, and appending those was nine tenths of a rebuild. Pixel-rounded bars
-// fill byte for byte as their rects do; a morph frame's unrounded ones
-// antialias a few levels apart, neither nearer the exact area. Bars with gaps
-// (Basic's) stay rects. points is the caller's scratch.
+// Abutting bars share one outline along their tops and bottoms. This uses
+// fewer path elements than separate rects. Gapped bars keep their rects.
+// points is the caller's scratch.
 static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count,
                                     std::vector<CGPoint> &points) CF_RETURNS_RETAINED;
 static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count, std::vector<CGPoint> &points) {

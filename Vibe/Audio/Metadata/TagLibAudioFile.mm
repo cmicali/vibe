@@ -47,8 +47,8 @@ public:
 #endif
 
 // A remote placeholder read by range (CloudFileMaterializer's
-// remoteReadForURL:): the parse fetches only what TagLib reads — the head's
-// tags, a frame header, a trailer — so a folder's tags cost kilobytes per file, not the files.
+// remoteReadForURL:). The parse fetches the blocks TagLib reads instead of
+// materializing the song. The server must honor ranges to avoid skipped bytes.
 // Fetched in aligned blocks, one request per run of missing blocks, cached for
 // the stream's life. TRAP: a failed fetch THROWS, and loadFromURL:'s barrier
 // turns that into a failed parse; returning short would let TagLib build a
@@ -107,8 +107,7 @@ public:
 
 private:
     static constexpr TagLib::offset_t kBlockSize = 64 * 1024;
-    // The head is fetched this deep at once: a tag with its art usually fits
-    // (measured 230–360 KB a file), which saves the second round trip.
+    // Fetch the first 384 KiB together to avoid another request for nearby art.
     static constexpr TagLib::offset_t kHeadBlocks = 6;
 
     // One request from the first missing block to the last, so a tag read

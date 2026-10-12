@@ -316,7 +316,6 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
-// The preview shows the waveform's style, colors and levels.
 - (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects {
     if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme
                    | VibeSettingsLiveEffectWaveformLevels)) {
@@ -460,7 +459,6 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
             ? [theme displayColorForBase:kVibeThemeColorWindowTint dark:dark]
             : [NSColor colorWithWhite:dark ? 0.2 : 0.92 alpha:1];
     WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
-    // 3-Band's bars are its low, mid and high bands.
     NSArray<NSColor *> *bars = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle]
             ? [palette.bandColors subarrayWithRange:NSMakeRange(0, 3)]
             : @[palette.playedColor, palette.playedColor, palette.playedColor];
@@ -682,7 +680,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
         if (response != NSModalResponseOK || !panel.URL) {
             return;
         }
-        // nil when an image vanished while the panel was up: send the JSON.
+        // No readable images: fall back to JSON.
         NSData *payload = carriesImages ? [AppTheme archiveDataForRecord:record name:name] : nil;
         payload = payload ?: [AppTheme JSONDataForRecord:record name:name];
         NSError *error = nil;

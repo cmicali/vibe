@@ -250,9 +250,8 @@ static double SkipBaseBars(void) {
     [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
-// TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
-// file, and re-parking its successor after a list edit or a mode change would
-// open one. On a cloud folder that is an unasked download. A new play
+// TRAP: a Stopped player must not prefetch. It may retain the finished file,
+// but re-parking a successor after a list edit or mode change opens another. On a cloud folder that is an unasked download. A new play
 // prefetches at its start anyway.
 - (void)prefetchSuccessor {
     if (self.audioPlayer.isStopped) {

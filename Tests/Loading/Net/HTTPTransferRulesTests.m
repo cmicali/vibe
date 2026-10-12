@@ -1,9 +1,3 @@
-//
-//  HTTPTransferRulesTests.m
-//
-//  The HTTP transfer's decisions that need no network: when to resend, and
-//  the size and version a response's headers state.
-//
 
 #import <XCTest/XCTest.h>
 

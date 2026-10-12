@@ -1,11 +1,3 @@
-//
-//  HTTPTransferClientTests.m
-//
-//  The plain-HTTP client over HTTPStub and a per-test temp directory: the
-//  request defaults, the probe, the ranged read, the failure ladder, the
-//  allowsURL check on requests and redirects, and the download's resends,
-//  version pin, kept part, and length check.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -641,8 +633,6 @@ typedef struct {
     XCTAssertEqualObjects([self versionOfPart], @"\"v1\"");
 }
 
-// A kept part as long as the file is the file: the 416 to its resend, of
-// its version, completes the download with the bytes kept.
 - (void)testAKeptPartHoldingTheWholeFileIsComplete {
     NSData *file = PatternBytes(4000);
     [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
@@ -667,8 +657,6 @@ typedef struct {
     XCTAssertNil([requests.lastObject valueForHTTPHeaderField:@"Range"]);
 }
 
-// A resend answered from an earlier byte skips what the file holds, as a
-// whole answer does.
 - (void)testAPartialResendFromAnEarlierByteSkipsTheBytesWritten {
     NSData *file = PatternBytes(1000000);
     [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
@@ -688,7 +676,6 @@ typedef struct {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]], file);
 }
 
-// A resend answered from past the bytes written would leave a gap.
 - (void)testAPartialResendFromALaterByteFailsAndDeletesThePart {
     NSData *file = PatternBytes(1000000);
     [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
@@ -709,7 +696,6 @@ typedef struct {
     XCTAssertFalse([self partExists]);
 }
 
-// A kept part's resend answered from past its end starts over, whole.
 - (void)testAKeptPartAnsweredFromALaterByteStartsOver {
     NSData *file = PatternBytes(500000);
     [_stub serveData:file atPath:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
@@ -792,7 +778,6 @@ typedef struct {
                           @"example.com");
 }
 
-// A server that honors ranges refuses one past the end: the status error.
 - (void)testAReadPastTheEndOfARangedAnswerFailsWithItsStatus {
     [_stub serveData:PatternBytes(4000) atPath:@"/a.flac" headers:nil];
     NSError *error = nil;

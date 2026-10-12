@@ -269,7 +269,6 @@ static void VibeRequestVectorBallsPipeline(
     NSUInteger count = 0;
     for (NSUInteger cy = 0; cy < rows; cy++) {
         for (NSUInteger cx = 0; cx < cols; cx++) {
-            // The average ink coverage over the cell.
             uint32_t sum = 0;
             for (NSUInteger py = 0; py < cell; py++) {
                 const uint8_t *rowPtr = coverage + (cy * cell + py) * bpr;

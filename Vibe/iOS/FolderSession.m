@@ -36,7 +36,6 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 @property (nonatomic) VibeFolderOpenSort sort;
 @property (nonatomic) NSArray<NSString *> *coveringRootPaths;
 @property (nonatomic, copy) NSURL *(^resolvePersistedBase)(void);
-// resolveRowsOfOpen:
 @property (nonatomic, readonly) NSMutableArray<AudioTrack *> *tracks;
 @property (nonatomic, readonly) NSMutableArray<NSURL *> *ownedScopes;
 @property (nonatomic, readonly) NSMutableArray<NSURL *> *addedFolders;
@@ -44,7 +43,6 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 @property (nonatomic) NSURL *folderURL;
 @property (nonatomic) NSURL *selectedURL;
 @property (nonatomic) NSURL *deniedSheetURL;
-// mintBookmarksOfOpen:
 @property (nonatomic) NSData *baseBookmark;
 @property (nonatomic, readonly) NSMutableArray<NSData *> *additionBookmarks;
 @property (nonatomic, readonly) NSMutableDictionary<NSURL *, NSData *> *minted;
@@ -163,7 +161,6 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 _addWaiters = [NSMutableArray array];
             }
             NSArray<NSURL *> *parked = [urls copy];
-            // Weak: the waiter is stored on self.
             __weak FolderSession *weakSelf = self;
             [_addWaiters addObject:^{
                 [weakSelf beginOpenURLs:parked appending:YES expandsFile:NO grantedFolder:grantedFolder];
@@ -252,12 +249,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     });
 }
 
-// Work queue. A Dropbox folder nothing has listed yet is listed from Dropbox
-// before it is read: the mirror holds only what something has listed, so a
-// folder played or added from its parent's listing, never browsed into, was
-// empty on disk and the open landed nothing. One already listed is read as it
-// is — the browser relists it when shown — so a restore never waits on the
-// network. Bounded, so an open offline still reads the disk.
+// Work queue. Populate unlisted mirror folders before reading them.
+// After the timeout, use the entries already on disk.
 - (void)listFromDropboxIfMirrored:(NSURL *)url {
     DropboxMirror *mirror = DropboxMirror.shared;
     NSString *dropboxPath = [mirror dropboxPathForURL:url];
@@ -680,9 +673,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     });
 }
 
-// Main thread; the one place session state and bookmarks move. Every request
-// ends here, an empty one included; a stale one only releases its scopes and
-// answers NO.
+// Main thread. Stale deliveries release their scopes without changing the session.
 - (BOOL)finishOpenIntent:(uint64_t)openIntentGeneration
                appending:(BOOL)appending
                   tracks:(NSArray<AudioTrack *> *)tracks
@@ -726,7 +717,6 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             else {
                 [self.delegate folderSessionDidOpenEmptyFolder:self];
             }
-            // Replayed, not left hanging; the first promotes in its turn.
             [self releaseAddWaitersAfterSettle];
         }
         return YES;

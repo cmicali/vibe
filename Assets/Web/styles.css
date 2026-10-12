@@ -1,13 +1,10 @@
-/* Vibe marketing page. Colors are sampled from the app: the vinyl black of the
-   icon, the panel grey of the window, and the playlist's selection blue. */
-
 :root {
   --bg: #08080a;
   --panel: #16161a;
   --line: #2a2a31;
   --ink: #f2f2f4;
   --ink-dim: #a3a3ad;
-  --ink-faint: #7a7a85;   /* 4.7:1 on --bg; #6f6f7a was 4.0 and under AA */
+  --ink-faint: #7a7a85;
   --ink-ghost: #4a4a53;
   --accent: #4c8dff;
   --accent-solid: #2458ca;
@@ -27,7 +24,7 @@ body {
   color: var(--ink);
   font: 400 17px/1.6 var(--font);
   -webkit-font-smoothing: antialiased;
-  /* A faint echo of the icon's vinyl groove, behind the fold. */
+
   background-image: radial-gradient(120% 70% at 50% -10%, #1b1b22 0%, transparent 60%);
   background-repeat: no-repeat;
 }
@@ -47,10 +44,7 @@ a:hover { color: #7aabff; }
   clip-path: inset(50%); white-space: nowrap;
 }
 
-/* ---------- shared layout ---------- */
-
-/* max() rather than addition: a normal screen keeps --pad, and only a notch
-   or home indicator wider than it pushes the content further in. */
+/* Keep the normal gutter unless the safe area is wider. */
 .hero, main > section, footer {
   max-width: 1080px;
   margin-inline: auto;
@@ -61,29 +55,22 @@ a:hover { color: #7aabff; }
 
 main > section { padding-block: clamp(56px, 9vw, 96px); }
 
-/* The screenshots carry the window's own rounded corners and a transparent
-   margin, so the page shadow has to follow the alpha, not the element box. */
+/* Follow the screenshot alpha instead of shadowing its transparent margin. */
 .shot img {
   width: 100%;
   filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.75));
 }
-/* Narrower than the text column: the window shots are the widest thing on the
-   page and were setting its apparent width. Text keeps the 1080 container. */
+
 .shot {
   margin: 0 auto;
   max-width: 800px;
 }
-
-/* ---------- hero ---------- */
 
 .hero {
   padding-top: clamp(48px, 9vw, 88px);
   text-align: center;
 }
 
-/* Icon and wordmark are one lockup, side by side at every width. One custom
-   property drives both, so the icon keeps a fixed ratio to the wordmark
-   instead of the two being tuned per breakpoint. */
 .brand {
   --lockup: clamp(46px, 9vw, 76px);
   display: flex;
@@ -125,7 +112,6 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   margin-top: 18px;
 }
 
-
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -134,17 +120,12 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   margin-top: 30px;
 }
 
-/* Glyph, then a two-line stack: the label over a smaller detail line. The
-   version under Download is rewritten by the release script, so the link and
-   the number it advertises can never disagree. */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   padding: 11px 20px;
-  /* Side by side, flex stretch already equalises these. Once they wrap onto
-     their own rows there is nothing to stretch against, so a button with no
-     second line would sit shorter than its neighbours. */
+  /* Wrapped buttons must match the height of buttons with a detail line. */
   min-height: 60px;
   border: 1px solid var(--line);
   border-radius: 13px;
@@ -171,13 +152,8 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
 
 .shot-hero { margin-top: clamp(26px, 4.2vw, 43px); }
 
-/* A screenshot sits directly against these two edges, so they come off the
-   shared section rhythm by the same 40% as the margins above the shots.
-   Everything not touching a screenshot keeps the original spacing. */
 .features { padding-top: clamp(34px, 5.4vw, 58px); }
 .feature-row { padding-bottom: clamp(34px, 5.4vw, 58px); }
-
-/* ---------- feature grid ---------- */
 
 .grid {
   list-style: none;
@@ -188,8 +164,7 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-/* Glyph then title on one line. flex-start rather than center so a heading
-   that wraps keeps its icon beside the first line, not floating mid-block. */
+/* Keep the icon beside the first line of a wrapped heading. */
 .grid h3 {
   font-size: 19px;
   font-weight: 600;
@@ -207,23 +182,17 @@ main > section { padding-block: clamp(56px, 9vw, 96px); }
 }
 .grid p { color: var(--ink-dim); font-size: 16px; margin-top: 7px; }
 
-/* ---------- alternating copy + screenshot ---------- */
-
 .feature-row { border-top: 1px solid var(--line); }
 .feature-row .copy { max-width: var(--measure); margin-inline: auto; text-align: center; }
 .feature-row h2 { font-size: clamp(28px, 4.4vw, 38px); font-weight: 650; }
 .feature-row .copy > p { color: var(--ink-dim); margin-top: 14px; }
 .feature-row .shot { margin-top: clamp(19px, 3vw, 29px); }
-/* A phone is portrait: at the .shot width the window shots use it would stand
-   nearly 1800px tall and the section would be nothing but screenshot. */
+
 .shot-phone { max-width: 300px; }
 .phones { display: flex; justify-content: center; gap: clamp(10px, 2.4vw, 24px); }
 .phones .shot-phone { flex: 1 1 0; min-width: 0; max-width: 240px; margin-inline: 0; }
 
-/* Apple's own badge, used as supplied. Its art has the clear space built in,
-   so it gets margin rather than padding, and a fixed height rather than a
-   percentage width — the guidelines set a minimum size, not a ratio to the
-   column. */
+/* The supplied badge already includes clear space. */
 .store-badge { margin-top: 20px; }
 .store-badge img { height: 44px; width: auto; display: inline-block; vertical-align: middle; }
 
@@ -235,10 +204,6 @@ code {
   color: var(--ink);
 }
 
-/* ---------- screenshot carousel ---------- */
-
-/* Native horizontal scroll with snap points, so touch and trackpad swipes
-   work with no script; the arrows and dots only drive the same scroll. */
 .shots { padding-top: clamp(34px, 5.4vw, 58px); }
 .carousel { position: relative; max-width: 960px; margin: 0 auto; }
 .carousel-track {
@@ -287,14 +252,6 @@ code {
 }
 .carousel-dots button[aria-current="true"] { background: var(--accent); }
 
-/* ---------- Homebrew ---------- */
-
-/* A one-line terminal: the command in the app's own monospace, and a copy
-   button. The type scales with the viewport so the whole command fits on one
-   line at phone width rather than scrolling. */
-/* No rule above: it reads as a footnote to the feature grid, so it sits on
-   that section's bottom padding rather than adding its own, and leaves the
-   same space below. */
 .brew {
   padding-block: 0 clamp(56px, 9vw, 96px);
   text-align: center;
@@ -353,12 +310,8 @@ code {
 .copy-btn .done-glyph, .copy-btn.copied .copy-glyph { visibility: hidden; }
 .copy-btn.copied .done-glyph { visibility: visible; color: var(--accent); }
 
-/* ---------- closing CTA ---------- */
-
 .cta { border-top: 1px solid var(--line); text-align: center; }
 .cta h2 { font-size: clamp(28px, 4.4vw, 38px); font-weight: 650; }
-
-/* ---------- prose (privacy) ---------- */
 
 .prose {
   max-width: 68ch;
@@ -398,8 +351,6 @@ code {
 .prose li { margin-top: 8px; }
 .prose ul + p { margin-top: 14px; }
 
-/* ---------- footer ---------- */
-
 footer {
   border-top: 1px solid var(--line);
   padding-block: 40px calc(56px + env(safe-area-inset-bottom));
@@ -419,9 +370,6 @@ footer .links {
   margin-top: 8px;
 }
 
-/* 44px is the Apple HIG minimum for a touch target; the visible text is 24px
-   tall, so the rest is padding. The gap above shrinks by the same amount so
-   the row looks unchanged. */
 footer .links a {
   display: inline-block;
   padding: 10px 8px;

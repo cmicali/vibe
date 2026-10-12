@@ -68,9 +68,8 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // finished, past the size, or when blocks already hold the whole range.
 // Otherwise it replaces every block it overlaps.
 - (void)installBlock:(NSData *)bytes atOffset:(uint64_t)offset;
-// Drops every block wholly outside [offset, offset + length). Three are
-// always kept: the block at byte 0, the block that ends at the size, and any
-// block the range a blocked wait wants overlaps.
+// Drops blocks wholly outside [offset, offset + length), except the head and
+// tail blocks and every block overlapping the range a blocked wait wants.
 - (void)dropBlocksOutsideRangeAt:(uint64_t)offset length:(uint64_t)length;
 // The bytes all blocks hold now; 0 when none is held.
 @property (nonatomic, readonly) uint64_t windowLength;

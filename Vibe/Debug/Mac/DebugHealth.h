@@ -31,15 +31,8 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller);
 NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *violations,
                                         MainPlayerController *controller);
 
-// Closes the current file, then polls without blocking the main thread until
-// every pending-work counter reads zero or a deadline passes. completion runs
-// on main with the reply JSON, so the handler returns nil and the channel's
-// async path delivers it.
-//
-// A health sample taken mid-decode swings the footprint by hundreds of
-// megabytes, forcing growth limits so wide a slow leak hides inside them.
-// After a quiesce the app is back at a fixed resting state, so anything that
-// did not return to it is a leak.
+// Closes the file and polls pending work until zero or a deadline. Completion
+// runs on main. Sample health after this to reduce in-flight allocation noise.
 void VibeDebugQuiesce(MainPlayerController *controller, void (^completion)(NSString *responseJSON));
 
 #endif

@@ -15,18 +15,16 @@
 #import <UIKit/UIKit.h>
 #endif
 
-// The hover highlight's required luminance separation from the played color.
+// The target change in weighted RGB brightness, limited by the contrast pole.
 static const CGFloat kHoverLuminanceDelta = 0.25;
 
-// The built-in themes' resting levels. The colored themes pair a full-alpha
-// hue with Sonic Cirrus's bright monochrome unplayed level, on every style.
+// The built-in themes' resting alpha levels.
 static const CGFloat kMonochromePlayedAlpha = 0.75;
 static const CGFloat kMonochromeUnplayedAlpha = 0.375;
 static const CGFloat kColoredUnplayedAlpha = 0.89;
 
-// The album-art legibility clamp; below the saturation floor the color is
-// effectively gray and falls back to mono. Perceptual luminance, not HSB
-// brightness, which is hue-blind: pure blue reads B=1.0 yet is far too dark.
+// Nearly gray artwork falls back to Mono. The clamp uses weighted RGB
+// brightness. HSB brightness would accept a dark pure blue.
 static const CGFloat kArtworkSaturationFloor = 0.15;
 static const CGFloat kArtworkDarkMinLuminance = 0.55;
 static const CGFloat kArtworkLightMaxLuminance = 0.45;
@@ -34,13 +32,9 @@ static const CGFloat kArtworkLightMaxLuminance = 0.45;
 // Toward the color's own luminance gray, which leaves the clamp above intact.
 static const CGFloat kArtworkUnplayedDesaturation = 0.5;
 
-// 3-Band's seven fills from its three bands, in the layer order. Shaded, the
-// CDJ's way: low with mid is the mid shaded, and wherever the highs join they
-// are tinted toward what they join, further on light, where the highs are
-// dark; the CDJ palette of hdelplan/three-band-waveform follows this within
-// 13/255. Unshaded, Engine DJ's way: each band painted whole over the ones
-// below, the highs letting about 6% of what they cover through. The bands
-// arrive opaque (AppTheme stores them so), and the blends are.
+// Seven opaque fills in painter's order. Shaded overlaps darken low+mid
+// and tint combinations with highs toward the lower bands. Unshaded highs
+// blend in 6% of the bands beneath them.
 static const CGFloat kBandLowMidShade = 0.3;
 static const CGFloat kBandHighTintDark = 0.18;
 static const CGFloat kBandHighTintLight = 0.35;
@@ -237,7 +231,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     CGFloat shortfall = isDark ? kArtworkDarkMinLuminance - luminance
                                : luminance - kArtworkLightMaxLuminance;
     if (shortfall > 0) {
-        // Luminance is linear in the blend, so the fraction is closed form.
+        // Weighted RGB brightness is linear in this blend.
         CGFloat headroom = fabs(pole - luminance);
         CGFloat t = headroom > 0 ? MIN(shortfall / headroom, 1) : 0;
         r += (pole - r) * t;
@@ -264,9 +258,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     if (!VibeGetRGB(played, &r, &g, &b)) {
         return isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
     }
-    // Toward the contrast pole just far enough to clear the delta (closed form:
-    // luminance is linear in the blend). Full alpha whatever the played level:
-    // the highlight is the brightest thing in the waveform.
+    // Move toward the contrast pole by the available brightness delta.
+    // Full alpha keeps the hover visible over a translucent played color.
     CGFloat pole = isDark ? 1 : 0;
     CGFloat luminance = VibeLuminance(r, g, b);
     CGFloat headroom = fabs(pole - luminance);

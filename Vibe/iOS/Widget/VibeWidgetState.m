@@ -30,7 +30,7 @@ static NSString *const kKeyPositionDate = @"positionDate";
 
 // Bumped when a field's meaning changes; an unknown version draws the empty
 // state until the next publish.
-static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named by it
+static const NSInteger kStateVersion = 2;
 
 @implementation VibeWidgetState
 

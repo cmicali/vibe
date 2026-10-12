@@ -1,6 +1,6 @@
 # The debug command channel
 
-How a running app is driven and read from outside, on both platforms. **The verbs are deliberately not listed here.** The list lives in the `vibe-debug` skill and in the channel's own unknown-command reply, so it cannot drift from the tables. This file is the structure: what the pieces are, which are shared, and where a new verb goes. Read the `vibe-debug` skill first to use the channel, and this file to change it.
+How a running app is driven and read from outside, on both platforms. **The verbs are deliberately not listed here.** The unknown-command reply derives from the command tables. The `vibe-debug` skill documents their usage. This file is the structure: what the pieces are, which are shared, and where a new verb goes. Read the `vibe-debug` skill first to use the channel, and this file to change it.
 
 ## Layout
 
@@ -62,9 +62,9 @@ The stress runner permits only reviewed controller and delegate commands, includ
 
 These exist for the stress driver, which cannot tell a healthy soak from a leaking one by screenshotting it.
 
-- **`DebugConsistency.{h,m}`**: the checks that hold on both platforms, behind the same surface protocol. Each platform adds its own through `debugCheckPlatform:`; iOS checks for rows lifted for an Add and never settled. A violation is a statement about state that should never be legal. **TRAP: a check that compares a published or rendered value against the state that produced it can lag a run-loop turn.** Count only a violation that survives a re-check after a short settle, as the stress driver does.
+- **`DebugConsistency.{h,m}`**: the checks that hold on both platforms, behind the same surface protocol. Each platform adds its own through `debugCheckPlatform:`. iOS flags row lifts older than 30 seconds. That threshold can also catch a slow multi-folder open. A violation needs investigation against the operation in flight. **TRAP: a check that compares a published or rendered value against the state that produced it can lag a run-loop turn.** Count only a violation that survives a re-check after a short settle, as the stress driver does.
 - **The layout probe** (`dump_layout_anchors`, `sample_layout_anchors`) and **the frame probe** (`sample_frame_rate`, `--frame-rate-probe`) are the iOS shell's oracles for what a screenshot cannot judge: whether the live layout under the card held still, and whether an animation got its frames.
-- **`Mac/DebugHealth.{h,m}`**: `dump_health`'s process and UI resource counts, for diffing across a run.
+- **`Mac/DebugHealth.{h,m}`**: `dump_health`'s process and UI resource counts, for diffing across a run. Warm the lazy FX units before taking a leak baseline. Quiesce pending work before comparing memory. Allocator reservations and live allocations are separate readings.
 - **`AudioLoadTiming.{h,m}`**: per-phase timings for one waveform decode pass, recorded by the loader and read afterwards, since that pass has no reply path. They are plain C accumulators, so the ObjC++ loader and the plain-ObjC channel share the header.
 - **`VibeWorkTally.{h,m}`**: a named counting window over the prefix header's signpost sites. It answers "how much of this work ran at all". Its functions are declared in `Vibe-Prefix.pch`, so call sites need no debug header.
 

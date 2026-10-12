@@ -428,16 +428,11 @@
         if (!shouldSubmit) {
             return;
         }
-        // A remote placeholder's tags are read by range (TagLibAudioFile's
-        // VibeRangedStream), so it takes no claim: one would download the
-        // whole file for a few hundred KB of tags. Ready at once, with no
-        // token — the slot holds none yet, so the completion's match passes.
-        // The foreground hold above covers the scan's picks only: a priority
-        // read — the tags of the track being downloaded and its neighbors' —
-        // goes out beside the foreground download, a few hundred KB each, so
-        // the header is not blank until the whole file lands. A format TagLib
-        // cannot parse is materialized as any cloud file is: CoreAudio's
-        // facts need the whole file.
+        // TagLib reads remote placeholders by range without materializing
+        // the song. The slot has no token yet, so nil matches its completion.
+        // Priority reads may run beside a foreground transfer. Scan reads
+        // obey the hold above. Formats TagLib cannot parse need the whole
+        // file for CoreAudio's facts and take the ordinary claim path.
         if ([PlaceholderFiles readsRemotePlaceholderByRange:entry.url]) {
             [strongSelf completeMaterializationForEntry:entry
                                                priority:priority
@@ -805,8 +800,8 @@
     }
     os_unfair_lock_lock(&_materializationLock);
     // Only a record not yet picked gives the row up; picked work settles it
-    // normally. A record still in stage 1 is missed and costs at most one
-    // transfer; its delivery no-ops.
+    // normally. A record still in stage 1 can reach materialization later;
+    // receivers must reject delivery for a departed row.
     MetadataScanEntry *record = [self unpickedRecordHoldingTrackLocked:track];
     if (record) {
         NSMutableArray<AudioTrack *> *remaining = [record.tracks mutableCopy];

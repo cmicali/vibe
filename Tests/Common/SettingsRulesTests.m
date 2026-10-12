@@ -1,9 +1,3 @@
-//
-// The normalize-on-read rules a stored setting is snapped to, so a value no
-// pane can produce — an external `defaults write`, or one left by an older
-// build — cannot leave the pane displaying one thing while the engine uses
-// another.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -152,8 +146,6 @@
     }
 }
 
-// Absent is every default, an empty write removes the key, and Reset to
-// defaults clears remaps with the rest.
 - (void)testShortcutOverridesAreSparseAndResetWithTheRest {
     AppSettings *settings = [self freshSettings];
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
@@ -264,7 +256,6 @@
     XCTAssertEqualObjects(VibeNormalizedDockIcon(@"App Icon"), @"album_art");
 }
 
-// A play glyph outside the table pairs with the factory pause, never itself.
 - (void)testGlyphChoicesAreRealSymbolsWithPausePartners {
     for (NSString *glyph in [VibePlaylistButtonGlyphs() arrayByAddingObjectsFromArray:VibeNextButtonGlyphs()]) {
         XCTAssertNotNil([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil], @"%@", glyph);
@@ -317,8 +308,6 @@
     XCTAssertEqual(VibeNormalizedFolderOpenSort(@"date"), VibeFolderOpenSortName);
 }
 
-// The identifier is what is persisted, so the pair has to round-trip: a getter
-// that could not read back its own setter would reset the choice on relaunch.
 - (void)testFolderOpenSortIdentifierRoundTrips {
     for (VibeFolderOpenSort sort = VibeFolderOpenSortName;
          sort <= VibeFolderOpenSortAsReceived; sort++) {
@@ -388,8 +377,6 @@
     XCTAssertFalse(VibeSettingsAreAtDefaults(@{@"color": @"#FF8800"}, registered, nullable));
 }
 
-// Release hides the Advanced pane's Audio group until quick clicks on the
-// Version row reveal it; a slower click starts the count over.
 - (void)testTheAudioGroupRevealCountsQuickSuccessiveClicksOnly {
     XCTAssertEqual(kVibeAudioPathRevealClicks, 7u);
     NSUInteger count = VibeAudioPathRevealClickCount(0, 1e9); // the first click, however long after launch

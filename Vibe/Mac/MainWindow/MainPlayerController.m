@@ -533,9 +533,8 @@
     float baseBPM = track.bpm;
     float scaledBPM = baseBPM > 0 ? baseBPM * self.playbackRate : 0;
     self.audioPlayer.fx.delayTapBPM = scaledBPM;
-    // The key is not shifted with the fader: varispeed reaches a semitone only
-    // at the 16% extreme, and a flickering key would misread as a data change.
-    // The notation applies to tagged keys too.
+    // Show the file's key without transposing it for the pitch fader. The
+    // notation applies to tagged keys too.
     AppSettings *settings = AppSettings.sharedInstance;
     VibeMusicalKey key = shown && settings.showKey ? shown.key : VibeMusicalKeyNone;
     NSString *keyText = @"";

@@ -211,7 +211,6 @@ static NSString *const kValueCellIdentifier  = @"value";
                  : nil;
             break;
     }
-    // nil for the switch rows.
     if (next) {
         [self.navigationController pushViewController:next animated:YES];
     }

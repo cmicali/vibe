@@ -3,9 +3,9 @@
 //  Vibe
 //
 //  The playback engine's public surface, shared by both shells: a transport
-//  over its own voice bus and render pipeline. It publishes state the moment a
-//  verb lands and reports every outcome to its delegate on main; the audio
-//  follows within a declick. The platform halves are
+//  over its own voice bus and render pipeline. State changes run on the player
+//  queue without waiting for fades. Delegate events are delivered on main.
+//  The platform halves are
 //  Mac/Devices/AudioPlayer+Devices.h, Mac/Devices/AudioPlayer+BitPerfect.h, and
 //  iOS/AudioPlayer+Recovery.h.
 //
@@ -39,7 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Track-change crossfade in milliseconds, default the 10 ms declick minimum.
 // Applies only when a play replaces an audibly playing track. Raising it past
-// the minimum unqueues a gapless successor; lowering it re-queues the park.
+// the minimum unqueues a gapless successor unless it is a contiguous CUE
+// window. Lowering it re-queues the park.
 @property (atomic) NSInteger crossfadeMilliseconds;
 
 // What a transport edge does. YES (default): a ≤10 ms declick touching only
@@ -173,9 +174,8 @@ NS_ASSUME_NONNULL_BEGIN
 // still fading out. An FX tail after the last voice is not modeled.
 @property (readonly) BOOL outputAudioActive;
 
-// Nothing has started the output since its last idle stop settled: no render
-// is pulling the pipeline, an FX tail included. NO from every start attempt,
-// a failed one too, until the idle stop that follows it.
+// No output start has followed the last idle stop or iOS media-services reset.
+// NO from every start attempt, including a failed one, until either settles.
 @property (readonly) BOOL outputIdle;
 
 // The current track is Playing but held silent in place, waiting for its
@@ -196,13 +196,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// Every method is required: the player invokes them all unconditionally,
-// with no respondsToSelector: guards at the send sites.
+// Transport callbacks are required. Optional observation hooks follow them.
 @protocol AudioPlayerDelegate <NSObject>
 
 - (void)audioPlayerDidInitialize:(AudioPlayer *)audioPlayer;
 
-// A play's open is still pending after a short grace period. Followed by
+// A pending open classified as a provider placeholder, or still pending after
+// the grace period. Remote streams use the grace period. Followed by
 // didStartPlaying: or error:; a superseded load gets no terminal callback.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
      didBeginLoading:(AudioTrack *)track
@@ -273,8 +273,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 // counted its frames. Only the total moved; the position did not.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(AudioTrack *)track;
 
-// Main thread, when outputIdle becomes YES: the idle stop has stopped the
-// output, any FX tail rung out. Read outputIdle before acting on it; a newer
+// Main thread, when outputIdle becomes YES after the idle stop or an iOS
+// media-services reset. Read outputIdle before acting on it; a newer
 // start may already own the output.
 - (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)audioPlayer;
 

@@ -274,8 +274,7 @@ if [ -n "$(mac_vibe_pids)" ]; then
     ensure_pitch 0
     ensure_playlist 0
     if [ -n "$ORIGINAL_STYLE" ]; then
-        quiet dump_menu   # builds the delegate submenu so the item resolves
-        quiet click_menu "waveform_style_$ORIGINAL_STYLE" || true
+        (ensure_waveform_style "$ORIGINAL_STYLE") || true
         if [ "$(state | jq -r .settings.waveformStyle)" != "$ORIGINAL_STYLE" ]; then
             echo "warning: waveform style left as" \
                  "'$(state | jq -r .settings.waveformStyle)' — could not restore" \

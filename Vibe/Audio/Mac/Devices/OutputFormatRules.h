@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  The output device layer's decisions, as static inlines so the host-less
-//  suite reaches them without a HAL: when a saved device may bind and whether
-//  its lookup is still current, then bit-perfect output's — what a source's
+//  suite reaches them without a HAL: when a saved device may bind, then
+//  bit-perfect output's — what a source's
 //  word length is, which of a device's formats carries it unchanged, whether
 //  a device may be driven at all, and how the reasons fold into the one
 //  status the header and Settings show. The mechanism they serve is
@@ -71,7 +71,7 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
     // Software volume below 1.0, balance away from center, or the player's
     // own volume below full.
     VibeBitPerfectStatusVolumeScaled,
-    // Hog held by another process.
+    // Exclusive output requested but ownership not confirmed.
     VibeBitPerfectStatusExclusiveRefused,
     // Everything held, but the file is lossy: its decoded audio plays at its
     // own rate with no volume change, rounded only to the device's depth.
@@ -83,7 +83,7 @@ typedef NS_ENUM(NSInteger, VibeBitPerfectStatus) {
 typedef struct {
     VibeBitPerfectStatus status;
     double sampleRate;      // the device's, after the switch
-    UInt32 bitsPerChannel;  // the physical format's; 32 for float
+    UInt32 bitsPerChannel;  // the physical format's width
     BOOL isFloat;
     float softwareVolume;
     float balance;         // 0 = left, 0.5 = center, 1 = right
@@ -264,7 +264,7 @@ static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription c
 }
 
 // The depth rule at `rate`, as-is: the integer format whose depth equals the
-// source's, else the smallest integer depth above it, else float32 — and for
+// source's, else the smallest integer depth above it, else the widest float — and for
 // a float source the float format first, since no integer depth delivers one
 // unchanged. A lossy source has no depth of its own: what reaches the device
 // is its float32 decode, so it is chosen like a float source, the float

@@ -16,7 +16,6 @@
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
     LoadingIndicatorView    *_loadingView;
-    // levelSource forwards to the indicator; no second copy.
     UIImageView *_artView;
     UILabel     *_titleLabel;
     UILabel     *_artistLabel;
@@ -125,7 +124,6 @@
 
         [_indicatorView.centerXAnchor constraintEqualToAnchor:_numberLabel.centerXAnchor],
         [_indicatorView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
-        // The mac's size.
         [_indicatorView.widthAnchor constraintEqualToConstant:16],
         [_indicatorView.heightAnchor constraintEqualToConstant:14],
 

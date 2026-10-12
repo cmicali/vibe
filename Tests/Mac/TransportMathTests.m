@@ -1,7 +1,3 @@
-//
-// Skip distances: bar-aligned when the tempo is known, pitch-compensated
-// wall-clock when it isn't.
-//
 
 #import <XCTest/XCTest.h>
 

@@ -1,12 +1,3 @@
-//
-//  LinkStoreTests.m
-//
-//  The Links backend over the plain HTTPTransferClient, HTTPStub, and a
-//  per-test temp root: what each probe answer opens as, the address rule on
-//  the link and its redirects, the record and its reuse, the stream, the
-//  resends and kept parts, the server that ignores ranges, the budget, the
-//  pruning, and the backend beside another root.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -186,8 +177,6 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     XCTAssertEqual([_stub requestsToPath:@"/b.flac"].count, 0u, @"never sent");
 }
 
-// A public page cannot send Vibe's requests to a device at home, over
-// https either.
 - (void)testARedirectFromAPublicHostIntoTheLocalNetworkIsRefused {
     [_stub answerHost:@"example.com"];
     [_stub answerHost:@"192.168.1.1"];
@@ -259,8 +248,6 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     XCTAssertEqualObjects([NSSet setWithArray:stored.allKeys], keys, @"no Content-Type, so none recorded");
 }
 
-// The root and what lies under it, by the path's spelling. A sibling whose
-// name starts with the root's is not under it.
 - (void)testTheStoreContainsOnlyFilesUnderItsRoot {
     XCTAssertTrue([_store containsURL:[_root URLByAppendingPathComponent:@"0123456789abcdef/Song.mp3"]]);
     XCTAssertTrue([_store containsURL:_root]);
@@ -308,8 +295,6 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], served.data);
 }
 
-// A record from disk is checked field by field. One of the wrong shape is
-// no record, and the link opens anew.
 - (void)testARecordOfTheWrongShapeIsNoRecord {
     [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
     NSURL *file = [self resolvePath:@"/a.flac"];
@@ -401,8 +386,6 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     XCTAssertEqualObjects([self linkDirectories], @[], @"no record and no placeholder");
 }
 
-// A refused address completes on main later. A cancel before that is the
-// one completion.
 - (void)testACancelBeforeARefusalLandsIsTheOneCompletion {
     __block NSUInteger completions = 0;
     __block NSError *failure = nil;
@@ -479,8 +462,6 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     XCTAssertGreaterThanOrEqual(elapsed, kVibeLinkProbeTimeoutPublic * 0.01);
 }
 
-// A link past its deadline is as unreachable as one that refused the
-// connection, and still opens its download.
 - (void)testALinkPastItsDeadlineOpensItsDownload {
     [self serve:FlacBytes(4000) at:@"/a.flac" headers:@{@"ETag": @"\"v1\""}];
     NSURL *file = [self resolvePath:@"/a.flac"];
@@ -857,7 +838,6 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
 
 #pragma mark The backend
 
-// Another store's root keeps its own backend.
 - (void)testTheBackendSitsBesideAnotherRoot {
     NSURL *other = [_base URLByAppendingPathComponent:@"Other" isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:other withIntermediateDirectories:YES attributes:nil error:NULL];

@@ -13,7 +13,9 @@
 //  Measured: iCloud Drive and Dropbox stage the download and swap it in, so
 //  the poll reads 0 until the last step (an iPhone against Dropbox: dataless,
 //  0 allocated, for all 9 s of a 66 MB file). A third-party provider on iOS
-//  therefore shows only the shimmer, a platform limit: addSubscriberForFileURL:
+//  therefore stays indeterminate until installation in those measurements.
+//  Other providers may expose partial progress through allocated size.
+//  addSubscriberForFileURL:
 //  is unavailable on iOS, NSFileProviderItem has no percentage (and its
 //  download flags are ignored for replicated extensions), and
 //  globalProgressForKind: needs the provider's own domain. Do not go looking
@@ -30,7 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 // one per transfer, the only caller. Never triggers the download. Main thread
 // only; every block runs there.
 //
-// handler gets [0, 1] in whole-percent steps, a final 1.0 on completion, and
+// handler gets [0, 1], coalesced to increases of at least one percentage point,
+// with a final 1.0 exempt from that threshold, and
 // nothing after cancel. movement is the uncoalesced liveness feed for the
 // open's abandon deadline: any finite, strictly positive raw increase
 // (VibeDownloadProgressIsMovement).

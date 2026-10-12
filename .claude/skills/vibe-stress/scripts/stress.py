@@ -20,8 +20,8 @@ The seed is printed at the start and `--seed N` regenerates the run's ops only
 as far as the app answers the same: row selections, file-drop coordinates and
 theme and menu picks read live state (playlist length, window size, the
 installed themes and menu items). Every op is journaled as NDJSON; `--replay`
-reruns a journal verbatim, the one exact reproduction, and `--shrink`
-delta-debugs a failing one to a minimal run-script.sh repro.
+reruns the recorded commands. Async timing can still differ. `--shrink`
+delta-debugs a failing journal to a smaller run-script.sh repro.
 
     stress.py --corpus ~/Music/big --iterations 2000
     stress.py --corpus ~/Music/big --replay run.ndjson
@@ -143,10 +143,8 @@ class Failure(Exception):
         self.detail = detail
         self.op = op
 
-
-# --------------------------------------------------------------------------
 # Channel
-# --------------------------------------------------------------------------
+
 
 
 class Channel:
@@ -432,10 +430,8 @@ def assert_running_binary(app: Path):
                  f" -f {app}")
     print(f"binary: {running}")
 
-
-# --------------------------------------------------------------------------
 # Corpus
-# --------------------------------------------------------------------------
+
 
 
 def scan_corpus(root: Path):
@@ -453,10 +449,8 @@ def scan_corpus(root: Path):
                 playlists.append(here / name)
     return files, playlists, dirs
 
-
-# --------------------------------------------------------------------------
 # Op generation
-# --------------------------------------------------------------------------
+
 
 # An op is (name, argv, tolerated_error_substrings): errors the app is right
 # to return for a randomly chosen argument, which are not findings.
@@ -552,7 +546,6 @@ class OpGenerator:
             self.window = (nums[2], nums[3])
 
     def next_ops(self):
-        """One logical step, which may expand to several channel commands."""
         kind = self.rng.choices(self.kinds, self.kind_weights)[0]
         return getattr(self, f"op_{kind}")()
 
@@ -682,7 +675,6 @@ class OpGenerator:
         return [("fx", [f"{name}_{state}"], [])]
 
     def op_held_fx(self):
-        """Hold an effect across a track change through controller actions."""
         name = self.rng.choice(FX_ON_OFF)
         ops = [("fx", [f"{name}_on"], [])]
         if self.rng.random() < 0.5:
@@ -872,8 +864,6 @@ class OpGenerator:
         return ops
 
     def op_theme_import(self):
-        """Import a MUTATED real record, then usually apply it: a value the
-        sanitizer let through does nothing until a renderer is handed it."""
         if not self.theme_base or self.theme_imports >= MAX_THEME_IMPORTS:
             return self.op_theme()
         record = json.loads(json.dumps(self.theme_base))
@@ -1098,15 +1088,12 @@ PROFILES = {
 
 
 def effective_weights(profile):
-    """The op weights a profile actually runs: base overlaid by the profile."""
     weights = dict(PROFILES["base"])
     weights.update(PROFILES.get(profile, {}))
     return weights
 
-
-# --------------------------------------------------------------------------
 # Oracles
-# --------------------------------------------------------------------------
+
 
 
 def check_liveness(channel, since=None):
@@ -1161,8 +1148,7 @@ PENDING_KEYS = ("metadataHolders", "metadataWaiters", "openResultsBuffered",
 # In-flight limits: loose, since a mid-run sample carries a decode's churn.
 # (section, key) in dump_health -> (absolute headroom, human name).
 GROWTH_LIMITS = {
-    # Mid-run the live heap read 26-52 MB across ~200 MB decodes; twice the
-    # resting headroom. Without it health_growth never scores the footprint.
+    # Live heap must also grow before footprint counts as a finding.
     ("process", "mallocLiveBytes"): (128 * 1024 * 1024, "live heap"),
     ("process", "footprintBytes"): (400 * 1024 * 1024, "memory footprint"),
     # Open descriptors: single digits at rest, a few dozen mid-burst. A leak
@@ -1172,29 +1158,18 @@ GROWTH_LIMITS = {
     ("process", "machPorts"): (2000, "mach ports"),
     ("ui", "windows"): (3, "windows"),
     ("ui", "views"): (400, "views"),
-    # Sized for the widest window: Sonic Cirrus draws two CALayers per bar at a
-    # 4pt pitch, up to 1,024 bars, so 2,048 layers is a legitimate state
-    # (measured: 2,844pt read 1,432). Views are the sensitive UI metric; a
-    # real layer leak is unbounded and clears this too.
+    # Sonic Cirrus uses two layers per bar. Wide windows need this headroom.
     ("ui", "layers"): (2400, "layers"),
     ("app", "hostedUnits"): (4, "hosted units"),
     # Cumulative; any refusal is an output unit's callback meeting a stuck
     # render.
     ("app", "renderRefusals"): (0, "render refusals"),
     **{("pending", key): (8, f"pending {key}") for key in PENDING_KEYS},
-    # One holder per parse worker mid-sweep, and the audio_loading op raises
-    # local-parses to 16 (AUDIO_LOADING_KEYS): a 220-row folder opened under
-    # that setting held 16 for three samples while the sweep progressed. A
-    # leak is unbounded, and the resting limit still requires zero.
+    # One holder per parse worker. Resting checks still require the claims to drain.
     ("pending", "metadataHolders"): (max(AUDIO_LOADING_KEYS_LOCAL_PARSES), "pending metadataHolders"),
 }
 
-# Resting limits, for samples taken right after a `quiesce` (no track, empty
-# playlist, nothing in flight), from measured loading-profile ranges: views 47,
-# windows 1, hosted units flat and pending 0 are stable, so they are the
-# sensitive ones; threads 14-26 breathe with the loader pool;
-# footprint 47-335 MB wanders with the allocator (see health_growth), which is
-# why mallocLiveBytes (~19 MB where the footprint read 203) is the heap signal.
+# Resting samples follow quiesce. The allocator can retain pages after live heap falls.
 RESTING_GROWTH_LIMITS = {
     ("process", "mallocLiveBytes"): (64 * 1024 * 1024, "resting live heap"),
     ("process", "footprintBytes"): (256 * 1024 * 1024, "resting memory footprint"),
@@ -1203,9 +1178,7 @@ RESTING_GROWTH_LIMITS = {
     ("process", "machPorts"): (300, "resting mach ports"),
     ("ui", "windows"): (1, "resting windows"),
     ("ui", "views"): (40, "resting views"),
-    # Not tight: AppKit's own resting layer count is bistable (~101 and
-    # ~350-356, moving both ways within a run with views pinned at 47), and
-    # quiesce keeps the last width and style, so Sonic Cirrus can rest ~2,048.
+    # Quiesce retains the last waveform style and window width.
     ("ui", "layers"): (2400, "resting layers"),
     ("app", "hostedUnits"): (4, "resting hosted units"),
     ("app", "renderRefusals"): (0, "resting render refusals"),
@@ -1336,10 +1309,8 @@ def fresh_crash_reports(since):
             pass
     return out
 
-
-# --------------------------------------------------------------------------
 # Diagnostics
-# --------------------------------------------------------------------------
+
 
 
 def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
@@ -1382,20 +1353,12 @@ def capture_diagnostics(channel, out_dir: Path, failure: Failure, since):
     (out_dir / "failure.txt").write_text("\n".join(notes) + "\n")
     return notes
 
-
-# --------------------------------------------------------------------------
 # Run
-# --------------------------------------------------------------------------
+
 
 
 def collect_themes(channel):
-    """Every applicable theme id (View > Theme, so user themes too), and one
-    real record to mutate from.
-
-    The base record's fallback order is by fullness: a theme is a SPARSE
-    record, Cupertino and Technical set every group, and Vibe is the empty
-    record, whose mutation would fuzz one group per import.
-    """
+    """Menu theme identifiers and an exported record to mutate."""
     ids, base = [], None
     code, payload, _ = channel.run(["dump_menu"], timeout=20)
     if code == 0 and payload:
@@ -1744,10 +1707,8 @@ def run(args):
         print(f"\nPASSED {executed} ops, no violations, no unbounded growth")
         return 0
 
-
-# --------------------------------------------------------------------------
 # Replay and shrink
-# --------------------------------------------------------------------------
+
 
 
 def load_journal(path: Path):
@@ -1875,7 +1836,6 @@ def describe_materialization_coverage(channel) -> str:
 
 
 def run_gesture_test(args):
-    """One named gesture on an already running, isolated desktop app."""
     app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
     channel = Channel(app, verbose=args.verbose, gesture_test=args.gesture_test,
                       client_app=Path(args.client_app) if args.client_app else None)
@@ -1914,10 +1874,8 @@ def run_gesture_test(args):
         if command(["dump_state"])["window"]["pitchPanelShown"] != shown:
             command(["toggle_pitch_panel"])
 
-
-# --------------------------------------------------------------------------
 # iOS: attach through the existing simulator client, never the mac channel.
-# --------------------------------------------------------------------------
+
 
 
 def ios_validate_step(step):

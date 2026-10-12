@@ -26,9 +26,7 @@
         return;
     }
     UIWindowScene *windowScene = (UIWindowScene *)scene;
-    // The card's strip layout's floor: a 150pt art, its insets and the window
-    // controls' inset. iPadOS 26 holds a window taller than this anyway (about
-    // 486pt). nil (a no-op) on iPhone.
+    // The card's strip layout needs room for 150pt art and insets. Nil on iPhone.
     windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 200);
     _playback = [[PlaybackController alloc] init];
     RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];

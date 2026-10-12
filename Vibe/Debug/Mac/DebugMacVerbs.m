@@ -109,7 +109,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 }
                 return VibeJSONString(@{@"path": path});
             }),
-            // See DebugSettingsUI.h.
             VibeDebugCmd(@"settings_open [pane [light|dark|system]]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsOpen(tokens);
             }),
@@ -188,7 +187,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
             VibeDebugCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Writes and applies the setting as the Files pane's control does.
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
                     return VibeErrorJSON(@"usage: set_folder_art <on|off>");

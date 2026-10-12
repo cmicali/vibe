@@ -188,8 +188,8 @@
 
 static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
 
-// Removed rather than restored: writing a value back would materialize a key
-// that was never there (Tests/AGENTS.md). The guard restores the domain at exit.
+// Remove the key after the test. Writing a registered default would leave
+// a stored value where none existed. Test defaults are process-local.
 - (void)withModeStore:(NSDictionary *)store run:(void (^)(void))block {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     [defaults setObject:store forKey:kModesKey];
@@ -258,7 +258,6 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
     XCTAssertEqual(found, real);
 }
 
-// Device UID is still the most specific answer and wins over a model match.
 - (void)testDeviceUIDOutranksModelUID {
     AudioDevice *sibling = [[AudioDevice alloc] initWithName:@"Audient iD4" uid:@"port-a"
             modelUID:@"Audient iD4:2708:0009" deviceId:1 isSystemDefault:NO
@@ -271,7 +270,6 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
     XCTAssertEqual(found, exact);
 }
 
-// An empty model UID must never match a device that also reports none.
 - (void)testEmptyModelUIDNeverMatches {
     AudioDevice *unnamed = [[AudioDevice alloc] initWithName:@"Virtual" uid:@"v"
             modelUID:@"" deviceId:1 isSystemDefault:NO transportType:kAudioDeviceTransportTypeVirtual];

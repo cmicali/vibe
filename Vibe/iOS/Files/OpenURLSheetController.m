@@ -131,7 +131,6 @@ static CGFloat VibePasteControlHeight(void) {
     _cancel();
 }
 
-// A swipe down closed the sheet.
 - (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {
     if (presentationController.presentedViewController == _sheet) {
         [self cancelSheet];
@@ -155,7 +154,6 @@ static CGFloat VibePasteControlHeight(void) {
     [self syncSheet];
 }
 
-// Open needs a link in the field.
 - (void)syncSheet {
     BOOL resolving = _resolving;
     _field.editable = !resolving;

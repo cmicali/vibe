@@ -33,14 +33,11 @@ void VibeDebugViolation(NSMutableArray<NSDictionary *> *violations, NSString *id
     [violations addObject:@{@"id": identifier, @"detail": detail}];
 }
 
-// Headroom over the FX chain's ten units, which are created once and kept. A
-// leak blows past it; the sensitive detector is the stress driver diffing the
-// count against its baseline.
+// Headroom over the FX chain's ten lazily hosted units. Compare settled
+// counts after warming the effects to detect smaller leaks.
 static const NSUInteger kVibeMaxReasonableHostedUnits = 16;
 
-// How long a track may render with no metadata parse attempted before it is a
-// fault rather than a race. Generous: the parse is milliseconds once the file
-// is open.
+// Playback-position threshold for the metadata progress oracle.
 static const NSTimeInterval kVibeMetadataDeadlineSeconds = 5.0;
 
 static BOOL VibeIsFiniteNonNegative(double value) {
@@ -89,8 +86,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
         VibeDebugViolation(v, @"player.position_finite", @"position is %f", player.position);
     }
 
-    // Only in the settled track state: Loading reads both as 0 by contract,
-    // and a seek in flight can momentarily report the old playhead.
+    // Compare only outside Loading. A pending seek can still report the old position.
     checked++;
     if (displayed && !isLoading && player.duration > 0
             && player.position > player.duration + 0.5) {
@@ -184,11 +180,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 (unsigned long)activeLinks, meterInstalled);
     }
 
-    // The playing track's tags must not wait behind the sweep, and when that
-    // lane silently fails the only symptom is art arriving late. Nil metadata
-    // means no parse was attempted; a failed parse leaves parsedOK NO, which is
-    // legitimate. Past the deadline the file has opened, so it is local and the
-    // priority lane has had seconds for milliseconds of work.
+    // Nil metadata means no parse result has arrived. A failed parse can
+    // legitimately leave parsedOK NO. Streams can still be downloading here.
     checked++;
     if (current && player.isPlaying && !surface.debugIsLoading
             && player.position > kVibeMetadataDeadlineSeconds && !current.metadata) {
@@ -220,8 +213,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                     (long)current.key, (long)taggedKey, (long)current.detectedKey);
         }
 
-        // Neither 0-23 nor VibeMusicalKeyNone is uninitialized memory or a bad
-        // parse (and a zero-fill reads as tagged C major).
+        // This range check cannot distinguish zero-filled state from C major.
         checked++;
         if (!VibeMusicalKeyIsValid(current.key) && current.key != VibeMusicalKeyNone) {
             VibeDebugViolation(v, @"track.key_in_range", @"resolved key is %ld", (long)current.key);
@@ -245,12 +237,8 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
                 @"cloud lane held with the player stopped and no open in flight");
     }
 
-    // A stranded handle open starves the sweep too: a whole-file
-    // AudioFileHandle call cannot be cancelled, so it holds admission capacity
-    // for good. With the
-    // player stopped and nothing loading, a nonzero count is work that will
-    // never finish; an open superseded moments ago is still returning, which
-    // the re-check filters.
+    // Outstanding opens retain admission capacity. Re-check after settling:
+    // a superseded open may still be returning from the OS.
     checked++;
     uint64_t strandedOpens =
             [AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight];

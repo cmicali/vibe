@@ -22,12 +22,12 @@ brew install cmicali/tap/vibe
 ## Features
 
 - **Waveform view**: every track is drawn as a full waveform across the window. Click anywhere on it to seek.
-- **Fast**: tags, artwork and waveforms are read in the background and cached, so the next open is instant.
-- **Custom audio engine**: MP3, MP2, AAC, FLAC, ALAC, MP4/M4A/M4B/M4R, QTA (Voice Memos), AIFF, WAV, W64, CAF, Ogg Opus, and Ogg Vorbis (Mac only). Vibe plays them through its own CoreAudio engine with high-quality sample-rate conversion.
-- **Bit-perfect output**: matches the device's sample rate to the track and reports whether playback preserves its samples. Exclusive mode reserves the device for Vibe (Mac).
+- **Cached browsing**: tags, artwork and waveforms are read in the background and cached for later opens.
+- **Custom audio engine**: MP3, MP2, AAC, FLAC, ALAC, MP4/M4A/M4B/M4R, QTA (Voice Memos, Mac only), AIFF, WAV, W64, CAF, Ogg Opus, and Ogg Vorbis (Mac only). Vibe plays them through its own CoreAudio engine with high-quality sample-rate conversion.
+- **Bit-perfect output**: requests the track's sample rate and reports whether the output path preserves its samples. Exclusive mode requests sole access to the device (Mac).
 - **No library to import**: drop a file or a folder from your disk, iCloud Drive or Dropbox and it plays. There is no database to rebuild.
-- **DJ tools**: turntable-style pitch control, BPM and key analysis, bar-accurate skips, and performance FX.
-- **Themes**: restyle the whole player. Build your own in Settings and share it as a file.
+- **DJ tools**: BPM detection and performance FX on both platforms. The Mac also has pitch control, key analysis, and bar-aligned skips.
+- **Themes**: restyle the Mac player. Build your own in Settings and share it as a file.
 - **Speaks 30 languages**: fully localized, from Bulgarian to Vietnamese.
 
 <p align="center">
@@ -36,7 +36,7 @@ brew install cmicali/tap/vibe
 
 ## Usage
 
-Drop audio files or a folder on the window to play them, and click the waveform to seek. Drag the artwork out to copy the playing file somewhere else.
+On the Mac, drop audio files or a folder on the window to play them. Click the waveform to seek. Drag the artwork out to copy the playing file somewhere else.
 
 ### Key commands
 

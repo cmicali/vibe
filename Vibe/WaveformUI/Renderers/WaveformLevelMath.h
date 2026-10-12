@@ -37,7 +37,7 @@ static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, f
 }
 
 // A bar's level averages energy over a column no finer than 1/1024 of the
-// track (~0.4s, the momentary-loudness scale), however fine the bars: RMS over
+// track, regardless of the drawn bar count. RMS over
 // less than a beat converges back to peak, and the oversampling styles'
 // one-chunk bars would peg on every kick. Only the level is floored; the
 // min/max shape keeps per-bar resolution.

@@ -10,7 +10,7 @@ iPhone'unuzdaki, iCloud Drive'daki veya Dropbox'taki dosyaları çalın — Dosy
 Yeniden oluşturulacak bir veritabanı ya da eşitlenecek bir şey yok.
 
 Vibe'ın kendi ses motoru
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, Vibe'ın kendi ses motoru üzerinden yüksek kaliteli örnekleme hızı dönüşümüyle çalınır. Kayıpsız dosyalar tam çözünürlükte çalar.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV ve FLAC, Vibe'ın kendi ses motoru üzerinden yüksek kaliteli örnekleme hızı dönüşümüyle çalınır.
 
 Widget'lar
 Küçük ve orta boy widget'lar çalan parçayı kapak görseli ve üzerinde ilerleyebileceğiniz bir dalga biçimiyle gösterir.

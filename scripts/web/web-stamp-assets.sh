@@ -5,12 +5,7 @@
 #
 #   scripts/web/web-stamp-assets.sh [--check]
 #
-# Cloudflare Pages ignores Cache-Control from _headers, so after a deploy a
-# browser holding the old stylesheet or screenshot keeps drawing it until its
-# TTL (four hours) runs out, which reads as a broken deploy. A hash in the
-# query string changes the URL with the bytes, so no cache is consulted and the
-# TTL can stay long. Images are hashed one by one, so changing one screenshot
-# does not re-fetch the rest.
+# A changed asset gets a new URL without invalidating unchanged assets.
 #
 # --check verifies the stamps without writing; deploy-web.sh runs it.
 set -euo pipefail

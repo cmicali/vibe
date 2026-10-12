@@ -4,16 +4,16 @@ Vista a forma d’onda
 Vibe disegna ogni brano come una forma d’onda che attraversa tutta la finestra. Clicca in un punto qualsiasi per spostarti lì.
 
 Veloce
-Vibe è costruito per restare leggero e rapido. Tag, copertine e forme d’onda vengono letti in background e messi in cache, così la prossima apertura è immediata.
+Vibe è costruito per restare leggero e rapido.
 
 Riproduce e basta
 Trascina un file o una cartella — dal tuo disco, da iCloud Drive o da Dropbox — e parte. Non c’è nessun database da ricostruire e nessuna libreria da gestire.
 
 Il motore audio di Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, riprodotti tramite il motore CoreAudio sviluppato da Vibe, con conversione della frequenza di campionamento di alta qualità. I file lossless suonano a piena risoluzione.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, riprodotti tramite il motore CoreAudio sviluppato da Vibe, con conversione della frequenza di campionamento di alta qualità.
 
 Modalità bit-perfect
-La modalità bit-perfect ed esclusiva inviano l’audio al dispositivo di uscita esattamente com’è, per la migliore qualità possibile.
+La modalità bit-perfect usa la frequenza di campionamento del file se il dispositivo la supporta. La modalità esclusiva riserva il dispositivo a Vibe.
 
 Pensato per i DJ
 Vibe offre un fader del pitch in stile giradischi, analisi di BPM e tonalità, salti precisi alla battuta e FX di performance.

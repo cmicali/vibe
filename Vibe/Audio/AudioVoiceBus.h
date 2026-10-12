@@ -20,7 +20,7 @@
 //
 //  Threading — three parties, one owner per fact:
 //
-//  - The PLAYER QUEUE calls every method here except snapshotOfVoice:. It
+//  - The PLAYER QUEUE calls methods unless marked otherwise. It
 //    allocates slots, submits ramps, queues successors, drains events.
 //  - The DECODE POOL owns eight serial queues; unrelated files use separate
 //    queues, and overlapping reads of a handle use one queue. Only its assigned
@@ -31,7 +31,8 @@
 //    It never signals anyone; the queue polls.
 //
 //  A slot's state moves free → armed → live → dead → free. The queue does
-//  free→armed and armed→dead; the decoder does armed→live; ONLY the audio
+//  free→armed and armed→dead; the decoder does armed→live or armed→dead;
+//  ONLY the audio
 //  thread does live→dead, when the stream ends or a retire ramp lands (a kill
 //  is a retire of zero frames, applied before any mixing). dead→free runs on
 //  the decode queue after the audio thread has completed a render past the
@@ -108,7 +109,8 @@ static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
             && VibeChannelsMatch(a, b);
 }
 
-// A coherent read of one voice. Frame counters are relative to the voice's
+// A read of one voice's counters. They can advance during the read.
+// Frame counters are relative to the voice's
 // start: `consumed` is what the audio thread has rendered, `boundary` where
 // the successor began (UINT64_MAX until it has), `endOfStream` the stream's
 // length once known. The stamp is the audio thread's timestamp for the first
@@ -186,7 +188,7 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
 // A read of its file or successor that waits for bytes ends as an
 // interruption (AudioFileHandle's interruptReads), whatever writer fetches
-// them. Its turn returns at once. A kill does the same. So does a dead
+// them. A read already inside the OS can still block. A kill does the same. So does a dead
 // voice, at the drain that reports it. The next voice's first seek of the
 // file allows reads again.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
@@ -242,7 +244,8 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // killed before it had a slot included.
 - (void)killVoice:(VibeVoiceID)voice;
 
-// Any thread. Retries a torn read; a recycled or unknown id answers None. A
+// Any thread. Attempts a coherent stamp up to three times. A detected recycled
+// or unknown id answers None. A
 // voice is readable until the drain has reported it ended — read what its
 // end needs inside that handler, since the same drain recycles the slot.
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice;

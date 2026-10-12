@@ -20,8 +20,7 @@ static const NSUInteger kEncodedChunkCount = 4096 * 2;
 
 #pragma mark - Helpers
 
-// No "key" entry: byte-honest for an archive written before keys were
-// analyzed.
+// Deliberately omits the optional musical-key field.
 static NSData *ArchiveWithKeys(int version, id numChunks, NSData *chunkBytes, float bpm) {
     NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
     [archiver encodeInt:version forKey:@"version"];
@@ -55,8 +54,6 @@ static CodableAudioWaveform *DecodeArchive(NSData *data) {
     return decoded;
 }
 
-// A well-formed payload: chunk i = (-i/1000, +i/1000), small enough to stay
-// exactly representable.
 static NSData *ValidChunkBytes(void) {
     std::vector<AudioWaveformCacheChunk> chunks(kEncodedChunkCount, AudioWaveformCacheChunk());
     for (NSUInteger i = 0; i < kEncodedChunkCount; i++) {
@@ -158,8 +155,6 @@ static NSData *ArchiveWithBands(NSData *bandBytes) {
 
 #pragma mark - Bands
 
-// An entry from before the bands, or from a decode not asked for them, is a
-// waveform without them.
 - (void)testAnEntryWithoutBandsDecodesWithoutThem {
     CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion,
                                                                   @(kEncodedChunkCount), ValidChunkBytes(), 120));
@@ -233,7 +228,7 @@ static NSData *HalfBandBytes(uint16_t half) {
 }
 
 - (void)testNonFiniteSamplesInThePayloadAreRejected {
-    // Generation clamps NaN, but the archive carries no checksum.
+    // The decoder rejects non-finite samples, but archive bytes can still be corrupt.
     for (float poison : {(float)NAN, (float)INFINITY, (float)-INFINITY}) {
         NSMutableData *bytes = [ValidChunkBytes() mutableCopy];
         float *values = (float *)bytes.mutableBytes;
@@ -339,8 +334,6 @@ static NSData *HalfBandBytes(uint16_t half) {
 
 #pragma mark - Analysis flags
 
-// An entry from before the flags keeps its old meaning, so turning
-// detection on never re-decodes every cached file.
 - (void)testAnArchiveWithoutAnalysisFlagsReadsAnalyzed {
     CodableAudioWaveform *decoded =
             DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, @(kEncodedChunkCount),

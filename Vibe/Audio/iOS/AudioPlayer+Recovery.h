@@ -39,7 +39,7 @@ typedef void (^VibeMediaServicesResetCompletion)(
 // runs on main with the pre-reset track and its position after that state is
 // authoritative. It is dropped when a play submitted after the reset edge
 // owns the rebuilt output instead. Like stop, rebuilding fires no delegate
-// callback.
+// transport callback.
 - (void)beginMediaServicesResetWithCompletion:
         (nullable VibeMediaServicesResetCompletion)completion;
 

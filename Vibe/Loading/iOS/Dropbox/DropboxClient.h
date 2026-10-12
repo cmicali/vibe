@@ -25,7 +25,7 @@ extern NSErrorDomain const VibeDropboxErrorDomain;
 typedef NS_ERROR_ENUM(VibeDropboxErrorDomain, VibeDropboxError) {
     // No account, or Dropbox no longer honors the one there was.
     VibeDropboxErrorNotLinked = 1,
-    // The sign-in did not produce an account; cancelled included.
+    // Sign-in failed. Closing the sheet completes without an error.
     VibeDropboxErrorSignInFailed,
     // A call Dropbox answered with an error; the summary is the description.
     VibeDropboxErrorAPI,
@@ -71,7 +71,7 @@ extern NSString *const VibeDropboxAppKeyInfoKey;
 - (void)signInWithPresentationAnchor:(ASPresentationAnchor)anchor
                           completion:(void (^)(NSError *_Nullable error))completion;
 
-// Forgets the account at once and revokes the token in the background.
+// Forgets the account at once and attempts remote revocation in the background.
 - (void)signOut;
 
 // An RPC endpoint ("files/list_folder") with a JSON body, nil for an endpoint

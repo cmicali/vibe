@@ -2,10 +2,10 @@
 //  AudioPlayerInternal.h
 //  Vibe
 //
-//  The private surface AudioPlayer.m and its categories share; nothing else
-//  imports it. The PLAYER QUEUE runs every transport verb and output mutation;
-//  _stateLock guards only the published tuple the main-thread getters read,
-//  which publishState:… writes whole.
+//  The private surface AudioPlayer.m, its categories and render tests share.
+//  The PLAYER QUEUE runs every transport verb and output mutation.
+//  _stateLock guards the published tuple, controls and submission identity.
+//  publishState:… writes the tuple whole.
 //
 
 #import "AudioPlayer.h"
@@ -93,7 +93,7 @@ static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
     BOOL                    _stalled;
     BOOL                    _outputIdle;
     float                   _pitch;             // percent; see the trap below
-    // Minted on main by every explicit play; only ever increments.
+    // Minted under _stateLock at submission or a stalled play's replay.
     uint64_t                _nextSubmittedPlayIdentifier;
 
     // ---- Queue-confined transport state.
@@ -266,8 +266,7 @@ static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 - (void)publishOutputIdleOnQueue:(BOOL)idle;
 
 - (void)sendDelegateError:(NSError *)error;
-// Any thread. Checked inside every main-thread delivery: what matters is
-// whether a newer play existed when it ran.
+// Any thread. Check inside an identity-guarded delivery, after it reaches main.
 - (BOOL)submittedPlayIsCurrent:(uint64_t)submittedPlayIdentifier;
 // The play-path variant drops an error whose submission a newer play has
 // replaced. Every error carrying kVibeAudioErrorTrackURLKey must use it.

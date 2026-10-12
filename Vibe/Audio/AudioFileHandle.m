@@ -503,7 +503,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     // and decodes only its first page (macOS 27), so the file would play for
     // a second and end as if whole. Refused here, where playback and the
     // metadata fallback both open, it fails as any undecodable file does.
-    // Vorbis and Opus in Ogg read in full.
+    // Opus reads in full on both platforms. Vorbis requires macOS.
     UInt32 size = sizeof(_container);
     AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &size, &_container);
     AudioStreamBasicDescription format = {0};

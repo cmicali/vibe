@@ -10,11 +10,11 @@ An advisory check before starting a download leaves a race between the check and
 
 ## A smaller iOS now-playing window: Picture in Picture
 
-iPadOS 26 holds every window at least about 486 pt tall. `AVPictureInPictureController` with custom frames was proposed to get under that floor. Rejected: Picture in Picture is a video affordance and the wrong tool for a music player. The mac-like strip is reached by width, not height (`Vibe/iOS/Player/AGENTS.md`).
+Picture in Picture is a video affordance. It is not a suitable way to make a compact music-player window. The mac-like strip is reached by width, not height (`Vibe/iOS/Player/AGENTS.md`).
 
 ## Chapters in M4A and M4B as rows
 
-Skipped. A scan of the libraries at hand found no chaptered M4A and no `.m4b`. Revisit only if audiobooks or chaptered mixes come up. The shape would be the FLAC cue sheet's: AVFoundation's chapter metadata becomes window rows through `rowsForFile:`'s large-file gate (`Vibe/Playlist/AGENTS.md`).
+Revisit only if users ask for audiobooks or chaptered mixes. The shape would be the FLAC cue sheet's: AVFoundation's chapter metadata becomes window rows through `rowsForFile:`'s large-file gate (`Vibe/Playlist/AGENTS.md`).
 
 ## A wedged background handle open: widening the background lane
 

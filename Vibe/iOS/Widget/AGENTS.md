@@ -1,6 +1,6 @@
 # The widget's app side
 
-The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget` extension (`VibeWidget/AGENTS.md`). This directory is everything the app does for it. Nothing else in the app knows the widget exists.
+The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget` extension (`VibeWidget/AGENTS.md`). This directory owns the shared state, publishing, reload requests and button intents. The playback and player controllers feed the publisher.
 
 | File | Role |
 | --- | --- |
@@ -21,11 +21,11 @@ The state is a plist in the app group container, with up to three images beside 
 
 ## Writing
 
-- **Writes are gated on `widgetPlaced`. The bookkeeping is not.** A track change costs two renders, two PNG encodes and about 220 KB. The publisher keeps `_published` current either way, so a widget that appears mid-track gets the current snapshot at once (`republish`).
+- **Writes are gated on `widgetPlaced`. The bookkeeping is not.** The publisher keeps `_published` current either way, so a widget that appears mid-track gets the current snapshot at once (`republish`).
 - **Two sources decide `widgetPlaced`, each right about one direction.** WidgetKit's configurations, asked at launch and on every return to the foreground, turn it off. The extension posts `kVibeWidgetReadNotification` on every read, which turns it on the instant a widget renders. The query fails open.
-- **TRAP: images land before the plist**, which the widget reads first. Otherwise the new title shows with no art for as long as the encode takes. The sweep of old images runs last and spares the outgoing track's, which a plist just read may still name.
+- **TRAP: artwork lands before the plist.** The waveform bake can follow later. The widget reads the plist first. The sweep of old images runs last and spares the outgoing track's, which a plist just read may still name.
 - **TRAP: `cachedArt` is nil until the art decodes**, so a track change usually writes nil and deletes the file. `_artworkOnDisk` re-fires the write on the first tick with decoded art.
-- One serial queue does every file write and reload, so an image never lands after the plist naming it. Reloads are throttled to four a second. The first of a quiet period goes at once, and the trailing one always goes.
+- One serial queue orders file writes and reload requests. Requests are throttled to four a second. The first of a quiet period is queued at once. A burst schedules one trailing request. WidgetKit decides when to refresh.
 - Artwork is bounded to 576 px and never cropped. The widget crops where it draws.
 
 ## The waveform bake

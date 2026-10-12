@@ -216,7 +216,6 @@ static const float   kDefaultMaxPitch = 8;
     if (locked) {
         [litColor setFill];
         [led fill];
-        // Soft glow.
         [glowColor setFill];
         [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(ledRect, -2.5, -2.5)] fill];
     }
@@ -234,7 +233,6 @@ static const float   kDefaultMaxPitch = 8;
     static NSColor *indexLineColor;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        // Drop shadow under the cap.
         shadow = [[NSShadow alloc] init];
         shadow.shadowColor = [NSColor colorWithWhite:0 alpha:0.6];
         shadow.shadowOffset = NSMakeSize(0, -2);
@@ -340,7 +338,6 @@ static const float kPitchAccessibilityStep = 0.5f;
     return STR_A11Y_PITCH_FADER;
 }
 
-// The readout's own string.
 - (id)accessibilityValue {
     return [Formatters.sharedInstance signedPercentString:_pitch];
 }

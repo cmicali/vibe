@@ -20,7 +20,6 @@
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
-// Apple Music's proportions.
 static const CGFloat kCardCornerRadius = 14;
 static const CGFloat kBackdropScale = 0.92;
 static const CGFloat kBackdropCornerRadius = 38;
@@ -51,7 +50,6 @@ static NSString *const kTabSearch = @"search";
     MiniPlayerView       *_miniPlayer;
     PlayerViewController *_player;
     BOOL                 _expanded;
-    // Whether the accessory is installed.
     BOOL                 _miniWanted;
     // The card between up and away; see updateBackdropVisibility.
     BOOL                 _cardAnimating;
@@ -112,7 +110,6 @@ static NSString *const kTabSearch = @"search";
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // Shows through the card's rounded corners.
     self.view.backgroundColor = UIColor.blackColor;
 
     [self buildTabs];
@@ -505,7 +502,6 @@ static NSString *const kTabSearch = @"search";
     if (!animated) {
         changes();
         _cardAnimating = NO;
-        // A drag may have left a snapshot up.
         [self endBackdropSnapshot];
         completion();
         return;

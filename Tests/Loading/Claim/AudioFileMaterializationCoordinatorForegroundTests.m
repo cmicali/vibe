@@ -1,10 +1,3 @@
-//
-//  AudioFileMaterializationCoordinatorForegroundTests.m
-//  VibeTests
-//
-//  Stage 1's foreground hold: its edges during a probe or a refresh, and the
-//  local files it passes through.
-//
 
 #import "AudioFileMaterializationCoordinatorTestCase.h"
 #import "CloudTransferRegistry.h"
@@ -393,9 +386,6 @@
 
 #pragma mark - The foreground hold and local files
 
-// The foreground hold derives from the claim table: registration preempts
-// running metadata-only dataless work, new metadata requests yield while it is
-// live, and its settlement is the release, so no external edge can be missed.
 - (void)testAForegroundClaimPreemptsAndSuspendsMetadataOnlyWork {
     [_probeController gateCall:1 forName:@"user-pick.wav"];
     [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
@@ -530,9 +520,7 @@
                    @"the fresh local answer settles without an operation");
 }
 
-// A local read that never returns — a hung network share, a sleeping disk —
-// must not hold the lane: nothing times a running read out, and the
-// background lane is one wide, so every cloud row's metadata waited behind it.
+// A local read may stall in the OS. It must not occupy the background transfer lane.
 - (void)testAStalledLocalRunLeavesTheLaneToTransfers {
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
@@ -728,9 +716,6 @@
     [self waitForExpectations:@[ready] timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
-// Dataless metadata requests yield at entry while a foreground transfer is
-// live, spending no grace or budget, so the second prefetch parks into an
-// empty pending lane and the successor never queues behind the sweep.
 - (void)testMetadataYieldsWhileAPrefetchRunsAndThePrefetchStartsNext {
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();

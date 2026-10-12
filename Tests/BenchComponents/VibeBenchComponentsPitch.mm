@@ -9,8 +9,7 @@
 //  Both convert 30 s of stereo noise out at 48 kHz, in the 512-frame slices
 //  of a typical output cycle, at the fader's −8%, +4% and +16%. Both copy
 //  their input from the noise, as the render served it from the bus. Vibe's
-//  stage builds its kernel inside the measurement, about 1.5 ms the first
-//  time and 0.1 ms after.
+//  stage builds its kernel inside the measurement.
 //
 
 #import "VibeBenchComponents.h"

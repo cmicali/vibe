@@ -20,8 +20,8 @@
 //    so gain, phase and timing errors all count; and the same there and back,
 //    less the original (the round trip);
 //  - CCIF (19 + 20 kHz) and SMPTE (60 Hz + 7 kHz) intermodulation;
-//  - a unit impulse: magnitude and phase every 10 Hz to 20 kHz, against zero
-//    delay;
+//  - a unit impulse: magnitude and phase at FFT bins from 20 Hz to 20 kHz,
+//    against zero delay;
 //  - a sine whose true peak is +3 dBFS between samples at 0.999: carried
 //    unclipped;
 //  - silence and DC; the duration, exact; and the conversion's CPU cost.
@@ -33,7 +33,7 @@
 //
 //  Every run attaches the measured table to the result bundle ("resampler
 //  quality", markdown); docs/audio-quality.md carries the comparison with
-//  Apple's converter, which it replaced.
+//  Apple's converter.
 //
 
 #import <XCTest/XCTest.h>
@@ -170,7 +170,7 @@ typedef struct {
     double roundTripDB;       // the multitone there and back, less the original, re the signal
     double imdCCIFdB;         // 19 + 20 kHz twin tone: products at 1, 18 and 21 kHz, re the tones
     double imdSMPTEdB;        // 60 Hz + 7 kHz at 4:1: 7 kHz ± 60 and ± 120 Hz, re the 7 kHz tone
-    double impulseRippleDB;   // the impulse response's magnitude, every 10 Hz, 20 Hz–20 kHz: max |dB|
+    double impulseRippleDB;   // the impulse response's magnitude at FFT bins, 20 Hz–20 kHz: max |dB|
     double impulsePhaseDeg;   // its phase against zero delay over the same band: max |degrees|
     double oversGainDB;       // a sine whose true peak is +3 dBFS between samples at 0.999: fitted gain
     double oversTHDNdB;       // and what is not that sine, re it; clipping shows in both
@@ -586,10 +586,8 @@ static double SawSpur(const double *samples, double rate) {
 }
 
 // Twenty tones, 50 Hz to 19 kHz log-spaced, 0.04 each with seeded phases:
-// the output less the ideal signal computed at the output rate (Hilmar's
-// "calculate the ideal answer and subtract it"), no fit, so any gain, phase
-// or timing error counts; then the output converted back to the source rate,
-// less the original (the round trip).
+// the output less the ideal signal at the output rate. No fit removes gain,
+// phase or timing error. The round trip converts back and subtracts the original.
 static void MultitoneTones(double *frequencies, double *phases) {
     uint32_t state = 4242;
     for (int k = 0; k < 20; k++) {
@@ -776,9 +774,6 @@ static NSString *TableRow(RatePair pair, Quality q) {
            q.dcError, q.corePercent];
 }
 
-// The bar the resampler is held to, at every pair. Measured values are in the
-// printed table; each bound sits a margin past the worse of r8brain and the
-// Apple converter it replaced.
 - (void)assertQuality:(Quality)q pair:(RatePair)pair {
     NSString *label = PairName(pair);
     XCTAssertLessThan(q.rippleDB, 0.0001, @"%@ passband ripple to 20 kHz", label);

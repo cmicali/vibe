@@ -12,8 +12,6 @@
 
 @implementation LoadingIndicatorMathTests
 
-// Pinned exactly: the track matches the unplayed waveform's brightness, and the
-// macOS empty-state line reads its height and alpha from here.
 - (void)testWaveformStyleMetricsArePinned {
     for (NSNumber *widthNumber in @[ @200, @480, @1024, @3000 ]) {
         CGFloat width = widthNumber.doubleValue;
@@ -55,7 +53,6 @@
     XCTAssertLessThan(m.frontFadePoints, 16);
 }
 
-// Tall enough that the round ends read; full pill ends, like each EQ bar's.
 - (void)testRowStyleIsARoundEndedPill {
     VibeLoadingIndicatorMetrics m =
             VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16);

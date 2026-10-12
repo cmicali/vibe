@@ -123,7 +123,6 @@ static SettingsFillView *Hairline(NSView *in) {
     SettingsFillView *_searchMark;
     NSTableView *_listTable;
     SettingsFillView *_listHeader;
-    // Built on first use by setCaption:.
     NSStackView *_cluster;
     NSLayoutConstraint *_titleCenteredConstraint;
     NSArray<NSLayoutConstraint *> *_captionConstraints;

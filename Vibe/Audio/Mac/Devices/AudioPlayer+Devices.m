@@ -286,7 +286,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 }
 
 // The bound device is a field of the hosted unit, never a HAL read, and
-// kAudioObjectUnknown only before a first bind that found no device. Without
+// kAudioObjectUnknown before a successful bind or after a bind failure. Without
 // a unit — the debug pump — the system default stands in.
 - (AudioDeviceID)activeOutputDeviceID {
     if (!_outputUnit) {
@@ -442,9 +442,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
             slowRebind ? @"slow " : @"", deviceID, seconds, rebound ? @"bound" : @"FAILED");
     _rebindDeviceID = kAudioObjectUnknown;
     if (!rebound) {
-        // Names who asked for a bind the HAL refused: a rebind onto a
-        // vanishing device fails with -10851 and unloads the track. Release
-        // builds log addresses, which symbolicate against the archived binary.
+        // Preserve callers of a synchronous rebuild failure for symbolication.
+        // Asynchronous HAL refusals arrive through outputUnitFailedOnQueue:.
         NSArray<NSString *> *stack = [NSThread callStackSymbols];
         NSUInteger depth = MIN(stack.count, (NSUInteger)10);
         NSString *callers = depth > 1
@@ -643,8 +642,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     else {
         // TRAP: the default comes from the manager's snapshot, which it
         // refreshes before either observer fires, never from the HAL: a read
-        // here waits behind whatever coreaudiod is doing (366 ms measured
-        // during a DAC replug), and every transport command waits behind it.
+        // here waits behind coreaudiod and holds every transport command.
         devices = AudioDeviceManager.sharedInstance.cachedOutputDevices;
         for (AudioDevice *device in devices) {
             if (device.isSystemDefault) {
@@ -656,7 +654,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
     if (newDeviceID == kAudioObjectUnknown && devices.count > 0) {
         // Devices exist but none is the default: macOS names none for a moment
-        // while it moves the default (390 ms measured). The bound unit keeps
+        // while it moves the default. The bound unit keeps
         // playing, and the default's notification or one retry binds it.
         LogWarn(@"AudioPlayer: no system default output device among %lu devices yet", (unsigned long)devices.count);
         self.currentlyRequestedAudioDeviceId = -1;
@@ -792,9 +790,8 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
 
         BOOL didBind = [self selectOutputDeviceOnQueue:outputDeviceID];
         if (didBind && outputDeviceID >= 0) {
-            // A concrete choice owns the intent only once the HAL accepted it.
-            // On failure, Settings still names the saved launch preference, so
-            // keep the in-memory pending intent aligned with it.
+            // Commit after the synchronous rebuild accepts the selection.
+            // The queued HAL bind can still fail later.
             self->_pendingSavedDeviceUID = nil;
             self->_pendingSavedDeviceName = nil;
             self->_pendingSavedDeviceModelUID = nil;

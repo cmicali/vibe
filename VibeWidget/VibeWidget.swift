@@ -12,14 +12,8 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import WidgetKit
 
-// A widget is not a live view: WidgetKit renders each entry once, ahead of
-// time, and the home screen shows the entry whose date has arrived. So motion
-// costs entries, and entries are budgeted. The budget is spread over whatever
-// is left of the track: the step is the finest that still reaches the end,
-// never finer than kPlayheadStep. TRAP: a fixed step ran out — 24 entries at
-// 5 s is 115 s — and a longer track's head then FROZE there, because ordinary
-// playback publishes nothing (the widget's own arithmetic is the playhead) and
-// .atEnd asks for a fresh timeline on WidgetKit's schedule, not the track's.
+// TRAP: spread the entry budget over the remaining track. A fixed step can
+// freeze the playhead early. WidgetKit schedules .atEnd refreshes itself.
 private let kPlayheadStep: TimeInterval = 5
 private let kMaxEntries = 24
 // Pixels; the blurred background's longest side. See blurred(_:).
@@ -44,9 +38,7 @@ struct VibeEntry: TimelineEntry {
 }
 
 struct VibeProvider: TimelineProvider {
-    // One per process, not per timeline: a CIContext is a Metal device and its
-    // pipelines, tens of milliseconds and several MB, in a process with a hard
-    // memory cap.
+    // Reuse the Metal context across timelines in this memory-limited process.
     private static let blurContext = CIContext()
 
     func placeholder(in context: Context) -> VibeEntry { .empty }
@@ -64,11 +56,8 @@ struct VibeProvider: TimelineProvider {
             completion(Timeline(entries: [first], policy: .never))
             return
         }
-        // Step the playhead to the end of the track within the entry budget:
-        // 5 s apart on a short remainder, minutes apart on an hour-long mix,
-        // always landing the last entry at the end. The app reloads on every
-        // transport event, and the track's end is one, so .atEnd is only the
-        // fallback for an app killed mid-track.
+        // Use the minimum step for short remainders. The last entry can fall
+        // less than one minimum step before the end.
         let remaining = max(0, state.duration - state.position(at: now))
         let step = max(kPlayheadStep, remaining / Double(kMaxEntries - 1))
         let steps = min(kMaxEntries, Int(remaining / step) + 1)
@@ -102,9 +91,7 @@ struct VibeProvider: TimelineProvider {
         return UIImage(data: data)
     }
 
-    // Blurred at a small size and stretched where it is drawn. A background
-    // this blurred has no detail to lose, and the 576px art cost 36 times the
-    // pixels. The radius is a share of the image: 40px suited 256px art.
+    // Downsample before the blur to limit intermediate image memory.
     private func blurred(_ artwork: UIImage) -> UIImage {
         guard let full = CIImage(image: artwork) else { return artwork }
         let scale = min(1, kBlurSide / max(full.extent.width, full.extent.height))
@@ -120,11 +107,8 @@ struct VibeProvider: TimelineProvider {
     }
 }
 
-// The gallery shows the kinds in this order, and each kind's sizes smallest
-// first, whatever order families lists them in (tested: a medium listed first
-// still came second). TRAP: the original kind keeps its small and medium, since
-// both shipped, and a placed widget belongs to its kind. Moving either size to
-// another kind would break every copy of it on someone's Home Screen.
+// TRAP: a placed widget belongs to its kind. Keep the shipped small and
+// medium families on the original kind.
 @main
 struct VibeWidgetBundle: WidgetBundle {
     var body: some Widget {

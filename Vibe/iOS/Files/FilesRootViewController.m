@@ -91,7 +91,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     // change is posted. A live read in that gap maps a folder's row to the
     // folder beside it.
     BOOL _dropboxLinked;
-    // Open URL's sheet while it is up.
     OpenURLSheetController *_linkSheet;
 }
 
@@ -176,7 +175,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
 }
 
-// The account went or came, or a location was granted or removed.
 - (void)sourcesDidChange:(NSNotification *)notification {
     _dropboxLinked = DropboxMirror.shared.client.isLinked;
     [self.tableView reloadData];
@@ -191,7 +189,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         UIAction *addFolder = VibeMenuAction(STR_SETTINGS_ADD_FOLDER, @"folder.badge.plus", ^{
             [weakSelf presentPickerForLocation:YES];
         });
-        // iCloud Drive named here: it is where most music on a phone is.
         addFolder.subtitle = STR_BROWSER_ADD_FOLDER_CAPTION;
         if (DropboxMirror.shared.client.isLinked) {
             completion(@[addFolder]);
@@ -224,7 +221,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     [sheet presentFrom:self];
 }
 
-// Cancel: the sheet closes, and a link still resolving stops.
 - (void)cancelLinkSheet {
     dispatch_block_t cancel = _cancelLinkResolve;
     [self closeLinkSheetThen:nil];
@@ -387,7 +383,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 #pragma mark - Opening
 
-// Every open is one of PlaybackController's roads.
 - (void)addURLs:(NSArray<NSURL *> *)urls {
     if (urls.count == 0) {
         return;

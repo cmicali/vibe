@@ -70,7 +70,7 @@ static double VibeVarispeedKernelAt(const double *fine, double u) {
     return ((c3 * m + c2) * m + c1) * m + y1;
 }
 
-// The table for `ratio`: stretched by it above 1. About 0.1 ms; NULL when it
+// The table for `ratio`: stretched by it above 1. NULL when it
 // cannot be allocated. Phase j of kVarispeedPhases is row j + 1, for j from
 // −1 to kVarispeedPhases + 1, so the cubic always has four rows. A row holds
 // the taps for input frames index − half + 1 through index + half, around a
@@ -248,9 +248,8 @@ static inline simd_double4 VibeVarispeedWide(const float *x, uint32_t i) CA_REAL
 // (the others follow a row of `taps` apart), weighted by `cubic` and dotted
 // with the ring frames from `left` and `right`, in double. Each four taps'
 // weights serve both channels. Written in vectors because -Os, the shipping
-// optimization, leaves the scalar loop unvectorized at three times the cost;
-// eight taps a pass, into two sums per channel, so no add waits on the last
-// one (7% at the wider kernels, the `pitch` benchmarks).
+// optimization, leaves the scalar loop unvectorized. Eight taps per pass
+// feed two independent sums per channel to shorten the dependency chain.
 static inline simd_double2 VibeVarispeedTaps(const double *r0, uint32_t taps, simd_double4 cubic, uint32_t count,
                                              const float *left, const float *right) CA_REALTIME_API {
     const double *r1 = r0 + taps, *r2 = r1 + taps, *r3 = r2 + taps;

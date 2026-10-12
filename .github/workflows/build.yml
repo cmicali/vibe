@@ -1,16 +1,13 @@
 name: CI
 
-# Compile check and unit tests on a clean checkout. Vibe.xcodeproj is
-# generated from project.yml and not tracked, so CI is the only place that
-# regularly proves a fresh clone still builds.
+# Build, test and validate a clean checkout from the generated project.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
-# Every job only reads the repo — upload-artifact needs no repo permission —
-# so the token carries nothing a compromised dependency could write with.
+# Jobs need read access to repository contents.
 permissions:
   contents: read
 
@@ -38,9 +35,7 @@ jobs:
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
     # cannot build this.
     runs-on: macos-26
-    # A hung xcodebuild otherwise runs to the 360-minute default, at the
-    # macOS runner's 10x billing rate. 45 rather than 30: the macOS leg runs
-    # two whole-app analyze builds, Release and AppStore, which share nothing.
+    # Allow for both Release and AppStore analysis in the macOS leg.
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -56,9 +51,6 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-version --sdk macosx
 
-      # Only XcodeGen is missing from the runner image; jq ships with macOS 15+,
-      # so `brew bundle` has nothing else to do here. See the action for why
-      # this doesn't shell out to brew at all.
       - uses: ./.github/actions/setup-xcodegen
 
       # The macOS leg signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no
@@ -103,7 +95,7 @@ jobs:
 
       # The x86_64 slice, not the runner's arm64: the analyzing Release build
       # compiles arm64 alone, so this is where the shipping app's Intel half
-      # (and its architecture #ifs) is proven to compile. Same cost either way.
+      # (and its architecture #ifs) is checked.
       - name: Build Debug (macos, x86_64)
         run: make build CONFIG=Debug ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
 
@@ -127,9 +119,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: make -k -j2 test test-audio
 
-      # always(): the counts are most wanted precisely when a step above
-      # failed. They read the .xcresult, so they report the run either way and
-      # never change the job's outcome.
+      # Report failed tests too. A missing or unreadable result bundle fails
+      # the summary step.
       - name: Test summary
         if: always()
         run: make test-summary

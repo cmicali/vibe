@@ -20,10 +20,8 @@
 - (NSURL *)sessionURLWithDefaults:(NSUserDefaults **)defaults {
     NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
                    [@"vibe-session-tests-" stringByAppendingString:NSUUID.UUID.UUIDString]] isDirectory:YES];
-    // TRAP: TestFilesystemGuard.m's in-memory store, a fresh one per test,
-    // never a cfprefsd suite: a named suite's plist lands in
-    // ~/Library/Preferences after the process has gone, and even an
-    // absolute-path one froze keys at their first value on CI.
+    // TRAP: use the in-memory store. cfprefsd can cache stale values and
+    // write a named suite into the real Preferences directory after exit.
     *defaults = [[VibeTestUserDefaults alloc]
                  initWithSuiteName:[root.path stringByAppendingPathComponent:@"defaults"]];
     [self addTeardownBlock:^{
@@ -130,9 +128,6 @@ static void AssertSameRow(AudioTrack *restored, AudioTrack *saved) {
     XCTAssertEqual(restored.cueTrackNumber, saved.cueTrackNumber);
 }
 
-// The session keeps every field of a cue row exactly — names holding the
-// separator, a percent sign or a newline, a sheet path holding commas — and
-// restores it reading nothing but the mirror: the sheet is not there.
 - (void)testSessionRoundTripRestoresCueRowsExactly {
     NSUserDefaults *defaults;
     NSURL *url = [self sessionURLWithDefaults:&defaults];

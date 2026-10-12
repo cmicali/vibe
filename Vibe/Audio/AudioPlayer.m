@@ -4,8 +4,8 @@
 //
 //  The transport: the state machine {Stopped, Loading, Playing, Paused}, the
 //  file open it waits on, and the delegate it reports to. Every verb below
-//  publishes its new state and delivers its event at once; the audio follows
-//  within the declick length, on the bus. Nothing here waits for a fade.
+//  publishes state on the player queue and dispatches its event to main.
+//  Nothing here waits for a fade.
 //
 
 #import "AudioPlayer.h"
@@ -395,8 +395,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self retireVoiceOnQueue:voice milliseconds:_incomingFadeMilliseconds];
 }
 
-// The request id pairs the logical open with its deadline; the coordinator
-// owns the path claim until an uncancellable OS call returns.
+// The request id pairs the logical open with its deadline. The coordinator
+// retains a dispatched handle run until its OS call returns.
 - (void)submitOpenOnQueueForTrack:(AudioTrack *)track openRequestId:(uint64_t)openId {
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
@@ -414,7 +414,6 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         }
     }
             completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval openSeconds) {
-        // Always logged, so a missing line means the open never happened.
         if (!file) {
             LogWarn(@"AudioPlayer: open of %@ abandoned after %.3fs (%@)",
                     openURL.lastPathComponent, openSeconds, error.localizedDescription);
@@ -1022,8 +1021,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self resetToStoppedStateOnQueue];
 }
 
-// Every stop and failure lands here. The voice retires at the declick, never
-// the crossfade length.
+// Unloads after stop or a failure that cannot stay paused.
+// The voice retires at the declick, never the crossfade length.
 - (void)resetToStoppedStateOnQueue {
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];

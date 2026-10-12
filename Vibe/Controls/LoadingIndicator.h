@@ -11,10 +11,9 @@
 //  progress bar added: a faint track across the bounds it is given, a solid
 //  filled head over [0, fraction] whose last few points fade out, and — waveform
 //  style only — the shimmer band sweeping ONLY the unfilled remainder.
-//  Indeterminate is simply the case where nothing is filled. That
-//  is why every part of it is placed by layoutInBounds:animatedOver: and
-//  nowhere else, and why a negative fraction reverts cleanly. The style changes
-//  metrics, not structure — LoadingIndicatorMath.h.
+//  Indeterminate is the case where nothing is filled. Every part is placed by
+//  layoutInBounds:animatedOver:. A negative fraction removes the fill.
+//  LoadingIndicatorMath.h supplies the metrics and whether to build a shimmer.
 //
 //  Main thread only, like the views that own it.
 //
@@ -58,8 +57,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Determinate download progress: the track fills from the left as the
 // provider materializes the file. A negative fraction removes the fill and
 // returns to indeterminate. Providers report about once a
-// second and irregularly, so the fill EASES to each value over roughly the
-// last interval rather than snapping — Core Animation retargets from the
+// second and irregularly. The fill eases over half the last interval, clamped
+// to 0.12–0.45 seconds. Core Animation retargets from the
 // presentation value, so a sample landing early redirects the motion instead
 // of jumping, and the fill never runs past what was reported, leaving a
 // stalled download parked rather than creeping ahead of the truth.

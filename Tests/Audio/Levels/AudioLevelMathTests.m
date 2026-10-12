@@ -27,8 +27,6 @@
                    VibeAudioLevelNormalizationModeBalancedSpectrum);
 }
 
-// A band's top is its neighbour's bottom, so no bin drives two bars and none
-// drives none.
 - (void)testBandsAreContiguous {
     NSUInteger previousHigh = 0;
     for (NSUInteger b = 0; b < kLevelBandCount; b++) {

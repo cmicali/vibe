@@ -53,10 +53,8 @@ from stress import AUDIO_SUFFIXES  # noqa: E402
 EMBEDDED_MINIMUM = 100 * 1024 * 1024    # FolderWalk's kVibeEmbeddedCueMinimumBytes
 CD_FRAMES = 75
 
-
-# --------------------------------------------------------------------------
 # Source discovery
-# --------------------------------------------------------------------------
+
 
 def walk(source):
     for dirpath, dirnames, filenames in os.walk(source):
@@ -158,10 +156,8 @@ def find_plain(source, rng, want):
     rng.shuffle(pool)
     return pool[:want]
 
-
-# --------------------------------------------------------------------------
 # FLAC metadata
-# --------------------------------------------------------------------------
+
 
 def flac_blocks(path):
     """[(type, header offset, length, last)] and STREAMINFO's rate and samples."""
@@ -251,10 +247,8 @@ def write_with_comment(image, out, comment):
         shutil.copyfileobj(src, dst, 8 * 1024 * 1024)
     return True
 
-
-# --------------------------------------------------------------------------
 # Sheets
-# --------------------------------------------------------------------------
+
 
 def stamp(frames):
     return f"{frames // (60 * CD_FRAMES):02d}:{frames // CD_FRAMES % 60:02d}:{frames % CD_FRAMES:02d}"

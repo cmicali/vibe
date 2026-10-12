@@ -1,9 +1,3 @@
-//
-//  DropboxMirrorFetchTests.m
-//
-//  The placeholder-to-bytes fetch through CloudFileMaterializer, the
-//  download budget, cancellation, and a download resumed in place.
-//
 
 #import "DropboxMirrorTestCase.h"
 
@@ -87,9 +81,6 @@
     XCTAssertEqualObjects([NSString stringWithContentsOfURL:two encoding:NSUTF8StringEncoding error:NULL], @"22222");
 }
 
-// A smaller budget applies at once, not at the next download: the oldest go
-// back to placeholders until the rest fit, and the new total is posted for
-// the settings screen.
 - (void)testASmallerBudgetSendsTheOldestBackAtOnceAndPostsTheTotal {
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"one.flac", 3, kStamp),
                              VibeFileEntry(@"/Music", @"two.flac", 3, kStamp)];
@@ -116,8 +107,6 @@
     XCTAssertEqual([self measuredDownloads], 3);
 }
 
-// A file changed on Dropbox after it was downloaded goes back to a
-// placeholder at the next listing, and the downloads' readers are told.
 - (void)testARelistThatDiscardsADownloadTellsItsReaders {
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"one.flac", 5, kStamp)];
     _contents[@"/music/one.flac"] = [@"11111" dataUsingEncoding:NSUTF8StringEncoding];
@@ -383,8 +372,6 @@
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
 }
 
-// With no rev on the first answer nothing can prove a resume is the same
-// version: whole in one piece it installs, cut off it fails.
 - (void)testAFirstAnswerWithoutARevisionDownloadsWholeButNeverResumes {
     NSData *bytes = PatternBytes(4000);
     _contents[@"/song.flac"] = bytes;
@@ -403,8 +390,6 @@
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
 }
 
-// A server ignoring the Range answers 200 with the whole file: what was
-// already written is skipped, never appended a second time.
 - (void)testAWholeFileAnswerToAResumeSkipsWhatWasWritten {
     NSData *bytes = PatternBytes(4000);
     _contents[@"/song.flac"] = bytes;
@@ -453,8 +438,6 @@
     XCTAssertEqual(StatOf([self partURL]).st_size, 1600, @"kept for the next download");
 }
 
-// A download that finds its destination holding bytes of a version continues
-// from them: the request asks for the rest, and the file ends whole.
 - (void)testTheNextDownloadContinuesAKeptPart {
     NSData *bytes = PatternBytes(4000);
     _contents[@"/song.flac"] = bytes;
@@ -470,8 +453,6 @@
     XCTAssertEqualObjects([requests[0] valueForHTTPHeaderField:@"Range"], @"bytes=1600-");
 }
 
-// A kept part of a version no longer current cannot be continued: the answer
-// to the resume names another rev, so the download starts over, whole.
 - (void)testAKeptPartOfAnotherVersionIsStartedOver {
     _contents[@"/song.flac"] = PatternBytes(4000);
     [self cancelADownloadAfter:1600];
@@ -546,7 +527,6 @@
     XCTAssertEqual([self downloadRequests].count, 1u);
 }
 
-// Short or long against its version's size, a file is not that version.
 - (void)testADownloadOfAnotherLengthThanItsSizeFailsAndDeletesThePart {
     NSData *bytes = PatternBytes(4000);
     _contents[@"/song.flac"] = bytes;

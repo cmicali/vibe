@@ -32,9 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The whole row set changed and the cursor is final.
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback;
 - (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes;
-// Every Add ends here, after any append it made: landed is NO when it found
-// nothing, or nothing new. The playlist's own events say what changed; this
-// says the request is over.
+// An append settled. NO means no new rows. Superseded Adds use the replacement
+// or cancellation event instead. The playlist events describe any model change.
 - (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed;
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index;
 - (void)playback:(PlaybackController *)playback
@@ -54,7 +53,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Shuffle or the repeat mode changed, and with them where next goes.
 - (void)playbackDidChangePlayOrder:(PlaybackController *)playback;
 
-// 3 Hz while playing, and once for every event that moves the playhead.
+// Up to 3 Hz while playing in an active scene, plus playhead-changing events.
 - (void)playbackDidTick:(PlaybackController *)playback;
 
 #pragma mark The output route
@@ -73,8 +72,8 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark Deliveries and the folder session
 
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track;
-// A deliberate open landed and is playing; never sent for a relaunch restore.
-// The only event that presents the card.
+// A deliberate open landed and submitted playback. Never sent for a restore.
+// This event presents the card before audio necessarily starts.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback;
 // The picked location held no audio files. The playlist stands if it had
 // one — read playlist.count before presenting an empty state — and every
@@ -143,7 +142,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL seekInFlight;
 @property (nonatomic, readonly) float pendingSeekProgress;
 
-// The current row's open passed the slow-open threshold and has not settled.
+// The current row's open reported a transfer or passed the slow-open threshold.
 // Set before playbackDidBeginLoading:; cleared by every cursor change,
 // replacement and play.
 @property (nonatomic, readonly) BOOL currentOpenSlow;

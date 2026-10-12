@@ -1,26 +1,8 @@
-// The suite is host-less and so unsandboxed (Tests/AGENTS.md): a production
-// path that resolves a standard user directory answers with the developer's
-// real ~/Library. AppTheme's artwork store would land in ~/Library/Application
-// Support/<main bundle identifier>/ThemeArt — here the XCTest tool's
-// identifier. Installed at image load, not in a setUp, so no test class can
-// opt out of it.
-//
-// TRAP: a test that narrows VIBE_THEME_ART_DIR must restore the previous
-// value, never unsetenv it: unset, the store resolves the real ~/Library, and
-// the leak lands under whichever class runs next.
-//
-// Standard defaults would be the XCTest tool's domain, shared by every test
-// process on the machine: the parallel runner's clones and any concurrent
-// `make test` would read each other's writes. So +standardUserDefaults answers
-// a store of this process's own, held in memory. Saving and restoring a
-// setting around a test would not do: reading an unset key answers the
-// registered default, so writing it back materializes a key that was never
-// stored.
-//
-// TRAP: in memory, not a cfprefsd-backed suite, even a per-pid one. On CI a
-// suite key intermittently froze at its first value for seconds: later writes
-// and removes read back the old dictionary while other keys wrote normally
-// (OutputFormatRulesTests' carry, then SettingsRulesTests, in one process).
+// Install theme-art and defaults isolation before any test can run.
+// Host-less tests otherwise resolve the developer's real Library paths.
+// TRAP: restore a narrowed VIBE_THEME_ART_DIR. Unsetting it exposes ~/Library.
+// TRAP: keep tested defaults in memory. cfprefsd caching can make immediate
+// read-after-write assertions depend on another process.
 
 #import "TestFilesystemGuard.h"
 #import <objc/runtime.h>

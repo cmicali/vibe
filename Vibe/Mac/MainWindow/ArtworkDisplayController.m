@@ -384,7 +384,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 
     // A dead controller answers "not wanted", demoting the decode: a track
     // that never played never becomes _artOwnerTrack, so nothing else would
-    // drop the 4-9MB this load pins.
+    // release the decoded pixels this load pins.
     __weak ArtworkDisplayController *weakSelf = self;
     [metadata loadArtIfNeededStillWanted:^BOOL{
         ArtworkDisplayController *strongSelf = weakSelf;
@@ -496,7 +496,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
 }
 
 - (void)trackDidStartPlaying:(AudioTrack *)track {
-    // Or every played track pins its 4-9MB of art for the playlist's lifetime.
+    // Otherwise each played track holds decoded art for the playlist's lifetime.
     if (_artOwnerTrack && _artOwnerTrack != track) {
         [_artOwnerTrack.metadata discardDecodedArt];
     }

@@ -2,7 +2,7 @@
 //  PageWaveformCoordinator.h
 //  Vibe (iOS)
 //
-//  Between AudioWaveformCache, which runs ONE load at a time, and the pager:
+//  Between AudioWaveformCache's current delivery target and the pager:
 //  which page that load targets, and the latest snapshot per page with the
 //  fraction loaded it was delivered with, 1 for a complete page. The cancel
 //  before a retarget is NOT the race guard, since a decode can outlive it.
@@ -59,7 +59,7 @@ NS_ASSUME_NONNULL_BEGIN
 // caller re-requests the page it settled on.
 @property (nonatomic, getter=isHeld) BOOL held;
 
-// A page already targeted with the same FILE is left ALONE, or every cell
+// A page already targeted with the same sourceKey is left alone, or every cell
 // reload kills the decode. A page with its full snapshot in hand is not
 // reloaded.
 - (void)requestIndex:(NSUInteger)index track:(nullable AudioTrack *)track;
@@ -69,8 +69,7 @@ NS_ASSUME_NONNULL_BEGIN
 // nothing, so the next prefetch asks again.
 - (void)prefetchIndex:(NSUInteger)index track:(AudioTrack *)track;
 
-// Distant pages reload from the disk cache in milliseconds, so the window
-// stays small. The target is kept wherever it is.
+// Keep the target outside the retention window too.
 - (void)pruneAroundIndex:(NSUInteger)index;
 
 // For a playlist replacement: a late delivery is dropped; the next request

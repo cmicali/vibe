@@ -21,8 +21,9 @@
 //  AudioVoiceBus.h).
 //
 //  An MPEG file (MP1, MP2, MP3) is decoded by dr_mp3 instead of ExtAudioFile
-//  unless Apple's is chosen, since Apple's MPEG decoder's only output is
-//  16-bit integers: clipped at full scale and rounded without dither.
+//  unless Apple's is chosen. Apple's arm64 MPEG decoder outputs 16-bit
+//  integers, clipped at full scale and rounded without dither. Its x86_64
+//  decoder outputs float32 but still clips overs.
 //  CoreAudio's parser still finds its packets, priming and length, so gapless
 //  trims and durations are the ones every other reader sees.
 //
@@ -146,7 +147,7 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 // On the reading thread: an estimated length made exact, waiting for the
 // download to complete, interruptibly as any read does, then counting from
 // disk. YES once exact, at once for a length that is; NO for an interruption
-// or the transfer's failure. What a decode sized by a guess (the waveform
+// or a transfer or packet-count failure. What a decode sized by a guess (the waveform
 // loader's) checks before calling itself complete.
 - (BOOL)awaitExactLength:(NSError * _Nullable __autoreleasing * _Nullable)error;
 // Logical file frames. A refused seek leaves the cursor at the decoder's

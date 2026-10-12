@@ -453,9 +453,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     return YES;
 }
 
-// A quit waits on the device (restoring its format and hog, bounded at 1.5 s)
-// and on a conversion's cancel, so Vibe leaves the screen first and finishes
-// off main.
+// A quit waits on device cleanup and a conversion's cancellation. HAL calls
+// can block, so Vibe leaves the screen before waiting off main.
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     for (NSWindow *window in NSApp.windows) {
         [window orderOut:nil];

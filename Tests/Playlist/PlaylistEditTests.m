@@ -1,9 +1,3 @@
-//
-//  PlaylistEditTests.m
-//  VibeTests
-//
-//  The structural edits: remove, insert and move, one row or a batch.
-//
 
 #import <XCTest/XCTest.h>
 

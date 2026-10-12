@@ -39,8 +39,7 @@
 @property (nonatomic, readonly, getter=isPlayerExpanded) BOOL playerExpanded;
 @property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
 @property (nonatomic, copy) NSString *selectedTabIdentifier;
-// When each Add's rows were lifted and not yet settled (CACurrentMediaTime,
-// oldest first); every Add ends in a settle, so an old one never came back.
+// Unsettled row lifts, oldest first, in CACurrentMediaTime units.
 @property (nonatomic, readonly) NSArray<NSNumber *> *liftedRowTimes;
 // The live tabs, the strip, and the snapshot that scales over them while
 // the card moves (nil at rest). For the layout probe.
@@ -70,7 +69,6 @@
 @end
 
 @interface FilesRootViewController (DebugSurface)
-// Shows Open URL's sheet.
 - (void)presentLinkSheet;
 @end
 
@@ -122,8 +120,8 @@
 // notification turn. NO when the Favorites tab was never visited or the index
 // is past the list.
 - (BOOL)debugOpenFavoriteAtIndex:(NSUInteger)index appending:(BOOL)appending;
-// Reports both sections as drawn, once the table settles (the files half is
-// asynchronous). NO when the Search tab was never visited.
+// Reports both sections after stable row counts or a six-second poll limit.
+// NO when the Search tab was never visited.
 - (BOOL)debugSearchQuery:(NSString *)query
               completion:(void (^)(NSDictionary *result))completion;
 // Taps a files-section row, which OPENS it.

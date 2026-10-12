@@ -107,7 +107,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Loading
 
-`Vibe/Loading/` takes a path and hands back a readable `AudioFileHandle`. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns every download and open. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Dropbox/` is the Dropbox account (`DropboxClient`) and its local mirror (`DropboxMirror`). Read next: `Vibe/Loading/AGENTS.md` for how the code works, and `docs/file-loading-spec.md` for the behavior it must keep.
+`Vibe/Loading/` takes a path and hands back a readable `AudioFileHandle`. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns materialization and playback handle opens. Metadata can also read remote byte ranges through the backend. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Dropbox/` is the Dropbox account (`DropboxClient`) and its local mirror (`DropboxMirror`). Read next: `Vibe/Loading/AGENTS.md` for how the code works, and `docs/file-loading-spec.md` for the behavior it must keep.
 
 ### Playlist
 
@@ -151,9 +151,9 @@ Each feature beside the engine has its own directory and doc:
 
 ### Tests, resources, and scripts
 
-`make test` runs `VibeTests`. These tests need no window, no audio device, and no running app. `make test-audio` runs `VibeAudioTests` from `Tests/AudioRender/`. It drives the real player and FX with no device. It checks the output with full PCM comparisons and signal-quality checks. A test lives in the `Tests/` directory that matches the code it tests. Read `Tests/AGENTS.md` before adding one. A check that needs the running app goes through the debug channel instead.
+`make test` runs `VibeTests` and the cloud-runner oracle tests. These tests need no window, no audio device, and no running app. `make test-audio` runs `VibeAudioTests` from `Tests/AudioRender/`. It drives the real player and FX with no device. It checks the output with full PCM comparisons and signal-quality checks. A test lives in the `Tests/` directory that matches the code it tests. Read `Tests/AGENTS.md` before adding one. A check that needs the running app goes through the debug channel instead.
 
-`Resources/` holds the string catalogs, the built-in themes (`Themes/*.json`), the app icon, and the bundled welcome track. `make strings` writes `Localizable.xcstrings`. Never edit that file by hand. Read `Resources/AGENTS.md`, and `Resources/Themes-README.md` before making a theme.
+`Resources/` holds the string catalogs, the built-in themes (`Themes/*.json`), the app icon, and the bundled welcome track. `make strings` writes the keys, English text and comments in `Localizable.xcstrings`. Translations are edited in the catalog. Read `Resources/AGENTS.md`, and `Resources/Themes-README.md` before making a theme.
 
 `scripts/` holds what the `Makefile` runs. Each job has its own directory: `build/`, `checks/`, `strings/`, `test/`, `release/`, `appstore/`, `web/`, `screenshots/`, `bench/`, and `analysis/`. Most scripts have a `make` target, and the `Makefile` comments each one. Releases go through the `vibe-release` skill.
 
@@ -197,9 +197,9 @@ Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
 
 ### 3. Loading
 
-`AudioFileMaterializationCoordinator openURL:purpose:completionQueue:onDataless:completion:` (`Loading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. A file therefore never downloads twice.
+`AudioFileMaterializationCoordinator openURL:purpose:completionQueue:onDataless:completion:` (`Loading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. Those requests share the same materialization work.
 
-**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A local file is ready at once, with no download and no wait. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
+**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A file found local needs no transfer lane or download. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
 
 **Stage 2 opens the handle** (`AudioFileMaterializationCoordinator+HandleOpen.m`). At most six handle opens run at once. Each calls `AudioFileHandle initForReading:interleaved:interrupted:error:` on a worker. The handle is delivered back on the player queue.
 
@@ -207,7 +207,7 @@ Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registr
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. It opens CoreAudio's parser once (`initParserForReading:`) for the file's facts. Then it picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). FLAC uses dr_flac, and WAV and AIFF use dr_wav (`AudioFileHandle+Stream.m`). Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
+`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. It opens CoreAudio's parser (`initParserForReading:`) for the file's facts. Then it picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). FLAC uses dr_flac, and WAV and AIFF use dr_wav (`AudioFileHandle+Stream.m`). Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
 
 A handle reads its bytes in one of three ways:
 
@@ -215,20 +215,20 @@ A handle reads its bytes in one of three ways:
 - A file still downloading is read from its part file. Each read waits for the bytes it needs (`CloudFileMaterializer availabilityForURL:`, `CloudFileAvailability`).
 - A file on a network mount is read from the blocks `NetworkReadAhead` fetches ahead on its own thread.
 
-Every wait for bytes can be interrupted (`interruptReads`). A stalled server or download therefore never holds a decode queue for good.
+The availability waits can be interrupted (`interruptReads`). Network read-ahead isolates a stalled OS read from the decoder. The OS read itself may remain blocked.
 
 Read `Vibe/Audio/AGENTS.md` ("The decoders", "Reading a file still downloading", and "Reading ahead on a network mount").
 
 ### 5. Settlement
 
-`finishPlayOnQueueWithFile:error:openRequestId:` (`AudioPlayer.m`) receives the handle on the player queue. It drops the result of an open that a newer play replaced or that timed out. `ensureSourceSegmentOnQueueRebuilt:` (`AudioPlayer+Pipeline.m`) builds the render pipeline at the first settlement. It rebuilds it only when the output's format or mode changes. `startVoiceOnQueueForFile:…` starts a voice on the voice bus. `startOutputOnQueue:` starts the output unit. The player publishes Playing, or Paused for a parked start. It sends `didStartPlaying:` to the shell on main. The delivery is dropped if a newer play was submitted meanwhile (`submittedPlayIsCurrent:`).
+`finishPlayOnQueueWithFile:error:openRequestId:` (`AudioPlayer.m`) receives the handle on the player queue. It drops the result of an open that a newer play replaced or that timed out. `ensureSourceSegmentOnQueueRebuilt:` (`AudioPlayer+Pipeline.m`) builds the render pipeline at the first settlement. It reuses a compatible source segment. Format or mode changes can require a rebuild. `startVoiceOnQueueForFile:…` starts a voice on the voice bus. `startOutputOnQueue:` starts the output unit. The player publishes Playing, or Paused for a parked start. It sends `didStartPlaying:` to the shell on main. The delivery is dropped if a newer play was submitted meanwhile (`submittedPlayIsCurrent:`).
 
 ### 6. The voice bus
 
 A voice is one file being rendered. `AudioVoiceBus` has eight slots. Each slot holds a ring buffer of at least one second. The work is split across three files and three kinds of thread.
 
 - **The queue side** (`AudioVoiceBus.m`) runs on the player queue. It starts and kills voices, sets their gain ramps, and hands the next file to a voice for a gapless change. The player's drain (`drainVoiceBusOnQueue`, in `AudioPlayer+Pipeline.m`) collects each voice's events: it went live, it crossed into the next file, or it ended.
-- **The decoder side** (`AudioVoiceBus+Decoder.m`) runs on a pool of eight serial decode queues. It reads the file through its handle and fills the voice's ring in turns of 4096 frames. It converts every file to the bus format: float32 stereo at the output's rate. A channel difference is mixed down first. A rate difference goes through `VibeResampler` (`AudioResampler.mm`). It runs r8brain-free-src.
+- **The decoder side** (`AudioVoiceBus+Decoder.m`) runs on a pool of eight serial decode queues. It reads the file through its handle and fills the voice's ring in turns of 4096 frames. It converts every file to the bus format: float32 with up to two channels at the output's rate. A channel difference is mixed down first. A rate difference goes through `VibeResampler` (`AudioResampler.mm`). It runs r8brain-free-src.
 - **The audio thread** (`AudioVoiceBusRender.m`) runs `VibeVoiceBusRender`. It mixes every live voice into the output buffers at its per-frame gain. It is plain C under `CA_REALTIME_API`. A lock, an allocation, or an Objective-C message there is a build error.
 
 Crossfades, the declick, pauses, and seeks are all gain ramps on voices. A seek starts a new voice at the target and fades the old one out beside it.
@@ -240,12 +240,12 @@ Read `Vibe/Audio/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, paus
 `VibeMasterBusRender` (`Audio/AudioMasterBus.m`) is the one render function on both platforms. For each slice of output it runs these stages in order:
 
 1. The voice bus, through `VibeVoiceBusRender`.
-2. The varispeed, only while the pitch is not zero (`VibeVarispeedRender`, `FX/AudioVarispeed.m`, macOS only).
-3. The FX, only while an effect is engaged or its tail still rings (`VibeFXChainRender`, `FX/AudioFX.m`).
+2. The varispeed on macOS (`VibeVarispeedRender`, `FX/AudioVarispeed.m`). At zero pitch it passes samples through and records history for a later pitch change.
+3. The hosted FX chain (`VibeFXChainRender`, `FX/AudioFX.m`). Released effects pass samples through once their tails finish.
 4. The meter, while the equalizer bars want levels or the beta signal probe is capturing (`VibeLevelMeterRender`, `Levels/AudioLevelMeter.m`).
-5. The volume, skipped at exactly full volume.
+5. The volume, skipped once settled at full volume. Debug silent mode forces zero output here.
 
-With the pitch at zero, no effect engaged, and full volume, the master bus leaves the voice bus's samples untouched.
+After pitch transitions and FX tails settle, zero pitch and full volume preserve the voice bus's samples. Debug silent mode still mutes them.
 
 Read `Vibe/Audio/AGENTS.md` ("The model in one page"), `Audio/FX/AGENTS.md`, and `Audio/Levels/AGENTS.md`.
 

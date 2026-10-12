@@ -159,7 +159,6 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
         }
         view.frame = (CGRect){CGPointZero, size};
         view.visibleFraction = _waveformZoom;
-        // The setter resyncs the theme.
         view.artworkThemeColor = [self artworkForPageAtIndex:index].vibeDominantColor;
         [view syncWaveformStyle];
         [view layoutIfNeeded];

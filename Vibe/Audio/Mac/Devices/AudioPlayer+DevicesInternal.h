@@ -150,8 +150,8 @@ static const NSTimeInterval kDeviceReadWaitSeconds = 0.5;
 // Reads the bound device's capabilities, applies the rate and depth rules,
 // and when the device's format or the graph's rate differs, stops the
 // output — the callers guarantee nothing is audible — writes one physical
-// format, waits (bounded) for the device to confirm it, and brings the graph
-// to the device's rate. Remembers the device's format before the first
+// format, polls for confirmation, and brings the pipeline to the device's
+// rate. The poll has a 1.5 s deadline; individual HAL calls can block longer. Remembers the device's format before the first
 // change so it can be put back, and records the prepared device, stream and
 // format the report reads live against.
 - (void)prepareOutputOnQueueForFile:(AudioFileHandle *)file;

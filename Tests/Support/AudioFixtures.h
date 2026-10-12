@@ -257,8 +257,8 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
     return url;
 }
 
-// A whole file as AVAudioFile decodes it, float32 non-interleaved: Apple's own
-// decode, which shares nothing with AudioFileHandle. nil on failure.
+// Decode through AVAudioFile without Vibe's handle wrapper. Both paths can
+// use Apple's codecs. Returns nil on failure.
 static inline AVAudioPCMBuffer *VibeReadWithAVAudioFile(NSURL *url, NSError **error) {
     AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:error];
     AVAudioPCMBuffer *whole = file ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat

@@ -214,7 +214,6 @@ NSData *VibeWithoutVBRHeader(NSData *mp3) {
     return override ? override(url) : availability;
 }
 
-// The fixtures every test runs over: the decoder each one reaches, by file.
 - (NSDictionary<NSURL *, NSString *> *)fixtures {
     NSMutableDictionary<NSURL *, NSString *> *fixtures = [NSMutableDictionary dictionary];
     NSError *error = nil;
@@ -356,7 +355,6 @@ NSData *VibeWithoutVBRHeader(NSData *mp3) {
             (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) == 0;
 }
 
-// Spins main, which carries the registry's edges, until the condition holds.
 - (BOOL)eventually:(BOOL (^)(void))condition {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
     while (!condition()) {

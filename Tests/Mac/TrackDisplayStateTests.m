@@ -1,8 +1,3 @@
-//
-// The five-state resolution every header render routes through. Its inputs
-// are three track identities and three flags, so the whole state machine is
-// enumerable without a window, a player or a playlist.
-//
 
 #import <XCTest/XCTest.h>
 

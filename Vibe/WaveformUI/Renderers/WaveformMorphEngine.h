@@ -30,10 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 //
 // Same identity and count skip the fill; only a geometry change rebuilds.
 // Otherwise fill() runs synchronously on a reused buffer. Then: rebuild
-// instantly on a geometry change (a live resize tracks the window) and on a
-// nil↔non-nil flip (a silent track's zeros draw hairlines, the collapsed
-// target nothing); ease when the content moved. A settled waveform's count
-// change installs at once; a resize mid-morph resamples and keeps easing.
+// instantly on a geometry change. A nil/non-nil flip with unchanged samples
+// also rebuilds: silent tracks need hairlines. Changed content eases.
+// A settled waveform's count change installs at once. A resize mid-morph
+// resamples the displayed bars and keeps easing.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void * _Nullable)identity
                       count:(NSUInteger)count
@@ -54,10 +54,8 @@ NS_ASSUME_NONNULL_BEGIN
 // For a change the fast path cannot see, like a backing-scale flip.
 - (void)rebuildNow;
 
-// Lands the morph on its target in one rebuild, for an ease nobody sees but
-// whose frames everybody pays for: each is a full-view repaint (a 4,096-rect
-// mask for Detailed), and a couple of pager cells easing blow a scroll's
-// frame budget.
+// Lands on the target in one rebuild. Use for unseen renderers to avoid
+// repeatedly rebuilding a full-view path.
 - (void)settleImmediately;
 
 // For the rebuild callback. Detailed pixel-rounds only when settled: mid-morph

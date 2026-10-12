@@ -51,9 +51,8 @@ typedef NS_ENUM(NSInteger, VibeLinkError) {
 
 #pragma mark - Acceptance
 
-// TRAP: 0.0.0.0/8 and :: are the unspecified addresses, and a connection to
-// one reaches this machine. Left public, a public page could redirect Vibe to
-// a service on the Mac itself.
+// TRAP: keep the unspecified addresses 0.0.0.0 and :: on the local side of
+// redirect checks. They can reach this machine. The IPv4 rule covers all 0/8.
 static inline BOOL VibeLinkIPv4IsLocal(struct in_addr address) {
     uint32_t a = ntohl(address.s_addr);
     return (a >> 24) == 0                    // 0/8
@@ -124,10 +123,8 @@ static inline BOOL VibeLinkHostIsLocal(NSString *_Nullable host) {
 
 // The address rule: None for an address Vibe fetches. https reaches any
 // host. Plain http reaches only the local network, and is Insecure past it.
-// Another scheme, or no host, is Invalid. App Transport Security's
-// NSAllowsLocalNetworking draws the same line. The transfer applies this to
-// every redirect too (VibeLinkRequestIsAllowed). A redirect can leave the
-// local network.
+// Another scheme, or no host, is Invalid. ATS applies its own checks after
+// this rule. The transfer checks every redirect too (VibeLinkRequestIsAllowed).
 static inline VibeLinkError VibeLinkURLAcceptance(NSURL *_Nullable url) {
     NSString *scheme = url.scheme.lowercaseString;
     BOOL https = [scheme isEqualToString:@"https"];
@@ -139,8 +136,8 @@ static inline VibeLinkError VibeLinkURLAcceptance(NSURL *_Nullable url) {
 
 // Whether the transfer may request `to`, reached by a redirect from `from`,
 // nil for the link itself. `to` must pass the address rule. A redirect from a
-// public host never reaches the local network, whatever the scheme. A public
-// page could otherwise send Vibe's requests to a device at home.
+// host classified as public cannot target one classified as local. This is
+// a hostname check; it does not inspect DNS results.
 static inline BOOL VibeLinkRequestIsAllowed(NSURL *_Nullable from, NSURL *_Nullable to) {
     if (VibeLinkURLAcceptance(to) != VibeLinkErrorNone) return NO;
     return from == nil || VibeLinkHostIsLocal(from.host) || !VibeLinkHostIsLocal(to.host);

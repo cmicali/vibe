@@ -1,10 +1,3 @@
-//
-//  GoogleDriveLinkRulesTests.m
-//
-//  Open URL's Google Drive share links: which links become Google's download
-//  address, that the share-link rewrite asks this file, and what LinkStore
-//  makes of Google's answers (GoogleDriveLinkStoreTests).
-//
 
 #import <XCTest/XCTest.h>
 
@@ -72,8 +65,6 @@ static NSString *Download(NSString *link) {
     }
 }
 
-// The rewrite asks this file, and the address it makes is a link Vibe
-// fetches like any other.
 - (void)testTheShareLinkRewriteAsksThisFile {
     NSURL *download = VibeLinkDirectDownloadURL([NSURL URLWithString:@"https://drive.google.com/file/d/1AbC/view"]);
     XCTAssertEqualObjects(download.absoluteString,

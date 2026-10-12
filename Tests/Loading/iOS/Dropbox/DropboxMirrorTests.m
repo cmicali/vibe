@@ -1,9 +1,3 @@
-//
-//  DropboxMirrorTests.m
-//
-//  The real client and mirror over the stub: listing reconciliation, search,
-//  ranged reads, the token refresh and the unlink.
-//
 
 #import "DropboxMirrorTestCase.h"
 
@@ -204,8 +198,6 @@
     XCTAssertEqualObjects([_mirror dropboxPathForURL:track.URLByDeletingLastPathComponent], @"/Music/Album");
 }
 
-// A folder made on the way to a search hit takes the hit's display
-// spelling, not path_lower's lowercase.
 - (void)testASearchHitsFolderIsMadeInItsDisplaySpelling {
     NSDictionary *hit = VibeFileEntry(@"/Music/TECHNO", @"x.wav", 3, kStamp);
     _listings[@"/music/techno"] = @[hit];
@@ -223,8 +215,6 @@
 
 #pragma mark Ranged reads
 
-// A server that ignores Range answers 200 with the whole file; past its end
-// that is nothing, never bytes from its start.
 - (void)testAWholeFileAnswerPastTheEndReadsAsNothing {
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"short.mp3", 100, kStamp)];
     NSURL *track = [[self refresh:@"/Music"] URLByAppendingPathComponent:@"short.mp3"];
@@ -240,8 +230,6 @@
                           [@"RUN" dataUsingEncoding:NSUTF8StringEncoding]);
 }
 
-// A tag parse's read: the bytes asked for, by the listed id, and the
-// placeholder left a placeholder.
 - (void)testARangedReadReturnsTheBytesAndDownloadsNothing {
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"tagged.mp3", 10, kStamp)];
     _contents[@"/music/tagged.mp3"] = [@"ID3abcdefg" dataUsingEncoding:NSUTF8StringEncoding];
@@ -283,9 +271,6 @@
     XCTAssertTrue(_client.isLinked);
 }
 
-// The launch's warm-up: with no account (before first unlock reads as none)
-// it asks nothing; with one, one refresh and one content-host request per
-// session, once, however often it is called.
 - (void)testTheWarmUpRunsOnceAndOnlyWithAnAccount {
     NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
     configuration.protocolClasses = @[DropboxStubProtocol.class];

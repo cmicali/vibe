@@ -10,7 +10,7 @@ The view is split like the mac's. `WaveformScrubberView.mm` is the core: the scr
 
 **`visibleFraction` is the user's request, not what is drawn.** A pinch drives it. `effectiveVisibleFraction` is a computed accessor that clamps it to what this geometry's bitmap can hold. `virtualWidth` reads the effective value, so the content size, the offset mapping, the buckets and the bake are all clamped without knowing it.
 
-**The floor is derived, not a constant** (`WaveformUI/WaveformZoomMath.h`). It is the deepest zoom whose bake fits both the GPU texture ceiling and a per-bake byte budget. The budget bounds the worst case across the pager's cells and the bake store. A rotation to a shorter, wider layout raises the floor. Clamping the stored value there would shallow the user's zoom for good. **Persist the request, never the effective value.** The pager stores one zoom for every page in `VibeiOSWaveformZoom` (`Vibe/iOS/Player/AGENTS.md`).
+**The floor is derived, not a constant** (`WaveformUI/WaveformZoomMath.h`). It is the deepest zoom whose bake fits both the GPU texture ceiling and a per-image byte budget. A two-hue bake can use two images at that budget. Rotation can change the floor. Clamping the stored value there would shallow the user's zoom for good. **Persist the request, never the effective value.** The pager stores one zoom for every page in `VibeiOSWaveformZoom` (`Vibe/iOS/Player/AGENTS.md`).
 
 **A pinch frame stretches the bitmap. It does not re-render.** `applyVirtualGeometry` re-places the bitmap at the new virtual bounds (`placeBakedLayer:`), and resize gravity does the scaling. The picture goes slightly soft until the re-bake on release. Every other resize, such as a rotation, stretches the same way and re-bakes at once. A stored bake of another zoom is installed stretched and then re-baked once.
 
@@ -68,7 +68,7 @@ Normalize and Gain are mac settings (`AppSettings+Mac.h`). This scrubber sets `n
 
 **What the scrubber shows is always one bitmap of the whole track.** It is two image layers: unplayed full-width, and played on top cropped by `contentsRect`. So scrolling, scrubbing, paging and zooming are texture translation. The renderer only samples. Its layers live in a host that is never shown.
 
-**TRAP: never show the renderer's live tree here.** It is a multi-screen layer under a mask of thousands of rects. The render server scan-converts it on the CPU on every frame it moves, and a scrub over it ran at 30 Hz or less on a phone.
+**TRAP: never show the renderer's live tree here.** It is a multi-screen layer under a mask of thousands of rects. The render server scan-converts it on the CPU on every frame it moves. Scrolling a bitmap avoids that work.
 
 The Detailed family and 3-Band bake through the envelope-image API (`WaveformRenderer.h`), with samples read on main and pixels drawn off it. Every other style draws whole through `WaveformRendererRegistry`'s `newImageForCodableWaveform:`, once all played and once all unplayed.
 

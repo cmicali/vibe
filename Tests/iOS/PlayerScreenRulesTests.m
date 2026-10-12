@@ -41,7 +41,6 @@
 
 #pragma mark - Precedence
 
-// In both, the times must render at rest whatever the last attempt did.
 - (void)testRestingStatesOutrankError {
     XCTAssertEqual(VibeResolvePlayerScreenState(3, YES, NO, YES, 0), VibePlayerScreenStateLoading);
     XCTAssertEqual(VibeResolvePlayerScreenState(3, NO, YES, YES, 0), VibePlayerScreenStateParked);

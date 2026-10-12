@@ -408,7 +408,6 @@ static const NSUInteger kUIUpdateHz = 3;
     // star.
     [_folderSession clearSession];
     [_playlist clear];
-    // Disarms the sweep's fallback timer.
     _metadataLoadPending = NO;
     _metadataLoadGeneration++;
     [_metadataCache cancelScan];
@@ -584,9 +583,8 @@ static const NSUInteger kUIUpdateHz = 3;
         [_player seekToPosition:duration * progress];
         return;
     }
-    // Parked, or an open still in flight: the player holds no file, so the
-    // metadata's duration opens it AT the target, paused — a scrub moves the
-    // playhead and nothing else.
+    // With no player duration, use metadata. A parked seek opens paused.
+    // An in-flight open keeps its existing play intent.
     AudioTrack *track = _playlist.currentTrack;
     if (!track || !(_parked || _player.isLoading)) {
         return;
@@ -594,8 +592,7 @@ static const NSUInteger kUIUpdateHz = 3;
     _pendingSeekProgress = progress;
     _seekInFlight = YES;
     if (track.duration <= 0) {
-        // No duration yet (a widget seek on a cold launch lands here every
-        // time). The target is kept and didLoadMetadata: re-enters.
+        // Keep the target until metadata supplies a parked track's duration.
         return;
     }
     if (_parked) {
@@ -640,10 +637,8 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Transport follow-ups
 
-// TRAP: the Stopped gate is load-bearing. A parked track holds no file.
-// Prefetching over a list edit or a transition-setting change would open one.
-// On a cloud folder that is an unasked download. A new play prefetches at
-// start anyway.
+// TRAP: a stopped player can retain the finished file. Do not start an
+// unasked successor download. A new play prefetches when it starts.
 - (void)prefetchSuccessor {
     if (_player.isStopped) {
         return;

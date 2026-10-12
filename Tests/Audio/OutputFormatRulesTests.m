@@ -29,7 +29,7 @@ static AudioStreamBasicDescription Decode(double rate) {
     return VibePCM(rate, 32, YES);
 }
 
-// Real devices' offered rates: every one float32 only.
+// Representative float-only device rate lists.
 static const double kSpeakerRates[] = { 44100, 48000, 88200, 96000 };
 static const double kAirPodsRates[] = { 24000, 48000 };
 
@@ -149,9 +149,8 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibePhysicalFormatSatisfies(VibePCM(44100, 16, NO), VibePCM(44100, 24, NO), Decode(44100)));
 }
 
-// The decode is float32 whatever the device: a 32-bit integer source loses
-// its low bits there (measured), so an i32 device does not make it Active;
-// a float64 decode would carry it, and a 24-bit source is carried by both.
+// An integer source needs enough decode precision before device depth matters.
+// Float32 cannot preserve every int32 value. Float64 can.
 - (void)testTheDecodeMustCarryTheSourceToo {
     XCTAssertFalse(VibePhysicalFormatSatisfies(VibePCM(96000, 32, NO), VibePCM(96000, 32, NO), Decode(96000)));
     XCTAssertFalse(VibePhysicalFormatSatisfies(VibePCM(96000, 32, NO),
@@ -628,7 +627,6 @@ static VibeBitPerfectReport Perfect(void) {
     XCTAssertFalse(VibeDeviceIsConfirmedDead(noErr, 1));
 }
 
-// An unplugged device's id no longer names an object at all.
 - (void)testAnObjectThatNoLongerExistsIsGone {
     XCTAssertTrue(VibeDeviceIsConfirmedDead(kAudioHardwareBadObjectError, 1));
 }

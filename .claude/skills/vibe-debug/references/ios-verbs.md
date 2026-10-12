@@ -13,7 +13,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_audio_path     # the render chain as on the mac, minus the device stage
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork}: the mac verb minus playbackState
 "$S" dump_view_tree      # {windows: [{class, frame, keyWindow, rootViewController, contentView: {…, subviews}}]}: label text included
-"$S" dump_art            # {currentIndex, window, held, waveformTarget, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp, waveformProgress, waveformFilled, waveformComplete}]}: the pager's art window. The only way to tell "not decoded yet" from "no art", since both draw the placeholder. held past the budget, or a page landing with art:false, is the prefetch falling behind
+"$S" dump_art            # {currentIndex, window, held, waveformTarget, pages: [{index, title, metadata, art, needsLoad, loading, inWindow, cellUp, waveformProgress, waveformFilled, waveformComplete}]}: the pager's art window. The only way to tell "not decoded yet" from "no art", since both draw the placeholder. A page with art:false may have no usable artwork. Compare its metadata, loading state and cache window before diagnosing a missed prefetch
 "$S" dump_screenshot     # {ok, path, pointWidth, pointHeight, scale}: in-process render into the container; the host reads the path directly. Blurs only approximate; `simctl io screenshot` is the ground truth
 "$S" play_pause          # compact {ok, state, index, count, position, parked, playerPresentation}; next, previous and seek answer the same
 "$S" seek 90             # seconds, through the scrubber's didSeek path, so the seek-in-flight guard behaves as a real release
@@ -55,7 +55,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 
 `check_waveform_preparation` preconditions. Run each on a freshly opened folder after `file_cache` has primed its waveforms. Refresh and color need nothing else. Interaction needs an expanded, paused card whose page shows its baked waveform. Transition and artwork need an expanded, paused local playlist of two or more with a prepared neighbor that has no live cell. Run transition on a fresh launch too, since cells already in the reuse pool hide a miss. Artwork also needs colored art on that neighbor and the `album_art` waveform theme.
 
-The search screen's index lives in its view controller, so what a query matched is read from `dump_view_tree`.
+The `search` reply reports the matching rows. `dump_view_tree` also exposes the drawn table.
 
 TRAP: **`dump_view_tree` frames are each view's frame in its superview, with no scroll offset.** Summing them from the root puts a table's rows tens of points too high. Aim taps from `xcrun simctl io "$UDID" screenshot` instead: points = screenshot px × (device point height ÷ image height).
 
@@ -86,11 +86,11 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 
 ## Staleness: `sim-install.sh`
 
-`sim-install.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
+`sim-install.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes each file’s path and contents in both bundles. It does not compare mtimes. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
 
 ## Per-session simulators and the build lock
 
-`sim-udid.sh` names the device `Vibe-<dir>-<hash>` from the checkout path plus `CLAUDE_CODE_SESSION_ID`. Each session therefore has its own app container, channel and touch driver (command dir `build/ios-driver/<UDID>`). Devices from ended sessions are deleted on every `sim-udid.sh` call once shut down and untouched for 12 hours. `VIBE_SIM_UDID` pins a device. `VIBE_SIM_NAME` renames it.
+`sim-udid.sh` names the device `Vibe-<dir>-<hash>` from the checkout path plus `CLAUDE_CODE_SESSION_ID`. Without `CLAUDE_CODE_SESSION_ID`, callers in one checkout share a device. An explicit `VIBE_SIM_UDID` or `VIBE_SIM_NAME` can isolate them. Driver files live in `build/ios-driver/<UDID>`. Devices from ended sessions are deleted on every `sim-udid.sh` call once shut down and untouched for 12 hours. `VIBE_SIM_UDID` pins a device. `VIBE_SIM_NAME` renames it.
 
 Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
 

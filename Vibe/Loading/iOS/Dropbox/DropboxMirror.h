@@ -66,7 +66,8 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 
 // Lists the Dropbox folder and makes its directory here match: placeholders
 // for new or changed audio, playlist files downloaded, departed entries removed.
-// Completion on main with the folder's local URL. A directory already here
+// Network results complete on main with the folder's local URL. An unlinked
+// account fails inline. A directory already here
 // is relisted by its dropboxPathForURL:.
 - (void)refreshDropboxFolder:(NSString *)path
                   completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
@@ -78,7 +79,8 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 
 // Where an entry (a listing's or a search's) lives here, listing its folder
 // first so the file or folder exists: a folder entry answers itself, a file
-// its placeholder. Completion on main, nil when Dropbox could not be listed.
+// its placeholder. Listing results complete on main. A missing path or unlinked
+// account fails inline. The URL is nil when Dropbox could not be listed.
 - (void)localURLForEntry:(NSDictionary *)entry
               completion:(void (^)(NSURL *_Nullable url, NSError *_Nullable error))completion;
 

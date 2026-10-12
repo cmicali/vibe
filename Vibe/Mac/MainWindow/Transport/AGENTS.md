@@ -32,4 +32,4 @@ Every command but the effect keys goes through `performMenuCommandWithIdentifier
 
 **Skips seek by bars when the tempo is known**, with the BPM label's precedence of tag over analysis. The three distances are `AppSettings.skipBaseBars` (4, 8 or 16), twice it and four times it. Bars are file time, so the jump stays on the beat grid at any pitch. Without a tempo the distances are 10, 30 and 60 wall-clock seconds. A forward skip past the end calls `AudioPlayer.finishCurrentTrack`, so the ordinary track-end path handles it.
 
-**Skips need a player that is not Stopped**, gated in both `skipByFileSeconds:` (which the debug verbs call directly) and menu validation. After the playlist ends the finished file stays open, so `duration` alone still looks seekable while no voice exists.
+**Skips need a player that is not Stopped**, gated in both `skipByFileSeconds:` (which the debug verbs call directly) and menu validation. After the playlist ends the finished file can stay open. Its `duration` still looks seekable without an active voice. Re-parking a successor in that state would start an unasked download.

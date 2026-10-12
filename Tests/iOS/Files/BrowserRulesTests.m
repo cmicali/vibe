@@ -1,10 +1,3 @@
-//
-//  BrowserRulesTests.m
-//  VibeTests
-//
-//  The Files tab's decisions: the root's rows, and the URLs Recents names. The
-//  header ships only in VibeiOS but is Foundation-only, so it compiles here.
-//
 
 #import <XCTest/XCTest.h>
 

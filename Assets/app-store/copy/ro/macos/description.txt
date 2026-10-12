@@ -4,16 +4,16 @@ Vizualizare formă de undă
 Vibe desenează fiecare piesă ca o formă de undă pe toată lățimea ferestrei. Dă clic oriunde pe ea ca să sari acolo.
 
 Rapid
-Vibe e construit să fie mic și rapid. Etichetele, coperțile și formele de undă sunt citite în fundal și păstrate în cache, așa că următoarea deschidere e instantanee.
+Vibe e construit să fie mic și rapid.
 
 Pur și simplu îți redă fișierele
 Trage un fișier sau un folder — de pe disc, din iCloud Drive sau din Dropbox — și pornește. Nu există bază de date de reconstruit și nicio bibliotecă de întreținut.
 
 Motorul audio propriu Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, redate prin motorul CoreAudio propriu al Vibe, cu conversie a ratei de eșantionare de înaltă calitate. Fișierele lossless se redau la rezoluție completă.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, redate prin motorul CoreAudio propriu al Vibe, cu conversie a ratei de eșantionare de înaltă calitate.
 
 Mod bit-perfect
-Modul bit-perfect și modul exclusiv trimit sunetul către dispozitivul de ieșire exact așa cum este, pentru cea mai bună calitate posibilă.
+Modul bit-perfect folosește rata de eșantionare a fișierului dacă dispozitivul o acceptă. Modul exclusiv rezervă dispozitivul pentru Vibe.
 
 Gândit pentru DJ
 Vibe are un fader de pitch în stil pick-up, analiză de BPM și tonalitate, salturi exacte pe măsuri și FX de performance.

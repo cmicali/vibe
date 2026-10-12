@@ -15,8 +15,8 @@
 # cache of it — is live silently resurrects every setting. The app is quit
 # first and cfprefsd is restarted after the delete, in that order.
 #
-# iOS: the simulator app container is the whole state, and `simctl uninstall`
-# is the supported way to drop it. launch-ios.sh reinstalls on its next run.
+# iOS: uninstall removes the app and its data container. Shared-group and
+# Keychain state may remain. launch-ios.sh reinstalls on its next run.
 #
 # Usage: reset-state.sh [--mac] [--ios] [--both] [-n|--dry-run] [-y|--yes]
 #   --mac       the macOS container (default)

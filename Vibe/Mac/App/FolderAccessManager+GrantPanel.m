@@ -9,10 +9,9 @@
 
 @implementation FolderAccessManager (GrantPanel)
 
-// Blocking on main is safe: nothing on main waits synchronously on the
-// expansion queue. Powerbox prompts must not stack, so walks serialize here on
-// a private gate; a monitor on the manager would be reachable, and so
-// deadlockable, from anywhere.
+// The expansion worker waits for main to run the panel. Main never waits on
+// that worker. A private gate prevents stacked prompts without locking the
+// manager that main may need.
 - (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL {
     NSAssert(!NSThread.isMainThread, @"the playlist grant blocks on the main thread");
     static dispatch_semaphore_t grantGate;

@@ -56,8 +56,6 @@ static NSUInteger Hz(double widthPx, NSTimeInterval duration, double rate) {
 }
 
 - (void)testDegenerateInputsRestAtTheFloor {
-    // Duration 0 is the Loading gap and the end-of-playlist park, where the
-    // duration cache is zeroed.
     XCTAssertEqual(Hz(kWidthPx, 0.0, 1.0), kVibeUIUpdateHzMin);
     XCTAssertEqual(Hz(kWidthPx, -1.0, 1.0), kVibeUIUpdateHzMin);
     // A view with no width yet, or off-screen.

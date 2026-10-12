@@ -149,7 +149,7 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
     VibeImage *decoded = dataToDecode
             ? VibeDecodedImageWithData(dataToDecode, kVibeDisplayArtDimension)
             : nil;
-    // The backoff runs from completion: a read that blocked already waited.
+    // Start the backoff after the read returns, even if the read was slow.
     NSTimeInterval completedAt = [self nowSeconds];
     @synchronized (self) {
         if (pathToExtract) {
@@ -173,7 +173,7 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
             _embeddedArtFact = VibeEmbeddedArtFactHasArtSettled;
         }
         if (dataToDecode && !decoded) {
-            // Permanent for this file; drop the bytes.
+            // Do not retry decoding these bytes.
             _embeddedUndecodable = YES;
             _embeddedArtData = nil;
             return _embeddedArt; // still nil unless a concurrent store won

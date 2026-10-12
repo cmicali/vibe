@@ -1,12 +1,4 @@
-# Cloudflare Pages response headers. Config, not content.
-#
-# Cache-Control is deliberately NOT set here: Pages manages caching for its own
-# assets and ignores the directive from this file. Verified — the two headers
-# below take effect on the same responses where a Cache-Control line did not.
-# The stylesheet's TTL is fixed by a response-header Transform Rule on the
-# zone instead; Assets/Web/README.md records it and why it has to live there.
-#
-# Applied to everything. Cheap, and they are worth having regardless.
+# Cloudflare Pages response headers.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin

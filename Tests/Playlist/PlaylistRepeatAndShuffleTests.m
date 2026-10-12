@@ -1,10 +1,3 @@
-//
-//  PlaylistRepeatAndShuffleTests.m
-//  VibeTests
-//
-//  What comes next: the repeat modes, the track-end successor and the
-//  shuffled order.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -84,8 +77,6 @@ static Playlist *NumberedPlaylist(NSUInteger count) {
     XCTAssertFalse([playlist next]);
 }
 
-// On track end = Pause outranks every mode, and parks without moving. Next
-// still moves, and a splice into the old successor is refused.
 - (void)testPauseAtTrackEndOutranksEveryMode {
     Playlist *playlist = NumberedPlaylist(3);
     playlist.currentIndex = 0;
@@ -435,7 +426,6 @@ static void AssertPermutation(Playlist *playlist, NSArray<AudioTrack *> *walk) {
     }
 }
 
-// Shuffle off holds no order, so nothing keeps a row of a past one alive.
 - (void)testShuffleOffKeepsNoRowOfThePastOrders {
     Playlist *playlist = nil;
     __weak AudioTrack *departed = nil;

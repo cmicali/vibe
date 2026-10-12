@@ -13,8 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void));
 // The accessory of a row whose file is not downloaded.
 UIView *VibeNotDownloadedMark(void);
-// The side of a file or track row's icon — its art or its tile — and what
-// every such row reserves, so the names line up.
+// File-list rows reserve this width for either art or a tile.
 static const CGFloat kFileTileSide = 40;
 static const CGFloat kFileTileCornerRadius = 8;
 // A row's icon where it has no art: a waveform tile, or a note list for a

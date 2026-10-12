@@ -3,10 +3,9 @@
 //  Vibe
 //
 //  One sweep over one playlist; the current track is a priority record in
-//  the same pending list. Everything a loader holds dies with it when the
-//  cache replaces or cancels it, which is what drops the old playlist's
-//  downloads. The ivars and the methods its three files share are
-//  AudioTrackMetadataLoaderInternal.h's.
+//  the same pending list. Cancellation drops pending work and detaches its
+//  materialization tokens. Entered parses may still finish. The ivars and
+//  shared methods live in AudioTrackMetadataLoaderInternal.h.
 //
 
 #import <Foundation/Foundation.h>
@@ -68,7 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Picked work settles normally. Main thread.
 - (void)abandonQueuedTrack:(AudioTrack *)track;
 
-// These URLs go first, in order.
+// Ranks these URLs within the same locality and retry class, in order.
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
 // The gate clock's tick, exposed so tests need not sleep.
 - (void)recheckForegroundGate;

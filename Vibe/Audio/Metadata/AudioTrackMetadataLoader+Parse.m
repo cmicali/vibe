@@ -25,9 +25,9 @@ static NSString *VibeArchivedDisplayArtKey(NSString *cacheKey) {
     return [cacheKey stringByAppendingString:@"#displayArt"];
 }
 
-// Stamped on every art-bearing row, thumbnail bytes or not: an entry whose
-// 128px re-encode failed has only the rendition to rebuild its thumbnail
-// from, and a row without one pays a single empty read.
+// An art-bearing cache entry may have no thumbnail bytes. Its rendition
+// supplies both thumbnail and display decodes. An absent rendition falls
+// through to source extraction for full art.
 static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                                                   PINCache *metadataCache,
                                                   NSString *cacheKey) {
@@ -47,8 +47,8 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 @implementation AudioTrackMetadataLoader (Parse)
 
-// Touches only file attributes and the store, never audio data, so it stays
-// fast over dataless files.
+// Reads file attributes and the cache, never the audio bytes. A dataless
+// file needs no download for this lookup.
 - (AudioTrackMetadata *)readCachedMetadataForTrack:(AudioTrack *)track {
     if (_cacheReader) {
         return _cacheReader(track);

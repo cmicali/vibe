@@ -20,7 +20,7 @@ There are three release paths, and they are not interchangeable. Each uses a dif
 
 Each App Store pair works the same way: `appstore-build[-ios]` stops after validation, and `appstore-upload-signed-build[-ios]` submits. One-time setup, reviewer notes and the App Store runbook are in `docs/app-store-releasing.md`.
 
-**TRAP: `.release-env` is gitignored, so it exists only in the checkout that created it.** Every release script fails its credential preflight from a git worktree. Release from the main checkout, or pass `ASC_KEY_ID` and `ASC_ISSUER_ID` in the environment.
+**TRAP: `.release-env` is gitignored, so it exists only in the checkout that created it.** A worktree needs its own file or credentials in the environment. Release from the main checkout, or pass `ASC_KEY_ID` and `ASC_ISSUER_ID` in the environment.
 
 **Both archive scripts preflight `asc_require_translations`** before the archive. A key missing any catalog language fails the release, because nothing else catches it: `make check-strings` compares the catalog to the source, and the build compiles a partial key silently, so that locale would show English. Fix it by translating, never by skipping (the **vibe-strings** skill). This is the in-app catalog, separate from the product-page copy below.
 
@@ -77,7 +77,7 @@ The direct download updates itself through Sparkle 2, vendored at `Vibe/ThirdPar
 
 **Two feeds, by architecture.** `vibeplayer.app/appcast.xml` offers the universal zip and `appcast-arm64.xml` the arm64-only one, so an arm64-only install stays one. The arm64-only archive passes `VIBE_SPARKLE_FEED_URL`. The feed URLs are baked into every build, so they never move.
 
-**The feeds live in `Assets/Web/` and only `github-release.sh` writes them.** It verifies each `<zip>.sig`, refuses a build number not above a feed's newest item, and prepends one item per feed with `whats-new.txt` as Markdown. A `--prerelease` item carries `<sparkle:channel>beta</sparkle:channel>`, which only a build with Settings > General > Beta updates on accepts. That setting defaults on in a beta build.
+**The feeds live in `Assets/Web/` and only `github-release.sh` writes them.** It verifies each `<zip>.sig`, refuses a build number below a feed's newest item, and prepends one item per feed with `whats-new.txt` as Markdown. A `--prerelease` item carries `<sparkle:channel>beta</sparkle:channel>`, which only a build with Settings > General > Beta updates on accepts. That setting defaults on in a beta build.
 
 **The export must sign Sparkle's helpers.** `release.sh` checks that the app, the framework, `Autoupdate`, `Updater.app` and both XPC services carry the Developer ID, the hardened runtime and a timestamp. **TRAP: a local build runs without the hardened runtime** (`project.yml`). Under it, library validation refuses an ad-hoc-signed Sparkle in an ad-hoc-signed app, which dies at launch with "different Team IDs". `asc_archive` turns it on for every archive, and notarization rejects a build without it. A Debug build starts no updater unless launched with `--update-feed <url>`.
 
@@ -97,7 +97,7 @@ The build upload carries no product-page content. Copy and screenshots live in `
 
 The loop:
 
-1. Edit `Assets/app-store/copy/<lang>/<platform>/` for every catalog language, not just `en`. Nothing auto-translates. **`whats-new.txt` must be rewritten for every release**, since App Store Connect blocks submission when any locale lacks release notes, and stale notes upload silently. The shared `copy/support-url.txt`, `copy/marketing-url.txt` and `copy/privacy-url.txt` are not version fields and upload to every locale.
+1. Edit `Assets/app-store/copy/<lang>/<platform>/` for every catalog language, not just `en`. Nothing auto-translates. **Rewrite `whats-new.txt` for every release.** The uploader omits it for a platform's first version. Later versions upload it verbatim. The shared support and marketing URLs upload to every version localization. The privacy URL uploads to app-info localizations.
 2. `make appstore-validate-copy`: character limits, leftover markdown, captions that overflow the screenshot layout. The upload runs it first anyway.
 3. `make appstore-generate-store-screenshots-all`, only if `screenshots.json` captions or the window captures changed.
 4. `make appstore-upload-metadata ARGS="--dry-run"`, then without.
@@ -106,7 +106,7 @@ Flags via `ARGS`: `--platform ios`, `--locales de,fr`, `--skip-screenshots`, `--
 
 - **It targets the one editable version on the chosen platform.** After a release goes live there is none, and the tool errors with every version's state. `--create-version <next>` opens the next version's page, the same record a later build attaches to, so metadata first is the normal order.
 - **Text is diffed, screenshots are not.** Unchanged text fields are skipped. Each screenshot set is deleted and re-uploaded whole, ordered by file name, so "uploaded 4 screenshots" does not mean they changed.
-- **macOS has one screenshot set per locale, iOS has two**: `APP_DESKTOP` against `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`. The iPad set is required because `TARGETED_DEVICE_FAMILY` is `1,2`. **`APP_IPHONE_69` does not exist** in App Store Connect's enumeration.
+- **macOS has one screenshot set per locale, iOS has two**: `APP_DESKTOP` against `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`. The iPad set is required because `TARGETED_DEVICE_FAMILY` is `1,2`.
 - **`bg` is skipped by design**, since the App Store has no Bulgarian product page. Catalog `nb` maps to `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.
 - **The privacy policy URL is not a version field.** It lives on `appInfoLocalizations`, per locale. `copy/privacy-url.txt` patches each locale whose URL differs. Creating an `appInfoLocalization` needs a `name`, so a locale with none is reported, not created.
 - **Out of scope**: the app name and subtitle. Edit them in App Store Connect by hand.
@@ -122,13 +122,15 @@ The key must carry the **Admin** role. Cloud-managed App Store certificates are 
 
 Each is guarded by a preflight or an error explainer.
 
-- **Neither archive passes signing overrides.** Both keep `CODE_SIGN_IDENTITY: "-"` and let the export re-sign, as Xcode's Archive → Distribute App does. Pinning `CODE_SIGN_IDENTITY` under automatic signing fails the archive with "conflicting provisioning settings". Every signing identity is applied on the xcodebuild command line, so everyday builds need no credentials.
-- **The Developer ID certificate cannot be automated.** Apple gates it to the team's Account Holder, a person role no API key can hold, so `-allowProvisioningUpdates` gets a 403 even with an Admin key. Create it once in Xcode → Settings → Accounts → Manage Certificates (five per account). `release.sh` preflights for it.
+- **Archives keep the project's automatic signing.** Distribution identities belong in the export options. Pinning a distribution identity for the archive conflicts with automatic signing.
+- **`release.sh` requires a local Developer ID Application certificate.** It checks the keychain before building. Create the certificate through the team's signing setup before running it.
 - **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with guidance per certificate type.
 
 ## A Debug build for someone else's Mac
 
-`make release` is Release-only. To put a diagnosable build (the debug channel, `--log-stderr`) on a tester's Mac: build Debug and copy the app. Dump its entitlements (`codesign -d --entitlements - --xml`) and delete `com.apple.security.get-task-allow`, which notarization rejects. Re-sign with `--options runtime --timestamp --entitlements <edited plist> -s "Developer ID Application: …"`. Then `notarytool submit --wait` and `stapler staple`, with the key from `asc-auth-lib.sh`'s `asc_resolve_credentials`. TRAP: **`asc-auth-lib.sh` finds the repo root through `BASH_SOURCE`**, so sourced from zsh it answers "credentials not configured" against a valid `.release-env`. Run that step under `bash -c`.
+`make release` is Release-only. A Debug build for another Mac needs a separate signed and notarized package. Remove `com.apple.security.get-task-allow` from its entitlements. Sign the app and every nested Sparkle executable with Developer ID, hardened runtime and a timestamp. Use `release.sh`'s nested-code checks as the inventory. Notarize and staple the package before sharing it.
+
+TRAP: **Source `asc-auth-lib.sh` from bash.** Its repo lookup uses `BASH_SOURCE`.
 
 ## What "upload succeeded" does not mean
 

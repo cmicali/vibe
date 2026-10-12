@@ -87,9 +87,8 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define LogWarn(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
 
 // VIBE_VERBOSE_LOGGING follows the beta switch, VIBE_BETA_DEBUG (project.yml),
-// independent of DEBUG: it writes
-// every level at Default, the level the unified log persists, so Save Debug
-// Info retrieves info and debug from a Release build nobody was streaming.
+// independent of DEBUG. Info and debug use Default level for later export.
+// Errors keep Error level. Warn always uses Default.
 #if VIBE_VERBOSE_LOGGING
 #define LogInfo(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
 #define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
@@ -98,9 +97,7 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define LogDebug(fmt, ...)  VibeLogAt(OS_LOG_TYPE_DEBUG, fmt, ##__VA_ARGS__)
 #endif
 
-// A timed playback step, at Warn so it persists; `slow` is whether it crossed
-// its threshold. Verbose builds log every step, so a missing line means the
-// step never ran; otherwise only slow steps are logged.
+// Log timed steps at Warn level. Stable builds keep only those over threshold.
 #if VIBE_VERBOSE_LOGGING
 #define LogTiming(slow, fmt, ...)  LogWarn(fmt, ##__VA_ARGS__)
 #else

@@ -124,7 +124,6 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     }
 }
 
-// After a drag-resize, none of them.
 - (void)applyWindowSizeStateToMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     menuItem.state = StateForBOOL(window.contentWidth ==

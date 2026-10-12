@@ -39,13 +39,10 @@ static const double kMinAnalysisSeconds = 8.0;
 // this factor, or the track is reported as having no detectable tempo.
 static const float kMinConfidence = 1.3f;
 
-// The tie-breaking tempo prior applied to the phase comb's candidates, as a
-// Gaussian over BPM. Only the center decides which way an octave pair falls:
-// a candidate T beats its half exactly when T < 4/3 of the center, so the
-// center places that crossover — here at 187 BPM, which keeps drum and bass at
-// 174 rather than halving it to 87 — and the spread only sets how hard the
-// prior can override the comb. Both were swept against GiantSteps, and the
-// prior is load-bearing; see Audio/Analysis/AGENTS.md.
+// A Gaussian tempo prior weights every phase-comb candidate. For equal comb
+// scores, T beats its half when T < 4/3 of the center. The crossover here is
+// 187 BPM. The spread sets how strongly the prior can override the comb.
+// Both constants were swept against GiantSteps; see Analysis/AGENTS.md.
 static const double kTempoPriorCenterBPM = 140.0;
 static const double kTempoPriorSpreadBPM = 80.0;
 
@@ -67,7 +64,7 @@ static const double kGridNormExponent = 0.5;
 // Later phases run off the end of the window first, so each beat's slice is a
 // prefix of the phase range.
 //
-// `acc` is caller-owned scratch, so a sweep allocates nothing.
+// `acc` is caller-owned scratch reused across sweeps.
 static double VibeCombPhaseBest(const double *env, size_t winLen, double L,
                                 std::vector<double> &acc) {
     const size_t phases = (size_t)L;
@@ -167,8 +164,7 @@ struct VibeBPMComb {
     std::vector<float> _splitReal;
     std::vector<float> _splitImag;
 
-    // The onset-strength envelope, one value per hop. That is about 690KB an
-    // hour, which is fine.
+    // One float per hop: about 2.5 MB per hour at 44.1 kHz.
     std::vector<float> _onsetEnvelope;
 }
 
@@ -427,9 +423,7 @@ struct VibeBPMComb {
 - (std::vector<int>)candidateLagsFromComb:(const VibeBPMComb &)comb {
     const int minLag = comb.minLag, maxLag = comb.maxLag, bestLag = comb.bestLag;
     const std::vector<float> &score = comb.score;
-    // The candidates are the local maxima of the comb score, strongest first.
-    // The true tempo's metrical relatives — half, double, 2/3 and 3/2 — all
-    // appear here.
+    // Keep the strongest local maxima before adding their metrical relatives.
     std::vector<int> candidates;
     for (int lag = minLag + 1; lag < maxLag; lag++) {
         if (score[lag] >= score[lag - 1] && score[lag] >= score[lag + 1] &&
@@ -557,8 +551,7 @@ struct VibeBPMComb {
         }
         double timeScore = bestSum / std::pow((double)gridCount, kGridNormExponent);
 
-        // A mild, wide prior toward common tempos. It is a tiebreaker only,
-        // since the phase comb has already separated the metrical family.
+        // Weight the phase score toward the measured tempo prior.
         double bpm = 60.0 * fps / bestLagF;
         double z = (bpm - kTempoPriorCenterBPM) / kTempoPriorSpreadBPM;
         double weighted = timeScore * std::exp(-0.5 * z * z);

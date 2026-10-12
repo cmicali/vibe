@@ -32,11 +32,9 @@ static const float kVibeMPEGSampleBound = 4.0f;
 // A stream's packet count until it is settled (VibeUncountedMPEGPackets).
 static const SInt64 kVibeMPEGPacketsUncounted = INT64_MAX;
 
-// The head a stream's frames are walked in: what is on disk of its first MB of
-// audio, so the open never waits for it. At the 256 KB a stream opens on, 7 to
-// 20 s of a 128 to 320 kbps stream, a few hundred frames; the average of every
-// one of them, since more is a better guess and the walk costs one read. Fewer
-// than kVibeMPEGEstimateFrames whole frames is no guess at all.
+// Walk up to the first MB of audio already on disk. If a large tag leaves too
+// few frames, wait for enough to estimate. Fewer than kVibeMPEGEstimateFrames
+// whole frames is no guess at all.
 enum { kVibeMPEGEstimateBytes = 1024 * 1024, kVibeMPEGEstimateFrames = 16 };
 
 @implementation AudioFileHandle (MPEG)

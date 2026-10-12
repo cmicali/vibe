@@ -59,7 +59,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 **`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadData`, which would otherwise keep a stale selection by row index. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
 
-**Every start goes through `playStartPaused:`.** So `playWillStartHandler` fires after submission for a parked start as for an ordinary one. No caller reaches `AudioPlayer` directly.
+**Row starts go through `playStartPaused:`.** `playWillStartHandler` fires after submission for parked and ordinary starts. The shell's `replayTrack:intent:` submits directly to `AudioPlayer` to preserve position (`Mac/MainWindow/AGENTS.md`).
 
 **`currentIndexDidChangeHandler` is the one current-index funnel. A structural edit does not raise it.** The shell's removal and reorder funnels refresh once from the final state, and a second edge would reconcile one edit twice.
 

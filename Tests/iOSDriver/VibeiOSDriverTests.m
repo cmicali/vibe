@@ -52,11 +52,8 @@ static BOOL ParseDouble(NSString *token, double *out) {
     return [scanner scanDouble:out] && scanner.isAtEnd;
 }
 
-// XCTest waits for the target to quiesce before AND after every synthesized
-// event, and a PLAYING app never idles (its display link): 60s timeout each
-// side, ~2 minutes per gesture. This reaches XCTest internals, as
-// WebDriverAgent and Appium do, so it is defensive — a renamed method only
-// makes gestures slow. Test-harness-only: it never ships in an app binary.
+// Continuous playback can prevent XCTest from observing an idle app.
+// These guarded hooks affect only the test harness, never a shipping binary.
 static void ForceYesMethod(Class cls, NSString *name) {
     Method method = cls ? class_getInstanceMethod(cls, NSSelectorFromString(name)) : NULL;
     if (method) {
@@ -77,11 +74,8 @@ static void NoOpMethod(Class cls, NSString *name) {
 static void DisableQuiescenceWaits(void) {
     Class process = NSClassFromString(@"XCUIApplicationProcess");
     Class application = NSClassFromString(@"XCUIApplication");
-    // The getters this Xcode's XCUIAutomation consults per event; forcing
-    // both skips the waits wholesale.
     ForceYesMethod(process, @"shouldSkipPreEventQuiescence");
     ForceYesMethod(process, @"shouldSkipPostEventQuiescence");
-    // Belt and braces for the names other Xcode versions used.
     NoOpMethod(application, @"_waitForQuiescence");
     NoOpMethod(application, @"_waitForQuiescenceAsPreEvent:");
     NoOpMethod(process, @"waitForQuiescenceIncludingAnimationsIdle:");
@@ -226,8 +220,7 @@ static void DisableQuiescenceWaits(void) {
         XCUICoordinate *from = [self coordinateAtX:a1 y:a2];
         XCUICoordinate *to = [self coordinateAtX:a3 y:a4];
         if (haveDuration) {
-            // Velocity in points/second reproduces the requested duration; the
-            // waveform's 1:1 scrub needs a slow drag, not XCTest's default flick.
+            // Approximate the requested duration with a minimum speed of 1pt/s.
             double distance = hypot(a3 - a1, a4 - a2);
             [from pressForDuration:0.1
               thenDragToCoordinate:to
@@ -252,9 +245,6 @@ static void DisableQuiescenceWaits(void) {
         }
         [self ensureForeground];
         XCUIElement *waveform = _app.otherElements[@"waveform-scrubber"];
-        // The card has one per page and only the current one is hittable; the
-        // query is resolved rather than waited on, so a missing element is an
-        // error rather than a 60s hang.
         if (!waveform.exists) {
             return JSONString(@{@"error": @"no waveform on screen — expand the player first"});
         }

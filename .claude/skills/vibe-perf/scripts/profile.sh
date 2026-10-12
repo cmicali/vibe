@@ -14,7 +14,7 @@ mkdir -p "$ROOT/build/bench-components"
 
 "$BIN" --corpus "$ROOT/build/bench/corpus" --filter "$FILTER" --loop $((SECONDS_TO_SAMPLE + 3)) >/dev/null &
 PID=$!
-# Past prepare (which may decode a fixture) before sampling.
+# Allow preparation time before sampling. Slow preparation can still overlap.
 sleep 2
 sample "$PID" "$SECONDS_TO_SAMPLE" 1 -mayDie -file "$OUT" >/dev/null 2>&1 || true
 wait "$PID" || true

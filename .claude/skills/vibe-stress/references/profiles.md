@@ -45,7 +45,7 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 - `held_fx` — an effect enabled across a track change, sometimes left on until a later controller action.
 - Out-of-range `seek` and `set_pitch` — the clamp escaping is the finding.
 - `folder_art` — flips `set_folder_art`, the one change that drops every answer the resolver holds, onto resolves and decodes in flight. Emits `off`/`on` as a pair.
-- `reorder_begin` / `reorder_finish` — opens a synthetic row-reorder drag and deliberately leaves it live so whatever the scheduler deals next (a replacing open, a removal, a convert, a burst) lands inside the session; `finish` later probes a slot and drops or cancels. That is the mid-drag race family (stale-drop rejection, a dragged row departing) no pointer can stage. A finish with no session live is a tolerated refusal. Reorder undo registrations feed the `undo` op's stack.
+- `reorder_begin` / `reorder_finish` — opens a synthetic row-reorder drag and deliberately leaves it live so whatever the scheduler deals next (a replacing open, a removal, a burst) lands inside the session; `finish` later probes a slot and drops or cancels. That is the mid-drag race family (stale-drop rejection, a dragged row departing) no pointer can stage. A finish with no session live is a tolerated refusal. Reorder undo registrations feed the `undo` op's stack.
 - `block_main` — `references/cloud-scenarios.md`.
 
 **Watch for a tolerated error over a dead op.** The tolerated-error list swallows refusals such as "no menu item", so an op whose target moved scores a clean run while doing nothing. There is no `waveform_style` op for this reason: the style is a theme field, and `theme` swaps the renderer anyway.
@@ -56,9 +56,9 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 
 ## `torture.py` phases
 
-No settle anywhere. Seeded and replayable with `--seed`.
+No deliberate settle inside transport bursts. The seed repeats choices only when the observed playlist and position agree.
 
-- `skip` — next/previous storm; each `next` is a full open.
+- `skip` — next/previous storm; a prefetched successor can reuse its open handle.
 - `seek` — including out-of-range and past-the-end values; escaping the clamp is the finding.
 - `mixed` — skips, seeks, play/pause and the bar-based skip actions.
 - `jump` — `play_index` anywhere. Adjacent tracks are the one case the successor prefetch has parked and the neighborhood ranking has reached; a jump lands where nothing has. Includes two jumps to the **same** row: same track, same URL, so only submission identity can drop the first's settlement.

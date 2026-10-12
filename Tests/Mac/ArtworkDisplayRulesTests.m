@@ -1,8 +1,3 @@
-//
-// When the header installs art, keeps what is up, or falls back to the record
-// backdrop. The failure modes are a backdrop flashing over a cover that is a
-// moment from appearing, and a stale cover left up for good.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -104,7 +99,6 @@
                                                       track, metadata, newArt));
 }
 
-// Every row, so an edit to the policy cannot change a case by accident.
 - (void)testTheCompleteTruthTable {
     struct {
         BOOL hasTrack, hasArt, artResolved, initialized;

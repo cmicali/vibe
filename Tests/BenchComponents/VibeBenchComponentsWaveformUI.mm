@@ -228,8 +228,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUILiveResize(blocks.get());
     });
 
-    // The style the app ships with: 4,096 bars at every width, so a resize
-    // frame refills nothing and rebuilds the whole mask. Sixty frames.
+    // Oversampling uses a width-independent bar count. Resize rebuilds the mask.
     auto x4 = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "oversampling-x4-resize", "frame", [x4]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(x4.get(), 800, 19);
@@ -257,8 +256,6 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUILiveResize(x4.get());
     });
 
-    // It through track changes: each a new waveform's fill of the 4,096 bars
-    // and the rebuild its settle draws. Thirty.
     auto loads = std::make_shared<VibeBenchComponentsUIRenderer>();
     auto next = std::make_shared<std::shared_ptr<AudioWaveform>>();
     VibeBenchComponentsAdd("ui-waveform", "oversampling-x4-load", "load", [loads, next]() -> double {

@@ -249,9 +249,8 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     return YES;
 }
 
-// The files half answers off a walk and a background match, so this re-reads
-// the table until its row counts stop moving, bounded so a stalled provider
-// ends the command rather than the client timeout.
+// Poll row counts until stable or six seconds elapse. A slow provider can
+// outlast this limit, and the client may have a shorter timeout.
 - (BOOL)debugSearchQuery:(NSString *)query
               completion:(void (^)(NSDictionary *result))completion {
     SearchViewController *screen = self.searchScreen;
@@ -465,10 +464,8 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     return self.playback.screenState == VibePlayerScreenStateLoading;
 }
 
-// Every Add ends in a settle event; rows lifted for one and still up long
-// after are an Add that never came back. The bound is past one Dropbox
-// listing wait (FolderSession's kDropboxListingTimeout), the slowest thing
-// an Add legitimately waits on.
+// A 30-second lift is a diagnostic threshold, not a bound on folder work.
+// Several unresolved Dropbox folders can each wait for a listing.
 - (NSUInteger)debugCheckPlatform:(NSMutableArray<NSDictionary *> *)violations {
     static const NSTimeInterval kUnsettledLiftSeconds = 30;
     CFTimeInterval now = CACurrentMediaTime();

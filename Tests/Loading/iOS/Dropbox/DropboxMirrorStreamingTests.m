@@ -1,9 +1,3 @@
-//
-//  DropboxMirrorStreamingTests.m
-//
-//  The fetch's part file read while it streams: readable before the end, a
-//  handle opened mid-fetch, the tail window, and the row's loading bar.
-//
 
 #import "DropboxMirrorTestCase.h"
 
@@ -360,9 +354,6 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:track], bytes);
 }
 
-// The previous steps and this one end to end: the handle opens the part file
-// while the rest of the download is held back, reads on as it arrives,
-// follows the rename, and decodes exactly what the whole file decodes.
 - (void)testAHandleOpenedMidFetchDecodesAsTheWholeFile {
     NSURL *sources = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"DropboxMirrorTests-sources-%@", NSUUID.UUID.UUIDString]] isDirectory:YES];
@@ -455,9 +446,6 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     [NSFileManager.defaultManager removeItemAtURL:sources error:NULL];
 }
 
-// A transfer failing mid-way, by a changed version or an error answer to its
-// resume, fails a reader waiting ahead with the fetch's own error, and is
-// then forgotten.
 - (void)testAFailedResumeWakesAWaitingReaderWithTheFailure {
     for (NSNumber *changed in @[@YES, @NO]) {
         NSData *bytes = PatternBytes(1024 * 1024);
@@ -498,8 +486,6 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     }
 }
 
-// The client's cancel reaches a waiting reader as the failure it is, never
-// a clean end or a wait that outlives the transfer.
 - (void)testCancellingAStreamingFetchWakesItsReaderAndForgetsIt {
     const NSUInteger chunk = 64 * 1024;
     NSURL *track = [self streamingTrack:PatternBytes(8 * chunk) name:@"cancel.flac" chunk:chunk];
@@ -980,9 +966,6 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     }];
 }
 
-// The row a stream plays from keeps following its transfer once the player
-// has started on it, from the begin, through readable, to the end, and the
-// transfer's movement reaches an observer under the row's own path.
 - (void)testAStreamsRowFollowsItsTransferFromBeginToEnd {
     const NSUInteger chunk = 64 * 1024;
     NSData *bytes = [self rowWAV:16 * chunk];
@@ -1012,8 +995,6 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     [registry removeObserver:self];
 }
 
-// A file re-uploaded since its listing downloads at its new size; the row
-// counts against that, never the placeholder's.
 - (void)testARowCountsAgainstTheSizeBeingDownloaded {
     const NSUInteger chunk = 64 * 1024;
     NSData *bytes = [self rowWAV:16 * chunk];

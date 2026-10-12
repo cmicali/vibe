@@ -280,9 +280,8 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-// Read at every drain, so it needs no wakeup of its own. A stopped clock means
-// the device's IO stopped pulling. noteOutputEdgeOnQueue closes a stall a stop
-// cuts short.
+// Read at every drain, with no separate timer. A stopped clock can mean no IO
+// callbacks or a stuck render. noteOutputEdgeOnQueue closes a stall on stop.
 - (void)noteRenderClockOnQueue {
 #if VIBE_VERBOSE_LOGGING
     if (![self drivesOutputDeviceOnQueue]) {

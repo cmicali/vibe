@@ -60,9 +60,8 @@ static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
     return item;
 }
 
-// Symbol images wait for the first menu tracking: nothing shows them before,
-// and loading forty-odd at install cost ~7 ms ahead of the first frame. Weak
-// keys, so a context menu rebuilt before any menu opens drops out.
+// Defer symbol rasterization until a menu opens. Weak keys discard items
+// removed before that first tracking pass.
 static NSMapTable<NSMenuItem *, NSString *> *sPendingSymbolItems;
 static BOOL sSymbolImagesFilled;
 

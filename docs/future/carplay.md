@@ -1,14 +1,14 @@
 # Future: CarPlay
 
-**Status: Not built.** The only CarPlay code is route classification, `VibeOutputRouteKindCarPlay`.
+**Status: Not built.** Route classification already includes `VibeOutputRouteKindCarPlay`. Now Playing also handles the system transport commands. There is no CarPlay scene or entitlement.
 
 ## The waveform stays on the phone
 
-A CarPlay app does not render. It hands the system templates (`CPTabBarTemplate`, `CPListTemplate`, `CPSearchTemplate`, `CPNowPlayingTemplate`, `CPAlertTemplate`, `CPActionSheetTemplate`). The head unit draws them in the car maker's style. There is no view, no layer and no touch delivery. The app gets selection callbacks, never gestures. `CPMapTemplate` is the one template with a drawing surface. It belongs to navigation, EV-charging, parking and food-ordering apps, and an audio app cannot get it. So the waveform scrubber has no surface in the car.
+An audio app supplies content to [CarPlay's system templates](https://developer.apple.com/documentation/carplay). Vibe's custom waveform scrubber has no equivalent template. Keep waveform gestures on the phone.
 
 Dead ends, so they are not explored again:
 
-- **A waveform drawn into `MPMediaItemArtwork`.** It receives no touch. The lock screen and Control Center share it, so republishing it on a timer rewrites their artwork too. Animated custom content there is what CarPlay review rejects.
+- **A waveform drawn into `MPMediaItemArtwork`.** It receives no touch. The lock screen and Control Center share it, so republishing it on a timer rewrites their artwork too. It provides no scrubbing interaction.
 - **`CPNowPlayingButton` glyphs.** At most five small images. A button image is not a canvas.
 - **A waveform thumbnail as the `CPListItem` image.** Legal, but it is not scrubbing, and at row size a waveform reads as noise.
 
@@ -28,7 +28,7 @@ On a CarPlay head unit Vibe's audio already plays. The car's own now-playing scr
 
 ### 1. The entitlement
 
-`com.apple.developer.carplay-audio` is requested from Apple through the CarPlay request form and granted per App ID. It is free and slow. It is one more key in `Vibe/iOS/Vibe.entitlements`, which `CODE_SIGN_ENTITLEMENTS` already wires. The target signs with `CODE_SIGN_STYLE: Automatic`.
+`com.apple.developer.carplay-audio` is requested from Apple through the CarPlay request form and granted per App ID. It is one more key in `Vibe/iOS/Vibe.entitlements`, which `CODE_SIGN_ENTITLEMENTS` already wires. The target signs with `CODE_SIGN_STYLE: Automatic`.
 
 The CarPlay simulator display is reported to work with the key present but not yet granted. A device build needs the real grant.
 
@@ -52,7 +52,7 @@ Templates: a `CPListTemplate` of persistent roots, a `CPListTemplate` of the ope
 
 ### 4. Cloud folders
 
-A dataless track can take seconds to sound. The phone's loading fill reads `CloudTransferRegistry` (`Loading/AGENTS.md`). CarPlay has no custom progress fill, so use the list item's spinner while the open is pending. This is accepted.
+A dataless track can take seconds to sound. The phone's loading fill reads `CloudTransferRegistry` (`Loading/AGENTS.md`). CarPlay has no custom progress fill, so use the list item's spinner while the open is pending. Validate the pending-open interaction in the CarPlay simulator and on a head unit.
 
 ## Files
 

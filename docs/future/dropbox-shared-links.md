@@ -6,7 +6,7 @@ Someone sends a Dropbox folder link in Messages. The person receiving it browses
 
 ## What Dropbox allows
 
-Read from Dropbox's published API spec (`files.stone`, `shared_links.stone`), not yet run against a real link.
+Read from Dropbox's published API spec (`files.stone`, `sharing.stone`), not yet run against a real link.
 
 | Need | Endpoint | Notes |
 | --- | --- | --- |

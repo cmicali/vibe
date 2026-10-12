@@ -161,7 +161,6 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
                    commandK);
 }
 
-// File > Open URL… is ⌘U by its letter, the last command in table order.
 - (void)testOpenURLIsCommandUByItsLetter {
     VibeShortcut commandU = VibeShortcutMakeCharacter('u', kCmd);
     XCTAssertEqual(VibeShortcutDefault(kVibeMenuOpenLink), commandU);
@@ -263,7 +262,6 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
     XCTAssertFalse(VibeShortcutIsStorable(NSNull.null));
 }
 
-// Not a remappable command: nothing is stored, and no command loses its key.
 - (void)testAssigningAnIdentifierOutsideTheTableChangesNothing {
     NSDictionary *stored = @{kVibeMenuSkipForward: @(VibeShortcutMake(40, 0))};
     NSString *loser = @"stale";

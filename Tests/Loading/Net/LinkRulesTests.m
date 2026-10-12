@@ -1,10 +1,3 @@
-//
-//  LinkRulesTests.m
-//
-//  Open URL's decisions that need no network: which addresses are fetched,
-//  the audio check, the file name, the link's directory, the response headers
-//  the probe reads, and the failure each outcome names.
-//
 
 #import <XCTest/XCTest.h>
 
@@ -240,7 +233,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 
 #pragma mark - Acceptance: redirects
 
-// Each hop is judged alone, by the same rule as the typed link.
 - (void)testARedirectIsJudgedByTheSameRule {
     NSDictionary<NSString *, NSNumber *> *hops = @{
         @"https://files.example.net/get/abc/file": @(VibeLinkErrorNone),
@@ -256,8 +248,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     }];
 }
 
-// A redirect from a public host never reaches the local network, whatever
-// the scheme. The link itself, from nil, is judged by the address rule.
 - (void)testARedirectFromAPublicHostNeverReachesTheLocalNetwork {
     NSURL *(^u)(NSString *) = ^NSURL *(NSString *string) {
         return [NSURL URLWithString:string];
@@ -266,7 +256,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://192.168.1.1/a.mp3")));
     XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://nas.local/a.mp3")));
     XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), u(@"https://[::1]/a.mp3")));
-    // The unspecified addresses reach this machine.
+    // The address rule treats these ranges as local for redirect rejection.
     for (NSString *host in @[@"0.0.0.0", @"0", @"0.0.0.1", @"[::]", @"[::ffff:0.0.0.0]"]) {
         NSURL *to = u([NSString stringWithFormat:@"https://%@:8443/a.mp3", host]);
         XCTAssertFalse(VibeLinkRequestIsAllowed(u(@"https://example.com/a"), to), @"%@", host);
@@ -284,8 +274,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 
 #pragma mark - Share links
 
-// Each host's own file and tests hold its rewrite (DropboxLinkRulesTests,
-// GoogleDriveLinkRulesTests). Every other link is fetched as typed.
 - (void)testAnotherHostsLinkIsUntouched {
     for (NSString *string in @[@"https://example.com/s/abc/Song.mp3?dl=0",
                                @"https://example.com/scl/fi/abc/Song.mp3?dl=0",
@@ -383,7 +371,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
 
 #pragma mark - Audio check: precedence
 
-// The bytes win over every header and over an extension of another family.
 - (void)testMagicOutranksTheHeadersAndAForeignExtension {
     XCTAssertEqualObjects(Audio(Bytes(kFLAC, sizeof kFLAC), @"https://example.com/song.mp3",
                                 @"attachment; filename=\"song.wav\"", @"text/html"), @"flac");
@@ -446,7 +433,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertNil(Audio([NSData data], @"https://example.com/get", nil, nil));
 }
 
-// A type or extension the platform cannot play is not audio there.
 - (void)testOnlyThePlayableSetCounts {
     NSSet *noOpus = [NSSet setWithArray:@[@"mp3", @"flac"]];
     const uint8_t zeros[] = {0, 1};
@@ -528,8 +514,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqualObjects(Name(@"https://example.com/get?file=Song.mp3", @"mp3"), @"get.mp3");
 }
 
-// The mac's header names a failed link by its file, else its host, else the
-// text typed.
 - (void)testAFailedLinkIsNamedByItsFileThenItsHost {
     XCTAssertEqualObjects(VibeLinkNameOfText(@"https://example.com/music/My%20Song.mp3"), @"My Song.mp3");
     XCTAssertEqualObjects(VibeLinkNameOfText(@" https://example.com/a/b%2Fc.flac?x=1#t\n"), @"b/c.flac");
@@ -701,7 +685,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
                           @"f07de54197a3250f");
 }
 
-// The path and the query are the server's to read, so their case stays.
 - (void)testPathAndQueryKeepTheirCase {
     NSString *song = VibeLinkDirectoryName([NSURL URLWithString:@"https://example.com/Song.mp3"]);
     XCTAssertNotEqualObjects(VibeLinkDirectoryName([NSURL URLWithString:@"https://example.com/song.mp3"]), song);
@@ -868,7 +851,6 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
     return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
 }
 
-// Each failure's alert message, then its short status for the mac's header.
 - (void)testEachFailureShowsItsOwnString {
     NSDictionary<NSNumber *, NSArray<NSString *> *> *expected = @{
         @(VibeLinkErrorInvalid): @[STR_LINK_ERROR_INVALID, STR_LINK_STATUS_INVALID],
@@ -899,8 +881,6 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
     }
 }
 
-// The status goes into both strings. A server error with no status still
-// shows the server's string.
 - (void)testAServerFailureNamesItsStatus {
     NSError *error = LinkError(VibeLinkErrorServer, @{VibeHTTPErrorStatusCodeKey: @503});
     XCTAssertEqualObjects([LinkStore messageForError:error brief:NO],
@@ -915,8 +895,6 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
                           ([NSString stringWithFormat:STR_LINK_STATUS_SERVER, 0L]));
 }
 
-// A disk failure is passed through as its POSIX error. It, a code from
-// another domain, a code no shell names, and nil all read as unreachable.
 - (void)testAnythingElseReadsAsUnreachable {
     NSArray *others = @[
         [NSError errorWithDomain:NSPOSIXErrorDomain code:VibeLinkErrorDenied userInfo:nil],
@@ -930,7 +908,6 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
     }
 }
 
-// The user's own cancel shows nothing. Only the link domain's code is one.
 - (void)testACancelShowsNothing {
     XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil) brief:NO]);
     XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil) brief:YES]);
@@ -939,7 +916,6 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
     XCTAssertEqualObjects([LinkStore messageForError:other brief:YES], STR_LINK_STATUS_UNREACHABLE);
 }
 
-// Open with nothing typed is Cancel, not an invalid address.
 - (void)testABlankEntryOpensNothing {
     for (NSString *text in @[@"", @" ", @"\t", @"\n", @" \r\n\t ", @"\u00A0\u2003"]) {
         XCTAssertTrue(VibeLinkTextIsBlank(text), @"%@", text.debugDescription);
