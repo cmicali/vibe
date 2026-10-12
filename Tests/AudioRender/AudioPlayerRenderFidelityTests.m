@@ -690,8 +690,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // size of 0xFFFFFFFF, as a recording never finalized leaves it, is capped at
 // it. A fmt chunk after the data is found. A damaged ADPCM block is silence in
 // its place, every other frame where it was. An MS ADPCM file cut inside a
-// block keeps what it holds of it, and one whose coefficient table is not the
-// standard seven, the only one dr_wav has, is Apple's.
+// block keeps what it holds of it. One whose coefficient table is not the
+// standard seven decodes with its own table, as Apple's decoder does.
 - (void)testDrWAVSurvivesWhatDamagesFiles {
     self.continueAfterFailure = YES;
     NSData *aiff = [NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]];
@@ -791,7 +791,13 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     e[msFmt.location + 20] = 8; // wNumCoef
     memset(e + msData.location + sizeof(pair), 7, channels);
     [self setContainerSizeOf:eighth bigEndian:NO];
-    [self open:[self writeBytes:eighth name:@"ms-eighth-coefficient.wav"] decoder:@"apple"];
+    NSURL *eighthURL = [self writeBytes:eighth name:@"ms-eighth-coefficient.wav"];
+    AudioFileHandle *eighthFile = [self open:eighthURL decoder:@"dr_wav"];
+    NSData *eighthDecoded = [self readToEnd:eighthFile], *eighthApple = [self appleDecodeOf:eighthURL];
+    XCTAssertEqual(eighthDecoded.length, msReference.length, @"an eighth coefficient pair: the same frames");
+    XCTAssertLessThan(eighthDecoded.length, eighthApple.length, @"an eighth coefficient pair: it ends at its fact count");
+    XCTAssertEqualObjects(eighthDecoded, [eighthApple subdataWithRange:NSMakeRange(0, MIN(eighthDecoded.length, eighthApple.length))],
+                          @"an eighth coefficient pair decodes as Apple's decoder does");
 }
 // A little-endian (sowt) AIFF-C of 24 or 32 bits, which CoreAudio's parser
 // describes as 16-bit, made from a big-endian one by swapping each sample:
