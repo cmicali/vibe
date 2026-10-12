@@ -164,7 +164,7 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 + (NSString *)displayName;
 
 // Whether the style draws the bands, which a waveform holds only when its
-// decode was asked for them. NO here.
+// decode was asked for them. A style that paints a band palette reads them.
 + (BOOL)readsBands;
 
 // The palette the style paints, which the settings then offer. The waveform

@@ -963,9 +963,9 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
 #pragma mark - Spectrum
 
 static uint32_t VibeSRGBOf(VibeColor *color) {
-    NSColor *converted = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    return (uint32_t)lround(converted.redComponent * 255) << 16 | (uint32_t)lround(converted.greenComponent * 255) << 8
-           | (uint32_t)lround(converted.blueComponent * 255);
+    CGFloat r = 0, g = 0, b = 0;
+    VibeColorGetSRGB(color, &r, &g, &b);
+    return (uint32_t)lround(r * 255) << 16 | (uint32_t)lround(g * 255) << 8 | (uint32_t)lround(b * 255);
 }
 
 // The live strip's pixel at column, as 0xRRGGBB: the strip is R, G, B, X in

@@ -46,8 +46,9 @@ static id RandomPick(NSArray *choices) {
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
     self.waveformShadeOverlaps = RandomChance(50);
-    NSArray<NSString *> *palettes = VibeWaveformSpectrumPalettes();
-    self.waveformSpectrumPalette = RandomPick([palettes subarrayWithRange:NSMakeRange(0, palettes.count - 1)]);
+    self.waveformSpectrumPalette = RandomPick(@[SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB,
+                                                SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE,
+                                                SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN]);
     self.waveformGradient = RandomChance(50);
     self.waveformCentered = RandomChance(75);
     self.buttonGradient = RandomPick(VibeButtonGradientModes());
