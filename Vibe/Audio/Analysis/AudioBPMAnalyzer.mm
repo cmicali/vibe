@@ -49,14 +49,10 @@ static const float kMinConfidence = 1.3f;
 static const double kTempoPriorCenterBPM = 140.0;
 static const double kTempoPriorSpreadBPM = 80.0;
 
-// How the phase comb's grid sum is normalized for grid size: score = sum /
-// count^exponent. This, not the prior, is the evidence-based half-against-
-// double test, and the exponent sets its threshold. Comparing a grid against
-// its half — which hits only the strong beats, skipping the ones between —
-// the faster grid wins exactly when the in-between beats average more than
-// 2^-(1-exponent) of the strong ones: 41% at 0.5, 62% at 0.3. Lower therefore
-// favors the faster reading on beat evidence alone, which is the right place
-// to settle an octave, leaving the prior to break genuine ties.
+// Phase-comb score = sum / count^exponent. For nested grids with twice as
+// many beats, the faster grid wins before the prior when the in-between
+// beats average more than 2^exponent - 1 of the strong ones: 41% at 0.5,
+// 23% at 0.3. A lower exponent therefore favors the faster reading.
 static const double kGridNormExponent = 0.5;
 
 // The phase comb's inner sweep: the best-aligned grid of period L, scored over

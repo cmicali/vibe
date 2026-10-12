@@ -6,7 +6,7 @@
 # Nothing else catches this. `make check-strings` only asks whether the catalog
 # matches the source, and sync never writes a language other than en; the
 # build's `xcstringstool compile` exits 0 on a partial key, which then renders
-# English in that locale only (1.9 shipped 8 keys as English in 29 locales).
+# English in that locale.
 # InfoPlist.xcstrings is the easy one to forget: a missing document-type name
 # shows in English only in the Finder.
 #

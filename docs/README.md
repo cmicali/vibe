@@ -32,7 +32,7 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
   - `vm-stress-harness.md`: running the stress harness in a VM.
 - [not-doing/](not-doing/): designs that were weighed and declined, kept so they are not proposed again.
   - `airplay-output-devices.md`: why AirPlay targets are not in the output device list.
-  - `rejected-alternatives.md`: alternatives turned down, each with what shipped instead.
+  - `rejected-alternatives.md`: alternatives to the current design and why they are excluded.
 - [performance/](performance/): the charts that `performance.md` shows, and `results.json`, the data behind them.
 
 ## Which doc is the authority

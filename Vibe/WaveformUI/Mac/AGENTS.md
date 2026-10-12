@@ -7,7 +7,7 @@
 ## The three states
 
 - **Waveform**: the renderer's layer tree.
-- **Loading**: `showLoadingIndicator`, the shared `LoadingIndicator` in its waveform style (`Controls/AGENTS.md`). It shows once an open crosses the player's 0.5s slow-open delay, or at once for a dataless file (`AudioPlayer`'s `submitOpenOnQueueForTrack:`). Until then the outgoing waveform may stay under the incoming title.
+- **Loading**: `showLoadingIndicator`, the shared `LoadingIndicator` in its waveform style (`Controls/AGENTS.md`). It shows at once for a File Provider placeholder classified as dataless. Other opens wait for the player's 0.5s slow-open delay (`AudioPlayer`'s `submitOpenOnQueueForTrack:openRequestId:`). Until then the outgoing waveform may stay under the incoming title.
 - **Empty**: `showEmptyPlaceholder`, a static midline for the no-track state. It is the same control at rest.
 
 Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears both.

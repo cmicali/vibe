@@ -30,7 +30,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## The number gutter
 
-**The gutter has three states. In precedence they are loading, playing and number.** `configureNumberCell:row:track:isCurrentRow:` sets all three on every configure, so a reused cell cannot carry another row's state. It also reassigns `levelSource` every time, so a reused view releases its old source before declaring demand. Loading is `CloudTransferRegistry`'s `isTransferringURL:` (root `AGENTS.md`), drawn by `LoadingIndicatorView` in the equalizer's slot. Loading outranks playing because there is no output audio during the open.
+**The gutter has three states. In precedence they are loading, playing and number.** `configureNumberCell:row:track:isCurrentRow:` sets all three on every configure, so a reused cell cannot carry another row's state. It also reassigns `levelSource` every time, so a reused view releases its old source before declaring demand. Loading is `CloudTransferRegistry`'s `isTransferringURL:` (root `AGENTS.md`), drawn by `LoadingIndicatorView` in the equalizer's slot. It stays visible until the transfer ends, including during streamed playback.
 
 **A registry change or a structural edit reconfigures the visible number cells in place** (`reconfigureVisibleNumberCells`, with `makeIfNecessary:NO`). Never use `reloadData` or a row reload here. Either rebuilds the playing row's `EqualizerIndicatorView` out from under its demand balancing.
 

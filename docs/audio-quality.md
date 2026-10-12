@@ -263,7 +263,7 @@ Fuzzing and simulated damage found more:
 
 ### Tuning dr_flac
 
-Two changes to dr_flac itself halve the work of decoding. Across 17 library files, 16 and 24-bit, 44.1 to 192 kHz, it takes 51% fewer CPU cycles than upstream, and every file came out between 49% and 53% cheaper. The output is identical, bit for bit, on every file of the library. With these and the fixes above, dr_flac is 118 KB of code, where upstream's is 80 KB.
+The checksum and NEON changes to dr_flac halve the work of decoding. Across 17 library files, 16 and 24-bit, 44.1 to 192 kHz, it takes 51% fewer CPU cycles than upstream, and every file came out between 49% and 53% cheaper. The output is identical, bit for bit, on every file of the library. With these and the fixes above, dr_flac is 118 KB of code, where upstream's is 80 KB.
 
 - **The checksum, eight bytes at a time.** Every FLAC frame carries a checksum, which dr_flac worked out one byte at a time, each step waiting for the one before. The plain C spent a fifth of a 16-bit file's decoding time on it, and half of a 24-bit file's. Tables that let eight bytes be worked on at once cut it to 2%.
 - **Vibe's own NEON code.** Upstream dr_flac's hand-written code for the vector instructions (NEON) is slower on Apple Silicon than its plain C: 60% slower on 16-bit files. Its way of predicting each sample keeps the vector unit waiting on the sample before. Vibe's replacement keeps the few newest samples in ordinary registers and leaves the older ones to the vector unit. It is 23% faster than the plain C on 16-bit files, 20% on 24-bit, and twice as fast as upstream's NEON code. It also covers the prediction orders above 12, which upstream leaves to the plain C.
@@ -274,7 +274,7 @@ Giving up early on a long run of zeros inside a frame, which only a damaged file
 
 ### How it fits in
 
-- **macOS still opens the file** and reads its format and channel layout. dr_flac then decodes it.
+- **CoreAudio opens the file** and reads its format and channel layout on both platforms. dr_flac then decodes it.
 - **Same length, exact seeks, gapless.** A seek gives exactly the sound playing from the start does, and tracks still join seamlessly.
 - **Bit-perfect output is unaffected.** A 16 or 24-bit file reaches the device as the file's own samples.
 
@@ -326,7 +326,7 @@ Vibe's copy of dr_wav fixes problems of its own. Some turned up in real files fr
 
 ### How it fits in
 
-- **macOS still opens the file** and reads its format and channel layout. dr_wav then decodes it.
+- **CoreAudio opens the file** and reads its format and channel layout on both platforms. dr_wav then decodes it.
 - **Same length, exact seeks, gapless**, except the Microsoft ADPCM files above, which end where they say.
 - **Bit-perfect output is unaffected.** A 16 or 24-bit file reaches the device as the file's own samples.
 

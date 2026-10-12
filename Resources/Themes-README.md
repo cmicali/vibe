@@ -6,7 +6,7 @@ Every `<identifier>.json` in `Resources/Themes/` ships in the mac app as a read-
 
 1. Design the theme in the app: Settings > Themes > Add > New Theme, then edit it.
 2. Export it with the Export… button. A debug build can also print it: `Vibe --debug-cmd dump_theme <your-theme-name>`.
-3. Rename the file to its identifier (`my_theme.json`) and put it in `Resources/Themes/`. Set `name` to the display name you want.
+3. For a JSON export, rename the file to its identifier (`my_theme.json`) and put it in `Resources/Themes/`. For a ZIP export, extract `theme.json` and its images first. Rename the JSON, put those files together in `Resources/Themes/`, and change each image reference to `bundled:<filename>`. Set `name` to the display name you want.
 4. Add the identifier to `testBuiltInIdentifiers` in `Tests/Common/AppThemeTests.m`. The order is `vibe` first, then alphabetical. The list keeps a dropped or renamed file loud.
 5. Open a pull request. CI's `make test` validates every file here.
 

@@ -23,7 +23,7 @@ The `vibe-strings` skill (`.claude/skills/vibe-strings/SKILL.md`) has the full p
 Pass the language as a launch argument. It applies to that run only and changes nothing system-wide:
 
 ```bash
-open build/DerivedData/Build/Products/Debug/Vibe.app --args -AppleLanguages '(fr)'
+open -a build/DerivedData/Build/Products/Debug/Vibe.app --args -AppleLanguages '(fr)'
 ```
 
 Quit any running copy first, or `open` just brings the existing one to the front. To open a file too, put it before `--args`.

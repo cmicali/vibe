@@ -1,6 +1,6 @@
 # Converting to FLAC (macOS only)
 
-Convert > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it. This is the app's only write path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve. The controller half, the playlist swap and undo UI settlement, is `Mac/MainWindow/Convert/AGENTS.md`.
+Convert > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it. This is the app's audio-file conversion path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve. The controller half, the playlist swap and undo UI settlement, is `Mac/MainWindow/Convert/AGENTS.md`.
 
 **The encoder is CoreAudio's** (`AudioFileHandle`'s writing side, an ExtAudioFile created as `kAudioFileFLACType`), so there is no new dependency. The app is sandboxed and ships in the App Store, so ffmpeg is not an option.
 

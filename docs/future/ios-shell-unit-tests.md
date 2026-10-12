@@ -12,7 +12,7 @@
 
 | Runs on the Mac today | Tested by |
 | --- | --- |
-| `DropboxClient`, `DropboxMirror` | `DropboxMirrorTests`, over an `NSURLProtocol` stub and a temp root |
+| `DropboxClient`, `DropboxMirror` | `DropboxMirrorTests`, `DropboxMirrorFetchTests`, `DropboxMirrorStreamingTests`, over an `NSURLProtocol` stub and a temp root |
 | `FileSearchIndex`, `FileSearchRules.h`, `FolderSessionRules.h` | `FileSearchRulesTests` |
 | `BrowserRules.h` | `BrowserRulesTests` |
 | `PageWaveformCoordinator` | `PageWaveformCoordinatorTests` |
@@ -35,9 +35,9 @@ The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/
 
 Each is a race or an ordering rule. On local files a resolve takes a millisecond and hides it. On a cold provider it is wide open. A test with held provider calls makes it deterministic.
 
-Its header imports UIKit, but its implementation does not draw. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `PlaylistFile`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `LocationStore` uses `UIDevice` for a display name, which needs a platform boundary or a test seam first.
+Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `PlaylistFile`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `LocationStore` uses `UIDevice` for a display name. That needs a platform boundary or a test seam first.
 
-Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores in with a temp defaults suite, or stub them at their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant, because `startAccessingSecurityScopedResource` answers NO, which the session treats as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
+Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores with the in-memory `VibeTestUserDefaults` supplied by `TestFilesystemGuard`, or stub their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant. `startAccessingSecurityScopedResource` answers NO for that URL. The session treats that as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
 
 Write first the tests for the doc's `TRAP:`s:
 
@@ -90,4 +90,4 @@ Layout and the safe area, animations and their frame rate, the fixed height of `
 2. The card fold seam, the smallest.
 3. The browser's row-action seam, against the regression cases.
 4. The Playlist tab's follow rule and the waveform gate, as their files are next touched.
-5. Decide whether the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` can share one fixture. Both stand on the same two `DropboxClientInternal.h` methods. They differ on purpose today: the tests script inconsistencies a fixture directory cannot express.
+5. Decide whether the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` can share one fixture. The transport's session configuration and retry-delay seams are declared in `HTTPTransferClientInternal.h`. The fixtures differ on purpose: the tests script inconsistencies a fixture directory cannot express.

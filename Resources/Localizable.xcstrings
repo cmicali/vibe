@@ -1118,7 +1118,7 @@
       "extractionState": "manual"
     },
     "a11y.playlist.menu": {
-      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.",
+      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It opens a menu with Settings and Clear Playlist.",
       "localizations": {
         "bg": {
           "stringUnit": {

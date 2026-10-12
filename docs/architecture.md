@@ -139,7 +139,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### The iOS shell
 
-`Vibe/iOS/` is the iPhone and iPad app shell. The folder the user opens is the playlist. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Audio/iOS/` and `Loading/iOS/Dropbox/`. Read next: `Vibe/iOS/AGENTS.md`.
+`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Audio/iOS/` and `Loading/iOS/Dropbox/`. Read next: `Vibe/iOS/AGENTS.md`.
 
 ### The widget
 
@@ -169,7 +169,7 @@ This is the path a file takes from the moment the user opens it to the moment it
  AudioPlayer play:                     player queue
    │
  AudioFileMaterializationCoordinator   Loading/Claim
-   │   stage 1: make the file local    Loading/Transfer
+   │   stage 1: make the file readable Loading/Transfer
    │   stage 2: open it
    ▼
  AudioFileHandle                       parser, decoder, stream or read-ahead
@@ -191,7 +191,7 @@ Read `Vibe/Mac/App/AGENTS.md` ("Opening files is a funnel, not an event") and `V
 
 ### 2. The player takes the request
 
-`AudioPlayer play:` (`Audio/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`Loading/Claim/AudioFileOpenTimeoutMath.h`). An open still running after half a second shows Loading on screen.
+`AudioPlayer play:` (`Audio/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`Loading/Claim/AudioFileOpenTimeoutMath.h`). A File Provider placeholder shows Loading as soon as it is classified as dataless. Other opens show Loading after half a second.
 
 Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
 
@@ -199,7 +199,7 @@ Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
 
 `AudioFileMaterializationCoordinator openURL:purpose:completionQueue:onDataless:completion:` (`Loading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. A file therefore never downloads twice.
 
-**Stage 1 makes the file local.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A local file is ready at once, with no download and no wait. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
+**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A local file is ready at once, with no download and no wait. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
 
 **Stage 2 opens the handle** (`AudioFileMaterializationCoordinator+HandleOpen.m`). At most six handle opens run at once. Each calls `AudioFileHandle initForReading:interleaved:interrupted:error:` on a worker. The handle is delivered back on the player queue.
 
@@ -242,7 +242,7 @@ Read `Vibe/Audio/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, paus
 1. The voice bus, through `VibeVoiceBusRender`.
 2. The varispeed, only while the pitch is not zero (`VibeVarispeedRender`, `FX/AudioVarispeed.m`, macOS only).
 3. The FX, only while an effect is engaged or its tail still rings (`VibeFXChainRender`, `FX/AudioFX.m`).
-4. The meter, only while the equalizer bars want levels (`VibeLevelMeterRender`, `Levels/AudioLevelMeter.m`).
+4. The meter, while the equalizer bars want levels or the beta signal probe is capturing (`VibeLevelMeterRender`, `Levels/AudioLevelMeter.m`).
 5. The volume, skipped at exactly full volume.
 
 With the pitch at zero, no effect engaged, and full volume, the master bus leaves the voice bus's samples untouched.
@@ -284,7 +284,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `Audio/FadeMath.h` |
 | Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |
 | What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |
-| Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBus.m`, `Audio/AudioMasterBus.m` |
+| Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBusRender.m`, `Audio/AudioMasterBus.m` |
 | Sample-rate conversion | [audio-quality.md](audio-quality.md) | `Audio/AudioResampler.mm` |
 | DJ effects or pitch | `Audio/FX/AGENTS.md` | `Audio/FX/AudioFX.m`, `Audio/FX/AudioVarispeed.m` |
 | Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m` |
@@ -302,7 +302,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | How a waveform looks, or a new style | `WaveformUI/AGENTS.md`, `WaveformUI/Renderers/AGENTS.md` | `WaveformUI/Renderers/WaveformRendererRegistry.mm` |
 | The equalizer bars | `Controls/AGENTS.md`, `Audio/Levels/AGENTS.md` | `Controls/EqualizerIndicatorView.m` |
 | How files open on macOS | `Mac/App/AGENTS.md` | `Mac/App/AppDelegate.m` |
-| The folder walk, its sort order, CUE or M3U | `Playlist/AGENTS.md` | `Playlist/FolderWalk.m`, `Playlist/PlaylistFile.m` |
+| The folder walk, its sort order, CUE or M3U | `Playlist/AGENTS.md` | `Playlist/FolderWalk.m`, `Playlist/PlaylistFile.m`, `Playlist/PlaylistFile+CUE.m` |
 | The macOS player window | `Mac/MainWindow/AGENTS.md`, `Mac/MainWindow/LAYOUT.md` | `Mac/MainWindow/MainPlayerController.m` |
 | Keyboard shortcuts and skips | `Mac/MainWindow/Transport/AGENTS.md` | `Mac/MainWindow/Transport/TransportKeyMonitor.m` |
 | The macOS playlist table | `Playlist/Mac/AGENTS.md` | `Playlist/Mac/PlaylistController.m` |

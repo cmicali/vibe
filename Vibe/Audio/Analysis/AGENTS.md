@@ -16,7 +16,7 @@ While streaming it builds a power-spectrum spectral-flux onset envelope. At end 
 
 Two constants settle octave errors. Both were swept on GiantSteps:
 
-- **`kGridNormExponent`** (0.5) is the half-against-double test. The grid sum is normalized as `sum / count^exponent`. The faster grid wins exactly when the in-between beats average more than `2^-(1-exponent)` of the strong ones, 41% at 0.5.
+- **`kGridNormExponent`** (0.5) is the half-against-double test. The grid sum is normalized as `sum / count^exponent`. For nested grids with twice as many beats, the faster grid wins before the prior when the in-between beats average more than `2^exponent - 1` of the strong ones. That is 41% at 0.5.
 - **`kTempoPriorCenterBPM`** (140, spread 80) breaks genuine ties. A candidate T beats its half exactly when T < 4/3 of the center, so the crossover sits at ~187 BPM. It is load-bearing: a center of 120 costs 9 points of Accuracy1, a spread of 160 costs 6, and no prior costs 11. The cost is that a hip-hop or downtempo track can read 174 instead of 87.
 
 The summation order and double accumulators are **accuracy-bearing**. Changing them changes results.

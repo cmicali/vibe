@@ -19,28 +19,20 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Four jobs, deliberately: the account runs five macOS jobs at once, shared by
-# every run in flight, so each job past that waits for a slot, and the wait was
-# once half the wall time. A new check joins a job below rather than adding one.
+# Keep checks in these four jobs to limit contention for macOS runners.
+# A new check joins a job below rather than adding one.
 jobs:
   # The Release build of each app, analyzed. `xcodebuild analyze` compiles,
   # links and signs the whole app before it analyzes, so the analyzing build IS
   # the Release build, and a separate one would compile everything twice.
   #
   # clang's static analyzer fails the leg on any finding outside ThirdParty/.
-  # project.yml has had the analyzer's checks on all along
-  # (CLANG_ANALYZER_NONNULL, CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION); this job
-  # is what makes them a gate rather than a setting nobody ran. Findings are
-  # not config-independent — the first one this gate caught showed up in
-  # Release and not in Debug — and Release is the configuration that ships.
+  # Findings depend on the configuration. Check the shipping configurations.
   #
-  # Both targets, because the iOS leg is what analyzes Vibe/iOS and the iOS
-  # halves of the shared subsystems; it found two real findings the first time
-  # it ran. The Release iOS build matters on its own too: every source under
-  # Vibe/Debug wraps its body in #if DEBUG, so Release is the only
-  # configuration that compiles those translation units empty, and it is what
-  # `make appstore-build-ios` archives. The iOS leg runs against a generic
-  # simulator destination, so nothing has to be booted, and signs nothing.
+  # The iOS leg covers Vibe/iOS and the iOS halves of shared subsystems.
+  # Release compiles the debug sources empty and is the iOS archive's
+  # configuration. The generic simulator destination needs no booted device
+  # and signs nothing.
   build:
     # Deployment target is macOS 13, but the code compiles against the macOS 26
     # SDK (Liquid Glass behind availability guards), so an older image's Xcode
@@ -186,9 +178,8 @@ jobs:
       - name: Report untranslated keys
         run: scripts/checks/check-translations.sh --github
 
-      # The caption-fit measurement compiles scripts/appstore/compose-app-store-overlay.swift
-      # (swiftc, no project) — no pip installs since the compositor moved off
-      # Python/PIL.
+      # Caption-fit measurement compiles scripts/appstore/compose-app-store-overlay.swift
+      # with swiftc. It needs no generated project.
       - name: Validate App Store copy
         run: make appstore-validate-copy
 

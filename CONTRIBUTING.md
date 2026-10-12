@@ -47,7 +47,7 @@ CLion's default engine has only basic Objective-C support, and none for Objectiv
 
 ## Tests
 
-`make test` runs the suite in `Tests/`. Please add tests when you change or add something.
+`make test` runs the host-less unit and orchestration tests and the cloud-runner oracles. `make test-audio` checks the real player and FX with full PCM comparisons and signal-quality checks. Read [Tests/AGENTS.md](Tests/AGENTS.md) before adding tests. Checks that need a running app belong in the debug command channel.
 
 ## Localization
 

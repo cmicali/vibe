@@ -27,10 +27,8 @@ NS_ASSUME_NONNULL_BEGIN
           selectedURL:(nullable NSURL *)selectedURL
              restored:(BOOL)restored;
 
-// An Add landed: append rows (never empty, in order); the base is unchanged.
-// May carry rows the playlist already holds.
-// Empty for an Add that found nothing: the playlist is untouched, but the
-// asker is told.
+// An Add settled. Nonempty rows append in order and may include duplicates.
+// Empty rows report an Add that found nothing. The base stays unchanged.
 - (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows;
 
 // The picked location held no audio files.

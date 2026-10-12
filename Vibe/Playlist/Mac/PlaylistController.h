@@ -30,10 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Attaching also wires double-click, the drag masks and the row menu.
 @property (weak) PlaylistTableView *tableView;
 
-// Fires as a play is submitted, before the player has opened anything: its
-// didBeginLoading waits out a 0.5 s slow-open grace, and until then the
-// header would describe the previous track. Every start, parked or not,
-// raises it.
+// Fires at play submission to refresh the header before the open settles.
+// didBeginLoading may arrive later or never fire for a fast open.
+// Every start, parked or not, raises it.
 @property (nonatomic, copy, nullable) void (^playWillStartHandler)(void);
 
 // The mac's one current-index funnel: every play, skip, gapless advance and

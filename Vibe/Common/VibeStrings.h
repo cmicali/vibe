@@ -705,7 +705,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_PLAYER_FX_AXIS_LOW_CUT NSLS(@"player.fx_axis.low_cut", @"LOW CUT ↑",    @"iOS: caption in the top-left corner of the effects pad naming its vertical axis: dragging up raises a low-cut (high-pass) filter that removes the bass. Keep the arrow; upper case is the pad's style.")
 #define STR_PLAYER_FX_AXIS_REVERB_DELAY NSLS(@"player.fx_axis.reverb_delay", @"REVERB → DELAY", @"iOS: caption in the bottom-right corner of the effects pad naming its horizontal axis: dragging right adds reverb, and past the middle a beat-synced delay (echo) on top. Keep the arrow; upper case is the pad's style.")
 #define STR_A11Y_ADD_FAVORITE      NSLS(@"a11y.favorite.add",      @"Add to Favorites",      @"iOS: accessibility label for the star button on the playlist screen, when the open folder is not starred yet; activating it adds the folder to the Favorites tab.")
-#define STR_A11Y_PLAYLIST_MENU     NSLS(@"a11y.playlist.menu",     @"Options",               @"iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.")
+#define STR_A11Y_PLAYLIST_MENU     NSLS(@"a11y.playlist.menu",     @"Options",               @"iOS: accessibility label for the gear button on the playlist screen's bar. It opens a menu with Settings and Clear Playlist.")
 
 #pragma mark - Home-screen widget
 

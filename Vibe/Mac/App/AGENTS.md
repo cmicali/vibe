@@ -34,7 +34,7 @@ The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable
 - **The waveform shows its loading shimmer while a drop resolves** (`beginLinkResolveFeedbackAppending:`). An append over a shown track shows nothing, since that track stays. Every delivery ends the shimmer once no drop is resolving (`endLinkResolveFeedbackIfIdle`). It runs after the play, so a replacing open keeps the shimmer for its own open. A superseded drop ends it when its links settle, since nothing delivers for it.
 - **Escape on the player window cancels every open still resolving** (`cancelLinkOpens`). So does a newer replacing open, Open URL's included. A cancelled open opens nothing, its files included, and the Open URL panel closes.
 
-**The outgoing network entitlement is for Open URL alone** (`ENABLE_OUTGOING_NETWORK_CONNECTIONS`, `project.yml`). Nothing else in the mac app makes a request. App Transport Security allows plain http only on the local network (`NSAllowsLocalNetworking`). `VibeLinkURLAcceptance` draws the same line before any request. macOS 15 and later ask the user before the first request to a local host (`NSLocalNetworkUsageDescription`).
+**Open URL uses the outgoing network entitlement** (`ENABLE_OUTGOING_NETWORK_CONNECTIONS`, `project.yml`) in every macOS configuration. App Transport Security allows plain http only on the local network (`NSAllowsLocalNetworking`). `VibeLinkURLAcceptance` draws the same line before any request. macOS 15 and later ask the user before the first request to a local host (`NSLocalNetworkUsageDescription`).
 
 ## Sandbox grants
 
@@ -98,7 +98,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 ## Debug info
 
-`DebugInfo` is the report behind Settings > Advanced > Save Debug Info. The debug channel's `dump_debug_info` returns the same text. **It is passive.** It reads and changes nothing, so it is safe to save in the middle of the problem it describes.
+`DebugInfo` is the report behind Settings > Advanced > Save Debug Info. The debug channel's `dump_debug_info` returns the same text. **It is passive.** It collects diagnostics without changing playback or settings.
 
 It is two calls because of two threads. `VibeDebugInfoSnapshot` reads on main what only main may read: the controller, the windows, every stored setting. It reads `position`, which never waits on the player queue. `VibeDebugInfoText` does the slow part off main. It collects the log, then allows two seconds each for the hardware, player and audio-path sections. A section that times out reports its cached value with its capture time, or unavailable. Each section allows one outstanding worker across all exports, so a hung driver cannot pile up workers. `block_player` is a debug-only fault for testing the export during a queue stall.
 

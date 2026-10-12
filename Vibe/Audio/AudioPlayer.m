@@ -28,8 +28,8 @@
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
-// An open still pending after this long is worth a visible loading state;
-// a dataless file's is from the start (submitOpenOnQueueForTrack:).
+// Fallback delay for the loading indicator. A provider's dataless verdict
+// shows it at once. Remote streams keep this delay.
 static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 // An open taking this long is logged, apart from the indicator's UI delay.
 static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
