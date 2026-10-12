@@ -138,6 +138,12 @@
                          skip:0 tolerance:0];
     };
     [_player seekToPosition:6.0];
+    // The thread drops blocks only after it installs one, at the reader's
+    // position from before that read. The seek's read must wait at 6.0 s
+    // before the stall is released. Otherwise the thread can fetch to the end
+    // at the old position, drop nothing, and still hold block 1 for the seek
+    // behind.
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].waitingForBytes; }];
     XCTAssertEqual([script readsOf:name at:8 * kReadAheadBlock], 0u, @"beyond what is held");
     [script releaseStalls];
     land(6.0, 1);
