@@ -1,5 +1,5 @@
 //
-//  DebugCommands.h
+//  DebugiOSEntry.h
 //  Vibe (iOS)
 //
 
@@ -16,6 +16,9 @@ extern "C" {
 #endif
 
 void VibeiOSInstallDebugCommandHook(void);
+
+// The iOS verb table (DebugiOSVerbs.m), which only the dispatcher reads.
+NSArray<NSDictionary *> *VibeiOSCommandTable(void);
 
 // The Dropbox verbs (DebugDropboxVerbs.m), which only the iOS table reads.
 NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void);

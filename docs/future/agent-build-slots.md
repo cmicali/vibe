@@ -54,7 +54,7 @@ It exports `VIBE_SLOT`, `VIBE_PRODUCT`, `VIBE_BUNDLE_ID`, `VIBE_DERIVED_DATA`, `
 
 **Channel.**
 - `kVibeDebugCommandNotification` (`DebugWireFormat.{h,m}`) becomes `VibeDebugCommandNotificationName()` and `VibeDebugScreenshotNotificationName()`. Both are formatted from `NSBundle.mainBundle.bundleIdentifier`. App and client are one binary, so both derive the same name.
-- Callers to change: `VibeInstallDebugCommandChannel`, the `notify_post` in `DebugClient.m`, the literal in `VibeInstallDebugScreenshotHook`, and the comments in `DebugUtil.h` and `DebugChannel.h`.
+- Callers to change: `VibeInstallDebugCommandChannel`, the `notify_post` in `DebugClient.m`, the literal in `VibeInstallDebugScreenshotHook`, and the comments in `DebugMacEntry.h` and `DebugChannel.h`.
 - `dump_build` (`DebugCommonVerbs.m`) adds the bundle id, executable and resolved channel. Do not add a second instance report to `dump_state`.
 - `VibeLogBuildProvenance` also logs the bundle id.
 

@@ -11,8 +11,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The platform-neutral half of the debug command channel: the command-file
 // drain, payload validation, response writing, the stale-file sweep and the
-// wake-up listeners. The platform tables (Mac/DebugCommandTable.m,
-// iOS/DebugCommands.m) supply the executor and own every verb.
+// wake-up listeners. The platform dispatchers (Mac/DebugMacEntry.m,
+// iOS/DebugiOSEntry.m) supply the executor. The platform tables own every
+// verb.
 
 #ifdef __cplusplus
 extern "C" {

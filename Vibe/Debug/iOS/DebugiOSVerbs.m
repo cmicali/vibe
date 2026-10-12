@@ -1,9 +1,11 @@
 //
-//  DebugCommands.m
+//  DebugiOSVerbs.m
 //  Vibe (iOS)
 //
+//  The iOS verb table, which adds the Dropbox verbs after its own.
+//
 
-#import "DebugCommands.h"
+#import "DebugiOSEntry.h"
 
 #if DEBUG
 
@@ -13,8 +15,6 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
-#import "NSURLUtil.h"
-#import "NSURLUtil+Debug.h"
 #import "FavoritesStore.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
@@ -43,23 +43,6 @@ static UIWindow *VibeDebugKeyWindow(void) {
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             if (window.isKeyWindow) {
                 return window;
-            }
-        }
-    }
-    return nil;
-}
-
-// The shell adopts VibeDebugPlayerSurface: the one object that reaches both
-// the model and the card.
-static RootViewController *VibeDebugRootController(void) {
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) {
-            continue;
-        }
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            UIViewController *root = window.rootViewController;
-            if ([root isKindOfClass:RootViewController.class]) {
-                return (RootViewController *)root;
             }
         }
     }
@@ -173,7 +156,7 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 
 // The iOS-only verbs, then the Dropbox ones (DebugDropboxVerbs.m). The shared
 // ones are in Vibe/Debug/Verbs/.
-static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
+NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -513,40 +496,6 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
         table = [own arrayByAddingObjectsFromArray:VibeDebugDropboxVerbs()];
     });
     return table;
-}
-
-static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
-    NSString *verb = tokens.firstObject ?: @"";
-    RootViewController *controller = VibeDebugRootController();
-    if (!controller) {
-        return VibeErrorJSON(@"app not fully launched");
-    }
-    NSDictionary *spec = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb)
-            ?: VibeDebugSpecForVerb(VibeiOSCommandTable(), verb);
-    if (!spec) {
-        return VibeDebugUnknownCommandReply(verb,
-                @[VibeDebugCommonCommandTable(), VibeiOSCommandTable()], nil);
-    }
-    return ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
-}
-
-// The device's road to the probes: no channel reaches a phone, so each flag
-// starts one that logs, and --log-stderr relays it.
-static void VibeiOSStartLaunchProbes(void) {
-    NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
-    if ([arguments containsObject:@"--frame-rate-probe"]) {
-        [RootViewController debugBeginFrameProbeForSeconds:0];
-    }
-    if ([arguments containsObject:@"--dataless-diag"]) {
-        [NSURLUtil setDatalessDiagnosticsEnabled:YES];
-    }
-}
-
-void VibeiOSInstallDebugCommandHook(void) {
-    VibeInstallDebugCommandChannel(^NSString *(NSArray<NSString *> *args, NSString *commandId) {
-        return VibeiOSExecuteDebugCommand(args, commandId);
-    });
-    VibeiOSStartLaunchProbes();
 }
 
 #endif

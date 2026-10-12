@@ -5,7 +5,7 @@
 //  The Dropbox account, its mirror and the fake account (VibeFakeDropbox).
 //
 
-#import "DebugCommands.h"
+#import "DebugiOSEntry.h"
 
 #if DEBUG
 

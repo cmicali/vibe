@@ -1,5 +1,5 @@
 //
-//  DebugUtil.h
+//  DebugMacEntry.h
 //  Vibe
 //
 
@@ -47,7 +47,7 @@ void VibeInstallDebugScreenshotHook(void);
 // not post distributed notifications with userInfo — and polls for a
 // per-command response file.
 //
-// VibeDebugCommandTable (DebugCommandTable.m and its topic tables) merged with
+// VibeDebugCommandTable (DebugMacVerbs.m and its topic tables) merged with
 // the shared table (Vibe/Debug/Verbs/) is the authoritative verb list: each entry carries its
 // usage string, client wait and handler, and dispatch and the unknown-command
 // reply both derive from it. Usage docs: the vibe-debug skill's

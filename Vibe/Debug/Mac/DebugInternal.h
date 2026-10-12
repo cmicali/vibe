@@ -15,7 +15,7 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import <notify.h>
 
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugCommandDispatch.h"
@@ -88,7 +88,7 @@ NSString *VibeReorderUpdate(MainPlayerController *controller, NSArray<NSString *
 NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeReorderCancel(MainPlayerController *controller);
 
-// DebugCommandTable.m — the verb table the dispatcher walks. It adds the
+// DebugMacVerbs.m — the verb table the dispatcher walks. It adds the
 // topic tables below, which only it reads.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void);
 NSArray<NSDictionary *> *VibeDebugThemeVerbs(void);   // DebugThemeVerbs.m

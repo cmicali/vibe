@@ -1,5 +1,5 @@
 //
-//  DebugCommandTable.m
+//  DebugMacVerbs.m
 //  Vibe
 //
 //  The mac verb table, which adds each topic's verbs after its own.
