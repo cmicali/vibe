@@ -16,6 +16,7 @@
 #import "OpenRequestCoordinator.h"
 #import "PlaylistController.h"
 #import "PlaylistFile.h"
+#import "PlaylistFile+Session.h"
 #import "VibeStrings.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>

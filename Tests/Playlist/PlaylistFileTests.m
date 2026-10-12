@@ -5,6 +5,7 @@
 
 #import <XCTest/XCTest.h>
 #import "PlaylistFile.h"
+#import "PlaylistFile+Session.h"
 #import "AudioTrack.h"
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
