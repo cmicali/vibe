@@ -1,5 +1,6 @@
 #!/bin/bash
-# Enforces the mechanical half of the root AGENTS.md's Vocabulary section.
+# Enforces the mechanical half of the root AGENTS.md's Vocabulary section,
+# and the doc line limit.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -68,6 +69,17 @@ bad_invariant=$(grep -rni 'invariant' Vibe Tests \
 if [ -n "$bad_invariant" ]; then
     fail "a condition the code must keep true is a 'guarantee', never an 'invariant':"
     echo "$bad_invariant" >&2
+fi
+
+# 7. No doc line longer than the limit. Covers every AGENTS.md, every docs/
+# page and every skill page, tracked or new.
+max_doc_line=1500
+long_lines=$(git ls-files --cached --others --exclude-standard \
+        'AGENTS.md' '*/AGENTS.md' 'docs/*.md' '.claude/skills/*.md' \
+        | xargs awk -v max="$max_doc_line" 'length > max { print FILENAME ":" FNR ": " length " characters" }')
+if [ -n "$long_lines" ]; then
+    fail "doc line over $max_doc_line characters — split the paragraph or make it a list:"
+    echo "$long_lines" >&2
 fi
 
 if [ "$status" -eq 0 ]; then

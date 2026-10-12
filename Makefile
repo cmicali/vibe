@@ -323,8 +323,8 @@ strings:
 check-strings:
 	scripts/extract-strings.sh --check
 
-# Fail on a break of AGENTS.md's mechanical vocabulary rules, listed in the
-# script.
+# Fail on a break of AGENTS.md's mechanical vocabulary rules or a doc line over
+# 1500 characters, all listed in the script.
 check-vocabulary:
 	scripts/check-vocabulary.sh
 
