@@ -36,6 +36,7 @@ xcodebuild \
     -scheme Vibe \
     -configuration "$CONFIGURATION" \
     -parallelizeTargets \
+    -showBuildTimingSummary \
     -derivedDataPath build/DerivedData ${@+"$@"} build
 
 echo "🔊 built build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"

@@ -348,6 +348,7 @@
     XCTAssertEqual([self count:@"advance"], 0u);
     XCTAssertEqualObjects(_player.currentTrack.url, first);
     [self assertReference:reference capture:[self renderSeconds:2.1] skip:0 tolerance:0];
+    [self settleUntil:^BOOL { return [self count:@"advance"] >= 1 && [self count:@"finish"] >= 1; }];
     XCTAssertEqual([self count:@"advance"], 1u);
     XCTAssertEqual([self count:@"finish"], 1u);
     XCTAssertNil(_playError);
