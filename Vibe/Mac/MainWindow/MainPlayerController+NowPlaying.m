@@ -10,6 +10,7 @@
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
+#import "PlaybackDeliveryRules.h"
 #import "PlaylistController.h"
 
 @implementation MainPlayerController (NowPlaying)
@@ -56,7 +57,9 @@
                                          state:state
                                           rate:(loadingGap || self.audioPlayer.isBuffering) ? 0.0 : 1.0
                                        hasNext:self.playlistController.hasNextTrack
-                                   hasPrevious:self.playlistController.hasPreviousTrack];
+                                   hasPrevious:VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
+                                                                               self.playlistController.currentTrack != nil,
+                                                                               self.audioPlayer.isStopped)];
 }
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)

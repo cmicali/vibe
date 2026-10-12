@@ -4,8 +4,9 @@
 //
 //  What a search matches, and the Files tab's decisions: the root's rows, what
 //  Recents names for a link, which open the next launch restores, and the
-//  recents a launch's pruning keeps. The header ships only in VibeiOS but is
-//  Foundation-only, so it compiles here.
+//  recents a launch's pruning keeps. Then two of FolderSession's open-intent
+//  rules. The header ships only in VibeiOS but is Foundation-only, so it
+//  compiles here.
 //
 
 #import <XCTest/XCTest.h>
@@ -457,6 +458,27 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
 - (void)testAnOpenInsideAOneOffPickKeepsTheSessions {
     XCTAssertFalse(VibeFolderSessionPersistsBase(YES, YES, NO, NO));
     XCTAssertFalse(VibeFolderSessionPersistsBase(YES, NO, NO, YES));
+}
+
+#pragma mark - The open intent
+
+// Two Adds onto an empty session take token 7. The first promotes to 8. Its
+// sibling is still the user's. A real replace or a clear drops it.
+- (void)testAPromotionIsNotASupersession {
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(7, 7, 0));
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(7, 8, 8), @"the promoted sibling");
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(7, 9, 8), @"the user's replace after the promotion");
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(7, 8, 0), @"a replace with no promotion");
+    XCTAssertFalse(VibeFolderSessionAddTokenIsCurrent(6, 8, 8), @"two below the promotion");
+    XCTAssertTrue(VibeFolderSessionAddTokenIsCurrent(9, 9, 8));
+}
+
+// Without the carry, an Add taken after an empty open captures a generation
+// that never landed, and Add is dead for the session.
+- (void)testAnEmptySettleCarriesTheLandedGeneration {
+    XCTAssertEqual(VibeFolderSessionCarriedOpenIntentGeneration(3, 4), (uint64_t)4);
+    XCTAssertEqual(VibeFolderSessionCarriedOpenIntentGeneration(0, 4), (uint64_t)0,
+                   @"zero stays zero, so an Add is still promoted");
 }
 
 @end

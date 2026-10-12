@@ -24,7 +24,6 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "NSURLUtil.h"
-#import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
 #import "SearchFolderStore.h"
 #import "UIUpdateTimer.h"
@@ -471,24 +470,17 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (void)previous {
+    // On the first row, Previous restarts the loaded track
+    // (VibePlaybackPreviousIsAvailable).
     if ([_playlist previous]) {
         [self playCurrentTrack];
     }
-    else {
+    else if (!_player.isStopped) {
         [_player seekToPosition:0];
     }
 }
 
 #pragma mark - Settings
-
-- (AudioTrack *)successorPrefetchTrack {
-    AudioTrack *successor = _playlist.trackEndSuccessor;
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
-                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
-        return nil;
-    }
-    return successor;
-}
 
 - (void)applyTrackTransitionSettings {
     AppSettings *settings = AppSettings.sharedInstance;
@@ -497,7 +489,7 @@ static const NSUInteger kUIUpdateHz = 3;
     // prefetchTrack:nil unschedules an armed splice, so a mid-track switch to
     // Pause does not advance anyway; a new successor replaces one armed
     // before a repeat or shuffle change.
-    [_player prefetchTrack:self.successorPrefetchTrack];
+    [self prefetchSuccessor];
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playbackDidChangePlayOrder:)]) {
             [observer playbackDidChangePlayOrder:self];
@@ -520,6 +512,7 @@ static const NSUInteger kUIUpdateHz = 3;
     }
     _playlist.repeatMode = settings.repeatMode;
     _playlist.shuffleEnabled = settings.shuffleEnabled;
+    _playlist.pauseAtTrackEnd = settings.pauseAtTrackEnd;
     [_nowPlaying updateShuffleEnabled:settings.shuffleEnabled
                            repeatMode:settings.repeatMode
                             available:shown];
@@ -650,15 +643,15 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Transport follow-ups
 
-// TRAP: the Stopped gate is load-bearing. A parked track holds no file, and
-// prefetching over a list edit would open one — on a cloud folder, an unasked
-// download. A new play prefetches at start anyway.
+// TRAP: the Stopped gate is load-bearing. A parked track holds no file.
+// Prefetching over a list edit or a transition-setting change would open one.
+// On a cloud folder that is an unasked download. A new play prefetches at
+// start anyway.
 - (void)prefetchSuccessor {
     if (_player.isStopped) {
         return;
     }
-    // Never around successorPrefetchTrack: it holds On track end = Pause.
-    [_player prefetchTrack:self.successorPrefetchTrack];
+    [_player prefetchTrack:_playlist.trackEndSuccessor];
 }
 
 - (void)openParkedTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position {

@@ -804,14 +804,20 @@ targets:
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
+      # The render path, optimized as the shipped app is, so the long render
+      # tests do not run -O0 code that never ships. Neither -O2 nor the app's
+      # -Os reassociates float math, so the samples are the same.
       - path: Vibe/Audio/AudioVoiceBus.m
+        compilerFlags: &render-path-flags ["-O2"]
       - path: Vibe/Audio/AudioResampler.mm
       - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
         compilerFlags: *r8brain-flags
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
+        compilerFlags: *render-path-flags
       - path: Vibe/Audio/FX/AudioVarispeed.m
+        compilerFlags: *render-path-flags
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
@@ -971,15 +977,18 @@ targets:
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
       - path: Vibe/Audio/FX/AudioVarispeed.m
+        compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Audio/AudioVoiceBus.m
+        compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioResampler.mm
       - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
         compilerFlags: *r8brain-flags
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
+        compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m

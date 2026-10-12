@@ -830,7 +830,11 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 - (IBAction)previous:(nullable id)sender {
-    [self.playlistController previous];   // refresh rides the funnel; see next:
+    // Refresh rides the funnel; see next:. On the first row, Previous restarts
+    // the loaded track (VibePlaybackPreviousIsAvailable).
+    if (![self.playlistController previous] && !self.audioPlayer.isStopped) {
+        [self.audioPlayer seekToPosition:0];
+    }
 }
 
 - (IBAction)playSelectedTrack:(nullable id)sender {
@@ -920,13 +924,9 @@ static NSURL *VibeLastPlaylistURL(void) {
     [playlist playStartPaused:startPaused];
 }
 
-// The tail of every structural edit once the model is final. Not while
-// Stopped: an errored player must not open or download a successor over a
-// list edit, and a new play re-prefetches at its start.
+// The tail of every structural edit once the model is final.
 - (void)reconcileAfterPlaylistStructureEdit {
-    if (!self.audioPlayer.isStopped) {
-        [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
-    }
+    [self prefetchSuccessor];
     [self updateMetadataNeighborhood];
     [self updateUI];
 }
@@ -1061,19 +1061,22 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
-- (AudioTrack *)successorPrefetchTrack {
-    AudioTrack *successor = self.playlistController.trackEndSuccessor;
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
-                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
-        return nil;
+// TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
+// file, and re-parking its successor after a list edit or a mode change would
+// open one. On a cloud folder that is an unasked download. A new play
+// prefetches at its start anyway.
+- (void)prefetchSuccessor {
+    if (self.audioPlayer.isStopped) {
+        return;
     }
-    return successor;
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
 }
 
 // The model and the system's controls, which show the same modes.
 - (void)pushTransportModesToPlaylist {
     AppSettings *settings = AppSettings.sharedInstance;
-    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled];
+    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled
+                           pauseAtTrackEnd:settings.pauseAtTrackEnd];
     [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
                                          repeatMode:settings.repeatMode
                                           available:YES];
@@ -1084,7 +1087,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     // nil unschedules an armed splice, so a mid-track switch to Pause does not
     // advance anyway; a new successor replaces one armed before a repeat or
     // shuffle change.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    [self prefetchSuccessor];
     // Next's availability and the codec line's glyphs follow the modes, on
     // screen and in Now Playing.
     self.nextButton.enabled = self.playlistController.hasNextTrack;

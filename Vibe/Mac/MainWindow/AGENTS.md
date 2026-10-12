@@ -34,7 +34,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 ## Track end, close and save
 
-**Whether a track end advances is `AppSettings.pauseAtTrackEnd`, and where it goes is the playlist's `trackEndSuccessor`** (root `AGENTS.md`). The audio side is `successorPrefetchTrack`, which answers nil under Pause. The shell side is `advanceOrParkAtTrackEnd`, which reads the setting again.
+**Where a track end goes is the playlist's `trackEndSuccessor`, which is nil under On track end = Pause** (root `AGENTS.md`). `pushTransportModesToPlaylist` pushes Pause with repeat and shuffle. Every prefetch parks `trackEndSuccessor`, and `advanceOrParkAtTrackEnd` calls `advanceAtTrackEnd`.
 
 **Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`APPEARANCE.md`).
 
@@ -63,11 +63,11 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 - **The registration is stamped with `PlaylistController.structureGeneration`.** It forwards the model's own generation, which every replace or clear bumps before announcing. A restore whose playlist was replaced does nothing, its redo does nothing, and the dead pair falls off both stacks.
 - `levelsOfUndo` is capped, so dead registrations cannot hold tracks without bound.
 - A whole-playlist removal routes to `closeFile:` before registering, so Close stays un-undoable.
-- **Re-prefetch after a removal, a restore or an append (`reconcileAfterPlaylistStructureEdit`) needs a player that is not Stopped.** A Stopped player advances nothing, so an errored player must not open or download a successor over a list edit.
+- **Every re-park of the successor goes through `prefetchSuccessor`, which does nothing while the player is Stopped.** That covers a removal, a restore, an append (`reconcileAfterPlaylistStructureEdit`), a Pause, repeat or shuffle change (`applyEndOfTrackAction`) and a conversion. A Stopped player advances nothing. So a stopped or errored player must not open or download a successor.
 
 ## Reordering playlist rows
 
-The drag is `Playlist/Mac/AGENTS.md`'s. **`playlistOrderDidChangeHandler` is a reorder's whole follow-up.** It registers the inverse, re-parks through `successorPrefetchTrack` behind the same not-Stopped gate, refreshes the metadata neighborhood once, and calls `updateUI`. **A move never enters a play funnel.** The current object survives at its new row, so a Loading row keeps its pending play and a paused row stays paused.
+The drag is `Playlist/Mac/AGENTS.md`'s. **`playlistOrderDidChangeHandler` is a reorder's whole follow-up.** It registers the inverse, re-parks through `prefetchSuccessor`, refreshes the metadata neighborhood once, and calls `updateUI`. **A move never enters a play funnel.** The current object survives at its new row, so a Loading row keeps its pending play and a paused row stays paused.
 
 **The handler is the ONE undo registration point.** The model operation is its own inverse with the two index sets swapped. The handler registers `movePlaylistTracksFromIndexes:toIndexes:generation:` under `STR_MENU_EDIT_REORDER`. It fires for every completed move, whether a drag, an undo or a redo, so `NSUndoManager` chains undo and redo with no second path. The bare row sets stay exact because of LIFO plus the generation. Every undoable edit between a move and its undo has been unwound. No un-undoable edit shifts rows without replacing the list: appends extend it, the convert swap keeps its row, and Close and every replacement bump `structureGeneration`. A stale restore performs no move and registers nothing.
 

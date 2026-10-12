@@ -121,9 +121,9 @@ void VibeNotifyDisplaySettingsChanged(void);
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
 // YES parks on the finished track as the end of the playlist does. Each shell
-// enforces it at the successor prefetch and the end callback (root
-// AGENTS.md); a writer must re-park, or a mid-track switch to Pause leaves an
-// armed gapless splice that advances anyway.
+// pushes it into Playlist.pauseAtTrackEnd, which enforces it (root AGENTS.md).
+// A writer must push and re-park. Otherwise a mid-track switch to Pause leaves
+// an armed gapless splice that advances anyway.
 - (BOOL)pauseAtTrackEnd;
 - (void)setPauseAtTrackEnd:(BOOL)pause;
 

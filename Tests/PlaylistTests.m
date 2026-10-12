@@ -1137,6 +1137,30 @@ static Playlist *NumberedPlaylist(NSUInteger count) {
     XCTAssertFalse([playlist next]);
 }
 
+// On track end = Pause outranks every mode, and parks without moving. Next
+// still moves, and a splice into the old successor is refused.
+- (void)testPauseAtTrackEndOutranksEveryMode {
+    Playlist *playlist = NumberedPlaylist(3);
+    playlist.currentIndex = 0;
+    AudioTrack *first = playlist.currentTrack, *second = [playlist trackAtIndex:1];
+    XCTAssertEqual(playlist.trackEndSuccessor, second);
+    for (NSNumber *mode in @[@(VibeRepeatModeOff), @(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
+        playlist.repeatMode = mode.integerValue;
+        playlist.pauseAtTrackEnd = YES;
+        XCTAssertNil(playlist.trackEndSuccessor);
+        XCTAssertFalse([playlist advanceAtTrackEnd]);
+        XCTAssertFalse([playlist advanceFromTrack:first toTrack:second]);
+        XCTAssertFalse([playlist advanceFromTrack:first toTrack:first]);
+        XCTAssertEqual(playlist.currentIndex, 0u);
+        playlist.pauseAtTrackEnd = NO;
+        XCTAssertNotNil(playlist.trackEndSuccessor);
+    }
+    playlist.repeatMode = VibeRepeatModeOff;
+    playlist.pauseAtTrackEnd = YES;
+    XCTAssertTrue([playlist next]);
+    XCTAssertEqual(playlist.currentTrack, second);
+}
+
 - (void)testGaplessAdoptionFollowsTheTrackEndSuccessor {
     Playlist *playlist = NumberedPlaylist(3);
     playlist.currentIndex = 2;
