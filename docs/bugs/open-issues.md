@@ -25,12 +25,6 @@ Bugs seen in testing that are not fixed or not explained.
 - With the fix, the whole device-fault check passes, the volume-read fault and the aggregate case included.
 - If it recurs: sample the app before recovery, and keep the bundle UUID, the dSYM and the client and server logs. Keep simulator audio and other HAL drivers out of the run. Do not wrap a blocked HAL call in a timeout that frees state it still uses.
 
-## The main-thread stall log can report an impossible duration
-
-**What fails.** A bit-perfect acceptance run logged one main-thread stall of `18446744073710 ms`.
-
-**What is known.** The stall watcher in `AudioPlayer+Diagnostics.m` reads `now` before it loads `passStart`. Main can store a later `passStart` between the two reads. Then the unsigned `now - since` wraps. It is a logging bug, not a real hang. The fix is to read `passStart` first, or to skip a negative interval. Add a regression test for that boundary.
-
 ## Known TSan noise
 
 With TSan on, a few unit tests that use dispatch timers and blocks report races (`DownloadAllocatedSizeSource`, `MetadataParseCoordinatorTests`). Standalone Foundation and libdispatch programs with no Vibe code show the same warnings. Do not change synchronization only to silence them. Check the standalone repro on the current toolchain first.
