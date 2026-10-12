@@ -1,0 +1,325 @@
+# Architecture
+
+This page is a map of the Vibe source for contributors. It shows where the code lives, what each part owns, and the path a file takes from open to sound. It names real classes and files, so you can jump straight to them.
+
+The detail lives in the `AGENTS.md` files beside the code. Most directories with rules of their own have one. They are written for anyone changing that code, people and coding agents alike. Each section below names the one to read next. The root [`AGENTS.md`](../AGENTS.md) holds the project-wide rules: building, checks, the cross-directory guarantees, and the vocabulary.
+
+## Two apps, one engine
+
+Vibe is two apps. The `Vibe` target is the macOS app. The `VibeiOS` target is the iPhone and iPad app. Both are written in Objective-C, with Objective-C++ where C++ is needed. The Home Screen widget, `VibeWidget`, is written in Swift.
+
+`Vibe.xcodeproj` is generated from `project.yml` by XcodeGen, and it is not checked in. Run `make project` after cloning, after pulling, and after any edit to `project.yml`.
+
+**The directory is the platform boundary.** Every directory directly under `Vibe/` is compiled into both apps, except `Mac/`, `iOS/`, and `ThirdParty/`. Inside a shared directory, only a `Mac/` or `iOS/` subdirectory is platform-specific. A new file in a shared directory joins the iOS app automatically. It must not use AppKit unless the code is guarded by `TARGET_OS_OSX`. `make check-layout` enforces the rule.
+
+Each app is a shell over the shared code. The shell owns the windows, the screens, and the gestures. The shared code owns playback, loading, the playlist model, metadata, and waveform drawing. The engine knows nothing about either shell. It reports back through a delegate.
+
+## The tree
+
+```
+Vibe/
+  Common/              settings, strings, platform aliases, the playable formats
+    Mac/               the macOS-only settings
+      Theme/           AppTheme, the theme record, and the theme store
+  Audio/               the playback engine: player, voice bus, master bus, output unit, file handle
+    FX/                the DJ effects and the pitch fader's varispeed
+    Metadata/          tags, the metadata cache, and the playlist scan
+      Artwork/         embedded art and the shared row thumbnails
+        FolderArt/     the cover image beside the files, for a file with no art (macOS)
+    Waveform/          waveform data: the decode, the chunks, and the disk cache
+    Analysis/          tempo and key detection
+    Levels/            the live output meter behind the equalizer bars
+    Mac/Devices/       CoreAudio output devices and bit-perfect output (macOS)
+    iOS/               the audio session and output recovery (iOS)
+  Loading/             from a path to a readable file
+    Claim/             which open runs, and when: the claim, admission, the handle ceiling
+    Transfer/          the bytes: downloads, progress, streaming, the network read-ahead
+    Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
+    iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
+  Playlist/            the playlist model, the folder walk, and CUE and M3U files
+    Mac/               the playlist table and the last-playlist store (macOS)
+  NowPlaying/          the system's Now Playing info and remote commands
+  Controls/            controls both apps draw the same way: equalizer bars, loading indicator
+  WaveformUI/          waveform drawing and the waveform theme
+    Renderers/         the waveform styles and the morph engine
+    Mac/               WaveformView (macOS)
+    iOS/               WaveformScrubberView (iOS)
+  Util/                helpers with no feature
+    Categories/        portable categories, such as NSURL+Hash
+    Mac/ and iOS/      the AppKit and UIKit categories
+  Debug/               the debug command channel, compiled into Debug builds only
+    Channel/           the transport: command and reply files
+    Verbs/             the commands both apps answer
+    Oracles/           consistency checks and load timing
+    Simulators/        stand-ins: a fake cloud, a fake HTTP host, the manual render pump
+    Seams/             debug-only categories over shared classes
+    Mac/ and iOS/      each app's command table, its own verbs, and its seams
+  Mac/                 the macOS app shell
+    App/               AppDelegate, the open funnel, sandbox grants, Open URL, updates
+    MainWindow/        MainPlayerController and the player window
+      Transport/       keys, skips, and FX toggles
+      Convert/         the playlist side of Convert to FLAC
+    Menu/              the menu bar
+    Controls/          AppKit controls: buttons, the pitch fader, artwork views
+    Settings/          the Settings window
+      Themes/          the theme list and editor
+    About/             the About window
+    Convert/           the FLAC encoder and its file round trip
+  iOS/                 the iOS app shell: PlaybackController, FolderSession, the tabs
+    Files/             the Files tab: browser, Recents, and Locations
+    Player/            the now-playing card
+    Search/            Favorites and Search
+    Settings/          the settings screens
+    Widget/            the app's side of the Home Screen widget
+  ThirdParty/          vendored code: TagLib, PINCache, r8brain, dr_mp3, dr_flac, dr_wav, Sparkle
+VibeWidget/            the widget extension, in Swift
+Tests/                 unit tests, laid out like Vibe/
+  AudioRender/         the audio suite: the real player, rendered with no device
+  Support/             shared test helpers
+  BenchComponents/     the component benchmarks, not tests
+  iOSDriver/           the touch driver for the iOS simulator, not tests
+Resources/             string catalogs, built-in themes, the app icon, the welcome track
+docs/                  docs for users and contributors (docs/README.md lists them)
+scripts/               build, check, string, release, App Store, web, and benchmark scripts
+project.yml            the XcodeGen spec for every target
+Makefile               every build, test, and check command
+```
+
+## The subsystems
+
+### Common
+
+`Vibe/Common/` is what everything else is written in terms of. It holds no feature. `AppSettings` is every stored preference, over `NSUserDefaults`. `AppStats` is every stored counter. The macOS-only settings are the `(Mac)` category in `Mac/AppSettings+Mac`. The theme store is `Mac/Theme/AppSettings+Themes`, and `Mac/Theme/AppTheme` is the theme record. `VibeStrings.h` declares every user-facing string as a `STR_*` macro. `PlayableExtensions` lists every audio extension the apps play. `DocumentTypes` reads back the document types the apps declare. `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. Read next: `Vibe/Common/AGENTS.md`. For themes, read `Common/Mac/AGENTS.md` and `Common/Mac/Theme/AGENTS.md`.
+
+### Audio
+
+`Vibe/Audio/` is the playback engine. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle` opens and reads one file. `AudioTrack` is one playlist row: a whole file, or a CUE sheet's window of one. Read next: `Vibe/Audio/AGENTS.md`. Its section "The model in one page" is the place to start.
+
+Each feature beside the engine has its own directory and doc:
+
+- **`FX/`**: `AudioFX` is the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `AudioVarispeed` is the pitch fader's stage, on macOS only. Doc: `Audio/FX/AGENTS.md`.
+- **`Metadata/`**: `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. `TagLibAudioFile` reads tags through TagLib. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `Audio/Metadata/AGENTS.md` and `Audio/Metadata/Artwork/FolderArt/AGENTS.md`.
+- **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. Doc: `Audio/Waveform/AGENTS.md`.
+- **`Analysis/`**: `AudioBPMAnalyzer` and `AudioKeyAnalyzer` ride the waveform's decode pass. Neither reads the file a second time. Key detection runs on macOS only. Doc: `Audio/Analysis/AGENTS.md`.
+- **`Levels/`**: `AudioLevelMeter` reads the final output inside the render and feeds the equalizer bars. Doc: `Audio/Levels/AGENTS.md`.
+- **`Mac/Devices/`**: `AudioDeviceManager` tracks the output devices. `AudioPlayer+Devices` binds the output unit to one. `AudioPlayer+BitPerfect` is bit-perfect and exclusive output. Doc: `Audio/Mac/Devices/AGENTS.md`.
+- **`iOS/`**: `AudioSessionController` manages the `AVAudioSession`. `AudioPlayer+Recovery` rebuilds the output when the system changes the route. Doc: `Audio/iOS/AGENTS.md`.
+
+### Loading
+
+`Vibe/Loading/` takes a path and hands back a readable `AudioFileHandle`. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns every download and open. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Dropbox/` is the Dropbox account (`DropboxClient`) and its local mirror (`DropboxMirror`). Read next: `Vibe/Loading/AGENTS.md` for how the code works, and `docs/file-loading-spec.md` for the behavior it must keep.
+
+### Playlist
+
+`Vibe/Playlist/` is the playlist model and how its rows are made. `Playlist` holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk` turns what the user opened into rows. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile` reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one row per track, each a window of its file. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
+
+### NowPlaying
+
+`Vibe/NowPlaying/NowPlayingController` publishes the playing track to the system and takes remote commands back. The lock screen, Control Center, CarPlay, AirPods, and the Mac's media keys all go through it. It owns no playback state. `MainPlayerController+NowPlaying` drives it on macOS, and `PlaybackController+NowPlaying` on iOS. Read next: `Vibe/NowPlaying/AGENTS.md`.
+
+### Controls
+
+`Vibe/Controls/` holds the controls both apps draw the same way. `EqualizerIndicatorView` is the bars that mark the playing row. It reads levels through an `EqualizerLevelSource`. It polls only while audio plays and the row can be seen. `LoadingIndicator` draws the loading bar and shimmer on the waveform. `LoadingIndicatorView` draws the small loading pill in a row's number gutter. Read next: `Vibe/Controls/AGENTS.md`.
+
+### WaveformUI
+
+`Vibe/WaveformUI/` draws waveforms. `Audio/Waveform/` makes the data, and this directory draws it. `WaveformTheme` is the one place a theme or setting becomes waveform colors. `Renderers/` holds the styles. `WaveformRendererRegistry` maps a style's identifier to its renderer. `WaveformMorphEngine` eases the bars from one shape to the next. `Mac/WaveformView` is the macOS view across the window. `iOS/WaveformScrubberView` is the iOS scrubber, with the play position fixed at the center. Read next: `Vibe/WaveformUI/AGENTS.md`, then the doc in `Renderers/`, `Mac/`, or `iOS/`.
+
+### Util
+
+`Vibe/Util/` is code with no feature. If you can name the feature a file serves, it belongs in that feature's directory instead. `FilePaths` compares paths by spelling, without touching the disk (`VibeComparablePath`). `Formatters` builds the info lines. `StallWatch` samples stuck threads for the beta logs. `Categories/` holds portable categories, such as `NSURL+Hash`. Its `cacheKey` keys the metadata and waveform caches. `Mac/` and `iOS/` hold the AppKit and UIKit categories. Read next: `Vibe/Util/AGENTS.md`.
+
+### Debug
+
+`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. `Channel/` is the transport. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. `Simulators/` holds stand-ins for a cloud provider and an HTTP host, and the manual render pump the audio tests use in place of a device. `Seams/` holds the `+Debug` categories that open a shipping class to the channel and the tests. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
+
+### The macOS shell
+
+`Vibe/Mac/` is the macOS app shell, with one directory per piece. `App/` holds `AppDelegate` and the services it owns. Those are the open funnel (`OpenBurstCoalescer`, `OpenRequestCoordinator`), sandbox folder grants (`FolderAccessManager`), Open URL (`OpenLinkWindowController`), updates through Sparkle (`AppDelegate+Updates`), and Save Debug Info (`DebugInfo`). `MainWindow/` is the player window. `MainPlayerController` coordinates it, and each of its categories owns one concern: `+Playlist`, `+Transport`, `+PlayerEvents`, `+Delivery`, `+Window`, `+Menus`, `+Settings`, `+NowPlaying`, and `+Convert`. `Menu/` builds the menu bar in code (`MainMenuBuilder`). `Controls/` holds the AppKit controls, such as `SymbolButton` and `PitchFaderView`. `Settings/` is the Settings window (`SettingsWindowController`). `Settings/Themes/` is the theme list and editor. `About/` is the About window. `Convert/` is Convert to FLAC (`AudioFileConverter`). Read next: `Vibe/Mac/App/AGENTS.md` and `Vibe/Mac/MainWindow/AGENTS.md`. The window's layout and chrome are in `Vibe/Mac/MainWindow/LAYOUT.md`.
+
+### The iOS shell
+
+`Vibe/iOS/` is the iPhone and iPad app shell. The folder the user opens is the playlist. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Audio/iOS/` and `Loading/iOS/Dropbox/`. Read next: `Vibe/iOS/AGENTS.md`.
+
+### The widget
+
+`VibeWidget/` is the Home Screen and Lock Screen widget extension, written in Swift. It has no engine and never reads an audio file. It draws the `VibeWidgetState` snapshot the app writes into a shared app group. The app's writer is `Vibe/iOS/Widget/WidgetPublisher`. Read next: `VibeWidget/AGENTS.md` and `Vibe/iOS/Widget/AGENTS.md`.
+
+### Third-party code
+
+`Vibe/ThirdParty/` is vendored code: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, and the prebuilt Sparkle framework. There is no package manager. The three dr_ libraries carry fixes of Vibe's own. Read `Vibe/ThirdParty/AGENTS.md` before changing them. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+
+### Tests, resources, and scripts
+
+`make test` runs `VibeTests`. These tests need no window, no audio device, and no running app. `make test-audio` runs `VibeAudioTests` from `Tests/AudioRender/`. It drives the real player and FX with no device. It checks the output with full PCM comparisons and signal-quality checks. A test lives in the `Tests/` directory that matches the code it tests. Read `Tests/AGENTS.md` before adding one. A check that needs the running app goes through the debug channel instead.
+
+`Resources/` holds the string catalogs, the built-in themes (`Themes/*.json`), the app icon, and the bundled welcome track. `make strings` writes `Localizable.xcstrings`. Never edit that file by hand. Read `Resources/AGENTS.md`, and `Resources/Themes-README.md` before making a theme.
+
+`scripts/` holds what the `Makefile` runs. Most scripts have a `make` target, and the `Makefile` comments each one. Releases go through the `vibe-release` skill.
+
+## From open to sound
+
+This is the path a file takes from the moment the user opens it to the moment it plays. Each step names the class and the file to read.
+
+```
+ the user opens a file or folder
+   │
+ shell open funnel ──► FolderWalk ──► rows (AudioTrack) ──► Playlist
+   │
+ AudioPlayer play:                     player queue
+   │
+ AudioFileMaterializationCoordinator   Loading/Claim
+   │   stage 1: make the file local    Loading/Transfer
+   │   stage 2: open it
+   ▼
+ AudioFileHandle                       parser, decoder, stream or read-ahead
+   │
+ AudioVoiceBus                         decode pool → ring → gain → mix
+   │
+ VibeMasterBusRender                   voice bus → [varispeed] → [FX] → [meter] → [volume]
+   │
+ AudioOutputUnit                       HALOutput on macOS, RemoteIO on iOS
+```
+
+### 1. The open funnel
+
+**On macOS** every way a file arrives lands in `AppDelegate` (`Mac/App/AppDelegate.m`). That covers a Finder double-click, ⌘O, Open Recent, a drop on the window, Open URL, and a launch argument. `OpenBurstCoalescer` joins the batches that Launch Services splits one open into. `OpenRequestCoordinator` delivers finished expansions in order, and drops any that a newer open replaced. `openURLsWithRestoredAccess:token:` reads the folder sort setting on main. It hands the URLs to `FolderWalk expandAndFilterList:sortedBy:completion:` (`Playlist/FolderWalk.m`). The walk runs on a background queue. The walk returns rows, and each row is an `AudioTrack`. `deliverExpandedRows:folderCount:appending:fromURLs:` passes them to `MainPlayerController`'s `play:` or `addTracks:`. `loadTracks:selectingIndex:startPaused:` loads them into the model through `PlaylistController loadTracks:selectingIndex:`. Then `playStartPaused:` calls `AudioPlayer play:`.
+
+**On iOS** every open starts in `PlaybackController+Opening`. It calls `FolderSession` (`iOS/FolderSession.m`). The prologue, `beginOpenURLs:appending:expandsFile:grantedFolder:`, runs on main. It finds the grant that covers each URL and reads the folder sort setting. The worker, `openURLsOnWorkQueue:`, lists the rows through `FolderWalk rowsInDirectory:sortedBy:` and mints the bookmarks. `finishOpenIntent:` lands the result on main. The delegate call `folderSession:didOpenTracks:folderURL:selectedURL:restored:` hands the rows to `Playlist replaceAllWithTracks:startingAtIndex:`. Then `playCurrentTrack` (`iOS/PlaybackController.m`) activates the audio session and calls `AudioPlayer play:`.
+
+Read `Vibe/Mac/App/AGENTS.md` ("Opening files is a funnel, not an event") and `Vibe/iOS/AGENTS.md` ("FolderSession").
+
+### 2. The player takes the request
+
+`AudioPlayer play:` (`Audio/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`Loading/Claim/AudioFileOpenTimeoutMath.h`). An open still running after half a second shows Loading on screen.
+
+Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
+
+### 3. Loading
+
+`AudioFileMaterializationCoordinator openURL:purpose:completionQueue:onDataless:completion:` (`Loading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. A file therefore never downloads twice.
+
+**Stage 1 makes the file local.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A local file is ready at once, with no download and no wait. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
+
+**Stage 2 opens the handle** (`AudioFileMaterializationCoordinator+HandleOpen.m`). At most six handle opens run at once. Each calls `AudioFileHandle initForReading:interleaved:interrupted:error:` on a worker. The handle is delivered back on the player queue.
+
+Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registry") and `docs/file-loading-spec.md`.
+
+### 4. AudioFileHandle
+
+`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. It opens CoreAudio's parser once (`initParserForReading:`) for the file's facts. Then it picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). FLAC uses dr_flac, and WAV and AIFF use dr_wav. Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
+
+A handle reads its bytes in one of three ways:
+
+- A local file is read directly.
+- A file still downloading is read from its part file. Each read waits for the bytes it needs (`CloudFileMaterializer availabilityForURL:`, `CloudFileAvailability`).
+- A file on a network mount is read from the blocks `NetworkReadAhead` fetches ahead on its own thread.
+
+Every wait for bytes can be interrupted (`interruptReads`). A stalled server or download therefore never holds a decode queue for good.
+
+Read `Vibe/Audio/AGENTS.md` ("The decoders", "Reading a file still downloading", and "Reading ahead on a network mount").
+
+### 5. Settlement
+
+`finishPlayOnQueueWithFile:error:openRequestId:` (`AudioPlayer.m`) receives the handle on the player queue. It drops the result of an open that a newer play replaced or that timed out. `ensureSourceSegmentOnQueueRebuilt:` (`AudioPlayer+Pipeline.m`) builds the render pipeline at the first settlement. It rebuilds it only when the output's format or mode changes. `startVoiceOnQueueForFile:…` starts a voice on the voice bus. `startOutputOnQueue:` starts the output unit. The player publishes Playing, or Paused for a parked start. It sends `didStartPlaying:` to the shell on main. The delivery is dropped if a newer play was submitted meanwhile (`submittedPlayIsCurrent:`).
+
+### 6. The voice bus
+
+A voice is one file being rendered. `AudioVoiceBus` has eight slots. Each slot holds a ring buffer of at least one second. The work is split across three files and three kinds of thread.
+
+- **The queue side** (`AudioVoiceBus.m`) runs on the player queue. It starts and kills voices, sets their gain ramps, and hands the next file to a voice for a gapless change. The player's drain (`drainVoiceBusOnQueue`, in `AudioPlayer+Pipeline.m`) collects each voice's events: it went live, it crossed into the next file, or it ended.
+- **The decoder side** (`AudioVoiceBus+Decoder.m`) runs on a pool of eight serial decode queues. It reads the file through its handle and fills the voice's ring in turns of 4096 frames. It converts every file to the bus format: float32 stereo at the output's rate. A channel difference is mixed down first. A rate difference goes through `VibeResampler` (`AudioResampler.mm`). It runs r8brain-free-src.
+- **The audio thread** (`AudioVoiceBusRender.m`) runs `VibeVoiceBusRender`. It mixes every live voice into the output buffers at its per-frame gain. It is plain C under `CA_REALTIME_API`. A lock, an allocation, or an Objective-C message there is a build error.
+
+Crossfades, the declick, pauses, and seeks are all gain ramps on voices. A seek starts a new voice at the target and fades the old one out beside it.
+
+Read `Vibe/Audio/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, pauses and seeks").
+
+### 7. The master bus
+
+`VibeMasterBusRender` (`Audio/AudioMasterBus.m`) is the one render function on both platforms. For each slice of output it runs these stages in order:
+
+1. The voice bus, through `VibeVoiceBusRender`.
+2. The varispeed, only while the pitch is not zero (`VibeVarispeedRender`, `FX/AudioVarispeed.m`, macOS only).
+3. The FX, only while an effect is engaged or its tail still rings (`VibeFXChainRender`, `FX/AudioFX.m`).
+4. The meter, only while the equalizer bars want levels (`VibeLevelMeterRender`, `Levels/AudioLevelMeter.m`).
+5. The volume, skipped at exactly full volume.
+
+With the pitch at zero, no effect engaged, and full volume, the master bus leaves the voice bus's samples untouched.
+
+Read `Vibe/Audio/AGENTS.md` ("The model in one page"), `Audio/FX/AGENTS.md`, and `Audio/Levels/AGENTS.md`.
+
+### 8. The output unit
+
+`AudioOutputUnit` (`Audio/AudioOutputUnit.m`) hosts Apple's output audio unit. Its render callback calls `VibeMasterBusRender`. On macOS it is HALOutput, bound to the chosen device by `AudioPlayer+Devices` (`Audio/Mac/Devices/`). Bit-perfect output may also switch the device to the file's rate (`AudioPlayer+BitPerfect`). On iOS it is RemoteIO, routed by `AVAudioSession` (`AudioPlayer+Recovery` and `AudioSessionController`, in `Audio/iOS/`). Binding, configuring, starting, and stopping the unit run on its own serial queue. A slow device then cannot hold the player queue.
+
+Read `Vibe/Audio/Mac/Devices/AGENTS.md` and `Vibe/Audio/iOS/AGENTS.md`.
+
+### 9. After the start
+
+Each shell handles `didStartPlaying:`. On macOS it is `performPerTrackRefreshForStartedTrack:` (`MainPlayerController+PlayerEvents.m`). On iOS it is `PlaybackController+PlayerEvents.m`. The shell asks the player to prefetch what follows (`AudioPlayer prefetchTrack:` with `Playlist.trackEndSuccessor`). The prefetch opens the next file early through the same coordinator. For a gapless change, the player queues that file on the current voice (`AudioPlayer+Prefetch.m`). The shell then asks for the playing track's metadata and starts the deferred metadata scan. The scan waits for the open to settle, with a two-second fallback (`scheduleDeferredMetadataLoad`). Its downloads also yield while the user waits on an open. The macOS shell also starts the waveform load (`AudioWaveformCache loadWaveformForTrack:`).
+
+Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AGENTS.md`.
+
+### Who runs where
+
+| Thread or queue | What runs there |
+| --- | --- |
+| Main | both shells, all UI, and every `AudioPlayer` delegate callback |
+| The player queue (serial) | the transport, open settlement, and the voice bus's drain |
+| The coordinator's state queue and workers | claims, probes, downloads, and handle opens |
+| The decode pool (eight serial queues per bus) | file reads and format conversion |
+| The output unit's queue (serial) | device binding, configuration, start, and stop |
+| The audio thread | `VibeMasterBusRender` and everything it calls |
+| One read-ahead thread per handle | reads of a file on a network mount |
+
+## Where to look for what
+
+| I want to change | Read | Start in |
+| --- | --- | --- |
+| A setting, or add one | `Common/AGENTS.md` | `Common/AppSettings.h` or `Common/Mac/AppSettings+Mac.h` |
+| A user-facing string | [localization.md](localization.md), the `vibe-strings` skill | `Common/VibeStrings.h`, then `make strings` |
+| Which formats play | `Audio/AGENTS.md` (the decoders) | `Common/PlayableExtensions.m`, `Audio/AudioFileHandle.m` |
+| How a file is decoded | `Audio/AGENTS.md`, `ThirdParty/AGENTS.md` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m` |
+| Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `Audio/FadeMath.h` |
+| Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |
+| What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |
+| Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBus.m`, `Audio/AudioMasterBus.m` |
+| Sample-rate conversion | [audio-quality.md](audio-quality.md) | `Audio/AudioResampler.mm` |
+| DJ effects or pitch | `Audio/FX/AGENTS.md` | `Audio/FX/AudioFX.m`, `Audio/FX/AudioVarispeed.m` |
+| Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m` |
+| The iOS audio session and routes | `Audio/iOS/AGENTS.md` | `Audio/iOS/AudioSessionController.m` |
+| Cloud downloads, their order, the loading bar | `Loading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `Loading/Claim/AudioFileMaterializationCoordinator.m` |
+| Playing a file that is still downloading | `Loading/AGENTS.md` (CloudFileAvailability) | `Loading/Transfer/CloudFileAvailability.m` |
+| Files on a network share | `Loading/AGENTS.md` (The network-mount read-ahead) | `Loading/Transfer/NetworkReadAhead.m` |
+| Open URL and links | `Loading/Net/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
+| Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
+| Tags, the metadata cache, or the scan | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/AudioTrackMetadataLoader.m` |
+| Artwork and row thumbnails | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/Artwork/AudioTrackArtwork.m` |
+| Cover images beside the files | `Audio/Metadata/Artwork/FolderArt/AGENTS.md` | `Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
+| Tempo or key detection | `Audio/Analysis/AGENTS.md` | `Audio/Analysis/AudioBPMAnalyzer.mm`, `Audio/Analysis/AudioKeyAnalyzer.mm` |
+| Waveform data or its cache | `Audio/Waveform/AGENTS.md` | `Audio/Waveform/AudioWaveformLoader.mm` |
+| How a waveform looks, or a new style | `WaveformUI/AGENTS.md`, `WaveformUI/Renderers/AGENTS.md` | `WaveformUI/Renderers/WaveformRendererRegistry.mm` |
+| The equalizer bars | `Controls/AGENTS.md`, `Audio/Levels/AGENTS.md` | `Controls/EqualizerIndicatorView.m` |
+| How files open on macOS | `Mac/App/AGENTS.md` | `Mac/App/AppDelegate.m` |
+| The folder walk, its sort order, CUE or M3U | `Playlist/AGENTS.md` | `Playlist/FolderWalk.m`, `Playlist/PlaylistFile.m` |
+| The macOS player window | `Mac/MainWindow/AGENTS.md`, `Mac/MainWindow/LAYOUT.md` | `Mac/MainWindow/MainPlayerController.m` |
+| Keyboard shortcuts and skips | `Mac/MainWindow/Transport/AGENTS.md` | `Mac/MainWindow/Transport/TransportKeyMonitor.m` |
+| The macOS playlist table | `Playlist/Mac/AGENTS.md` | `Playlist/Mac/PlaylistController.m` |
+| The menu bar | `Mac/Menu/AGENTS.md` | `Mac/Menu/MainMenuBuilder.m` |
+| The macOS Settings window | `Mac/Settings/AGENTS.md` | `Mac/Settings/SettingsWindowController.m` |
+| Themes | [themes.md](themes.md), `Common/Mac/Theme/AGENTS.md` | `Common/Mac/Theme/AppTheme.m`, `Resources/Themes/` |
+| Convert to FLAC | `Mac/Convert/AGENTS.md` | `Mac/Convert/AudioFileConverter.m` |
+| Sandbox folder grants on macOS | `Mac/App/AGENTS.md` (Sandbox grants) | `Mac/App/FolderAccessManager.m` |
+| Updates through Sparkle | `Mac/App/AGENTS.md` (Updates) | `Mac/App/AppDelegate+Updates.m` |
+| The iOS model and opening folders | `iOS/AGENTS.md` | `iOS/PlaybackController.m`, `iOS/FolderSession.m` |
+| The iOS now-playing card | `iOS/Player/AGENTS.md`, `WaveformUI/iOS/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
+| The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |
+| The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md` | `iOS/Widget/WidgetPublisher.m` |
+| The lock screen and media keys | `NowPlaying/AGENTS.md` | `NowPlaying/NowPlayingController.m` |
+| A debug command | the `vibe-debug` skill, `Debug/AGENTS.md` | `Debug/Verbs/`, `Debug/Mac/`, `Debug/iOS/` |
+| Tests | `Tests/AGENTS.md` | the `Tests/` directory that matches the code |
+| Performance | the `vibe-perf` skill, [performance.md](performance.md) | `Tests/BenchComponents/` |
+| Targets and build settings | the root `AGENTS.md` (Building) | `project.yml`, `Makefile` |
+
+Paths in the "Read" and "Start in" columns are under `Vibe/` unless they name a top-level directory or a doc here in `docs/`.

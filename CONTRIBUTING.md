@@ -4,6 +4,8 @@ Bug fixes and localization work are always welcome!
 
 Please open an issue for a small item and a pull request for a larger one.
 
+New to the code? [docs/architecture.md](docs/architecture.md) maps the directories and follows a file from open to sound.
+
 ## Building
 
 Requirements and generating the Xcode project are in the [README](README.md#development). From the command line:

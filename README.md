@@ -110,6 +110,7 @@ open Vibe.xcodeproj
 
 Build and run the `Vibe` scheme with ⌘R. Command-line builds, tests and editor setup are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
+- **Architecture**: how the code is laid out, and the path a file takes from open to sound. [docs/architecture.md](docs/architecture.md)
 - **Localization**: adding a string, adding a language, testing one. [docs/localization.md](docs/localization.md)
 - **Releasing to the App Store**: credentials, localized product-page assets, metadata upload, shipping a build. [docs/app-store-releasing.md](docs/app-store-releasing.md)
 
