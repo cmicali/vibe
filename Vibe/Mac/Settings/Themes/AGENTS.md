@@ -1,6 +1,6 @@
 # Themes pane: the theme list and editor
 
-The Themes pane (identifier `themes`) is `SettingsThemesViewController`. The Appearance pane is `SettingsAppearanceViewController` (`../AGENTS.md`). The Themes pane has two pages. The list page, the page swap, import, export and the drop target are in the class file. The editor page is `+Editor.m`, with `SettingsThemesViewControllerInternal.h` carrying its outlets and the list-side methods it calls. Scaffolding and sizing are `../AGENTS.md`. The theme record and its sanitization gate are `Common/Mac/Theme/AGENTS.md`, and the theme store is `Common/Mac/AGENTS.md`.
+The Themes pane (identifier `themes`) is `SettingsThemesViewController`. The Appearance pane is `SettingsAppearanceViewController` (`../AGENTS.md`). The Themes pane has two pages. The list page, the page swap, import, export and the drop target are in the class file. The editor page is two categories. `+Editor.m` builds it, with one builder per section. `+EditorActions.m` holds its layout state, its refresh and every row's action. `SettingsThemesViewControllerInternal.h` carries the editor's outlets, the list-side methods it calls and the actions the builders name. Scaffolding and sizing are `../AGENTS.md`. The theme record and its sanitization gate are `Common/Mac/Theme/AGENTS.md`, and the theme store is `Common/Mac/AGENTS.md`.
 
 ## The list page
 

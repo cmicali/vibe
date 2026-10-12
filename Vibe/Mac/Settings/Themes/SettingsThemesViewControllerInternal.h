@@ -2,8 +2,9 @@
 //  SettingsThemesViewControllerInternal.h
 //  Vibe
 //
-//  Shared only between SettingsThemesViewController.m and its Editor
-//  category: the editor page's outlets and the list-side methods it calls.
+//  Shared only between SettingsThemesViewController.m and its Editor and
+//  EditorActions categories: the editor page's outlets, the list-side methods
+//  it calls, and the editor's state and actions.
 //
 
 #import "SettingsThemesViewController.h"
@@ -14,6 +15,17 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Both pages' popups; a cap, not a size.
 static const CGFloat kAppearancePopUpWidth = 220;
+
+// A color well's binding to one side of its theme pair; see wellForDark:base:effect:.
+static NSString *const kWellBase = @"base";
+static NSString *const kWellEffect = @"effect";
+static NSString *const kWellDark = @"dark";
+
+// Not a symbol-name shape, so it can never reach a glyph field.
+static NSString *const kGlyphChoiceCustomImage = @"custom-image";
+
+// The other choice is SETTINGS_VALUE_WINDOW_TINT_CUSTOM, every Custom item's.
+static NSString *const kChoiceStandard = @"standard";
 
 @interface SettingsThemesViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
@@ -103,6 +115,42 @@ static const CGFloat kAppearancePopUpWidth = 220;
 // The editor's first edit of a built-in copies it into a new active theme.
 // Answers whether it did; every edit path runs it before persisting.
 - (BOOL)forkBuiltInForEdit;
+
+@end
+
+#pragma mark - Implemented in SettingsThemesViewController+EditorActions.m
+
+@interface SettingsThemesViewController (EditorActions) <NSFontChanging, NSTextFieldDelegate>
+
+- (void)refreshEditorFromSettings;
+
+// Closes the font panel and deactivates every color well.
+- (void)closeEditorPanels;
+
+// resolveLayoutStateFromSettings is implemented here too: every conditional
+// row is the editor's. It ends in applyEditorVisibility.
+
+// The rows' targets, which the builders in +Editor.m name.
+- (void)themeModeChanged:(id)sender;
+- (void)colorWellChanged:(NSColorWell *)sender;
+- (void)backgroundStyleChanged:(id)sender;
+- (void)windowTintChanged:(id)sender;
+- (void)cornerRadiusModeChanged:(NSPopUpButton *)sender;
+- (void)cornerRadiusChanged:(id)sender;
+- (void)clearCustomImage:(NSButton *)sender;
+- (void)chooseImage:(NSButton *)sender;
+- (void)buttonGlyphChanged:(NSPopUpButton *)sender;
+- (void)buttonGradientChanged:(id)sender;
+- (void)volumeBarChanged:(id)sender;
+- (void)volumeKnobChanged:(id)sender;
+- (void)volumeLocationChanged:(id)sender;
+- (void)volumeVisibilityChanged:(id)sender;
+- (void)waveformBarSizingChanged:(NSSlider *)sender;
+- (void)waveformThemeChanged:(id)sender;
+- (void)playlistColorModeChanged:(NSPopUpButton *)sender;
+- (void)playlistBackgroundStyleChanged:(id)sender;
+- (void)playlistTintChanged:(id)sender;
+- (void)selectFont:(NSButton *)sender;
 
 @end
 

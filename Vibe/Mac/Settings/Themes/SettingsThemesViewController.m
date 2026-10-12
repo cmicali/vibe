@@ -3,8 +3,9 @@
 //  Vibe
 //
 //  The list page, the page swap and the theme file actions (import, export,
-//  the drop target). The editor page is the Editor category; the state they
-//  share is SettingsThemesViewControllerInternal.h.
+//  the drop target). The Editor category builds the editor page, and the
+//  EditorActions category holds its state and actions. The state they share
+//  is SettingsThemesViewControllerInternal.h.
 //
 //  The editor swaps in beside the section stack and scrolls inside whatever
 //  height the panes settled at, so its rows never grow every pane.

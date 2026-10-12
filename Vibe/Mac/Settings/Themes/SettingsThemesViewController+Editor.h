@@ -4,6 +4,8 @@
 //
 //  The Themes pane's editor page. It edits whatever theme is active —
 //  selection IS activation — so nothing is handed over on the page swap.
+//  The Editor category builds the page. EditorActions holds its state and
+//  actions, declared in SettingsThemesViewControllerInternal.h.
 //
 
 #import "SettingsThemesViewController.h"
@@ -12,18 +14,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SettingsThemesViewController (Editor) <NSFontChanging, NSTextFieldDelegate>
+@interface SettingsThemesViewController (Editor)
 
 // A hidden sibling of the section stack. Runs after loadPaneWithSections:.
 - (void)buildEditorPage;
-
-- (void)refreshEditorFromSettings;
-
-// Closes the font panel and deactivates every color well.
-- (void)closeEditorPanels;
-
-// resolveLayoutStateFromSettings is implemented here too: every conditional
-// row is the editor's. It ends in applyEditorVisibility.
 
 @end
 
