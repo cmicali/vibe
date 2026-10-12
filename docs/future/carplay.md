@@ -1,86 +1,75 @@
 # Future: CarPlay
 
-**Status: planned, not implemented (verified 2026-09-27).** The only CarPlay code is route classification, `VibeOutputRouteKindCarPlay`.
+**Status: Not built.** The only CarPlay code is route classification, `VibeOutputRouteKindCarPlay`.
 
-## The question this started from, and its answer
+## The waveform stays on the phone
 
-*Can the waveform scrubber come to CarPlay?* **No** — and it is a platform no, not a hard problem. The rest of the app can go, and should; the waveform stays on the phone.
+A CarPlay app does not render. It hands the system templates (`CPTabBarTemplate`, `CPListTemplate`, `CPSearchTemplate`, `CPNowPlayingTemplate`, `CPAlertTemplate`, `CPActionSheetTemplate`). The head unit draws them in the car maker's style. There is no view, no layer and no touch delivery. The app gets selection callbacks, never gestures. `CPMapTemplate` is the one template with a drawing surface. It belongs to navigation, EV-charging, parking and food-ordering apps, and an audio app cannot get it. So the waveform scrubber has no surface in the car.
 
-A CarPlay app does not render. It hands the system a stack of templates — `CPTabBarTemplate`, `CPListTemplate`, `CPSearchTemplate`, `CPNowPlayingTemplate`, `CPAlertTemplate`, `CPActionSheetTemplate` — and the head unit draws them, in the car maker's styling, on the far side of the CarPlay link. There is no view, no layer, no drawing surface, and **no touch delivery**: the app receives *selection* callbacks from templates, never gestures. The one framework with a real rendering surface, `CPMapTemplate`, belongs to the navigation, EV-charging, parking and food-ordering entitlements; an audio app cannot get it, and Apple will not grant one to a music player. That is the point of the template model — driver-distraction limits are enforced by making custom UI unexpressible.
+Dead ends, so they are not explored again:
 
-So the scrubber has no surface to live on, and even a static picture of one has no way to receive a drag.
+- **A waveform drawn into `MPMediaItemArtwork`.** It receives no touch. The lock screen and Control Center share it, so republishing it on a timer rewrites their artwork too. Animated custom content there is what CarPlay review rejects.
+- **`CPNowPlayingButton` glyphs.** At most five small images. A button image is not a canvas.
+- **A waveform thumbnail as the `CPListItem` image.** Legal, but it is not scrubbing, and at row size a waveform reads as noise.
 
-**Three dead ends, so they are not re-explored:**
+## Seeking in the car
 
-- **Waveform rendered into `MPMediaItemArtwork`.** The artwork is a request-handler returning a `UIImage`, so it *can* hold a waveform. It is still non-interactive (no touch reaches it), pull-based and cached rather than a frame surface, shared with the lock screen and Control Center — republishing it on a timer rewrites the artwork everywhere on the phone too — and animated custom content in the now-playing slot is what CarPlay entitlement review exists to reject.
-- **`CPNowPlayingButton` glyphs.** Up to five, small, and a button image is not a canvas.
-- **A waveform thumbnail as the `CPListItem` image.** This one is actually legal — a small, static, per-track picture. It is also not scrubbing, and at list-row size a waveform reads as noise. Mentioned only because it is the sole place waveform pixels could legitimately appear in a car.
+Whether `CPNowPlayingTemplate` offers a draggable scrubber is up to the head unit. Some offer none. There, `changePlaybackPositionCommand` (`NowPlayingController`) is unreachable. `skipForwardCommand` and `skipBackwardCommand` are then the only in-car seek. Both are in `NowPlayingController`'s disabled set today.
 
-## The seek story, which is the real value add
+- **They are seconds, not bars.** `MPSkipIntervalCommand.preferredIntervals` is a list of second counts, and the head unit draws the number on the glyph. The mac's bar-based skip cannot be expressed. A "±1 bar" drawn as "±7" is worse than 15 or 30.
+- **Enabling them changes the phone.** The command center is process-global. The system picks which enabled commands fill the compact transport, and the skip pair takes the place of next and previous (the `TRAP` in `NowPlayingController.m`). So enable skip only while a CarPlay scene is connected, or not at all.
+- Everything else the car needs already works. `NowPlayingController` publishes title, artist, artwork, duration and rate. It routes play, pause, toggle, next, previous, shuffle and repeat to the same transport entry points the on-screen controls use (`PlaybackController+NowPlaying.m`).
 
-`CPNowPlayingTemplate`'s progress display is system-drawn, and **whether it offers a draggable scrubber at all is up to the head unit**. On the author's own car it does not: there is no way to seek within a track in CarPlay's Now Playing screen, so `changePlaybackPositionCommand` — which the app already implements (`NowPlayingController`) — is simply unreachable there.
+## What already works with no code
 
-That makes `skipForwardCommand` / `skipBackwardCommand` the only in-car seek on such a unit, and therefore the one genuinely new *capability* on this whole list rather than a nicety. Both are currently in `NowPlayingController`'s disabled command set, correctly, because the app models neither.
+On a CarPlay head unit Vibe's audio already plays. The car's own now-playing screen shows the track, artwork and elapsed time. Play, pause, next, previous and steering-wheel controls work, because Vibe is the active Now Playing app. The entitlement adds a Vibe icon on the CarPlay home screen and choosing a track without the phone. That is the whole deliverable.
 
-Notes for whoever implements them:
+## What building it involves
 
-- **They are seconds, not bars.** `MPSkipIntervalCommand.preferredIntervals` is a list of second counts, and the head unit draws the chosen number on the glyph. The mac's bar-based skip cannot be expressed through it, and a "±1 bar" that renders as "±7" is worse than 15/30.
-- **TRAP: enabling them changes the phone; verify before shipping.** `MPRemoteCommandCenter` is process-global — the same registration feeds CarPlay, the lock screen, Control Center, AirPods and the mac's media keys. The system has historically chosen between next/previous-track and skip-interval buttons in the compact transport when both are enabled, podcast-style. If enabling skip costs the lock screen its next/previous buttons, that is a bad trade for a phone-first music player and the commands may have to be enabled *only while a CarPlay scene is connected*. Check this on a real device before deciding; it is the one thing that could make this change not worth making.
-- Everything else the car needs is already live. `NowPlayingController` publishes title, artist, artwork, duration and rate, and routes play, pause, toggle, next and previous back to the same transport entry points the on-screen controls use (the `nowPlayingController…` delegate methods in `PlaybackController+NowPlaying.m`).
+### 1. The entitlement
 
-## What already works today, with no code at all
+`com.apple.developer.carplay-audio` is requested from Apple through the CarPlay request form and granted per App ID. It is free and slow. It is one more key in `Vibe/iOS/Vibe.entitlements`, which `CODE_SIGN_ENTITLEMENTS` already wires. The target signs with `CODE_SIGN_STYLE: Automatic`.
 
-Plugging the phone into a CarPlay head unit already routes Vibe's audio, shows the track, artwork and elapsed time on the car's own now-playing screen, and gives play/pause, next, previous and steering-wheel controls — because the app is the system's active Now Playing app. What the entitlement buys on top is a **Vibe icon on the CarPlay home screen** and the ability to choose a track without picking up the phone. That is the whole deliverable; it is worth being clear-eyed that the audio already plays fine.
+The CarPlay simulator display is reported to work with the key present but not yet granted. A device build needs the real grant.
 
-## What building it actually involves
+### 2. A second scene, one engine
 
-### 1. The entitlement, which is a gate
+CarPlay is a `CPTemplateApplicationSceneSessionRoleApplication` scene, live beside the window scene. Today the app is single-scene on purpose. `project.yml` sets `UIApplicationSupportsMultipleScenes: false`, because `VibeiOSSceneDelegate` creates the one `PlaybackController` (its `_playback` ivar) and a second scene would create a second player.
 
-`com.apple.developer.carplay-audio`, requested from Apple through the CarPlay request form and granted per App ID. Manual, free, and slow. VibeiOS already has an entitlements file, for the widget's app group (`Vibe/iOS/Vibe.entitlements`, wired by `CODE_SIGN_ENTITLEMENTS` in the iOS target's `settings.base`), so this is one more key in that file. The target signs with `CODE_SIGN_STYLE: Automatic` and an empty `PROVISIONING_PROFILE_SPECIFIER`.
+CarPlay needs a second view of the one engine. The change:
 
-Simulator testing with the entitlement key present but not yet granted is *reported* to work (Simulator ▸ I/O ▸ External Displays ▸ CarPlay); a device build needs the real grant. Verify before planning a schedule around it.
+- **Move `PlaybackController` ownership to `VibeiOSAppDelegate`.** It already owns launch-time setup. Both scene delegates then borrow the one instance.
+- **Restate the rule as "one window scene"** in `project.yml`'s manifest comment and in the "Multi-scene is off" paragraph of `Vibe/iOS/AGENTS.md`.
+- **Join the existing observers.** `PlaybackController` already broadcasts to an ordered weak list of `PlaybackObserver`s on main. The CarPlay templates join it.
 
-### 2. A second scene, which collides with a documented decision
+`Vibe/iOS/Info.plist` is generated by XcodeGen and gitignored. Every plist change goes in `project.yml`'s `info.properties`.
 
-CarPlay is a `CPTemplateApplicationSceneSessionRoleApplication` scene, live *alongside* the window scene. Today the app is deliberately single-scene, and `project.yml`'s manifest says why: `UIApplicationSupportsMultipleScenes: false`, commented "a second scene would spawn a second engine" — because `VibeiOSSceneDelegate` owns the one `PlaybackController` (its `_playback` ivar).
+### 3. The library
 
-CarPlay does not want a second engine; it wants a second *view* of the one that exists. The change is therefore:
+Vibe's model is that the picked folder is the playlist. The pick comes from the Files tab or the system document picker, and no template browses Files. In the car the app can offer only what it holds: the current or restored `FolderSession` and the files under `SearchFolderStore`'s persistent roots. `FileSearchIndex` already indexes those roots. CarPlay needs a presentation of that library, not a second persistence model.
 
-- **Hoist `PlaybackController` ownership to `VibeiOSAppDelegate`**, which today owns launch-time setup (logging, the Dropbox backend and account warm-up, the debug hook). Both scene delegates then borrow the one instance.
-- **Restate the guarantee as "one window scene", not "one scene"**, in `project.yml`'s manifest comment and in `Vibe/iOS/AGENTS.md`'s "Multi-scene is off" paragraph. Whether the flag must literally flip to `true` for a template scene to coexist with the window scene needs checking against the current docs; the ownership move is required either way.
-- **The fan-out is already the right shape.** `PlaybackController` broadcasts to an ordered weak `NSPointerArray` of `PlaybackObserver`s on main because several views describe the same playback at once, including the browser. The CarPlay list and now-playing templates can join that existing observer mechanism.
+Templates: a `CPListTemplate` of persistent roots, a `CPListTemplate` of the open folder's tracks (`isPlaying` on the current row), a `CPSearchTemplate` over the match `SearchViewController` uses, and `CPNowPlayingTemplate`.
 
-**`Vibe/iOS/Info.plist` is generated by XcodeGen and gitignored** (`.gitignore`) — every plist change above goes in `project.yml`'s `info.properties` block, never in the file.
+### 4. Cloud folders
 
-### 3. The library problem, which is the interesting one
-
-Vibe's model is *the picked folder is the playlist*, and the pick comes from the app's own Files tab (Dropbox, the device, granted folders) or the system document picker. **Neither exists in CarPlay, and no template browses Files.** In the car the app can only offer what it already holds: the current or restored `FolderSession` plus files reachable under `SearchFolderStore`'s persistent roots.
-
-The persistent root list and its bounded, concurrent bookmark restoration already exist, as does `FileSearchIndex` over those roots. CarPlay therefore needs a presentation of that library, not a second recent-folders persistence model.
-
-Templates then fall out easily: a `CPListTemplate` of persistent roots, a `CPListTemplate` of the open folder's tracks (`isPlaying` on the current row, which is the template vocabulary's version of `EqualizerIndicatorView`), `CPSearchTemplate` over the same match that `SearchViewController` uses, and `CPNowPlayingTemplate`.
-
-### 4. Cloud folders degrade silently, and that is accepted
-
-A dataless track can take seconds to make a sound. Dropbox can now start before its download completes; the iCloud provider path still waits for materialization. The phone's loading indicator reads transfer progress from `CloudTransferRegistry`, backed by `DownloadProgressMonitor` (`Loading/AGENTS.md`). The CarPlay design has no equivalent custom progress fill; use the list-item spinner while the open is pending. The deferred metadata sweep, foreground-transfer rule and a stream's mid-track buffering still apply.
+A dataless track can take seconds to sound. The phone's loading fill reads `CloudTransferRegistry` (`Loading/AGENTS.md`). CarPlay has no custom progress fill, so use the list item's spinner while the open is pending. This is accepted.
 
 ## Files
 
-The new directory and types proposed below need an explicit complexity-budget
-exception before implementation; this list is a proposal, not an approved expansion.
+The new directory and types below need a complexity-budget exception before work starts.
 
-- `project.yml` — iOS `info.properties` scene manifest, `CODE_SIGN_ENTITLEMENTS`, `CarPlay.framework` in `dependencies`, and the stale single-scene comment.
-- `Vibe/iOS/Vibe.entitlements` — add `com.apple.developer.carplay-audio`.
-- `Vibe/iOS/VibeiOSAppDelegate.{h,m}` — becomes the `PlaybackController` owner.
-- `Vibe/iOS/VibeiOSSceneDelegate.m` — borrows it instead of creating it.
-- `Vibe/iOS/CarPlay/` — new: the `CPTemplateApplicationSceneDelegate` and the template controllers, a `PlaybackObserver` between them. Under `Vibe/iOS/` rather than a shared subsystem, since CarPlay is iOS-only by construction.
-- `Vibe/iOS/Search/SearchFolderStore.{h,m}` and `FileSearchIndex.{h,m}` — the persistent library and its search index, reused by the templates.
-- `Vibe/NowPlaying/NowPlayingController.m` — the skip commands, if the lock-screen trade above turns out acceptable.
-- `Vibe/Common/VibeStrings.h` — every template title and list label is user-facing; `make strings` after.
-- `Vibe/iOS/AGENTS.md` — the multi-scene paragraph, and a CarPlay section.
+- `project.yml`: the scene manifest, `CarPlay.framework` in `dependencies`, and the single-scene comment.
+- `Vibe/iOS/Vibe.entitlements`: add `com.apple.developer.carplay-audio`.
+- `Vibe/iOS/VibeiOSAppDelegate.{h,m}`: owns `PlaybackController`.
+- `Vibe/iOS/VibeiOSSceneDelegate.m`: borrows it.
+- `Vibe/iOS/CarPlay/` (new): the `CPTemplateApplicationSceneDelegate` and the template controllers, with a `PlaybackObserver` between them.
+- `Vibe/iOS/Search/SearchFolderStore` and `FileSearchIndex`: reused by the templates.
+- `Vibe/NowPlaying/NowPlayingController.m`: the CarPlay-scoped skip commands.
+- `Vibe/Common/VibeStrings.h`: every template title and label. Run `make strings` after.
+- `Vibe/iOS/AGENTS.md`: the multi-scene paragraph and a CarPlay section.
 
 ## Open questions
 
-1. Does enabling the skip-interval commands cost the lock screen and Control Center their next/previous buttons? Decides whether skip is unconditional or CarPlay-scoped.
-2. Must `UIApplicationSupportsMultipleScenes` be `true` for a template scene beside the window scene?
-3. Does the CarPlay simulator display honor the entitlement key before Apple grants it?
+1. Must `UIApplicationSupportsMultipleScenes` be `true` for a template scene beside the window scene?
+2. Does the CarPlay simulator display honor the entitlement key before Apple grants it?
+3. Can the skip commands be enabled only while a CarPlay scene is connected without disturbing the phone's transport?

@@ -1,4 +1,6 @@
-# Sanitizer and malloc-debug runs against the sandboxed app: getting a report out, the three builds, the cheap variants. Read before a TSan/ASan run or when a sanitizer build dies without a report.
+# Sanitizer and malloc-debug runs
+
+Getting a report out of the sandboxed app, the three builds, the cheap variants. Read before a TSan or ASan run, or when a sanitizer build dies without a report.
 
 ## Getting a sanitizer report out of a sandboxed app
 
@@ -16,7 +18,7 @@ libSystem_initializer → __guard_setup → wrap_strlcpy
 
 The process stays alive, logs nothing and never registers the channel, so from outside it is indistinguishable from the `log_path` trap. Being inside the container does not help: `log_path` is opened much later in startup, `suppressions` is not. Live with the framework noise and filter afterwards.
 
-**A long media-heavy TSan soak can die in TSan itself**: a crash whose stack is `__tsan::MetaMap::AllocBlock` → `Die`, under a VideoToolbox allocation, is the instrumentation's shadow metadata running out, not an app crash. It recurs on multi-hour soaks; shorten the run rather than chase it.
+**A long media-heavy TSan soak can die in TSan itself.** A crash whose stack is `__tsan::MetaMap::AllocBlock` → `Die`, under a VideoToolbox allocation, is the instrumentation's shadow metadata running out, not an app crash. Shorten the run rather than chase it.
 
 ## Launching
 
@@ -46,4 +48,4 @@ Build to a **separate** derived-data path so the plain Debug build stays usable,
 
 ## Cheap variants on the plain build
 
-Same direct-exec launch: `NSZombieEnabled=YES`, `MallocScribble=1`, `MallocGuardEdges=1`, `MallocStackLogging=1` (needed for `leaks Vibe` to give allocation stacks and for `malloc_history` to attribute zone fragmentation). `heap Vibe` gives per-class live instance counts from outside the process.
+Use the same direct-exec launch with `NSZombieEnabled=YES`, `MallocScribble=1`, `MallocGuardEdges=1` or `MallocStackLogging=1`. The last is needed for `leaks Vibe` to give allocation stacks and for `malloc_history` to attribute zone fragmentation.

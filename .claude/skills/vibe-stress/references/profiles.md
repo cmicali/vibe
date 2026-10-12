@@ -1,6 +1,6 @@
-# Stress profiles and torture phases: what each weights, why, and what none can reach. Read when choosing a profile, adding an op kind, or judging what a clean run proved.
+# Stress profiles and torture phases
 
-The weight tables are `PROFILES` in `scripts/stress.py` and `PHASES` in `scripts/torture.py`; this is the reasoning beside them.
+What each profile and phase weights, why, and what none can reach. Read when choosing a profile, adding an op kind, or judging what a clean run proved. The weight tables are `PROFILES` in `scripts/stress.py` and `PHASES` in `scripts/torture.py`; this is the reasoning beside them.
 
 ## `stress.py` profiles
 
@@ -18,7 +18,7 @@ The weight tables are `PROFILES` in `scripts/stress.py` and `PHASES` in `scripts
 - `--cloud-percent` (default 60) leaves the rest local, which is what proves the cloud machinery has not slowed the local path.
 - **Its weights are the inverse of `loading`'s.** Opens must be *sparing*: the sweep is deferred until playback starts or two seconds pass, and a replacement playlist drops the loader, so opens 80 ms apart mean the lane is never populated. Heavy `settle` (a sweep gets seconds), heavy `playlist_jump` (an arbitrary row moves the ranking and raises the hold where nothing prefetched), frequent `clear_caches` (a cache hit is no parse and so no download to race).
 - **`capacity=1` is what makes it score anything.** At unlimited capacity (`capacity=0`) a background download never delays a foreground one, so the hold, the stand-aside and the lane ordering have nothing to be true about.
-- Pair it with `make-cloud-corpus.py` (needs ffmpeg): **big folders** (against 19 files the sweep finishes instantly), **real tags and embedded art** (generated tones carry neither, and the worst bug here showed in the art path), a **mixture** with artless files, and **globally unique basenames** — the cloud trace records a transfer by last path component, so two same-named tracks are one file to any ordering assertion.
+- Pair it with `make-cloud-corpus.py` (needs ffmpeg): **big folders** (against 19 files the sweep finishes instantly), **real tags and embedded art** (generated tones carry neither), a **mixture** with artless files, and **globally unique basenames** — the cloud trace records a transfer by last path component, so two same-named tracks are one file to any ordering assertion.
 
 ```bash
 .claude/skills/vibe-stress/scripts/make-cloud-corpus.py --folders 12 --per-folder 40
@@ -48,11 +48,11 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 - `reorder_begin` / `reorder_finish` — opens a synthetic row-reorder drag and deliberately leaves it live so whatever the scheduler deals next (a replacing open, a removal, a convert, a burst) lands inside the session; `finish` later probes a slot and drops or cancels. That is the mid-drag race family (stale-drop rejection, a dragged row departing) no pointer can stage. A finish with no session live is a tolerated refusal. Reorder undo registrations feed the `undo` op's stack.
 - `block_main` — `references/cloud-scenarios.md`.
 
-**There is no `waveform_style` op, deliberately.** The style is a theme field, so a `click_menu waveform_style_*` answers "no menu item" — which the tolerated-error list swallowed, scoring a clean run over an op that did nothing. Its weight went to `theme`, which swaps the renderer anyway. A tolerated error over a dead op is the pattern to watch for when a menu moves.
+**Watch for a tolerated error over a dead op.** The tolerated-error list swallows refusals such as "no menu item", so an op whose target moved scores a clean run while doing nothing. There is no `waveform_style` op for this reason: the style is a theme field, and `theme` swaps the renderer anyway.
 
 ## Unreachable from this driver
 
-`--debug-cmd open` calls `NSURLUtil expandAndFilterList:` then `play:` directly, bypassing the burst coalescer and the open-request coordinator. `openBurstQueued` moves only under a real Launch Services open or the open panel; `openResultsBuffered` only under `file_drag_drop`, which routes through `MainWindow`'s drop path. **Do not read zeroes there as evidence those paths are clean.**
+`--debug-cmd open` calls `NSURLUtil expandAndFilterList:` then `play:` directly, bypassing the burst coalescer and the open-request coordinator. `openBurstQueued` moves only under a real Launch Services open or the open panel. `openResultsBuffered` moves only under the funnel's verbs, `file_drag_drop` and `append`. **Do not read zeroes there as evidence those paths are clean.**
 
 ## `torture.py` phases
 
