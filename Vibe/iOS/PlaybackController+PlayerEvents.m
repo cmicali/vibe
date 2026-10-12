@@ -181,8 +181,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // PLAYER: an end-of-playlist park keeps a current row with no loaded track,
     // and dropping the settle strands _seekInFlight, which freezes the
     // scrubber's position sync.
-    if ((track && ![_playlist isCurrentTrack:track])
-            || (!track && !audioPlayer.isStopped)) {
+    if (!VibePlaybackSeekSettlementIsCurrent(track, _playlist.currentTrack, audioPlayer.isStopped)) {
         return;
     }
     _seekInFlight = NO;
@@ -244,14 +243,11 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error {
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain]
-            && error.code == VibeAudioErrorNotPlaying) {
-        // A toggle raced a track end, or nothing is loaded: benign.
-        return;
+    if (VibePlayErrorIsBenign(error)) {
+        return; // a toggle raced a track end, or nothing is loaded
     }
-    NSURL *url = error.userInfo[kVibeAudioErrorTrackURLKey];
     AudioTrack *current = _playlist.currentTrack;
-    if (url && current && ![url isEqual:current.url]) {
+    if (!VibePlayErrorMatchesCurrentURL(error, current.url)) {
         return;
     }
     _errorText = VibeStatusForPlayError(error);
