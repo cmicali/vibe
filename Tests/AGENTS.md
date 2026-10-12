@@ -43,7 +43,7 @@ Anything that needs the app running belongs in the `vibe-debug` skill's command 
 - `NowPlayingController` (`NowPlayingRulesTests`): an injected clock and OS sinks, with the real dirty checks and artwork construction.
 - `AudioFileConverter`: held file-operation callbacks and the real `NSUndoManager` for undo and redo. Its dormant TagLib functions are fail-loud decoys in `FLACDisposalRulesTests`. Its injected constructor skips the launch-time temp sweep.
 - `ArtworkDisplayController` (`AudioTrackTests`): the real single-render, latest-request scheduler with held renderer completions and a publication sink that keeps views and the Dock out.
-- `OpenBurstCoalescerTests` runs launch priority through the production launch method. `PlaylistFileTests` round-trips the private session with temp files and isolated defaults.
+- `OpenBurstCoalescerTests` runs launch priority through the production launch method. `PlaylistFileSessionTests` round-trips the private session with temp files and isolated defaults.
 - `AudioDeviceManagerTests` runs `AudioDeviceManager` with injected enumeration and retry scheduling, with no HAL registration. `CoreAudioUtil`'s `releaseDeviceObligation:attempt:isAbsent:` is tested with controlled attempts.
 
 OS provider state, shell routing, remote-command registration, output rebinding, device property I/O and hardware settlement remain live tests.

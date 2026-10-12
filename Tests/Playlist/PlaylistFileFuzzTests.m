@@ -14,7 +14,7 @@
 #import "AudioTrack.h"
 #import "PlaylistFile.h"
 
-// Implemented in PlaylistFileTests.m.
+// Implemented in PlaylistFileTestCase.m.
 @interface PlaylistFile (CueFileNames)
 + (NSArray<NSString *> *)fileNamesInCueText:(NSString *)text;
 @end
