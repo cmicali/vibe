@@ -69,6 +69,7 @@ void VibeNotifyDisplaySettingsChanged(void) {
     appDefaults[SETTING_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
     appDefaults[SETTING_WAVEFORM_THEME] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     appDefaults[SETTING_WAVEFORM_BAND_THEME] = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
+    appDefaults[SETTING_WAVEFORM_SPECTRUM_PALETTE] = SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB;
     appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
     appDefaults[SETTING_WAVEFORM_CENTERED] = @(YES);
     appDefaults[SETTING_WIDGET_WAVEFORM_CENTERED] = @(YES);
@@ -155,6 +156,15 @@ void VibeNotifyDisplaySettingsChanged(void) {
 
 - (void)setWaveformBandTheme:(NSString *)identifier {
     [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_BAND_THEME];
+}
+
+- (NSString *)waveformSpectrumPalette {
+    return VibeNormalizedWaveformSpectrumPalette([[NSUserDefaults standardUserDefaults]
+            stringForKey:SETTING_WAVEFORM_SPECTRUM_PALETTE]);
+}
+
+- (void)setWaveformSpectrumPalette:(NSString *)identifier {
+    [[NSUserDefaults standardUserDefaults] setObject:identifier forKey:SETTING_WAVEFORM_SPECTRUM_PALETTE];
 }
 
 static NSString *WaveformCustomBandKey(NSUInteger band, BOOL isDark) {

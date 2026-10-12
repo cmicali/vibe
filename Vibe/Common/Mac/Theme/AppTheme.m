@@ -25,6 +25,7 @@ static NSString *const kFieldWaveformStyle = @"waveformStyle";
 static NSString *const kFieldMode = @"mode";
 static NSString *const kFieldWaveformTheme = @"waveformTheme";
 static NSString *const kFieldWaveformShadeOverlaps = @"waveformShadeOverlaps";
+static NSString *const kFieldWaveformSpectrumPalette = @"waveformSpectrumPalette";
 static NSString *const kFieldWaveformGradient = @"waveformGradient";
 static NSString *const kFieldWaveformCentered = @"waveformCentered";
 static NSString *const kFieldWaveformPlayheadLine = @"waveformPlayheadLine";
@@ -373,6 +374,9 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
         AddColorPair(rows, kVibeThemeColorWaveformPlayed, waveform, @"playedColor");
         AddColorPair(rows, kVibeThemeColorWaveformUnplayed, waveform, @"unplayedColor");
         [rows addObject:Field(kFieldWaveformShadeOverlaps, waveform, @"shadeOverlaps", @YES, BoolField())];
+        [rows addObject:Field(kFieldWaveformSpectrumPalette, waveform, @"spectrumPalette",
+                              SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB,
+                              LadderField(VibeNormalizedWaveformSpectrumPalette))];
         AddOpaqueColorPair(rows, kVibeThemeColorWaveformLow, waveform, @"lowColor");
         AddOpaqueColorPair(rows, kVibeThemeColorWaveformMid, waveform, @"midColor");
         AddOpaqueColorPair(rows, kVibeThemeColorWaveformHigh, waveform, @"highColor");
@@ -841,6 +845,9 @@ static void VibeLoadBuiltInThemes(void) {
 
 - (BOOL)waveformShadeOverlaps { return [self boolForKey:kFieldWaveformShadeOverlaps]; }
 - (void)setWaveformShadeOverlaps:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformShadeOverlaps]; }
+
+- (NSString *)waveformSpectrumPalette { return [self stringForKey:kFieldWaveformSpectrumPalette]; }
+- (void)setWaveformSpectrumPalette:(NSString *)v { [self storeSanitized:v forKey:kFieldWaveformSpectrumPalette]; }
 
 - (BOOL)waveformPlayheadLine { return [self boolForKey:kFieldWaveformPlayheadLine]; }
 - (void)setWaveformPlayheadLine:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldWaveformPlayheadLine]; }

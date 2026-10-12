@@ -115,6 +115,10 @@
     return NO;
 }
 
++ (VibeWaveformPaletteKind)paletteKind {
+    return VibeWaveformPaletteKindTheme;
+}
+
 - (void)updateColors:(BOOL)isDark {
     self.isDark = isDark;
 }

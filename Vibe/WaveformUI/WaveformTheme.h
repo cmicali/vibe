@@ -14,6 +14,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Which of the theme's palettes a waveform style paints: the waveform theme's
+// played and unplayed colors, 3-Band's bandColors, or Spectrum's
+// spectrumColors. Each style answers for itself (WaveformRenderer).
+typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
+    VibeWaveformPaletteKindTheme,
+    VibeWaveformPaletteKindBands,
+    VibeWaveformPaletteKindSpectrum,
+};
+
 @class AppSettings;
 @class AppTheme;
 
@@ -38,8 +47,8 @@ NS_ASSUME_NONNULL_BEGIN
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
-// The resolved colors as hex: played, unplayed and the bands. Equal
-// signatures draw alike, so a view re-bakes only when this changes.
+// The resolved colors as hex: played, unplayed, the bands and Spectrum's.
+// Equal signatures draw alike, so a view re-bakes only when this changes.
 @property (readonly) NSString *paletteSignature;
 
 // Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the
@@ -54,6 +63,16 @@ NS_ASSUME_NONNULL_BEGIN
 // low+mid, low+high, mid+high, and all three. Rekord Bin's unless a mac theme
 // sets its bands or iOS picks another palette.
 @property (nonatomic, copy) NSArray<VibeColor *> *bandColors;
+
+// Spectrum's low, mid and high primaries, opaque. It mixes them per bar by
+// the bands' energies. RGB's unless a mac theme or iOS picks another palette.
+@property (nonatomic, copy) NSArray<VibeColor *> *spectrumColors;
+
+// spectrumColors for a SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_* identifier;
+// an unknown one resolves as RGB. custom is the band wells' low, mid and high
+// for this appearance, which Custom draws as they are.
++ (NSArray<VibeColor *> *)spectrumColorsForIdentifier:(NSString *)identifier isDark:(BOOL)isDark
+                                          customBands:(NSArray<VibeColor *> *)custom;
 
 // bandColors for a SETTINGS_VALUE_WAVEFORM_BAND_THEME_* identifier; an unknown
 // one resolves as Rekord Bin. custom is the custom palette's low, mid and high

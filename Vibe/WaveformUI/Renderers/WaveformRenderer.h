@@ -167,6 +167,10 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
 // decode was asked for them. NO here.
 + (BOOL)readsBands;
 
+// The palette the style paints, which the settings then offer. The waveform
+// theme's here.
++ (VibeWaveformPaletteKind)paletteKind;
+
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 - (void)updateColors:(BOOL)isDark;

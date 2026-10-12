@@ -417,6 +417,10 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ORANGE value:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART value:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART to:_waveformThemePopUp];
     [self addItem:STR_SETTINGS_WAVEFORM_THEME_CUSTOM value:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM to:_waveformThemePopUp];
+    _spectrumPalettePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(spectrumPaletteChanged:)];
+    for (NSString *palette in VibeWaveformSpectrumPalettes()) {
+        [self addItem:VibeWaveformSpectrumPaletteDisplayName(palette) value:palette to:_spectrumPalettePopUp];
+    }
 
     _waveformGradientSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformGradient = on; }];
@@ -442,6 +446,8 @@ static const CGFloat kImageBadgeInset = 1.5;
     _customLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CUSTOM_LIGHT_LABEL
                                             control:wellRow(sides, sideCaptions, NO)];
     _waveformThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp];
+    _spectrumPaletteRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR
+                                                control:_spectrumPalettePopUp];
     NSArray<NSString *> *bands = @[kVibeThemeColorWaveformLow, kVibeThemeColorWaveformMid,
                                    kVibeThemeColorWaveformHigh];
     NSArray<NSString *> *bandCaptions = @[STR_SETTINGS_WAVEFORM_BAND_LOW, STR_SETTINGS_WAVEFORM_BAND_MID,
@@ -462,6 +468,7 @@ static const CGFloat kImageBadgeInset = 1.5;
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_WIDTH control:widthCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CENTERED control:_waveformCenteredSwitch],
         _waveformThemeRow,
+        _spectrumPaletteRow,
         _customDarkRow,
         _customLightRow,
         _bandsDarkRow,
