@@ -5,6 +5,9 @@
 
 #import "SettingsGeneralViewController.h"
 #import "AppDelegate.h"
+#if VIBE_DIRECT_DISTRIBUTION
+#import "AppDelegate+Updates.h"
+#endif
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "DefaultAppRegistration.h"
