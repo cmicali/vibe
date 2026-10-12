@@ -61,7 +61,7 @@ A channel difference is mixed first, at the file's own rate, through AudioToolbo
 - **WAV, W64, RF64 and AIFF files are decoded by dr_wav** the same way, when they hold a coding it decodes. Anything else in those containers stays Apple's. No file the parser names another container is offered to it (`VibeDrWAVReadsContainer`, inside `openWAV`), so a CAF, M4A or Ogg open never pays its read.
 - The vendored dr_ copies carry Vibe's fixes (`ThirdParty/AGENTS.md`). AAC decodes to float natively.
 - Ogg is CoreAudio's own reader and decoders: Opus on both platforms, Vorbis on macOS only. iOS's Ogg reader refuses a Vorbis file, so its open fails there.
-- **TRAP: FLAC in Ogg is refused at the parser open**, since that reader reports it no length and decodes only its first page. The metadata fallback opens the same way, and the TagLib parse refuses it as FLAC, so its row fails to parse rather than look playable (`AudioFileHandle.m`, `AudioTrackMetadata.mm`, `testFLACInOggIsRefused`).
+- **TRAP: FLAC in Ogg is refused at the parser open**, since that reader reports it no length and decodes only its first page. The metadata fallback opens the same way. The TagLib parse refuses it as FLAC. Its row then fails to parse rather than look playable (`AudioFileHandle.m`, `TagLibAudioFile.mm`, `testFLACInOggIsRefused`).
 
 `audioPathSnapshot` reports the source segment and the conversions in force.
 

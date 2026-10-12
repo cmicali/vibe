@@ -5,6 +5,7 @@ Tags, their disk cache, the playlist scan and embedded artwork. `FolderArt/`, th
 - `AudioTrackMetadataCache` is the facade, and `AudioTrackMetadataLoader` the one sweep behind it (private).
 - `MetadataParseCoordinator` is the per-path owner/waiter table and nothing else.
 - `AudioTrackMetadata` is the immutable tags plus the display-facing art API.
+- `TagLibAudioFile` is the TagLib side of the parse: the file factory, the ranged stream, the format name and the embedded-art read. Its header is C++, so only `.mm` files import it.
 - `AudioTrackArtwork` is one row's art lifecycle (private behind the metadata). `ArtworkLoadRegistry` is its admission counters, a file boundary, not a second owner.
 
 **Do not add a runner, driver or second coordinator.** Straight-line metadata work goes in the loader, per-row art work in `AudioTrackArtwork`. The lettered items cited (`spec A1`, `J4`, `J6`) are `docs/file-loading-spec.md`'s.
@@ -42,7 +43,7 @@ A loader snapshots `AudioLoadingConfiguration`, so a settings change reaches onl
 
 **A parse never waits for a download, and never reads ahead.** Both fallback opens, the FLAC-length one included, pass `VibeNeverWaitsForAStream` (`AudioFileHandle.h`, compared by identity). Against a file a transfer is still writing, the open fails at once, and the facts come once the file is on disk. On a network share the open reads the file directly, as TagLib's parse does.
 
-**TRAP: the TagLib parse must refuse what that open refuses.** TagLib's FLAC sniff takes FLAC in Ogg, which playback refuses. So no Ogg stream parses as FLAC (`AudioTrackMetadata.mm`), and such a file is a failed parse, not a row that looks playable.
+**TRAP: the TagLib parse must refuse what that open refuses.** TagLib's FLAC sniff takes FLAC in Ogg, which playback refuses. So no Ogg stream parses as FLAC (`TagLibAudioFile.mm`). Such a file is a failed parse, not a row that looks playable.
 
 **A file neither reads is a failed parse: filename-fallback metadata, never cached.** The holder and every waiter get their own fallback copies, so no row stays unresolved. Installation and publication compare the exact metadata object under the track monitor. A racing success replaces a fallback, and the stale fallback's delivery drops.
 

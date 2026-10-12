@@ -61,7 +61,7 @@ TagLib::ID3v2::Tag *id3v2TagOf(TagLib::File *file) {
     return nullptr;
 }
 
-// Front cover preferred, as in AudioTrackMetadata.mm: a file can carry a
+// Front cover preferred, as in TagLibAudioFile.mm: a file can carry a
 // 32x32 FileIcon ahead of the cover, and taking the first picture blindly
 // would carry that across instead.
 TagLib::ID3v2::AttachedPictureFrame *bestCoverFrame(TagLib::ID3v2::Tag *tag) {
