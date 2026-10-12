@@ -4,6 +4,7 @@
 //
 
 #import "AudioTrackMetadataLoader+Debug.h"
+#import "AudioTrackMetadataLoaderInternal.h"
 
 #if DEBUG
 
