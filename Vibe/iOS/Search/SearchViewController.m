@@ -7,7 +7,6 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "BrowserViewController.h"
 #import "DropboxMirror.h"
 #import "DropboxRules.h"
 #import "FileRow.h"
@@ -15,6 +14,7 @@
 #import "FileSearchRules.h"
 #import "NSURLUtil.h"
 #import "PlaybackController.h"
+#import "PlaybackController+ReplacePrompt.h"
 #import "Playlist.h"
 #import "FavoritesStore.h"
 #import "SearchFolderStore.h"
@@ -737,8 +737,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
         if (!strongSelf) {
             return;
         }
-        [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf
-                                              openingURLs:@[url] inFolder:inFolder token:token];
+        [playback confirmReplacingPlaylistFrom:strongSelf openingURLs:@[url] inFolder:inFolder token:token];
     }];
 }
 

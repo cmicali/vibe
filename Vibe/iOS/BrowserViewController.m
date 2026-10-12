@@ -20,6 +20,7 @@
 #import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "PlaybackController.h"
+#import "PlaybackController+ReplacePrompt.h"
 #import "PlaylistFile.h"
 #import "SearchFolderStore.h"
 #import "SettingsRules.h"
@@ -826,68 +827,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     return (NSUInteger)indexPath.row < items.count ? items[(NSUInteger)indexPath.row] : nil;
 }
 
-#pragma mark - Opening
-
-+ (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
-                              from:(UIViewController *)presenter
-                       openingURLs:(NSArray<NSURL *> *)urls
-                          inFolder:(BOOL)inFolder
-                             token:(uint64_t)token {
-    if (urls.count == 0 || ![playback isCurrentReplaceRequest:token]) {
-        return;
-    }
-    dispatch_block_t replace = ^{
-        if (urls.count == 1) {
-            [playback openFileURL:urls.firstObject inFolder:inFolder];
-        }
-        else {
-            [playback openURLs:urls openInPlace:YES];
-        }
-    };
-    if (!playback.playlistHasAdditions) {
-        replace();
-        return;
-    }
-    // The question waits on the user, not the disk: its row stops spinning, so
-    // the give-up timeout cannot fire over the alert. Replace opens anew.
-    [playback endOpeningForReplaceRequest:token];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:STR_PLAYLIST_REPLACE_TITLE
-                                                                   message:STR_PLAYLIST_REPLACE_MESSAGE
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_CONFIRM
-                                              style:UIAlertActionStyleDestructive
-                                            handler:^(UIAlertAction *action) { replace(); }]];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_PLAYLIST_REPLACE_ADD
-                                              style:UIAlertActionStyleDefault
-                                            handler:^(UIAlertAction *action) {
-        [playback addURLs:urls];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL style:UIAlertActionStyleCancel
-                                            handler:nil]];
-    [presenter presentViewController:alert animated:YES completion:nil];
-}
-
-+ (dispatch_block_t)openLinkString:(NSString *)string
-                replacingPlaylistOf:(PlaybackController *)playback
-                               from:(UIViewController *)anchor
-                         completion:(void (^)(NSURL *, NSError *))completion {
-    uint64_t token = [playback replaceRequestTokenOpening:nil];
-    __weak UIWindow *window = anchor.viewIfLoaded.window;
-    __weak UIViewController *weakAnchor = anchor;
-    return [LinkStore.shared resolveURLString:string completion:^(NSURL *file, NSError *error) {
-        // First, so the caller can close what it showed before the replace
-        // question goes over the top.
-        if (completion) {
-            completion(file, error);
-        }
-        UIViewController *root = window.rootViewController ?: weakAnchor;
-        if (file && root) {
-            [BrowserViewController confirmReplacingPlaylistOf:playback from:root.vibeTopmostPresenter
-                                                  openingURLs:@[file] inFolder:NO token:token];
-        }
-    }];
-}
-
 #pragma mark - Open URL
 
 // Open URL's sheet, modeled on the mac's window: a field three lines tall that
@@ -1089,8 +1028,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         [strongSelf closeLinkSheetThen:alert];
     };
     if (!_appending) {
-        _cancelLinkResolve = [BrowserViewController openLinkString:text replacingPlaylistOf:_playback from:self
-                                                        completion:settled];
+        _cancelLinkResolve = [_playback openLinkString:text replacingPlaylistFrom:self completion:settled];
     }
     else {
         PlaybackController *playback = _playback;
@@ -1222,8 +1160,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         [self addURLs:urls];
         return;
     }
-    [BrowserViewController confirmReplacingPlaylistOf:_playback from:self openingURLs:urls inFolder:inFolder
-                                                token:token];
+    [_playback confirmReplacingPlaylistFrom:self openingURLs:urls inFolder:inFolder token:token];
 }
 
 - (void)openDirectory {
@@ -2132,8 +2069,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
             if (!strongSelf) {
                 return;
             }
-            [BrowserViewController confirmReplacingPlaylistOf:playback from:strongSelf
-                                                  openingURLs:@[url] inFolder:inFolder token:token];
+            [playback confirmReplacingPlaylistFrom:strongSelf openingURLs:@[url] inFolder:inFolder token:token];
         }
     }];
     if (_appending) {

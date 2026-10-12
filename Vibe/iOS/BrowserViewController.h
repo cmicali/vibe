@@ -36,34 +36,6 @@ NS_ASSUME_NONNULL_BEGIN
 // is pushed alone. A file in it is scrolled to and selected for a moment.
 - (void)showDirectory:(NSURL *)directory highlighting:(nullable NSURL *)file;
 
-// Opens urls as the playlist — one through openFileURL:inFolder:, several
-// through openURLs:openInPlace: — asking first when the playlist was built by
-// hand, with Add Instead as the other answer. Every screen whose tap replaces
-// the playlist comes through here. `token` is PlaybackController's
-// replaceRequestTokenOpening:, taken when the user asked: a caller with asynchronous
-// work first (a bookmark to resolve, a Dropbox folder to list) is dropped
-// here when another open was asked for meanwhile, or an older tap landing
-// late would replace what the user chose last.
-+ (void)confirmReplacingPlaylistOf:(PlaybackController *)playback
-                              from:(UIViewController *)presenter
-                       openingURLs:(NSArray<NSURL *> *)urls
-                          inFolder:(BOOL)inFolder
-                             token:(uint64_t)token;
-
-// Open URL: the typed link resolved (LinkStore), then its file opened alone
-// through confirmReplacing…, which asks when the playlist was built by hand.
-// It asks over what is on top of anchor's window when the link settles. The
-// sheet, the add sheet, or the card may have come or gone by then. The
-// replace token is taken now, so a later open supersedes it. A link that
-// fails leaves the playlist as it is. Never the inbox road: it does not
-// persist. Completion on main, with exactly one of file and error, before
-// the replace question. The returned block cancels the resolve on main, as
-// LinkStore's does.
-+ (dispatch_block_t)openLinkString:(NSString *)string
-                replacingPlaylistOf:(PlaybackController *)playback
-                               from:(UIViewController *)anchor
-                         completion:(nullable void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
-
 // On the root: handed snapshots of the rows an Add was asked for, framed in
 // window coordinates, before the Add is requested. The shell animates them
 // into the Playlist tab when the tracks land; this screen knows no tabs.
