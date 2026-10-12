@@ -11,15 +11,22 @@
 #if __has_include("AudioResampler.h")
 #import "AudioResampler.h"
 
-struct VibeBenchComponentsConverterSource {
+#if !VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER
+#define VibeResampler VibeConverter
+#define VibeResamplerCreate VibeConverterCreate
+#define VibeResamplerFill VibeConverterFill
+#define VibeResamplerDispose VibeConverterDispose
+#endif
+
+struct VibeBenchComponentsResamplerSource {
     const float *left;
     const float *right;
     NSUInteger frames;
     NSUInteger cursor;
 };
 
-static uint32_t VibeBenchComponentsConverterInput(void *userData, uint32_t maxFrames, const float **channels) {
-    VibeBenchComponentsConverterSource *source = (VibeBenchComponentsConverterSource *)userData;
+static uint32_t VibeBenchComponentsResamplerInput(void *userData, uint32_t maxFrames, const float **channels) {
+    VibeBenchComponentsResamplerSource *source = (VibeBenchComponentsResamplerSource *)userData;
     if (source->cursor >= source->frames) {
         return 0;
     }
@@ -42,13 +49,13 @@ static void VibeBenchComponentsRegisterResample(void) {
             return seconds;
         }, [noise, rate]() {
             size_t frames = noise->size() / 2;
-            VibeConverter *converter = VibeConverterCreate(rate, 48000, 2);
-            VibeBenchComponentsConverterSource source = {noise->data(), noise->data() + frames, frames, 0};
+            VibeResampler *resampler = VibeResamplerCreate(rate, 48000, 2);
+            VibeBenchComponentsResamplerSource source = {noise->data(), noise->data() + frames, frames, 0};
             std::vector<float> outLeft(4096), outRight(4096);
             float *out[2] = {outLeft.data(), outRight.data()};
-            while (VibeConverterFill(converter, VibeBenchComponentsConverterInput, &source, 4096, out) > 0) {
+            while (VibeResamplerFill(resampler, VibeBenchComponentsResamplerInput, &source, 4096, out) > 0) {
             }
-            VibeConverterDispose(converter);
+            VibeResamplerDispose(resampler);
         });
     }
 }

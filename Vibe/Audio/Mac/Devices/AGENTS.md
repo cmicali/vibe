@@ -1,6 +1,6 @@
 # Output devices (macOS only)
 
-The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `CoreAudioUtil`, `OutputFormatRules.h`, `AudioPlayer+Devices`, and `AudioPlayer+BitPerfect`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
+The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `AudioDeviceEventLog`, `CoreAudioUtil`, `OutputFormatRules.h`, `AudioPlayer+Devices`, and `AudioPlayer+BitPerfect`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
 
 `CoreAudioUtil.diagnosticDescriptionOfDeviceID:` is the one read-everything call (formats, declared latency, clock, exclusive owner). It exists for Save Debug Info (`Mac/App/AGENTS.md`), and nothing that changes a device reads it. The player's side of that report is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too. The snapshot reads on the player queue, so shipping callers invoke it off main.
 
@@ -8,7 +8,7 @@ The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `Cor
 
 A singleton that owns device-change listening. At init it registers CoreAudio listeners for the default output device and the device list, kept for the process's life, then sweeps. `outputDevices` serves the latest immutable snapshot and waits at most 250 ms for the first one, so an unavailable `coreaudiod` cannot strand a caller's serial queue. `cachedOutputDevices`, `knowsOutputDeviceIsAbsent:` and `outputDeviceForId:` never wait, because the player queue calls them.
 
-With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log follows published devices, watched device and stream property changes, arrivals and removals, default and alert output changes, and `coreaudiod` restarts. **TRAP: HAL delivers running/overload notifications synchronously on its IO thread, and a property read there can deadlock its stop.** A delivery queue does not make them asynchronous: HAL waits for that queue. So the event-log listeners register with a NULL queue, copy the addresses, and enqueue their reads on `_eventLogQueue` (`CoreAudioUtil.eventLogListenerForObject:name:queue:`). Playback never waits on that queue, and its work changes no playback state.
+With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log (`AudioDeviceEventLog`) follows published devices, watched device and stream property changes, arrivals and removals, default and alert output changes, and `coreaudiod` restarts. **TRAP: HAL delivers running/overload notifications synchronously on its IO thread, and a property read there can deadlock its stop.** A delivery queue does not make them asynchronous: HAL waits for that queue. So the event-log listeners register with a NULL queue, copy the addresses, and enqueue their reads on `_eventLogQueue` (`AudioDeviceEventLog.listenerForObject:name:queue:`). Playback never waits on that queue, and its work changes no playback state.
 
 **A snapshot is normally published only after every read agrees**: the device list, the system default, each device's output-channel, name and UID properties, and the default appearing in the list. A partial result keeps the prior snapshot and takes the two-second retry, so a transient HAL failure cannot look like removal and persist a false System Output fallback.
 

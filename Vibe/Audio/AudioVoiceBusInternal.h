@@ -179,7 +179,7 @@ static inline AudioTimeStamp VibeStampRead(const VibeVoiceStamp *field) {
 @public
     VibeVoiceID identifier;
     AudioFileHandle *file;
-    VibeConverter *converter;        // disposed with the record, or when it is re-prepared
+    VibeResampler *converter;        // disposed with the record, or when it is re-prepared
     AVAudioPCMBuffer *readBuffer;    // the file's processing format
     AVAudioPCMBuffer *mixBuffer;     // the bus's channels at the file's rate, what a converter takes after the mix
     AVAudioPCMBuffer *stageBuffer;   // the bus format, what the ring takes; one per slot for the bus's life

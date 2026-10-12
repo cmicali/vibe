@@ -20,7 +20,7 @@ static const uint64_t kRenderLeaveWaitNanos = 100 * NSEC_PER_MSEC;
 
 static void VibeDisposeConverter(AudioVoiceRecord *record) {
     if (record->converter) {
-        VibeConverterDispose(record->converter);
+        VibeResamplerDispose(record->converter);
         record->converter = NULL;
     }
 }
@@ -123,7 +123,7 @@ static void VibeApplyMixMap(const float *map, AVAudioPCMBuffer *source, AVAudioP
                                                  channels:_format.channelCount interleaved:NO];
         record->mixBuffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:fed frameCapacity:kDecodeChunkFrames];
     }
-    record->converter = VibeConverterCreate(fed.sampleRate, _format.sampleRate, _format.channelCount);
+    record->converter = VibeResamplerCreate(fed.sampleRate, _format.sampleRate, _format.channelCount);
     if (!record->converter) {
         return NO;
     }
@@ -383,7 +383,7 @@ typedef struct {
     NSUInteger slot;
     BOOL flushing;
     uint64_t readNanos;       // thread CPU inside the file's reads, which the resampler's cost excludes
-} VibeConverterFeed;
+} VibeResamplerFeed;
 
 // Of `wanted` frames, those the voice may read before its end frame.
 static AVAudioFrameCount VibeFramesBeforeEnd(AudioVoiceRecord *record, AVAudioFrameCount wanted) {
@@ -397,8 +397,8 @@ static AVAudioFrameCount VibeFramesBeforeEnd(AudioVoiceRecord *record, AVAudioFr
 // Supplies the converter one read of the file, mixed to the bus's width
 // first when the widths differ, or silence while flushing. The converter
 // calls this as often as one chunk needs.
-static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, const float **channels) {
-    VibeConverterFeed *input = userData;
+static uint32_t VibeResamplerSupplyInput(void *userData, uint32_t maxFrames, const float **channels) {
+    VibeResamplerFeed *input = userData;
     AudioVoiceRecord *record = input->record;
     if (record->readInterrupted) {
         return 0; // the fill asked again after an interruption
@@ -509,11 +509,11 @@ static uint32_t VibeConverterSupplyInput(void *userData, uint32_t maxFrames, con
             return 0;
         }
     }
-    VibeConverterFeed input = { self, record, slot, flushing, 0 };
+    VibeResamplerFeed input = { self, record, slot, flushing, 0 };
 #if DEBUG
     uint64_t started = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
 #endif
-    uint32_t frames = VibeConverterFill(record->converter, VibeConverterSupplyInput, &input,
+    uint32_t frames = VibeResamplerFill(record->converter, VibeResamplerSupplyInput, &input,
                                         (uint32_t)MIN((uint64_t)kDecodeChunkFrames, left), converted.floatChannelData);
 #if DEBUG
     uint64_t spent = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - started;

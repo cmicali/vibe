@@ -407,7 +407,7 @@ static inline AVAudioPCMBuffer *VibeReferenceResample(AVAudioPCMBuffer *source, 
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate channels:channels];
     AVAudioFrameCount length = (AVAudioFrameCount)llround((double)source.frameLength * rate / source.format.sampleRate);
     AVAudioPCMBuffer *out = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:MAX(length, 1u)];
-    VibeConverter *converter = VibeConverterCreate(source.format.sampleRate, rate, channels);
+    VibeResampler *converter = VibeResamplerCreate(source.format.sampleRate, rate, channels);
     if (!out || !converter) {
         return nil;
     }
@@ -418,14 +418,14 @@ static inline AVAudioPCMBuffer *VibeReferenceResample(AVAudioPCMBuffer *source, 
         for (AVAudioChannelCount c = 0; c < channels; c++) {
             into[c] = out.floatChannelData[c] + made;
         }
-        uint32_t frames = VibeConverterFill(converter, VibeReferenceSupply, &feed, MIN(length - made, 4096u), into);
+        uint32_t frames = VibeResamplerFill(converter, VibeReferenceSupply, &feed, MIN(length - made, 4096u), into);
         if (frames == 0) {
             break;
         }
         made += frames;
     }
     free(into);
-    VibeConverterDispose(converter);
+    VibeResamplerDispose(converter);
     out.frameLength = made;
     return made == length ? out : nil;
 }

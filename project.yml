@@ -1003,6 +1003,7 @@ targetTemplates:
       - path: Vibe/Loading/Net/LinkStore.m
       - path: Vibe/Loading/Net/LinkClient.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
+      - path: Vibe/Audio/Mac/Devices/AudioDeviceEventLog.m
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
       - path: Vibe/Audio/AudioOutputUnit.m
