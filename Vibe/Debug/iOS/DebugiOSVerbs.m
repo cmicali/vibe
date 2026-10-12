@@ -424,7 +424,8 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 NSString *text = tokens.count > 2
                         ? [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] componentsJoinedByString:@" "]
                         : @"";
-                UITextView *field = browser.debugLinkField;
+                OpenURLSheetController *sheet = browser.debugLinkSheet;
+                UITextView *field = sheet.debugField;
                 if ([action isEqualToString:@"show"]) {
                     if (!field) {
                         [browser presentLinkSheet];
@@ -450,10 +451,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     [field pasteItemProviders:@[VibeDebugPasteProvider(text)]];
                 }
                 else if ([action isEqualToString:@"open"]) {
-                    [browser openLinkFromSheet];
+                    [sheet openFromSheet];
                 }
                 else {
-                    [browser cancelLinkSheet];
+                    [sheet cancelSheet];
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),

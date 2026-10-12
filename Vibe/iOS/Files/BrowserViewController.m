@@ -19,6 +19,8 @@
 #import "FileSearchRules.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
+#import "OpenURLSheetController.h"
+#import "OpenURLSheetController+Debug.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"
 #import "PlaceholderFiles.h"
@@ -55,16 +57,8 @@ static const NSUInteger kMaximumSubfolders = 500;
 static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
-// TRAP: the system draws its Paste control blank, and ignores taps on it,
-// when its content does not fit the frame. A fixed size fits only the default
-// text size. So Open URL's control scales with Dynamic Type, and it spans the
-// field so every language's label fits.
-static CGFloat VibePasteControlHeight(void) {
-    return ceil([UIFontMetrics.defaultMetrics scaledValueForValue:44]);
-}
-
 @interface BrowserViewController () <UIDocumentPickerDelegate, UISearchResultsUpdating, PlaybackObserver,
-        AudioTrackMetadataCacheDelegate, UIAdaptivePresentationControllerDelegate, UITextViewDelegate>
+        AudioTrackMetadataCacheDelegate>
 @end
 
 // Rows past each end of the screen whose art is asked for with the visible ones.
@@ -182,11 +176,8 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     // change is posted. A live read in that gap maps a folder's row to the
     // folder beside it.
     BOOL _dropboxLinked;
-    // Open URL's sheet while it is up, with its field, Open, and spinner.
-    UINavigationController *_linkSheet;
-    UITextView *_linkField;
-    UIBarButtonItem *_linkOpenItem;
-    UIActivityIndicatorView *_linkSpinner;
+    // Open URL's sheet while it is up.
+    OpenURLSheetController *_linkSheet;
     UIBarButtonItem *_playItem;
     UIBarButtonItem *_addSelectedItem;
     UIBarButtonItem *_sortItem;
@@ -825,95 +816,17 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 #pragma mark - Open URL
 
-// Open URL's sheet, modeled on the mac's window: a field three lines tall that
-// wraps, the system's Paste under it, and Cancel and Open. Open is disabled
-// while the field is blank. Return is Open and never breaks the line. The
-// sheet stays up while the link resolves. Every way it closes cancels that.
+// The sheet stays up while the link resolves. Every way it closes cancels
+// that.
 - (void)presentLinkSheet {
-    UIFont *font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-    UITextView *field = [[UITextView alloc] init];
-    field.font = font;
-    field.adjustsFontForContentSizeCategory = YES;
-    field.keyboardType = UIKeyboardTypeURL;
-    field.textContentType = UITextContentTypeURL;
-    field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    field.autocorrectionType = UITextAutocorrectionTypeNo;
-    field.spellCheckingType = UITextSpellCheckingTypeNo;
-    field.returnKeyType = UIReturnKeyGo;
-    field.backgroundColor = UIColor.tertiarySystemFillColor;
-    field.layer.cornerRadius = 10;
-    field.textContainerInset = UIEdgeInsetsMake(8, 4, 8, 4);
-    field.accessibilityLabel = STR_LINK_PROMPT_TITLE;
-    field.delegate = self;
-    field.translatesAutoresizingMaskIntoConstraints = NO;
-
-    UIPasteControlConfiguration *configuration = [[UIPasteControlConfiguration alloc] init];
-    configuration.displayMode = UIPasteControlDisplayModeIconAndLabel;
-    configuration.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
-    UIPasteControl *paste = [[UIPasteControl alloc] initWithConfiguration:configuration];
-    paste.target = field;
-    paste.translatesAutoresizingMaskIntoConstraints = NO;
-
-    UIActivityIndicatorView *spinner = [[UIActivityIndicatorView alloc]
-            initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    spinner.hidesWhenStopped = YES;
-    spinner.translatesAutoresizingMaskIntoConstraints = NO;
-
-    UIViewController *content = [[UIViewController alloc] init];
-    content.view.backgroundColor = UIColor.systemBackgroundColor;
-    content.navigationItem.title = STR_LINK_PROMPT_TITLE;
-    content.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
-            initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(cancelLinkSheet)];
-    UIBarButtonItem *open = [[UIBarButtonItem alloc] initWithTitle:STR_BUTTON_OPEN
-                                                             style:UIBarButtonItemStyleProminent
-                                                            target:self
-                                                            action:@selector(openLinkFromSheet)];
-    open.enabled = NO;
-    content.navigationItem.rightBarButtonItem = open;
-    for (UIView *view in @[field, paste, spinner]) {
-        [content.view addSubview:view];
-    }
-    UILayoutGuide *margins = content.view.layoutMarginsGuide;
-    CGFloat fieldHeight = ceil(3 * font.lineHeight) + 16;
-    CGFloat pasteHeight = VibePasteControlHeight();
-    [NSLayoutConstraint activateConstraints:@[
-        [field.topAnchor constraintEqualToAnchor:content.view.safeAreaLayoutGuide.topAnchor constant:8],
-        [field.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
-        [field.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
-        [field.heightAnchor constraintEqualToConstant:fieldHeight],
-        [paste.topAnchor constraintEqualToAnchor:field.bottomAnchor constant:12],
-        [paste.leadingAnchor constraintEqualToAnchor:margins.leadingAnchor],
-        [paste.trailingAnchor constraintEqualToAnchor:margins.trailingAnchor],
-        [paste.heightAnchor constraintEqualToConstant:pasteHeight],
-        // In the field's corner, so the Paste spans the field.
-        [spinner.bottomAnchor constraintEqualToAnchor:field.bottomAnchor constant:-8],
-        [spinner.trailingAnchor constraintEqualToAnchor:field.trailingAnchor constant:-8],
-    ]];
-
-    UINavigationController *sheet = [[UINavigationController alloc] initWithRootViewController:content];
-    sheet.modalPresentationStyle = UIModalPresentationFormSheet;
-    // The bar, the field, and the Paste row, with a margin under it.
-    CGFloat height = 56 + 8 + fieldHeight + 12 + pasteHeight + 20;
-    sheet.preferredContentSize = CGSizeMake(540, height);
-    sheet.sheetPresentationController.detents = @[[UISheetPresentationControllerDetent
-            customDetentWithIdentifier:nil
-                              resolver:^CGFloat(id<UISheetPresentationControllerDetentResolutionContext> context) {
-        return height;
-    }]];
-    sheet.presentationController.delegate = self;
-    _linkSheet = sheet;
-    _linkField = field;
-    _linkOpenItem = open;
-    _linkSpinner = spinner;
-    [self presentViewController:sheet animated:YES completion:^{
-        [field becomeFirstResponder];
+    __weak BrowserViewController *weakSelf = self;
+    OpenURLSheetController *sheet = [[OpenURLSheetController alloc] initWithOpen:^(NSString *text) {
+        [weakSelf openLinkText:text];
+    } cancel:^{
+        [weakSelf cancelLinkSheet];
     }];
-}
-
-- (void)openLinkFromSheet {
-    if (_linkOpenItem.isEnabled) {
-        [self openLinkText:_linkField.text];
-    }
+    _linkSheet = sheet;
+    [sheet presentFrom:self];
 }
 
 // Cancel: the sheet closes, and a link still resolving stops.
@@ -925,66 +838,16 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
 }
 
-// A swipe down closed the sheet.
-- (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {
-    if (presentationController.presentedViewController == _linkSheet) {
-        [self cancelLinkSheet];
-    }
-}
-
 // Closes the sheet, then runs then. With no sheet up, then runs at once.
-// TRAP: dismissed by its presenter. Asked of the sheet itself, a dismiss
-// closes only an alert it presents.
 - (void)closeLinkSheetThen:(nullable dispatch_block_t)then {
-    UINavigationController *sheet = _linkSheet;
+    OpenURLSheetController *sheet = _linkSheet;
     _linkSheet = nil;
-    _linkField = nil;
-    _linkOpenItem = nil;
-    _linkSpinner = nil;
-    UIViewController *presenter = sheet.presentingViewController;
-    if (presenter && !sheet.isBeingDismissed) {
-        [presenter dismissViewControllerAnimated:YES completion:then];
+    if (sheet) {
+        [sheet dismissThen:then];
     }
     else if (then) {
         then();
     }
-}
-
-// Open needs a link in the field. While the link resolves, the field and
-// Open are disabled and the spinner turns.
-- (void)syncLinkSheet {
-    BOOL resolving = _cancelLinkResolve != nil;
-    _linkField.editable = !resolving;
-    _linkField.textColor = resolving ? UIColor.secondaryLabelColor : UIColor.labelColor;
-    _linkOpenItem.enabled = !resolving && !VibeLinkTextIsBlank(_linkField.text);
-    if (resolving) {
-        [_linkSpinner startAnimating];
-    }
-    else {
-        [_linkSpinner stopAnimating];
-    }
-}
-
-- (BOOL)textView:(UITextView *)textView
-        shouldChangeTextInRanges:(NSArray<NSValue *> *)ranges
-                 replacementText:(NSString *)text {
-    if ([text isEqualToString:@"\n"]) {
-        [self openLinkFromSheet];
-        return NO;
-    }
-    return YES;
-}
-
-// A link has no line breaks, so a paste's are dropped. The resolve trims the
-// ends.
-- (void)textViewDidChange:(UITextView *)textView {
-    NSString *text = textView.text;
-    NSString *joined = [[text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
-            componentsJoinedByString:@""];
-    if (joined.length != text.length) {
-        textView.text = joined;
-    }
-    [self syncLinkSheet];
 }
 
 // The sheet's Open and the paste row both come here, and only while no link
@@ -1037,7 +900,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         }];
     }
     [self reloadPasteRow];
-    [self syncLinkSheet];
+    _linkSheet.resolving = _cancelLinkResolve != nil;
 }
 
 #pragma mark - The paste row
@@ -1865,9 +1728,9 @@ didEndDisplayingCell:(UITableViewCell *)cell
 - (NSDictionary *)debugLinkState {
     NSDictionary *sheet = _linkSheet ? @{
         @"shown": @YES,
-        @"text": _linkField.text ?: @"",
+        @"text": _linkSheet.debugField.text ?: @"",
         @"resolving": @((BOOL)(_cancelLinkResolve != nil)),
-        @"openEnabled": @(_linkOpenItem.isEnabled),
+        @"openEnabled": @(_linkSheet.debugOpenEnabled),
     } : @{@"shown": @NO};
     return @{
         @"pasteRowShown": @([[self rootRowsInSection:VibeBrowserRootSectionActions]
@@ -1877,8 +1740,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     };
 }
 
-- (UITextView *)debugLinkField {
-    return _linkField;
+- (OpenURLSheetController *)debugLinkSheet {
+    return _linkSheet;
 }
 #endif
 

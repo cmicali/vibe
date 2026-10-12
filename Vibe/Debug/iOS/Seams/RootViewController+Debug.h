@@ -17,6 +17,7 @@
 #import "PlaylistViewController.h"
 #import "SearchViewController.h"
 #import "OutputRouteRules.h"        // VibeOutputRouteKind, taken below
+#import "OpenURLSheetController+Debug.h"
 
 @class AudioTrackMetadataCache;
 @class AudioWaveformCache;
@@ -68,18 +69,16 @@
 @end
 
 @interface BrowserViewController (DebugSurface)
-// Open URL's sheet: shown, its Open, and its Cancel.
+// Shows Open URL's sheet.
 - (void)presentLinkSheet;
-- (void)openLinkFromSheet;
-- (void)cancelLinkSheet;
 @end
 
 @interface BrowserViewController (Debug)
 // {pasteRowShown, pasteRowResolving, linkSheet: {shown, text, resolving,
 // openEnabled}}. On a root browser.
 - (NSDictionary *)debugLinkState;
-// The sheet's field while it is up, else nil.
-- (UITextView *)debugLinkField;
+// Open URL's sheet while it is up, else nil.
+- (OpenURLSheetController *)debugLinkSheet;
 @end
 
 @interface FavoritesViewController (DebugSurface)
