@@ -69,7 +69,7 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 
-// Defined in AudioPlayer.m.
+// The player's error constructors, defined in AudioError.m.
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
 NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying, NSURL * _Nullable trackURL);
 
