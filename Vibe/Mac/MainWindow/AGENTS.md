@@ -1,10 +1,22 @@
 # Main window (macOS)
 
-**Layout geometry, the Liquid Glass chrome, the art-tint pipeline and the codec line are `APPEARANCE.md`. Read it before changing any of those.** This file is behavior: the controller, display states, the playlist edits the shell owns, and the window's resize and drop rules. `Transport/` (bare keys, skips, FX toggles) and `Convert/` (the FLAC swap and its undo) have their own `AGENTS.md`.
+**Layout geometry, the Liquid Glass chrome, the art-tint pipeline and the codec line are `LAYOUT.md`. Read it before changing any of those.** `MainPlayerContentView` is the window's body. The volume control inside it is its own view, `VolumeControlView`. This file is behavior: the controller, display states, the playlist edits the shell owns, and the window's resize and drop rules. `Transport/` (bare keys, skips, FX toggles) and `Convert/` (the FLAC swap and its undo) have their own `AGENTS.md`.
 
 ## The controller
 
-`MainPlayerController` (`NSWindowController`) is the coordinator. `MainPlayerController.m` keeps the `updateUI` funnel, display-state resolution and the open and playlist entry points. Each `MainPlayerController+*.h` preamble states what its category owns. **A method a category implements is declared in that category's header.** It is never declared in `MainPlayerController.h` or in `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared under `Vibe/Debug/Mac/Seams/`.
+`MainPlayerController` (`NSWindowController`) is the coordinator. `MainPlayerController.m` keeps the `updateUI` funnel, display-state resolution and the open entry points. Each `MainPlayerController+*.h` preamble states what its category owns:
+
+- `+Playlist`: Close, Save Playlist, the last playlist, and removing and moving rows with their undo.
+- `+Transport` (`Transport/`): the skips and the FX toggles. Also shuffle, repeat, On track end and the successor prefetch. Also the pitch fader and its range, the volume slider and the waveform's seek.
+- `+PlayerEvents`: every `AudioPlayerDelegate` callback.
+- `+Delivery`: the metadata, waveform, tempo and key deliveries. Also the grant, folder-art and thumbnail notifications.
+- `+Window`: the content build, the resize, lock and occlusion rules, the window chrome and the waveform theme.
+- `+Menus`: menu validation and the View > Theme submenu.
+- `+Settings`: the live effects.
+- `+NowPlaying`: the system's Now Playing info and remote commands.
+- `+Convert` (`Convert/`): Convert to FLAC's swap and its undo.
+
+**A method a category implements is declared in that category's header.** It is never declared in `MainPlayerController.h` or in `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared under `Vibe/Debug/Mac/Seams/`.
 
 **`+PlayerEvents` and `+Delivery` carry the root doc's staleness guarantee.** Every callback can be stale and must match its track against the playlist's current one. The decisions are tested seams: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
 
@@ -34,7 +46,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 **Where a track end goes is the playlist's `trackEndSuccessor`, which is nil under On track end = Pause** (root `AGENTS.md`). `pushTransportModesToPlaylist` pushes Pause with repeat and shuffle. Every prefetch parks `trackEndSuccessor`, and `advanceOrParkAtTrackEnd` calls `advanceAtTrackEnd`.
 
-**Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`APPEARANCE.md`).
+**Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`LAYOUT.md`).
 
 **File > Close (⌘W, `closeFile:`) is nil-targeted.** The key window's target owns the action and the shared item's title. The player retitles it Close File or Close All Files and enables it for a nonempty playlist. Settings, About and the Open URL panel restore the singular and close themselves. The player's action invalidates the open coordinator, calls `AudioPlayer.stop` (no delegate event), clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelScan`. **A cancelled loader still holds every queued track strongly.**
 
@@ -42,7 +54,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 ## The last playlist
 
-`AppSettings.reopenLastPlaylist` (off by default) mirrors the playlist to `Application Support/<bundle id>/LastPlaylist.m3u` at quit and reopens it at launch. `PlaylistFile` owns the save and restore (`Playlist/AGENTS.md`).
+`AppSettings.reopenLastPlaylist` (off by default) mirrors the playlist to `Application Support/<bundle id>/LastPlaylist.m3u` at quit and reopens it at launch. `PlaylistFile+Session` owns the save and restore (`Playlist/Mac/AGENTS.md`).
 
 - `saveLastPlaylist` writes absolute paths and never touches Open Recent. The current row goes in the `VibeLastPlaylistCurrentIndex` defaults key. It is state, not a preference, so a reset leaves it. The mirror is deleted when the setting is off or the playlist is empty. Turning the setting off deletes it at once (`applyReopenLastPlaylist`).
 - `restoreLastPlaylist` lands **parked**, through `loadTracks:selectingIndex:startPaused:YES`. Every row comes back, readable or not, and a cue row keeps its window and names. The mirror is read through `PlaylistFile.rowsInM3UData:`, not the open funnel. Nothing is stat'd, not even a cue row's sheet, and no grant panel is raised.

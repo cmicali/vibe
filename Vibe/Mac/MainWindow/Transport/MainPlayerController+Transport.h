@@ -2,14 +2,22 @@
 //  MainPlayerController+Transport.h
 //  Vibe
 //
-//  The relative-seek skips and the performance-effect pass-throughs.
+//  The relative-seek skips and the performance-effect pass-throughs. Also
+//  shuffle, repeat and On track end, and the successor prefetch they re-park.
+//  Also the pitch fader and its range, the volume slider and the waveform's
+//  seek.
 //
 
 #import "MainPlayerController.h"
+#import "PitchControlPanel.h"
+#import "WaveformView.h"
+
+@class VibeSlider;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface MainPlayerController (Transport)
+// WaveformViewDelegate's theme half is +Window's.
+@interface MainPlayerController (Transport) <PitchControlPanelDelegate, WaveformViewDelegate>
 
 // With a known tempo: AppSettings.skipBaseBars, twice and four times it; else
 // wall-clock seconds. Past the end finishes the track; before the start seeks
@@ -47,6 +55,28 @@ NS_ASSUME_NONNULL_BEGIN
 // One sentence, shared by the header's open-lock tooltip and the Settings >
 // Audio caption so the two cannot disagree.
 - (NSString *)bitPerfectStatusText;
+
+#pragma mark - Modes, pitch and volume
+
+- (IBAction)setPitchRange:(id)sender;
+- (IBAction)toggleShuffle:(nullable id)sender;
+// Off, All, One, Off.
+- (IBAction)cycleRepeatMode:(nullable id)sender;
+
+// Re-parks the playlist's trackEndSuccessor, except while Stopped. Every site
+// but a track start goes through this.
+- (void)prefetchSuccessor;
+- (void)pushTransportModesToPlaylist;
+
+// The EndOfTrack and PitchRange live effects.
+- (void)applyEndOfTrackAction;
+- (void)applyPitchRange;
+
+// Only the rate-dependent labels, cheap enough for fader ticks.
+- (void)updateRateDependentUI;
+
+// The header's volume slider: stores its position and pushes it to the player.
+- (IBAction)volumeChanged:(VibeSlider *)sender;
 
 @end
 

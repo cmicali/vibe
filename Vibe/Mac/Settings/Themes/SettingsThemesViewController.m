@@ -1,18 +1,19 @@
 //
-//  SettingsAppearanceViewController.m
+//  SettingsThemesViewController.m
 //  Vibe
 //
 //  The list page, the page swap and the theme file actions (import, export,
-//  the drop target). The editor page is the Editor category; the state they
-//  share is SettingsAppearanceViewControllerInternal.h.
+//  the drop target). The Editor category builds the editor page, and the
+//  EditorActions category holds its state and actions. The state they share
+//  is SettingsThemesViewControllerInternal.h.
 //
 //  The editor swaps in beside the section stack and scrolls inside whatever
 //  height the panes settled at, so its rows never grow every pane.
 //
 
-#import "SettingsAppearanceViewController.h"
-#import "SettingsAppearanceViewControllerInternal.h"
-#import "SettingsAppearanceViewController+Editor.h"
+#import "SettingsThemesViewController.h"
+#import "SettingsThemesViewControllerInternal.h"
+#import "SettingsThemesViewController+Editor.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "AppSettings.h"
 #import "NSView+DarkMode.h"
@@ -29,7 +30,7 @@ static const NSUInteger kThemeListRowCount = 10;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
-@implementation SettingsAppearanceViewController {
+@implementation SettingsThemesViewController {
     NSTableView *_themeTable;
     NSButton *_removeThemeButton;
     // Store order, built-ins first. Rows include group headers (identifierForRow:).

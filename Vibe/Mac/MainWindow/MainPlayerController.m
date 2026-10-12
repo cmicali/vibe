@@ -16,7 +16,6 @@
 #import "AppDelegate.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
-#import "DrawnControls.h"
 #import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
@@ -31,7 +30,6 @@
 #import "FolderArtResolver.h"
 #import "FolderAccessManager.h"
 #import "PlaylistController.h"
-#import "PlaylistFile.h"
 #import "PlaybackDeliveryRules.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
@@ -47,14 +45,12 @@
 #import "MainPlayerController+PlayerEvents.h"
 #import "MainPlayerController+Delivery.h"
 #import "MainPlayerController+Window.h"
+#import "MainPlayerController+Playlist.h"
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
 #import "TrackCommands.h"
-#import "OpenRequestCoordinator.h"
 #import "WaveformRendererRegistry.h"
 #import "VibeStrings.h"
-
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 @implementation MainPlayerController {
     // The error mask: the track whose play failed and its short status. Weak:
@@ -62,12 +58,6 @@
     // mark. Only setErrorMaskForTrack:status: and clearErrorMask write it.
     __weak AudioTrack*          _erroredTrack;
     NSString*                   _errorStatus;
-    // The playlist the empty header names (revealEmptyStateNamingPlaylist:);
-    // cleared by every load and by Close.
-    NSString*                   _unplayablePlaylistName;
-    // The launch grace (revealEmptyStateNamingPlaylist:). Once cleared, never
-    // set again.
-    BOOL                        _emptyStateSuppressed;
     // The generation pairs each deferred-load fallback timer with its own
     // playlist, so a timer armed for playlist A cannot start B's load while
     // B's first track is still opening.
@@ -78,7 +68,6 @@
     NSString*                   _noticeTitle;
     NSUInteger                  _noticeGeneration;
     TransportKeyMonitor*        _keyMonitor;
-    BOOL                        _folderArtRefreshScheduled;
     uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
     // Playing-row indicators reading band levels; the tap is off at zero.
     NSInteger                   _levelConsumers;
@@ -725,104 +714,6 @@ static const NSTimeInterval kNoticeSeconds = 4;
     _loadingProgress = -1;
 }
 
-// stop sends no callback, so nothing auto-advances; didFinishPlaying:'s stale
-// guard drops one already in flight.
-- (IBAction)closeFile:(nullable id)sender {
-    [OpenRequestCoordinator.sharedCoordinator invalidate];
-    [self endLoadingProgress];
-    [self.audioPlayer stop];
-    [self.waveformCache cancelLoad];
-    [self.playlistController clear];
-    // A cancelled scan loader still holds every queued track; drop it.
-    [self cancelDeferredMetadataLoad];
-    [self.metadataCache cancelScan];
-    [self clearErrorMask];
-    _unplayablePlaylistName = nil;
-    _emptyStateSuppressed = NO; // Close explicitly asks for the empty state
-    _currentTrackDuration = 0;
-    [self pauseUIUpdateTimer];
-    [self endNotice];
-    [self updateUI];
-}
-
-// Seeded from the tracks' common folder, so a folder's playlist lands beside
-// its music.
-- (IBAction)savePlaylist:(nullable id)sender {
-    NSURL *common = [PlaylistFile commonDirectoryForTracks:self.playlistController.playlist];
-    NSSavePanel *panel = [NSSavePanel savePanel];
-    panel.allowedContentTypes = @[UTTypeM3UPlaylist];
-    panel.directoryURL = common;   // nil: the panel's own default
-    panel.nameFieldStringValue = [(common.lastPathComponent ?: STR_PLAYLIST_SAVE_DEFAULT_NAME)
-                                  stringByAppendingString:@".m3u"];
-    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
-        if (response != NSModalResponseOK || !panel.URL) {
-            return;
-        }
-        NSError *error = nil;
-        if (![self writePlaylistToURL:panel.URL error:&error]) {
-            // A panel that just closes is indistinguishable from a saved file.
-            [[NSAlert alertWithError:error] beginSheetModalForWindow:self.window completionHandler:nil];
-        }
-    }];
-}
-
-- (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
-    // Relative to the chosen file's folder, which the reader resolves against.
-    if (![PlaylistFile writeM3UForTracks:self.playlistController.playlist
-                     relativeToDirectory:url.URLByDeletingLastPathComponent
-                                   toURL:url error:error]) {
-        return NO;
-    }
-    [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
-    return YES;
-}
-
-#pragma mark - The last playlist
-
-// The container mirror: absolute paths, never in Open Recent. The cursor is a
-// defaults key written with the mirror; it is state, not a preference, so
-// resetToDefaults leaves it.
-static NSURL *VibeLastPlaylistURL(void) {
-    NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
-                                                            NSUserDomainMask, YES).firstObject;
-    NSString *dir = [support stringByAppendingPathComponent:NSBundle.mainBundle.bundleIdentifier];
-    return [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:@"LastPlaylist.m3u"] isDirectory:NO];
-}
-
-- (void)saveLastPlaylist {
-    NSError *error = nil;
-    if (![PlaylistFile saveSessionTracks:self.playlistController.playlist
-            currentIndex:self.playlistController.currentIndex enabled:AppSettings.sharedInstance.reopenLastPlaylist
-            toURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults write:nil error:&error]) {
-        LogError(@"Last playlist not saved: %@", error.localizedDescription);
-    }
-}
-
-- (void)removeLastPlaylist {
-    [PlaylistFile removeSessionAtURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults];
-}
-
-- (BOOL)restoreLastPlaylist {
-    return [PlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
-            enabled:AppSettings.sharedInstance.reopenLastPlaylist defaults:NSUserDefaults.standardUserDefaults
-            load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
-        [self loadTracks:rows selectingIndex:index startPaused:paused];
-    }];
-}
-
-- (BOOL)loadWelcomeTrack {
-    NSURL *url = [NSBundle.mainBundle URLForResource:@"vibe-theme" withExtension:@"mp3"];
-    if (!url) return NO;
-    [self loadTracks:@[[[AudioTrack alloc] initWithURL:url]] selectingIndex:0 startPaused:YES];
-    return YES;
-}
-
-- (void)applyReopenLastPlaylist {
-    if (!AppSettings.sharedInstance.reopenLastPlaylist) {
-        [self removeLastPlaylist];   // off means forget, not merely stop writing
-    }
-}
-
 - (IBAction)next:(nullable id)sender {
     // The refresh rides playWillStartHandler. Past the end next starts
     // nothing; the park's refresh is advanceOrParkAtTrackEnd's.
@@ -839,129 +730,6 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (IBAction)playSelectedTrack:(nullable id)sender {
     [self.playlistController playSelectedTrack];   // refresh rides the funnel; see next:
-}
-
-#pragma mark - Playlist editing
-
-// Called from the index funnel and from structural edits, which that funnel
-// does not fire for.
-- (void)updateMetadataNeighborhood {
-    [self.metadataCache setNeighborhoodTracks:self.playlistController.neighborhoodTracks];
-}
-
-- (IBAction)removeSelectedPlaylistTracks:(nullable id)sender {
-    NSArray<AudioTrack *> *tracks = self.playlistController.selectedTracks;
-    if (tracks.count == 0) {
-        return;
-    }
-    [self removePlaylistTracks:tracks];
-}
-
-// The one removal funnel, and the only place a removal's playback consequences
-// are decided: Playlist.removeTracksAtIndexes: touches no audio, so removing
-// the current row there alone would leave the player sounding a track the
-// playlist no longer holds, and every identity guard would read its events as
-// stale. The files are never touched.
-- (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks {
-    PlaylistController *playlist = self.playlistController;
-    // Each exact object once; departed ones drop out.
-    NSIndexSet *rows = [playlist rowsForTracks:tracks];
-    if (rows.count == 0) {
-        return;
-    }
-    // Removing every row is an unload, which closeFile: owns whole.
-    if (rows.count == playlist.count) {
-        [self closeFile:nil];
-        return;
-    }
-
-    NSUInteger currentIndex = playlist.currentIndex;
-    BOOL removingCurrent = [rows containsIndex:currentIndex];
-    // Only a removed current row with a surviving forward successor keeps
-    // sounding; otherwise the cursor moves back, and removal never replays
-    // backward. The intent resolves behind every transport command already
-    // queued, and the model's query keeps other edits off that round trip.
-    VibePendingPlaybackIntent intent;
-    BOOL continuesPlaying = [playlist forwardTrackAfterRemovingTracksAtIndexes:rows] != nil
-            && [self.audioPlayer getPlaybackIntent:&intent forTrack:nil]
-            && !intent.paused;
-
-    // Undo restores the exact objects to their rows and never touches
-    // transport. The generation keeps a restore off a replaced playlist.
-    // Registering after the mutation is fine: both share this turn's group.
-    NSArray<AudioTrack *> *removed = [playlist removeTracksAtIndexes:rows];
-    NSUndoManager *undoManager = self.window.undoManager;
-    [[undoManager prepareWithInvocationTarget:self]
-            reinsertPlaylistTracks:removed
-                         atIndexes:rows
-                        generation:playlist.structureGeneration];
-    [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
-
-    // Departed rows must not spend a provider transfer; undo re-requests them.
-    for (AudioTrack *track in removed) {
-        [self.metadataCache abandonQueuedTrack:track];
-    }
-    // The cursor callback is not raised for a structural edit, so this is the
-    // removal's one reconciliation.
-    if (!removingCurrent) {
-        // The current track survived; only the successor can have moved.
-        [self reconcileAfterPlaylistStructureEdit];
-        return;
-    }
-    [self updateMetadataNeighborhood];
-
-    // The current row is gone. The play funnel repaints at submission, brings
-    // didStartPlaying:'s per-track refresh, and mints a newer play identity so
-    // the removed open's settlement dies on submittedPlayIsCurrent:.
-    [self clearErrorMask];
-    // A fast local replacement never reaches didBeginLoading: to replace it.
-    [self endLoadingProgress];
-    BOOL startPaused = !continuesPlaying;
-    if (startPaused) {
-        // A slow parked open must not keep the UI tick running.
-        [self pauseUIUpdateTimer];
-    }
-    [playlist playStartPaused:startPaused];
-}
-
-// The tail of every structural edit once the model is final.
-- (void)reconcileAfterPlaylistStructureEdit {
-    [self prefetchSuccessor];
-    [self updateMetadataNeighborhood];
-    [self updateUI];
-}
-
-// The removal's undo. The redo registration precedes the generation bail, so
-// a refused restore is not also a lost one; a dead pair's redo no-ops in
-// removePlaylistTracks:'s departed-object guard. Transport is untouched: a
-// removed current row does not replay.
-- (void)reinsertPlaylistTracks:(NSArray<AudioTrack *> *)tracks
-                     atIndexes:(NSIndexSet *)indexes
-                    generation:(NSUInteger)generation {
-    NSUndoManager *undoManager = self.window.undoManager;
-    [[undoManager prepareWithInvocationTarget:self] removePlaylistTracks:tracks];
-    [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
-    if (generation != self.playlistController.structureGeneration) {
-        return;
-    }
-    [self.playlistController insertTracks:tracks atIndexes:indexes];
-    // Re-requests the scan work abandoned at removal.
-    for (AudioTrack *track in tracks) {
-        [self.metadataCache loadMetadataNow:track];
-    }
-    [self reconcileAfterPlaylistStructureEdit];
-}
-
-// A reorder's undo and redo. A replaced playlist, or indexes the model
-// refuses, move nothing and register nothing.
-- (void)movePlaylistTracksFromIndexes:(NSIndexSet *)sourceIndexes
-                            toIndexes:(NSIndexSet *)destinationIndexes
-                           generation:(NSUInteger)generation {
-    if (generation != self.playlistController.structureGeneration) {
-        return;
-    }
-    [self.playlistController moveTracksAtIndexes:sourceIndexes
-                                       toIndexes:destinationIndexes];
 }
 
 - (IBAction)closeApp:(id)sender {
@@ -1000,139 +768,6 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (void)refreshWindowTint {
     [_artworkController refreshTintWashes];
-}
-
-// Forgets no-grant answers only; a known cover rechecks access on every read.
-// A full wipe would discard the covers an open's walk just harvested, since the
-// open's own grant lands a moment later.
-- (void)grantedFoldersDidChange:(NSNotification *)notification {
-    [FolderArtResolver.sharedInstance invalidateDirectoriesSettledWithoutGrant];
-    [self.playlistController reloadAllTracks];
-    [self updateUI];
-}
-
-- (void)thumbnailDidLoad:(NSNotification *)notification {
-    AudioTrack *displayed = [self displayedTrack];
-    if (displayed.metadata == notification.object) {
-        [self updateUI];
-    }
-}
-
-// Fired for "none" as well as a cover: the header holds the previous art until
-// it hears. The resolver is serial, so consecutive folders land in different
-// turns; a short delay coalesces where a per-turn gate would not.
-static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
-
-- (void)folderArtDidResolve:(NSNotification *)notification {
-    if (_folderArtRefreshScheduled) {
-        return;
-    }
-    _folderArtRefreshScheduled = YES;
-    __weak MainPlayerController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFolderArtRedrawDelay * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        MainPlayerController *strongSelf = weakSelf;
-        if (!strongSelf) {
-            return;
-        }
-        strongSelf->_folderArtRefreshScheduled = NO;
-        [strongSelf.playlistController reloadVisibleTracks];
-        [strongSelf updateUI];
-    });
-}
-
-- (IBAction)setPitchRange:(id)sender {
-    if ([sender isKindOfClass:[NSMenuItem class]]) {
-        NSMenuItem *item = sender;
-        AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:kVibeMenuPitchRange16] ? 16 : 8;
-        [self applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
-    }
-}
-
-- (IBAction)toggleShuffle:(nullable id)sender {
-    AppSettings *settings = AppSettings.sharedInstance;
-    settings.shuffleEnabled = !settings.shuffleEnabled;
-    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
-}
-
-- (IBAction)cycleRepeatMode:(nullable id)sender {
-    AppSettings *settings = AppSettings.sharedInstance;
-    settings.repeatMode = VibeRepeatModeAfter(settings.repeatMode);
-    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
-}
-
-// TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
-// file, and re-parking its successor after a list edit or a mode change would
-// open one. On a cloud folder that is an unasked download. A new play
-// prefetches at its start anyway.
-- (void)prefetchSuccessor {
-    if (self.audioPlayer.isStopped) {
-        return;
-    }
-    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
-}
-
-// The model and the system's controls, which show the same modes.
-- (void)pushTransportModesToPlaylist {
-    AppSettings *settings = AppSettings.sharedInstance;
-    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled
-                           pauseAtTrackEnd:settings.pauseAtTrackEnd];
-    [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
-                                         repeatMode:settings.repeatMode
-                                          available:YES];
-}
-
-- (void)applyEndOfTrackAction {
-    [self pushTransportModesToPlaylist];
-    // nil unschedules an armed splice, so a mid-track switch to Pause does not
-    // advance anyway; a new successor replaces one armed before a repeat or
-    // shuffle change.
-    [self prefetchSuccessor];
-    // Next's availability and the codec line's glyphs follow the modes, on
-    // screen and in Now Playing.
-    self.nextButton.enabled = self.playlistController.hasNextTrack;
-    [self updateFXIndicators];
-    [self updateNowPlaying];
-}
-
-- (void)applyPitchRange {
-    float range = (float)AppSettings.sharedInstance.pitchRange;
-    self.audioPlayer.maxPitch = range;
-    _pitchPanel.maxPitch = range;
-    // A narrower range clamps the pitch.
-    _pitchPanel.pitch = self.audioPlayer.pitch;
-    [self updateRateDependentUI];
-    // No gesture end publishes the clamped duration.
-    [self updateNowPlaying];
-}
-
-// Cheap enough for every fader tick, unlike updateUI. No Now Playing publish,
-// an XPC round trip a rate change always dirties: a gesture publishes once at
-// its end, and the other callers publish for themselves.
-- (void)updateRateDependentUI {
-    [self.trackDisplay renderTotalDuration:self.audioPlayer.duration
-                                      rate:self.playbackRate
-                                     state:[self headerState]];
-    [self effectiveTempoDidChange];
-    [self syncUITimerRate];
-    [self updatePlaybackUI];
-}
-
-- (void)pitchControlPanel:(PitchControlPanel *)panel didChangePitch:(float)pitch {
-    self.audioPlayer.pitch = pitch;
-    [self updateRateDependentUI]; // the update timer is off while paused
-}
-
-- (void)pitchControlPanelDidEndAdjusting:(PitchControlPanel *)panel {
-    [self updateNowPlaying];
-}
-
-// A drag tick: the slider moved itself and the control is on, so the
-// player and the percentage are all that follow.
-- (IBAction)volumeChanged:(VibeSlider *)sender {
-    AppSettings.sharedInstance.volume = sender.doubleValue;
-    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
-    [self.playerContentView volumeSliderDidMove];
 }
 
 - (IBAction)toggleTimeDisplayMode:(id)sender {
@@ -1186,14 +821,6 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 // calling syncUITimerRate.
 - (NSUInteger)debugExpectedUIUpdateHz {
     return [self wantedUIUpdateHz];
-}
-
-- (NSDictionary *)debugLastPlaylistDictionary {
-    return @{
-        @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
-        @"rows": @([PlaylistFile rowsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
-        @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
-    };
 }
 #endif
 

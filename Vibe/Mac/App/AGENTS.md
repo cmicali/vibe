@@ -23,9 +23,9 @@ The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable
 
 ## Open URL and links
 
-**Open URL (⌘U, `openLink:`) is an `NSPanel` that `AppDelegate` builds and owns.** It is not a sheet, so the player keeps working while it is up. It stays up when Vibe is not active (`hidesOnDeactivate` off), since a link is often copied from a browser. It takes the level of the About and Settings windows (`applyAuxiliaryWindowLevels`). Open is disabled while the field is blank (`VibeLinkTextIsBlank`). Return presses Open and never breaks the line. Nothing reads the pasteboard unless the user pastes.
+**Open URL (⌘U, `openLink:`) is an `NSPanel` that `OpenLinkWindowController` builds.** `AppDelegate` owns the controller for the app's life. The controller builds the panel at each show and releases it at each close. The panel is not a sheet, so the player keeps working while it is up. It stays up when Vibe is not active (`hidesOnDeactivate` off), since a link is often copied from a browser. It takes the level of the About and Settings windows (`applyAuxiliaryWindowLevels`). Open is disabled while the field is blank (`VibeLinkTextIsBlank`). Return presses Open and never breaks the line. Nothing reads the pasteboard unless the user pastes.
 
-**⌘W reaches the panel because `AppDelegate`, its delegate, answers `closeFile:` ahead of the player.** The player's `closeFile:` would clear the playlist. Every close ends in `windowWillClose:`, which cancels a resolve still running.
+**⌘W reaches the panel because the controller, its delegate, answers `closeFile:` ahead of the player.** The player's `closeFile:` would clear the playlist. `AppDelegate` forwards `closeFile:` and Close's validation to the controller when no window takes them. Every close ends in `windowWillClose:`, which cancels a resolve still running.
 
 **A link opens down the same road as a dropped link** (`openInOrder:token:completion:`). `openLinkString:completion:` takes a replacing request at once, then resolves the link. A failure or a cancel finishes the request with no rows, so a loaded playlist stays. There is no alert. The header shows the failure as a notice (`showNotice:naming:`, `Mac/MainWindow/AGENTS.md`). Every newer open request ends a held notice (`beginOpenRequestAppending:fromURLs:`).
 
@@ -62,7 +62,7 @@ Restoration runs three utility workers plus one user-initiated lane for a grant 
 
 **The direct download updates itself through Sparkle. The Mac App Store build has no updater at all.** `VIBE_DIRECT_DISTRIBUTION` (`project.yml`) is the one channel marker: 1 in Debug and Release, 0 in `AppStore`. Nothing else may infer the channel. Everything Sparkle is inside `#if VIBE_DIRECT_DISTRIBUTION`: the import, the controller, the menu item, the two Settings rows, the beta setting and the debug report's feed line. The `AppStore` configuration also unlinks the framework and strips its Info.plist keys. `release-appstore.sh` and CI check the result (the `vibe-release` skill).
 
-`AppDelegate` owns one `SPUStandardUpdaterController`. It is created unstarted in `applicationWillFinishLaunching:`, before the menu, and started in `applicationDidFinishLaunching:` after the window is up. Sparkle's standard UI does the rest. Automatic checks are on from the first launch, weekly, so Sparkle never shows its first-run prompt (`SUEnableAutomaticChecks`, `SUScheduledCheckInterval`). Vibe adds three things.
+`AppDelegate` owns one `SPUStandardUpdaterController`. It is created unstarted in `applicationWillFinishLaunching:`, before the menu, and started in `applicationDidFinishLaunching:` after the window is up. `AppDelegate+Updates` creates it. That category is also the updater's delegate, and it holds `updateCheckInterval`. Sparkle's standard UI does the rest. Automatic checks are on from the first launch, weekly, so Sparkle never shows its first-run prompt (`SUEnableAutomaticChecks`, `SUScheduledCheckInterval`). Vibe adds three things.
 
 - **Check for Updates…** targets the controller, which validates it.
 - `allowedChannelsForUpdater:` adds the feed's `beta` channel while `AppSettings.receiveBetaUpdates` is on. Sparkle asks at every check, so the setting needs no live effect.
@@ -82,6 +82,8 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **A launch-time open outranks the remembered playlist, and the restore is not an open.** It does not enter the coalescer. An empty drain arms no burst, so a Finder open a beat later replaces rather than appends. It does not enter `openURLs:appending:` either, so it records no stats and mints no bookmarks.
 
+`MainPlayerController` saves and restores the mirror through `PlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
+
 **Links are pruned once per launch, after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`pruneKeepingTracks:recentURLs:`). The store deletes every other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
 
 `AppStats` (`Vibe/Common/`, `Common/AGENTS.md`) counts on both platforms. This shell feeds it from `deliverExpandedRows:` and from the player's output-audio activity event.
@@ -92,7 +94,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **The app does not opt into sudden termination.** Under it an idle quit is a SIGKILL with no callback, and the last playlist would not be written.
 
-**TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block. libdispatch does not drain the main queue re-entrantly, so a reply queued there never runs, and Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, uses the same queue for the same reason (`Audio/Mac/Convert/AGENTS.md`).
+**TRAP: the reply goes through the main run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A quit issued from inside a main-queue block (the debug channel's `quit`, anything dispatched to main) runs `terminate:`'s wait loop inside that block. libdispatch does not drain the main queue re-entrantly, so a reply queued there never runs, and Vibe sits hidden and never exits. The converter's settlement, which the quit waits on mid-encode, uses the same queue for the same reason (`Mac/Convert/AGENTS.md`).
 
 ## Debug info
 

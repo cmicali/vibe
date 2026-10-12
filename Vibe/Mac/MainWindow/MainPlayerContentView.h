@@ -6,7 +6,7 @@
 #import <Cocoa/Cocoa.h>
 
 @class SymbolButton;
-@class VibeSlider;
+@class VolumeControlView;
 @class ArtworkImageView;
 @class WaveformView;
 @class PlaylistTableView;
@@ -21,6 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MainPlayerContentView : NSView
 
 - (instancetype)initWithTarget:(id)target;
+
+// A plain label: borderless, uneditable and clipping. Every header text is one.
++ (NSTextField *)labelWithFrame:(NSRect)frame;
 
 // Glass takes a layer radius; the pre-26 frost a regenerated mask.
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
@@ -66,9 +69,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The slider's own action, every tick of a drag and once at the release: the
 // percentage, and the hover held open while the knob is in hand.
 - (void)volumeSliderDidMove;
-// The slider's fill and knob from the theme's volumeBar and volumeKnob.
-// Every resolution of the waveform's theme calls it, so a waveform edit and
-// an art color reach it.
+// The slider's fill and knob, resolved by VolumeControlView. Every resolution
+// of the waveform's theme calls it, so a waveform edit and an art color reach
+// it.
 - (void)applyVolumeColors;
 
 // Plain views the artwork controller washes: the glass's own tintColor is
@@ -82,9 +85,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly) NSTextField *titleTextField;
 @property (readonly) NSTextField *totalTimeTextField;
 @property (readonly) NSTextField *currentTimeTextField;
-// "Vol", the slider and the percentage, which fade and hide as one.
-@property (readonly) NSView *volumeControlView;
-@property (readonly) VibeSlider *volumeSlider;
+@property (readonly) VolumeControlView *volumeControlView;
 @property (readonly) NSTextField *fileMetadataTextField;
 @property (readonly) NSTextField *bpmTextField;
 

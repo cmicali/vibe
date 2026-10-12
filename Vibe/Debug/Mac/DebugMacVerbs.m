@@ -9,6 +9,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Playlist.h"
 #import "DebugInfo.h"
 
 #if DEBUG

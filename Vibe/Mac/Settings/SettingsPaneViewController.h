@@ -123,7 +123,7 @@ static const CGFloat kPanePadding = 20;
 // effects read the store, so a later apply carries every tick before it.
 - (void)applyLiveEffectsDuringDrag:(VibeSettingsLiveEffect)effects;
 // Runs after a coalesced apply, with what it applied; a pane redraws what
-// shows the effects (the Appearance pane's waveform preview).
+// shows the effects (the Themes pane's waveform preview).
 - (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects;
 
 // A pane that keeps its own undo stack; Edit > Undo reaches it while the pane

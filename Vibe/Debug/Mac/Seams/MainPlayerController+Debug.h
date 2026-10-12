@@ -2,7 +2,8 @@
 //  MainPlayerController+Debug.h
 //  Vibe
 //
-//  Declaration-only: the debug accessors MainPlayerController.m implements.
+//  Declaration-only: the debug accessors MainPlayerController.m and its
+//  +Playlist category implement.
 //  The outlets and state the dumps read come from
 //  MainPlayerControllerInternal.h, so nothing is re-declared here.
 //

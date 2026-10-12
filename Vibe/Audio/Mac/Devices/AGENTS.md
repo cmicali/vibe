@@ -20,7 +20,7 @@ With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log (`AudioDeviceEventLog`) foll
 
 `refreshOutputDevicesCache` runs only on that serial refresh queue, so an older sweep can never overwrite a newer one. `initWithEnumerator:retryScheduler:` lets the host-less suite control the HAL and timer boundaries. `refreshOutputDevicesWithCompletion:` is the shared refresh entry for notifications and tests.
 
-**Observers are fanned out on main in the common run-loop modes**, not with a plain `dispatch_async`. GCD main-queue blocks do not run during menu tracking, and this way the devices menu refreshes while open. Observers (`AudioDeviceManagerObserver`) are held weakly: `AudioPlayer`, `OutputDevicesMenuController` and `SettingsGeneralViewController`.
+**Observers are fanned out on main in the common run-loop modes**, not with a plain `dispatch_async`. GCD main-queue blocks do not run during menu tracking, and this way the devices menu refreshes while open. Observers (`AudioDeviceManagerObserver`) are held weakly: `AudioPlayer`, `OutputDevicesMenuController` and `SettingsAudioOutputViewController`.
 
 ## AudioPlayer+Devices
 

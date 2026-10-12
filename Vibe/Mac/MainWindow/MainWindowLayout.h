@@ -4,6 +4,7 @@
 //
 // Shared by MainWindow's sizing and MainPlayerContentView's design-time layout
 // so the two cannot drift; ArtworkImageView reads the exclusion band.
+// The layout itself is the Layout block at the top of MainPlayerContentView.m.
 
 #import <Foundation/Foundation.h>
 

@@ -12,6 +12,7 @@
 #import "MainPlayerController.h"
 #import "MainPlayerController+Window.h"
 #import "MainPlayerController+Convert.h"
+#import "MainPlayerController+Playlist.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
 #import "MenuValidationRules.h"

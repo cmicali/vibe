@@ -1,29 +1,23 @@
 //
-//  SettingsAppearanceViewController+Editor.h
+//  SettingsThemesViewController+Editor.h
 //  Vibe
 //
 //  The Themes pane's editor page. It edits whatever theme is active —
 //  selection IS activation — so nothing is handed over on the page swap.
+//  The Editor category builds the page. EditorActions holds its state and
+//  actions, declared in SettingsThemesViewControllerInternal.h.
 //
 
-#import "SettingsAppearanceViewController.h"
+#import "SettingsThemesViewController.h"
 #import "MainPlayerController+Settings.h"
 #import "AppTheme.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SettingsAppearanceViewController (Editor) <NSFontChanging, NSTextFieldDelegate>
+@interface SettingsThemesViewController (Editor)
 
 // A hidden sibling of the section stack. Runs after loadPaneWithSections:.
 - (void)buildEditorPage;
-
-- (void)refreshEditorFromSettings;
-
-// Closes the font panel and deactivates every color well.
-- (void)closeEditorPanels;
-
-// resolveLayoutStateFromSettings is implemented here too: every conditional
-// row is the editor's. It ends in applyEditorVisibility.
 
 @end
 

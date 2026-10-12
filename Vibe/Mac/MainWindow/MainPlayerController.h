@@ -12,7 +12,6 @@
 @class AudioWaveformCache;
 @class AudioFileConverter;
 @class OutputDevicesMenuController;
-@class VibeSlider;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -59,41 +58,18 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showNotice:(NSString *)status naming:(NSString *)name;
 - (void)endNotice;
 
-// YES when the mirror came back, parked on its last current row; NO when the
-// setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).
-- (BOOL)restoreLastPlaylist;
-- (BOOL)loadWelcomeTrack;
-// Quit-time: writes the mirror, or deletes it when off or empty.
-- (void)saveLastPlaylist;
-
 - (IBAction)closeApp:(id)sender;
 - (IBAction)minimizeWindow:(id)sender;
 
 - (IBAction)playPause:(nullable id)sender;
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
-// The header's volume slider: stores its position and pushes it to the player.
-- (IBAction)volumeChanged:(VibeSlider *)sender;
 
 // Plays the selected row, as a double-click does.
 - (IBAction)playSelectedTrack:(nullable id)sender;
 
-- (IBAction)closeFile:(nullable id)sender;
-
-// The playlist as M3U; the audio files are never touched.
-- (IBAction)savePlaylist:(nullable id)sender;
-
-// Removes every selected row, never the file. A removed current row hands its
-// play intent to its forward successor, or parks on the row before.
-- (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
-
-// The Transport, Window and Convert actions are declared in their category
-// headers.
-
-- (IBAction)setPitchRange:(id)sender;
-- (IBAction)toggleShuffle:(nullable id)sender;
-// Off, All, One, Off.
-- (IBAction)cycleRepeatMode:(nullable id)sender;
+// The Playlist, Transport, Window and Convert actions are declared in their
+// category headers.
 
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;

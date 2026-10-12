@@ -10,6 +10,7 @@
 #import "MainPlayerController+PlayerEvents.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+NowPlaying.h"
+#import "MainPlayerController+Playlist.h"
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerController+Window.h"
 #import "MainWindow.h"

@@ -1,6 +1,6 @@
 # Playlist
 
-`Playlist` (the model), `FolderWalk` (the disk walk) and `PlaylistFile` (the CUE and M3U readers and the M3U writer) are shared with iOS. All three are tested. **`Mac/` is the `NSTableView` half and has its own `AGENTS.md`.** The iOS list is `Vibe/iOS/LibraryViewController`.
+`Playlist` (the model), `FolderWalk` (the disk walk) and `PlaylistFile` (the CUE and M3U readers and the M3U writer) are shared with iOS. All three are tested. **`Mac/` is the `NSTableView` half and the last-playlist store, and has its own `AGENTS.md`.** The iOS list is `Vibe/iOS/LibraryViewController`.
 
 ## The model
 
@@ -56,7 +56,7 @@ The playable extension set is `Common/PlayableExtensions`. The walk's filter and
 
 ## Playlist files (.cue, .m3u, .m3u8)
 
-`PlaylistFile` turns a playlist file into rows. `FolderWalk` expands one in place when it is opened at top level. Inside a folder walk an M3U is dropped, since it would double every track the walk found. **A CUE sheet in a walk stands in for its files** (`FolderWalk rowsForWalk:`). Its rows take its sorted place, and the files it names are claimed. A claimed file neither loads whole nor is cut again by a later sheet. Without the claim, `Album.cue` beside `Album (UTF-8).cue` would list every track twice. On both platforms, sheet rows must name supported, nonempty files that were listed or are readable.
+`PlaylistFile` turns a playlist file into rows. `PlaylistFile.m` holds the M3U reader and writer. `PlaylistFile+CUE.m` holds the CUE reader and the FLAC's embedded sheet. The two share the entry rungs and the name cleanup through `PlaylistFileInternal.h`. `FolderWalk` expands one in place when it is opened at top level. Inside a folder walk an M3U is dropped, since it would double every track the walk found. **A CUE sheet in a walk stands in for its files** (`FolderWalk rowsForWalk:`). Its rows take its sorted place, and the files it names are claimed. A claimed file neither loads whole nor is cut again by a later sheet. Without the claim, `Album.cue` beside `Album (UTF-8).cue` would list every track twice. On both platforms, sheet rows must name supported, nonempty files that were listed or are readable.
 
 **Each entry resolves through fallback rungs.** The rungs are the named path, then its basename beside the playlist (for a Windows-absolute path), then both again under each playable extension (for a rip transcoded after the sheet was written). In a walk, every rung looks its candidate up in the walk's own listing before the disk (`knownFiles`, grouped by `knownFileKeyForPath:`). An entry readable nowhere still yields its primary candidate. That lets the caller tell a sandbox denial from a missing file, which is what raises the folder grant (`Mac/App/AGENTS.md`, Sandbox grants).
 
@@ -72,7 +72,7 @@ These files come from other people's software, so the next two traps are load-be
 
 **TRAP: BOM-less UTF-16 must be decided *before* UTF-8 is tried.** A UTF-16 sheet of ASCII names has no byte above 0x7F. It decodes as UTF-8 *successfully*, with a NUL between every character, and the playlist opens empty. The order is BOM'd UTF-16, BOM-less UTF-16 signature, UTF-8, NUL-based UTF-16 fallback, CP1252, Latin-1. Latin-1 maps every byte, so a non-empty file always decodes.
 
-**TRAP: a name may not reach `NSURL` carrying a NUL or an unpaired surrogate.** Both turn up in truncated and mis-encoded files. `NSURL` answers nil for such a component, and a nil candidate raises on the background expansion worker. `StrippedOfUnpathableCharacters` drops them while the name is still a string. A `%00` in a `file://` M3U entry is dropped before `NSURL` parses it, because `.path` decodes it to a NUL on older Foundation and keeps it literal on macOS 26.
+**TRAP: a name may not reach `NSURL` carrying a NUL or an unpaired surrogate.** Both turn up in truncated and mis-encoded files. `NSURL` answers nil for such a component, and a nil candidate raises on the background expansion worker. `VibeStrippedOfUnpathableCharacters` drops them while the name is still a string. A `%00` in a `file://` M3U entry is dropped before `NSURL` parses it, because `.path` decodes it to a NUL on older Foundation and keeps it literal on macOS 26.
 
 ### Writing one
 
@@ -82,7 +82,7 @@ These files come from other people's software, so the next two traps are load-be
 
 **TRAP: every M3U reader trims whitespace, splits at newlines and skips a leading `#`.** So a name any of those would mangle goes out as a percent-encoded `file://` URL, which reads back whole. A backslash in a name does not round-trip, because the Windows-separator rule turns it into `/`.
 
-`rowsInM3UData:` reads the app's own absolute output with no resolution rungs and nothing stat'd. So the session mirror comes back without a probe or a grant panel. `PlaylistFile` also owns the session save and restore. macOS reaches the writer through File > Save Playlist… and the quit-time mirror (`Mac/MainWindow/AGENTS.md`). iOS does not call it.
+`rowsInM3UData:` reads the app's own absolute output with no resolution rungs and nothing stat'd. So the session mirror comes back without a probe or a grant panel. The session save and restore are the mac's `PlaylistFile+Session` (`Mac/AGENTS.md`). macOS reaches the writer through File > Save Playlist… and the quit-time mirror (`Mac/MainWindow/AGENTS.md`). iOS does not call it.
 
 ## Where opens come from
 

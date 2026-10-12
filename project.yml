@@ -260,6 +260,8 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Mac/Settings
         excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Vibe/Mac/Convert
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Resources/Assets.xcassets       # .xcassets handled natively by XcodeGen
       - path: Resources/AppIcon.icon          # Icon Composer .icon (handled via options.fileTypes)
       - path: Resources/VectorBalls.metal.txt
@@ -801,9 +803,9 @@ targets:
       - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/Channel/DebugWireFormat.m
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
-      - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
-      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
-      - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Disposal.m
+      - path: Vibe/Mac/Convert/AudioFileConverter.m
+      - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
+      - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
@@ -817,7 +819,11 @@ targets:
       - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
+      - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Dice.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
@@ -828,6 +834,7 @@ targets:
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
+      - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
       - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
@@ -910,7 +917,7 @@ targets:
           - "$(SRCROOT)/Vibe/Debug/Simulators"
           - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
-          - "$(SRCROOT)/Vibe/Audio/Mac/Convert"
+          - "$(SRCROOT)/Vibe/Mac/Convert"
           # PINCache's angle-bracket self-import resolves from the vendored root.
           - "$(SRCROOT)/Vibe/ThirdParty"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
@@ -1020,6 +1027,7 @@ targetTemplates:
       - path: Vibe/Loading/PlaceholderFiles.m
       - path: Vibe/Playlist/FolderWalk.m
       - path: Vibe/Playlist/PlaylistFile.m
+      - path: Vibe/Playlist/PlaylistFile+CUE.m
       - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m

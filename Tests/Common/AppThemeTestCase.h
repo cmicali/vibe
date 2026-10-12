@@ -16,7 +16,7 @@
 #import "AppSettingsInternal.h"
 #import "TestFilesystemGuard.h"
 #import "PlatformColor.h"
-#import "SettingsAppearanceViewController+Editor.h"
+#import "SettingsThemesViewController+Editor.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

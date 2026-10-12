@@ -1,11 +1,12 @@
 # Playlist table (macOS only)
 
-The `NSTableView` half of `Vibe/Playlist/`:
+The macOS half of `Vibe/Playlist/`:
 
 - `PlaylistController` is the data source and delegate: cell *content*, the model observer, the drag session and the row menu.
 - `PlaylistTableView` is everything *structural*: columns, row metrics, the scroll view, and the code-built cells and their styling.
 - `PlaylistRowView` draws row backgrounds. `PlaylistTextCell` and `PlaylistCoverImageView` are cell parts.
 - `PlaylistDropZoneView` draws the pane's Add and Replace wells and hit-tests them. The window is the dragging destination.
+- `PlaylistFile+Session` is the last-playlist store. It saves and restores the mirror and owns the `VibeLastPlaylistCurrentIndex` defaults key. Only `MainPlayerController` calls it (`Mac/MainWindow/AGENTS.md`, The last playlist). It is here, not in the shell, so `PlaylistFileTests` keeps testing it.
 
 Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reorder follow-ups are `Mac/MainWindow/AGENTS.md`'s.
 

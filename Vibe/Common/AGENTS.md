@@ -6,11 +6,11 @@
 
 `AppSettings` is every persisted preference, as properties over `NSUserDefaults`. `AppStats` is every persisted counter. **Every reader imports `AppSettings.h` explicitly and uses `sharedInstance`**, so a file's import list exposes the dependency. That is why `Vibe-Prefix.pch` carries only macros (logging, the realtime-effects brackets, the debug-only signposts, `VibeNotLocalized`) and `HelperMacros.h`, and no feature API. A feature API there would recompile the world and hide a dependency from the file that has it.
 
-The macOS half is the `(Mac)` category in `Mac/AppSettings+Mac`: every mac-only preference and the theme store. A mac reader imports it explicitly beside `AppSettings.h`. `AppSettingsInternal.h` is the seam between the two halves (`Mac/AGENTS.md`). The value ladders a stored setting is snapped to on read are `SettingsRules.h`, so a rule about a setting is testable without a defaults store.
+The macOS half is two categories. `(Mac)` in `Mac/AppSettings+Mac` is every mac-only preference. `(Themes)` in `Mac/Theme/AppSettings+Themes` is the theme store. A mac reader imports `AppSettings+Mac.h` explicitly beside `AppSettings.h`, and that header brings the theme store's. `AppSettingsInternal.h` is the seam between the halves (`Mac/AGENTS.md`). The value ladders a stored setting is snapped to on read are `SettingsRules.h`, so a rule about a setting is testable without a defaults store.
 
 **The store never applies effects.** A writer that needs an immediate follow-up requests a named `VibeSettingsLiveEffect` from `MainPlayerController+Settings`. That is a central, synchronous mapping. It calls the behavior owned by the affected object, and never writes a setting or posts a notification. The Settings window is `Vibe/Mac/Settings/`. iOS keeps the rule with two spellings (`iOS/Settings/AGENTS.md`). A display setting's writer posts `VibeNotifyDisplaySettingsChanged()` for the card. A track-transition setting's writer calls `PlaybackController.applyTrackTransitionSettings`.
 
-The one in-memory value is `windowAppearancePreviewStyle`. The Settings window's light/dark preview toggle holds it while its pane is open (`Mac/Settings/Appearance/AGENTS.md`). `windowAppearance` answers it, and `setWindowAppearanceStyle:` clears it. It lives here because that accessor already holds the style-to-appearance ladder, so every consumer gets the preview.
+The one in-memory value is `windowAppearancePreviewStyle`. The Settings window's light/dark preview toggle holds it while its pane is open (`Mac/Settings/Themes/AGENTS.md`). `windowAppearance` answers it, and `setWindowAppearanceStyle:` clears it. It lives here because that accessor already holds the style-to-appearance ladder, so every consumer gets the preview.
 
 ## The platform split
 
@@ -29,7 +29,7 @@ Reads go straight to `NSUserDefaults`. Each is one CFPreferences lookup, cheap e
 
 **TRAP: `NSUserDefaultsDidChangeNotification` does not fire for a write from another process.** A plain `defaults write` is one, and so are the debug channel's CLI-side verbs (`set_analysis`). A cache invalidated on the notification reports the old value for good. A cache over a stored key must invalidate some other way. `FolderArtResolver` caches `useFolderArt` on the cell-draw path, so a write that skips `VibeSettingsLiveEffectFolderArt` is never observed (`Audio/Metadata/Artwork/FolderArt/AGENTS.md`).
 
-**TRAP: a stored key never follows a rename of its macro.** Changing the string resets every user's setting. `SETTING_FOLDER_ART` keeps `@"Audio.folderArtwork"`. The mac keys are listed at the top of `Mac/AppSettings+Mac.m`, and the shared keys in `AppSettingsInternal.h`.
+**TRAP: a stored key never follows a rename of its macro.** Changing the string resets every user's setting. `SETTING_FOLDER_ART` keeps `@"Audio.folderArtwork"`. The mac keys are listed at the top of `Mac/AppSettings+Mac.m` and `Mac/Theme/AppSettings+Themes.m`. The shared keys, and the mac keys both of those files read, are in `AppSettingsInternal.h`.
 
 ## Single homes
 

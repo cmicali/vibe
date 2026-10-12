@@ -46,7 +46,7 @@ Two families and one flat style, split by how progress and hover quantize:
 
 ## The convert sweep
 
-**Convert to FLAC's progress is drawn with the waveform itself.** `dipBarsFromFraction:toFraction:` calls `dipDisplayedSamplesFromFraction:toFraction:`. That zeroes the displayed samples in the newly crossed span and rebuilds once, so the notch shows at zero. The standard ease then carries them back to the unchanged target, which draws the graded trail. The span rounds outward to `samplesPerBar`, so an edge bar is never half-zeroed. Keeping the front and feeding only the new span is `../Mac/AGENTS.md`'s. Reporting the fractions is `Audio/Mac/Convert/AGENTS.md`'s.
+**Convert to FLAC's progress is drawn with the waveform itself.** `dipBarsFromFraction:toFraction:` calls `dipDisplayedSamplesFromFraction:toFraction:`. That zeroes the displayed samples in the newly crossed span and rebuilds once, so the notch shows at zero. The standard ease then carries them back to the unchanged target, which draws the graded trail. The span rounds outward to `samplesPerBar`, so an edge bar is never half-zeroed. Keeping the front and feeding only the new span is `../Mac/AGENTS.md`'s. Reporting the fractions is `Mac/Convert/AGENTS.md`'s.
 
 ## The envelope bake
 
