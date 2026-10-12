@@ -14,6 +14,7 @@
 #if DEBUG
 #import "VibeManualRenderPump.h"
 #import "AudioPlayer+Debug.h"
+#import "AudioLevelPublisher+Debug.h"
 #endif
 #import "AudioFX+Pipeline.h"
 #import "AudioLoadingConfiguration.h"
@@ -28,12 +29,6 @@
 #import "PlaceholderFiles.h"
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
-
-#if DEBUG
-@interface AudioLevelPublisher (AudioPlayerDebugPrivate)
-- (NSDictionary<NSString *, NSNumber *> *)debugState;
-@end
-#endif
 
 // An open still pending after this long is worth a visible loading state;
 // a dataless file's is from the start (submitOpenOnQueueForTrack:).

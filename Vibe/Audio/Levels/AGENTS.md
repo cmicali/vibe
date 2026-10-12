@@ -7,7 +7,7 @@ The demand-driven output meter behind the shared equalizer indicator. It is sepa
 | `AudioLevelMeter.{h,m}` | The meter: the render's entry `VibeLevelMeterRender`, its ~100 ms publication cadence, the lifetime of one publisher session, `remove`, and the beta signal probe. |
 | `AudioLevelAnalyzer.{h,m}` | The preallocated FFT, window accumulation, stereo-power combination and the mode's summary across windows. No publication or view knowledge. |
 | `AudioLevelPublisher.{h,m}` | The coherent player-lifetime snapshot, session validity and the monotonic sequence the display reads. |
-| `AudioLevelPublisherInternal.h` | The narrow meter-session writer API. Display clients never import it. |
+| `AudioLevelPublisherInternal.h` | The narrow meter-session writer API and the publisher's state. Display clients never import it. The debug counters are read in `Vibe/Debug/Seams/AudioLevelPublisher+Debug.m`. |
 | `AudioLevelMath.h` | Tested numeric decisions: cadence, band edges, energy scaling, normalization and level mapping. |
 
 `AudioPlayer.levelsEnabled` installs an `AudioLevelMeter`, the **meter**. It is a plain C struct (`VibeLevelMeter`) the render feeds through `VibeLevelMeterRender`. `copyBandLevels:count:sequence:` reads the latest coherent five-level snapshot without the player queue or an allocation. The `AudioLevelPublisher` lives as long as the player, and each installation gets a new session. The sequence tells a new result from a repeated read. An ended session's snapshot is unavailable at once.
