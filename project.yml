@@ -803,6 +803,9 @@ targets:
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
+      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
+      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
+      - path: Vibe/Audio/Metadata/MetadataScanEntry.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtResolver.m
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtEntry.m

@@ -3,7 +3,8 @@
 //  Vibe
 //
 //  Declaration-only visibility into one loader's materialization lanes. The
-//  implementation stays beside the lane state in AudioTrackMetadataLoader.m.
+//  implementation is in AudioTrackMetadataLoader.m, beside the debug-only
+//  ivars.
 //
 
 #if DEBUG
@@ -25,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)debugSetBeforeScanPickValidation:(nullable dispatch_block_t)block;
 - (NSQualityOfService)debugLastScheduledParseQualityOfService;
 - (NSQualityOfService)debugParseQualityOfServiceForTrack:(AudioTrack *)track;
+// How the lane and the parse reach those debug-only ivars from their own files.
+// The first needs _materializationLock held.
+- (void)debugNoteScheduledParseQualityOfService:(NSQualityOfService)qualityOfService;
+- (nullable dispatch_block_t)debugBeforeScanPickValidation;
 
 @end
 
