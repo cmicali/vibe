@@ -830,7 +830,11 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 - (IBAction)previous:(nullable id)sender {
-    [self.playlistController previous];   // refresh rides the funnel; see next:
+    // Refresh rides the funnel; see next:. On the first row, Previous restarts
+    // the track, as on iOS.
+    if (![self.playlistController previous] && !self.audioPlayer.isStopped) {
+        [self.audioPlayer seekToPosition:0];
+    }
 }
 
 - (IBAction)playSelectedTrack:(nullable id)sender {

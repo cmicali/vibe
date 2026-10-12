@@ -213,7 +213,8 @@ static inline BOOL VibeMenuHasVisibleSelection(BOOL keyWindow, BOOL playlistShow
 static inline BOOL VibeTransportMenuEnabled(NSString *identifier, BOOL hasNext, BOOL hasPrevious,
         BOOL visibleSelection, BOOL hasTrack, BOOL stopped) {
     if ([identifier isEqualToString:kVibeMenuNextTrack]) return hasNext;
-    if ([identifier isEqualToString:kVibeMenuPreviousTrack]) return hasPrevious;
+    // On the first row, Previous restarts the loaded track.
+    if ([identifier isEqualToString:kVibeMenuPreviousTrack]) return hasPrevious || (hasTrack && !stopped);
     if ([identifier isEqualToString:kVibeMenuPlaySelected]) return visibleSelection;
     return VibeMenuValidationDomainForIdentifier(identifier) == VibeMenuValidationDomainTransport
             && hasTrack && !stopped;
