@@ -11,6 +11,7 @@
 #import "FilePaths.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "PlaylistFile.h"
+#import "RecentsStore.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
@@ -73,12 +74,12 @@ static NSString *const kItemCellIdentifier = @"item";
 }
 
 - (void)clearRecents {
-    [_playback clearRecentItems];
+    [RecentsStore.shared clearRecentItems];
     [self reloadItems];
 }
 
 - (void)reloadItems {
-    _items = _playback.recentItems;
+    _items = RecentsStore.shared.recentItems;
     [self.tableView reloadData];
     // Absent, not disabled, with nothing to clear.
     self.navigationItem.rightBarButtonItem.hidden = !_appending && _items.count == 0;
@@ -182,7 +183,7 @@ static NSString *const kItemCellIdentifier = @"item";
                                                                                 isDirectory:[item[@"folder"] boolValue]]];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
-    [playback resolveRecentItem:item completion:^(NSURL *url) {
+    [RecentsStore.shared resolveRecentItem:item completion:^(NSURL *url) {
         if (!url) {
             if (!appending) {
                 [playback endOpeningForReplaceRequest:token];
@@ -211,7 +212,7 @@ static NSString *const kItemCellIdentifier = @"item";
     NSString *name = [item[@"path"] lastPathComponent];
     BOOL folder = [item[@"folder"] boolValue];
     __weak RecentsViewController *weakSelf = self;
-    [_playback resolveRecentItem:item completion:^(NSURL *url) {
+    [RecentsStore.shared resolveRecentItem:item completion:^(NSURL *url) {
         RecentsViewController *strongSelf = weakSelf;
         BrowserViewController *root = (BrowserViewController *)strongSelf.navigationController.viewControllers.firstObject;
         if (!url) {

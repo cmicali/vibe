@@ -190,18 +190,6 @@ static const NSTimeInterval kOpeningTimeout = 25;
     [_folderSession openURL:url inFolder:inFolder];
 }
 
-- (NSArray<NSDictionary *> *)recentItems {
-    return _folderSession.recentItems;
-}
-
-- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *))completion {
-    [_folderSession resolveRecentItem:item completion:completion];
-}
-
-- (void)clearRecentItems {
-    [_folderSession clearRecentItems];
-}
-
 - (void)restorePersistedSession {
     if (![_folderSession restorePersistedFolder]) {
         [self notifyHasNothingToRestore];

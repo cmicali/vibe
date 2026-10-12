@@ -9,6 +9,7 @@
 #import "LinkStore.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
+#import "RecentsStore.h"
 #import "RootViewController.h"
 #import "SearchFolderStore.h"
 
@@ -61,7 +62,7 @@
         return;
     }
     [LinkStore.shared pruneKeepingTracks:playback.playlist.tracks
-                              recentURLs:VibeRecentItemURLs(playback.recentItems)];
+                              recentURLs:VibeRecentItemURLs(RecentsStore.shared.recentItems)];
 }
 
 // Foreground-inactive is off: views stay attached under Control Center and the

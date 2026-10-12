@@ -285,11 +285,6 @@ NS_ASSUME_NONNULL_BEGIN
 // a file plays alone or, inFolder, its directory with it selected.
 - (void)openFileURL:(NSURL *)url inFolder:(BOOL)inFolder;
 
-// FolderSession's recents, newest first, and their resolve.
-@property (nonatomic, readonly) NSArray<NSDictionary *> *recentItems;
-- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
-- (void)clearRecentItems;
-
 // The scene delegate calls exactly one of this and handleOpenURLContexts: at
 // launch. Nothing to restore, or a failed restore, sends
 // playbackHasNothingToRestore:.

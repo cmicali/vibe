@@ -2,12 +2,14 @@
 //  FolderSession.h
 //  Vibe (iOS)
 //
-//  Owns the picked locations of the current playlist — a base folder or file
-//  plus any additions: the picker, their security scopes, the restore
-//  bookmarks and the listing. It never touches playback.
+//  Owns the picked locations of the current playlist: a base folder or file
+//  plus any additions, their security scopes, the restore bookmarks and the
+//  listing. It never touches playback. The system pickers belong to the Files
+//  tab's browser and to RootViewController. Their URLs reach this class
+//  through PlaybackController. What an open brings is recorded in RecentsStore.
 //
 
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -92,16 +94,6 @@ NS_ASSUME_NONNULL_BEGIN
 // to the sheet's directory, an Add appends the sheet's rows. A folder that
 // does not cover the sheet finds nothing and asks again.
 - (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending;
-
-// Every file and folder opened or added, newest first, at most 50, each
-// {path, bookmark (absent when the mint failed), folder}. Persisted; a restore
-// records nothing, and clearSession keeps them.
-@property (nonatomic, readonly) NSArray<NSDictionary *> *recentItems;
-
-// The recent's URL from its bookmark, else its path while something is there.
-// Off main; completion on main, nil when neither reaches it.
-- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *_Nullable url))completion;
-- (void)clearRecentItems;
 
 // Back to never-opened: every scope released, and the persisted bookmarks and
 // remembered track REMOVED, so the next launch restores nothing. Supersedes
