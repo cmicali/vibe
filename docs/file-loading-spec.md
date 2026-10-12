@@ -97,7 +97,7 @@ Current production values, all reviewable.
 | Art requests (running / pending) | 2 / 5 | `ArtworkLoadRegistry` |
 | Art admission backoff | 0.1–1 s | same |
 | Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork.m` |
-| Thumbnail LRU | 16,384 entries | `AudioTrackArtwork.m` |
+| Thumbnail LRU | 16,384 entries | `EmbeddedThumbnailCache.m` |
 | Thumbnail size | 128 px | — |
 | Display rendition bound | 640 px mac / 1024 px iOS | `PlatformImage.h` |
 | Full-art decode bound | 1024 px | — |

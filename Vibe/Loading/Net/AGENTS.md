@@ -9,7 +9,8 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 | `HTTPTransferRules.h` | the retry delay, the connection errors, and the size and version a response's headers state. Tested (`HTTPTransferRulesTests`) |
 | `RemotePlaceholderStore` | remote files as local placeholders under one root: the placeholder and the install, the directory index, the fetch that streams, the ranged read, the download budget, and the backend it installs. Tested (`RemotePlaceholderStoreTests`) |
 | `RemotePlaceholderStoreInternal.h` | the hooks a subclass overrides, and what a subclass and the tests reach: the disk queue, the index, the downloads, and the budget |
-| `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Its `LinkClient` is the client every link goes through. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
+| `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, and the pruning. Tested (`LinkStoreTests`, and `AudioPlayerRenderLinkTests` for playback) |
+| `LinkClient` | the client every link goes through: the plain client, and an iCloud Drive share's lookup before each request (below) |
 | `LinkRules.h` | the address rule, the audio check, the names, the share-link rewrite that asks each host's file, what a drop or a paste opens, the pruning choice, and the failures. Tested (`LinkRulesTests`) |
 | `DropboxLinkRules.h`, `GoogleDriveLinkRules.h`, `ICloudLinkRules.h` | one host's share links each: the rewrite, or iCloud's lookup, and what that host answers. No other link code names a host. Tested (`DropboxLinkRulesTests`, `GoogleDriveLinkRulesTests`, `ICloudLinkRulesTests`) |
 

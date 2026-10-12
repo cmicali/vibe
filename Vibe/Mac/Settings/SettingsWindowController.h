@@ -22,6 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)refreshSelectedPane;
 
+// Called by the sidebar and the tab controller before a pane is selected.
+- (void)paneWillBecomeSelected:(NSTabViewItem *)item;
+
 // Selects the Themes pane and opens the active theme's editor. The window
 // must already be shown.
 - (void)showThemeEditor;

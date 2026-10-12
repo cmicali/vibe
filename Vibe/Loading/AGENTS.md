@@ -5,6 +5,7 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 | File | Owns |
 | --- | --- |
 | `AudioFileMaterializationCoordinator` | the claim |
+| `AudioFileMaterializationTokens` | the request and open tokens. Each delivers its completion at most once, and its cancel detaches it from the coordinator |
 | `AudioWorkScheduler`, `AudioWorkAdmissionRules.h` | admission |
 | `AudioLoadingConfiguration` | the immutable limits and the open-timeout seam |
 | `AudioFileOpenRules.h`, `AudioFileOpenTimeoutMath.h` | the decisions. Among them are the tail window a stream fetches for an open that reads a file's end, and `VibeMountReadsAhead`, which files read ahead |
