@@ -713,7 +713,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (!_pickingLocation) {
-        // One picked file expands to its folder, as it always has.
+        // One picked file expands to its folder.
         [self openURLs:urls inFolder:YES];
         return;
     }

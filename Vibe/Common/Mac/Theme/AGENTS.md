@@ -29,7 +29,7 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 
 **A built-in is `Resources/Themes/<identifier>.json`, read through the same `recordFromJSONData:` gate as a user import.** How to author and add one, and what `testBundledThemesAreValid` enforces, is `Resources/Themes-README.md`. Two facts are not authoring steps.
 - **`vibe` always exists.** It is the store's snap-back anchor for unknown and deleted active themes, so the loader synthesizes the empty record when `vibe.json` is missing.
-- **`cupertino` and `technical` are the dual-mode examples.** A `custom` waveform theme sets both palettes, because an incomplete pair falls back to Mono rather than half-applying.
+- **`cupertino`, `field`, `tangerine` and `technical` are the dual-mode examples.** A `custom` waveform theme sets both palettes, because an incomplete pair falls back to Mono rather than half-applying.
 
 ## Colors
 

@@ -7,7 +7,8 @@
 #import "FilePaths.h"
 
 // iOS app-layer state, so not AppSettings.
-// Every file and folder opened or added, newest first: path, bookmark, folder.
+// Every file and folder opened or added, newest first: path, bookmark,
+// folder, location.
 static NSString *const kRecentItemsKey = @"VibeiOSRecentItems";
 static const NSUInteger kMaximumRecentItems = 50;
 

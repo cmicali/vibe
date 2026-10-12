@@ -138,7 +138,7 @@ void VibeNotifyDisplaySettingsChanged(void);
 - (BOOL)shuffleEnabled;
 - (void)setShuffleEnabled:(BOOL)enabled;
 
-// Settings > Playback > Enable audio effects, both platforms, default YES:
+// Settings > Playback > Audio effects, both platforms, default YES:
 // whether the DJ FX segment is in the render. The store never applies it:
 // the mac writer requests its live effect, the iOS writer calls
 // PlaybackController.applyFXSetting. On the mac audioFXAllowed

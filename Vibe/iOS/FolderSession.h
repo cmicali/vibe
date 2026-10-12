@@ -85,7 +85,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // One URL: a folder opens; a file plays alone or, inFolder, as its own
 // directory with it selected where a root covers that. The covering grant is
-// retained for this playlist even if its Settings row goes. Whether the open
+// retained for this playlist even if its Location is removed. Whether the open
 // becomes the session bookmark is decided here, never by the caller.
 - (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder;
 

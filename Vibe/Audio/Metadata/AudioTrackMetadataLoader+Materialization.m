@@ -428,7 +428,7 @@
         if (!shouldSubmit) {
             return;
         }
-        // A remote placeholder's tags are read by range (AudioTrackMetadata's
+        // A remote placeholder's tags are read by range (TagLibAudioFile's
         // VibeRangedStream), so it takes no claim: one would download the
         // whole file for a few hundred KB of tags. Ready at once, with no
         // token — the slot holds none yet, so the completion's match passes.

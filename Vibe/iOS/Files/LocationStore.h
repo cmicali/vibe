@@ -27,7 +27,7 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 // A singleton: a second instance would hold a second set of scopes.
 @property (class, nonatomic, readonly) LocationStore *shared;
 
-// Settings' rows, in order; grows as launch restorations settle.
+// The Locations rows, in order; grows as launch restorations settle.
 @property (nonatomic, readonly) NSArray<NSURL *> *folderURLs;
 
 // The app's own Documents directory, readable with no grant.

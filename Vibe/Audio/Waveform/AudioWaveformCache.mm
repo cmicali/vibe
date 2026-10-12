@@ -443,15 +443,16 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 }
 
 // The lookup-or-decode core, shared by the delegate delivery path above and
-// the debug pre-warm path below. It must be called on _loaderQueue, with the
-// cache key precomputed off-queue by the caller, since the stat must not block
-// this serial queue. The completion fires exactly once — waveform nil on a
-// cancelled or failed decode, wasCached YES on a disk hit — either on the
-// loader queue, for a hit or an early-out, or on a scheduler worker, for a
-// fresh decode. awaitPersist defers a fresh decode's completion until the disk
-// write lands, which gives the debug pre-warm its done-means-persisted
-// guarantee: `file_cache f && kill` must not lose the entry. The delegate path
-// passes NO, so UI delivery never queues behind PINDiskCache.
+// the debug pre-warm path (AudioWaveformCache+Debug.mm). It must be called on
+// _loaderQueue, with the cache key precomputed off-queue by the caller, since
+// the stat must not block this serial queue. The completion fires exactly once
+// — waveform nil on a cancelled or failed decode, wasCached YES on a disk hit
+// — either on the loader queue, for a hit or an early-out, or on a scheduler
+// worker, for a fresh decode. awaitPersist defers a fresh decode's completion
+// until the disk write lands, which gives the debug pre-warm its
+// done-means-persisted guarantee: `file_cache f && kill` must not lose the
+// entry. The delegate path passes NO, so UI delivery never queues behind
+// PINDiskCache.
 - (void)load:(AudioTrack *)track
     cacheKey:(NSString *)cacheKey
   withLoader:(AudioWaveformLoader *)loader
