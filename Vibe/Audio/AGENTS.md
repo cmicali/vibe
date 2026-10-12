@@ -33,7 +33,8 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, with no player-queue waits |
 | `AudioFileHandle` | the parser/codec/descriptor lifetime, immutable source facts, checked seeks, reads and writes; the one guarded, extension-hinted CoreAudio open (`initParserForReading:`), shared by playback and the metadata fallback; which decoder takes the file; reading a file still streaming, and reading a file on a network mount through its read-ahead (below) |
 | `AudioFileHandle+MPEG.m` | dr_mp3's decode: the open, a headerless stream's estimated count and its settle, the seek, the reads and the packet decode |
-| `AudioFileHandleInternal.h` | the private header the two share: the ivars the decode reads, the core's reads and waits it calls, and the decode's methods the core calls |
+| `AudioFileHandle+Stream.m` | dr_flac's and dr_wav's decode: the opens, the adopt, the close and the reads. The byte reads they pass the decoders stay in `AudioFileHandle.m` |
+| `AudioFileHandleInternal.h` | the private header the three share: the ivars the decodes read, the core's reads and waits they call, and the decodes' methods the core calls |
 | `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, the stall watchers' start and suspension, and the signal probe. The watchdogs and the stack sampler are `Util/StallWatch` |
 | `AudioOutputUnit` | the hosted output unit both platforms pull the render with: its callback, gate, counters and its own HAL queue |
 | `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations, and the mac's private device header (`Mac/Devices/AGENTS.md`) |

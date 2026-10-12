@@ -52,6 +52,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)readHasOutputChannels:(BOOL *)hasOutputChannels
                   forDeviceID:(AudioDeviceID)deviceID;
 
+@end
+
+// Bit-perfect output: transport, rate, physical format, volume, hog
+// (CoreAudioUtil+BitPerfect.m).
+@interface CoreAudioUtil (BitPerfect)
+
 // Asks the device itself whether it still exists, rather than a snapshot that
 // may not have caught up with an unplug. YES only when confirmed; a failed
 // read answers NO (see VibeDeviceIsConfirmedDead).
@@ -129,6 +135,11 @@ NS_ASSUME_NONNULL_BEGIN
 // another process holds it is already true.
 + (BOOL)readHogOwner:(pid_t *)owner forDeviceID:(AudioDeviceID)deviceID;
 + (BOOL)setHogOwnedByThisProcess:(BOOL)owned forDeviceID:(AudioDeviceID)deviceID;
+
+@end
+
+// Save Debug Info and the HAL event log (CoreAudioUtil+Diagnostics.m).
+@interface CoreAudioUtil (Diagnostics)
 
 // Everything the HAL will say about one device, for Save Debug Info: identity,
 // liveness and exclusive ownership, rates and buffer, the latency it declares,

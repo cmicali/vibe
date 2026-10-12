@@ -2,15 +2,18 @@
 //  AudioFileHandleInternal.h
 //  Vibe
 //
-//  The private header AudioFileHandle.m and its MPEG decode
-//  (AudioFileHandle+MPEG.m) share: the ivars the decode reads, the reads and
-//  waits it calls, and the decode's methods the core calls. Only those two
-//  files import it.
+//  The private header AudioFileHandle.m and its decodes share: dr_mp3's
+//  (AudioFileHandle+MPEG.m), and dr_flac's and dr_wav's
+//  (AudioFileHandle+Stream.m). It holds the ivars the decodes read, the reads
+//  and waits they call, and the decodes' methods the core calls. Only those
+//  three files import it.
 //
 
 #import "AudioFileHandle.h"
 
 #include "dr_mp3/dr_mp3.h"
+#include "dr_flac/dr_flac.h"
+#include "dr_wav/dr_wav.h"
 
 #include <stdatomic.h>
 
@@ -31,6 +34,7 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 @interface AudioFileHandle () {
     // The properties' own, declared here so the decode reads them directly.
     NSURL *_url;
+    AVAudioFormat *_fileFormat;
     AVAudioFormat *_processingFormat;
     SInt64 _size;
     // Written by the decode of a stream counting its MPEG packets as it
@@ -38,6 +42,7 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
     AVAudioFramePosition _length;
     AudioFileID _parser;
     ExtAudioFileRef _codec; // NULL while dr_mp3, dr_flac or dr_wav decodes
+    AudioFileTypeID _container; // the parser's kAudioFilePropertyFileFormat
     // A file still streaming, or reading ahead: every read waits for its
     // bytes. Set by the open and fixed from then on. Nil for a whole file.
     CloudFileAvailability *_availability;
@@ -69,9 +74,17 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
     float *_mpegPCM;      // one packet's frames, interleaved
     UInt32 _mpegPCMFrames;
     UInt32 _mpegPCMOffset;
+    // dr_flac's or dr_wav's decode, at most one: the stream read through the
+    // descriptor at a cursor of its own.
+    drflac *_flac;
+    drwav *_wav; // &_wavState once drwav_init has succeeded
+    drwav _wavState;
+    SInt64 _streamCursor;
+    BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
 }
 
 - (BOOL)reportWaitFault:(NSError **)error;
+- (void)closeParser;
 
 @end
 
@@ -86,6 +99,17 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 
 @end
 
+// AudioFileHandle+Stream.m. The core calls each from its own method's FLAC or
+// WAV branch, and dealloc closes the decoder.
+@interface AudioFileHandle (Stream)
+
+- (BOOL)openFLAC;
+- (BOOL)openWAV;
+- (void)closeStreamDecoder;
+- (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error;
+
+@end
+
 // AudioFileHandle.m's reads and waits, which the decode's open also uses.
 uint32_t VibeID3v2TagBytes(const uint8_t header[10]);
 NSError *VibeHandleError(OSStatus status, NSString *description);
@@ -93,3 +117,11 @@ BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
                      void *window, uint64_t capacity, uint64_t *copied);
 BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait);
 OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount);
+
+// AudioFileHandle.m's byte reads for dr_flac and dr_wav. The stream opens
+// pass them to the decoders. They stay beside the parser's reads, because the
+// block read they call on every read is static there.
+size_t VibeStreamRead(void *user, void *buffer, size_t count);
+drflac_bool32 VibeFLACSeek(void *user, int offset, drflac_seek_origin origin);
+drwav_bool32 VibeWAVSeek(void *user, int offset, drwav_seek_origin origin);
+drflac_bool32 VibeStreamTell(void *user, drflac_int64 *cursor);

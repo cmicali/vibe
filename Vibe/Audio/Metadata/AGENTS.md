@@ -8,6 +8,7 @@ Tags, their disk cache, the playlist scan and embedded artwork. The artwork clas
 - `AudioTrackMetadata` is the immutable tags plus the display-facing art API.
 - `TagLibAudioFile` is the TagLib side of the parse: the file factory, the ranged stream, the format name and the embedded-art read. Its header is C++, so only `.mm` files import it.
 - `AudioTrackArtwork` is one row's art lifecycle (private behind the metadata). `ArtworkLoadRegistry` is its admission counters, a file boundary, not a second owner.
+- `AudioTrackArtwork` is one object in two files. `AudioTrackArtwork.m` is the art state, adoption, the archived display art, demotion and the row thumbnails. `+Loading.m` is the full-art load: the extraction gate, the blocking read ladder and the async load the registry admits. The last section of `AudioTrackArtwork.h` holds the ivars and the methods both files share.
 - `EmbeddedThumbnailCache` is the decoded thumbnails every row shares, in one bounded LRU.
 
 **Do not add a runner, driver or second coordinator.** Straight-line metadata work goes in the loader, per-row art work in `AudioTrackArtwork`. The lettered items cited (`spec A1`, `J4`, `J6`) are `docs/file-loading-spec.md`'s.

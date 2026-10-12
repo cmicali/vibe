@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 
-#import "FolderViewController.h"
+#import "FolderViewControllerInternal.h"
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
@@ -24,12 +24,6 @@
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
-typedef NS_ENUM(NSInteger, VibeBrowserSection) {
-    VibeBrowserSectionFolders = 0,
-    VibeBrowserSectionFiles,
-    VibeBrowserSectionCount,
-};
-
 static NSString *const kItemCellIdentifier = @"item";
 
 // Going back to a folder relists it only this long after its last listing;
@@ -46,81 +40,8 @@ static const NSUInteger kMaximumSubfolders = 500;
 static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
-@interface FolderViewController () <UISearchResultsUpdating, PlaybackObserver, AudioTrackMetadataCacheDelegate>
-@end
 
-// Rows past each end of the screen whose art is asked for with the visible ones.
-static const NSInteger kArtRowMargin = 20;
-
-@implementation FolderViewController {
-    PlaybackController *_playback;
-    NSURL *_directoryURL;
-    BOOL _appending;
-
-    // A directory's whole listing, in the folder-open order. Which of the
-    // files are Dropbox placeholders, and each file's size, are found with the
-    // listing, off main. The M3U playlists lead the files, and a folder
-    // holding nothing else has no song for the play button to play.
-    NSArray<NSURL *> *_allFolders;
-    NSArray<NSURL *> *_allFiles;
-    BOOL _hasSongs;
-    NSSet<NSURL *> *_placeholders;
-    NSDictionary<NSURL *, NSString *> *_fileSizes;
-    // The directory's standardized path, so a row's is one append away.
-    NSString *_standardizedPath;
-    NSString *_title;
-    // The playing file's standardized path, for the row that carries the
-    // equalizer.
-    NSString *_playingPath;
-    // Between viewWillAppear: and viewWillDisappear:, for the equalizer; the
-    // stack's exposure is equalizerSurfaceVisible.
-    BOOL _viewPresentationVisible;
-    // The rows drawn: the listing narrowed by the filter field.
-    NSArray<NSURL *> *_folders;
-    NSArray<NSURL *> *_files;
-    // Stamped on each disk listing, so a slow one cannot overwrite a newer.
-    uint64_t _listingGeneration;
-    // The Dropbox folder this directory mirrors ("" for the root), nil
-    // outside the mirror: listed from disk at once, then refreshed.
-    NSString *_dropboxPath;
-    BOOL _refreshing;
-    NSError *_refreshError;
-    // When this screen last listed its folder from Dropbox; a reappearance
-    // within kRelistInterval shows the disk alone.
-    CFAbsoluteTime _listedAt;
-    // Open Folder's file, shown and briefly selected once the listing lands.
-    NSURL *_highlightURL;
-    // Open Folder on a folder no persistent root covers (a one-off pick in
-    // Recents): this screen holds its scope, and the subfolders pushed above
-    // it read under it. The session's hold may be gone with the playlist.
-    BOOL _holdsScope;
-
-    // Album art through the app's own metadata pipeline: the stack's one
-    // cache (stackArtCache), and a track per row that has been near the
-    // screen. Every song may show art the cache already holds; only the
-    // local ones may be parsed for it.
-    AudioTrackMetadataCache *(^_stackArtCache)(void);
-    AudioTrackMetadataCache *_artCache;
-    NSSet<NSURL *> *_songFiles;
-    NSSet<NSURL *> *_localFiles;
-    // The not-local songs already looked up, so a miss is asked once per
-    // listing.
-    NSMutableSet<NSURL *> *_cacheOnlyAsked;
-    NSMutableDictionary<NSURL *, AudioTrack *> *_artTracks;
-
-    // A row swipe sets isEditing too; only the Select button's is multi-select.
-    BOOL _swipingRow;
-    // A subfolder walk is out; a second ask waits for it.
-    BOOL _walkingSubfolders;
-    UIBarButtonItem *_playItem;
-    UIBarButtonItem *_addSelectedItem;
-    UIBarButtonItem *_sortItem;
-    UIBarButtonItem *_selectItem;
-    UIBarButtonItem *_doneItem;
-    UIBarButtonItem *_selectAllItem;
-    UIBarButtonItem *_closeItem;
-    UISearchController *_filter;
-}
+@implementation FolderViewController
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback
                     directoryURL:(NSURL *)directoryURL
@@ -279,116 +200,6 @@ static const NSInteger kArtRowMargin = 20;
 - (void)dropboxDownloadsDidChange:(NSNotification *)notification {
     if (_dropboxPath && self.viewIfLoaded.window) {
         [self reloadFromDisk];
-    }
-}
-
-#pragma mark - Album art
-
-// The stack's one cache, asked of the root only once a row needs art.
-- (AudioTrackMetadataCache *)stackArtCache {
-    if (!_artCache) {
-        _artCache = _stackArtCache();
-    }
-    return _artCache;
-}
-
-// The rows on screen and a margin, not the folder: one merely browsed is not
-// parsed whole.
-//
-// TRAP: only files whose bytes are on the device go to loadMetadata:. Its
-// cache miss reads the tags from the file, which for a Dropbox placeholder is
-// ranged requests and for a provider's dataless file a download: browsing a
-// folder costs nothing a row does not say. Every other song goes to
-// loadCachedMetadata:, which answers from the metadata cache and reads
-// nothing on a miss.
-- (void)loadArtForVisibleRows {
-    if (_songFiles.count == 0 || !self.viewIfLoaded.window) {
-        return;
-    }
-    [self.tableView layoutIfNeeded];
-    NSInteger first = NSIntegerMax;
-    NSInteger last = -1;
-    for (NSIndexPath *indexPath in self.tableView.indexPathsForVisibleRows) {
-        if (indexPath.section == VibeBrowserSectionFiles) {
-            first = MIN(first, indexPath.row);
-            last = MAX(last, indexPath.row);
-        }
-    }
-    if (last < 0) {
-        return;
-    }
-    first = MAX(0, first - kArtRowMargin);
-    last = MIN((NSInteger)_files.count - 1, last + kArtRowMargin);
-    NSMutableArray<AudioTrack *> *parse = [NSMutableArray array];
-    NSMutableArray<AudioTrack *> *cacheOnly = [NSMutableArray array];
-    for (NSInteger row = first; row <= last; row++) {
-        NSURL *url = _files[(NSUInteger)row];
-        if (![_songFiles containsObject:url]) {
-            continue;
-        }
-        AudioTrack *track = _artTracks[url];
-        if (!track) {
-            if (!_artTracks) {
-                _artTracks = [NSMutableDictionary dictionary];
-            }
-            track = [AudioTrack withURL:url];
-            _artTracks[url] = track;
-        }
-        if (track.metadata) {
-            continue;
-        }
-        if ([_localFiles containsObject:url]) {
-            [parse addObject:track];
-        }
-        else if (![_cacheOnlyAsked containsObject:url]) {
-            [_cacheOnlyAsked addObject:url];
-            [cacheOnly addObject:track];
-        }
-    }
-    if (parse.count == 0 && cacheOnly.count == 0) {
-        return;
-    }
-    AudioTrackMetadataCache *cache = [self stackArtCache];
-    cache.delegate = self;
-    if (parse.count > 0) {
-        [cache loadMetadata:parse];
-    }
-    [cache loadCachedMetadata:cacheOnly];
-}
-
-- (void)redrawVisibleRowsShowing:(AudioTrackMetadata *)metadata {
-    if (!metadata || _artTracks.count == 0 || !self.viewIfLoaded.window) {
-        return;
-    }
-    NSMutableArray<NSIndexPath *> *rows = [NSMutableArray array];
-    for (NSIndexPath *indexPath in self.tableView.indexPathsForVisibleRows) {
-        if (indexPath.section == VibeBrowserSectionFiles && (NSUInteger)indexPath.row < _files.count
-                && _artTracks[_files[(NSUInteger)indexPath.row]].metadata == metadata) {
-            [rows addObject:indexPath];
-        }
-    }
-    if (rows.count > 0) {
-        [self.tableView reconfigureRowsAtIndexPaths:rows];
-    }
-}
-
-// The tags landed; the row's next draw asks for the thumbnail, whose pixels
-// arrive by the notification below.
-- (void)didLoadMetadata:(AudioTrack *)track {
-    [self redrawVisibleRowsShowing:track.metadata];
-}
-
-- (void)artThumbnailDidLoad:(NSNotification *)notification {
-    [self redrawVisibleRowsShowing:notification.object];
-}
-
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
-    [self loadArtForVisibleRows];
-}
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
-    if (!decelerate) {
-        [self loadArtForVisibleRows];
     }
 }
 
@@ -571,108 +382,6 @@ static const NSInteger kArtRowMargin = 20;
         empty.text = STR_ERROR_FOLDER_EMPTY;
     }
     self.contentUnavailableConfiguration = empty;
-}
-
-#pragma mark - The bar
-
-// Multi-select, as opposed to the editing state a row swipe also sets.
-- (BOOL)isSelecting {
-    return self.tableView.isEditing && !_swipingRow;
-}
-
-- (void)refreshBarItems {
-    if ([self isSelecting]) {
-        NSUInteger count = self.tableView.indexPathsForSelectedRows.count;
-        _addSelectedItem.enabled = count > 0;
-        self.navigationItem.title = [NSString stringWithFormat:STR_BROWSER_SELECTED_COUNT, (unsigned long)count];
-        self.navigationItem.rightBarButtonItems = @[_doneItem, _addSelectedItem];
-        self.navigationItem.leftBarButtonItem = _selectAllItem;
-        self.navigationItem.hidesBackButton = YES;
-        return;
-    }
-    self.navigationItem.title = _title;
-    self.navigationItem.leftBarButtonItem = nil;
-    self.navigationItem.hidesBackButton = NO;
-    // Absent, not disabled, with nothing to act on: the Playlist tab's rule.
-    NSMutableArray<UIBarButtonItem *> *items = [NSMutableArray array];
-    // The add sheet is modal and needs its way out at every level.
-    if (_closeItem) {
-        [items addObject:_closeItem];
-    }
-    if (!self.isEmpty) {
-        [items addObject:_selectItem];
-        // With no song directly inside, the tap has nothing to play and the
-        // button is its menu alone.
-        _playItem.target = _hasSongs ? self : nil;
-        _playItem.action = _hasSongs ? @selector(openDirectory) : NULL;
-        [items addObject:_playItem];
-        // Not in the add sheet: with Close the bar has no room, and the
-        // order is a setting the Files tab changes.
-        if (!_appending) {
-            [items addObject:_sortItem];
-        }
-    }
-    self.navigationItem.rightBarButtonItems = items;
-}
-
-// Built when opened, so its check follows a change made on another screen.
-// The title says what the choice reaches: it is the one folder-open setting,
-// not this folder's view.
-- (UIMenu *)sortMenu {
-    __weak FolderViewController *weakSelf = self;
-    UIDeferredMenuElement *choices = [UIDeferredMenuElement elementWithUncachedProvider:
-            ^(void (^completion)(NSArray<UIMenuElement *> *)) {
-        VibeFolderOpenSort current = AppSettings.sharedInstance.folderOpenSort;
-        NSMutableArray<UIAction *> *actions = [NSMutableArray array];
-        for (VibeFolderOpenSort sort = VibeFolderOpenSortName; sort <= VibeFolderOpenSortAsReceived; sort++) {
-            UIAction *action = [UIAction actionWithTitle:VibeFolderOpenSortDisplayName(sort)
-                                                   image:nil
-                                              identifier:nil
-                                                 handler:^(UIAction *a) {
-                AppSettings.sharedInstance.folderOpenSort = sort;
-                [weakSelf reloadFromDisk];
-            }];
-            action.state = sort == current ? UIMenuElementStateOn : UIMenuElementStateOff;
-            [actions addObject:action];
-        }
-        completion(actions);
-    }];
-    return [UIMenu menuWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL children:@[choices]];
-}
-
-- (void)toggleSelecting {
-    [self setEditing:!self.tableView.isEditing animated:YES];
-}
-
-- (void)selectAllRows {
-    for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
-        NSInteger rows = [self.tableView numberOfRowsInSection:section];
-        for (NSInteger row = 0; row < rows; row++) {
-            [self.tableView selectRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]
-                                        animated:NO
-                                  scrollPosition:UITableViewScrollPositionNone];
-        }
-    }
-    [self refreshBarItems];
-}
-
-- (void)setEditing:(BOOL)editing animated:(BOOL)animated {
-    [super setEditing:editing animated:animated];
-    [self refreshBarItems];
-}
-
-- (void)tableView:(UITableView *)tableView willBeginEditingRowAtIndexPath:(NSIndexPath *)indexPath {
-    _swipingRow = YES;
-}
-
-- (void)tableView:(UITableView *)tableView didEndEditingRowAtIndexPath:(NSIndexPath *)indexPath {
-    _swipingRow = NO;
-    [self refreshBarItems];
-}
-
-- (NSURL *)itemAtIndexPath:(NSIndexPath *)indexPath {
-    NSArray<NSURL *> *items = indexPath.section == VibeBrowserSectionFolders ? _folders : _files;
-    return (NSUInteger)indexPath.row < items.count ? items[(NSUInteger)indexPath.row] : nil;
 }
 
 #pragma mark - Opening
@@ -978,6 +687,11 @@ static const NSInteger kArtRowMargin = 20;
     return cell;
 }
 
+- (NSURL *)itemAtIndexPath:(NSIndexPath *)indexPath {
+    NSArray<NSURL *> *items = indexPath.section == VibeBrowserSectionFolders ? _folders : _files;
+    return (NSUInteger)indexPath.row < items.count ? items[(NSUInteger)indexPath.row] : nil;
+}
+
 #pragma mark - The playing row's equalizer
 
 // The Playlist tab's row marker, at that row's size; one per playing row.
@@ -1030,117 +744,6 @@ didEndDisplayingCell:(UITableViewCell *)cell
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     [self syncEqualizer];
-}
-
-#pragma mark - Selection
-
-// A file plays alone and a folder opens, here as in Search and Recents; the
-// long press has Play in Folder.
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (tableView.isEditing) {
-        [self refreshBarItems];
-        return;
-    }
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    NSURL *url = [self itemAtIndexPath:indexPath];
-    if (!url) {
-        return;
-    }
-    if (indexPath.section == VibeBrowserSectionFolders) {
-        [self pushDirectory:url];
-    }
-    // A second tap on the row still opening gives it up.
-    else if ([[_standardizedPath stringByAppendingPathComponent:url.lastPathComponent]
-                     isEqualToString:_playback.openingPath]) {
-        [_playback cancelOpening];
-    }
-    else {
-        [self openURLs:@[url] inFolder:NO];
-    }
-}
-
-- (void)tableView:(UITableView *)tableView didDeselectRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (tableView.isEditing) {
-        [self refreshBarItems];
-    }
-}
-
-#pragma mark - Row actions
-
-// For Select and the swipe's Add. Nothing here is deleted.
-- (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
-    return YES;
-}
-
-- (UITableViewCellEditingStyle)tableView:(UITableView *)tableView
-           editingStyleForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return UITableViewCellEditingStyleNone;
-}
-
-// A context menu is never the only road to Add.
-- (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView
-        leadingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
-    NSURL *url = [self itemAtIndexPath:indexPath];
-    if (!url) {
-        return nil;
-    }
-    __weak FolderViewController *weakSelf = self;
-    UIContextualAction *add = [UIContextualAction
-            contextualActionWithStyle:UIContextualActionStyleNormal
-                                title:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
-                              handler:^(UIContextualAction *action, UIView *source, void (^completion)(BOOL)) {
-        [weakSelf liftRowsAtIndexPaths:@[indexPath]];
-        [weakSelf addURLs:@[url]];
-        completion(YES);
-    }];
-    add.image = [UIImage systemImageNamed:@"text.badge.plus"];
-    add.backgroundColor = UIColor.tintColor;
-    UISwipeActionsConfiguration *config = [UISwipeActionsConfiguration configurationWithActions:@[add]];
-    config.performsFirstActionWithFullSwipe = YES;
-    return config;
-}
-
-- (UIContextMenuConfiguration *)tableView:(UITableView *)tableView
-        contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
-                                            point:(CGPoint)point {
-    if (tableView.isEditing) {
-        return nil;
-    }
-    __weak FolderViewController *weakSelf = self;
-    NSURL *url = [self itemAtIndexPath:indexPath];
-    if (!url) {
-        return nil;
-    }
-    BOOL folder = indexPath.section == VibeBrowserSectionFolders;
-    BOOL appendingSheet = _appending;
-    return [UIContextMenuConfiguration configurationWithIdentifier:nil
-                                                   previewProvider:nil
-                                                    actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
-        NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        if (!appendingSheet) {
-            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                [weakSelf openURLs:@[url] inFolder:NO];
-            })];
-            // An M3U is never a row of its folder, so there is nothing to
-            // select in it.
-            if (!folder && ![PlaylistFile isM3UExtension:url.pathExtension.lowercaseString]) {
-                [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                    [weakSelf openURLs:@[url] inFolder:YES];
-                })];
-            }
-        }
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
-            [weakSelf liftRowsAtIndexPaths:@[indexPath]];
-            [weakSelf addURLs:@[url]];
-        })];
-        if (folder && !appendingSheet && ![FavoritesStore.shared containsFolderURL:url]) {
-            NSString *title = [NSString stringWithFormat:STR_MENU_CONTEXT_ADD_FAVORITE, VibeAppName()];
-            [items addObject:VibeMenuAction(title, @"star", ^{
-                [weakSelf favoriteFolder:url];
-            })];
-        }
-        return [UIMenu menuWithTitle:@"" children:items];
-    }];
 }
 
 @end

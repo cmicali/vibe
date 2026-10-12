@@ -68,6 +68,11 @@ NS_ASSUME_NONNULL_BEGIN
 // persistent roots, never these.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
+@end
+
+// The entry points: open, add, clear and cancel.
+@interface FolderSession (ExternalOpens)
+
 // URLs in pick order. openInPlace NO means an inbox
 // copy: no scope, never bookmarked, one track whatever it sits beside.
 - (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace;
@@ -104,6 +109,11 @@ NS_ASSUME_NONNULL_BEGIN
 // playlist standing answers for it, as for an open that found nothing. Main
 // thread; no delegate call.
 - (void)cancelOpen;
+
+@end
+
+// The launch restore, the bookmarks and the remembered track.
+@interface FolderSession (Persistence)
 
 // NO: nothing was persisted. YES: an attempt is in flight, ending in
 // didOpenTracks:…restored:YES or folderSessionRestoreDidFail:, on main.

@@ -3,14 +3,17 @@
 //  Vibe
 //
 //  One metadata row's art state behind the AudioTrackMetadata facade; only
-//  the metadata implementation and tests import this.
+//  the metadata implementation and tests import this. Its last section is
+//  the state AudioTrackArtwork.m and its +Loading category share.
 //
 
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
 
+@class ArtworkLoadRegistry;
 @class AudioFileMaterializationCoordinator;
 @class AudioWorkScheduler;
+@class EmbeddedThumbnailKey;
 @class FolderArtResolver;
 
 typedef NSTimeInterval (^AudioTrackArtworkClock)(void);
@@ -71,11 +74,17 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
 - (BOOL)embeddedThumbnailDecodeHasSource;
 
 - (nullable VibeImage *)cachedArt;
-- (BOOL)artNeedsLoad;
 - (void)discardDecodedArt;
 - (nullable VibeImage *)cachedThumbnail;
 
 @property (nonatomic, readonly, getter=isArtLoadPending) BOOL artLoadPending;
+
+@end
+
+// The full-art load, in AudioTrackArtwork+Loading.m.
+@interface AudioTrackArtwork (Loading)
+
+- (BOOL)artNeedsLoad;
 
 - (void)loadArtIfNeededWithLabel:(nullable NSString *)label
                      stillWanted:(BOOL (^)(void))stillWanted
@@ -118,5 +127,8 @@ typedef NSData *_Nullable (^AudioTrackArchivedDisplayArtProvider)(void);
                                        sourceFileReadAllowed:(BOOL)sourceFileReadAllowed;
 
 @end
+
+// The one registry, made on first use. Main thread only.
+ArtworkLoadRegistry *VibeSharedArtworkLoadRegistry(void);
 
 NS_ASSUME_NONNULL_END

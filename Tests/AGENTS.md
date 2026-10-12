@@ -16,7 +16,7 @@ This directory holds the tests of both test targets, `VibeTests` and `VibeAudioT
 - `DropboxStubProtocol.h` and `.m`: the Dropbox tests' `NSURLProtocol`. One handler the test installs answers every request.
 - `HTTPStub.h` and `.m`: a scripted HTTP host per instance, over the debug fake's serving engine. Both targets compile it.
 - `LinkStoreTestCase.h` and `.m`: the base class of each link host's store tests.
-- `MaterializationTestFakes.h` and `.m`: the gated dataless probe and the hand-completed provider operations of `AudioFileMaterializationCoordinatorTests`.
+- `MaterializationTestFakes.h` and `.m`: the gated dataless probe and the hand-completed provider operations of the stage-1 coordinator tests (`AudioFileMaterializationCoordinatorTestCase`).
 - `MetadataLoaderTestFakes.h` and `.m`: the metadata loader tests' fakes, and the suite's `AudioTrackMetadata` decoy.
 - `TestFilesystemGuard.h` and `.m`: the per-process temp root and in-memory defaults, installed at image load. Both targets compile it.
 - `VibeReadAheadScript.h` and `.m`: forces the network-mount rule and scripts each read. Both targets compile it.
@@ -40,10 +40,11 @@ Anything that needs the app running belongs in the `vibe-debug` skill's command 
 
 **Test an orchestrator as itself when its nondeterminism has narrow boundaries.** The metadata loader tests run the production queues, barrier, ranking, materialization slots, real coordinator, parse claims, installation, publication and cancellation. They replace only cache reads, file parsing and the coordinator's provider-operation boundary. Their harness is `AudioTrackMetadataLoaderTestCase`, and each topic is a subclass: `AudioTrackMetadataLoaderTests` (stage one, the cache and priority), `…SharedFileTests` (rows that share one file) and `…RetryTests` (retries, the foreground yield, admission and cancellation). Do not copy the loader's state machine into a fake or flatten it into rule tests. Other examples of the same approach:
 
+- `AudioFileMaterializationCoordinator`: a gated dataless probe, hand-completed provider operations, and a clock the test sets. The stage-1 harness is `AudioFileMaterializationCoordinatorTestCase`. `AudioFileMaterializationCoordinatorTests` covers the path claims. `…ForegroundTests` covers the foreground hold. `…HandleOpenTests` covers the handle runs of stage 2, with its own fakes.
 - `NowPlayingController` (`NowPlayingRulesTests`): an injected clock and OS sinks, with the real dirty checks and artwork construction.
 - `AudioFileConverter`: held file-operation callbacks and the real `NSUndoManager` for undo and redo. Its dormant TagLib functions are fail-loud decoys in `FLACDisposalRulesTests`. Its injected constructor skips the launch-time temp sweep.
 - `ArtworkDisplayController` (`AudioTrackTests`): the real single-render, latest-request scheduler with held renderer completions and a publication sink that keeps views and the Dock out.
-- `OpenBurstCoalescerTests` runs launch priority through the production launch method. `PlaylistFileTests` round-trips the private session with temp files and isolated defaults.
+- `OpenBurstCoalescerTests` runs launch priority through the production launch method. `PlaylistFileSessionTests` round-trips the private session with temp files and isolated defaults.
 - `AudioDeviceManagerTests` runs `AudioDeviceManager` with injected enumeration and retry scheduling, with no HAL registration. `CoreAudioUtil`'s `releaseDeviceObligation:attempt:isAbsent:` is tested with controlled attempts.
 
 OS provider state, shell routing, remote-command registration, output rebinding, device property I/O and hardware settlement remain live tests.

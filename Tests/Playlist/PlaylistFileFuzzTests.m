@@ -12,7 +12,7 @@
 
 #import "AudioFixtures.h"
 #import "AudioTrack.h"
-#import "PlaylistFile+CueFileNames.h"
+#import "PlaylistFileTestCase.h"
 
 // xorshift64*, chosen for being four lines rather than for its statistics.
 typedef struct { uint64_t state; } FuzzRandom;

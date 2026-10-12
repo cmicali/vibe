@@ -817,6 +817,7 @@ targets:
       - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
       - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
       - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
       - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
       - path: Vibe/Common/AppSettings.m
@@ -999,6 +1000,7 @@ targetTemplates:
       - path: Vibe/Loading/Claim/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/AudioFileHandle+MPEG.m
+      - path: Vibe/Audio/AudioFileHandle+Stream.m
       - path: Vibe/Loading/Transfer/NetworkReadAhead.m
       - path: Vibe/Debug/Seams/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
@@ -1030,6 +1032,8 @@ targetTemplates:
       - path: Vibe/Audio/Mac/Devices/AudioDeviceEventLog.m
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+BitPerfect.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+Diagnostics.m
       - path: Vibe/Audio/AudioOutputUnit.m
       - path: Vibe/Util/FilePaths.m
       - path: Vibe/Loading/PlaceholderFiles.m
