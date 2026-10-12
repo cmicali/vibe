@@ -25,7 +25,7 @@
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "PlaybackDeliveryRules.h"
-#import "SettingsGeneralViewController.h"
+#import "SettingsAudioOutputViewController.h"
 #import "SettingsWindowController.h"
 #import "TrackDisplayController.h"
 #import "VibeStrings.h"

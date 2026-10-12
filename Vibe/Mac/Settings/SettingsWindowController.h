@@ -7,7 +7,7 @@
 
 @class MainPlayerController;
 @class SettingsThemesViewController;
-@class SettingsGeneralViewController;
+@class SettingsAudioOutputViewController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -18,7 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 // audioPane answers nil unless that pane is on screen, so outside refreshes
 // cost nothing for a closed window; the pane catches up when it appears.
 - (nullable SettingsThemesViewController *)themesPane;
-- (nullable SettingsGeneralViewController *)audioPane;
+- (nullable SettingsAudioOutputViewController *)audioPane;
 
 - (void)refreshSelectedPane;
 

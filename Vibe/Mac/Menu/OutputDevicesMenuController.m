@@ -10,7 +10,7 @@
 #import "AudioDeviceManager.h"
 #import "AppDelegate.h"
 #import "SettingsWindowController.h"
-#import "SettingsGeneralViewController.h"
+#import "SettingsAudioOutputViewController.h"
 #import "VibeStrings.h"
 
 @interface OutputDevicesMenuController () <AudioDeviceManagerObserver>

@@ -10,6 +10,8 @@
 #import "MainPlayerController+Settings.h"
 #import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"
+#import "SettingsAppearanceViewController.h"
+#import "SettingsAudioOutputViewController.h"
 #import "SettingsFilesViewController.h"
 #import "SettingsGeneralViewController.h"
 #import "SettingsPaneViewController.h"
@@ -243,11 +245,11 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
     [tabs addTabViewItem:PaneItem([[SettingsThemesViewController alloc] initWithPlayerController:playerController],
                                   @"themes", STR_SETTINGS_THEMES_SECTION, @"paintpalette")];
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:SettingsGeneralPageAppearance],
+    [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"circle.lefthalf.filled")];
     [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController page:SettingsGeneralPageAudio],
+    [tabs addTabViewItem:PaneItem([[SettingsAudioOutputViewController alloc] initWithPlayerController:playerController],
                                   @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
     [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
                                   @"files", STR_SETTINGS_FILES, @"folder")];
@@ -465,9 +467,9 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
     return (SettingsThemesViewController *)[self themesTabItem].viewController;
 }
 
-- (SettingsGeneralViewController *)audioPane {
-    SettingsGeneralViewController *pane =
-            (SettingsGeneralViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
+- (SettingsAudioOutputViewController *)audioPane {
+    SettingsAudioOutputViewController *pane =
+            (SettingsAudioOutputViewController *)[self tabItemWithIdentifier:@"audio"].viewController;
     return pane.isViewLoaded && pane.view.window.isVisible ? pane : nil;
 }
 
