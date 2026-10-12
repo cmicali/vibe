@@ -2,8 +2,8 @@
 //  AppThemeTestCase.h
 //
 //  The harness the AppTheme tests share: a per-test artwork directory and
-//  the square PNG the image tests store. It runs no tests. AppThemeTests and
-//  AppThemeStoreTests subclass it.
+//  the square PNG the image tests store. It runs no tests. AppThemeTests,
+//  AppThemeArchiveTests and AppThemeStoreTests subclass it.
 //
 
 #import <XCTest/XCTest.h>
