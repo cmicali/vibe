@@ -4,17 +4,22 @@
 # targets, and within any subsystem Mac/ and iOS/ are the only platform
 # markers.
 #
-# Five assertions. The first three read project.yml, which settles which
+# Six assertions. The first three read project.yml, which settles which
 # SOURCES compile; the fourth reads the imports, which settles which HEADERS may
 # be named, since Xcode's project-wide headermap resolves any header from any
-# target; the fifth keeps the agent instructions loadable.
+# target; the fifth keeps the agent instructions loadable; the sixth keeps a
+# test target's debug seams whole.
 #   1. every exclude is on the whitelist — no feature-named exclude anywhere;
 #   2. no Vibe path names the other platform, and every shared entry carries
 #      its platform exclude;
 #   3. every top-level directory on disk is a source path in both targets;
 #   4. no source outside a platform's tree imports a header only that tree
 #      has, unguarded;
-#   5. no CLAUDE.md or CLAUDE.local.md in the tree or above it.
+#   5. no CLAUDE.md or CLAUDE.local.md in the tree or above it;
+#   6. every +Debug seam header a test target reaches through its imports has
+#      its .m in that target, when the seam has one and the target compiles
+#      the class. A selector resolves at run time, so neither the compiler
+#      nor the linker catches the gap.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -222,6 +227,83 @@ if [ -n "$strays" ]; then
     fail "agent instructions are AGENTS.md; each file below makes Claude Code skip every AGENTS.md — rename its content into the AGENTS.md beside it:"
     echo "$strays" >&2
 fi
+
+# 6. Seams. A test target that compiles a seam, or a test that imports one,
+#    reaches other seam headers through imports. A seam whose methods live in
+#    its own <Class>+Debug.m must be compiled into that target too, or the
+#    first test to send one of its selectors fails at run time. A header
+#    reached for a class the target never compiles cannot be sent to, so it
+#    is not required (AudioPlayer+Debug.h also declares the voice bus's
+#    category, which VibeTests uses without the player).
+#    Sources of a test target: its own entries plus its templates', with
+#    directory entries expanded.
+sources_for() {   # sources_for <target or template>
+    awk -v t="$1" '
+        /^  [A-Za-z][A-Za-z0-9_-]*:[ \t]*$/ { name = $1; sub(/:$/, "", name); insrc = 0; next }
+        name != t                           { next }
+        /^    sources:[ \t]*$/              { insrc = 1; next }
+        /^    templates:/ {
+            l = $0; sub(/^[^[]*\[/, "", l); sub(/\].*$/, "", l); gsub(/[ \t]/, "", l)
+            n = split(l, arr, ","); for (i = 1; i <= n; i++) print "TEMPLATE\t" arr[i]; next
+        }
+        /^    [A-Za-z]/                     { insrc = 0; next }
+        insrc && /^      - path:/ {
+            p = $0; sub(/^[ \t]*-[ \t]*path:[ \t]*/, "", p); sub(/[ \t]*#.*$/, "", p); gsub(/"/, "", p)
+            print "PATH\t" p
+        }' project.yml \
+    | while IFS=$'\t' read -r kind value; do
+        case "$kind" in
+            TEMPLATE) sources_for "$value" ;;
+            PATH) if [ -d "$value" ]; then
+                      find "$value" \( -name '*.m' -o -name '*.mm' \)
+                  else
+                      echo "$value"
+                  fi ;;
+        esac
+    done
+}
+
+# Every "<file>\t<imported basename>" edge, and every header's path by basename.
+import_edges=$(grep -rHo '^[[:space:]]*#[[:space:]]*import[[:space:]]*"[^"]*"' Vibe Tests \
+                    --include='*.h' --include='*.m' --include='*.mm' \
+               | grep -v '/ThirdParty/' \
+               | awk '{ f = $0; sub(/:.*$/, "", f); h = $0; sub(/^[^"]*"/, "", h); sub(/".*$/, "", h); sub(/^.*\//, "", h); print f "\t" h }')
+header_paths=$(find Vibe Tests -name '*.h' ! -path '*/ThirdParty/*' | awk -F/ '{ print $NF "\t" $0 }')
+seam_impls=$(find Vibe/Debug -path '*/Seams/*' \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \) \
+             | sed -E 's/.*\///; s/\.mm?$//')
+
+for t in VibeTests VibeAudioTests; do
+    srcs=$(sources_for "$t" | sort -u)
+    missing=$(awk -F'\t' '
+        FILENAME == ARGV[1] { if ($0 != "") { queue[++tail] = $0; seen[$0] = 1; s = $0; sub(/.*\//, "", s); sub(/\.mm?$/, "", s); stem[s] = 1 }; next }
+        FILENAME == ARGV[2] { if ($0 != "") impl[$0] = 1; next }
+        FILENAME == ARGV[3] { paths[$1] = paths[$1] "\n" $2; next }
+        { edge[$1] = edge[$1] "\n" $2; next }
+        END {
+            while (head < tail) {
+                f = queue[++head]
+                m = split(edge[f], imps, "\n")
+                for (i = 1; i <= m; i++) {
+                    if (imps[i] == "") continue
+                    k = split(paths[imps[i]], ps, "\n")
+                    for (j = 1; j <= k; j++) {
+                        p = ps[j]; if (p == "" || (p in seen)) continue
+                        seen[p] = 1; queue[++tail] = p
+                        if (p ~ /\/Seams\/[^\/]*\+Debug[^\/]*\.h$/) {
+                            s = p; sub(/.*\//, "", s); sub(/\.h$/, "", s)
+                            c = s; sub(/\+Debug.*$/, "", c)
+                            if ((s in impl) && !(s in stem) && (c in stem)) miss[s] = miss[s] " " f
+                        }
+                    }
+                }
+            }
+            for (s in miss) print s ".m, reached from" miss[s]
+        }' <(echo "$srcs") <(echo "$seam_impls") <(echo "$header_paths") <(echo "$import_edges"))
+    if [ -n "$missing" ]; then
+        fail "$t compiles a seam header's users but not the seam — add it to the target's sources in project.yml:"
+        echo "$missing" >&2
+    fi
+done
 
 if [ "$status" -eq 0 ]; then
     echo "✅ layout OK"
