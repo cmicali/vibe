@@ -232,7 +232,7 @@ targets:
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       # dr_mp3's, dr_flac's and dr_wav's implementation units,
-      # AudioFileHandle.m's default MPEG decoder and its FLAC and WAV/AIFF
+      # AudioFileHandle's default MPEG decoder and its FLAC and WAV/AIFF
       # decoders: optimized in every configuration, as r8brain is, so a Debug
       # build decodes as a shipped one does.
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
@@ -980,6 +980,7 @@ targetTemplates:
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
+      - path: Vibe/Audio/AudioFileHandle+MPEG.m
       - path: Vibe/Loading/NetworkReadAhead.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
