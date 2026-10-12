@@ -1,6 +1,6 @@
 # iCloud Drive on iOS: browser follow-ups
 
-**Status: Partly built.** The folder setup and cached artwork for files not downloaded are built. Add Folder… is documented in `Vibe/iOS/AGENTS.md`, and `loadCachedMetadata:` in `Vibe/Audio/Metadata/AGENTS.md`. What remains is one device check and the browser follow-ups below.
+**Status: Partly built.** The folder setup and cached artwork for files not downloaded are built. Add Folder… is documented in `Vibe/iOS/Files/AGENTS.md`, and `loadCachedMetadata:` in `Vibe/Audio/Metadata/AGENTS.md`. What remains is one device check and the browser follow-ups below.
 
 ## Device check
 

@@ -17,7 +17,7 @@
 | `PageWaveformCoordinator` | `PageWaveformCoordinatorTests` |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
-The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `BrowserViewController`, `RootViewController` and `LibraryViewController` sit beside the UIKit calls that act on them.
+The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `BrowserViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
 
 ## Three moves, in order of payoff
 
@@ -53,7 +53,7 @@ A header-only seam that the shipping class calls, tested from the Mac (`Tests/AG
 
 - **The browser's row actions.** What a tap and a long press offer per row kind (file, folder, Dropbox placeholder, CUE sheet, M3U), in the browser and the Add sheet. The replace-confirm rule (`PlaybackController`'s `confirmReplacingPlaylistFrom:…` asks only when the playlist was built by hand). Select mode's glyphs, the filter field's threshold and the subfolder walk's caps.
 - **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate part of it today. A wrong answer here once clamped a bottom-scrolled playlist by the accessory's height on expand.
-- **The library's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle.
+- **The Playlist tab's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle.
 - **The pager's waveform gate** (`WaveformWaitsForOpen` in `PlayerViewController+Pager.m`). Ask for a waveform unless the file is a provider's dataless file. A Dropbox placeholder is asked, since the cache answers from its stat.
 
 Each seam also retires a sentence from `Vibe/iOS/AGENTS.md`, since the test states the rule.
@@ -88,5 +88,5 @@ Layout and the safe area, animations and their frame rate, the fixed height of `
 1. `FolderSession` into `VibeTests` with the six tests above. Report the dependency pull before moving anything.
 2. The card fold seam, the smallest.
 3. The browser's row-action seam, against the regression cases.
-4. The library follow rule and the waveform gate, as their files are next touched.
+4. The Playlist tab's follow rule and the waveform gate, as their files are next touched.
 5. Decide whether the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` can share one fixture. Both stand on the same two `DropboxClientInternal.h` methods. They differ on purpose today: the tests script inconsistencies a fixture directory cannot express.

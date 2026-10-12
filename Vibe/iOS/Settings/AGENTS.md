@@ -8,7 +8,7 @@ The screens behind the Playlist tab's gear. They are **pushed onto that navigati
 
 **Files and Dropbox holds the Dropbox account**: Connect (Dropbox's sign-in sheet), Remove Downloads with their size (a row shown only while something is downloaded, `dropboxRowAtIndex:`), Maximum Size and Disconnect. Maximum Size is chosen on the shared choice screen, saved, then set on the mirror's `downloadBudget`, which applies it (`Loading/iOS/Dropbox/AGENTS.md`). Disconnect asks first, because it deletes the downloads and clears a Dropbox playlist. The screen reloads its section on `VibeDropboxAccountDidChangeNotification`, and re-measures the size on `VibeDropboxDownloadsDidChangeNotification`, since a song playing behind it keeps downloading.
 
-**Allow Pasting Links opens this app's page in the Settings app** (`UIApplicationOpenSettingsURLString`). There the user can set Paste from Other Apps to Allow, and the Files tab's paste row then opens a copied link without the prompt (`../AGENTS.md`). No public API reads that permission, so the row is always there and shows no state.
+**Allow Pasting Links opens this app's page in the Settings app** (`UIApplicationOpenSettingsURLString`). There the user can set Paste from Other Apps to Allow, and the Files tab's paste row then opens a copied link without the prompt (`../Files/AGENTS.md`). No public API reads that permission, so the row is always there and shows no state.
 
 **"Sort folders by" notifies nothing.** No screen draws from it, since it governs the next open. Its case writes `AppSettings.folderOpenSort` and reloads its section for the checkmark.
 

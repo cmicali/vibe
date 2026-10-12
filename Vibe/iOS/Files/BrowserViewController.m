@@ -1502,7 +1502,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 #pragma mark - The playing row's equalizer
 
-// The library row's marker, at the library's size; one per playing row.
+// The Playlist tab's row marker, at that row's size; one per playing row.
 - (EqualizerIndicatorView *)makeEqualizer {
     EqualizerIndicatorView *equalizer = [[EqualizerIndicatorView alloc] initWithFrame:CGRectMake(0, 0, 16, 14)];
     equalizer.levelSource = _playback;

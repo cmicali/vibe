@@ -1,5 +1,5 @@
 //
-//  LibraryTrackCell.h
+//  PlaylistTrackCell.h
 //  Vibe (iOS)
 //
 
@@ -17,7 +17,7 @@ static const CGFloat kNumberColumnWidth = 26;
 static const CGFloat kArtTextGap = 14;
 
 // The mac playlist table's four columns in one row.
-@interface LibraryTrackCell : UITableViewCell
+@interface PlaylistTrackCell : UITableViewCell
 // Set at dequeue: the table mints the cell and it never sees the model.
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 @property (nonatomic) BOOL equalizerAudioOutputActive;

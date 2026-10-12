@@ -14,7 +14,7 @@
 #import "DebugPlayerSurface.h"
 #import "BrowserViewController.h"   // the categories below need the classes
 #import "FavoritesViewController.h"
-#import "LibraryViewController.h"
+#import "PlaylistViewController.h"
 #import "SearchViewController.h"
 #import "OutputRouteRules.h"        // VibeOutputRouteKind, taken below
 
@@ -30,7 +30,7 @@
 @property (nonatomic, readonly) PlaybackController *playback;
 @property (nonatomic, readonly) PlayerViewController *player;
 // Each is nil until its tab's lazy provider has run.
-@property (nonatomic, readonly) LibraryViewController *library;
+@property (nonatomic, readonly) PlaylistViewController *playlistScreen;
 @property (nonatomic, readonly) FavoritesViewController *favorites;
 @property (nonatomic, readonly) SearchViewController *searchScreen;
 @property (nonatomic, readonly) BrowserViewController *filesBrowser;
@@ -63,7 +63,7 @@
 + (NSDictionary *)debugFrameProbeReport;
 @end
 
-@interface LibraryViewController (DebugSurface)
+@interface PlaylistViewController (DebugSurface)
 - (void)favoriteTapped;
 @end
 

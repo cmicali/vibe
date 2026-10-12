@@ -1,9 +1,9 @@
 //
-//  LibraryTrackCell.m
+//  PlaylistTrackCell.m
 //  Vibe (iOS)
 //
 
-#import "LibraryTrackCell.h"
+#import "PlaylistTrackCell.h"
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
@@ -12,7 +12,7 @@
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 
-@implementation LibraryTrackCell {
+@implementation PlaylistTrackCell {
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
     LoadingIndicatorView    *_loadingView;

@@ -9,12 +9,12 @@
 #import "AudioTrackMetadata.h"
 #import "FavoritesViewController.h"
 #import "BrowserViewController.h"
-#import "LibraryViewController.h"
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
 #import "PlayerScreenRules.h"
 #import "PlayerViewController.h"
 #import "Playlist.h"
+#import "PlaylistViewController.h"
 #import "SearchViewController.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
@@ -46,7 +46,7 @@ static NSString *const kTabSearch = @"search";
     UIView               *_backdropSnapshot;
     BrowserViewController *_filesController;
     FavoritesViewController *_favorites;
-    LibraryViewController *_library;
+    PlaylistViewController *_playlistScreen;
     SearchViewController *_searchController;
     MiniPlayerView       *_miniPlayer;
     PlayerViewController *_player;
@@ -98,8 +98,8 @@ static NSString *const kTabSearch = @"search";
     return _backdropSnapshot;
 }
 
-- (LibraryViewController *)library {
-    return _library;
+- (PlaylistViewController *)playlistScreen {
+    return _playlistScreen;
 }
 
 - (BrowserViewController *)filesBrowser {
@@ -156,15 +156,15 @@ static NSString *const kTabSearch = @"search";
         if (!root) {
             return nil;
         }
-        LibraryViewController *library =
-                [[LibraryViewController alloc] initWithPlayback:root->_playback];
-        root->_library = library;
-        // The empty state's Open; the library knows nothing about tabs.
-        library.openFilesHandler = ^{
+        PlaylistViewController *playlistScreen =
+                [[PlaylistViewController alloc] initWithPlayback:root->_playback];
+        root->_playlistScreen = playlistScreen;
+        // The empty state's Open; the Playlist tab knows nothing about tabs.
+        playlistScreen.openFilesHandler = ^{
             [weakSelf setSelectedTabIdentifier:kTabFiles];
         };
         [root syncTabSurfaces];
-        return [[UINavigationController alloc] initWithRootViewController:library];
+        return [[UINavigationController alloc] initWithRootViewController:playlistScreen];
     }];
 
     UITab *favorites = [[UITab alloc] initWithTitle:STR_TAB_FAVORITES
@@ -345,7 +345,7 @@ static NSString *const kTabSearch = @"search";
 // selected tab exposed.
 - (void)syncTabSurfaces {
     BOOL tabsExposed = _sceneActive && _rootPresentationVisible && !_tabs.view.hidden;
-    _library.equalizerSurfaceVisible = tabsExposed
+    _playlistScreen.equalizerSurfaceVisible = tabsExposed
             && [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
     _filesController.equalizerSurfaceVisible = tabsExposed
             && [_tabs.selectedTab.identifier isEqualToString:kTabFiles];
@@ -676,7 +676,7 @@ static NSString *const kTabSearch = @"search";
             didSelectTab:(UITab *)selectedTab
              previousTab:(UITab *)previousTab {
     if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]) {
-        [_library.navigationController popToRootViewControllerAnimated:NO];
+        [_playlistScreen.navigationController popToRootViewControllerAnimated:NO];
     }
     [self syncTabSurfaces];
 }
