@@ -24,7 +24,7 @@ static const uint32_t kMaxFrames = 4096;
 // inside the step must never both be read. A quarter of the period leaves
 // the step's middle half, at most 0.66 frames wide at the widest kernel, and
 // no frame steps less than 0.84. At an eighth, two frames straddling the wrap
-// at a high ratio could both be read, and the threaded test failed at random.
+// at a high ratio can both be read, and the threaded test fails at random.
 static const double kWrapGuard = kPeriod / 4.0;
 
 // The source: the ramp from the frame counter at `context`.

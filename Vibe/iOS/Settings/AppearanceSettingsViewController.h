@@ -2,10 +2,10 @@
 //  AppearanceSettingsViewController.h
 //  Vibe (iOS)
 //
-//  Settings > Appearance: waveform style, the widget's waveform style, theme,
-//  time display, file info and shuffle/repeat controls. Hiding those controls
-//  also turns both modes off through the model. Every write ends on
-//  VibeNotifyDisplaySettingsChanged().
+//  Settings > Appearance: waveform style, theme, playhead line and centering,
+//  the widget's own style and centering, time display, file info and the
+//  shuffle/repeat controls. Hiding those controls also turns both modes off
+//  through the model. Every write ends on VibeNotifyDisplaySettingsChanged().
 //
 
 #import <UIKit/UIKit.h>

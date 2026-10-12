@@ -93,8 +93,8 @@ static BOOL VibeKeyIsArrow(NSString *name) {
     return [@[@"left", @"right", @"up", @"down"] containsObject:name];
 }
 
-// Characters AppKit places in the function-key private-use range — the arrows,
-// both delete keys, the page and home cluster — which real events flag as such.
+// Characters AppKit places in the function-key private-use range (the arrows,
+// both delete keys, the page and home cluster), which real events flag as such.
 static BOOL VibeCharacterIsFunctionKey(NSString *chars) {
     if (chars.length != 1) {
         return NO;
@@ -170,7 +170,7 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     }
     // charactersIgnoringModifiers ignores Option, NOT Shift: hardware delivers
     // the shifted character in BOTH fields, and AppKit's menu key-equivalent
-    // matching reads it — a lowercase char there makes ⇧⌘C match a plain ⌘C
+    // matching reads it. A lowercase char there makes ⇧⌘C match a plain ⌘C
     // equivalent instead of the ⇧⌘C one.
     NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? VibeShiftedKeyCharacters(chars) : chars;
     // Into the key window, as a real press goes, so a press reaches Open URL's
@@ -606,12 +606,12 @@ NSString *VibeSyntheticFileDragDrop(MainPlayerController *controller, NSArray<NS
 // writer per dragged row, willBegin, validate, accept, ended. No
 // NSDraggingSession is started; a stand-in NSDraggingInfo carries the real
 // table as draggingSource and what the real writers minted as its pasteboard.
-// Everything downstream — token match, survivor resolution, slot arithmetic,
-// the model move, table reconciliation, undo — is the shipping path. AppKit's
-// half is not exercised: the drag threshold, which rows a gesture picks up,
-// the insertion line, autoscroll. The session deliberately survives across
-// commands, so another verb can mutate the playlist mid-drag — races no
-// pointer can stage deterministically.
+// Everything downstream is the shipping path: token match, survivor
+// resolution, slot arithmetic, the model move, table reconciliation, undo.
+// AppKit's half is not exercised: the drag threshold, which rows a gesture
+// picks up, the insertion line, autoscroll. The session deliberately survives
+// across commands, so another verb can mutate the playlist mid-drag. Those
+// are races no pointer can stage deterministically.
 
 // The stand-in dragging info. Only draggingSource and draggingPasteboard are
 // read by the reorder path; the rest of the protocol is inert.
@@ -765,8 +765,8 @@ NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> 
         return errorJSON;
     }
     // AppKit's ordering: a drop is only delivered through a passing
-    // validation, and the session ends either way — a refused slot slides
-    // back, it does not keep dragging.
+    // validation, and the session ends either way. A refused slot slides
+    // back; it does not keep dragging.
     NSTableView *table = playlist.tableView;
     BOOL dropped = NO;
     if ([playlist tableView:table validateDrop:vibeReorderInfo proposedRow:slot

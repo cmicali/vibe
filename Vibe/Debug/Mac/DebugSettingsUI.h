@@ -7,9 +7,9 @@
 
 #if DEBUG
 
-// The settings-window verbs. The injection verbs cannot reach this window —
-// `click`, `drag` and the `key*` verbs all post to the main player window —
-// and the panes are built in code with no view identifiers, leaving only
+// The settings-window verbs. The injection verbs cannot reach this window,
+// since `click`, `drag` and the `key*` verbs all post to the main player
+// window. The panes are built in code with no view identifiers, leaving only
 // coordinates that move with every localization and resize. So controls are
 // addressed as the pane presents them, by the row's title or the control's
 // own: dump_settings_ui lists the selected pane's controls, and

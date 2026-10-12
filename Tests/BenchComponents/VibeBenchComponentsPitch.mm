@@ -3,8 +3,8 @@
 //  VibeBenchComponents
 //
 //  The pitch fader's stage, AudioVarispeed, and beside it Apple's Varispeed
-//  unit, which it replaced, hosted as the render hosted it: so the two
-//  compare in one harness. Earlier versions have the Apple variants only.
+//  unit, hosted as the render of versions without the stage hosts it, so the
+//  two compare in one harness. Those versions have the Apple variants only.
 //
 //  Both convert 30 s of stereo noise out at 48 kHz, in the 512-frame slices
 //  of a typical output cycle, at the fader's −8%, +4% and +16%. Both copy
@@ -58,8 +58,9 @@ static OSStatus VibeBenchComponentsVarispeedInput(void *refCon, AudioUnitRenderA
     return noErr;
 }
 
-// As the render hosted it: stereo float32 at the bus rate, 4096 frames per
-// slice at most, the highest render quality. NULL when it cannot be hosted.
+// As the render without the stage hosts it: stereo float32 at the bus rate,
+// 4096 frames per slice at most, the highest render quality. NULL when it
+// cannot be hosted.
 static AudioUnit VibeBenchComponentsHostVarispeed(VibeBenchComponentsVarispeedSource *source) {
     AudioComponentDescription description = {kAudioUnitType_FormatConverter, kAudioUnitSubType_Varispeed,
                                              kAudioUnitManufacturer_Apple, 0, 0};

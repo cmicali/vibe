@@ -7,7 +7,7 @@
 //  a download rather than starting it over, and only for the same version.
 //  The defaults are plain HTTP: a GET of an NSURL target, with the version
 //  from the ETag or Last-Modified. A subclass changes them through the hooks
-//  in HTTPTransferClientInternal.h (DropboxClient).
+//  in HTTPTransferClientInternal.h (DropboxClient, LinkClient).
 //
 //  Thread-safe. Completions run on an arbitrary queue unless stated.
 //

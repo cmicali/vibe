@@ -160,8 +160,8 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
     // Center, CarPlay, AirPods and the mac's media keys share it — and the
     // system picks which enabled commands fill the compact transport. These
     // two leave next/previous there (the lock screen and either platform's
-    // Control Center show no shuffle or repeat at all); the skip-interval
-    // pair takes their place.
+    // Control Center show no shuffle or repeat at all). The skip-interval
+    // pair, if enabled, would take their place.
     // Check any further command on a device first.
     // State and availability follow updateShuffleEnabled:repeatMode:available:;
     // a request only asks.

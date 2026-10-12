@@ -61,11 +61,11 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
     VibePlayerStateLoading,
 };
 
-// The hardware drain: the bus reports its events within the prompt interval
-// of their render while anything is due (updateDrainTimerOnQueue); otherwise
-// it only tops up rings at least half a second deep, and a tenth of the
-// wakeups do. The steady interval is also how late a track-end crossfade's
-// drain can be.
+// The hardware drain: while anything is due (updateDrainTimerOnQueue) the
+// bus reports its events within the prompt interval of their render.
+// Otherwise it tops up a ring only once the ring has drained below half, at
+// least half a second of audio. The steady interval is also how late a
+// track-end crossfade's drain can be.
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 

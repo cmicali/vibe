@@ -3,8 +3,9 @@
 //  Vibe (iOS)
 //
 //  The settings root: Playback, Appearance, Files and About, each its own
-//  screen, in the mac sidebar's order. This screen owns no setting. The model is handed down for Playback, the one
-//  group whose writes reach the player.
+//  screen, in the mac sidebar's order. This screen owns no setting. The model
+//  is handed down to Playback and Appearance, the two groups whose writes
+//  reach the player.
 //
 
 #import <UIKit/UIKit.h>

@@ -66,8 +66,8 @@ BOOL VibeDumpWindowSnapshot(NSString *path) {
     }
     CGContextScaleCTM(ctx, scale, scale);
     // With the glass layers hidden below, their region renders transparent, so
-    // paint an appearance-matched proxy background first. Dark-mode content —
-    // white text and waveform at low alpha — then keeps the window's real
+    // paint an appearance-matched proxy background first. Dark-mode content
+    // (white text and waveform at low alpha) then keeps the window's real
     // contrast polarity rather than flattening onto white.
     NSAppearanceName match = [window.effectiveAppearance
             bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];

@@ -51,7 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)playbackDidChangePlayState:(PlaybackController *)playback;
 
-// Shuffle or the repeat mode changed, and with them where next goes.
+// Shuffle, the repeat mode or Pause changed, and with them where next goes.
 - (void)playbackDidChangePlayOrder:(PlaybackController *)playback;
 
 // 3 Hz while playing, and once for every event that moves the playhead.
@@ -165,9 +165,9 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Settings
 
 // A Track transitions writer calls this (the store applies no effects): it
-// pushes the crossfade, shuffle and the repeat mode, and re-parks or drops the
-// successor, so a mid-track switch to Pause, or to another order, does not
-// advance through an armed splice.
+// pushes the crossfade, Pause, shuffle and the repeat mode, and re-parks or
+// drops the successor, so a mid-track switch to Pause, or to another order,
+// does not advance through an armed splice.
 - (void)applyTrackTransitionSettings;
 
 // The card's buttons and the system's remote commands: each writes its

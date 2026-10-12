@@ -2,10 +2,12 @@
 //  FilesSettingsViewController.h
 //  Vibe (iOS)
 //
-//  Settings > Files: the Dropbox account (connect, and disconnect, which
-//  forgets its downloads) and the folder-open order (AppSettings.folderOpenSort,
-//  which governs the NEXT open, so a write notifies nobody). The folders the
-//  app may read are the Files tab's Locations.
+//  Settings > Files and Dropbox: the Dropbox account (connect, the downloads
+//  and their budget, and disconnect, which forgets the downloads), the
+//  folder-open order (AppSettings.folderOpenSort, which governs the NEXT open,
+//  so a write notifies nobody), and Allow Pasting Links, which opens this
+//  app's page in the Settings app. The folders the app may read are the Files
+//  tab's Locations.
 //
 
 #import <UIKit/UIKit.h>

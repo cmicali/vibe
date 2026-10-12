@@ -7,9 +7,9 @@
 //  client's own HTTP boundary (an NSURLProtocol on its sessions). It answers
 //  iCloud Drive's lookup too: https://www.icloud.com/iclouddrive/<name> is
 //  the root's entry named <name> without its extension, served at a signed
-//  address that expires. The link's
-//  probe, its stream, its tail and tag reads, and every resend run unchanged
-//  against it, with no network. Faults script what real servers do.
+//  address that expires. The link's probe, its stream, its tail and tag
+//  reads, and every resend run unchanged against it, with no network. Faults
+//  script what real servers do.
 //
 //  Its serving engine is the tests' too. HTTPStub subclasses the protocol
 //  and scripts each answer. The Range rule, the body's pieces, its stall,

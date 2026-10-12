@@ -8,7 +8,7 @@
 
 **Menu identifiers and the domain that validates each are `MenuValidationRules.h`.** Each identifier has one `kVibeMenu*` constant, and the literal appears nowhere else, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED** (and asserts in Debug). A new controller-targeted menu item must be added there, or it never enables.
 
-**`+PlayerEvents` and `+Delivery` carry the root doc's staleness guarantee.** Every callback can be stale and must match its track against the playlist's current one. The decisions are tested seams: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
+**`+PlayerEvents` and `+Delivery` carry the root doc's staleness guarantee.** Every callback can be stale and must match its track against the playlist's current one. The decisions are tested seams: `PlaybackDeliveryRules.h` (Previous's availability, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
 
 **TRAP: a device-change callback may arrive after a later switch is queued or bound.** The callback persists the settled device and applies its dependent effects with `updatingOutputModes:NO`. Sending its modes back would overwrite the later device's own preferences. An explicit settings edit uses the same effect mapping with output modes on. The player then asks for the current UID's modes through the controller's read-only `outputModesForDeviceUID` delegate method, which reads only thread-safe settings getters.
 
@@ -35,6 +35,8 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 ## Track end, close and save
 
 **Where a track end goes is the playlist's `trackEndSuccessor`, which is nil under On track end = Pause** (root `AGENTS.md`). `pushTransportModesToPlaylist` pushes Pause with repeat and shuffle. Every prefetch parks `trackEndSuccessor`, and `advanceOrParkAtTrackEnd` calls `advanceAtTrackEnd`.
+
+**Previous on the first row restarts the loaded track.** `VibePlaybackPreviousIsAvailable` (`PlaybackDeliveryRules.h`) decides it for `previous:`, the menu item and Now Playing's Previous alike.
 
 **Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`APPEARANCE.md`).
 

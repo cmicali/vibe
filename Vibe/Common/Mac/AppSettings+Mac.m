@@ -19,8 +19,8 @@
 #define SETTING_WINDOW_POSITION_LOCKED              @"MainWindow.positionLocked"
 #define SETTING_SHOW_TRAFFIC_LIGHTS                 @"Appearance.showTrafficLights"
 #define SETTING_PITCH_RANGE                         @"AudioPlayer.pitchRange"
-// The display keys predate themes, and themes carried their choices through
-// 1.14 (migrateThemeDisplaySettings).
+// The display keys. A version-1 theme record carries the same choices, which
+// migrateThemeDisplaySettings moves here.
 #define SETTING_SHOW_TIME_LABELS                    @"MainWindow.showTimeLabels"
 #define SETTING_SHOW_STATUS_ICONS                   @"MainWindow.showStatusIcons"
 #define SETTING_PLAYLIST_NUMBER_COLUMN              @"Playlist.showNumberColumn"
@@ -263,10 +263,10 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     }
 }
 
-// A record stored before 1.15 meant today's "frosted" by a window "solid"
+// A version-1 record's window "solid" is version 2's "frosted"
 // (recordUpgradedFromVersion1:). The stored version makes this run once, so a
-// Solid picked since stays Solid. Raw records, so the display migration after
-// it still finds their 1.14 fields.
+// Solid picked under version 2 stays Solid. Raw records, so the display
+// migration after it still finds their version-1 fields.
 - (void)migrateThemeRecordsToVersion2 {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     if ([defaults integerForKey:SETTING_THEME_RECORD_VERSION] >= kVibeThemeRecordVersion) {
@@ -294,7 +294,8 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
 // records can carry one: no shipped built-in set a display field.
 - (void)migrateThemeDisplaySettings {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    // The fields a theme record carried through 1.14, and the key each became.
+    // The display fields a version-1 theme record carries, and the key each
+    // lands in.
     NSDictionary<NSString *, NSString *> *keys = @{
         @"showTimeLabels":             SETTING_SHOW_TIME_LABELS,
         @"showRemainingTime":          SETTING_SHOW_REMAINING_TIME,

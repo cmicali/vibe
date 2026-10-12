@@ -1118,7 +1118,7 @@
       "extractionState": "manual"
     },
     "a11y.playlist.menu": {
-      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It no longer opens Settings directly — it opens a menu holding Settings and Clear Playlist — so the label names the menu rather than either item.",
+      "comment": "iOS: accessibility label for the gear button on the playlist screen's bar. It opens a menu holding Settings and Clear Playlist, so the label names the menu rather than either item.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75890,7 +75890,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag.seek": {
-      "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform scrubs through the track like a slider — playback jumps to where the mouse is released — and the window stays put.",
+      "comment": "Settings, General pane, waveform drag choice: dragging on the waveform scrubs through the track like a slider — playback jumps to where the mouse is released — and the window stays put.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76076,7 +76076,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag.window": {
-      "comment": "Settings, Appearance pane, waveform drag choice: dragging on the waveform moves the whole window, and only a click without movement jumps playback. The default.",
+      "comment": "Settings, General pane, waveform drag choice: dragging on the waveform moves the whole window, and only a click without movement jumps playback. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76262,7 +76262,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_drag_label": {
-      "comment": "Settings, General pane, Window group: row beside the dropdown choosing what dragging the mouse on the waveform does. The key keeps its historical settings.appearance prefix.",
+      "comment": "Settings, General pane, Behavior group: row beside the dropdown choosing what dragging the mouse on the waveform does.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -95792,7 +95792,7 @@
       "extractionState": "manual"
     },
     "settings.general.reopen_playlist": {
-      "comment": "Settings, General pane, Startup group: switch that brings the previous session's playlist back when the app launches, paused. Sentence case, like the other switches.",
+      "comment": "Settings, General pane, Behavior group: switch that brings the previous session's playlist back when the app launches, paused. Sentence case, like the other switches.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -97652,7 +97652,7 @@
       "extractionState": "manual"
     },
     "settings.general.window_section": {
-      "comment": "Settings: heading above the window rows — always on top and lock window position in the General pane; window appearance, window controls and the Dock icon in the Appearance pane; the window's look in the theme editor. One key for all, the word being the same; the key keeps its historical settings.general prefix.",
+      "comment": "Settings: heading above the window rows — always on top and lock window position in the General pane; window appearance, window controls and the Dock icon in the Appearance pane; the window's look in the theme editor. One key for all, the word being the same.",
       "localizations": {
         "bg": {
           "stringUnit": {

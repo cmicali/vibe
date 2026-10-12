@@ -6,8 +6,8 @@
 //  account, over the client's own HTTP boundary (an NSURLProtocol on its
 //  sessions), so the mirror, the browser, search and every open run unchanged
 //  against a scripted tree with no sign-in, no network and no account. The
-//  sign-in is Dropbox's web sheet, which only a human can fill, and the mirror
-//  is lazy — a folder exists locally only once something listed it — which is
+//  sign-in is Dropbox's web sheet, which only a human can fill. The mirror is
+//  lazy: a folder exists locally only once something listed it. That is
 //  exactly the class of bug a scripted tree reproduces.
 //
 
@@ -25,14 +25,14 @@ NS_ASSUME_NONNULL_BEGIN
 // files Dropbox files, ids are paths, and each file has a rev, named in every
 // answer's Dropbox-API-Result and readable as a `rev:` path, that moves when
 // the file's size or mtime does, as a re-upload's would. Indexed once here, so
-// a request is a lookup. The client's
-// sessions are rebuilt over the fake and the account is linked as a completed
-// sign-in would be; installing again over an installed fake swaps the tree
-// and clears the faults and the log, leaving the sessions alone. A download
-// is paced in 64 KB pieces so the whole file takes about transferSeconds (0:
-// at once), or at a `rate` fault's bytes per second; a resend from a Range
-// is paced the same way from its offset, and a closed range — a tag read or
-// the tail window — answers at once. Every answer carries Dropbox-API-Result.
+// a request is a lookup. The client's sessions are rebuilt over the fake and
+// the account is linked as a completed sign-in would be; installing again
+// over an installed fake swaps the tree and clears the faults and the log,
+// leaving the sessions alone. A download is paced in 64 KB pieces so the
+// whole file takes about transferSeconds (0: at once), or at a `rate` fault's
+// bytes per second; a resend from a Range is paced the same way from its
+// offset. A closed range (a tag read or the tail window) answers at once.
+// Every answer carries Dropbox-API-Result.
 + (void)installWithDirectory:(NSURL *)directory
              transferSeconds:(NSTimeInterval)transferSeconds
                       client:(DropboxClient *)client;
@@ -54,7 +54,7 @@ NS_ASSUME_NONNULL_BEGIN
 //   tail-fail   the tail read (the closed range of the file's last
 //               VibeAudioFileTailWindowBytes) answers 500 (persistent)
 //   slow-tail   the tail read answers after `seconds` (persistent)
-//   slow-tags   any other ranged read — the tag parse's — answers after
+//   slow-tags   any other ranged read (the tag parse's) answers after
 //               `seconds` (persistent)
 //   rate        downloads are paced at `rate` bytes per second (persistent)
 //   latency     every files/download answers `seconds` late: a server's time

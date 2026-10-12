@@ -418,7 +418,7 @@ static NSDictionary *VibeElementJSON(VibeSettingsElement *element, NSUInteger in
 #pragma mark - Addressing a control
 
 // `#3` is the dump's index; anything else matches the name or the row label,
-// case-insensitively — exactly first, then as a substring, so "trash" reaches
+// case-insensitively: exactly first, then as a substring, so "trash" reaches
 // "Move original to Trash after conversion". An ambiguous match is an error
 // naming the candidates rather than a guess.
 static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *elements,
@@ -470,7 +470,7 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
             }
             // A readout beside a control legitimately shares its row's label
             // (the corner-radius slider's px value), and a readout cannot be
-            // clicked — so the unclickable kinds only make a name ambiguous
+            // clicked. So the unclickable kinds only make a name ambiguous
             // when nothing clickable matched.
             NSMutableArray<VibeSettingsElement *> *clickable = [NSMutableArray array];
             for (VibeSettingsElement *match in matches) {
@@ -541,7 +541,7 @@ static NSString *VibeClickReply(VibeSettingsElement *element, NSString *action) 
 
 // Buttons, checkboxes and radios go through performClick:, the real click path,
 // rather than a state write plus a hand-sent action: only the click keeps a
-// radio group's siblings in step. on|off is therefore idempotent — already in
+// radio group's siblings in step. on|off is therefore idempotent: already in
 // that state means no click at all.
 static NSString *VibeClickButton(VibeSettingsElement *element, NSString *value) {
     NSButton *button = (NSButton *)element.view;

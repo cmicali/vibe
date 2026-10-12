@@ -37,9 +37,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Diagnostic, valid after finish: the magnitude-weighted mean distance of the
 // analyzed content from equal temperament, in cents. A track produced at
 // A=440 sits near 0; a large offset means the chroma is being folded onto the
-// wrong semitones and the key estimate is unreliable. Measured before
-// deciding whether per-track tuning correction is worth building — see
-// Audio/Analysis/AGENTS.md.
+// wrong semitones and the key estimate is unreliable. It is the evidence
+// behind not building per-track tuning correction (Audio/Analysis/AGENTS.md).
 @property (readonly) double tuningCents;
 
 @end

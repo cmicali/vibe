@@ -194,9 +194,9 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // AudioFileHandle calls the OS still owes an answer. Not drainable — a
-    // never-returning open cannot be cancelled — so nonzero at rest means work
-    // that will never finish, and it belongs here rather than in the
+    // AudioFileHandle calls the OS still owes an answer. Not drainable, since
+    // a never-returning open cannot be cancelled, so nonzero at rest means
+    // work that will never finish. It belongs here rather than in the
     // diagnostics so a stranded open holds the settle open and names itself.
     // Read lock-free rather than through debugState: quiesce polls every 100ms
     // and must not take the coordinator's state queue.
@@ -394,7 +394,7 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
 
     // Both of Playlist's row indexes against the array they index. Every
     // structural edit rebuilds them wholesale, so a rebuild that drops or
-    // doubles an entry leaves lookups answering a neighbouring row forever —
+    // doubles an entry leaves lookups answering a neighbouring row forever,
     // silently, since the counts still agree and every row still draws. The
     // identity lookup also catches one object in two rows, which a move that
     // copies instead of relocating produces.

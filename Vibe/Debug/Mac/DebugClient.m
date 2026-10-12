@@ -19,7 +19,7 @@
 
 #pragma mark Client side
 
-// Script-mode replies are re-serialized compact — one line per command — so
+// Script-mode replies are re-serialized compact, one line per command, so
 // script output is real NDJSON a wrapper can line-split (run-script.sh does).
 // Top-level replies keep the human-friendly pretty print.
 static void VibeClientPrintReply(NSString *json, BOOL inScript) {
@@ -124,8 +124,8 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         }
         // A prefs write from the CLI process. AppSettings reads these from
         // defaults on every access, so a running app's next waveform decode
-        // sees them with no relaunch — A/B timing of the analyzers without
-        // the UI.
+        // sees them with no relaunch. That allows A/B timing of the analyzers
+        // without the UI.
         if ([args.firstObject isEqualToString:@"set_analysis"]) {
             BOOL on = args.count == 3 && [args[2] isEqualToString:@"on"];
             BOOL off = args.count == 3 && [args[2] isEqualToString:@"off"];
@@ -252,8 +252,9 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
 #pragma mark Script mode
 
 // Whitespace-splits one script line into tokens; single or double quotes
-// group a token containing spaces (no escape sequences — this is a command
-// list, not a shell). Returns nil with *error set on an unterminated quote.
+// group a token containing spaces. There are no escape sequences: this is a
+// command list, not a shell. Returns nil with *error set on an unterminated
+// quote.
 static NSArray<NSString *> *VibeTokenizeScriptLine(NSString *line, NSString **error) {
     NSMutableArray<NSString *> *tokens = [NSMutableArray array];
     NSMutableString *current = nil;

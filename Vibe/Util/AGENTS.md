@@ -5,7 +5,7 @@
 **`Util/` may not call anything stateful**: a singleton, a setting, a grant or a panel. Stateless code is fair game wherever it lives. `NSURLUtil.m` imports `PlaylistFile` (a `+`-only parser) and `FolderArtRules.h` (`static inline`) directly, and neither makes the walk untestable. `HelperMacros.h` reaches every translation unit through the `.pch`, so anything added there is paid for everywhere.
 
 Two placements are not what the file names suggest.
-- `NSURL+Hash` also carries `NSData (Hash)`'s `sha1Hex`. It is the one spelling of the hex SHA-1 that the cache key's path hash and `AppTheme`'s content-addressed artwork names share. It sits under the URL's name because the two are one rule. It is the one thing here that `Common/` reaches for.
+- `NSURL+Hash` also carries `NSData (Hash)`'s `sha1Hex`. It is the one spelling of the hex SHA-1 that the cache key's path hash and `AppTheme`'s content-addressed artwork names share. It sits under the URL's name because the two are one rule. It is one of the two things here that `Common/` reaches for. The other is `Mac/NSView+DarkMode`'s `NSAppearance.isDark`.
 - `NSString+FormLabel`'s `vibeFormLabel` drops a settings string's form-layout colon ("Output:", French "Sortie :"). **The catalogs keep the colon**, because that is the form most mac panes draw. A grouped row asks here for the bare noun: the mac's cards and every iOS settings row. One rule then covers the French no-break space and CJK's fullwidth colon.
 
 ## NSURLUtil is the disk walk, and it stays ignorant on purpose

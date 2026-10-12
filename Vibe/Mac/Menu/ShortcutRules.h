@@ -63,8 +63,8 @@ static inline NSEventModifierFlags VibeShortcutModifiers(VibeShortcut shortcut) 
     return shortcut & kVibeShortcutModifierMask;
 }
 
-// Keypad Enter is Return and Forward Delete is Delete, as they always were:
-// a binding of either answers both.
+// Keypad Enter is Return and Forward Delete is Delete: a binding of either
+// answers both.
 static inline unsigned short VibeShortcutCanonicalKeyCode(unsigned short keyCode) {
     switch (keyCode) {
         case kVibeKeyCodeKeypadEnter:   return kVibeKeyCodeReturn;

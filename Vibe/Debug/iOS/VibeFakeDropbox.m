@@ -413,9 +413,10 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     });
 }
 
-// One piece per step, so the bytes written — the progress the loading bar
-// reads — grow as a real transfer's do, and a cancel lands between pieces.
-// The faults are read at every step, so one set mid-transfer applies to it.
+// One piece per step. The bytes written are the progress the loading bar
+// reads, so they grow as a real transfer's do, and a cancel lands between
+// pieces. The faults are read at every step, so one set mid-transfer applies
+// to it.
 - (void)deliverPieceOf:(NSFileHandle *)file
                   item:(VibeFakeDropboxItem *)item
                     at:(uint64_t)offset

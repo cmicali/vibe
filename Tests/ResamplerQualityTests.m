@@ -33,7 +33,7 @@
 //
 //  Every run attaches the measured table to the result bundle ("resampler
 //  quality", markdown); docs/audio-quality.md carries the comparison with
-//  Apple's converter, which it replaced.
+//  Apple's converter.
 //
 
 #import <XCTest/XCTest.h>
@@ -777,8 +777,8 @@ static NSString *TableRow(RatePair pair, Quality q) {
 }
 
 // The bar the resampler is held to, at every pair. Measured values are in the
-// printed table; each bound sits a margin past the worse of r8brain and the
-// Apple converter it replaced.
+// printed table; each bound sits a margin past the worse of r8brain and
+// Apple's converter.
 - (void)assertQuality:(Quality)q pair:(RatePair)pair {
     NSString *label = PairName(pair);
     XCTAssertLessThan(q.rippleDB, 0.0001, @"%@ passband ripple to 20 kHz", label);

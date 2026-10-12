@@ -247,10 +247,9 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
 
     // A stranded handle open starves the sweep too: a whole-file
     // AudioFileHandle call cannot be cancelled, so it holds admission capacity
-    // for good. With the
-    // player stopped and nothing loading, a nonzero count is work that will
-    // never finish; an open superseded moments ago is still returning, which
-    // the re-check filters.
+    // for good. With the player stopped and nothing loading, a nonzero count
+    // is work that will never finish; an open superseded moments ago is still
+    // returning, which the re-check filters.
     checked++;
     uint64_t strandedOpens =
             [AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight];

@@ -26,14 +26,14 @@
 //  CoreAudio's parser still finds its packets, priming and length, so gapless
 //  trims and durations are the ones every other reader sees.
 //
-//  A FLAC file is decoded by dr_flac, bit-identical to Apple's decode, which
-//  it replaces for its cost and its seeks: Apple's scans the stream from its
-//  start on the first seek into any part not yet read, and never uses the seek
-//  table (docs/audio-quality.md). CoreAudio's parser answers the file's format
-//  and layout and is then closed; dr_flac reads the stream through the
-//  descriptor itself and answers its length, found from the last frames when
-//  STREAMINFO leaves it unknown. The vendored copy carries fixes of its own
-//  (ThirdParty/AGENTS.md).
+//  A FLAC file is decoded by dr_flac, bit-identical to Apple's decode at
+//  under half the CPU. It seeks without scanning from the start, where
+//  Apple's scans the stream from its start on the first seek into any part
+//  not yet read and never uses the seek table (docs/audio-quality.md).
+//  CoreAudio's parser answers the file's format and layout and is then
+//  closed; dr_flac reads the stream through the descriptor itself and
+//  answers its length, found from the last frames when STREAMINFO leaves it
+//  unknown. The vendored copy carries fixes of its own (ThirdParty/AGENTS.md).
 //
 //  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
 //  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them); no file

@@ -13,7 +13,7 @@
 //
 //  A subclass says which remote file a placeholder stands for, and how its
 //  client reads the answers, through the hooks in
-//  RemotePlaceholderStoreInternal.h (DropboxMirror).
+//  RemotePlaceholderStoreInternal.h (DropboxMirror, LinkStore).
 //
 
 #import <Foundation/Foundation.h>

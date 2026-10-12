@@ -56,10 +56,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// DebugScreenshot.m — window capture.
+// DebugScreenshot.m: window capture.
 BOOL VibeDumpWindowSnapshot(NSString *path);
 
-// DebugStateDump.m — what the inspection verbs read.
+// DebugStateDump.m: what the inspection verbs read.
 NSDictionary *VibeStateDictionary(MainPlayerController *controller);
 NSString *VibeViewTreeDump(void);
 NSArray *VibeMenuArray(NSMenu *menu);
@@ -68,7 +68,7 @@ NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 NSDictionary *VibeOpenURLWindowState(void);
 NSString *VibeDriveOpenURLWindow(NSArray<NSString *> *tokens);
 
-// DebugInput.m — synthesized input, synthetic drags and row selection.
+// DebugInput.m: synthesized input, synthetic drags and row selection.
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
                         BOOL down, BOOL up);
 NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> *tokens);
@@ -85,7 +85,7 @@ NSString *VibeReorderUpdate(MainPlayerController *controller, NSArray<NSString *
 NSString *VibeReorderDrop(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeReorderCancel(MainPlayerController *controller);
 
-// DebugCommandTable.m — the verb table the dispatcher walks.
+// DebugCommandTable.m: the verb table the dispatcher walks.
 NSArray<NSDictionary *> *VibeDebugCommandTable(void);
 
 NS_ASSUME_NONNULL_END

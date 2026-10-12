@@ -2,10 +2,11 @@
 //  CloudFileMaterializer.h
 //  Vibe
 //
-//  Downloads a file provider's placeholder as an abortable step. Opening a
-//  dataless file blocks in the kernel until the provider finishes, and
-//  NSFileCoordinator's -cancel is the one documented way out, so the download
-//  is coordinated here rather than left inside whatever opens the file.
+//  Downloads a placeholder, a provider's or a remote one, as an abortable
+//  step. Opening a dataless file blocks in the kernel until the provider
+//  finishes, and NSFileCoordinator's -cancel is the one documented way out,
+//  so the download is coordinated here rather than left inside whatever
+//  opens the file.
 //
 //  TRAP: cancelling stops us waiting. Whether the provider abandons the
 //  transfer is its business (a replicated extension's NSProgress may be
@@ -27,8 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-// A remote placeholder's backend (NSURLUtil's setRemotePlaceholderRoots:;
-// iOS: the Dropbox mirror). Blocks the worker until url holds its bytes.
+// A remote placeholder's backend (NSURLUtil's setRemotePlaceholderRoots:):
+// the Links store on both platforms, and the Dropbox mirror on iOS. Blocks
+// the worker until url holds its bytes.
 // onCancel hands over the block -cancel runs, from any thread; a cancel that
 // came first runs it at once. Unlike the provider path, this cancel stops the
 // transfer, not just the wait. onReadable, when given, is called at most

@@ -104,8 +104,8 @@
 
 // A long crossfade's track end: the park starts as a voice of its own while
 // the current one fades out beside it, the promote's delivery without its
-// splice. Without this a long crossfade only lost gapless: the track played
-// out, and the shell's play: of the next found nothing audible to fade from.
+// splice. Without it the track would play out, and the shell's play: of the
+// next would find nothing audible to fade from.
 - (void)maybeCrossfadeIntoParkOnQueue {
     AudioTrack *startedTrack = _prefetchedTrack;
     AudioFileHandle *startedFile = _prefetchedFile;

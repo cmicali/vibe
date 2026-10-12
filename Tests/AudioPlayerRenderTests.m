@@ -5723,8 +5723,8 @@ static NSData *MP3Frames(NSData *mp3) {
 }
 
 // The delay at 60 BPM declares a 25 s tail: ten seconds after the pause the
-// output is still rendering it, which is when a fixed timer released the
-// session under it.
+// output is still rendering it, where a fixed ten-second timer would release
+// the session under it.
 - (void)testATailLongerThanTenSecondsHoldsTheOutputFromIdle {
     [self startPlayerAt:48000 channels:2 fx:YES bitPerfect:NO automatic:NO];
     [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];

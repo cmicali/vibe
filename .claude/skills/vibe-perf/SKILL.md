@@ -111,7 +111,7 @@ For each version, `measure_release` in `perf.py`:
 
 The `per unit` column is realtime factor (audio seconds per CPU second) for audio work, ms per operation otherwise.
 
-**Cold reads without `sudo purge`.** A decoder's reads from disk are measured against a fresh APFS clone each run. `cp -c src clone` is instant, shares blocks, and is a new vnode with no cached pages. The clone must sit on the source's volume (`/private/tmp` and `/Users` both qualify).
+**Cold reads without `sudo purge`.** The benchmarks read the corpus as it is, so a repeated run reads warm pages. To measure a decoder's reads from disk, read a fresh APFS clone each run. `cp -c src clone` is instant, shares blocks, and is a new vnode with no cached pages. The clone must sit on the source's volume (`/private/tmp` and `/Users` both qualify).
 
 ## Proving a change exact
 

@@ -21,11 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 // A stable WaveformRendererRegistry identifier, never a display name.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
-// TRAP: Wiggle's, centered or not. Persisted, so it keeps its name though
-// Centered is a setting now: renaming it orphans every saved Wiggle.
+// TRAP: Wiggle's, centered or not. Persisted, so it keeps this name though
+// Centered is a separate setting: renaming it orphans every saved Wiggle.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE                @"wiggle_centered"
-// Wiggle MC's through 1.14, Wiggle with Centered off since: AppTheme's gate
-// and the iOS migration map it, and nothing else may read it.
+// The retired Wiggle MC identifier. AppTheme's gate and the iOS migration map
+// it to Wiggle with Centered off. Nothing else may read it.
 #define SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC      @"wiggle"
 #define SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT        SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE
 
@@ -162,8 +162,8 @@ void VibeNotifyDisplaySettingsChanged(void);
 
 #pragma mark Player display
 
-// What the player shows, each platform under the key it shipped, so no stored
-// choice moved when these became shared. The store applies none: a mac writer
+// What the player shows, each platform under its own key
+// (AppSettingsInternal.h). The store applies none: a mac writer
 // requests VibeSettingsLiveEffectTrackDisplay, an iOS writer ends on
 // VibeNotifyDisplaySettingsChanged.
 //

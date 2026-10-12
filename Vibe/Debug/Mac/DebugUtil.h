@@ -42,10 +42,10 @@ void VibeInstallDebugScreenshotHook(void);
 // into the sandbox container's tmp; the direct-exec'd client runs in the same
 // container, so it needs no permission. args stays an array end to end, never
 // joined and re-tokenized, so paths with any whitespace survive byte-exact.
-// The client then pokes the app with a darwin notification — the payload
-// cannot ride it: darwin notifications carry none, and a sandboxed process may
-// not post distributed notifications with userInfo — and polls for a
-// per-command response file.
+// The client then pokes the app with a darwin notification and polls for a
+// per-command response file. The payload cannot ride the notification:
+// darwin notifications carry none, and a sandboxed process may not post
+// distributed notifications with userInfo.
 //
 // VibeDebugCommandTable (DebugCommandTable.m) merged with the shared table
 // (DebugCommonVerbs.m) is the authoritative verb list: each entry carries its

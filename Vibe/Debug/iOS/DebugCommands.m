@@ -249,15 +249,6 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 VibeNotifyDisplaySettingsChanged();
                 return VibeJSONString(@{@"ok": @YES, @"waveformStyle": AppSettings.sharedInstance.waveformStyle});
             }),
-            // The real grant path is the system document picker, another
-            // process's UI that neither the channel nor the touch driver can
-            // drive; these three inspect and set up the scope for a test.
-            //
-            // TRAP: a folder added here is NOT security-scoped, so the scope
-            // round trip goes unexercised — yet addFolderURL: still persists a
-            // plain bookmark, and the next launch restores it unless it no
-            // longer resolves. A test removes what it added; dump_search after
-            // a relaunch shows whether it came back.
             // The Dropbox account and its mirror. The sign-in is Dropbox's own
             // web sheet, which neither the channel nor the driver can fill;
             // a human signs in, and this reads the result.
@@ -407,6 +398,15 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeDebugCmd(@"dump_frame_rate", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([RootViewController debugFrameProbeReport]);
             }),
+            // The real grant path is the system document picker, another
+            // process's UI that neither the channel nor the touch driver can
+            // drive; these three inspect and set up the scope for a test.
+            //
+            // TRAP: a folder added here is NOT security-scoped, so the scope
+            // round trip goes unexercised — yet addFolderURL: still persists a
+            // plain bookmark, and the next launch restores it unless it no
+            // longer resolves. A test removes what it added; dump_search after
+            // a relaunch shows whether it came back.
             VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
             }),

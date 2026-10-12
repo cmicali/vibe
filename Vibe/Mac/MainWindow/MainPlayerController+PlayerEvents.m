@@ -188,9 +188,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self advanceOrParkAtTrackEnd];
 }
 
-// The end of the still-current track: advance when the playlist and Settings >
-// Playback allow, park on it otherwise, and return whether it advanced. Callers
-// own didFinishPlaying:'s staleness guard.
+// The end of the still-current track: advance to the playlist's
+// trackEndSuccessor, park on the track otherwise, and return whether it
+// advanced. Callers own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
     [self pauseUIUpdateTimer];
     // The playlist decides, On track end = Pause included. Its play is async,

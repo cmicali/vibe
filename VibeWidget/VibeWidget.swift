@@ -121,8 +121,8 @@ struct VibeProvider: TimelineProvider {
 }
 
 // The gallery shows the kinds in this order, and each kind's sizes smallest
-// first, whatever order families lists them in (tested: a medium listed first
-// still came second). TRAP: the original kind keeps its small and medium, since
+// first, whatever order families lists them in.
+// TRAP: the original kind keeps its small and medium, since
 // both shipped, and a placed widget belongs to its kind. Moving either size to
 // another kind would break every copy of it on someone's Home Screen.
 @main

@@ -94,9 +94,9 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
 
 // Keys beside the field overrides. The id never leaves the store: export
 // strips it, import mints a fresh one.
-// The record format: theme JSON's "version", and the stored records' too. 2
-// from 1.15, when the window's "solid" stopped meaning a color under the glass
-// panes (now "frosted") and began meaning no panes at all.
+// The record format: theme JSON's "version", and the stored records' too. A
+// version-1 record's window "solid" is version 2's "frosted"
+// (recordUpgradedFromVersion1:).
 FOUNDATION_EXPORT const NSInteger kVibeThemeRecordVersion;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordNameKey;
 FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
@@ -218,8 +218,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 + (nullable NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
                                   name:(NSString *)name;
 
-// A record stored or exported before 1.15 (JSON version 1), in today's terms:
-// its window "solid" is today's "frosted". Raw in, raw out; other keys kept.
+// A version-1 record (stored or exported) in version-2 terms: its window
+// "solid" is "frosted". Raw in, raw out; other keys kept.
 + (NSDictionary<NSString *, id> *)recordUpgradedFromVersion1:(NSDictionary<NSString *, id> *)record;
 
 // Sanitized: unknown keys and malformed values drop, identifiers snap,
