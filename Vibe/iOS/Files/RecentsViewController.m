@@ -113,13 +113,6 @@ static NSString *const kItemCellIdentifier = @"item";
     return cell;
 }
 
-- (void)playbackDidChangeOpening:(PlaybackController *)playback {
-    if (self.viewIfLoaded.window) {
-        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
-                              withRowAnimation:UITableViewRowAnimationNone];
-    }
-}
-
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
@@ -230,6 +223,15 @@ static NSString *const kItemCellIdentifier = @"item";
     UIViewController *presenter = self.view.window ? self : self.navigationController.presentingViewController;
     if (presenter) {
         [presenter vibePresentAlertWithTitle:name message:STR_ERROR_RECENT_UNAVAILABLE];
+    }
+}
+
+#pragma mark - PlaybackObserver
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
     }
 }
 
