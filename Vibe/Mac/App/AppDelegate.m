@@ -28,6 +28,7 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
+#import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"

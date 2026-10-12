@@ -30,7 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (IBAction)toggleSize:(id)sender;
 
-// A drop's pasteboard items, each its strings by type (LinkRules.h), into the
+// A drop's pasteboard items, each its strings by type (LinkDropRules.h), into the
 // open funnel. NO when they hold no file and no web link. The debug channel's
 // file_drag_drop enters here too.
 - (BOOL)openDroppedItems:(NSArray<NSDictionary<NSString *, NSString *> *> *)items appending:(BOOL)append;

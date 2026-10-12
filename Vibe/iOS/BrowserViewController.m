@@ -17,6 +17,7 @@
 #import "FavoritesStore.h"
 #import "FileRow.h"
 #import "FileSearchRules.h"
+#import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"

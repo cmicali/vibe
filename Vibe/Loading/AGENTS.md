@@ -2,21 +2,23 @@
 
 Everything between a path and a usable `AudioFileHandle`, which the audio core owns. Both apps compile this directory.
 
+`Claim/` decides which open runs, and when. `Transfer/` moves the bytes and reports how far they have come. `PlaceholderFiles` stays at the root, because both groups and the metadata scan ask it.
+
 | File | Owns |
 | --- | --- |
-| `AudioFileMaterializationCoordinator` | the claim, stage 1, and the snapshot |
-| `AudioFileMaterializationCoordinator+HandleOpen.m` | stage 2: the handle runs and the six-run ceiling. Its public call, `openURL:…`, is declared in the header's `(HandleOpen)` category |
-| `AudioFileMaterializationCoordinatorInternal.h` | the class extension both files share: the claim, waiter and handle-run records and every ivar but the debug counters. It also holds the test seams and stage 2's cross-file calls |
-| `AudioFileMaterializationTokens` | the request and open tokens. Each delivers its completion at most once, and its cancel detaches it from the coordinator |
-| `AudioWorkScheduler`, `AudioWorkAdmissionRules.h` | admission |
-| `AudioLoadingConfiguration` | the immutable limits and the open-timeout seam |
-| `AudioFileOpenRules.h`, `AudioFileOpenTimeoutMath.h` | the decisions. Among them are the tail window a stream fetches for an open that reads a file's end, and `VibeMountReadsAhead`, which files read ahead |
-| `PlaceholderFiles` | which files are placeholders: the dataless test and the remote placeholder rule |
-| `CloudTransferRegistry` | which files are on the wire |
-| `DownloadProgressMonitor` | how far one transfer has come, for the registry |
-| `CloudFileMaterializer` | the abortable download of a placeholder, a provider's or a remote one |
-| `CloudFileAvailability` | how much of a file is readable while a writer fetches it |
-| `NetworkReadAhead` | the read-ahead of a file on a network mount: its thread, its blocks, its retries and its orphans |
+| `PlaceholderFiles` | which files are placeholders: the dataless test and the remote placeholder rule. |
+| `Claim/AudioFileMaterializationCoordinator` | the claim, stage 1, and the snapshot |
+| `Claim/AudioFileMaterializationCoordinator+HandleOpen.m` | stage 2: the handle runs and the six-run ceiling. Its public call, `openURL:…`, is declared in the header's `(HandleOpen)` category |
+| `Claim/AudioFileMaterializationCoordinatorInternal.h` | the class extension both files share: the claim, waiter and handle-run records and every ivar but the debug counters. It also holds the test seams and stage 2's cross-file calls |
+| `Claim/AudioFileMaterializationTokens` | the request and open tokens. Each delivers its completion at most once, and its cancel detaches it from the coordinator |
+| `Claim/AudioWorkScheduler`, `Claim/AudioWorkAdmissionRules.h` | admission |
+| `Claim/AudioLoadingConfiguration` | the immutable limits and the open-timeout seam |
+| `Claim/AudioFileOpenRules.h`, `Claim/AudioFileOpenTimeoutMath.h` | the decisions. Among them are the tail window a stream fetches for an open that reads a file's end, and `VibeMountReadsAhead`, which files read ahead |
+| `Transfer/CloudTransferRegistry` | which files are on the wire |
+| `Transfer/DownloadProgressMonitor`, `Transfer/DownloadProgressSourceAdapters`, `Transfer/DownloadProgressRules.h` | how far one transfer has come, for the registry |
+| `Transfer/CloudFileMaterializer` | the abortable download of a placeholder, a provider's or a remote one |
+| `Transfer/CloudFileAvailability` | how much of a file is readable while a writer fetches it |
+| `Transfer/NetworkReadAhead` | the read-ahead of a file on a network mount: its thread, its blocks, its retries and its orphans. It is a writer of a `CloudFileAvailability` |
 | `Net/` | files the app fetches itself over HTTP. Its doc is `Net/AGENTS.md` |
 | `iOS/Dropbox/` | the Dropbox account and its local mirror. Only the iOS app compiles it. Its doc is `iOS/Dropbox/AGENTS.md` |
 
