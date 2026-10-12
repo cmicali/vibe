@@ -75,9 +75,6 @@ NS_ASSUME_NONNULL_BEGIN
 // The subview build and the theme passes that restyle what it built.
 @interface MainPlayerContentView (Construction)
 
-// A plain label: borderless, uneditable and clipping. Every header text is one.
-+ (NSTextField *)labelWithFrame:(NSRect)frame;
-
 // Glass takes a layer radius; the pre-26 frost a regenerated mask.
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
 

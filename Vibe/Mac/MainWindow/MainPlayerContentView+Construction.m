@@ -11,6 +11,7 @@
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
 #import "VolumeControlView.h"
+#import "NSTextField+Label.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "AppSettings.h"
@@ -216,7 +217,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 - (void)buildHeaderLabels {
     NSColor *dimmedTextColor = [NSColor secondaryLabelColor];
 
-    _artistTextField = [MainPlayerContentView labelWithFrame:
+    _artistTextField = [NSTextField labelWithFrame:
             NSMakeRect(kHeaderTextX, kArtistY, kArtistWidth, kArtistHeight)];
     // Truncating, not the clipping default: long artist tags are common, and
     // clipping cuts a glyph mid-stroke with no sign the string goes on.
@@ -225,21 +226,21 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_artistTextField, YES);
     [self addSubview:_artistTextField];
 
-    _titleTextField = [MainPlayerContentView labelWithFrame:
+    _titleTextField = [NSTextField labelWithFrame:
             NSMakeRect(kHeaderTextX, kTitleY, kTitleWidth, kTitleHeight)];
     _titleTextField.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleTextField.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
     configureLabelShadow(_titleTextField, YES);
     [self addSubview:_titleTextField];
 
-    _totalTimeTextField = [MainPlayerContentView labelWithFrame:
+    _totalTimeTextField = [NSTextField labelWithFrame:
             NSMakeRect(kTotalTimeX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
     _totalTimeTextField.alignment = NSTextAlignmentRight;
     _totalTimeTextField.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
     configureLabelShadow(_totalTimeTextField, YES);
     [self addSubview:_totalTimeTextField];
 
-    _currentTimeTextField = [MainPlayerContentView labelWithFrame:
+    _currentTimeTextField = [NSTextField labelWithFrame:
             NSMakeRect(kHeaderTextX, kTimeRowY, kTimeLabelWidth, kSmallLabelHeight)];
 
     // Left-anchored, unlike the right-aligned total time it pairs with.
@@ -248,7 +249,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_currentTimeTextField, NO);
     [self addSubview:_currentTimeTextField];
 
-    _dropHintTextField = [MainPlayerContentView labelWithFrame:
+    _dropHintTextField = [NSTextField labelWithFrame:
             NSMakeRect(kDropHintX, kTimeRowY, kDropHintWidth, kSmallLabelHeight)];
     _dropHintTextField.font = [Fonts font:13];
     _dropHintTextField.alignment = NSTextAlignmentCenter;
@@ -320,7 +321,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 
 // One visual pair: a font, an alignment and a dimming rule.
 - (void)buildCornerReadouts {
-    _fileMetadataTextField = [MainPlayerContentView labelWithFrame:
+    _fileMetadataTextField = [NSTextField labelWithFrame:
             NSMakeRect(kCodecLabelX, kCodecLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _fileMetadataTextField.alignment = NSTextAlignmentRight;
     // Full alpha: a field alpha would dim the inline FX symbols too, so the
@@ -330,7 +331,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_fileMetadataTextField, YES);
     [self addSubview:_fileMetadataTextField];
 
-    _bpmTextField = [MainPlayerContentView labelWithFrame:
+    _bpmTextField = [NSTextField labelWithFrame:
             NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _bpmTextField.alignment = NSTextAlignmentRight;
     _bpmTextField.alphaValue = 1.0;
@@ -513,19 +514,6 @@ static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *
     mask.capInsets = NSEdgeInsetsMake(radius, radius, radius, radius);
     mask.resizingMode = NSImageResizingModeStretch;
     return mask;
-}
-
-+ (NSTextField *)labelWithFrame:(NSRect)frame {
-    NSTextField *field = [[NSTextField alloc] initWithFrame:frame];
-    field.editable = NO;
-    field.selectable = NO;
-    field.bordered = NO;
-    field.bezeled = NO;
-    field.drawsBackground = NO;
-    field.focusRingType = NSFocusRingTypeNone;
-    field.lineBreakMode = NSLineBreakByClipping;
-    field.cell.scrollable = NO;
-    return field;
 }
 
 @end
