@@ -23,8 +23,6 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
 // Runtime-only: a live powerbox, open or drop grant in this process.
 static NSString *const kEntryPowerboxActiveKey = @"powerboxActive";
 
-// Shared by the launch drain and every per-open wait.
-static const NSTimeInterval kRestoreDeadline = 2.0;
 const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 
 @interface VibeRestorationWaiter : NSObject
@@ -238,8 +236,13 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
         }
     };
     dispatch_group_notify(group, dispatch_get_main_queue(), finish);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)([self restoreDeadline] * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), finish);
+}
+
+// Shared by the launch drain and every per-open wait.
+- (NSTimeInterval)restoreDeadline {
+    return 2.0;
 }
 
 - (NSBlockOperation *)operationForRestoration:(FolderAccessRestoration *)restoration {
@@ -330,7 +333,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     waiter.completion = completion;
     [_restorationWaiters addObject:waiter];
     __weak FolderAccessManager *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)([self restoreDeadline] * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         [weakSelf releaseWaiter:waiter];
     });
