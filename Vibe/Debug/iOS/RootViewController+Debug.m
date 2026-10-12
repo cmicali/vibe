@@ -27,6 +27,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "LibraryViewController.h"
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
+#import "DebugConsistency.h"
 #import "PlaybackController.h"
 #import "AudioFX.h"
 #import "Playlist.h"
@@ -474,9 +475,8 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     for (NSNumber *liftedAt in self.liftedRowTimes) {
         CFTimeInterval age = now - liftedAt.doubleValue;
         if (age > kUnsettledLiftSeconds) {
-            [violations addObject:@{@"rule": @"lifted-rows-settle",
-                                    @"detail": [NSString stringWithFormat:
-                                            @"rows lifted for an Add %.0fs ago were never settled", age]}];
+            VibeDebugViolation(violations, @"lifted-rows-settle",
+                               @"rows lifted for an Add %.0fs ago were never settled", age);
         }
     }
     return 1;
