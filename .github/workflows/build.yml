@@ -225,12 +225,13 @@ jobs:
       # Beside it, the render suite: the real AudioPlayer and FX pipeline,
       # driven by the debug render pump, with no audio device or app. The two
       # share nothing but the project (test-audio has its own derived data).
+      # -j3 also builds the render suite's bundle and its fixtures at the same time.
       # -k keeps one suite's failure from stopping the other. Their logs
       # interleave, and the summaries below read each suite's own result
       # bundle.
       - name: Run unit and audio tests
         if: ${{ !cancelled() }}
-        run: make -k -j2 test test-audio
+        run: make -k -j3 test test-audio
 
       # always(): the counts are most wanted when a step above failed. They
       # read the .xcresult, so they report the run either way and never change
