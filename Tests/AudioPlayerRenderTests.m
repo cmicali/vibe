@@ -2676,9 +2676,7 @@ static NSData *UniqueNoise(NSUInteger frames, uint32_t seed) {
     }];
     @try {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-        VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
-        values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
-        [_player applyLoadingConfiguration:[[AudioLoadingConfiguration alloc] initWithValues:values error:NULL]];
+        [self shortenTheOpenDeadline];
         AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
         uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
         [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];

@@ -34,7 +34,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 ## Track end, close and save
 
-**Whether a track end advances is `AppSettings.pauseAtTrackEnd`, and where it goes is the playlist's `trackEndSuccessor`** (root `AGENTS.md`). The audio side is `successorPrefetchTrack`, which answers nil under Pause. The shell side is `advanceOrParkAtTrackEnd`, which reads the setting again.
+**Where a track end goes is the playlist's `trackEndSuccessor`, which is nil under On track end = Pause** (root `AGENTS.md`). `pushTransportModesToPlaylist` pushes Pause with repeat and shuffle. Every prefetch parks `trackEndSuccessor`, and `advanceOrParkAtTrackEnd` calls `advanceAtTrackEnd`.
 
 **Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`APPEARANCE.md`).
 

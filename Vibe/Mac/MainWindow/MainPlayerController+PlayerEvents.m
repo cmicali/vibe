@@ -133,7 +133,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     self.replayResumeTrack = nil; // the live position publishes from here
     // First, so a quick second Next finds the park. nil past the end drops
     // it. The prefetch's registration preempts any background transfer.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self endLoadingProgress];

@@ -1061,10 +1061,6 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
-- (AudioTrack *)successorPrefetchTrack {
-    return self.playlistController.trackEndSuccessor;
-}
-
 // TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
 // file, and re-parking its successor after a list edit or a mode change would
 // open one. On a cloud folder that is an unasked download. A new play
@@ -1073,7 +1069,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
     if (self.audioPlayer.isStopped) {
         return;
     }
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
 }
 
 // The model and the system's controls, which show the same modes.

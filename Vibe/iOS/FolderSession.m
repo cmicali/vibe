@@ -1015,24 +1015,22 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // captured at a generation nothing landed and Add is dead for the
         // session. Zero stays zero, so an Add is still promoted, and an append
         // carries nothing.
-        if (!appending) {
-            _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
-                    _landedOpenIntentGeneration, openIntentGeneration);
-        }
         if (appending) {
             // Delivered empty, never dropped: whoever asked is waiting to
             // hear how it landed, and nothing else will tell them.
             LogInfo(@"FolderSession: nothing to append");
             [self.delegate folderSession:self didAppendTracks:@[]];
         }
-        else if (restored) {
-            [self.delegate folderSessionRestoreDidFail:self];
-        }
         else {
-            [self.delegate folderSessionDidOpenEmptyFolder:self];
-        }
-        // Replayed, not left hanging; the first promotes in its turn.
-        if (!appending) {
+            _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
+                    _landedOpenIntentGeneration, openIntentGeneration);
+            if (restored) {
+                [self.delegate folderSessionRestoreDidFail:self];
+            }
+            else {
+                [self.delegate folderSessionDidOpenEmptyFolder:self];
+            }
+            // Replayed, not left hanging; the first promotes in its turn.
             [self releaseAddWaitersAfterSettle];
         }
         return YES;

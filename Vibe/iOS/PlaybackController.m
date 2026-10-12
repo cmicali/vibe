@@ -482,10 +482,6 @@ static const NSUInteger kUIUpdateHz = 3;
 
 #pragma mark - Settings
 
-- (AudioTrack *)successorPrefetchTrack {
-    return _playlist.trackEndSuccessor;
-}
-
 - (void)applyTrackTransitionSettings {
     AppSettings *settings = AppSettings.sharedInstance;
     _player.crossfadeMilliseconds = settings.crossfadeMilliseconds;
@@ -655,8 +651,7 @@ static const NSUInteger kUIUpdateHz = 3;
     if (_player.isStopped) {
         return;
     }
-    // Never around successorPrefetchTrack: it holds On track end = Pause.
-    [_player prefetchTrack:self.successorPrefetchTrack];
+    [_player prefetchTrack:_playlist.trackEndSuccessor];
 }
 
 - (void)openParkedTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position {

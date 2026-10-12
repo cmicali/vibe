@@ -5,7 +5,7 @@
 
 #import <XCTest/XCTest.h>
 #import "PlaybackDeliveryRules.h"
-#import "Playlist.h"
+#import "AudioTrack.h"
 
 @interface PlaybackDeliveryRulesTests : XCTestCase
 @end

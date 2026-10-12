@@ -12,7 +12,6 @@
 #import "PlaybackControllerInternal.h"
 #import "PlaybackController+NowPlaying.h"
 
-#import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioErrorRules.h"
 #import "AudioFileOpenRules.h"
@@ -124,7 +123,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self endLoadingProgress];
     // Before the repaint and the metadata kicks, so a quick second Next finds
     // the successor parked.
-    [_player prefetchTrack:self.successorPrefetchTrack];
+    [_player prefetchTrack:_playlist.trackEndSuccessor];
     [self notifyDidRenderCurrentTrack];
     // Clears the download fill only; the waveform decode may still be
     // streaming.

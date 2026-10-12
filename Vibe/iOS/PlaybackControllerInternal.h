@@ -89,17 +89,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)notifyDidFinishLoading;
 - (void)notifyDidFailCurrentTrack;
 
-#pragma mark - On track end
-
-// Nil at the end of the playlist and under On track end = Pause. Every
-// prefetchTrack: call site asks this; a bypass splices past a track end the
-// setting says to park on (root AGENTS.md).
-- (nullable AudioTrack *)successorPrefetchTrack;
-
 #pragma mark - Transport follow-ups
 
-// Re-arms the successor unless the player is Stopped; successorPrefetchTrack
-// decides what.
+// Re-arms the playlist's trackEndSuccessor unless the player is Stopped.
 - (void)prefetchSuccessor;
 
 // Parks on track and opens it paused at position: parked, the player holds no
