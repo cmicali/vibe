@@ -7,7 +7,7 @@
 //  session only through `configuration`'s protocolClasses, never through
 //  +[NSURLProtocol registerClass:].
 //
-//  The serving is the debug channel's fake web server's (VibeFakeHTTP.h).
+//  The serving is the debug channel's fake web server's (VibeFakeHTTPProtocol.h).
 //  This class scripts its answers. A path serves its bytes by the fake's
 //  Range rule: 206 with Content-Range for a range inside the file, 416 for
 //  one starting at or past its end, and 200 whole when the file ignores

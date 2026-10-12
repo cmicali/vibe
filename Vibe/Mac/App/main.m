@@ -7,7 +7,7 @@
 #import "AppDelegate.h"
 
 #if DEBUG
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 #endif
 
 // No main nib: the delegate is created here (NSApplication.delegate is weak,

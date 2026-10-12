@@ -1,9 +1,11 @@
 //
-//  DebugCommands.m
+//  DebugiOSVerbs.m
 //  Vibe (iOS)
 //
+//  The iOS verb table, which adds the Dropbox verbs after its own.
+//
 
-#import "DebugCommands.h"
+#import "DebugiOSEntry.h"
 
 #if DEBUG
 
@@ -13,13 +15,6 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
-#import "AudioTrack.h"
-#import "CloudFileMaterializer.h"
-#import "DropboxMirror.h"
-#import "VibeFakeDropbox.h"
-#import "NSURLUtil.h"
-#import "NSURLUtil+Debug.h"
-#import "Playlist.h"
 #import "FavoritesStore.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
@@ -48,23 +43,6 @@ static UIWindow *VibeDebugKeyWindow(void) {
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             if (window.isKeyWindow) {
                 return window;
-            }
-        }
-    }
-    return nil;
-}
-
-// The shell adopts VibeDebugPlayerSurface: the one object that reaches both
-// the model and the card.
-static RootViewController *VibeDebugRootController(void) {
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) {
-            continue;
-        }
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            UIViewController *root = window.rootViewController;
-            if ([root isKindOfClass:RootViewController.class]) {
-                return (RootViewController *)root;
             }
         }
     }
@@ -176,12 +154,13 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 
 #pragma mark Command table
 
-// The iOS-only verbs; shared ones are in DebugCommonVerbs.m.
-static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
+// The iOS-only verbs, then the Dropbox ones (DebugDropboxVerbs.m). The shared
+// ones are in Vibe/Debug/Verbs/.
+NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        table = @[
+        NSArray<NSDictionary *> *own = @[
             VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeViewTreeDump();
             }),
@@ -249,133 +228,6 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 VibeNotifyDisplaySettingsChanged();
                 return VibeJSONString(@{@"ok": @YES, @"waveformStyle": AppSettings.sharedInstance.waveformStyle});
             }),
-            // The real grant path is the system document picker, another
-            // process's UI that neither the channel nor the touch driver can
-            // drive; these three inspect and set up the scope for a test.
-            //
-            // TRAP: a folder added here is NOT security-scoped, so the scope
-            // round trip goes unexercised — yet addFolderURL: still persists a
-            // plain bookmark, and the next launch restores it unless it no
-            // longer resolves. A test removes what it added; dump_search after
-            // a relaunch shows whether it came back.
-            // The Dropbox account and its mirror. The sign-in is Dropbox's own
-            // web sheet, which neither the channel nor the driver can fill;
-            // a human signs in, and this reads the result.
-            VibeDebugCmd(@"dump_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                DropboxMirror *mirror = DropboxMirror.shared;
-                NSMutableDictionary *reply = [NSMutableDictionary dictionary];
-                reply[@"linked"] = @(mirror.client.isLinked);
-                reply[@"fake"] = @(VibeFakeDropbox.isInstalled);
-                reply[@"accountID"] = mirror.client.accountID ?: NSNull.null;
-                reply[@"accountName"] = mirror.client.accountName ?: NSNull.null;
-                reply[@"accountPath"] = mirror.accountURL.path ?: NSNull.null;
-                NSMutableArray *playlistInMirror = [NSMutableArray array];
-                for (AudioTrack *track in controller.playback.playlist.tracks) {
-                    if ([mirror containsURL:track.url]) {
-                        // The transfer writing it now, as the handle reads it:
-                        // windowBytes is the tail window held, readers the
-                        // handles open on the part file.
-                        CloudFileAvailability *stream = [mirror availabilityForURL:track.url];
-                        [playlistInMirror addObject:@{
-                            @"dropboxPath": [mirror dropboxPathForURL:track.url] ?: NSNull.null,
-                            @"placeholder": @([NSURLUtil isRemotePlaceholderFile:track.url]),
-                            @"stream": stream ? @{@"size": @(stream.size), @"writtenBytes": @(stream.writtenBytes),
-                                                  @"windowBytes": @(stream.windowLength),
-                                                  @"readers": @(stream.readerCount)} : NSNull.null,
-                        }];
-                    }
-                }
-                reply[@"playlistTracks"] = playlistInMirror;
-                return VibeJSONString(reply);
-            }),
-            // A directory on disk answers as the account over the client's own
-            // HTTP boundary (VibeFakeDropbox.h): no sign-in, no network. The
-            // fixture is read by the app, so the simulator's host paths work.
-            VibeDebugCmd(@"set_fake_dropbox <directory>|off [<transfer-seconds>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: set_fake_dropbox <directory>|off [<transfer-seconds>]");
-                }
-                DropboxClient *client = DropboxMirror.shared.client;
-                if ([tokens[1] isEqualToString:@"off"]) {
-                    [VibeFakeDropbox uninstallFromClient:client];
-                    return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
-                }
-                NSURL *directory = [NSURL fileURLWithPath:tokens[1] isDirectory:YES];
-                BOOL isDirectory = NO;
-                if (![NSFileManager.defaultManager fileExistsAtPath:directory.path isDirectory:&isDirectory]
-                        || !isDirectory) {
-                    return VibeErrorJSON(@"not a directory: %@", tokens[1]);
-                }
-                double seconds = 0;
-                if (tokens.count > 2 && (!VibeParseDouble(tokens[2], &seconds) || seconds < 0)) {
-                    return VibeErrorJSON(@"not a number of seconds: %@", tokens[2]);
-                }
-                [VibeFakeDropbox installWithDirectory:directory transferSeconds:seconds client:client];
-                return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": directory.path,
-                                        @"transferSeconds": @(seconds)});
-            }),
-            VibeDebugCmd(@"dump_fake_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                NSMutableDictionary *reply = [VibeFakeDropbox.statistics mutableCopy];
-                reply[@"fake"] = @(VibeFakeDropbox.isInstalled);
-                return VibeJSONString(reply);
-            }),
-            // One streaming road each (VibeFakeDropbox.h); file= scopes it to
-            // a basename. Byte counts take K and M.
-            VibeDebugCmd(@"fake_dropbox_fault <stall|drop|rev-change|throttle|expired-token|tail-fail|slow-tail|slow-tags|rate|latency|resume|clear> "
-                         @"[file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: fake_dropbox_fault <kind|resume|clear> [file=<basename>] "
-                                         @"[after=<bytes>] [seconds=<s>] [rate=<bytes/s>]");
-                }
-                NSString *kind = tokens[1];
-                if ([kind isEqualToString:@"clear"]) {
-                    [VibeFakeDropbox clearFaults];
-                }
-                else if ([kind isEqualToString:@"resume"]) {
-                    [VibeFakeDropbox resumeStalls];
-                }
-                else {
-                    NSString *file = nil;
-                    // Past the 256 KB readable mark by default, so the stream has begun.
-                    uint64_t after = 512 * 1024, rate = 0;
-                    double seconds = [kind hasPrefix:@"slow-"] ? 5 : 1;
-                    for (NSString *token in [tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]) {
-                        NSRange equals = [token rangeOfString:@"="];
-                        NSString *key = equals.location == NSNotFound ? token : [token substringToIndex:equals.location];
-                        NSString *value = equals.location == NSNotFound ? @"" : [token substringFromIndex:equals.location + 1];
-                        double number = 0;
-                        BOOL valid = YES;
-                        if ([key isEqualToString:@"file"] && value.length > 0) {
-                            file = value;
-                        }
-                        else if ([key isEqualToString:@"after"]) {
-                            valid = VibeParseByteCount(value, &after);
-                        }
-                        else if ([key isEqualToString:@"rate"]) {
-                            valid = VibeParseByteCount(value, &rate) && rate > 0;
-                        }
-                        else if ([key isEqualToString:@"seconds"]) {
-                            valid = VibeParseDouble(value, &number) && number >= 0;
-                            seconds = number;
-                        }
-                        else {
-                            valid = NO;
-                        }
-                        if (!valid) {
-                            return VibeErrorJSON(@"bad argument: %@", token);
-                        }
-                    }
-                    if ([kind isEqualToString:@"rate"] && rate == 0) {
-                        return VibeErrorJSON(@"rate needs rate=<bytes/s>");
-                    }
-                    if (![VibeFakeDropbox addFaultOfKind:kind file:file after:after seconds:seconds rate:rate]) {
-                        return VibeErrorJSON(@"unknown fault: %@", kind);
-                    }
-                }
-                return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeDropbox.statistics[@"faults"]});
-            }),
             // The live layout under the card, in window points. Sampled every
             // frame across a gesture (sample, then drive-ios.sh, then dump),
             // every anchor must hold still: what moves is a snapshot.
@@ -407,6 +259,15 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeDebugCmd(@"dump_frame_rate", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([RootViewController debugFrameProbeReport]);
             }),
+            // The real grant path is the system document picker, another
+            // process's UI that neither the channel nor the touch driver can
+            // drive; these three inspect and set up the scope for a test.
+            //
+            // TRAP: a folder added here is NOT security-scoped, so the scope
+            // round trip goes unexercised — yet addFolderURL: still persists a
+            // plain bookmark, and the next launch restores it unless it no
+            // longer resolves. A test removes what it added; dump_search after
+            // a relaunch shows whether it came back.
             VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
             }),
@@ -632,42 +493,9 @@ static NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.selectedTabIdentifier});
             }),
         ];
+        table = [own arrayByAddingObjectsFromArray:VibeDebugDropboxVerbs()];
     });
     return table;
-}
-
-static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
-    NSString *verb = tokens.firstObject ?: @"";
-    RootViewController *controller = VibeDebugRootController();
-    if (!controller) {
-        return VibeErrorJSON(@"app not fully launched");
-    }
-    NSDictionary *spec = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb)
-            ?: VibeDebugSpecForVerb(VibeiOSCommandTable(), verb);
-    if (!spec) {
-        return VibeDebugUnknownCommandReply(verb,
-                @[VibeDebugCommonCommandTable(), VibeiOSCommandTable()], nil);
-    }
-    return ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
-}
-
-// The device's road to the probes: no channel reaches a phone, so each flag
-// starts one that logs, and --log-stderr relays it.
-static void VibeiOSStartLaunchProbes(void) {
-    NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
-    if ([arguments containsObject:@"--frame-rate-probe"]) {
-        [RootViewController debugBeginFrameProbeForSeconds:0];
-    }
-    if ([arguments containsObject:@"--dataless-diag"]) {
-        [NSURLUtil setDatalessDiagnosticsEnabled:YES];
-    }
-}
-
-void VibeiOSInstallDebugCommandHook(void) {
-    VibeInstallDebugCommandChannel(^NSString *(NSArray<NSString *> *args, NSString *commandId) {
-        return VibeiOSExecuteDebugCommand(args, commandId);
-    });
-    VibeiOSStartLaunchProbes();
 }
 
 #endif

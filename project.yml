@@ -795,11 +795,12 @@ targets:
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINOperation/PINOperationQueue.m
         compilerFlags: *third-party-flags
-      - path: Vibe/Debug/AudioLoadTiming.m
-      - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
-      - path: Vibe/Debug/DebugWireFormat.m
-      - path: Vibe/Debug/VibeFakeCloud.m
-      - path: Vibe/Debug/VibeFakeHTTP.m
+      - path: Vibe/Debug/Oracles/AudioLoadTiming.m
+      - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
+      - path: Vibe/Debug/Channel/DebugWireFormat.m
+      - path: Vibe/Debug/Simulators/VibeFakeCloud.m
+      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m
+      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
@@ -817,7 +818,7 @@ targets:
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/FX/AudioVarispeed.m
         compilerFlags: *render-path-flags
-      - path: Vibe/Debug/VibeManualRenderPump.m
+      - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: Vibe/Loading/AudioLoadingConfiguration.m
@@ -895,7 +896,7 @@ targets:
       - path: Vibe/WaveformUI/Renderers/SonicCirrusWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/ThreeBandWaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm
-      - path: Vibe/Debug/VibeWorkTally.m
+      - path: Vibe/Debug/Oracles/VibeWorkTally.m
     settings:
       base: &hostless-test-settings
         PRODUCT_NAME: "$(TARGET_NAME)"
@@ -948,7 +949,12 @@ targets:
           # The theme and zoom math; the renderers, level math and host-less morph engine.
           - "$(SRCROOT)/Vibe/WaveformUI"
           - "$(SRCROOT)/Vibe/WaveformUI/Renderers"
-          - "$(SRCROOT)/Vibe/Debug"
+          # The channel, oracles, simulators and seams that the tests and
+          # their compiled production sources import.
+          - "$(SRCROOT)/Vibe/Debug/Channel"
+          - "$(SRCROOT)/Vibe/Debug/Oracles"
+          - "$(SRCROOT)/Vibe/Debug/Simulators"
+          - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Audio/Mac/Convert"
           # PINCache's angle-bracket self-import resolves from the vendored root.
@@ -974,7 +980,8 @@ targets:
       - path: Tests/AudioPlayerRenderTests.m
       - path: Tests/TestFilesystemGuard.m
       - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
-      - path: Vibe/Debug/VibeFakeHTTP.m       # HTTPStub's serving engine
+      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
+      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # its sessionConfiguration
       - path: Tests/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
@@ -1017,8 +1024,8 @@ targets:
       - path: Vibe/Audio/Levels/AudioLevelMeter.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
-      - path: Vibe/Debug/VibeManualRenderPump.m
-      - path: Vibe/Debug/VibeWorkTally.m
+      - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
+      - path: Vibe/Debug/Oracles/VibeWorkTally.m
       - path: Vibe/Loading/CloudFileMaterializer.m
       - path: Vibe/Loading/CloudFileAvailability.m
       - path: Vibe/Loading/DownloadProgressMonitor.m

@@ -7,6 +7,7 @@
 #include <os/lock.h>
 
 #import "VibeFakeHTTP.h"
+#import "VibeFakeHTTPProtocol.h"
 
 // From 1, so a nil step's kind is none of them.
 typedef NS_ENUM(NSInteger, HTTPStubStepKind) {

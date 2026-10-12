@@ -5,7 +5,7 @@
 //  The shell adopts VibeDebugPlayerSurface because it is the one object that
 //  sees the whole app: it forwards player and playlist reads to its
 //  PlaybackController and pager reads to its card. The iOS twin of
-//  Mac/Introspection/MainPlayerController+DebugPlayerSurface.h.
+//  Mac/Seams/MainPlayerController+DebugPlayerSurface.h.
 //
 
 #if DEBUG

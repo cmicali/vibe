@@ -38,7 +38,7 @@
 #endif
 
 #if DEBUG
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 #import "OpenBurstCoalescer+Debug.h"
 #endif
 
