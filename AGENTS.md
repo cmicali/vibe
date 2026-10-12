@@ -62,9 +62,9 @@ Every check above passes as happily on a 400-line addition as on a 40-line one, 
 
 **The budget for a feature is zero new concepts.** Fit new behavior into whatever already owns the concern. The subsystem map says which. A new class, protocol, `*Rules.h` or directory for new behavior is a request made *before* the code is written, argued on the feature's own terms. "It needs its own state machine" is the claim under question, not a reason for one.
 
-**Organizing existing code needs no argument.** Splitting a file by concern is free. So is moving code to the directory that owns it. Such a change may add files and types. It adds no behavior.
+**Moving existing code to the directory that owns it needs no argument.** A split should follow an existing responsibility. Explain any new type, ownership boundary, lifetime, or shared interface it introduces. Preserving behavior does not make added structure free.
 
-**Say what the change removes.** Every feature reports its net line count, new files, new types, and either what it deleted or unified or a plain statement that it consolidated nothing and why. A "nothing, because …" that reads badly is itself the finding: a feature that touches a subsystem and simplifies nothing in it is usually in the wrong place.
+**Say what the change removes.** Every change reports its net line count, new files, new types, and either what it deleted or unified or a plain statement that it consolidated nothing and why. A "nothing, because …" that reads badly is itself the finding: a feature that touches a subsystem and simplifies nothing in it is usually in the wrong place. Shorter files are not by themselves evidence of simpler code.
 
 **Deleting and rewriting are expected, not risks to be managed.** `make test`, the stress suites and git make them recoverable. Never keep a mechanism because it exists, was expensive to write, or is only *probably* dead. Find out what reaches it. If nothing does, remove it in the same change. Two mechanisms splitting one job is worse than either alone.
 
