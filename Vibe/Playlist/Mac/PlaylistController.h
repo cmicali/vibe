@@ -88,15 +88,17 @@ NS_ASSUME_NONNULL_BEGIN
 // Playlist's transport modes, pushed in by the shell's end-of-track apply.
 - (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled;
 
-// Playlist's: what follows a track that plays out, or nil to park.
+// Playlist's: what follows a track that plays out, or nil to park, with and
+// without On track end = Pause.
 - (nullable AudioTrack *)trackEndSuccessor;
+- (nullable AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd;
 
 // Playlist's: the next, the one after and the previous, in play order.
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
-// The track end's advance: moves to trackEndSuccessor and plays it, as next
-// does. NO, changing nothing, when there is none.
-- (BOOL)advanceAtTrackEnd;
+// The track end's advance: moves to trackEndSuccessorUnlessPaused: and plays
+// it, as next does. NO, changing nothing, when there is none.
+- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd;
 
 // The gapless advance's bookkeeping: the player has already spliced into the
 // next track. Success scrolls without starting a play; a stale boundary

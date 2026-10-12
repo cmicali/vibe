@@ -135,13 +135,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
 // What follows a track that plays out, or nil to park: the current track
-// itself under Repeat One, otherwise nextTrack. Every successor prefetch and
-// both track-end reads ask this, never a row neighbor.
+// itself under Repeat One, otherwise nextTrack. Never a row neighbor.
 - (nullable AudioTrack *)trackEndSuccessor;
 
 // Moves to trackEndSuccessor, returning NO when it is nil. Under Repeat One
 // it re-sets the same index, which still notifies.
 - (BOOL)advanceAtTrackEnd;
+
+// The two ways a track end advances, with On track end = Pause outranking the
+// modes. The model reads no setting, so the shell passes it. Every successor
+// prefetch asks the first. The end callback asks the second, which moves
+// nothing and answers NO when the first is nil.
+- (nullable AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd;
+- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd;
 
 // Adopt a gapless boundary only while BOTH exact objects still describe it:
 // the finished track is current and the started one is trackEndSuccessor.

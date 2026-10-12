@@ -429,6 +429,14 @@
     return YES;
 }
 
+- (AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd {
+    return pauseAtTrackEnd ? nil : self.trackEndSuccessor;
+}
+
+- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd {
+    return [self trackEndSuccessorUnlessPaused:pauseAtTrackEnd] != nil && [self advanceAtTrackEnd];
+}
+
 - (NSInteger)getIndexForTrack:(AudioTrack *)track {
     // An identity lookup: AudioTrack keeps NSObject's hash and isEqual.
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;

@@ -482,12 +482,7 @@ static const NSUInteger kUIUpdateHz = 3;
 #pragma mark - Settings
 
 - (AudioTrack *)successorPrefetchTrack {
-    AudioTrack *successor = _playlist.trackEndSuccessor;
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
-                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
-        return nil;
-    }
-    return successor;
+    return [_playlist trackEndSuccessorUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd];
 }
 
 - (void)applyTrackTransitionSettings {

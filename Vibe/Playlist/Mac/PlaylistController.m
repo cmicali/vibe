@@ -648,8 +648,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [self playIfMoved:[_model previous]];
 }
 
-- (BOOL)advanceAtTrackEnd {
-    return [self playIfMoved:[_model advanceAtTrackEnd]];
+- (BOOL)advanceAtTrackEndUnlessPaused:(BOOL)pauseAtTrackEnd {
+    return [self playIfMoved:[_model advanceAtTrackEndUnlessPaused:pauseAtTrackEnd]];
 }
 
 - (BOOL)playIfMoved:(BOOL)moved {
@@ -667,6 +667,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (AudioTrack *)trackEndSuccessor {
     return _model.trackEndSuccessor;
+}
+
+- (AudioTrack *)trackEndSuccessorUnlessPaused:(BOOL)pauseAtTrackEnd {
+    return [_model trackEndSuccessorUnlessPaused:pauseAtTrackEnd];
 }
 
 - (NSArray<AudioTrack *> *)neighborhoodTracks {

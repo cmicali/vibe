@@ -203,9 +203,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [[AppStats sharedInstance] playbackStopped];
     // The second of On track end's two reads (root AGENTS.md): this one
     // decides from the playlist alone.
-    if (VibePlaybackShouldAdvanceAtTrackEnd(_playlist.trackEndSuccessor != nil,
-                                            AppSettings.sharedInstance.pauseAtTrackEnd)
-            && [_playlist advanceAtTrackEnd]) {
+    if ([_playlist advanceAtTrackEndUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd]) {
         [self playCurrentTrack];
         return;
     }

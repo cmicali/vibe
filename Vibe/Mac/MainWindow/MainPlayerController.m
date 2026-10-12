@@ -1062,12 +1062,7 @@ static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
 }
 
 - (AudioTrack *)successorPrefetchTrack {
-    AudioTrack *successor = self.playlistController.trackEndSuccessor;
-    if (!VibePlaybackShouldAdvanceAtTrackEnd(successor != nil,
-                                            AppSettings.sharedInstance.pauseAtTrackEnd)) {
-        return nil;
-    }
-    return successor;
+    return [self.playlistController trackEndSuccessorUnlessPaused:AppSettings.sharedInstance.pauseAtTrackEnd];
 }
 
 // TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
