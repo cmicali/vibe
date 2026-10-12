@@ -115,6 +115,8 @@ NS_ASSUME_NONNULL_BEGIN
 // the renders blocked there. Any thread.
 - (void)debugHoldRender:(BOOL)hold;
 - (NSUInteger)debugRendersHeld;
+// Lengthens the decoder's bounded wait for a held render.
+- (void)debugSetRenderLeaveWaitSeconds:(NSTimeInterval)seconds;
 - (void)debugHoldDecoder:(BOOL)hold;
 // Decode-thread CPU spent resampling, the file reads inside the fill excluded,
 // against the bus audio it produced, and that as a percent of one core. Since

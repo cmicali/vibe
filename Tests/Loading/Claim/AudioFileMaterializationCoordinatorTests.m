@@ -89,7 +89,11 @@
         [pendingNames addObject:name];
         [_probeController setResults:@[@NO] forName:name];
     }
-    [self makeCoordinatorWithValues:VibeAudioLoadingProductionConfigurationValues()];
+    // The pending probes park on the wall clock until the test releases the
+    // running ones, so their grace must outlast every wait here.
+    VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
+    values.datalessProbePendingGrace = VIBE_TEST_GATE_TIMEOUT;
+    [self makeCoordinatorWithValues:values];
 
     NSMutableArray<AudioFileMaterializationRequestToken *> *tokens = [NSMutableArray array];
     for (NSString *name in runningNames) {

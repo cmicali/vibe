@@ -117,7 +117,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     }];
     [self render:192000];
     [_player runSyncOnQueue:^{
-        XCTAssertFalse([tap pollSignalDiagnostics:request]);
+        XCTAssertFalse([tap pollSignalDiagnostics:request elapsedSeconds:0]);
         XCTAssertEqual(completed.count, 1u);
         signal = completed.firstObject;
         XCTAssertEqualObjects(signal[@"completion"], @"window elapsed");
@@ -135,7 +135,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [self render:24000];
     [_player runSyncOnQueue:^{
         XCTAssertEqualObjects([tap signalDiagnosticSnapshot], signal);
-        XCTAssertFalse([tap pollSignalDiagnostics:request]);
+        XCTAssertFalse([tap pollSignalDiagnostics:request elapsedSeconds:0]);
         XCTAssertEqual(completed.count, 1u);
         request = [tap beginSignalDiagnosticsAtTime:[self->_player outputRenderTimeOnQueue] waitingForRetiredAudio:NO completion:^(NSDictionary *snapshot) { [completed addObject:snapshot]; }];
         XCTAssertNotEqual(request, [signal[@"request"] unsignedLongLongValue]);
@@ -172,7 +172,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
             XCTAssertEqualObjects(result[@"frames"], partial[@"frames"]);
             XCTAssertEqualObjects(result[@"observedLeadingSilenceMS"], partial[@"observedLeadingSilenceMS"]);
             XCTAssertEqual([result[@"request"] unsignedLongLongValue], request);
-            XCTAssertFalse([tap pollSignalDiagnostics:request]);
+            XCTAssertFalse([tap pollSignalDiagnostics:request elapsedSeconds:0]);
             if ([action isEqual:@"superseded"]) {
                 XCTAssertEqualObjects([tap signalDiagnosticSnapshot][@"status"], @"no buffers observed");
                 [tap remove];

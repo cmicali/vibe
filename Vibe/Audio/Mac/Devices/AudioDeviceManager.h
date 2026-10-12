@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 // retry policy. Nil enumerator uses HAL and registers process-lifetime listeners;
 // an injected enumerator supplies changes through refreshOutputDevicesWithCompletion:.
 - (instancetype)initWithEnumerator:(NSArray<AudioDevice *> * _Nullable (^_Nullable)(BOOL acceptPartial))enumerator
-                     retryScheduler:(void (^_Nullable)(NSTimeInterval delay, dispatch_block_t retry))scheduler;
+                     retryScheduler:(VibeScheduler _Nullable)scheduler;
 // Completion runs on the refresh queue, after publication and resolution waiters.
 - (void)refreshOutputDevicesWithCompletion:(void (^)(BOOL published))completion;
 

@@ -519,25 +519,21 @@
         _player.fx.shortDelaySendEnabled = YES;
         (void)_player.debugRenderCounts;
         // Hold the queue until the later UI actions have published their intent.
-        dispatch_queue_t queue = [_player valueForKey:@"queue"];
-        dispatch_suspend(queue);
-        @try {
-            [_player setBitPerfectOutput:bitPerfect.boolValue exclusiveOutput:NO enableFX:bitPerfect.boolValue allowAnyDevice:NO];
-            XCTAssertFalse(_player.fx.lowKillEnabled);
-            XCTAssertFalse(_player.fx.lowKillBoostActive);
-            XCTAssertFalse(_player.fx.reverbSendEnabled);
-            XCTAssertFalse(_player.fx.delaySendEnabled);
-            XCTAssertFalse(_player.fx.shortDelaySendEnabled);
-            [_player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
-            _player.fx.lowKillEnabled = YES;
-            _player.fx.lowKillBoostActive = YES;
-            _player.fx.reverbSendEnabled = YES;
-            _player.fx.delaySendEnabled = YES;
-            _player.fx.shortDelaySendEnabled = YES;
-        }
-        @finally {
-            dispatch_resume(queue);
-        }
+        [self withPlayerQueueHeld:^{
+            AudioPlayer *player = self->_player;
+            [player setBitPerfectOutput:bitPerfect.boolValue exclusiveOutput:NO enableFX:bitPerfect.boolValue allowAnyDevice:NO];
+            XCTAssertFalse(player.fx.lowKillEnabled);
+            XCTAssertFalse(player.fx.lowKillBoostActive);
+            XCTAssertFalse(player.fx.reverbSendEnabled);
+            XCTAssertFalse(player.fx.delaySendEnabled);
+            XCTAssertFalse(player.fx.shortDelaySendEnabled);
+            [player setBitPerfectOutput:NO exclusiveOutput:NO enableFX:YES allowAnyDevice:NO];
+            player.fx.lowKillEnabled = YES;
+            player.fx.lowKillBoostActive = YES;
+            player.fx.reverbSendEnabled = YES;
+            player.fx.delaySendEnabled = YES;
+            player.fx.shortDelaySendEnabled = YES;
+        }];
         XCTAssertTrue([_player.debugRenderCounts[@"fxConnected"] boolValue]);
         XCTAssertTrue(_player.fx.lowKillEnabled);
         XCTAssertTrue(_player.fx.lowKillBoostActive);
@@ -655,7 +651,10 @@
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:YES];
     NSMutableData *captured=[NSMutableData data];
     [_player debugSetCapture:^(AVAudioPCMBuffer *buffer) { [captured appendData:VibePCM(buffer)]; }];
-    [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    // Four seconds: on the real timer a stalled runner must not reach the end
+    // before the pause at 0.1 s.
+    NSURL *url=[self write:VibeUniqueNoise(4*48000,0x5EEDu) rate:48000 channels:2 name:@"real-timer.wav"];
+    [self play:url paused:NO position:0];
     [self settleUntil:^BOOL { return self->_player.position>0.1; }];
     [_player pause]; [self settleUntil:^BOOL { return self->_player.isPaused; }];
     [_player debugSetCapture:nil];

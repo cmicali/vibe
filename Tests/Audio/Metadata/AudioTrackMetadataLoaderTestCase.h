@@ -49,6 +49,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)waitForCondition:(BOOL (^)(void))condition
              description:(NSString *)description;
 - (void)waitForDelay:(NSTimeInterval)delay;
+// Keeps the loader's admission retries instead of scheduling them, so a test
+// fires the edge where its order matters. Appended on main, where the tests
+// read them.
+- (NSMutableArray<dispatch_block_t> *)captureRetriesOf:(AudioTrackMetadataLoader *)loader;
 @end
 
 NS_ASSUME_NONNULL_END

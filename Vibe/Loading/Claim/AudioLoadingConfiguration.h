@@ -27,6 +27,9 @@ typedef struct {
     NSUInteger maximumBackgroundPendingMaterializations;
     NSTimeInterval interactiveAdmissionGrace;
     NSTimeInterval backgroundAdmissionGrace;
+    // How long a dataless probe may wait for one of the probe slots. On the
+    // wall clock, not the coordinator's.
+    NSTimeInterval datalessProbePendingGrace;
     NSUInteger metadataRetryCount;
     VibeAudioOpenTimeoutConfiguration openTimeouts;
 } VibeAudioLoadingConfigurationValues;
@@ -45,6 +48,7 @@ VibeAudioLoadingProductionConfigurationValues(void);
 @property (nonatomic, readonly) NSUInteger maximumBackgroundPendingMaterializations;
 @property (nonatomic, readonly) NSTimeInterval interactiveAdmissionGrace;
 @property (nonatomic, readonly) NSTimeInterval backgroundAdmissionGrace;
+@property (nonatomic, readonly) NSTimeInterval datalessProbePendingGrace;
 @property (nonatomic, readonly) NSUInteger metadataRetryCount;
 @property (nonatomic, readonly) VibeAudioOpenTimeoutConfiguration openTimeouts;
 @property (nonatomic, readonly) VibeAudioLoadingConfigurationValues values;

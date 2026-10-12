@@ -255,6 +255,22 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
     XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
 }
+// The drain runs inside debugRenderFrames:, so every delegate call a slice
+// caused is queued on main when it returns. A marker queued behind them lands
+// them all. A run-loop turn of a few microseconds did not, reliably.
+- (void)landMainQueue {
+    __block BOOL landed = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{ landed = YES; });
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!landed && deadline.timeIntervalSinceNow > 0)
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
+    XCTAssertTrue(landed, @"the main queue did not drain");
+}
+- (void)withPlayerQueueHeld:(dispatch_block_t)submissions {
+    dispatch_queue_t queue = [_player valueForKey:@"queue"];
+    dispatch_suspend(queue);
+    @try { submissions(); } @finally { dispatch_resume(queue); }
+}
 // The probe's poll rides the player's clock, which the frame-driven pump
 // advances only while frames render, so no poll may be left to finish the
 // capture: wait for the signal, render a poll's worth, then read the settled
@@ -298,7 +314,7 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
         XCTAssertEqual(buffer.frameLength, count);
         [_capture appendData:VibePCM(buffer)];
         frames-=count;
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.00001]];
+        [self landMainQueue];
         if (_chain && _nextPrefetch < _chain.count) {
             [self settleUntil:^BOOL { return self->_nextPrefetch >= self->_chain.count || self->_player.gaplessArmed || self->_playError; }];
         }
@@ -596,7 +612,8 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     return condition();
 }
 
-// A half-second open deadline, which a hold snapshots as it begins.
+// A half-second open deadline. Applied after the open has landed, so only a
+// stall is under it, which snapshots it at its hold.
 - (void)shortenTheOpenDeadline {
     VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
     values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);
