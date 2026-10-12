@@ -349,6 +349,13 @@ typedef struct {
     }];
     XCTAssertEqual(dispatch_semaphore_wait(held, dispatch_time(DISPATCH_TIME_NOW,
                                                                (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
+    // The fake notes the stall one hop after the held piece. Wait for it, so
+    // the negative window starts from a known stall.
+    XCTNSPredicateExpectation *stalled = [[XCTNSPredicateExpectation alloc]
+            initWithPredicate:[NSPredicate predicateWithBlock:^BOOL(id object, NSDictionary *bindings) {
+                return [[VibeFakeHTTP.statistics[@"transfers"] firstObject][@"outcome"] isEqual:@"stalled"];
+            }] object:self];
+    [self waitForExpectations:@[stalled] timeout:VIBE_TEST_HANG_TIMEOUT];
     // Negative: held. Nothing arrives in a short window.
     XCTestExpectation *nothing = [self expectationWithDescription:@"no more bytes"];
     nothing.inverted = YES;
@@ -360,7 +367,6 @@ typedef struct {
         }
     });
     [self waitForExpectations:@[nothing] timeout:0.5];
-    XCTAssertEqualObjects(VibeFakeHTTP.statistics[@"transfers"][0][@"outcome"], @"stalled");
     [VibeFakeHTTP clearFaults];
     [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertNil(result);

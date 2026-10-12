@@ -47,9 +47,13 @@
     }
 }
 
-- (float)firstProgressForMode:(VibeFakeCloudProgressMode)mode
-                    afterDelay:(NSTimeInterval)delay {
-    [VibeFakeCloud installWithTransferSeconds:4.0 datalessPercent:100];
+// The first fraction the installed progress source reports at or past
+// `floor`, with the fake's transfer `seconds` long. The monitor polls on its
+// own clock, so this waits for the report up to the guard and never sleeps.
+- (float)progressForMode:(VibeFakeCloudProgressMode)mode
+         transferSeconds:(NSTimeInterval)seconds
+                 atLeast:(float)floor {
+    [VibeFakeCloud installWithTransferSeconds:seconds datalessPercent:100];
     [VibeFakeCloud setUniformDurations:YES];
     [VibeFakeCloud setProgressMode:mode];
 
@@ -66,19 +70,16 @@
         }
         return NO;
     } timeout:VIBE_TEST_HANG_TIMEOUT]);
-    if (delay > 0) {
-        [NSThread sleepForTimeInterval:delay];
-    }
 
     XCTestExpectation *reported = [self expectationWithDescription:@"progress reported"];
-    __block float first = NAN;
+    __block float reached = NAN;
     __block DownloadProgressMonitor *monitor = nil;
     [self onMain:^{
         monitor = [DownloadProgressMonitor monitorForURL:url
                 movement:nil
                 handler:^(float fraction) {
-            if (isnan(first)) {
-                first = fraction;
+            if (isnan(reached) && fraction >= floor) {
+                reached = fraction;
                 [reported fulfill];
             }
         }];
@@ -87,7 +88,7 @@
     [self onMain:^{ [monitor cancel]; }];
     [materializer cancel];
     [self waitForExpectations:@[transferFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
-    return first;
+    return reached;
 }
 
 - (void)tearDown {
@@ -356,15 +357,18 @@
 }
 
 - (void)testEveryScriptedProgressModeDrivesTheInstalledProgressSource {
-    float none = [self firstProgressForMode:VibeFakeCloudProgressNone afterDelay:0];
+    // Thirty seconds outlasts the guard: a transfer that completed under a
+    // read would answer zero.
+    float none = [self progressForMode:VibeFakeCloudProgressNone transferSeconds:30 atLeast:0];
     XCTAssertEqualWithAccuracy(none, 0, 0.0001);
-    float linear = [self firstProgressForMode:VibeFakeCloudProgressLinear afterDelay:0];
+    float linear = [self progressForMode:VibeFakeCloudProgressLinear transferSeconds:30 atLeast:0];
     XCTAssertGreaterThan(linear, 0);
     XCTAssertLessThan(linear, 1);
-    float sparse = [self firstProgressForMode:VibeFakeCloudProgressSparse afterDelay:0];
+    float sparse = [self progressForMode:VibeFakeCloudProgressSparse transferSeconds:30 atLeast:0];
     XCTAssertEqualWithAccuracy(sparse, 0, 0.0001,
             @"sparse progress has no step before its ten-second cadence");
-    float stall = [self firstProgressForMode:VibeFakeCloudProgressStall afterDelay:1.75];
+    // The ceiling starts 3.2 s into this transfer and stays until completion.
+    float stall = [self progressForMode:VibeFakeCloudProgressStall transferSeconds:8 atLeast:0.37];
     XCTAssertEqualWithAccuracy(stall, 0.4, 0.03);
 }
 

@@ -83,11 +83,12 @@ static XCTestExpectation *sReachedTarget;
     timer.wanted = YES;
     timer.windowVisible = YES;
     // 1 Hz cannot produce four ticks in 0.6 s, so reaching four proves the
-    // faster rate took. 50 Hz needs 0.08 s of the window.
+    // faster rate took. 50 Hz needs 0.08 s of the window. The positive wait
+    // gets 2.5 s, which a starved runner can meet and 1 Hz still cannot.
     XCTAssertFalse([self reachedTicks:4 within:0.6]);
     timer.hz = 50;
     XCTAssertEqual(timer.hz, (NSUInteger)50);
-    XCTAssertTrue([self reachedTicks:4 within:0.6]);
+    XCTAssertTrue([self reachedTicks:4 within:2.5]);
     timer.hz = 1;
     XCTAssertFalse([self reachedTicks:4 within:0.6], @"back to the slow rate");
 }
@@ -100,7 +101,7 @@ static XCTestExpectation *sReachedTarget;
     timer.hz = 50;
     timer.wanted = YES;
     timer.windowVisible = YES;
-    XCTAssertTrue([self reachedTicks:10 within:1.5]);
+    XCTAssertTrue([self reachedTicks:10 within:2.5], @"3 Hz would need over three seconds");
 }
 
 - (void)testDegenerateRatesAreIgnored {

@@ -249,6 +249,14 @@
     XCTAssertEqualObjects(VibeNormalizedWaveformBandTheme(@"mono"), @"rekord_bin");
 }
 
+- (void)testWaveformSpectrumPaletteNormalizesUnknownsToRGB {
+    for (NSString *palette in @[@"rgb", @"blue", @"green", @"custom"]) {
+        XCTAssertEqualObjects(VibeNormalizedWaveformSpectrumPalette(palette), palette);
+    }
+    XCTAssertEqualObjects(VibeNormalizedWaveformSpectrumPalette(nil), @"rgb");
+    XCTAssertEqualObjects(VibeNormalizedWaveformSpectrumPalette(@"rekord_bin"), @"rgb");
+}
+
 - (void)testDockIconNormalizesUnknownsToAlbumArt {
     XCTAssertEqualObjects(VibeNormalizedDockIcon(@"album_art"), @"album_art");
     XCTAssertEqualObjects(VibeNormalizedDockIcon(@"app_icon"), @"app_icon");

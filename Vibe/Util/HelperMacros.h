@@ -21,3 +21,7 @@ static inline double clampMin(double v, double minValue) {
 #define clampRange(v, lo, hi) MIN(MAX((v), (lo)), (hi))
 
 #define run_on_main_thread(block) dispatch_async(dispatch_get_main_queue(), ^(void)block)
+
+// A deferred block's scheduler. The production default is dispatch_after on
+// the owner's queue. A test installs one that keeps the blocks and fires them.
+typedef void (^VibeScheduler)(NSTimeInterval delay, dispatch_block_t block);

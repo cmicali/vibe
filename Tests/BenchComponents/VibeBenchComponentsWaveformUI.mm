@@ -299,6 +299,21 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUILiveResize(threeBand.get());
     });
 #endif
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM
+    auto spectrum = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "spectrum-resize", "frame", [spectrum]() -> double {
+        CGRect bounds = VibeBenchComponentsUIHost(spectrum.get(), 800, 13);
+        spectrum->renderer = [[SpectrumWaveformRenderer alloc] initWithLayer:spectrum->parent bounds:bounds
+                                                                      isDark:YES];
+        spectrum->renderer.normalizesLevels = YES;
+        [spectrum->renderer updateWaveform:bounds progress:0.4 waveform:spectrum->waveform.get()];
+        [spectrum->renderer settleMorphImmediately];
+        return 60;
+    }, [spectrum]() {
+        VibeBenchComponentsUILiveResize(spectrum.get());
+    });
+#endif
 }
 
 VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterRenderers)

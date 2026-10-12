@@ -125,8 +125,10 @@ public:
     // changes as a resize moves a bar edge across a transient. Intermediate
     // reach blends the own-window and loudest answers. A window past the track's
     // edge, or past the end of a load still streaming, is the mean of the
-    // frames it does cover.
-    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares);
+    // frames it does cover. ownBandMeanSquares uses the same band layout at
+    // reach 0. It requires a non-null bandMeanSquares and shares its pass.
+    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares,
+                           float* ownBandMeanSquares = nullptr);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;

@@ -53,7 +53,7 @@ OS provider state, shell routing, remote-command registration, output rebinding,
 
 ## Rendered audio
 
-`make test-audio` generates deterministic fixtures under `build/audio-fixtures`, self-tests the PCM comparator (`build/verify-bit-perfect`, compiled from `scripts/test/verify-bit-perfect.swift`), then runs **VibeAudioTests**. It is host-less and compiles the production player, FX, decoder and loading machinery into its own derived data (`build/AudioDerivedData`), so `make -j2 test test-audio` runs both suites at once. It reuses `TestFilesystemGuard.m`. `make test-audio-summary` reads `build/AudioTestResults.xcresult`.
+`make test-audio` generates deterministic fixtures under `build/audio-fixtures`, self-tests the PCM comparator (`build/verify-bit-perfect`, compiled from `scripts/test/verify-bit-perfect.swift`), then runs **VibeAudioTests**. It is host-less and compiles the production player, FX, decoder and loading machinery into its own derived data (`build/AudioDerivedData`), so `make -j3 test test-audio` runs both suites at once. Under `make -j`, `audio-test-bundle` builds the bundle and `audio-fixtures` makes the fixtures at the same time. The tests then run without a rebuild. It reuses `TestFilesystemGuard.m`. `make test-audio-summary` reads `build/AudioTestResults.xcresult`.
 
 The suite lives in `AudioRender/`. `AudioPlayerRenderTests` is a base class with no tests, in `AudioPlayerRenderTestCase.h` and `.m`. Each topic is a subclass in its own file of the same name: `AudioPlayerRenderFidelityTests`, `…EdgesTests`, `…StreamTests`, `…ReadAheadTests`, `…EstimatedTests`, `…SignalTests`, `…PipelineTests`, `…DeviceTests`, `…OutputTests`, `…PitchTests` and `…LinkTests`. The parallel runner spreads the subclasses across processes. The slowest subclass sets the suite's wall time. A new test joins its topic's subclass. A subclass that outgrows the others is the one to split. `ARGS=-only-testing:VibeAudioTests/AudioPlayerRenderEdgesTests/testGaplessSplitSignalAcrossRenderBlocks` narrows a run.
 
@@ -84,12 +84,12 @@ The pump proves the software path, **not** DAC samples, hardware negotiation, ex
 
 **A bounded wait is a hang guard, a gate or a negative check, and only the last is short.**
 
-- A wait for something that must happen (an expectation, an asserted semaphore, a poll's deadline) uses `VIBE_TEST_HANG_TIMEOUT` from `project.yml`, never a literal. Under parallel classes and `make -j2`, utility-QoS work goes unscheduled for seconds.
+- A wait for something that must happen (an expectation, an asserted semaphore, a poll's deadline) uses `VIBE_TEST_HANG_TIMEOUT` from `project.yml`, never a literal. Under parallel classes and `make -j3`, utility-QoS work goes unscheduled for seconds.
 - A gate the test releases itself (a fake blocked on a semaphore, or a pending grace the test settles, as in `AudioWorkSchedulerTests`) uses `VIBE_TEST_GATE_TIMEOUT`, which outlasts the guards the test waits on while holding it.
+- Replace unrelated production timers at their boundary. Extend an exposed duration past the guard when the test only needs the timer out of the way (`restoreDeadline`, `streamedTagWait`, `AudioLoadingConfiguration`). Inject a `VibeScheduler` when the test controls delivery order (`OpenBurstCoalescer`, `OpenRequestCoordinator`, metadata retries). A test of the timer itself keeps the shipping value.
 - A negative check (an inverted expectation, a fixed window before asserting nothing arrived) stays short, since every pass runs its full length.
 - A fixed window before asserting something did arrive is the flaky shape. Poll up to the guard instead.
 - An elapsed-time assertion never reads the test thread's clock, which is late by however long that thread was descheduled. Measure between stamps taken where the code under test runs, on the clock its timer uses (`testProductionGatedTimerReopensADatalessScanAfterForegroundRelease`).
-- A timer the code under test arms and the test does not wait for (a retry seconds out) is a boundary to replace, like an I/O one (`testFailedDeviceSwitchReconcilesOutputGraph`'s bind retry).
 
 **A fixture's size on disk says nothing about its length.** The generator writes files whose declared content dwarfs their bytes, so a seek past a 32-bit frame count can be tested. `flac-long.flac` is under a megabyte and 4.3 billion frames. Anything that decodes a fixture to its end, or times a pass over one, reads the header's frame count first. A full decode of such a file runs for hours.
 

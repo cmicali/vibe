@@ -15,6 +15,8 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 
 `VibeWidgetState` is what was true at `positionDate`. The widget advances the playhead itself, so ordinary playback publishes nothing. A publish happens on a track change, a play or pause, a duration or title change, or a seek. The seek test is the lock screen's (`VibeNowPlayingPositionIsDirty`) with a 2 s tolerance.
 
+**While a placed widget shows a playing track, the publisher requests a timeline reload every minute** (`updatePlayingReloads`). It writes no new state. WidgetKit controls delivery. The timeline keeps coarse entries through the track’s end if a reload is delayed (`VibeWidget/AGENTS.md`).
+
 The state is a plist in the app group container, with up to three images beside it: the artwork JPEG and the played and unplayed waveform PNGs. **The images are named by `trackKey`**, the track's `pathKey` plus a cue row's window. A publish that lands between the extension's reads can then leave an image missing, but never pair one track's title with another's cover. The key also rides in every seek button, so a tap on a stale render cannot seek a different track.
 
 `kStateVersion` is bumped when a field's meaning changes. An unknown version draws the empty state until the next publish. The Swift names on `loadState`, `positionAtDate:` and `progressAtDate:` are pinned, because a rename breaks the extension in a build the app never runs.
@@ -30,7 +32,9 @@ The state is a plist in the app group container, with up to three images beside 
 
 ## The waveform bake
 
-The app bakes the current track's envelope twice, once in each half of the palette, at the medium widget's aspect. The widget reveals the played image up to the playhead, so nothing re-renders per entry. The style is `widgetWaveformStyle`, or the app's style when it is nil. `widgetWaveformCentered` sets the alignment. The theme is always dark, because the widget's background is.
+The app bakes the current track's envelope twice, once in each half of the palette, at the medium widget's aspect. The widget reveals the played image up to the playhead, so nothing re-renders per entry. The style is `widgetWaveformStyle`, or the app's style when it is nil. The theme, the custom colors, Centered and Playhead line are the widget's own copies of the card's settings, read with `widget:YES` (`Common/AGENTS.md`). Under Match app every one of them reads as the card's. The theme is always dark, because the widget's background is.
+
+**Under a playhead line both images are the whole strip as played, and the widget draws the line.** `VibeWidgetState.playheadLine` says so. The bake sets it, and commits the plist again when it changed, after the images.
 
 A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged.** The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
 

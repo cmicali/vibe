@@ -21,8 +21,11 @@
 static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;
 
 // A seek detector against the widget's own extrapolation; looser than the lock
-// screen's, since a widget entry spans minutes.
+// screen's, since a widget entry spans seconds.
 static const NSTimeInterval kWidgetPositionTolerance = 2.0;
+
+// Request fresh dense entries during playback. WidgetKit controls delivery.
+static const NSTimeInterval kWidgetPlayingReloadInterval = 60;
 
 // Pixels. The large widget draws it at up to 190pt, at 3x.
 static const CGFloat kWidgetArtworkSide = 576;
@@ -52,6 +55,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     // Queue-only; scheduleReload's throttle (uptime nanos).
     BOOL                  _reloadQueued;
     uint64_t              _lastReloadAt;
+    // Main; runs only while placed and playing (updatePlayingReloads).
+    NSTimer              *_playingReloadTimer;
 
     // Two sources, each right about one direction: WidgetKit's answer, asked
     // only at launch and foreground, turns it OFF; the extension's read
@@ -93,6 +98,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (_readToken != NOTIFY_TOKEN_INVALID) {
         notify_cancel(_readToken);
     }
+    [_playingReloadTimer invalidate];
 }
 
 #pragma mark - Whether anyone is looking
@@ -114,6 +120,35 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (placed) {
         [self republish];
     }
+    else {
+        [self updatePlayingReloads];
+    }
+}
+
+// Runs iff a placed widget shows a playing track. The timer only reloads:
+// the widget extrapolates the playhead from the plist it has, and a stall
+// that moves the real position past the seek tolerance republishes anyway.
+- (void)updatePlayingReloads {
+    BOOL wanted = _widgetPlaced && _published.hasTrack && _published.playing;
+    if (wanted == (_playingReloadTimer != nil)) {
+        return;
+    }
+    if (!wanted) {
+        [_playingReloadTimer invalidate];
+        _playingReloadTimer = nil;
+        return;
+    }
+    __weak WidgetPublisher *weakSelf = self;
+    _playingReloadTimer = [NSTimer scheduledTimerWithTimeInterval:kWidgetPlayingReloadInterval
+                                                          repeats:YES block:^(NSTimer *timer) {
+        WidgetPublisher *publisher = weakSelf;
+        if (publisher) {
+            dispatch_async(publisher->_queue, ^{
+                [publisher scheduleReload];
+            });
+        }
+    }];
+    _playingReloadTimer.tolerance = kWidgetPlayingReloadInterval / 10;
 }
 
 // The gate just opened: write everything in hand as if the track had just
@@ -158,6 +193,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     next.duration     = duration;
     next.position     = position;
     next.positionDate = [NSDate date];
+    next.playheadLine = [self widgetDrawsPlayheadLine];
 
     _published      = next;
     _publishedTrack = track;
@@ -193,6 +229,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     NSString *outgoingKey = _committedKey;
     _committedKey = state.trackKey;
     BOOL sweep = !VibeNowPlayingStringsEqual(outgoingKey, state.trackKey);
+    [self updatePlayingReloads];
     dispatch_async(_queue, ^{
         if (writeArtwork) {
             [self writeArtwork:artwork toURL:state.artworkURL];
@@ -284,6 +321,18 @@ static const CGFloat kWidgetWaveformScale = 3;
     [self bakeWaveformIfNeeded];
 }
 
+// nil widget style means "match app", and then every widget setting reads
+// as the card's (AppSettings.h).
+- (NSString *)widgetWaveformStyle {
+    AppSettings *settings = AppSettings.sharedInstance;
+    return [WaveformRendererRegistry resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
+}
+
+- (BOOL)widgetDrawsPlayheadLine {
+    return [WaveformRendererRegistry drawsPlayheadLineForIdentifier:[self widgetWaveformStyle]
+                                                             chosen:[AppSettings.sharedInstance waveformPlayheadLineForWidget:YES]];
+}
+
 - (void)bakeWaveformIfNeeded {
     CodableAudioWaveform *waveform = _waveform;
     if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack) {
@@ -293,21 +342,20 @@ static const CGFloat kWidgetWaveformScale = 3;
         return;     // before the signature, so the bake is still owed
     }
     AppSettings *settings = AppSettings.sharedInstance;
-    // nil widget style means "match app".
-    NSString *style = [WaveformRendererRegistry
-            resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
+    NSString *style = [self widgetWaveformStyle];
 
     // Always dark: the widget's background is. The artwork colour is memoized
     // on the image; nil (not decoded, or too gray) resolves album_art to Mono.
-    WaveformTheme *theme = [WaveformTheme themeForSettings:settings isDark:YES
+    WaveformTheme *theme = [WaveformTheme themeForSettings:settings widget:YES isDark:YES
                                               artworkColor:_publishedTrack.cachedArt.vibeDominantColor];
     // The RESOLVED palette, not the inputs, so a cover arriving under a theme
     // that ignores it bakes nothing. The waveform, not its track: the
     // signature clears on a track change, and a new waveform for the same
     // track, the bands' decode, must bake.
-    BOOL centered = settings.widgetWaveformCentered;
-    NSString *signature = [NSString stringWithFormat:@"%@|%d|%@|%p",
-                           style, centered, theme.paletteSignature, (void *)waveform];
+    BOOL centered = [settings waveformCenteredForWidget:YES];
+    BOOL line = [self widgetDrawsPlayheadLine];
+    NSString *signature = [NSString stringWithFormat:@"%@|%d|%d|%@|%p",
+                           style, centered, line, theme.paletteSignature, (void *)waveform];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {
         return;
     }
@@ -319,15 +367,23 @@ static const CGFloat kWidgetWaveformScale = 3;
     VibeWidgetState *state = _published;
     _pendingBake = dispatch_block_create(0, ^{
         // The whole envelope in each side's colours; the widget reveals the
-        // played one up to the playhead without a re-render.
+        // played one up to the playhead without a re-render. Under a playhead
+        // line both are the whole strip as played, and the widget draws the
+        // line (VibeWidgetState.playheadLine).
         [self writeWaveformImage:waveform progress:1 style:style centered:centered theme:theme
                            toURL:state.waveformPlayedURL];
-        [self writeWaveformImage:waveform progress:0 style:style centered:centered theme:theme
+        [self writeWaveformImage:waveform progress:line ? 1 : 0 style:style centered:centered theme:theme
                            toURL:state.waveformUnplayedURL];
         // The widget re-renders only on a reload.
         [self scheduleReload];
     });
     dispatch_async(_queue, _pendingBake);
+    // A line setting flipped since the plist was written. Committed after the
+    // bake, so the plist lands behind the images that match it.
+    if (state.playheadLine != line) {
+        state.playheadLine = line;
+        [self commitState:state artwork:nil writeArtwork:NO];
+    }
 }
 
 - (void)writeWaveformImage:(CodableAudioWaveform *)waveform progress:(CGFloat)progress

@@ -5,6 +5,8 @@ import UIKit
 import WidgetKit
 
 private let kCornerRadius: CGFloat = 8
+// The scrubber's (kVibePlayheadLineWidth), the height of the strip.
+private let kPlayheadLineWidth: CGFloat = 2
 
 private let kMediumHeaderHeight: CGFloat = 54
 private let kSmallPadding: CGFloat = 16
@@ -295,9 +297,9 @@ struct VibeWidgetView: View {
         .buttonStyle(.plain)
     }
 
-    // Reveal the baked played image without rendering the envelope again.
-    // TRAP: both Lock Screen halves use it. The unplayed image can have too
-    // little alpha for a tinted shape.
+    // Reveal the played image without baking the envelope for each entry.
+    // A playhead line uses the played image across the whole strip.
+    // TRAP: Lock Screen halves need the played image's alpha as a tintable shape.
     private func waveform(lockScreen: Bool = false) -> some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
@@ -316,6 +318,13 @@ struct VibeWidgetView: View {
                         .mask(alignment: .leading) {
                             Rectangle().frame(width: geometry.size.width * progress)
                         }
+                }
+                if state?.playheadLine == true, entry.played != nil {
+                    Rectangle()
+                        .fill(.white)
+                        .frame(width: kPlayheadLineWidth)
+                        .offset(x: max(0, min(geometry.size.width - kPlayheadLineWidth,
+                                              geometry.size.width * progress - kPlayheadLineWidth / 2)))
                 }
                 if state != nil && !lockScreen {
                     seekZones

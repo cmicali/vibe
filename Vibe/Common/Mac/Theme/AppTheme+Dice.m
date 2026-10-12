@@ -46,6 +46,9 @@ static id RandomPick(NSArray *choices) {
     self.waveformTheme = RandomPick(@[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
                                       SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART]);
     self.waveformShadeOverlaps = RandomChance(50);
+    self.waveformSpectrumPalette = RandomPick(@[SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB,
+                                                SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE,
+                                                SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN]);
     self.waveformGradient = RandomChance(50);
     self.waveformCentered = RandomChance(75);
     self.buttonGradient = RandomPick(VibeButtonGradientModes());
@@ -101,6 +104,10 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     }
     if ([self.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
         self.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+    }
+    // Custom draws the band wells cleared above.
+    if ([self.waveformSpectrumPalette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM]) {
+        self.waveformSpectrumPalette = SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB;
     }
     if ([self.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
         self.windowTint = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;

@@ -4,6 +4,7 @@
 #import "WaveformMorphEngine.h"
 #import "WaveformRendererRegistry.h"
 #import "DetailedWaveformRenderer.h"
+#import "ThreeBandWaveformRenderer.h"
 #import "AppSettings.h"
 #import "VibeStrings.h"
 
@@ -85,10 +86,11 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
             [self previewPixelsForStyle:@"basic" theme:orange barDensity:1 barWidth:1 normalize:NO gainDB:0]);
 }
 
-- (void)testPlayheadLineIsThreeBandsDefaultUntilChosen {
+// iOS's rule: until the user chooses, only the band styles draw the line.
+- (void)testPlayheadLineIsTheBandStylesDefaultUntilChosen {
     for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
         XCTAssertEqual([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:nil],
-                       [style isEqualToString:@"three_band"], @"%@", style);
+                       [style isEqualToString:@"three_band"] || [style isEqualToString:@"spectrum"], @"%@", style);
         XCTAssertTrue([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:@YES], @"%@", style);
         XCTAssertFalse([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:@NO], @"%@", style);
     }
@@ -139,6 +141,22 @@ static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize, NSUIn
     }
     XCTAssertFalse([WaveformRendererRegistry supportsCenteringForIdentifier:@"sonic_cirrus"]);
     XCTAssertFalse([WaveformRendererRegistry supportsCenteringForIdentifier:@"cupertino_basic"]);
+}
+
+- (void)testGradientChangesPreviewOnlyForSupportedStyles {
+    WaveformTheme *ramped = [WaveformTheme monochromeThemeIsDark:YES];
+    WaveformTheme *flat = [WaveformTheme monochromeThemeIsDark:YES];
+    flat.flatFill = YES;
+    for (NSString *style in WaveformRendererRegistry.availableIdentifiers) {
+        NSData *withRamp = [self previewPixelsForStyle:style theme:ramped barDensity:1 barWidth:1 normalize:NO
+                                                gainDB:0];
+        NSData *withoutRamp = [self previewPixelsForStyle:style theme:flat barDensity:1 barWidth:1 normalize:NO
+                                                   gainDB:0];
+        XCTAssertEqual([withRamp isEqualToData:withoutRamp],
+                       ![WaveformRendererRegistry supportsGradientForIdentifier:style], @"%@", style);
+    }
+    XCTAssertFalse([WaveformRendererRegistry supportsGradientForIdentifier:@"spectrum"]);
+    XCTAssertFalse([WaveformRendererRegistry supportsGradientForIdentifier:@"cupertino_basic"]);
 }
 
 // Grounded, each bar keeps its height and stands on the band's foot.
@@ -320,9 +338,9 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     AudioWaveform waveform(chunks.size(), chunks.data());
     for (NSString *identifier in [WaveformRendererRegistry availableIdentifiers]) {
         // These two draw individual layers; the next test covers their geometry.
-        // 3-Band draws three levels a bar, which its own tests cover.
+        // The band styles draw three levels a bar, which their own tests cover.
         if ([identifier isEqualToString:@"sonic_cirrus"] || [identifier isEqualToString:@"cupertino_basic"] ||
-            [identifier isEqualToString:@"three_band"]) continue;
+            [WaveformRendererRegistry readsBandsForIdentifier:identifier]) continue;
         DetailedWaveformRenderer *renderer = (DetailedWaveformRenderer *)[self rendererForStyle:identifier];
         XCTAssertTrue([renderer isKindOfClass:DetailedWaveformRenderer.class], @"%@", identifier);
         for (CGFloat width : {257.0, 512.0, 773.0}) {
@@ -435,6 +453,8 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     XCTAssertFalse([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]);
     XCTAssertTrue([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE]);
     XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"spectrum"], STR_WAVEFORM_STYLE_SPECTRUM);
+    XCTAssertEqual([self rendererForStyle:@"spectrum"].class, SpectrumWaveformRenderer.class);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     for (NSString *identifier in @[@"detailed", @"wiggle_centered"]) {
@@ -897,13 +917,131 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
     XCTAssertTrue(hoverHost.hidden);
 }
 
-- (void)testOnlyThreeBandReadsTheBands {
+- (void)testOnlyTheBandStylesReadTheBands {
     for (NSString *identifier in WaveformRendererRegistry.availableIdentifiers) {
-        XCTAssertEqual([WaveformRendererRegistry readsBandsForIdentifier:identifier],
-                       [identifier isEqualToString:@"three_band"], @"%@", identifier);
+        BOOL spectrum = [identifier isEqualToString:@"spectrum"];
+        BOOL threeBand = [identifier isEqualToString:@"three_band"];
+        XCTAssertEqual([WaveformRendererRegistry readsBandsForIdentifier:identifier], spectrum || threeBand,
+                       @"%@", identifier);
+        VibeWaveformPaletteKind expected = spectrum ? VibeWaveformPaletteKindSpectrum
+                : threeBand ? VibeWaveformPaletteKindBands : VibeWaveformPaletteKindTheme;
+        XCTAssertEqual([WaveformRendererRegistry paletteKindForIdentifier:identifier], expected, @"%@", identifier);
     }
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:nil]);
     XCTAssertFalse([WaveformRendererRegistry readsBandsForIdentifier:@"missing-style"]);
+    XCTAssertEqual([WaveformRendererRegistry paletteKindForIdentifier:nil], VibeWaveformPaletteKindTheme);
+    XCTAssertEqual([WaveformRendererRegistry paletteKindForIdentifier:@"missing-style"],
+                   VibeWaveformPaletteKindTheme);
+}
+
+- (void)testSwatchColorsFollowTheStyle {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    NSArray<VibeColor *> *played = @[theme.playedColor, theme.playedColor, theme.playedColor];
+    XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:@"three_band" theme:theme],
+                          [theme.bandColors subarrayWithRange:NSMakeRange(0, 3)]);
+    XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:@"spectrum" theme:theme],
+                          theme.spectrumColors);
+    for (NSString *identifier in @[@"detailed", @"wiggle_centered", @"missing-style"]) {
+        XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:identifier theme:theme], played,
+                              @"%@", identifier);
+    }
+    XCTAssertEqualObjects([WaveformRendererRegistry swatchColorsForIdentifier:nil theme:theme], played);
+}
+
+#pragma mark - Spectrum
+
+static uint32_t VibeSRGBOf(VibeColor *color) {
+    CGFloat r = 0, g = 0, b = 0;
+    VibeColorGetSRGB(color, &r, &g, &b);
+    return (uint32_t)lround(r * 255) << 16 | (uint32_t)lround(g * 255) << 8 | (uint32_t)lround(b * 255);
+}
+
+// The live strip's pixel at column, as 0xRRGGBB: the strip is R, G, B, X in
+// memory.
+static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
+    NSData *pixels = CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(strip)));
+    const uint8_t *p = (const uint8_t *)pixels.bytes + column * 4;
+    return (uint32_t)p[0] << 16 | (uint32_t)p[1] << 8 | p[2];
+}
+
+- (uint32_t)spectrumCenterRGBForBands:(std::array<float, 3>)bands theme:(WaveformTheme *)theme {
+    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
+    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    renderer.theme = theme;
+    [renderer updateColors:YES];
+    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    NSArray<CALayer *> *fills = VibeThreeBandHost(renderer).sublayers;
+    XCTAssertEqual(fills.count, 1u, @"one strip in place of the band layers");
+    CGImageRef strip = (__bridge CGImageRef)fills.firstObject.contents;
+    XCTAssertTrue(strip != NULL);
+    XCTAssertEqual(CGImageGetWidth(strip), 512u, @"a pixel per backing pixel");
+    XCTAssertEqual(VibeSubpathCount(((CAShapeLayer *)fills.firstObject.mask).path), 1u);
+    CGSize size = renderer.parentLayer.bounds.size;
+    CGImageRef image = [renderer newEnvelopeImageForSize:size scale:1
+                                                 samples:[renderer envelopeSamplesForWaveform:&waveform]];
+    XCTAssertTrue(image != NULL);
+    uint32_t baked = image ? VibeRGBAt(image, CGImageGetHeight(image) / 2, 256) : 0;
+    CGImageRelease(image);
+    if (strip) {
+        XCTAssertEqual(VibeStripRGBAt(strip, 256), baked, @"the live strip and the bake agree");
+    }
+    return baked;
+}
+
+- (void)testSpectrumFillsTheOutlineWithEachBarsMix {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    uint32_t low = VibeSRGBOf(theme.spectrumColors[0]);
+    uint32_t high = VibeSRGBOf(theme.spectrumColors[2]);
+    // Outside the asserts: a braced list's commas split a macro's arguments.
+    uint32_t lowAlone = [self spectrumCenterRGBForBands:{1, 0, 0} theme:theme];
+    uint32_t highAlone = [self spectrumCenterRGBForBands:{0, 0, 1} theme:theme];
+    XCTAssertEqual(lowAlone, low);
+    XCTAssertEqual(highAlone, high);
+    uint32_t purple = [self spectrumCenterRGBForBands:{1, 0, 0.48f * 0.48f} theme:theme];
+    uint32_t red = purple >> 16 & 0xff, green = purple >> 8 & 0xff, blue = purple & 0xff;
+    XCTAssertGreaterThan(red, green);
+    XCTAssertGreaterThan(blue, green);
+    XCTAssertNotEqual(purple, low);
+    XCTAssertNotEqual(purple, high);
+}
+
+// The height reach would mix neighboring bands into identical colors.
+- (void)testSpectrumColorsEachBarByItsOwnWindow {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    std::vector<AudioWaveformCacheChunk> chunks(1024);
+    std::vector<float> bandSums;
+    for (NSUInteger i = 0; i < chunks.size(); i++) {
+        chunks[i].set(-0.1f, 0.1f, 0.01f, 1);
+        // Two chunks a bar at the renderer's 512 bars.
+        bool low = (i / 2) % 2 == 0;
+        bandSums.insert(bandSums.end(), {low ? 1.0f : 0.0f, 0.0f, low ? 0.0f : 0.2f});
+    }
+    AudioWaveform waveform(chunks.size(), chunks.data(), bandSums.data());
+    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    renderer.theme = theme;
+    [renderer updateColors:YES];
+    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    CGImageRef strip = (__bridge CGImageRef)VibeThreeBandHost(renderer).sublayers.firstObject.contents;
+    XCTAssertTrue(strip != NULL);
+    if (strip) {
+        XCTAssertEqual(VibeStripRGBAt(strip, 256), VibeSRGBOf(theme.spectrumColors[0]));
+        XCTAssertEqual(VibeStripRGBAt(strip, 257), VibeSRGBOf(theme.spectrumColors[2]));
+    }
+}
+
+- (void)testSpectrumOutlineIsTheTallestBand {
+    std::array<float, 3> bands = {1, 0.01f, 0.0001f};
+    AudioWaveform waveform = VibeThreeBandTestWaveform(bands);
+    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
+    [renderer settleMorphImmediately];
+    CAShapeLayer *outline = (CAShapeLayer *)VibeThreeBandHost(renderer).sublayers.firstObject.mask;
+    XCTAssertEqual(CGPathGetPathBoundingBox(outline.path).size.height,
+                   [self threeBandLayerHeightsForBands:bands][0]);
 }
 
 @end

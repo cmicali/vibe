@@ -74,6 +74,10 @@
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _materializationCallbackQueue = dispatch_queue_create(
                 "com.vibe.metadata-scan-materialization", attributes);
+        dispatch_queue_t callbackQueue = _materializationCallbackQueue;
+        _retryScheduler = ^(NSTimeInterval delay, dispatch_block_t block) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), callbackQueue, block);
+        };
     }
     return self;
 }

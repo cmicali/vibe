@@ -673,8 +673,7 @@
 - (void)scheduleDelayedScanRetryForEntry:(MetadataScanEntry *)entry
                                    delay:(NSTimeInterval)delay {
     __weak __typeof(self) weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
-                   _materializationCallbackQueue, ^{
+    _retryScheduler(delay, ^{
         __typeof(self) strongSelf = weakSelf;
         if (!strongSelf) return;
         BOOL shouldDispatch = NO;

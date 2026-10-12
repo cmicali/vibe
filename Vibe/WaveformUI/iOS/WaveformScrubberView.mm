@@ -227,7 +227,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL isDark = self.isDark;
     WaveformTheme *(^resolve)(void) = ^WaveformTheme *{
-        return [WaveformTheme themeForSettings:settings isDark:isDark artworkColor:self->_artworkThemeColor];
+        return [WaveformTheme themeForSettings:settings widget:NO isDark:isDark artworkColor:self->_artworkThemeColor];
     };
     WaveformTheme *theme = resolve();
     // No well for it here: the appearance's contrast pole, the mac's default.
@@ -239,14 +239,14 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     [_renderer updateColors:isDark];
     // Geometry, not color, but it changes as these settings do, and the
     // signature that re-bakes and keys the bake store has to carry it.
-    _renderer.centered = settings.waveformCentered;
+    _renderer.centered = [settings waveformCenteredForWidget:NO];
     [self layoutPlayheadLine];
     _themeSignature = [self themeSignature];
 }
 
 - (BOOL)drawsPlayheadLine {
     return [WaveformRendererRegistry drawsPlayheadLineForIdentifier:_styleIdentifier
-                                                             chosen:AppSettings.sharedInstance.waveformPlayheadLine];
+                                                             chosen:[AppSettings.sharedInstance waveformPlayheadLineForWidget:NO]];
 }
 
 // The resolved palette in both appearances. This page's artwork color counts
@@ -255,9 +255,9 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 // nothing. The playhead line and Centered ride along.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
-    return [NSString stringWithFormat:@"%d|%d|%@|%@", [self drawsPlayheadLine], settings.waveformCentered,
-            [WaveformTheme themeForSettings:settings isDark:YES artworkColor:_artworkThemeColor].paletteSignature,
-            [WaveformTheme themeForSettings:settings isDark:NO artworkColor:_artworkThemeColor].paletteSignature];
+    return [NSString stringWithFormat:@"%d|%d|%@|%@", [self drawsPlayheadLine], [settings waveformCenteredForWidget:NO],
+            [WaveformTheme themeForSettings:settings widget:NO isDark:YES artworkColor:_artworkThemeColor].paletteSignature,
+            [WaveformTheme themeForSettings:settings widget:NO isDark:NO artworkColor:_artworkThemeColor].paletteSignature];
 }
 
 // The signature compare makes a repeated set free, and the pager reconfigures

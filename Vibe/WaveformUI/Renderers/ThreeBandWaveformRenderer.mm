@@ -13,7 +13,9 @@
 // Smaller mid and high shares keep those weaker bands visible beside lows.
 static const float kBandShareOfFullScale[kAudioWaveformBandCount] = {1.0f, 0.48f, 0.48f};
 
-// The unplayed side's level against the played.
+// Spectrum's bars carry their color levels after their heights.
+static const NSUInteger kSpectrumSamplesPerBar = 2 * kAudioWaveformBandCount;
+
 static const float kUnplayedOpacity = 0.5f;
 
 // Painter's order — singles, pairs, all three — so at every height the layer
@@ -21,9 +23,7 @@ static const float kUnplayedOpacity = 0.5f;
 static const NSUInteger kLayerCount = 7;
 static const NSUInteger kLayerForBands[8] = {0, 0, 1, 3, 2, 4, 5, 6};
 
-// One bar's three bands as half-heights in points; answers the tallest.
-// Silence keeps every bar style's hairline, in the all-bands color its tie
-// gives it.
+// Silence keeps the all-bands hairline.
 static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat minimumHeight, CGFloat *half) {
     CGFloat tallest = 0;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
@@ -37,18 +37,12 @@ static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat min
     return tallest;
 }
 
-// Each layer one mirrored polygon through the bars' centers, out to the
-// lowest band of its set, appended to the caller's paths, plus the hover
-// slice's outline (the tallest band) when one is given. The envelopes nest as
-// their sets do, since a set's lowest band is never above a subset's, so the
-// painter's order alone colors each height by the bands reaching it, and the
-// fill's antialiasing smooths the steps between bars. Grounded, each stands on
-// the baseline at its whole height, and they nest the same way. The live
-// layers and the bake both draw from here, which keeps them pixel-identical;
-// points is the caller's scratch.
+// Nested band sets paint in order through the bar centers.
+// The optional outline follows the tallest band. Spectrum fills only it.
+// Live layers and bakes share this geometry and the caller's scratch.
 static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outline, std::vector<CGPoint> *points,
-                                  CGSize size, const float *samples, NSUInteger count, CGFloat minimumHeight,
-                                  BOOL centered) {
+                                  CGSize size, const float *samples, NSUInteger count, NSUInteger stride,
+                                  CGFloat minimumHeight, BOOL centered) {
     if (count == 0) {
         return;
     }
@@ -58,38 +52,82 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
     CGFloat pitch = size.width / (CGFloat)count;
     // Per band set (by mask; 0 is the outline), one polygon: the left edge,
     // the top through the bars' centers, the right edge, the bottom back.
-    NSUInteger stride = 2 * count + 4;
-    points->resize(8 * stride);
+    NSUInteger first = outline ? 0 : 1, end = paths ? 8 : 1;
+    NSUInteger polygonLength = 2 * count + 4;
+    points->resize(end * polygonLength);
     for (NSUInteger i = 0; i < count; i++) {
         CGFloat half[kAudioWaveformBandCount];
-        CGFloat tallest = VibeThreeBandHalves(samples + i * kAudioWaveformBandCount, vscale, minimumHeight, half);
+        CGFloat tallest = VibeThreeBandHalves(samples + i * stride, vscale, minimumHeight, half);
         CGFloat x = pitch * ((CGFloat)i + 0.5);
         CGFloat lowMid = MIN(half[0], half[1]);
         const CGFloat heights[8] = {tallest, half[0], half[1], lowMid, half[2], MIN(half[0], half[2]),
                                     MIN(half[1], half[2]), MIN(lowMid, half[2])};
-        for (NSUInteger mask = outline ? 0 : 1; mask < 8; mask++) {
-            CGPoint *polygon = points->data() + mask * stride;
+        for (NSUInteger mask = first; mask < end; mask++) {
+            CGPoint *polygon = points->data() + mask * polygonLength;
             CGFloat bottom = centered ? midY - heights[mask] : baseline;
             polygon[1 + i] = CGPointMake(x, bottom + 2 * heights[mask]);
-            polygon[stride - 2 - i] = CGPointMake(x, bottom);
+            polygon[polygonLength - 2 - i] = CGPointMake(x, bottom);
         }
     }
-    for (NSUInteger mask = 0; mask < 8; mask++) {
+    for (NSUInteger mask = first; mask < end; mask++) {
         CGMutablePathRef path = mask ? paths[kLayerForBands[mask]] : outline;
-        if (!path) {
-            continue;
-        }
-        CGPoint *polygon = points->data() + mask * stride;
+        CGPoint *polygon = points->data() + mask * polygonLength;
         polygon[0] = CGPointMake(0, polygon[1].y);
         polygon[count + 1] = CGPointMake(size.width, polygon[count].y);
         polygon[count + 2] = CGPointMake(size.width, polygon[count + 3].y);
-        polygon[stride - 1] = CGPointMake(0, polygon[stride - 2].y);
-        CGPathAddLines(path, NULL, polygon, stride);
+        polygon[polygonLength - 1] = CGPointMake(0, polygon[polygonLength - 2].y);
+        CGPathAddLines(path, NULL, polygon, polygonLength);
         CGPathCloseSubpath(path);
     }
 }
 
-// A side's mask stops at its level, in the bar styles' ramp.
+static void VibeSpectrumPrimaries(NSArray<VibeColor *> *colors, float primaries[3][3]) {
+    for (NSUInteger band = 0; band < kAudioWaveformBandCount; band++) {
+        CGFloat rgb[3] = {};
+        VibeColorGetSRGB(colors[band], &rgb[0], &rgb[1], &rgb[2]);
+        for (NSUInteger c = 0; c < 3; c++) {
+            primaries[band][c] = (float)rgb[c];
+        }
+    }
+}
+
+// One row at backing resolution, interpolated between bar centers.
+// Color levels follow the heights in each bar's samples.
+static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, const float primaries[3][3],
+                                       CGFloat width, CGFloat scale) CF_RETURNS_RETAINED;
+static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, const float primaries[3][3],
+                                       CGFloat width, CGFloat scale) {
+    size_t pixels = (size_t)llround(width * scale);
+    if (count == 0 || pixels == 0) {
+        return NULL;
+    }
+    std::vector<float> bar(count * 3);
+    for (NSUInteger i = 0; i < count; i++) {
+        VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, &bar[i * 3]);
+    }
+    NSMutableData *bytes = [NSMutableData dataWithLength:pixels * 4];
+    uint8_t *pixel = (uint8_t *)bytes.mutableBytes;
+    double step = (double)count / (double)pixels;
+    for (size_t p = 0; p < pixels; p++, pixel += 4) {
+        double position = clampRange(((double)p + 0.5) * step - 0.5, 0.0, (double)(count - 1));
+        NSUInteger left = (NSUInteger)position;
+        NSUInteger right = MIN(left + 1, count - 1);
+        float t = (float)(position - (double)left);
+        for (NSUInteger c = 0; c < 3; c++) {
+            float value = bar[left * 3 + c] + (bar[right * 3 + c] - bar[left * 3 + c]) * t;
+            pixel[c] = (uint8_t)lroundf(clampRange(value, 0.0f, 1.0f) * 255);
+        }
+        pixel[3] = 255;
+    }
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)bytes);
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGImageRef strip = CGImageCreate(pixels, 1, 8, 32, pixels * 4, space, (CGBitmapInfo)kCGImageAlphaNoneSkipLast,
+                                     provider, NULL, false, kCGRenderingIntentDefault);
+    CGColorSpaceRelease(space);
+    CGDataProviderRelease(provider);
+    return strip;
+}
+
 static NSArray *VibeThreeBandSideColors(CGFloat level, BOOL flat) {
     NSMutableArray *stops = [NSMutableArray array];
     for (VibeColor *color in VibeBarRampColors([VibeColor colorWithWhite:1 alpha:level], flat)) {
@@ -107,11 +145,17 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 @implementation ThreeBandWaveformRenderer {
     CALayer *_container;
-    // The seven band layers, drawn once, under one mask that gives each side
-    // its level. It dims the composited stack, so the outer rings never show
-    // through the inner ones.
+    // Dim the composited stack so outer rings cannot show through inner ones.
+    // Spectrum uses one masked strip in place of the seven band layers.
     CALayer *_bands;
     CAShapeLayer *_bandLayers[kLayerCount];
+    BOOL _spectrum;
+    NSUInteger _samplesPerBar;
+    CALayer *_spectrumFill;
+    CAShapeLayer *_spectrumOutline;
+    // Reuse the strip when artwork changes leave its primaries unchanged.
+    NSArray<VibeColor *> *_stripColors;
+    float _stripPrimaries[3][3];
     CALayer *_sides;
     CAGradientLayer *_playedSide;
     CAGradientLayer *_unplayedSide;
@@ -135,11 +179,13 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
+        _spectrum = [self.class paletteKind] == VibeWaveformPaletteKindSpectrum;
+        _samplesPerBar = _spectrum ? kSpectrumSamplesPerBar : kAudioWaveformBandCount;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
                        rebuild:^{ [weakSelf rebuildPaths]; }];
-        _morph.samplesPerBar = kAudioWaveformBandCount;
+        _morph.samplesPerBar = _samplesPerBar;
         [self setupLayers];
         [self updateColors:isDark];
         [self updateWaveform:bounds progress:0 waveform:nil];
@@ -158,9 +204,21 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
     _bands = VibePinned([CALayer layer], scale);
     [_container addSublayer:_bands];
-    for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _bandLayers[layer] = VibePinned([CAShapeLayer layer], scale);
-        [_bands addSublayer:_bandLayers[layer]];
+    if (_spectrum) {
+        _spectrumFill = VibePinned([CALayer layer], scale);
+        // The strip is drawn at the backing's pixels. A filter could only
+        // blur it.
+        _spectrumFill.magnificationFilter = kCAFilterNearest;
+        _spectrumFill.minificationFilter = kCAFilterNearest;
+        _spectrumOutline = VibePinned([CAShapeLayer layer], scale);
+        _spectrumOutline.fillColor = [VibeColor whiteColor].CGColor;
+        _spectrumFill.mask = _spectrumOutline;
+        [_bands addSublayer:_spectrumFill];
+    } else {
+        for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
+            _bandLayers[layer] = VibePinned([CAShapeLayer layer], scale);
+            [_bands addSublayer:_bandLayers[layer]];
+        }
     }
     _sides = VibePinned([CALayer layer], scale);
     _playedSide = VibePinned([CAGradientLayer layer], scale);
@@ -181,7 +239,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [_container addSublayer:_hoverHost];
 }
 
-// The ramp's aim follows the anchoring.
 - (void)setCentered:(BOOL)centered {
     if (self.centered == centered) return;
     [super setCentered:centered];
@@ -192,8 +249,10 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [CATransaction commit];
 }
 
-// The theme gives the band fills in this layer order, the ramp, or none, and
-// the hover slice, an affordance rather than a band.
+- (BOOL)drawsFlat {
+    return self.theme.flatFill || _spectrum;
+}
+
 - (void)updateColors:(BOOL)isDark {
     [super updateColors:isDark];
     [CATransaction begin];
@@ -201,22 +260,28 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
         _bandLayers[layer].fillColor = self.theme.bandColors[layer].CGColor;
     }
-    _playedSide.colors = VibeThreeBandSideColors(1, self.theme.flatFill);
-    _unplayedSide.colors = VibeThreeBandSideColors(kUnplayedOpacity, self.theme.flatFill);
+    _playedSide.colors = VibeThreeBandSideColors(1, [self drawsFlat]);
+    _unplayedSide.colors = VibeThreeBandSideColors(kUnplayedOpacity, [self drawsFlat]);
     _hoverColumn.backgroundColor = self.theme.hoverColor.CGColor;
     [CATransaction commit];
+    if (_spectrum && ![_stripColors isEqualToArray:self.theme.spectrumColors]) {
+        _stripColors = self.theme.spectrumColors;
+        VibeSpectrumPrimaries(_stripColors, _stripPrimaries);
+        [_morph rebuildNow];
+    }
 }
 
-// A bar a point, up to the waveform's chunks: the energy windows follow the
-// drawn width rather than every bar style's 1/1024 floor, so a zoom resolves
-// each kick where floored bars a beat long alias against it into a swell.
+// Use per-bar windows so zoom can resolve individual hits.
+// Spectrum samples per backing pixel; 3-Band samples per point.
+// Both cap at kVibeWaveformMaxBars, independent of the chunk count.
 - (NSUInteger)barCountForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1));
+    CGFloat scale = _spectrum ? VibeBackingScaleForLayer(self.parentLayer) : 1;
+    NSUInteger count = (NSUInteger)llround(clampMin(width * scale, 1));
     return clampRange(count, (NSUInteger)2, kVibeWaveformMaxBars);
 }
 
-+ (BOOL)readsBands {
-    return YES;
++ (VibeWaveformPaletteKind)paletteKind {
+    return VibeWaveformPaletteKindBands;
 }
 
 - (CGRect)seekHitBandForBounds:(CGRect)bounds {
@@ -239,7 +304,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         _hoverHost.hidden = NO;
     }
     [CATransaction commit];
-    if (wasHidden && !_hoverHost.hidden) {
+    // Spectrum's rebuilds keep the hover outline current.
+    if (wasHidden && !_hoverHost.hidden && !_spectrum) {
         [_morph rebuildNow];
     }
 }
@@ -268,12 +334,14 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
         _bandLayers[layer].frame = local;
     }
+    _spectrumFill.frame = local;
+    _spectrumOutline.frame = local;
     [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
     [self setHoverHighlightX:self.hoverHighlightX];
 
     NSUInteger count = [self barCountForWidth:bounds.size.width];
-    [_morph updateTargetForSize:bounds.size identity:waveform count:count * kAudioWaveformBandCount
+    [_morph updateTargetForSize:bounds.size identity:waveform count:count * _samplesPerBar
                            fill:^(std::vector<float> &target) {
         [self fillBandLevels:target.data() count:count waveform:waveform];
     }];
@@ -284,31 +352,38 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // kick as it is.
 static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 
-// Each bar's levels are its own window's (barCountForWidth:), held still
-// through a resize by its reach. The mean squares land in out first, so
-// Normalize reads them where the bars are its columns. Normalize and Gain
-// apply to all three bands alike.
+// Heights use the reach window. Spectrum colors use the same pass's own
+// window before clamping. Reach would blend neighboring hits' colors.
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, out);
-    float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:out];
+    std::vector<float> scratch(_spectrum ? count * kSpectrumSamplesPerBar : 0);
+    float *heights = _spectrum ? scratch.data() : out;
+    float *own = heights + count * kAudioWaveformBandCount;
+    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, heights,
+                                _spectrum ? own : NULL);
+    float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:heights];
     float gainDB = self.gainDB;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
         float bandFullScaleRMS = fullScaleRMS * kBandShareOfFullScale[b];
-        for (float *level = out + b; level < out + count * kAudioWaveformBandCount; level += kAudioWaveformBandCount) {
+        for (float *level = heights + b; level < own; level += kAudioWaveformBandCount) {
             *level = VibeWaveformBarLevel(*level, bandFullScaleRMS, gainDB);
+        }
+    }
+    if (!_spectrum) {
+        return;
+    }
+    for (NSUInteger i = 0; i < count; i++) {
+        float *bar = out + i * kSpectrumSamplesPerBar;
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            bar[b] = heights[i * kAudioWaveformBandCount + b];
+            float meanSquare = fmaxf(own[i * kAudioWaveformBandCount + b], 0);
+            bar[kAudioWaveformBandCount + b] = sqrtf(meanSquare) / (fullScaleRMS * kBandShareOfFullScale[b]);
         }
     }
 }
 
-// Normalize's reference is the loudest band against its share, so the tallest
-// band at the track's loudest column draws at full height: the full mix's
-// reference left every band short of it. It keeps
-// VibeWaveformFullScaleRMSForColumns's rules — the whole track, the 1,024
-// columns, the fixed ceiling — but is its own so that within the columns it
-// reads the mean squares the fill just took: measuring them through the
-// waveform again cost a fifth of every resize frame's instructions. Past the
-// columns it measures 1,024 of them the same way, so the reference does not
-// step as a resize crosses 1,024 bars.
+// Normalize against the loudest band relative to its share.
+// Reuse the fill's mean squares up to 1,024 bars. Beyond that, measure
+// 1,024 columns to keep the reference stable across resizes.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
     if (!self.normalizesLevels || !waveform->isComplete()) {
@@ -330,27 +405,37 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
 
-// The morph's rebuild callback.
 - (void)rebuildPaths {
     const std::vector<float> &samples = [_morph displayedSamples];
-    NSUInteger count = samples.size() / kAudioWaveformBandCount;
+    NSUInteger count = samples.size() / _samplesPerBar;
     if (count == 0) {
         return;
     }
     VibeSignpostBegin(waveform_path);
-    CGMutablePathRef paths[kLayerCount];
-    for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        paths[layer] = CGPathCreateMutable();
-    }
+    // Spectrum fills the outline. Otherwise only the hover slice reads it, and
     // setHoverHighlightX: rebuilds as the slice appears.
-    CGMutablePathRef outline = _hoverHost.hidden ? NULL : CGPathCreateMutable();
-    VibeAddThreeBandPaths(paths, outline, &_points, _morph.size, samples.data(), count, _morph.barMinHeight,
-                          self.centered);
+    CGMutablePathRef outline = _spectrum || !_hoverHost.hidden ? CGPathCreateMutable() : NULL;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        _bandLayers[layer].path = paths[layer];
-        CGPathRelease(paths[layer]);
+    if (_spectrum) {
+        VibeAddThreeBandPaths(NULL, outline, &_points, _morph.size, samples.data(), count, _samplesPerBar,
+                              _morph.barMinHeight, self.centered);
+        CGImageRef strip = VibeNewSpectrumStrip(samples.data(), count, _stripPrimaries, _morph.size.width,
+                                                VibeBackingScaleForLayer(self.parentLayer));
+        _spectrumOutline.path = outline;
+        _spectrumFill.contents = (__bridge id)strip;
+        CGImageRelease(strip);
+    } else {
+        CGMutablePathRef paths[kLayerCount];
+        for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
+            paths[layer] = CGPathCreateMutable();
+        }
+        VibeAddThreeBandPaths(paths, outline, &_points, _morph.size, samples.data(), count, _samplesPerBar,
+                              _morph.barMinHeight, self.centered);
+        for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
+            _bandLayers[layer].path = paths[layer];
+            CGPathRelease(paths[layer]);
+        }
     }
     if (outline) {
         _hoverMask.path = outline;
@@ -383,32 +468,50 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     // The live count for the host's width, so the bake matches the layers it
     // replaces.
     NSUInteger count = [self barCountForWidth:self.parentLayer.bounds.size.width];
-    NSMutableData *data = [NSMutableData dataWithLength:count * kAudioWaveformBandCount * sizeof(float)];
+    NSMutableData *data = [NSMutableData dataWithLength:count * _samplesPerBar * sizeof(float)];
     [self fillBandLevels:(float *)data.mutableBytes count:count waveform:waveform];
     return data;
 }
 
 - (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
-    NSUInteger count = samples.length / (kAudioWaveformBandCount * sizeof(float));
+    NSUInteger count = samples.length / (_samplesPerBar * sizeof(float));
     CGContextRef ctx = count ? VibeNewEnvelopeBitmapContext(size, scale) : NULL;
     if (!ctx) {
         return NULL;
     }
-    CGMutablePathRef paths[kLayerCount];
-    for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        paths[layer] = CGPathCreateMutable();
-    }
+    const float *bars = (const float *)samples.bytes;
     std::vector<CGPoint> points;
-    VibeAddThreeBandPaths(paths, NULL, &points, size, (const float *)samples.bytes, count, 1, self.centered);
-    for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
-        if (!CGPathIsEmpty(paths[layer])) {
-            CGContextAddPath(ctx, paths[layer]);
-            CGContextSetFillColorWithColor(ctx, self.theme.bandColors[layer].CGColor);
-            CGContextFillPath(ctx);
+    if (_spectrum) {
+        CGMutablePathRef outline = CGPathCreateMutable();
+        VibeAddThreeBandPaths(NULL, outline, &points, size, bars, count, _samplesPerBar, 1, self.centered);
+        // The theme's colors, not _stripPrimaries: a bake may run off main.
+        float primaries[3][3];
+        VibeSpectrumPrimaries(self.theme.spectrumColors, primaries);
+        CGImageRef strip = VibeNewSpectrumStrip(bars, count, primaries, size.width, scale);
+        CGContextSaveGState(ctx);
+        CGContextAddPath(ctx, outline);
+        CGContextClip(ctx);
+        CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+        CGContextDrawImage(ctx, CGRectMake(0, 0, size.width, size.height), strip);
+        CGContextRestoreGState(ctx);
+        CGImageRelease(strip);
+        CGPathRelease(outline);
+    } else {
+        CGMutablePathRef paths[kLayerCount];
+        for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
+            paths[layer] = CGPathCreateMutable();
         }
-        CGPathRelease(paths[layer]);
+        VibeAddThreeBandPaths(paths, NULL, &points, size, bars, count, _samplesPerBar, 1, self.centered);
+        for (NSUInteger layer = 0; layer < kLayerCount; layer++) {
+            if (!CGPathIsEmpty(paths[layer])) {
+                CGContextAddPath(ctx, paths[layer]);
+                CGContextSetFillColorWithColor(ctx, self.theme.bandColors[layer].CGColor);
+                CGContextFillPath(ctx);
+            }
+            CGPathRelease(paths[layer]);
+        }
     }
-    if (!self.theme.flatFill) {
+    if (![self drawsFlat]) {
         // The played side's mask, so the bake matches the live layers.
         CGContextSetBlendMode(ctx, kCGBlendModeDestinationIn);
         VibeFillBarGradient(ctx, size, VibeThreeBandSideColors(1, NO), self.centered);
@@ -421,6 +524,22 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 // The unplayed side is the played bitmap dimmed, as the live stack is.
 - (CGFloat)unplayedOverPlayedOpacity {
     return kUnplayedOpacity;
+}
+
+@end
+
+@implementation SpectrumWaveformRenderer
+
++ (NSString *)styleIdentifier {
+    return @"spectrum";
+}
+
++ (NSString *)displayName {
+    return STR_WAVEFORM_STYLE_SPECTRUM;
+}
+
++ (VibeWaveformPaletteKind)paletteKind {
+    return VibeWaveformPaletteKindSpectrum;
 }
 
 @end

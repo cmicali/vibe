@@ -55,6 +55,10 @@ NS_ASSUME_NONNULL_BEGIN
 // wait for the first response, before availabilityForURL: answers. Any thread.
 - (BOOL)isFetchingURL:(NSURL *)url;
 
+// How long a tag read of a file streaming now waits for its stream before
+// asking the server. Test seam.
+@property (nonatomic) NSTimeInterval streamedTagWait;
+
 // Every downloaded song under root, oldest download first, each as {url,
 // size, modified, downloaded}. A playlist file is not one. The disk queue.
 - (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root;

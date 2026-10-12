@@ -12,23 +12,20 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 import WidgetKit
 
-// TRAP: spread the entry budget over the remaining track. A fixed step can
-// freeze the playhead early. WidgetKit schedules .atEnd refreshes itself.
+// TRAP: keep coarse entries through track end if WidgetKit delays a reload.
+// The app requests a reload each minute to replenish the dense entries.
 private let kPlayheadStep: TimeInterval = 5
-private let kMaxEntries = 24
+private let kDenseEntries = 24
+private let kTailEntries = 8
 // Pixels; the blurred background's longest side. See blurred(_:).
 private let kBlurSide: CGFloat = 96
 
 struct VibeEntry: TimelineEntry {
     let date: Date
     let state: VibeWidgetState?
-    // Decoded once per timeline and shared by every entry, rather than read
-    // from disk per render: the same three files back all of them, and the
-    // extension's memory limit is small.
+    // Share decoded images across entries to stay within the extension’s memory cap.
     let artwork: UIImage?
-    // Pre-blurred once per timeline rather than per entry: the background is
-    // pixel-identical across every entry, and a blur in a process with a hard
-    // memory cap is not something to repeat 24 times for one result.
+    // Share the blur too; it is identical across entries.
     let blurredArtwork: UIImage?
     let played: UIImage?
     let unplayed: UIImage?
@@ -51,18 +48,20 @@ struct VibeProvider: TimelineProvider {
         let now = Date()
         let first = loadEntry(at: now, family: context.family)
         guard let state = first.state, state.hasTrack, state.playing, state.duration > 0 else {
-            // Paused, parked or empty: one entry, held until the app publishes
-            // again. Nothing moves, so nothing needs re-rendering.
+            // Hold until the app publishes again.
             completion(Timeline(entries: [first], policy: .never))
             return
         }
-        // Use the minimum step for short remainders. The last entry can fall
-        // less than one minimum step before the end.
         let remaining = max(0, state.duration - state.position(at: now))
-        let step = max(kPlayheadStep, remaining / Double(kMaxEntries - 1))
-        let steps = min(kMaxEntries, Int(remaining / step) + 1)
-        let entries = (0..<steps).map { index in
-            VibeEntry(date: now.addingTimeInterval(Double(index) * step),
+        let dense = min(remaining, Double(kDenseEntries - 1) * kPlayheadStep)
+        var offsets = Array(stride(from: 0, through: dense, by: kPlayheadStep))
+        if dense < remaining {
+            let step = max(kPlayheadStep, (remaining - dense) / Double(kTailEntries))
+            offsets += stride(from: dense + step, to: remaining, by: step)
+            offsets.append(remaining)
+        }
+        let entries = offsets.map { offset in
+            VibeEntry(date: now.addingTimeInterval(offset),
                       state: state, artwork: first.artwork,
                       blurredArtwork: first.blurredArtwork,
                       played: first.played, unplayed: first.unplayed)
@@ -75,9 +74,8 @@ struct VibeProvider: TimelineProvider {
         // The Lock Screen draws in the system's tint: no artwork, no
         // background, and only the played image, as a shape.
         let lockScreen = [.accessoryCircular, .accessoryRectangular, .accessoryInline].contains(family)
-        // The state's OWN images, named by its track: three separate reads,
-        // but a publish landing between them can only make one of these nil,
-        // never hand this title another track's cover.
+        // Track-named images prevent a concurrent publish from pairing this title
+        // with another track’s artwork.
         let artwork = lockScreen ? nil : image(state.artworkURL)
         return VibeEntry(date: date, state: state,
                          artwork: artwork,

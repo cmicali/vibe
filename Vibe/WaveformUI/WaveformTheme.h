@@ -14,6 +14,15 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Which of the theme's palettes a waveform style paints: the waveform theme's
+// played and unplayed colors, 3-Band's bandColors, or Spectrum's
+// spectrumColors. Each style answers for itself (WaveformRenderer).
+typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
+    VibeWaveformPaletteKindTheme,
+    VibeWaveformPaletteKindBands,
+    VibeWaveformPaletteKindSpectrum,
+};
+
 @class AppSettings;
 @class AppTheme;
 
@@ -37,8 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
-// The played, unplayed and band colors as hex. Callers must key any other
-// drawing inputs separately, including flatFill and playheadColor.
+// Played, unplayed, band and Spectrum colors as hex.
+// Key other drawing inputs separately, including flatFill and playheadColor.
 @property (readonly) NSString *paletteSignature;
 
 // Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the
@@ -53,6 +62,16 @@ NS_ASSUME_NONNULL_BEGIN
 // low+mid, low+high, mid+high, and all three. Rekord Bin's unless a mac theme
 // sets its bands or iOS picks another palette.
 @property (nonatomic, copy) NSArray<VibeColor *> *bandColors;
+
+// Spectrum's low, mid and high primaries, opaque. It mixes them per bar by
+// the bands' energies. RGB's unless a mac theme or iOS picks another palette.
+@property (nonatomic, copy) NSArray<VibeColor *> *spectrumColors;
+
+// spectrumColors for a SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_* identifier;
+// an unknown one resolves as RGB. custom is the band wells' low, mid and high
+// for this appearance, which Custom draws as they are.
++ (NSArray<VibeColor *> *)spectrumColorsForIdentifier:(NSString *)identifier isDark:(BOOL)isDark
+                                          customBands:(NSArray<VibeColor *> *)custom;
 
 // bandColors for a SETTINGS_VALUE_WAVEFORM_BAND_THEME_* identifier; an unknown
 // one resolves as Rekord Bin. custom is the custom palette's low, mid and high
@@ -76,8 +95,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 #if !TARGET_OS_OSX
 // Every iOS surface that draws a waveform maps the loose settings through
-// here, as the mac maps its theme record.
-+ (WaveformTheme *)themeForSettings:(AppSettings *)settings isDark:(BOOL)isDark
+// here, as the mac maps its theme record. widget reads the widget's copies
+// (AppSettings.h).
++ (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
                        artworkColor:(nullable VibeColor *)artworkColor;
 #endif
 

@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: help compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -97,7 +97,7 @@ compile-commands: project
 
 # The host-less unit tests (VibeTests) plus the cloud-runner oracle tests.
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
-# `make -j2 test test-audio` runs both suites at once: test-audio has its own
+# `make -j3 test test-audio` runs both suites at once: test-audio has its own
 # derived data, since two xcodebuilds cannot share one.
 test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
@@ -126,20 +126,31 @@ AUDIO_APP ?= $(abspath build/DerivedData/Build/Products/Debug/Vibe.app/Contents/
 # and the Debug app already running on VibeBlackHole 16ch. See
 # vibe-debug/references/test-audio.md.
 test-bit-perfect: AUDIO_DEVICE = VibeBlackHole 16ch
-test-bit-perfect: build/verify-bit-perfect
-	@build/verify-bit-perfect --self-test
-	@scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
+test-bit-perfect: audio-fixtures
 	@build/verify-bit-perfect --acceptance "$(abspath build/audio-fixtures)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" --require-driver-fixtures $(ARGS)
 
-# The render suite produces real PCM without opening hardware. ARGS can narrow XCTest.
+# The render suite produces real PCM without opening hardware. ARGS can narrow
+# XCTest, and reaches the build too, so a sanitizer flag builds what it tests.
+# Under `make -j` its two prerequisites run side by side. The bundle compiles
+# as the fixtures generate.
 AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
-test-audio: project build/verify-bit-perfect
-	@build/verify-bit-perfect --self-test
-	scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
+AUDIO_XCODEBUILD = scripts/build/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
+    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData
+test-audio: audio-test-bundle audio-fixtures
 	rm -rf $(AUDIO_RESULT_BUNDLE)
-	scripts/build/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
-	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData \
-	    -resultBundlePath $(AUDIO_RESULT_BUNDLE) -collect-test-diagnostics never $(ARGS) test
+	$(AUDIO_XCODEBUILD) -resultBundlePath $(AUDIO_RESULT_BUNDLE) -collect-test-diagnostics never \
+	    $(ARGS) test-without-building
+
+# The render suite's test bundle, built and not run.
+audio-test-bundle: project
+	$(AUDIO_XCODEBUILD) $(ARGS) build-for-testing
+
+# The render suite's fixtures under build/audio-fixtures, after the PCM verifier
+# checks itself. Under Actions the time it took is a notice on the run.
+audio-fixtures: build/verify-bit-perfect
+	@start=$$(date +%s); build/verify-bit-perfect --self-test && \
+	    scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures && \
+	    echo "$${GITHUB_ACTIONS:+::notice title=Audio fixtures::}self-test and fixtures took $$(( $$(date +%s) - start ))s"
 
 # The last `make test-audio` as a markdown pass/fail table.
 test-audio-summary:

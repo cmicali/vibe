@@ -135,16 +135,19 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         views[2].hidden = single;
         views[3].hidden = single;
     }
-    // 3-Band's hues name its bands, so its wells stand in for the waveform
-    // color.
-    BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:theme.waveformStyle];
-    BOOL customTheme = !bands && [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
-    _waveformThemeRow.hidden = bands;
+    VibeWaveformPaletteKind kind = [WaveformRendererRegistry paletteKindForIdentifier:theme.waveformStyle];
+    BOOL bandWells = kind == VibeWaveformPaletteKindBands ||
+            (kind == VibeWaveformPaletteKindSpectrum &&
+             [theme.waveformSpectrumPalette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM]);
+    BOOL customTheme = kind == VibeWaveformPaletteKindTheme &&
+            [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+    _waveformThemeRow.hidden = kind != VibeWaveformPaletteKindTheme;
+    _spectrumPaletteRow.hidden = kind != VibeWaveformPaletteKindSpectrum;
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme || single;
-    _bandsDarkRow.hidden = !bands;
-    _bandsLightRow.hidden = !bands || single;
-    _shadeOverlapsRow.hidden = !bands;
+    _bandsDarkRow.hidden = !bandWells;
+    _bandsLightRow.hidden = !bandWells || single;
+    _shadeOverlapsRow.hidden = kind != VibeWaveformPaletteKindBands;
     _playheadColorsRow.hidden = !theme.waveformPlayheadLine;
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
@@ -219,6 +222,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectWaveformStyle:theme.waveformStyle in:_waveformPopUp];
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
+    [self selectValue:theme.waveformSpectrumPalette in:_spectrumPalettePopUp];
     _waveformShadeOverlapsSwitch.state = StateForBOOL(theme.waveformShadeOverlaps);
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
     _waveformCenteredSwitch.state = StateForBOOL(theme.waveformCentered);
@@ -252,6 +256,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
             enabled:[WaveformRendererRegistry supportsBarWidthForIdentifier:style]];
     [SettingsRowView setControl:_waveformCenteredSwitch
             enabled:[WaveformRendererRegistry supportsCenteringForIdentifier:style]];
+    [SettingsRowView setControl:_waveformGradientSwitch
+            enabled:[WaveformRendererRegistry supportsGradientForIdentifier:style]];
 }
 
 - (void)refreshFontValueLabels {
@@ -510,6 +516,12 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self chooseFromPopUp:_waveformThemePopUp revealing:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
                     wells:@[_customDarkRow, _customLightRow] effect:VibeSettingsLiveEffectWaveformTheme
                     write:^(AppTheme *theme, NSString *identifier) { theme.waveformTheme = identifier; }];
+}
+
+// Unset Custom wells use Rekord Bin's bands without writing them.
+- (void)spectrumPaletteChanged:(id)sender {
+    [self chooseFromPopUp:_spectrumPalettePopUp revealing:nil wells:@[] effect:VibeSettingsLiveEffectWaveformTheme
+                    write:^(AppTheme *theme, NSString *identifier) { theme.waveformSpectrumPalette = identifier; }];
 }
 
 #pragma mark - Editor: playlist

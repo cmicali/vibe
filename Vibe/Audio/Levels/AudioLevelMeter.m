@@ -51,14 +51,9 @@ struct VibeLevelMeter {
 
 #pragma mark - The audio thread
 
-// The calls the compiler cannot check: the probe's clock read and, in debug
-// builds, the sleep of a test's callback held inside the render.
+// The call the compiler cannot check: in debug builds, the sleep of a test's
+// callback held inside the render.
 VIBE_REALTIME_UNCHECKED_BEGIN
-#if VIBE_VERBOSE_LOGGING
-static inline uint64_t VibeLevelMeterNow(void) CA_REALTIME_API {
-    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-}
-#endif
 #if DEBUG
 static inline void VibeLevelMeterHoldWait(void) CA_REALTIME_API {
     usleep(200);
@@ -73,8 +68,7 @@ VIBE_REALTIME_CHECKED_BEGIN
 static void VibeLevelMeterCapture(VibeLevelMeter *meter, float *const *channels, UInt32 channelCount, UInt32 frames,
                                   double rate, const AudioTimeStamp *when) CA_REALTIME_API {
     uint64_t request = atomic_load(&meter->signalRequest);
-    if (!request || VibeLevelMeterNow() - request >= 3 * NSEC_PER_SEC
-            || (meter->signalObservedRequest == request && meter->signalFound)) return;
+    if (!request || (meter->signalObservedRequest == request && meter->signalFound)) return;
     BOOL hostValid = (when->mFlags & kAudioTimeStampHostTimeValid) != 0;
     BOOL sampleValid = (when->mFlags & kAudioTimeStampSampleTimeValid) != 0;
     // Everything before the cutoff (the previous track's audio) is excluded.
@@ -362,13 +356,13 @@ static double VibeLevelMeterSampleSeconds(VibeLevelMeter *meter, const AudioTime
 #endif
 }
 
-- (BOOL)pollSignalDiagnostics:(uint64_t)request {
+- (BOOL)pollSignalDiagnostics:(uint64_t)request elapsedSeconds:(NSTimeInterval)elapsed {
 #if VIBE_VERBOSE_LOGGING
     if (!_signalCompletion || request != atomic_load(&_meter->signalRequest)) return NO;
     NSDictionary *snapshot = [self signalDiagnosticSnapshot];
     if ([snapshot[@"aboveThreshold"] boolValue]) {
         [self finishSignalDiagnostics:@"first signal"];
-    } else if (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - request >= 3 * NSEC_PER_SEC
+    } else if (elapsed >= 3
             || ([snapshot[@"sampleRate"] doubleValue] > 0
                 && [snapshot[@"frames"] doubleValue] >= 3 * [snapshot[@"sampleRate"] doubleValue])) {
         [self finishSignalDiagnostics:@"window elapsed"];

@@ -722,6 +722,7 @@
         XCTFail(@"cancelled delayed record parsed");
         return VibeLoaderTestMetadataResult(NO, @"unexpected");
     }];
+    NSMutableArray<dispatch_block_t> *retries = [self captureRetriesOf:loader];
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     dispatch_queue_t completionQueue = dispatch_queue_create(
             "com.vibe.tests.metadata-delay-cancel", DISPATCH_QUEUE_SERIAL);
@@ -758,7 +759,9 @@
     [pending cancel];
     [running cancel];
 
-    [self waitForDelay:0.35];
+    // The retry's edge, fired after the cancel.
+    XCTAssertEqual(retries.count, 1u);
+    retries.firstObject();
     XCTAssertEqual(controller.startedURLs.count, 1u,
             @"cancelled delayed record retried after its eligibility edge");
     XCTAssertEqual([coordinator stateSnapshotForTesting].requestsAdmissionExhausted, 1u);
@@ -792,6 +795,7 @@
         parseCount++;
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
     }];
+    NSMutableArray<dispatch_block_t> *retries = [self captureRetriesOf:loader];
     AudioFileMaterializationCoordinator *coordinator = _coordinators.lastObject;
     dispatch_queue_t completionQueue = dispatch_queue_create(
             "com.vibe.tests.metadata-delay-retry", DISPATCH_QUEUE_SERIAL);
@@ -833,6 +837,9 @@
     [self waitForCondition:^BOOL{
         return [coordinator stateSnapshotForTesting].backgroundPendingCount == 0;
     } description:@"cancelled pending claim retained its capacity"];
+    // The retry's edge, fired once the capacity it needs is free.
+    XCTAssertEqual(retries.count, 1u);
+    retries.firstObject();
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
     [self waitForExpectations:@[runningCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];

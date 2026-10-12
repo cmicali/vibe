@@ -41,6 +41,13 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE          @"dengine"
 #define SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM           @"custom"
 
+// Spectrum's palettes, resolved to colors only by WaveformTheme. Custom draws
+// the band wells, which 3-Band's custom palette shares.
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB        @"rgb"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE       @"blue"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN      @"green"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM     @"custom"
+
 // The crossfade slider in milliseconds: off is 10, the declick minimum, then
 // tenths of a second up to three. The getter snaps any other stored value to
 // the nearest step.
@@ -65,42 +72,51 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (nullable NSString *)widgetWaveformStyle;
 - (void)setWidgetWaveformStyle:(nullable NSString *)identifier;
 
+// iOS draws two waveforms, the card's and the widget's. Each setting below
+// is stored twice. `widget` picks the widget's copy, which counts only while
+// the widget's style is its own. Under Match app a widget read answers the
+// card's, as the widget draws the card's. A widget write always lands in the
+// widget's copy. The widget is always dark, so its light colors are never
+// read.
+//
 // Normalized on read: an unknown identifier snaps to mono.
-- (NSString *)waveformTheme;
-- (void)setWaveformTheme:(NSString *)identifier;
+- (NSString *)waveformThemeForWidget:(BOOL)widget;
+- (void)setWaveformTheme:(NSString *)identifier forWidget:(BOOL)widget;
 
 // The custom theme's played/unplayed pair per appearance, as #RRGGBB[AA] with
 // the alpha the side's resting level. nil when unset or unparsable.
-- (nullable VibeColor *)waveformCustomPlayedColorForDark:(BOOL)isDark;
-- (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
-- (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
-- (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+- (nullable VibeColor *)waveformCustomPlayedColorForDark:(BOOL)isDark widget:(BOOL)widget;
+- (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark widget:(BOOL)widget;
+- (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark widget:(BOOL)widget;
+- (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark widget:(BOOL)widget;
 
 // 3-Band's palette. It is kept apart from waveformTheme, so a style switch
 // keeps both choices. Normalized on read: an unknown identifier snaps to
 // Rekord Bin.
-- (NSString *)waveformBandTheme;
-- (void)setWaveformBandTheme:(NSString *)identifier;
+- (NSString *)waveformBandThemeForWidget:(BOOL)widget;
+- (void)setWaveformBandTheme:(NSString *)identifier forWidget:(BOOL)widget;
 
-// The custom palette's bands per appearance. band is 0 for low, 1 for mid and
-// 2 for high. Stored opaque as #RRGGBB, because the layers stack. nil when
-// unset or unparsable.
-- (nullable VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark;
-- (void)setWaveformCustomBandColor:(nullable VibeColor *)color band:(NSUInteger)band forDark:(BOOL)isDark;
+// Spectrum's palette, apart from the other two for the same reason.
+// Normalized on read: an unknown identifier snaps to RGB.
+- (NSString *)waveformSpectrumPaletteForWidget:(BOOL)widget;
+- (void)setWaveformSpectrumPalette:(NSString *)identifier forWidget:(BOOL)widget;
+
+// The custom palette's bands per appearance, which 3-Band's and Spectrum's
+// Custom share. band is 0 for low, 1 for mid and 2 for high. Stored opaque as
+// #RRGGBB, because 3-Band's layers stack. nil when unset or unparsable.
+- (nullable VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark widget:(BOOL)widget;
+- (void)setWaveformCustomBandColor:(nullable VibeColor *)color band:(NSUInteger)band
+                           forDark:(BOOL)isDark widget:(BOOL)widget;
 
 // Whether the playhead is a line over a waveform drawn wholly as played. nil
 // until the user chooses, and deliberately unregistered: the default is the
 // style's (WaveformRendererRegistry.drawsPlayheadLineForIdentifier:chosen:).
-- (nullable NSNumber *)waveformPlayheadLine;
-- (void)setWaveformPlayheadLine:(BOOL)line;
+- (nullable NSNumber *)waveformPlayheadLineForWidget:(BOOL)widget;
+- (void)setWaveformPlayheadLine:(BOOL)line forWidget:(BOOL)widget;
 
-// The mac theme's waveformCentered: NO grounds the bars on a baseline. The
-// card's, and the widget's own beside its own style; under Match app the
-// widget reads the card's.
-- (BOOL)waveformCentered;
-- (void)setWaveformCentered:(BOOL)centered;
-- (BOOL)widgetWaveformCentered;
-- (void)setWidgetWaveformCentered:(BOOL)centered;
+// The mac theme's waveformCentered: NO grounds the bars on a baseline.
+- (BOOL)waveformCenteredForWidget:(BOOL)widget;
+- (void)setWaveformCentered:(BOOL)centered forWidget:(BOOL)widget;
 
 // Posted on main after a settings screen writes any display setting, the
 // waveform style included; the keep-alive card is the receiver. Every writer

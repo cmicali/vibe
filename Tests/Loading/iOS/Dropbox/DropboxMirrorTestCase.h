@@ -26,6 +26,7 @@
 #import "DropboxClientInternal.h"
 #import "DropboxMirror.h"
 #import "DropboxRules.h"
+#import "RemotePlaceholderStoreInternal.h"
 #import "DropboxStubProtocol.h"
 #import "HTTPStub.h"
 #import "PlaceholderFiles.h"

@@ -211,8 +211,8 @@ static NSData *MP3Frames(NSData *mp3) {
     NSData *reference = VibePCM([self read:source]);
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
-        [self shortenTheOpenDeadline];
         [self play:self->_streamURL paused:NO position:0];
+        [self shortenTheOpenDeadline];
     }];
     _blockSize = 4096;
     double estimate = _player.duration;

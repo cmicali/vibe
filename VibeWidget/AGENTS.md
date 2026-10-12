@@ -17,7 +17,7 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 **TRAP: a placed widget belongs to its kind.** The original kind keeps its small and medium because both shipped. Moving a size to another kind breaks every copy of it on someone's Home Screen.
 
-`VibeWidgetView.swift` holds every layout. Small shows artwork, play/pause and text. Medium adds a waveform and next button. Large adds the previous button. The two small waveform tiles omit artwork. One includes play/pause. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape.
+`VibeWidgetView.swift` holds every layout. Small shows artwork, play/pause and text. Medium adds a waveform and next button. Large adds the previous button. The two small waveform tiles omit artwork. One includes play/pause. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape. With `playheadLine` set, the view draws the line itself over a strip that is wholly played.
 
 **TRAP: the artwork tile leaves its trailing edge unpadded.** The text supplies its own trailing padding. This centers the play disc between the artwork and tile edge.
 
@@ -27,9 +27,9 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 ## The timeline
 
-A widget is not a live view. WidgetKit renders each entry once, ahead of time. A paused or empty state is one entry with policy `.never`, held until the app publishes again. A playing state uses at most 24 entries, at least 5 s apart. Longer remainders spread the entries toward the track's end. A short remainder can leave less than 5 s after the last entry.
+A widget is not a live view. WidgetKit renders each entry ahead of time. A paused or empty state has one entry with policy `.never`. A playing state has entries every 5 s through 115 s, or until the remaining duration is shorter. Longer tracks then get up to 8 coarse entries through the end.
 
-**TRAP: the step is spread over what is left of the track.** A fixed step runs out on a long track, and the playhead then freezes. Ordinary playback publishes nothing, and `.atEnd` asks for a new timeline on WidgetKit's schedule, not the track's.
+**The app requests a new timeline every minute during playback** (`Vibe/iOS/Widget/AGENTS.md`). WidgetKit controls delivery. **TRAP: keep coarse entries through the track’s end.** Without them, a delayed reload leaves the playhead frozen after the last dense entry. `.atEnd` also requests a reload on WidgetKit’s schedule.
 
 The extension has a hard memory cap. So the artwork and both waveform images are decoded once per timeline and shared by every entry. The blurred background is made once per timeline at 96 px, with one `CIContext` per process.
 

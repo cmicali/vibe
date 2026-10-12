@@ -14,10 +14,6 @@
 #import <AudioToolbox/AudioToolbox.h>
 #include <sched.h>
 
-// A decoder's wait for a render to leave the bus is bounded: a render stuck
-// past this is not waited for, and the wait's caller does without its verdict.
-static const uint64_t kRenderLeaveWaitNanos = 100 * NSEC_PER_MSEC;
-
 static void VibeDisposeResampler(AudioVoiceRecord *record) {
     if (record->resampler) {
         VibeResamplerDispose(record->resampler);
@@ -668,7 +664,10 @@ static uint32_t VibeResamplerSupplyInput(void *userData, uint32_t maxFrames, con
         // goes back and the stream ends.
         atomic_store_explicit(&s->endOfStream, kUnset, memory_order_seq_cst);
         uint64_t renderSequence = atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst);
-        uint64_t deadline = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) + kRenderLeaveWaitNanos;
+        // Bounded: a render stuck past it is not waited for, and the caller
+        // does without its verdict.
+        uint64_t deadline = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+                + atomic_load_explicit(&_renderLeaveWaitNanos, memory_order_relaxed);
         BOOL verdict = YES;
         while (atomic_load_explicit(&_mix->inRender, memory_order_seq_cst)
                 && atomic_load_explicit(&_mix->renderSequence, memory_order_seq_cst) == renderSequence) {

@@ -29,7 +29,7 @@ Readout visibility, playlist columns and **Show artwork in Dock** are under **Se
 Two things worth knowing:
 
 - **Light & Dark Modes or Single Mode.** The editor's **Theme color modes** dropdown decides whether your theme keeps separate colors for light and dark, or one set used everywhere. A Light & Dark theme follows the window's appearance. In Single Mode appearance colors show one swatch. Playback button colors keep both swatches because they follow the artwork behind them. While you edit a Light & Dark theme, the sun and moon toggle in the Settings toolbar previews either side.
-- **Every color swatch includes opacity.** Use the color panel's opacity slider to set a tint's strength, a solid background's coverage, or each waveform side's intensity. The 3-Band style's Low, Mid and High colors are the exception. Its bands stack, so they always draw opaque.
+- **Every color swatch includes opacity.** Use the color panel's opacity slider to set a tint's strength, a solid background's coverage, or each waveform side's intensity. Low, Mid and High colors always draw opaque. Both 3-Band and Spectrum’s Custom palette use these wells.
 
 ## Custom artwork
 

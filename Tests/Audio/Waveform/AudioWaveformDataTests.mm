@@ -96,6 +96,16 @@ static AudioWaveform VibeRampWaveform(NSUInteger count) {
             }
         }
     }
+    // The own windows ride the same pass at any reach, and are reach 0's.
+    for (NSUInteger size : {(NSUInteger)64, (NSUInteger)24, (NSUInteger)7}) {
+        std::vector<float> plain(size * kAudioWaveformBandCount), reached(size * kAudioWaveformBandCount),
+                own(size * kAudioWaveformBandCount);
+        w.getBarMeanSquares(size, 0, nullptr, plain.data());
+        w.getBarMeanSquares(size, 1, nullptr, reached.data(), own.data());
+        for (NSUInteger i = 0; i < plain.size(); i++) {
+            XCTAssertEqualWithAccuracy(own[i], plain[i], 1e-3f, @"size %lu value %lu", size, i);
+        }
+    }
 }
 
 // The frames are windowed as the sums are, so a steady level reads as itself

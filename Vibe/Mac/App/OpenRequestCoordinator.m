@@ -6,7 +6,8 @@
 #import "OpenRequestCoordinator.h"
 
 // Not a bound on expansion: nothing is armed until a LATER batch has finished.
-static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
+// How long a finished result waits behind an earlier one.
+static const NSTimeInterval kStragglerDeadline = 10.0;
 
 @interface OpenRequestToken : NSObject
 @property NSUInteger openGeneration;
@@ -59,7 +60,10 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
         _openGeneration = 1;
         _completed = [NSMutableDictionary dictionary];
         _heldSequences = [NSMutableIndexSet indexSet];
-        _stragglerDeadline = kDefaultStragglerDeadline;
+        _deadlineScheduler = ^(NSTimeInterval delay, dispatch_block_t block) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), block);
+        };
     }
     return self;
 }
@@ -173,8 +177,7 @@ static const NSTimeInterval kDefaultStragglerDeadline = 10.0;
     _armedDeadlineSequence = missingSequence;
     NSUInteger timerGeneration = ++_deadlineTimerGeneration;
     __weak OpenRequestCoordinator *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_stragglerDeadline * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
+    _deadlineScheduler(kStragglerDeadline, ^{
         OpenRequestCoordinator *strongSelf = weakSelf;
         if (!strongSelf) {
             return;

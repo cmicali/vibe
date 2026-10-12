@@ -46,7 +46,7 @@ VibeColor *VibeColorFromHexString(NSString *hex) {
     return [VibeColor colorWithRed:r green:g blue:b alpha:a];
 }
 
-static BOOL GetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
+BOOL VibeColorGetSRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
     CGFloat a = 0;
 #if TARGET_OS_OSX
     NSColor *converted = [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
@@ -62,7 +62,7 @@ static BOOL GetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
 
 VibeColor *VibeColorBlended(VibeColor *color, VibeColor *toward, CGFloat fraction) {
     CGFloat r = 0, g = 0, b = 0, tr = 0, tg = 0, tb = 0;
-    if (!GetRGB(color, &r, &g, &b) || !GetRGB(toward, &tr, &tg, &tb)) {
+    if (!VibeColorGetSRGB(color, &r, &g, &b) || !VibeColorGetSRGB(toward, &tr, &tg, &tb)) {
         return color;
     }
     return [VibeColor colorWithRed:r + (tr - r) * fraction

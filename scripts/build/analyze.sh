@@ -55,6 +55,7 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
     set +e
     xcodebuild analyze \
         -project Vibe.xcodeproj \
+        -showBuildTimingSummary \
         -scheme "$scheme" \
         -configuration "$CONFIGURATION" \
         -derivedDataPath build/AnalyzeDD \

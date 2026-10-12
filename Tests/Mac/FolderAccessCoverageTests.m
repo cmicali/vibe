@@ -41,6 +41,10 @@
         _startedRestorationPaths = [NSMutableArray array];
         _startedRestorationBookmarks = [NSMutableArray array];
         _restorationGates = [NSMutableDictionary dictionary];
+        // TRAP: the launch drain and every open wait also end at this deadline.
+        // Past the hang guard, a completion here means the restorations
+        // settled, not that the clock ran out.
+        self.restoreDeadline = VIBE_TEST_GATE_TIMEOUT;
     }
     return self;
 }
@@ -84,13 +88,6 @@
     [_restorationStateLock unlock];
     return succeeds ? @{ @"accessedURL": [NSURL fileURLWithPath:path],
                           @"bookmark": stored[@"bookmark"] } : nil;
-}
-
-// TRAP: the real two seconds is shorter than the hang guard. On a loaded
-// runner the utility workers stall that long, and the fallback then settles a
-// wait the test asserts the restorations settled.
-- (NSTimeInterval)restoreDeadline {
-    return VIBE_TEST_GATE_TIMEOUT;
 }
 
 - (void)releaseOneRestoration {
@@ -292,6 +289,9 @@ static NSString *RealHome(void) {
                   forKey:key];
 
     FolderAccessManager *manager = [[FolderAccessManager alloc] init];
+    // Past the guard, the completion means the resolve failed, not that the
+    // shipping deadline gave up on it.
+    manager.restoreDeadline = VIBE_TEST_GATE_TIMEOUT;
     XCTestExpectation *finished = [self expectationWithDescription:@"restore finished"];
     [manager restoreGrantedAccessWithCompletion:^{
         [finished fulfill];

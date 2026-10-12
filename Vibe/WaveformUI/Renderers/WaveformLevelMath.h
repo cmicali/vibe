@@ -3,9 +3,9 @@
 //  Vibe
 //
 //  The chunk-to-level mapping every bar style draws from, and the one gain
-//  setting that bends it, and the bar-count rules around it. Header-only and
-//  Foundation-only, so the mapping is testable without the renderer headers'
-//  C++ and Core Animation imports.
+//  setting that bends it, and the bar-count rules around it. Spectrum's
+//  color mix is here too. Header-only and Foundation-only, so all of it is
+//  testable without the renderer headers' C++ and Core Animation imports.
 //
 
 #import <Foundation/Foundation.h>
@@ -34,6 +34,40 @@ static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, f
     float gain = powf(10.0f, gainDB / 20.0f);
     float exponent = exp2f(-gainDB / kVibeWaveformGainDBPerExponentDoubling);
     return fminf(powf(level * gain, exponent), 1.0f);
+}
+
+// Mix sRGB primaries by the fourth power of the band RMS ratios.
+// Restore the weighted primary brightness. Silence uses the plain mean.
+// Levels may exceed one; only their ratios matter.
+static inline void VibeSpectrumColor(const float *levels, const float primaries[3][3], float *rgb) {
+    float weights[3];
+    float total = 0;
+    for (int b = 0; b < 3; b++) {
+        float level = fmaxf(levels[b], 0.0f);
+        float energy = level * level;
+        weights[b] = energy * energy;
+        total += weights[b];
+    }
+    if (total <= 0) {
+        for (int c = 0; c < 3; c++) {
+            rgb[c] = (primaries[0][c] + primaries[1][c] + primaries[2][c]) / 3;
+        }
+        return;
+    }
+    float brightness = 0;
+    rgb[0] = rgb[1] = rgb[2] = 0;
+    for (int b = 0; b < 3; b++) {
+        float weight = weights[b] / total;
+        brightness += weight * fmaxf(primaries[b][0], fmaxf(primaries[b][1], primaries[b][2]));
+        for (int c = 0; c < 3; c++) {
+            rgb[c] += weight * primaries[b][c];
+        }
+    }
+    float peak = fmaxf(rgb[0], fmaxf(rgb[1], rgb[2]));
+    float scale = peak > 0 ? brightness / peak : 0;
+    for (int c = 0; c < 3; c++) {
+        rgb[c] *= scale;
+    }
 }
 
 // A bar's level averages energy over a column no finer than 1/1024 of the

@@ -388,10 +388,12 @@ static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
     } within:0.05 late:^{ [late fulfill]; }]);
     double waited = (clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6;
     XCTAssertGreaterThanOrEqual(waited, 45.0);
-    XCTAssertLessThan(waited, 1000.0, @"the caller waited on the hung read");
+    // The hung read is held for the gate, so only a caller that waited on it
+    // could take longer than the guard.
+    XCTAssertLessThan(waited, VIBE_TEST_HANG_TIMEOUT * 1000.0, @"the caller waited on the hung read");
     began = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-    XCTAssertFalse([CoreAudioUtil performBoundedRead:^{} within:1 late:nil]);
-    XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 20.0,
+    XCTAssertFalse([CoreAudioUtil performBoundedRead:^{} within:VIBE_TEST_GATE_TIMEOUT late:nil]);
+    XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, VIBE_TEST_HANG_TIMEOUT * 1000.0,
                       @"a read queued behind an overdue one must not wait for it");
     dispatch_semaphore_signal(hung);
     [self waitForExpectations:@[late] timeout:VIBE_TEST_HANG_TIMEOUT];

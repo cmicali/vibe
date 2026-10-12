@@ -246,6 +246,8 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertEqualObjects(pcm,VibePCM([self read:url]),@"Lossless decode %@",url.lastPathComponent);
     return pcm;
 }
+// TRAP: delegate events arrive asynchronously on main.
+// Settle a count that must rise before asserting it.
 - (NSUInteger)count:(NSString *)event {
     NSUInteger count=0; for (NSDictionary *entry in _events) if ([entry[@"event"] isEqual:event]) count++; return count;
 }
@@ -254,6 +256,21 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
     while (!condition() && deadline.timeIntervalSinceNow > 0)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
     XCTAssertTrue(condition(), @"Timed out; events %@; error %@", _events, _playError);
+}
+// The render drain queues its delegate calls before returning.
+// A main-queue marker behind them waits for every delivery.
+- (void)landMainQueue {
+    __block BOOL landed = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{ landed = YES; });
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!landed && deadline.timeIntervalSinceNow > 0)
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.0001]];
+    XCTAssertTrue(landed, @"the main queue did not drain");
+}
+- (void)withPlayerQueueHeld:(dispatch_block_t)submissions {
+    dispatch_queue_t queue = [_player valueForKey:@"queue"];
+    dispatch_suspend(queue);
+    @try { submissions(); } @finally { dispatch_resume(queue); }
 }
 // The probe's poll rides the player's clock, which the frame-driven pump
 // advances only while frames render, so no poll may be left to finish the
@@ -298,7 +315,7 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
         XCTAssertEqual(buffer.frameLength, count);
         [_capture appendData:VibePCM(buffer)];
         frames-=count;
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.00001]];
+        [self landMainQueue];
         if (_chain && _nextPrefetch < _chain.count) {
             [self settleUntil:^BOOL { return self->_nextPrefetch >= self->_chain.count || self->_player.gaplessArmed || self->_playError; }];
         }
@@ -590,7 +607,7 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     return condition();
 }
 
-// A half-second open deadline, which a hold snapshots as it begins.
+// Apply after open settles so only the subsequent stall uses this deadline.
 - (void)shortenTheOpenDeadline {
     VibeAudioLoadingConfigurationValues values = VibeAudioLoadingProductionConfigurationValues();
     values.openTimeouts = VibeAudioOpenTimeoutConfigurationMake(0.5, 0.5);

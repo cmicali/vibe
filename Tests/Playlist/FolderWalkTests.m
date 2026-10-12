@@ -833,7 +833,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
         }];
     }
 
-    [self waitForExpectations:expectations timeout:30];
+    [self waitForExpectations:expectations timeout:VIBE_TEST_HANG_TIMEOUT];
 }
 
 // Whichever handler a walk sees, each denied playlist must ask exactly once.
@@ -875,7 +875,7 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
         }
     });
 
-    [self waitForExpectations:expectations timeout:30];
+    [self waitForExpectations:expectations timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual((NSUInteger)atomic_load(&asks), kPlaylists);
 }
 

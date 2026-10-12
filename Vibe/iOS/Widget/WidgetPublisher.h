@@ -1,5 +1,6 @@
 // Main thread only. File writes and reload requests use a private serial queue.
-// Publishing is gated on widgetPlaced. The current snapshot is retained either way.
+// Writes require widgetPlaced. The current snapshot is retained either way.
+// A placed widget playing a track requests a timeline reload every minute.
 
 #import <Foundation/Foundation.h>
 

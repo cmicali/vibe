@@ -84,7 +84,13 @@ NS_ASSUME_NONNULL_BEGIN
     // _materializationLock.
     dispatch_block_t _debugBeforeScanPickValidation;
     NSQualityOfService _debugLastScheduledParseQualityOfService;
+    // The retry scheduler's storage, declared so the categories see it.
+    VibeScheduler _retryScheduler;
 }
+
+// Test seam for the admission retry's delay; the default schedules on the
+// materialization callback queue.
+@property (nonatomic, copy) VibeScheduler retryScheduler;
 @end
 
 // AudioTrackMetadataLoader+Materialization.m, for the loader's other files.

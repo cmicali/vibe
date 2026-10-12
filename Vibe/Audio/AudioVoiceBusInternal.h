@@ -232,6 +232,9 @@ static inline AudioTimeStamp VibeStampRead(const VibeVoiceStamp *field) {
     // The properties' storage the categories read, declared so they see it.
     AVAudioFormat *_format;
     BOOL _inlineDecoding;
+    // A decoder's bounded wait for a stuck render to leave the bus. 100 ms,
+    // which the debug seam lengthens for a test that ends the wait itself.
+    _Atomic uint64_t _renderLeaveWaitNanos;
     dispatch_block_t _needsDrain;
     dispatch_queue_t _queue;
     dispatch_queue_t _decodeQueues[kVoiceSlots];
