@@ -4,9 +4,9 @@
 //
 
 #import "VolumeControlView.h"
-#import "MainPlayerContentView.h"
 #import "MainPlayerController+Transport.h" // volumeChanged:
 #import "DrawnControls.h"
+#import "NSTextField+Label.h"
 #import "WaveformTheme.h"
 #import "Fonts.h"
 #import "Formatters.h"
@@ -49,10 +49,10 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
 - (instancetype)initWithFrame:(NSRect)frame target:(id)target {
     self = [super initWithFrame:frame];
     if (self) {
-        _label = [MainPlayerContentView labelWithFrame:NSZeroRect];
+        _label = [NSTextField labelWithFrame:NSZeroRect];
         [self addSubview:_label];
 
-        _percentLabel = [MainPlayerContentView labelWithFrame:NSZeroRect];
+        _percentLabel = [NSTextField labelWithFrame:NSZeroRect];
         [self addSubview:_percentLabel];
 
         _slider = [[VibeSlider alloc] initWithFrame:NSZeroRect];
