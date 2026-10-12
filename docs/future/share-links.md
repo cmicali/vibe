@@ -58,6 +58,19 @@ A second iOS target, `VibeClip`, built from the shared subsystems and one screen
 
 **Not in the first cut.** An App Clip cannot use Background Modes, so the audio stops at the lock screen. A music player that stops there is a demo. It is also a fourth target over the shared directories, so `check-layout`'s two-target assertion becomes three. Build it only if the landing page is shown to lose people.
 
+## Link probes
+
+Google Drive's and iCloud Drive's answers are in the headers of `GoogleDriveLinkRules.h` and `ICloudLinkRules.h`. Dropbox's, measured on real file links:
+
+- **`dl=1` answers a 302 to `dl.dropboxusercontent.com`**, with a new host and path on every request. That host answers `Range` with 206 and `Content-Range`, a 128-byte suffix included.
+- **The `ETag` is stable** across requests and fresh redirects. It is unquoted, so compare it as an opaque string.
+- **`If-Range` is ignored.** A wrong `ETag` there still answers 206. So the transfer checks every response's `ETag` itself.
+- **The type and name are useless.** A GET answers `application/binary` and a HEAD `application/json`. `Content-Disposition` names the file `unspecified`. So classify by host and name the track from the link's path.
+- **A password link** redirects to `www.dropbox.com/sm/password…`, then a 200 HTML page. Name it from the redirect's path.
+- **A deleted link** answers a 200 HTML page on `www.dropbox.com`. A good link always ends on `dl.dropboxusercontent.com`, so any other final host means the link is gone.
+- **A redirect URL keeps serving the version it was issued for**, for at least 20 minutes. So one play's resends reuse its redirect URL. A new play starts from the share link.
+- **A file replaced through the desktop client ends its share link.** The link then answers the deleted page. So a changed Dropbox file usually means a dead link, not a new `ETag`.
+
 ## Cloudflare facts
 
 Probed on a preview branch of the `vibe` Pages project, never on production.
