@@ -818,6 +818,9 @@ targets:
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Dice.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
