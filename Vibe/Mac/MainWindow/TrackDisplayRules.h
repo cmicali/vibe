@@ -2,7 +2,7 @@
 //  TrackDisplayRules.h
 //  Vibe
 //
-//  The header's five display states and the resolution that picks one.
+//  The header's display states and the resolution that picks one.
 //
 //  The iOS twin is Vibe/iOS/PlayerScreenRules.h, deliberately separate: one
 //  shared enum would carry states each platform never resolves.
@@ -20,6 +20,10 @@ typedef NS_ENUM(NSInteger, TrackDisplayState) {
     TrackDisplayStateEmpty,       // no track: the drop-hint empty state
     TrackDisplayStateLaunchGrace, // empty, but a launch-time open may be resolving
     TrackDisplayStateError,       // play failed: error text over the track title
+    // The header only, never the playback: a notice over whatever the state
+    // below it shows, which plays on. A link that failed to open is one.
+    // VibeResolveTrackDisplayState never answers it.
+    TrackDisplayStateNotice,
 };
 
 // Every header write routes through the result; a label written without it

@@ -15,6 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;
+@property (readonly, getter=isLoadingIndicatorShown) BOOL loadingIndicatorShown;
 // Negative reverts to indeterminate. No-op unless the indicator is up.
 - (void)setLoadingProgress:(float)fraction;
 

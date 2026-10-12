@@ -25,6 +25,25 @@ NSString *const kPlaylistColumnArt = @"artColumn";
 NSString *const kPlaylistColumnTitle = @"titleColumn";
 NSString *const kPlaylistColumnLength = @"lengthColumn";
 
+// TRAP: NSScroller's arrow cursor rect borders the borderless window's 3pt
+// right resize strip, and leaving a cursor rect clears whatever override
+// cursor is up. A move from the scroller into the strip can then clear the
+// resize cursor the strip just set. The table's cursor is the arrow anyway.
+@interface PlaylistScroller : NSScroller
+@end
+
+@implementation PlaylistScroller
+
+// Or AppKit falls back to legacy scrollers for a subclass.
++ (BOOL)isCompatibleWithOverlayScrollers {
+    return self == [PlaylistScroller class];
+}
+
+- (void)resetCursorRects {
+}
+
+@end
+
 // Makes validateMenuItem: the protocol's method, not NSObject's deprecated
 // informal one.
 @interface PlaylistTableView () <NSMenuItemValidation>
@@ -88,6 +107,7 @@ NSString *const kPlaylistColumnLength = @"lengthColumn";
     NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:frame];
     scrollView.borderType = NSNoBorder;
     scrollView.drawsBackground = NO;
+    scrollView.verticalScroller = [[PlaylistScroller alloc] init];
     scrollView.hasVerticalScroller = YES;
     scrollView.hasHorizontalScroller = NO;
     scrollView.autohidesScrollers = YES;

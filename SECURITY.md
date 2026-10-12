@@ -8,8 +8,8 @@ Only the latest release gets security fixes. Update before reporting, if you can
 
 **Please don't open a public issue for a security problem.**
 
-Report it privately through GitHub's security advisories: [**Report a vulnerability**](https://github.com/cmicali/vibe/security/advisories/new). 
+Report it privately through GitHub's security advisories: [**Report a vulnerability**](https://github.com/cmicali/vibe/security/advisories/new).
 
-Useful things to include: what an attacker can do, the steps to reproduce it, the Vibe version and the macOS or iOS version you saw it on, and — since most of the attack surface is file parsing — a sample file, if one triggers it.
+Useful things to include: what an attacker can do, the steps to reproduce it, and the Vibe version and the macOS or iOS version you saw it on. Most of the attack surface is file parsing, so include a sample file if one triggers it.
 
 You should get a first response within a week. Once a fix ships you'll be credited in the advisory, unless you'd rather not be.

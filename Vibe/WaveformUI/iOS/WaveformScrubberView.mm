@@ -12,7 +12,6 @@
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"
 #import "Formatters.h"
-#import "PlatformColor.h"
 #import "VibeStrings.h"
 
 // Names the element the XCUITest driver pinches (XCUITest has no
@@ -354,11 +353,7 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL isDark = self.isDark;
     WaveformTheme *(^resolve)(void) = ^WaveformTheme *{
-        return [WaveformTheme themeForIdentifier:settings.waveformTheme
-                                          isDark:isDark
-                                    artworkColor:self->_artworkThemeColor
-                                    customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
-                                  customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+        return [WaveformTheme themeForSettings:settings isDark:isDark artworkColor:self->_artworkThemeColor];
     };
     WaveformTheme *theme = resolve();
     // No well for it here: the appearance's contrast pole, the mac's default.
@@ -380,20 +375,15 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
                                                              chosen:AppSettings.sharedInstance.waveformPlayheadLine];
 }
 
-// Everything the resolution reads, in both appearances — including this page's
-// artwork color under album_art, or a swipe onto a track with different art
-// compares equal and keeps the previous track's palette. Under any other theme
-// it is left out, so late art re-bakes nothing. Centered rides along.
+// The resolved palette in both appearances. This page's artwork color counts
+// only where the theme reads it. Under album_art a swipe onto a track with
+// different art re-bakes, and under any other theme late art re-bakes
+// nothing. The playhead line and Centered ride along.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
-    BOOL readsArtwork = [settings.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART];
-    return [NSString stringWithFormat:@"%@|%d|%d|%@|%@|%@|%@|%@", settings.waveformTheme,
-            [self drawsPlayheadLine], settings.waveformCentered,
-            VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:YES]) ?: @"",
-            VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:YES]) ?: @"",
-            VibeHexStringFromColor([settings waveformCustomPlayedColorForDark:NO]) ?: @"",
-            VibeHexStringFromColor([settings waveformCustomUnplayedColorForDark:NO]) ?: @"",
-            readsArtwork ? (VibeHexStringFromColor(_artworkThemeColor) ?: @"") : @""];
+    return [NSString stringWithFormat:@"%d|%d|%@|%@", [self drawsPlayheadLine], settings.waveformCentered,
+            [WaveformTheme themeForSettings:settings isDark:YES artworkColor:_artworkThemeColor].paletteSignature,
+            [WaveformTheme themeForSettings:settings isDark:NO artworkColor:_artworkThemeColor].paletteSignature];
 }
 
 // The signature compare makes a repeated set free, and the pager reconfigures

@@ -14,6 +14,7 @@
 #import "SettingsRules.h"
 #import "DrawnControls.h"
 #import "MainPlayerController+Menus.h"
+#import "AppDelegate+Debug.h"
 
 #if DEBUG
 
@@ -26,8 +27,84 @@ static NSString *VibeDebugDisplayStateName(TrackDisplayState state) {
         case TrackDisplayStateEmpty: return @"empty";
         case TrackDisplayStateLaunchGrace: return @"launch-grace";
         case TrackDisplayStateError: return @"error";
+        case TrackDisplayStateNotice: return @"notice";
     }
     return @"unknown";
+}
+
+// Open URL's window, found by what its controls are: the one editable field,
+// and each button by its action.
+static NSView *VibeOpenURLControl(NSView *view, BOOL (^match)(NSView *)) {
+    if (match(view)) {
+        return view;
+    }
+    for (NSView *subview in view.subviews) {
+        NSView *found = VibeOpenURLControl(subview, match);
+        if (found) {
+            return found;
+        }
+    }
+    return nil;
+}
+
+static NSTextField *VibeOpenURLField(NSWindow *window) {
+    return (NSTextField *)VibeOpenURLControl(window.contentView, ^BOOL(NSView *view) {
+        return [view isKindOfClass:NSTextField.class] && ((NSTextField *)view).isEditable;
+    });
+}
+
+static NSButton *VibeOpenURLButton(NSWindow *window, NSString *action) {
+    return (NSButton *)VibeOpenURLControl(window.contentView, ^BOOL(NSView *view) {
+        return [view isKindOfClass:NSButton.class] && ((NSButton *)view).action == NSSelectorFromString(action);
+    });
+}
+
+NSDictionary *VibeOpenURLWindowState(void) {
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    NSWindow *window = delegate.debugOpenLinkWindow;
+    if (!window) {
+        return @{@"shown": @NO};
+    }
+    return @{
+        @"shown": @YES,
+        @"text": VibeOpenURLField(window).stringValue ?: @"",
+        @"resolving": @(delegate.debugOpenLinkResolving),
+        @"key": @(window.isKeyWindow),
+        @"openEnabled": @(VibeOpenURLButton(window, @"confirmOpenLink:").isEnabled),
+    };
+}
+
+// Types through the field editor, so the field's own change handling runs.
+// The buttons are clicked, and close is the title bar's close button.
+NSString *VibeDriveOpenURLWindow(NSArray<NSString *> *tokens) {
+    NSWindow *window = ((AppDelegate *)NSApp.delegate).debugOpenLinkWindow;
+    if (!window) {
+        return VibeErrorJSON(@"the Open URL window is not shown");
+    }
+    NSString *argument = VibeRestArgument(tokens);
+    if (tokens.count == 2 && ([argument isEqualToString:@"open"] || [argument isEqualToString:@"cancel"])) {
+        NSButton *button = VibeOpenURLButton(window, [argument isEqualToString:@"open"] ? @"confirmOpenLink:" : @"cancelOpenLink:");
+        if (!button.isEnabled) {
+            return VibeErrorJSON(@"%@ is disabled", argument);
+        }
+        [button performClick:nil];
+    }
+    else if (tokens.count == 2 && [argument isEqualToString:@"close"]) {
+        [window performClose:nil];
+    }
+    else {
+        NSTextField *field = VibeOpenURLField(window);
+        if (!field.isEnabled) {
+            return VibeErrorJSON(@"the field is disabled");
+        }
+        [window makeFirstResponder:field];
+        NSTextView *editor = (NSTextView *)field.currentEditor;
+        [editor selectAll:nil];
+        [editor insertText:argument replacementRange:editor.selectedRange];
+    }
+    NSMutableDictionary *reply = [VibeOpenURLWindowState() mutableCopy];
+    reply[@"ok"] = @YES;
+    return VibeJSONString(reply);
 }
 
 NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
@@ -98,10 +175,14 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
                                @"knob": VibeHexStringFromColor(controller.playerContentView.volumeSlider.knobColor) ?: @""},
             @"converting": @(controller.fileConverter.isConverting),
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
+            @"waveformLoading": @(controller.trackDisplay.waveformLoadingIndicatorShown),
+            @"notice": controller.noticeStatus ?: @"",
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),
             @"displayState": VibeDebugDisplayStateName(controller.displayState),
+            @"headerState": VibeDebugDisplayStateName(controller.headerState),
+            @"openURLWindow": VibeOpenURLWindowState(),
         },
         @"window": @{
             @"frame": NSStringFromRect(window.frame),

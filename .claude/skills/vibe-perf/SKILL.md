@@ -1,6 +1,6 @@
 ---
 name: vibe-perf
-description: Measure Vibe's performance in-process and compare two versions of the code — VibeBenchComponents, a micro-benchmark tool that drives the production decode, open, seek, resample, waveform, tempo/key, equalizer-meter, metadata-parse and cache-key code (and any area a benchmark file adds) with no app running, counting retired instructions as well as wall and CPU time; perf.py, which builds it at any git ref and runs two refs interleaved; profile.sh, which samples one benchmark to find its hotspots; and --analyze, which prints every file's tempo and key so an analyzer change can be proven exact. Use when asked to update, rerun or regenerate the performance page (docs/performance.md) for a release, a pre-release or a new machine, and before and after any change that could move cost, to find where time goes, to decide between two implementations, or to back a performance claim with numbers. Also runs these component benchmarks at every release back to 1.8 for the performance page's Components charts, pre-releases included (make bench-components-releases, perf.py releases), and documents the whole performance page — the app benchmarks (startup, time to play, playback CPU and energy, library scan; make bench-app) and both together (make bench-releases).
+description: Measure Vibe's performance and compare two versions of the code. VibeBenchComponents drives the production decode, open, seek, resample, pitch, waveform, tempo/key, meter, metadata and cache code in-process with no app, counting retired instructions as well as wall and CPU time; perf.py builds it at any git ref and runs two refs interleaved (make bench-components); profile.sh finds one benchmark's hotspots; --analyze proves an analyzer change exact. Also owns the performance page (docs/performance.md): component charts per release (make bench-components-releases), app benchmarks (make bench-app), both (make bench-releases), redraw (make bench-report). Use before and after any change that could move cost, to find where time goes, to choose between implementations, to back a performance claim with numbers, or when asked to update, rerun or regenerate the performance page for a release, pre-release or new machine.
 ---
 
 # Measuring performance
@@ -11,7 +11,7 @@ Two benchmark suites, two questions, one set of names:
 | --- | --- | --- |
 | Question | What does *this code* cost? | What does *the app* cost, as a user feels it? |
 | What runs | VibeBenchComponents (`Tests/BenchComponents/`): the production code in-process, one benchmark at a time; no app, audio device or window | Each version's own app (`scripts/bench/`), launched and driven over and over |
-| Measures | Decode, open, seek, resample, waveform, tempo and key, the meter, metadata, the disk cache, large libraries, UI cells; instructions retired, CPU and wall time | Startup, time to play, seek latency, playback CPU, energy and wakeups, memory, library scan |
+| Measures | Decode, open, seek, resample, pitch, waveform, tempo and key, the meter, metadata, the disk cache, large libraries, UI cells; instructions retired, CPU and wall time | Startup, time to play, seek latency, playback CPU, energy and wakeups, memory, library scan |
 | Cost | Seconds to minutes; stable on a busy Mac | About half an hour a version; the Mac must be left alone |
 | Compare two refs | `make bench-components [BASE=main]` | — |
 | Every release, on `docs/performance.md` | `make bench-components-releases` | `make bench-app` |
@@ -58,7 +58,7 @@ python3 .claude/skills/vibe-perf/scripts/perf.py list                           
 
 `make bench-components` is `perf.py compare BASE`. `compare BASE [HEAD]` builds VibeBenchComponents for each side (a ref once per commit under `build/bench-components/bin/`, the working tree incrementally in `build/BenchComponentsDerivedData`), runs them alternately `--rounds` times (default 3) × `--reps` (default 3), and prints a table of medians — instructions, CPU, wall — and their change. `--md OUT` also writes it as markdown; `build/bench-components/last-compare.json` keeps every sample. A side can be `bin:<path>`, a VibeBenchComponents built some other way (a build-setting experiment: after any `perf.py build`, `xcodebuild -project VibeBenchComponents.xcodeproj -scheme VibeBenchComponents -configuration Release GCC_OPTIMIZATION_LEVEL=3 -derivedDataPath build/bench-components/dd-O3`).
 
-**Any ref back to 1.8 runs today's harness.** `perf.py` grafts the working tree's `Tests/BenchComponents/` onto the ref's checkout and writes `VibeBenchComponentsFeatures.h` from that checkout's sources (`VibeBenchComponents.h` lists the questions: the player's reader, `AVAudioFile` before 1.14; the waveform loader's class; the analysis provider, settings before 1.10; the metadata parse's shape; the meter's). The tool's target is never written down: `tool_spec` derives it, for the working tree as for any ref, from that checkout's own app target (`xcodegen dump`, so 1.8's flat layout builds as it was, and today's cannot drift from the app), into `VibeBenchComponents.xcodeproj` beside the sources (gitignored; the app's `Vibe.xcodeproj` is left alone). An older ref builds without warnings as errors. **A benchmark file the ref cannot compile is left out of that build** and named in the output, and `compare` lists its benchmarks under "Not compared" as `base: not built` (a benchmark built but with no samples, skipped or `FAILED`, reads `no result`); a side with nothing matching `--filter` is said so and the rest is still compared, and only a filter matching neither side exits nonzero. The core (`VibeBenchComponents.mm`, `VibeBenchComponents.h`) never is. That is why benchmarks live one subsystem to a file: a version missing one loses only that file. Binaries are cached per commit and harness digest under `build/bench-components/bin/`.
+**Any ref back to 1.8 runs today's harness.** `perf.py` grafts the working tree's `Tests/BenchComponents/` onto the ref's checkout. It writes `VibeBenchComponentsFeatures.h` from that checkout's sources (`VibeBenchComponents.h` lists the shapes it detects). `tool_spec` derives the tool's target from that checkout's own app target with `xcodegen dump`, into a gitignored `VibeBenchComponents.xcodeproj`, so the app's project is left alone. An older ref builds without warnings as errors. **A benchmark file the ref cannot compile is left out of that build** and named in the output. `compare` lists its benchmarks under "Not compared" as `base: not built`. A benchmark that built but has no samples (skipped or `FAILED`) reads `no result`. Only a `--filter` matching neither side exits nonzero. The core (`VibeBenchComponents.mm`, `VibeBenchComponents.h`) is never left out. That is why benchmarks live one subsystem to a file: a version missing one loses only that file. Binaries are cached per commit and harness digest under `build/bench-components/bin/`.
 
 The corpus is the app benchmarks' (`build/bench/corpus`: the play files, a 600-file tagged library) plus a few formats it lacks (`extra/`: 16-bit WAV and AIFF, ALAC, Opus, Vorbis), generated once with ffmpeg by `perf.py corpus`, which every command runs first. A benchmark whose file is missing is skipped, not failed. One whose wait for the main queue runs out (`VibeBenchComponentsSpinMainUntil`, 600 s) is failed: it prints `FAILED` on stderr and is absent from the JSON, so no stopped clock reaches a median.
 
@@ -78,25 +78,19 @@ make bench-releases VERSIONS="1.16"                    # the app benchmarks, the
 make bench-report                                      # redraw the page from results.json, measuring nothing
 ```
 
-`make bench-components-releases` is `perf.py releases`; `make bench-releases` is `scripts/bench/bench.py all`, which calls the same code after the app benchmarks. A version takes a few minutes; its first build takes longer, and a rerun with the same harness reuses it. No app launches, so the Mac can be in use, though a busy machine adds noise to CPU and wall time (the page charts those; instructions retired, stored beside them, barely move).
+`make bench-components-releases` is `perf.py releases`. `make bench-releases` is `scripts/bench/bench.py all`, which calls the same code after the app benchmarks. A version takes a few minutes, and a rerun with the same harness reuses its build. No app launches, so the Mac can be in use. A busy machine adds noise to CPU and wall time, but instructions retired barely move.
 
-**What a version is.** `1.16` is the release tag `v1.16` (or the ref already stored for it), `1.16=<ref>` that version at any commit, and a bare ref such as `HEAD` is labelled with the version its own `project.yml` declares (`MARKETING_VERSION`). **When `v<version>` is not tagged yet, the version is a pre-release**: the run is stored with `prerelease: true` and charted as `1.15 pre-release`. Once the release is tagged, `make bench-releases VERSIONS="1.15"` measures the tag and replaces the pre-release point.
+**What a version is.** `1.16` is the release tag `v1.16` (or the ref already stored for it). `1.16=<ref>` is that version at any commit. A bare ref such as `HEAD` takes the version its own `project.yml` declares (`MARKETING_VERSION`). **When `v<version>` is not tagged yet, the version is a pre-release.** It is stored with `prerelease: true` and charted as `<version> pre-release`. Once the release is tagged, `make bench-releases VERSIONS="<version>"` measures the tag and replaces the pre-release point.
 
-Before running:
-
-1. **The version must resolve to a git commit**, a tag or the ref given.
-2. **`ffmpeg` must be installed** (`brew install ffmpeg`): the corpus is generated from it once, into `build/bench/corpus`.
-3. **Use one Mac for each half's history.** Each entry records the machine, and the page charts only versions measured on the same setup as the newest; the guard (Common requests, above) refuses a run that would break that. After moving to another Mac, rerun every version (no `VERSIONS`).
-
-Then commit `docs/performance/results.json`, the redrawn `docs/performance/*.svg` and `docs/performance.md`.
+The procedure and the one-Mac-per-half guard are under Common requests, above. Commit `docs/performance/results.json`, the redrawn `docs/performance/*.svg` and `docs/performance.md`.
 
 ### What happens, step by step
 
 For each version, `measure_release` in `perf.py`:
 
 1. **Checks the commit out** as a detached worktree under `build/bench-components/src/<commit>`.
-2. **Grafts today's harness onto it** (`build`, `graft`): copies the working tree's `Tests/BenchComponents/` in, writes `VibeBenchComponentsFeatures.h` from what that version's sources have (`features`), and derives the tool's target from that version's own app target with `xcodegen dump` (`tool_spec`), so even 1.8's flat source layout builds as it shipped.
-3. **Builds it Release, leaving out what it cannot compile.** A benchmark file that fails against the old code is deleted from that checkout and the build retried; the output names it. The binary is cached under `build/bench-components/bin/<commit>-<harness digest>/`.
+2. **Grafts today's harness onto it** (`graft`, `features`, `tool_spec`), as described under Comparing two refs.
+3. **Builds it Release, leaving out what it cannot compile.** A benchmark file that fails against the old code is deleted from that checkout and the build retried. The binary is cached under `build/bench-components/bin/<commit>-<harness digest>/`.
 4. **Runs only the page's benchmarks** (`page_filter`, every name in `PAGE_CHARTS`), five repetitions, and stores the medians — CPU ms, wall ms, millions of instructions, units — with the commit, `prerelease`, date, corpus hash, machine and harness digest, under the version in `results.json`'s `components` section. A benchmark the version cannot build is absent, not zero, so its line starts at the first version that has the code.
 5. **Redraws the page** (`scripts/bench/report.py`): one SVG per `PAGE_CHARTS` entry into `docs/performance/components-*.svg`, and the block between the page's `<!-- performance:begin -->` and `<!-- performance:end -->` markers, the app benchmarks' charts included.
 
@@ -113,11 +107,11 @@ For each version, `measure_release` in `perf.py`:
 
 ## Reading the numbers
 
-**Instructions retired is the number to trust.** It comes from `proc_pid_rusage` for the whole process, so it covers every thread a benchmark starts (the waveform loader's pipeline, ImageIO's workers), and the machine's load and clock barely move it — a stress run or a build beside it changes wall time by tens of percent and instructions by under one. CPU and wall time are what a user feels; read them for the direction and to catch a change that retires fewer instructions but runs slower (it happens: strided vDSP calls fall off the vector path, and small misaligned vDSP calls lose to a memcpy plus one aligned pass — both measured). A difference under ~2% in instructions is noise for anything that calls Apple's decoders (AAC, ALAC, Ogg), which vary run to run.
+**Instructions retired is the number to trust.** It comes from `proc_pid_rusage` for the whole process, so it covers every thread a benchmark starts. The machine's load and clock barely move it: a build running beside it changes wall time by tens of percent and instructions by under one. CPU and wall time are what a user feels. Read them for the direction, and to catch a change that retires fewer instructions but runs slower. Strided vDSP calls and small misaligned vDSP calls are two known causes. A difference under about 2% in instructions is noise for anything that calls Apple's decoders (AAC, ALAC, Ogg).
 
 The `per unit` column is realtime factor (audio seconds per CPU second) for audio work, ms per operation otherwise.
 
-**Cold reads without `sudo purge`.** A decoder's reads from disk, as against the page cache, are measured against a fresh APFS clone each run: `cp -c src clone` is instant, shares blocks, and is a new vnode with no cached pages. The clone must sit on the source's volume (`/private/tmp` and `/Users` both qualify). Apple's FLAC open plus first read went from 0.8 ms warm to 14 ms this way, and a first seek on a 604 MB file from 1.4 s to 2.1 s.
+**Cold reads without `sudo purge`.** A decoder's reads from disk are measured against a fresh APFS clone each run. `cp -c src clone` is instant, shares blocks, and is a new vnode with no cached pages. The clone must sit on the source's volume (`/private/tmp` and `/Users` both qualify).
 
 ## Proving a change exact
 
@@ -145,8 +139,8 @@ VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterThings)
 
 ## Traps
 
-**TRAP: VibeBenchComponents is built Release, as the app ships (`-Os`).** At `-Os` a `std::vector` insert or assign of floats is an element loop, not a memmove — it was a fifth of the key analyzer. Benchmark Release; a Debug build's numbers mean nothing here.
+**TRAP: VibeBenchComponents is built Release, as the app ships (`-Os`).** At `-Os` a `std::vector` insert or assign of floats is an element loop, not a memmove, which can dominate a hot path. Benchmark Release. A Debug build's numbers mean nothing here.
 
-**A whole-app `-O2` or `-O3` is not a win**: measured, it moves nothing, because the hot paths are vDSP and the third-party decoders and resampler, which already build at `-O3`.
+**A whole-app `-O2` or `-O3` is not a win.** The hot paths are vDSP and the third-party decoders and resampler, which already build at `-O3`. The pitch converter (`FX/AudioVarispeed.m`, the `pitch` group) is app code at `-Os`, so its loops are written in `simd` vectors. As scalar loops they cost three times as much.
 
-**Never launch the app from here.** VibeBenchComponents is its own process with its own defaults domain and touches no app state; the app benchmarks' app runs as `VibeBenchApp` with its own bundle identifier, home and channel directory, so neither collides with a `Vibe` instance another session is stressing (which matches `pgrep -x Vibe`).
+**Never launch the app from here.** VibeBenchComponents is its own process with its own defaults domain and touches no app state. The app benchmarks' app runs as `VibeBenchApp` with its own bundle identifier, home and channel directory. Neither collides with a `Vibe` instance another session is stressing.

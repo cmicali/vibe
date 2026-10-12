@@ -46,6 +46,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 
 - (void)load:(NSArray<AudioTrack *> *)tracks;
+// The disk cache alone, for rows whose audio is not on the device: a hit
+// installs and publishes as the sweep's does, and a miss ends there. No
+// record, no materialization and no parse, so the file is never read. Any
+// thread.
+- (void)loadFromCacheOnly:(NSArray<AudioTrack *> *)tracks;
 // Marks the record holding the track (or its file's pending record, or a new
 // one) as priority: its own slot, exempt from the stage-1 barrier, submitted
 // even under the foreground rule, parsed user-initiated. A repeat edge

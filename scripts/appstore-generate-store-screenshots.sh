@@ -193,7 +193,7 @@ shot playlist screenshot-playlist.png       02-playlist.png
 # the argument.
 shot themes   screenshot-themes.png         03-themes.png   ""              5C9488
 # The compact pitch capture: a playlist under the fader would compete with
-# shot 02. (screenshot-playlist-pitch.png is the README's.)
+# shot 02.
 shot pitch    screenshot-pitch.png          04-pitch.png
 
 echo "done — $OUT"

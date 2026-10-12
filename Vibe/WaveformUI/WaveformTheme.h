@@ -14,6 +14,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class AppSettings;
 @class AppTheme;
 
 @interface WaveformTheme : NSObject
@@ -37,6 +38,10 @@ NS_ASSUME_NONNULL_BEGIN
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
+// The resolved colors as hex: played, unplayed and the bands. Equal
+// signatures draw alike, so a view re-bakes only when this changes.
+@property (readonly) NSString *paletteSignature;
+
 // Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the
 // unplayed side as the played bitmap at unplayedOverPlayedOpacity rather than
 // baking its own.
@@ -47,8 +52,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 // 3-Band's seven opaque fills in its painter's order: low, mid, high, then
 // low+mid, low+high, mid+high, and all three. Rekord Bin's unless a mac theme
-// sets its bands.
+// sets its bands or iOS picks another palette.
 @property (nonatomic, copy) NSArray<VibeColor *> *bandColors;
+
+// bandColors for a SETTINGS_VALUE_WAVEFORM_BAND_THEME_* identifier; an unknown
+// one resolves as Rekord Bin. custom is the custom palette's low, mid and high
+// for this appearance, shaded as Rekord Bin's are; the built-in palettes
+// ignore it.
++ (NSArray<VibeColor *> *)bandColorsForIdentifier:(NSString *)identifier isDark:(BOOL)isDark
+                                      customBands:(NSArray<VibeColor *> *)custom;
 
 // Non-nil, the playhead is a line in this color over a waveform drawn wholly
 // as played; nil, the played/unplayed boundary is the playhead. Each view
@@ -60,6 +72,13 @@ NS_ASSUME_NONNULL_BEGIN
 // Every mac surface that draws a waveform maps the theme record through here,
 // so a new waveform field is mapped once.
 + (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
+                       artworkColor:(nullable VibeColor *)artworkColor;
+#endif
+
+#if !TARGET_OS_OSX
+// Every iOS surface that draws a waveform maps the loose settings through
+// here, as the mac maps its theme record.
++ (WaveformTheme *)themeForSettings:(AppSettings *)settings isDark:(BOOL)isDark
                        artworkColor:(nullable VibeColor *)artworkColor;
 #endif
 

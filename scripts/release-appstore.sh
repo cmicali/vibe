@@ -9,7 +9,9 @@
 # version for both; the uploaded platform's ASC version record must carry it.
 #
 # Not scripts/release.sh (Developer ID, direct download, macOS only). Nothing
-# here is notarized — the store does that — or signed with Developer ID.
+# here is notarized — the store does that — or signed with Developer ID. The
+# macOS archive is the AppStore configuration, the one without the updater,
+# and is checked for any trace of it before export.
 #
 # Prerequisites (checked, not created):
 #   1. Apple Developer Program membership on team $TEAM_ID.
@@ -60,6 +62,7 @@ TEAM_ID="${TEAM_ID:-4UEV752JH4}"
 case "$PLATFORM" in
     macos)
         SCHEME=Vibe
+        ASC_CONFIGURATION=AppStore
         BUILD_DIR="build/appstore"
         ARCHIVE_ARGS=("ARCHS=arm64 x86_64" ONLY_ACTIVE_ARCH=NO)
         EXPECTED_ARCHS=(arm64 x86_64)
@@ -111,6 +114,9 @@ ARCHIVED_PLIST="$ARCHIVED_APP/${APP_SUBPATH}Info.plist"
     echo "error: no Info.plist at $ARCHIVED_PLIST — did the archive lay out somewhere else?" >&2
     exit 1; }
 asc_require_binary_architectures "$ARCHIVED_APP/$EXECUTABLE_SUBPATH" "${EXPECTED_ARCHS[@]}"
+if [[ "$PLATFORM" == macos ]]; then
+    asc_require_no_updater "$ARCHIVED_APP"
+fi
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$ARCHIVED_PLIST")"
 BUILD_NUM="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$ARCHIVED_PLIST")"
 [[ -n "$VERSION" && -n "$BUILD_NUM" ]] || {

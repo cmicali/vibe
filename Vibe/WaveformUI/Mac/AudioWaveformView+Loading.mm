@@ -38,6 +38,10 @@
     _loadingIndicator = nil;
 }
 
+- (BOOL)isLoadingIndicatorShown {
+    return _loadingIndicator != nil;
+}
+
 - (void)setLoadingProgress:(float)fraction {
     [_loadingIndicator setProgress:fraction inBounds:self.bounds];
 }

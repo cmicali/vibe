@@ -5,138 +5,138 @@ description: Build, sign, notarize, and ship Vibe on both platforms — the macO
 
 # Releasing Vibe
 
-`make release`, or `scripts/release.sh`, builds two Release archives: universal (`arm64` + `x86_64`) under `build/release/`, and arm64-only under `build/release/arm64/`. Each is independently exported with Developer ID, notarized and stapled, then packaged in its own plain drag-to-`Applications` DMG which is itself signed, notarized and stapled. Architecture is a build input; never thin the signed universal app, because changing its executable invalidates both the signature and notarization.
-
-`make github-release` (`scripts/github-release.sh`; `ARGS="--draft"` for a review pass, `ARGS="--prerelease"` for a beta) re-verifies every exported app, DMG, mounted app and zipped app, including its exact architecture and matching version/build, then tags HEAD as `v<MARKETING_VERSION>`. It attaches four artifacts: universal `Vibe-macOS-universal-<version>.dmg` and `.zip`, plus arm64-only `Vibe-macOS-arm64-<version>.dmg` and `.zip`. Release notes come from the same `Assets/app-store/copy/en/macos/whats-new.txt` the Mac App Store upload requires. Publishing needs `gh` authenticated (`gh auth login`; `brew bundle` installs it) and a pushed HEAD, and refuses an existing release for the same version.
-
-**Why a disk image and not the zip.** The zip remains available as the bare-bundle alternate and is also what notarytool accepts for each app submission, but the DMG is the default download. A zip expands wherever the browser drops it, and a quarantined app launched from `~/Downloads` runs *translocated*, from a read-only random mount point that vanishes on quit. For this app that is not cosmetic: Settings > General > Default music player registers with Launch Services from the path it is running at, so a click from a translocated copy registers a path that ceases to exist — and `DefaultAppRegistration` already has to reason about several copies of the app. Dragging out of a disk image is what clears translocation, and the `/Applications` alias is what makes that the obvious gesture. **The window is deliberately plain**: no background image, no icon placement. Those need Finder driven over AppleScript to write a `.DS_Store`, which wants Automation permission and is the flakiest step in any DMG script, and two icons side by side carry the whole point. Four notarization submissions are required — each architecture's app before packaging and its image after — and every staple is checked at publish because a missing one makes Gatekeeper re-check online.
-
-There are three release paths and they are not interchangeable. Each uses a different certificate, a different container and a different verification:
+There are three release paths, and they are not interchangeable. Each uses a different certificate, container and verification:
 
 | | `make release` | `make appstore-build` | `make appstore-build-ios` |
 |---|---|---|---|
 | platform | macOS | macOS | iOS |
 | script | `scripts/release.sh` | `scripts/release-appstore.sh` | the same, `--platform ios` |
 | scheme | `Vibe` | `Vibe` | `VibeiOS` |
+| configuration | `Release` | `AppStore` (no updater) | `Release` |
 | certificate | Developer ID Application | Apple Distribution (+ Mac Installer) | Apple Distribution |
 | architecture | universal plus arm64-only | universal (`arm64` + `x86_64`) | `arm64` |
 | output | two stapled `.dmg`s plus zipped apps | universal `.pkg` to App Store Connect | `.ipa` to App Store Connect |
 | verification | notarize + staple + `spctl`, app and image both | App Store Connect validation | App Store Connect validation |
 
-Each App Store pair works the same way: `appstore-build[-ios]` stops after validation, `appstore-upload-signed-build[-ios]` submits.
+Each App Store pair works the same way: `appstore-build[-ios]` stops after validation, and `appstore-upload-signed-build[-ios]` submits. One-time setup, reviewer notes and the App Store runbook are in `docs/app-store-releasing.md`.
 
-**Both apps ship under one bundle id**, `com.commonwealthrecordings.Vibe` — Universal Purchase, so one app record with the name, subtitle, category, age rating and privacy answers shared, and a separate version train per platform. `project.yml` declares the version once for both targets, so a release cuts the same number on each, but **each platform needs its own version record open in ASC carrying that string**, or the build has nothing to attach to. A platform freshly added to the record does not start at your number — a new iOS platform opened at `1.0` against a `1.12` build is the shape of it.
+**TRAP: `.release-env` is gitignored, so it exists only in the checkout that created it.** Every release script fails its credential preflight from a git worktree. Release from the main checkout, or pass `ASC_KEY_ID` and `ASC_ISSUER_ID` in the environment.
 
-**iOS has no direct-download path.** `make release` is macOS-only, so for iOS the store is the only channel and a beta is TestFlight rather than a GitHub prerelease. Internal testing needs no beta review and lands minutes after processing; external testing needs Beta App Review for the first build of each version train, plus a beta description, a feedback email and Beta App Review Information.
+**Both archive scripts preflight `asc_require_translations`** before the archive. A key missing any catalog language fails the release, because nothing else catches it: `make check-strings` compares the catalog to the source, and the build compiles a partial key silently, so that locale would show English. Fix it by translating, never by skipping (the **vibe-strings** skill). This is the in-app catalog, separate from the product-page copy below.
 
-**Two postflights run on the exported `.ipa`**, because neither thing exists until the archive has been re-signed for distribution: the widget executable must be present in `PlugIns/VibeWidget.appex/`, and the embedded profile must grant `group.com.commonwealthrecordings.Vibe`. The widget draws nothing but what it reads from that container, so a distribution profile that quietly dropped the entitlement would ship a permanently blank widget to every user, and no earlier step would have said so. On failure the decoded profile is left at `build/appstore-ios/embedded.mobileprovision.plist`.
+## The Developer ID path
 
-**TRAP: `.release-env` is gitignored, so it exists only in the checkout that created it.** Every release script fails its credential preflight from a git worktree. Release from the main checkout, or pass `ASC_KEY_ID` / `ASC_ISSUER_ID` in the environment.
+`make release` builds two Release archives: universal under `build/release/` and arm64-only under `build/release/arm64/`. Each is exported with Developer ID, notarized and stapled, then packaged in its own plain drag-to-`Applications` DMG, which is itself signed, notarized and stapled. Architecture is a build input. Never thin the signed universal app, since changing its executable invalidates the signature and notarization. Each final zip is signed for Sparkle into `<zip>.sig`.
 
-Both preflight `asc_require_translations` before the archive: a key missing any catalog language fails the release outright, because nothing else catches it — `make check-strings` compares the catalog to the source and the build compiles a partial key without complaint, so it would ship English in that locale alone. Fix by translating, not by skipping; the **vibe-strings** skill has the conventions. This is separate from the product-page copy below — that's ASC metadata, this is the in-app catalog.
+**The DMG is the default download.** A zip expands wherever the browser drops it, and a quarantined app launched from `~/Downloads` runs translocated, from a random read-only mount that vanishes on quit. Settings > General > Default music player registers the path the app runs at, so a translocated copy would register a path that ceases to exist. Dragging out of a disk image clears translocation. The window is deliberately plain, since a background image needs Finder driven over AppleScript, the flakiest step in any DMG script. Four notarization submissions are needed, and every staple is checked at publish.
+
+`make github-release` (`scripts/github-release.sh`; `ARGS="--draft"` for a review pass, `ARGS="--prerelease"` for a beta) re-verifies every exported app, DMG, mounted app and zipped app, including architecture and version, then tags HEAD as `v<MARKETING_VERSION>`. It attaches `Vibe-macOS-universal-<version>.dmg` and `.zip` and `Vibe-macOS-arm64-<version>.dmg` and `.zip`. Release notes come from `Assets/app-store/copy/en/macos/whats-new.txt`. It needs `gh` authenticated and a pushed HEAD, and refuses an existing release for the same version.
 
 ## The release commit
 
-A release commit bumps `project.yml`'s `vibe-version` lines and rewrites `whats-new.txt`. **A stable release also sets `VIBE_VERBOSE_LOGGING: 0` in that same commit; a beta keeps 1.** The flag compiles in the beta instrumentation — every log level persisted at Default, the `Timeline:`, `Callback:`, `Signal:` and `Stall:` lines, the stall watchers and the signal probe (`Vibe/Audio/AGENTS.md`) — and those lines put the user's file paths in the unified log as public text. Cost is not the reason: on 1.14, turning it off moved playback CPU and power only within noise. **No script flips it**, which is how 1.13 and 1.14 shipped with it on. The commit that opens the next version on `main` sets it back to 1, so betas and everyday builds keep the instrumentation.
+A release commit bumps `project.yml`'s `vibe-version` lines (`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`) and rewrites `whats-new.txt`. Make it as `release: <ver>`, on an up-to-date `main` in the main checkout. **The build number never restarts with a new marketing version.** Confirm rather than go backwards when a request reads like "1.14 (114)". When the notes are still under review, push the version bump alone and build from it. Then commit the notes as `release: <ver> notes`, wait for CI, and publish from that commit.
 
-The commit is `release: <ver>`, on an up-to-date `main` in the main checkout (`.release-env`, below), bumping both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. **The build number never restarts with a new marketing version**, even when a request reads like "1.14 (114)": confirm rather than go backwards. When the notes are still under review, push the version bump alone and build from it, commit the notes as `release: <ver> notes`, wait for CI on that commit, and publish from it. TRAP: **`github-release.sh` tags the main checkout's HEAD at publish time, not the commit `make release` built.** Another session committing in that checkout between the two put `v1.14-beta2` one commit past its release commit; check `git log -1` there just before publishing.
+**A stable release sets `VIBE_BETA_DEBUG: 0` in the same commit; a beta keeps 1.** It controls `VIBE_VERBOSE_LOGGING` and the mac's Beta updates default (`receiveBetaUpdates`). Verbose logging compiles in the beta instrumentation (`Vibe/Audio/AGENTS.md`, Beta diagnostics), which writes the user's file paths into the unified log as public text. **No script flips `VIBE_BETA_DEBUG`, so a stable release ships verbose logging unless this commit turns it off.** The commit that opens the next version on `main` sets it back to 1. Before publishing a stable release, `strings -a build/release/export/Vibe.app/Contents/MacOS/Vibe | grep -c 'Timeline: play'` must print 0. The flag is compile-time, so it governs the App Store builds too.
 
-Before publishing a stable release, `strings -a build/release/export/Vibe.app/Contents/MacOS/Vibe | grep -c 'Timeline: play'` must print 0 (a verbose build prints about 20). The flag is a compile-time setting, so it governs the App Store builds too.
-
-## The marketing page
-
-`Assets/Web/` is a static site with no build step, served from two hosts: Cloudflare Pages at **vibeplayer.app** (canonical) and GitHub Pages at cmicali.github.io/vibe. Its own `README.md` has the detail.
-
-The page's Download button links the **universal** direct-DMG asset, `Vibe-macOS-universal-<version>.dmg`, and shows the version beside it, so the two must agree. The architecture-qualified name makes the site's “Apple silicon and Intel” default explicit; the arm64-only DMG is the alternate on GitHub. GitHub's `latest/download` shortcut cannot supply the default — it only redirects for an asset name that never changes — so `scripts/web-set-version.sh <version>` rewrites both, keyed on the `dmg-link` and `dmg-version` element ids rather than the markup around them; a pattern that stops matching is an error, never a silent no-op.
-
-**<https://vibeplayer.app/download/latest> is the URL to hand anyone outside this repo** (`/download` and `/download/` too). It is a Cloudflare `_redirects` rule that the same `web-set-version.sh` run points at the same file as the button, so the branded link and the button cannot come to name different builds. **302, never 301** — the target moves every release, and a cached permanent redirect would pin a browser to one version forever. Cloudflare only: GitHub Pages ignores `_redirects`, as with `/support`.
-
-**`github-release.sh` runs it before creating the release, not after, and the ordering is the point.** The page update is committed — `index.html` and `_redirects`, by explicit pathspec, so a dirty tree cannot ride along — and pushed, and only then is `gh release create` called with `--target HEAD`. The tag therefore names a tree whose website already advertises that release: checking out `v<version>` gets the page that goes with it. This is the one step that moves `main`, and it happens while everything is still reversible, which is why a failed commit or push here is **fatal** rather than a warning — nothing has been published yet, and a tag on an unpushed commit would dangle. The tag-points-at-HEAD preflight runs after that push, since it is only authoritative once HEAD has stopped moving.
-
-`--draft` and `--prerelease` skip all of it, and the Homebrew tap below. A draft's download is not public and it creates no tag until published, so there is no ordering to preserve; repoint by hand once it goes out (`scripts/web-set-version.sh <version> && make deploy-web`, then `scripts/brew-set-version.sh <version>`). A beta must never become `vibeplayer.app/download/latest`, so the page stays on the last stable release and nothing is deployed.
-
-`make deploy-web` then carries the same page to Cloudflare. It refuses to upload a page whose Download button does not return 200 — the check that the rewrite and the release happened in that order — or whose `/download` rules name a different file or a status other than 302, which is checked even under `--skip-link-check` because no page displays where that link lands. `ARGS="--dry-run"` runs both checks and lists the files without credentials.
-
-**It is local-only, and enforced as such.** `deploy-web.sh` exits if `CI`, `GITHUB_ACTIONS`, `GITLAB_CI` or `BUILDKITE` is set. The Cloudflare token stays in the gitignored `.release-env` beside the ASC keys, out of CI secrets, so a later "just add it to a workflow" has to be deliberate. The token needs exactly **Account | Cloudflare Pages | Edit**. GitHub Pages is the copy CI is allowed to publish, precisely because `.github/workflows/pages.yml` needs no credential — it deploys with the workflow's own OIDC token.
-
-**The page's images are derived, and staleness is silent.** `scripts/web-build-images.sh` re-derives `Assets/Web/img/` from the screenshots already in the repo, and `--check` fails when a derivative no longer matches its source. It exists because nothing used to do that: the 1.12 screenshot rework replaced every `Assets/screenshot-*.png` and the site served the previous month's copies straight through a release deploy. Run it after any screenshot change. It covers the screenshots only, the App Store ones the carousel shows included — the icons and Apple's App Store badge are outside it, so a passing `--check` does not mean every file in `img/` is current.
-
-**Every asset URL is content-hashed, images included.** `scripts/web-stamp-assets.sh` writes each file's hash into its `?v=`, and `deploy-web.sh` runs it with `--check`. **An unstamped image is not merely a stale picture**: the CDN serves the new bytes at once (`cf-cache-status: REVALIDATED`), while a browser that visited before keeps drawing the old one for the rest of the four-hour TTL — which reads as a deploy that silently failed, and invites a pointless re-deploy that confirms the wrong diagnosis.
-
-## The Homebrew tap
-
-`brew install cmicali/tap/vibe` installs from [cmicali/homebrew-tap](https://github.com/cmicali/homebrew-tap), and **every stable release must move it**, or `brew upgrade` keeps handing out the previous version with nothing to say so. `make github-release` does it as its last step, so a normal release needs no extra command, but its success line, `🔊 Homebrew tap pointed at <version>`, is a release check like any other. Its failure is a **warning, not fatal**, because the release is already out by then — so a missed warning is a stale tap. The warning prints the retry: `make brew-set-version V=<version>`.
-
-**It runs after the release rather than before, the reverse of the page.** The tap's one file, `Casks/vibe.rb`, is written whole by `scripts/brew-set-version.sh` from its own template and committed through the GitHub contents API — the tap holds nothing edited by hand, so a cask change (the `zap` paths are the sandbox's containers) is made in that template. The two `sha256`s are the digests GitHub computed for the published arm64 and universal DMGs, which is why it cannot run before `gh release create`, and why it can be re-run for any stable release with nothing on disk; a re-run with nothing to change says so and commits nothing. `ARGS="--dry-run"` prints the cask. A beta or a draft is refused, so a published draft is repointed by hand (above).
-
-Validate a template change with `brew tap cmicali/tap <local clone>` and `brew audit --cask --strict --online cmicali/tap/vibe`; `brew install --cask --appdir=<scratch dir>` installs without touching `/Applications`, and `brew untap cmicali/tap` puts the machine back. Homebrew's own homebrew/cask would bump itself, but refuses self-submitted apps below its notability bar (about 225 stars), so the tap is the channel until then.
+TRAP: **`github-release.sh` tags the main checkout's HEAD at publish time, not the commit `make release` built.** Another session committing in that checkout between the two moves the tag. Check `git log -1` there just before publishing.
 
 ## The full sequence
 
 All from the main checkout, which has `.release-env`:
 
-1. The release commit (above), pushed.
+1. The release commit, pushed.
 2. `make release`.
-3. `make github-release` — tags, publishes, repoints the page, and points the tap. Confirm `🔊 Homebrew tap pointed at <version>`; on its warning, `make brew-set-version V=<version>`.
-4. `make deploy-web`.
-5. Check the tap as a user gets it: `brew update && brew info --cask cmicali/tap/vibe` names the new version.
+3. `make github-release`. It repoints the web page, adds the feed items, tags, publishes, deploys the site and points the Homebrew tap. On the deploy's warning, run `make deploy-web`. Confirm `🔊 Homebrew tap pointed at <version>`. On its warning, run `make brew-set-version V=<version>`.
+4. Check the tap as a user gets it: `brew update && brew info --cask cmicali/tap/vibe` names the new version.
+5. Once the tag exists, chart it: `make bench-releases VERSIONS="<version>"` on the machine every earlier version was measured on, then commit `docs/performance.md` and `docs/performance/` (the **vibe-perf** skill). It replaces any pre-release point for that version.
 
-A beta is `make release`, then `make github-release ARGS="--prerelease"`, and nothing else: no `make deploy-web`, and the tap stays on the last stable release.
+A beta is `make release`, then `make github-release ARGS="--prerelease"`. The page and the tap stay on the last stable release, and its feed items go out under the beta channel.
 
-**Then the performance charts.** Once the tag exists, `make bench-releases VERSIONS="<version>"` builds that tag, runs the app and component benchmarks and redraws `docs/performance.md`, replacing any `<version> pre-release` point measured before the tag; commit it and `docs/performance/`. It must run on the machine every earlier version was measured on, or the report leaves the new version out and says so ([docs/performance.md](../../../docs/performance.md)). The chart has one point per version, so measuring a version again replaces its point: a final `v1.14` supersedes the beta build that stood in for it (`VERSIONS="1.14=v1.14"`).
+### What `github-release.sh` does in order
+
+The web site's mechanics (the Download button's version, the `/download/latest` 302 link, the local-only Cloudflare deploy, derived images and content-hashed assets) are in `Assets/Web/README.md`. The release ordering is here:
+
+1. **Before the release**, it runs `scripts/web-set-version.sh <version>` and adds the feed items. It commits `index.html`, `_redirects` and the feeds by explicit pathspec and pushes. A failed commit or push is **fatal**, since nothing is published yet and a tag on an unpushed commit would dangle. The tag-points-at-HEAD preflight runs after that push.
+2. It calls `gh release create --target HEAD`, so the tag names a tree whose page already advertises the release.
+3. **After the release exists**, it runs `deploy-web.sh`, since the page and the feed items name the release's assets, which 404 until then. A deploy failure is a warning naming the retry, `make deploy-web`.
+4. Last, it runs `brew-set-version.sh` (below). Its failure is a warning, so a missed warning is a stale tap.
+
+`--draft` skips the page, the feeds, the deploy and the tap. A draft creates no tag until published and writes no feed item. Once a draft is published, repoint by hand: `scripts/web-set-version.sh <version> && make deploy-web`, then `scripts/brew-set-version.sh <version>`. `--prerelease` skips the page and the tap, since a beta must never become `vibeplayer.app/download/latest`, but still commits its feed items.
+
+## The Homebrew tap
+
+`brew install cmicali/tap/vibe` installs from [cmicali/homebrew-tap](https://github.com/cmicali/homebrew-tap). **Every stable release must move it**, or `brew upgrade` keeps handing out the previous version. `scripts/brew-set-version.sh` writes the tap's one file, `Casks/vibe.rb`, whole from its own template and commits it through the GitHub contents API. Make cask changes (the `zap` paths are the sandbox's containers) in that template. The two `sha256`s are the digests GitHub computed for the published DMGs, so it cannot run before `gh release create`. It can be re-run for any stable release, and a re-run with nothing to change commits nothing. `ARGS="--dry-run"` prints the cask. A beta or a draft is refused.
+
+Validate a template change with `brew tap cmicali/tap <local clone>` and `brew audit --cask --strict --online cmicali/tap/vibe`. `brew install --cask --appdir=<scratch dir>` installs without touching `/Applications`, and `brew untap cmicali/tap` puts the machine back. homebrew/cask refuses self-submitted apps below its notability bar, so the tap is the channel.
+
+## Updates (Sparkle)
+
+The direct download updates itself through Sparkle 2, vendored at `Vibe/ThirdParty/Sparkle/` with its `sign_update` and `generate_keys` tools. The Mac App Store build has none of it. `release-appstore.sh` archives the `AppStore` configuration and fails if the archive carries any Sparkle file, link, `SU*` Info.plist key or the direct download's entitlements (`asc_require_no_updater`). CI builds `AppStore` and runs the same check.
+
+**The signing key is permanent.** `generate_keys` makes an EdDSA key pair once and keeps the private half in the login keychain. The public half is `VIBE_SPARKLE_PUBLIC_KEY` in `project.yml`, and every shipped build trusts only it. Back the private half up offline beside the Developer ID certificate (`generate_keys -x <file>`; `-f <file>` imports it on another Mac). Losing it strands every installed build. `release.sh` preflights the key, then checks that each exported app trusts it.
+
+**Two feeds, by architecture.** `vibeplayer.app/appcast.xml` offers the universal zip and `appcast-arm64.xml` the arm64-only one, so an arm64-only install stays one. The arm64-only archive passes `VIBE_SPARKLE_FEED_URL`. The feed URLs are baked into every build, so they never move.
+
+**The feeds live in `Assets/Web/` and only `github-release.sh` writes them.** It verifies each `<zip>.sig`, refuses a build number not above a feed's newest item, and prepends one item per feed with `whats-new.txt` as Markdown. A `--prerelease` item carries `<sparkle:channel>beta</sparkle:channel>`, which only a build with Settings > General > Beta updates on accepts. That setting defaults on in a beta build.
+
+**The export must sign Sparkle's helpers.** `release.sh` checks that the app, the framework, `Autoupdate`, `Updater.app` and both XPC services carry the Developer ID, the hardened runtime and a timestamp. **TRAP: a local build runs without the hardened runtime** (`project.yml`). Under it, library validation refuses an ad-hoc-signed Sparkle in an ad-hoc-signed app, which dies at launch with "different Team IDs". `asc_archive` turns it on for every archive, and notarization rejects a build without it. A Debug build starts no updater unless launched with `--update-feed <url>`.
+
+## The App Store paths
+
+**Both apps ship under one bundle id**, `com.commonwealthrecordings.Vibe`: Universal Purchase, one app record with shared name, subtitle, category, age rating and privacy answers, and a separate version train per platform. `project.yml` declares one version for both targets, but **each platform needs its own version record open in App Store Connect carrying that string**, or the build has nothing to attach to. A platform newly added to the record starts at `1.0`, not at your number.
+
+**iOS has no direct-download path.** A beta is TestFlight. Internal testing needs no beta review and lands minutes after processing. External testing needs Beta App Review for the first build of each version train, plus a beta description, a feedback email and Beta App Review Information.
+
+**Two postflights run on the exported `.ipa`**, because neither thing exists until the archive is re-signed for distribution. The widget executable must be present in `PlugIns/VibeWidget.appex/`, and the embedded profile must grant `group.com.commonwealthrecordings.Vibe`. The widget draws only what it reads from that container, so a profile that dropped the entitlement would ship a permanently blank widget. On failure the decoded profile is left at `build/appstore-ios/embedded.mobileprovision.plist`.
 
 ## Product-page metadata
 
-**One run writes ONE platform's page.** ASC localizations hang off a version and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's-new, captions and screenshots; `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded — the macOS page sells key analysis, the pitch fader and bit-perfect output, all macOS-only. A page describing features the app does not have is a review rejection.
+**One run writes one platform's page.** App Store Connect localizations hang off a version, and versions are per platform, so macOS and iOS each have their own description, keywords, promotional text, what's new, captions and screenshots. `--platform macos` (the default) or `--platform ios` picks which. The iOS text is not the macOS text reworded: key analysis, the pitch fader and bit-perfect output are macOS-only, and a page describing features the app lacks is a review rejection.
 
-The build upload carries no product-page content. Localized copy and screenshots live in `Assets/app-store/` (per-locale format: its README) and upload separately with `make appstore-upload-metadata` — `scripts/appstore-upload-metadata.sh` driving the Swift/Bagbutik tool in `scripts/asc-upload/`, authenticated by the same shared key (metadata itself needs only App Manager, so the Admin key more than covers it).
+The build upload carries no product-page content. Copy and screenshots live in `Assets/app-store/` (format in its README) and upload separately with `make appstore-upload-metadata`. That runs `scripts/appstore-upload-metadata.sh`, which drives the Swift tool in `scripts/asc-upload/` with the shared key.
 
 The loop:
 
-1. Edit `Assets/app-store/copy/<lang>/<platform>/` — every catalog language, not just `en`, and `macos` or `ios`; nothing auto-translates. Every file under `<lang>/` is an ASC version field and versions are per platform, which is what the platform directory is for; the three URL files are not version fields and stay shared at `copy/`. **`whats-new.txt` must be rewritten for every release** — ASC blocks submission when any locale lacks release notes, and stale notes upload silently. The shared `copy/support-url.txt`, `copy/marketing-url.txt` and `copy/privacy-url.txt` upload to every locale too.
-2. `make appstore-validate-copy` — ASC character limits, markdown that would upload verbatim, captions that overflow the screenshot layout. (`appstore-upload-metadata` runs this first anyway.)
-3. `make appstore-generate-store-screenshots-all` — only if `screenshots.json` captions or the window captures changed.
+1. Edit `Assets/app-store/copy/<lang>/<platform>/` for every catalog language, not just `en`. Nothing auto-translates. **`whats-new.txt` must be rewritten for every release**, since App Store Connect blocks submission when any locale lacks release notes, and stale notes upload silently. The shared `copy/support-url.txt`, `copy/marketing-url.txt` and `copy/privacy-url.txt` are not version fields and upload to every locale.
+2. `make appstore-validate-copy`: character limits, leftover markdown, captions that overflow the screenshot layout. The upload runs it first anyway.
+3. `make appstore-generate-store-screenshots-all`, only if `screenshots.json` captions or the window captures changed.
 4. `make appstore-upload-metadata ARGS="--dry-run"`, then without.
 
-Flags via `ARGS`: `--locales de,fr`, `--skip-screenshots`, `--skip-text`, `--create-version <v>`.
+Flags via `ARGS`: `--platform ios`, `--locales de,fr`, `--skip-screenshots`, `--skip-text`, `--create-version <v>`.
 
-Traps and semantics:
-
-- **It targets the one *editable* version on the chosen platform.** After a release goes live there is none — the tool errors, listing every version's state. `--create-version <next>` opens the next version's page (the same version record a later `make appstore-upload-signed-build[-ios]` build attaches to, so metadata-first is the normal order).
-- **Text is diffed, screenshots are not.** Unchanged text fields are skipped; each screenshot set is deleted and re-uploaded wholesale, ordered by file name. Don't read "uploaded 4 screenshots" as "they changed".
-- **macOS has one screenshot set per locale, iOS has two.** `APP_DESKTOP` against `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129` — iPhone and iPad are separate sets, not two sizes of one, and the iPad set is required because `TARGETED_DEVICE_FAMILY` is `1,2`. **`APP_IPHONE_69` does not exist**; ASC's own enumeration of valid values tops out at 6.7", and bumping Bagbutik will not add it.
-- **`bg` is skipped by design** — the App Store has no Bulgarian product page; the translation ships in-app only. Catalog `nb` maps to ASC `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.
-- **The privacy policy URL is not a version field.** It lives on `appInfoLocalizations`, per locale, beside the app name and subtitle — so setting it by hand is the same edit 29 times. `copy/privacy-url.txt` uploads it: the tool finds the one editable `AppInfo`, then patches each locale whose URL differs. It only *patches*; creating an `appInfoLocalization` requires a `name`, and inventing an app name per locale is the mistake the out-of-scope rule below exists to prevent, so a locale with no localization is reported rather than created.
-- **Out of scope, on purpose:** app name and subtitle (the other `appInfoLocalizations` fields, rarely change — edit in ASC by hand).
-- `description.txt` uploads *verbatim* — plain text only; `appstore-validate-copy` rejects leftover markdown markers.
+- **It targets the one editable version on the chosen platform.** After a release goes live there is none, and the tool errors with every version's state. `--create-version <next>` opens the next version's page, the same record a later build attaches to, so metadata first is the normal order.
+- **Text is diffed, screenshots are not.** Unchanged text fields are skipped. Each screenshot set is deleted and re-uploaded whole, ordered by file name, so "uploaded 4 screenshots" does not mean they changed.
+- **macOS has one screenshot set per locale, iOS has two**: `APP_DESKTOP` against `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`. The iPad set is required because `TARGETED_DEVICE_FAMILY` is `1,2`. **`APP_IPHONE_69` does not exist** in App Store Connect's enumeration.
+- **`bg` is skipped by design**, since the App Store has no Bulgarian product page. Catalog `nb` maps to `no`. A new catalog language fails loudly until added to `ascLocale` in `ASCUpload.swift`.
+- **The privacy policy URL is not a version field.** It lives on `appInfoLocalizations`, per locale. `copy/privacy-url.txt` patches each locale whose URL differs. Creating an `appInfoLocalization` needs a `name`, so a locale with none is reported, not created.
+- **Out of scope**: the app name and subtitle. Edit them in App Store Connect by hand.
+- `description.txt` uploads verbatim, as plain text.
 
 ## The shared API key
 
-Both scripts share one App Store Connect API key, `ASC_KEY_ID` and `ASC_ISSUER_ID`, read from a gitignored `.release-env` at the repo root. Resolution lives in `scripts/asc-auth-lib.sh`, which both scripts source. That single key covers cloud signing, notarization — `notarytool --key/--key-id/--issuer`, so no app-specific password and no `store-credentials` profile — and upload.
+All scripts share one App Store Connect API key, `ASC_KEY_ID` and `ASC_ISSUER_ID`, from the gitignored `.release-env` at the repo root. `scripts/asc-auth-lib.sh` resolves it. The key covers cloud signing, notarization (`notarytool --key/--key-id/--issuer`, no app-specific password) and upload.
 
-The key must carry the **Admin** role. Cloud-managed *App Store* certificates are Admin-gated, so an App Manager key authenticates and uploads fine but fails the export with a 403. A key's role cannot be edited after creation.
+The key must carry the **Admin** role. Cloud-managed App Store certificates are Admin-gated, so an App Manager key authenticates and uploads but fails the export with a 403. A key's role cannot be edited after creation.
 
-## Three signing traps
+## Signing traps
 
-Each was learned the hard way, and each is now guarded by a preflight or an error explainer.
+Each is guarded by a preflight or an error explainer.
 
-- **Neither archive passes signing overrides.** Both keep `CODE_SIGN_IDENTITY: "-"` and let the export re-sign, mirroring Xcode's Archive → Distribute App flow. Pinning `CODE_SIGN_IDENTITY` under automatic signing fails the archive outright with "conflicting provisioning settings".
-- **The Developer ID certificate cannot be automated.** Apple gates `DEVELOPER_ID_APPLICATION_MANAGED` to the team's *Account Holder*, a person role no API key can hold, so `-allowProvisioningUpdates` gets a 403 even with an Admin key that signs App Store builds fine. Create it once in Xcode → Settings → Accounts → Manage Certificates, where the cap is five per account. `release.sh` preflights for it, so this fails instantly rather than after a full archive.
-- **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with different guidance per certificate type.
-
-`make appstore-build[-ios]` stops after validation; only `make appstore-upload-signed-build[-ios]` submits. Every signing identity is applied on the xcodebuild command line, because `project.yml` deliberately keeps `CODE_SIGN_IDENTITY: "-"` so that everyday builds need no credentials at all.
+- **Neither archive passes signing overrides.** Both keep `CODE_SIGN_IDENTITY: "-"` and let the export re-sign, as Xcode's Archive → Distribute App does. Pinning `CODE_SIGN_IDENTITY` under automatic signing fails the archive with "conflicting provisioning settings". Every signing identity is applied on the xcodebuild command line, so everyday builds need no credentials.
+- **The Developer ID certificate cannot be automated.** Apple gates it to the team's Account Holder, a person role no API key can hold, so `-allowProvisioningUpdates` gets a 403 even with an Admin key. Create it once in Xcode → Settings → Accounts → Manage Certificates (five per account). `release.sh` preflights for it.
+- **xcodebuild hides the reason.** A cloud-signing denial surfaces only as "Cloud signing permission error", with Apple's real 403 buried in a temporary `.xcdistributionlogs` bundle. `asc_explain_export_failure` reprints it, with guidance per certificate type.
 
 ## A Debug build for someone else's Mac
 
-`make release` is Release-only. To put a diagnosable build (the debug channel, `--log-stderr`) on a tester's Mac: build Debug, copy the app, dump its entitlements (`codesign -d --entitlements - --xml`), delete `com.apple.security.get-task-allow` (notarization rejects it), re-sign with `--options runtime --timestamp --entitlements <edited plist> -s "Developer ID Application: …"`, then `notarytool submit --wait` and `stapler staple`, resolving the key through `asc-auth-lib.sh`'s `asc_resolve_credentials`. TRAP: **`asc-auth-lib.sh` finds the repo root through `BASH_SOURCE`**, so sourced from zsh it answers "credentials not configured" against a valid `.release-env`; run that step under `bash -c`.
+`make release` is Release-only. To put a diagnosable build (the debug channel, `--log-stderr`) on a tester's Mac: build Debug and copy the app. Dump its entitlements (`codesign -d --entitlements - --xml`) and delete `com.apple.security.get-task-allow`, which notarization rejects. Re-sign with `--options runtime --timestamp --entitlements <edited plist> -s "Developer ID Application: …"`. Then `notarytool submit --wait` and `stapler staple`, with the key from `asc-auth-lib.sh`'s `asc_resolve_credentials`. TRAP: **`asc-auth-lib.sh` finds the repo root through `BASH_SOURCE`**, so sourced from zsh it answers "credentials not configured" against a valid `.release-env`. Run that step under `bash -c`.
 
 ## What "upload succeeded" does not mean
 
-`UPLOAD SUCCEEDED` is about **bytes, not registration**. A build takes minutes to appear in App Store Connect and the API, and a run can end with `buildUploadFiles` timing out and "Skipping validation" among its warnings and still register perfectly well. Never read an absent build as a failed delivery and re-upload: that burns the build number, and recovering means bumping `CURRENT_PROJECT_VERSION` and archiving again. Wait, or poll `/v1/builds`.
+`UPLOAD SUCCEEDED` is about **bytes, not registration**. A build takes minutes to appear in App Store Connect and the API. A run can end with `buildUploadFiles` timing out and "Skipping validation" among its warnings and still register. Never read an absent build as a failed delivery and re-upload: that burns the build number, and recovery means bumping `CURRENT_PROJECT_VERSION` and archiving again. Wait, or poll `/v1/builds`.
 
-Two things that mislead while checking, both of which produced a confident wrong answer on the 1.12 release:
+Two things mislead while checking:
 
-- **`curl` eats `filter[app]=…`.** `[` and `]` are its own URL-glob syntax, so the query returns an EMPTY body with exit 0 — no error, no warning. Pass `-g`/`--globoff`. A poll built on one reports "not there yet" forever whatever the truth.
-- **Never pipe JSON through zsh's `echo`.** It rewrites the escapes inside the response into literal control characters, and `jq` then reports that Apple returned malformed JSON. Use `printf '%s'`, or write to a file and read that.
+- **`curl` eats `filter[app]=…`.** `[` and `]` are its URL-glob syntax, so the query returns an empty body with exit 0. Pass `-g` (`--globoff`).
+- **Never pipe JSON through zsh's `echo`.** It rewrites escapes into control characters, and `jq` then reports malformed JSON. Use `printf '%s'`, or a file.
 
-An App Review **attachment** can also stick: ASC reserves a slot, then wants the bytes and a commit with a checksum, and a browser that only completes the first leaves `assetDeliveryState.state = AWAITING_UPLOAD`. Submission is then blocked by "There are still attachment uploads in progress" forever. `docs/app-store-releasing.md` has the detail.
+A stuck App Review attachment (`AWAITING_UPLOAD`) is in `docs/app-store-releasing.md`.

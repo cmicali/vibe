@@ -1,13 +1,14 @@
-Vibe is a local file player. It bundles no music, streams nothing, and has no
-account, no sign-in, and no network access of any kind. Everything it plays is
-a file already on the device or in the reviewer's own cloud storage.
+Vibe is a file player. It bundles no music and has no account of its own.
+It plays files on the device, in the reviewer's own cloud storage, or at a web
+address the reviewer types into Open URL. It goes online only to fetch that
+address, or to reach Dropbox if the reviewer connects it.
 
 WHAT YOU WILL SEE ON FIRST LAUNCH
 
 An empty playlist reading "Nothing to Play". That is correct, not a broken
 build: iOS gives an app no access to a user's files until the user hands them
 over, so there is nothing to show until you do one of the following. Any one
-of the three is enough.
+of the four is enough.
 
 1. THE APP'S OWN FOLDER (no permission prompt)
    In the Files app, go to On My iPhone > Vibe and copy an audio file in.
@@ -24,8 +25,17 @@ of the three is enough.
 3. THE SHARE SHEET
    From any app showing an audio file, share it to Vibe.
 
+4. OPEN URL (no permission prompt for an https address)
+   In Vibe, open the Files tab and tap Open URL. Paste this public https
+   address of the sample track below, and tap Open:
+   https://raw.githubusercontent.com/cmicali/vibe/main/Assets/app-store/Vibe-sample-track.mp4
+   It starts playing while it downloads. The system's local-network prompt
+   appears only for an address on the local network, such as
+   http://192.168.1.5/song.mp3. It never appears for an https address on the
+   internet.
+
 Vibe-sample-track.mp4 is attached to this submission, if you would rather not
-supply audio of your own: a 30-second tone, tagged, that any of the three
+supply audio of your own: a 30-second tone, tagged, that any of the four
 methods above will play.
 
 FORMATS
@@ -52,10 +62,13 @@ transport controls.
 
 PRIVACY
 
-No data is collected, no analytics, no tracking, and no network requests. The
-app uses no permission-gated APIs, so it asks for nothing beyond the file
-access granted through the system picker. UIFileSharingEnabled is on so that
-method 1 above works; the folder it exposes holds only what the user puts
-there.
+No data is collected, no analytics, and no tracking. The only network
+requests are the ones the reviewer asks for: the address typed into Open URL,
+and Dropbox if connected. Vibe sends nothing else and has no servers of its
+own. Plain http is allowed only to the local network. The one permission
+prompt is the local-network one, and only for a local address. Beyond that,
+Vibe asks for nothing but the file access granted through the system picker.
+UIFileSharingEnabled is on so that method 1 above works. The folder it
+exposes holds only what the user puts there.
 
 Vibe is free and open source: https://github.com/cmicali/vibe

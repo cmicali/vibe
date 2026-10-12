@@ -189,6 +189,61 @@ static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
     XCTAssertEqual(_deliveries.count, 3u);
 }
 
+// A dropped link still resolving is held. A later append that finishes first
+// waits for it, and the deadline gives up on nothing.
+- (void)testAHeldRequestIsNeverAbandoned {
+    _coordinator.stragglerDeadline = 0.02;
+    OpenRequestToken *links = [self beginAppending:YES tagged:@"links"];
+    [_coordinator holdRequest:links];
+    OpenRequestToken *files = [self beginAppending:YES tagged:@"files"];
+    [_coordinator finishRequest:files rows:OpenRows(2) folderCount:0];
+
+    [self spinRunLoopFor:0.1];
+    [_coordinator abandonStalledRequests];
+    XCTAssertEqual(_deliveries.count, 0u);
+
+    [_coordinator releaseRequest:links];
+    [_coordinator finishRequest:links rows:OpenRows(1) folderCount:0];
+    XCTAssertEqualObjects(_deliveries, (@[@"links:append:1:0", @"files:append:2:0"]));
+}
+
+// The release starts a whole deadline for what the head opens next, and that
+// deadline still frees a head whose expansion then wedges.
+- (void)testAReleasedRequestGetsAFullDeadline {
+    _coordinator.stragglerDeadline = 0.3;
+    OpenRequestToken *links = [self beginAppending:YES tagged:@"links"];
+    [_coordinator holdRequest:links];
+    OpenRequestToken *files = [self beginAppending:YES tagged:@"files"];
+    [_coordinator finishRequest:files rows:OpenRows(2) folderCount:0];
+
+    [self spinRunLoopFor:0.2];
+    NSDate *released = [NSDate date];
+    [_coordinator releaseRequest:links];
+    [self waitForDeliveryCount:1];
+    XCTAssertGreaterThanOrEqual([[NSDate date] timeIntervalSinceDate:released], 0.2,
+                                @"not the deadline armed before the release");
+    XCTAssertEqualObjects(_deliveries, (@[@"files:append:2:0"]));
+
+    [_coordinator finishRequest:links rows:OpenRows(1) folderCount:0];
+    XCTAssertEqual(_deliveries.count, 1u);
+}
+
+// A hold belongs to its generation. A replacement drops it, and a release of
+// the superseded token holds nothing up.
+- (void)testAReplacementDropsAHold {
+    OpenRequestToken *links = [self beginAppending:NO tagged:@"links"];
+    [_coordinator holdRequest:links];
+    OpenRequestToken *wedged = [self beginAppending:NO tagged:@"wedged"];
+    OpenRequestToken *files = [self beginAppending:YES tagged:@"files"];
+    [_coordinator finishRequest:files rows:OpenRows(2) folderCount:0];
+    [_coordinator releaseRequest:links];
+
+    [_coordinator abandonStalledRequests];
+    XCTAssertEqualObjects(_deliveries, (@[@"files:append:2:0"]));
+    [_coordinator finishRequest:wedged rows:OpenRows(9) folderCount:0];
+    XCTAssertEqual(_deliveries.count, 1u);
+}
+
 // Spins the run loop rather than sleeping, because the deadline fires on main.
 - (void)waitForDeliveryCount:(NSUInteger)count {
     NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];

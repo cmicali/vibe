@@ -71,6 +71,16 @@
     [delegate openDroppedURLs:@[[NSURL fileURLWithPath:path]] appending:YES];
 }
 
+- (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *, NSError *))completion {
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    if (![delegate isKindOfClass:AppDelegate.class]) {
+        LogWarn(@"debugOpenLink: the app delegate is not ready");
+        completion(nil, [NSError errorWithDomain:NSPOSIXErrorDomain code:EAGAIN userInfo:nil]);
+        return;
+    }
+    [delegate openLinkString:link completion:completion];
+}
+
 - (AudioTrackMetadataCache *)debugMetadataCache {
     return self.metadataCache;
 }

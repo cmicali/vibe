@@ -52,6 +52,12 @@ NS_ASSUME_NONNULL_BEGIN
 // funnel with appending:YES, the iOS folder session. Asynchronous.
 - (void)debugAppendPath:(NSString *)path;
 
+// The shell's Open URL road (openLinkString:…): the link resolved, then its
+// file opened through the shell's replace. Completion on main, when the
+// resolve settles, with exactly one of file and error.
+- (void)debugOpenLink:(NSString *)link
+           completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;
 

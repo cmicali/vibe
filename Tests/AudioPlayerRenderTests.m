@@ -16,9 +16,15 @@
 #import "OutputFormatRules.h"
 #import <objc/runtime.h>
 #import "AudioFileMaterializationCoordinatorInternal.h"
+#import "AudioFileHandle+Debug.h"
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
+#import "HTTPStub.h"
+#import "HTTPTransferClientInternal.h"
+#import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
+#import "VibeReadAheadScript.h"
 #include <float.h>
 #include <stdatomic.h>
 
@@ -1459,7 +1465,27 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // Transport edges, declick, gapless handoffs and successor cancellation.
 @interface AudioPlayerRenderTransportTests : AudioPlayerRenderTests
 @end
-@implementation AudioPlayerRenderTransportTests
+@implementation AudioPlayerRenderTransportTests {
+    // The read-ahead tests' network share: files under it read ahead, their
+    // reads as the script says.
+    NSURL *_network;
+    VibeReadAheadScript *_script;
+}
+
+// The read-ahead counts are process-wide. The player and its handles go
+// first, then every stalled read is released, so every thread is gone before
+// the next test counts.
+- (void)tearDown {
+    if (_script) {
+        self.continueAfterFailure = YES;
+        [_player debugShutdown]; _player = nil;
+        [_script releaseEverything];
+        [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
+        [VibeReadAheadScript removeHook];
+        _script = nil;
+    }
+    [super tearDown];
+}
 
 - (void)testAStalledDatalessProbeDoesNotBlockStopOrTheOpenDeadline {
     for (NSNumber *timeout in @[@NO, @YES]) {
@@ -2530,6 +2556,346 @@ static NSData *AudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:local])] inCapture:_capture rampFrames:0 ramped:NULL], 1u);
 }
 
+#pragma mark - A network share's read-ahead
+
+// Files on the test's network share read ahead, as a file on a network mount
+// does when the coordinator opens it. Every other file asks the real rule,
+// which sends a local temporary directory down the direct road.
+- (VibeReadAheadScript *)readAhead {
+    if (!_script) {
+        _network = [_temporary URLByAppendingPathComponent:@"network" isDirectory:YES];
+        XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_network withIntermediateDirectories:YES
+                                                              attributes:nil error:NULL]);
+        // Either spelling of the temporary directory.
+        _script = [[VibeReadAheadScript alloc] initForPathsContaining:
+                           [NSString stringWithFormat:@"/%@/network/", _temporary.lastPathComponent]];
+    }
+    return _script;
+}
+
+- (NSURL *)networkCopyOf:(NSURL *)source {
+    [self readAhead];
+    NSURL *url = [_network URLByAppendingPathComponent:source.lastPathComponent];
+    XCTAssertTrue([NSFileManager.defaultManager copyItemAtURL:source toURL:url error:NULL], @"%@", source);
+    return url;
+}
+
+// `seconds` of nonperiodic float32 stereo noise at 48 kHz on the network
+// share, 384000 bytes a second after a 44-byte header.
+- (NSURL *)networkNoiseOfSeconds:(NSUInteger)seconds name:(NSString *)name {
+    NSData *pcm = UniqueNoise(seconds * 48000, 0x9E3779B9u);
+    [self readAhead];
+    return VibeWriteWAV([_network URLByAppendingPathComponent:name], pcm, 48000, 2, 32, (uint32_t)pcm.length);
+}
+
+// The noise fixture, its read-ahead stalled at its second block, about 0.9 s
+// in, playing on the decode pool with Declick off.
+- (NSURL *)playStalledReadAheadShortDeadline:(BOOL)shortDeadline {
+    NSURL *url = [self networkCopyOf:[self fixture:@"noise-48000-24-2.wav"]];
+    [[self readAhead] stallFrom:kReadAheadBlock];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        if (shortDeadline) [self shortenTheOpenDeadline];
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:_script.stalled], @"the read-ahead stalls");
+    return url;
+}
+
+- (BOOL)await:(dispatch_semaphore_t)semaphore {
+    return dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) == 0;
+}
+
+// The player queue answers another thread within the hang guard.
+- (void)assertTheQueueAnswers:(NSString *)context {
+    dispatch_semaphore_t answered = dispatch_semaphore_create(0);
+    AudioPlayer *player = _player;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+        [player runSyncOnQueue:^{ dispatch_semaphore_signal(answered); }];
+    });
+    XCTAssertTrue([self await:answered], @"the player queue waited on a stalled read: %@", context);
+}
+
+// A read-ahead throttled behind the audio plays the file exactly: the whole
+// capture, silences taken out, is the direct open's decode.
+- (void)testAThrottledReadAheadPlaysExactlyAsTheDirectOpen {
+    NSURL *url = [self networkNoiseOfSeconds:4 name:@"throttled.wav"];
+    NSData *reference = PCM([self read:url]);
+    [self readAhead].throttle = 100000;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == [self count:@"buffering"]; }];
+    XCTAssertNil(_playError);
+    XCTAssertEqual([_script readsOf:url.lastPathComponent at:0], 1u, @"it read ahead");
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// Seeks beyond, inside and behind the blocks a read-ahead holds each land on
+// their frame. Beyond waits for a block never read, inside reads nothing,
+// and behind reads again a block the read-ahead dropped.
+- (void)testSeeksAroundAReadAheadsBlocksLandExactly {
+    NSURL *url = [self networkNoiseOfSeconds:8 name:@"seeks.wav"];
+    NSString *name = url.lastPathComponent;
+    NSData *reference = PCM([self read:url]);
+    VibeReadAheadScript *script = [self readAhead];
+    [script stallFrom:6 * kReadAheadBlock];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:script.stalled]);
+    [self render:48000];
+    // Each seek lands on its frame. 6.0 s is in block 8, 7.5 s in block 10,
+    // the last but one, and 1.0 s in block 1. A seek whose bytes are not yet
+    // here holds until a drain sees them.
+    void (^land)(double, NSUInteger) = ^(double seconds, NSUInteger seeks) {
+        [self settleUntil:^BOOL { return [self count:@"seek"] == seeks; }];
+        [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+        XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }]);
+        [self->_capture setLength:0];
+        [self render:3200];
+        NSUInteger frame = (NSUInteger)llround(seconds * 48000);
+        [self assertReference:[reference subdataWithRange:NSMakeRange(frame * 8, 3200 * 8)] capture:self->_capture
+                         skip:0 tolerance:0];
+    };
+    [_player seekToPosition:6.0];
+    XCTAssertEqual([script readsOf:name at:8 * kReadAheadBlock], 0u, @"beyond what is held");
+    [script releaseStalls];
+    land(6.0, 1);
+    [self settleUntil:^BOOL { return [script readsOf:name at:11 * kReadAheadBlock] == 1; }];
+    XCTAssertEqual([script readsOf:name at:10 * kReadAheadBlock], 1u);
+    [_player seekToPosition:7.5];
+    land(7.5, 2);
+    XCTAssertEqual([script readsOf:name at:10 * kReadAheadBlock], 1u, @"inside what is held");
+    XCTAssertEqual([script readsOf:name at:kReadAheadBlock], 1u);
+    [_player seekToPosition:1.0];
+    land(1.0, 3);
+    XCTAssertEqual([script readsOf:name at:kReadAheadBlock], 2u, @"behind, dropped and read again");
+    XCTAssertNil(_playError);
+}
+
+// A read-ahead stalled ahead of the decode holds the voice silent in place,
+// still Playing, and plays on once at the frame it stopped at once the read
+// returns. The whole capture, silences taken out, is the file.
+- (void)testAStalledReadAheadHoldsAndPlaysOnOnceExactly {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    [self playStalledReadAheadShortDeadline:NO];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    XCTAssertEqual([_player.debugRenderCounts[@"underrunFrames"] unsignedIntegerValue], 0u, @"held before the ring ran dry");
+    NSTimeInterval held = _player.position;
+    NSUInteger before = _capture.length / 8;
+    [self render:48000];
+    XCTAssertEqual(_player.position, held, @"the hold keeps its place");
+    XCTAssertEqual(RMS(_capture, 2, 0, NSMakeRange(before, _capture.length / 8 - before)), 0);
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertTrue(_player.isBuffering);
+    XCTAssertFalse(_player.outputAudioActive, @"a held voice is not output");
+    [self settleUntil:^BOOL { return [self count:@"buffering"] == 1; }];
+    [_script releaseStalls];
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }]);
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == 1; }];
+    XCTAssertEqual([self count:@"buffering"], 1u, @"one hold, and one resume");
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// A read-ahead stalled past the deadline pauses in place with the stall's
+// error, never a track end. Its handle goes, leaving the thread inside its
+// read. Play then replays from there on a new read-ahead.
+- (void)testAReadAheadStalledPastTheDeadlinePausesAndPlayReplaysFromThere {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    [self playStalledReadAheadShortDeadline:YES];
+    NSTimeInterval held = [self stallTheStream];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 1; }],
+                  @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
+    [_script releaseStalls];
+    [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
+    _playError = nil;
+    [_player playPause];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
+    XCTAssertNil(_playError);
+    XCTAssertTrue(_player.isPlaying);
+    [self assertTheReplayOf:reference startsAt:held];
+}
+
+// A server that fails every read for longer than the deadline ends in the
+// same pause. Its thread, pausing between retries, ends with its handle.
+// Play then replays from there.
+- (void)testAReadErrorPastTheDeadlinePausesAndPlayReplaysFromThere {
+    NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:source]);
+    NSURL *url = [self networkCopyOf:source];
+    [_script fail:EIO from:kReadAheadBlock always:YES];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self shortenTheOpenDeadline];
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:_script.failed]);
+    NSTimeInterval held = [self stallTheStream];
+    [_script stopFailing];
+    XCTAssertTrue([self renderUntil:^BOOL { return VibeReadAheadScript.threadsGone; }],
+                  @"live %ld", (long)AudioFileHandle.debugLiveReadAheads);
+    _playError = nil;
+    [_player playPause];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
+    XCTAssertNil(_playError);
+    [self assertTheReplayOf:reference startsAt:held];
+}
+
+// A server back within the span: reads that fail long enough to hold the
+// voice, then answer again, release the hold, and the file plays on exactly.
+- (void)testABriefReadErrorHoldsAndPlaysOnExactly {
+    NSURL *source = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *reference = PCM([self read:source]);
+    NSURL *url = [self networkCopyOf:source];
+    [_script fail:EIO from:kReadAheadBlock always:YES];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+    XCTAssertTrue([self await:_script.failed]);
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    [_script stopFailing];
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }], @"the retry releases the hold");
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return [self count:@"buffered"] == 1; }];
+    XCTAssertEqual([self count:@"buffering"], 1u);
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+}
+
+// A seek, a stop and a skip, each while the read-ahead's read is stalled: the
+// player queue answers at once, the seek lands, and the stop and the skip let
+// the handle go with its thread still inside the read. Released, every
+// thread ends.
+- (void)testASeekStopOrSkipDuringAStalledReadAheadKeepsTheQueueResponsive {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSURL *url = [self playStalledReadAheadShortDeadline:NO];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    [_player seekToPosition:0.5];
+    [self assertTheQueueAnswers:@"seek"];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:3200];
+    [self assertReference:[reference subdataWithRange:NSMakeRange(24000 * 8, 3200 * 8)] capture:_capture skip:0 tolerance:0];
+
+    [_player stop];
+    [self assertTheQueueAnswers:@"stop"];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 1; }],
+                  @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
+    XCTAssertTrue(_player.isStopped);
+    XCTAssertFalse(_player.isBuffering);
+
+    [self play:url paused:NO position:0];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    NSURL *local = [self fixture:@"noise-48000-16-2.wav"];
+    [self play:local paused:NO position:0];
+    [self assertTheQueueAnswers:@"skip"];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudioFileHandle.debugOrphanedReadAheads == 2; }],
+                  @"orphans %ld", (long)AudioFileHandle.debugOrphanedReadAheads);
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_capture setLength:0];
+    [self render:4800];
+    XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:local])] inCapture:_capture rampFrames:0 ramped:NULL], 1u,
+                   @"the next track plays its own samples, from its start");
+    XCTAssertEqual([self count:@"finish"], 0u);
+    XCTAssertNil(_playError);
+    [_script releaseStalls];
+    [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
+}
+
+// An open whose read-ahead stalls on its first block: the deadline cancels
+// it, the player times out, the run leaves the ceiling and the queue answers.
+// The thread, orphaned inside its read, ends once the read returns.
+- (void)testTheOpenDeadlineStopsAnOpenParkedInAReadAhead {
+    NSURL *url = [self networkCopyOf:[self fixture:@"noise-48000-24-2.wav"]];
+    [_script stallFrom:0];
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    [self shortenTheOpenDeadline];
+    AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+    uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
+    [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+    XCTAssertTrue([self await:_script.stalled]);
+    [self settleUntil:^BOOL { return self->_playError != nil; }];
+    XCTAssertEqual(_playError.code, VibeAudioErrorFileOpenTimedOut, @"%@", _playError);
+    [self assertTheQueueAnswers:@"the open deadline"];
+    XCTAssertEqual(coordinator.stateSnapshotForTesting.handleOpensStarted, started + 1);
+    [self settleUntil:^BOOL {
+        VibeAudioFileMaterializationCoordinatorSnapshot snapshot = coordinator.stateSnapshotForTesting;
+        return snapshot.handleOpensCompleted == snapshot.handleOpensStarted && snapshot.handleRunCount == 0
+                && snapshot.claimCount == 0 && AudioFileHandle.debugOrphanedReadAheads == 1;
+    }];
+    XCTAssertEqual([self count:@"start"], 0u);
+    [_script releaseStalls];
+    [self settleUntil:^BOOL { return VibeReadAheadScript.threadsGone; }];
+    _playError = nil;
+    [self play:[self fixture:@"noise-48000-16-2.wav"] paused:NO position:0];
+    XCTAssertEqual([self count:@"start"], 1u, @"an unrelated file still opens");
+}
+
+// A parked prefetch reads ahead as the playing file does: both threads live,
+// and the park's file read past its first block, before the first track
+// ends. The splice is exact.
+- (void)testAParkedPrefetchReadsAheadAndSplicesExactly {
+    NSData *reference = PCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
+    NSUInteger split = 48001;
+    NSURL *first = [self networkCopyOf:[self write:[reference subdataWithRange:NSMakeRange(0, split * 8)]
+                                              rate:48000 channels:2 name:@"first.wav"]];
+    NSURL *second = [self networkCopyOf:[self write:[reference subdataWithRange:NSMakeRange(split * 8, reference.length - split * 8)]
+                                               rate:48000 channels:2 name:@"second.wav"]];
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:first paused:NO position:0];
+    }];
+    // Named once the first track decodes: a successor queued before its first
+    // drain leaves the pool idle until a render.
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_player prefetchTrack:[AudioTrack withURL:second]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self settleUntil:^BOOL {
+        return AudioFileHandle.debugLiveReadAheads == 2 && [self->_script readsOf:@"second.wav" at:kReadAheadBlock] == 1;
+    }];
+    XCTAssertEqual([self count:@"advance"], 0u);
+    XCTAssertEqualObjects(_player.currentTrack.url, first);
+    [self assertReference:reference capture:[self renderSeconds:2.1] skip:0 tolerance:0];
+    XCTAssertEqual([self count:@"advance"], 1u);
+    XCTAssertEqual([self count:@"finish"], 1u);
+    XCTAssertNil(_playError);
+}
+
+// A stream that stops still stalls while its queued successor, on a slow
+// share, keeps reading ahead. Only the file the voice reads counts as
+// progress. The successor's would hold the voice for as long as it fetched.
+- (void)testAStalledTrackStallsWhileItsQueuedSuccessorReadsAhead {
+    [self streamingCopyOf:[self fixture:@"noise-48000-24-2.wav"] prefix:44 + 28800 * 6 name:@"stalled.wav"];
+    NSURL *successor = [self networkNoiseOfSeconds:20 name:@"successor.wav"];
+    NSDictionary *attributes = [NSFileManager.defaultManager attributesOfItemAtPath:successor.path error:NULL];
+    uint64_t lastBlock = (attributes.fileSize - 1) / kReadAheadBlock * kReadAheadBlock;
+    _script.throttle = 250000;
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self shortenTheOpenDeadline];
+        [self play:self->_streamURL paused:NO position:0];
+    }];
+    [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
+    [_player prefetchTrack:[AudioTrack withURL:successor]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    [self stallTheStream];
+    XCTAssertGreaterThan([_script readsOf:successor.lastPathComponent at:kReadAheadBlock], 0u, @"the successor read ahead");
+    XCTAssertEqual([_script readsOf:successor.lastPathComponent at:lastBlock], 0u,
+                   @"the stall came while the successor still read ahead");
+}
+
 #pragma mark - An estimated length
 
 // An MP3's audio frames, its ID3v2 tag left off.
@@ -3521,6 +3887,133 @@ static NSData *MP3Frames(NSData *mp3) {
     XCTAssertEqual([_player.debugRenderCounts[@"varispeedRenders"] unsignedLongLongValue],renders);
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; [self play:url paused:NO position:0];
     [self assertReference:PCM([self read:url]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
+}
+// The pitch fader's converter, measured through the player in the style of
+// ResamplerQualityTests, at 48 and 96 kHz. The source is a file at the bus
+// rate of segments, each built so that at the fader's ratio its output is
+// known: one tone at −1 dBFS, twenty tones at once, or, speeding up, an input
+// the output's Nyquist cannot carry. The tones are the same at both rates;
+// what is placed against the kernel's edges scales with the rate.
+// The middle of each segment's output is fitted at exactly its frequencies,
+// gain and phase free, so the residual is everything that is not the tones.
+// The float32 file and capture set the floor, about −150 dB. Each bound sits
+// a few dB above what the converter measured. The table is attached as
+// "pitch quality"; docs/audio-quality.md compares it with Apple's Varispeed.
+- (void)testPitchQuality {
+    self.continueAfterFailure = YES; // every bound reports, and the table attaches
+    const NSUInteger segment = 32768, window = 8192;
+    const double full = pow(10, -1 / 20.0);
+    NSArray<NSNumber *> *tones = @[@20, @100, @1000, @5000, @10000, @15000, @18000, @20000];
+    NSMutableString *table = [@"| rate | pitch | D+N 1 kHz dB | D+N 10 kHz dB | D+N 20 kHz dB | twenty tones dB | false tones dB "
+                              "| flatness dB | gain at 20 kHz dB |\n|---|---|---|---|---|---|---|---|---|\n" mutableCopy];
+    _blockSize = 4096;
+    for (NSNumber *busRate in @[@48000, @96000]) for (NSNumber *percent in @[@-16, @-8, @-1, @1, @8, @16]) {
+        double ratio = 1 + percent.doubleValue / 100, rate = busRate.doubleValue, scale = rate / 48000;
+        NSString *label = [NSString stringWithFormat:@"%@ Hz, %@%%", busRate, percent];
+        // Each segment's input frequencies.
+        NSMutableArray<NSArray<NSNumber *> *> *segments = [NSMutableArray array];
+        for (NSNumber *tone in tones) [segments addObject:@[@(tone.doubleValue / ratio)]];
+        double twenty[20], top = MIN(19500, ratio < 1 ? 23500 * scale * ratio : 19500);
+        NSMutableArray<NSNumber *> *twentyIn = [NSMutableArray array];
+        for (int k = 0; k < 20; k++) {
+            twenty[k] = 40 * pow(top / 40, k / 19.0);
+            [twentyIn addObject:@(twenty[k] / ratio)];
+        }
+        [segments addObject:twentyIn];
+        NSUInteger falseFirst = segments.count;
+        if (ratio > 1) {
+            double nyquist = rate / 2, edge = nyquist / ratio;
+            for (NSNumber *f in @[@(edge + 150 * scale), @((edge + nyquist) / 2), @(nyquist - 200 * scale)]) [segments addObject:@[f]];
+        }
+        NSUInteger length = (NSUInteger)ceil(segment * ratio);
+        NSMutableData *source = [NSMutableData dataWithLength:length * segments.count * 2 * sizeof(float)];
+        float *s = source.mutableBytes;
+        [segments enumerateObjectsUsingBlock:^(NSArray<NSNumber *> *frequencies, NSUInteger index, BOOL *stop) {
+            double amplitude = frequencies.count == 1 ? full : 0.045;
+            for (NSUInteger m = 0; m < length; m++) {
+                double v = 0;
+                for (NSUInteger k = 0; k < frequencies.count; k++) {
+                    v += amplitude * sin(2 * M_PI * frequencies[k].doubleValue * m / rate + 0.7 * k);
+                }
+                s[(index * length + m) * 2] = s[(index * length + m) * 2 + 1] = (float)v;
+            }
+        }];
+        NSURL *url = [self write:source rate:rate channels:2 name:[NSString stringWithFormat:@"pitch%@-%@.wav", percent, busRate]];
+        [self startPlayerAt:rate channels:2 fx:NO bitPerfect:NO automatic:NO];
+        _player.maxPitch = 16;
+        _player.pitch = percent.floatValue;
+        [self play:url paused:NO position:0];
+        NSData *capture = [self renderSeconds:(length * segments.count / ratio + window) / rate];
+        const float *out = capture.bytes;
+        double *x = malloc(window * sizeof(double));
+        // The window at the middle of segment `index`'s output.
+        NSUInteger (^windowOf)(NSUInteger) = ^NSUInteger(NSUInteger index) {
+            NSUInteger first = (NSUInteger)llround((index * length + length / 2.0) / ratio) - window / 2;
+            for (NSUInteger n = 0; n < window; n++) x[n] = out[(first + n) * 2];
+            return first;
+        };
+        // Distortion + noise at 1, 10 and 20 kHz, where 20 kHz's input is below
+        // the kernel's −6 dB point.
+        NSMutableDictionary<NSNumber *, NSNumber *> *distortion = [NSMutableDictionary dictionary];
+        double flatness = 0, gain20k = 0, falseTones = NAN;
+        for (NSUInteger index = 0; index < tones.count; index++) {
+            double f = tones[index].doubleValue;
+            VibeToneFit fit = VibeFitTone(x, window, f, rate, windowOf(index), 0);
+            double gain = 20 * log10(fit.amplitude / full);
+            // Slowing down, the input of an output tone near 20 kHz sits in the
+            // kernel's transition band, above its passband edge of 20 kHz × the ratio
+            // at 48 kHz.
+            if (f <= 20000 * scale * MIN(1, ratio)) flatness = MAX(flatness, fabs(gain));
+            if (f == 20000) gain20k = gain;
+            if (f == 1000 || f == 10000 || (f == 20000 && f / ratio < 22000 * scale)) {
+                double dn = VibeDB(fit.residualPower / (fit.amplitude * fit.amplitude / 2));
+                distortion[tones[index]] = @(dn);
+                XCTAssertLessThan(dn, -145, @"%@: distortion + noise at %@ Hz", label, tones[index]);
+            }
+        }
+        double a[20], b[20], signal = 0;
+        NSUInteger first = windowOf(tones.count);
+        double residual = VibeFitTones(x, window, twenty, 20, rate, first, 0, a, b);
+        for (int k = 0; k < 20; k++) signal += (a[k] * a[k] + b[k] * b[k]) / 2;
+        double twentyTones = VibeDB(residual / signal);
+        for (NSUInteger index = falseFirst; index < segments.count; index++) {
+            double rms = RMS(capture, 2, 0, NSMakeRange(windowOf(index), window));
+            double level = VibeDB(rms * rms / (full * full / 2));
+            falseTones = isnan(falseTones) ? level : MAX(falseTones, level);
+        }
+        free(x);
+        [table appendFormat:@"| %@ | %+g%% | %.1f | %.1f | %.1f | %.1f | %.1f | %.6f | %.4f |\n", busRate, percent.doubleValue,
+         (distortion[@1000] ?: @(NAN)).doubleValue, (distortion[@10000] ?: @(NAN)).doubleValue,
+         (distortion[@20000] ?: @(NAN)).doubleValue, twentyTones, falseTones, flatness, gain20k];
+        XCTAssertLessThan(twentyTones, -145, @"%@: twenty tones", label);
+        if (ratio > 1) XCTAssertLessThan(falseTones, -145, @"%@: false tones", label);
+        XCTAssertLessThan(flatness, 0.0001, @"%@: passband flatness", label);
+        if (20000 / ratio < 20250 * scale) XCTAssertLessThan(fabs(gain20k), 0.0001, @"%@: flat at 20 kHz", label);
+    }
+    XCTAttachment *attachment = [XCTAttachment attachmentWithString:table];
+    attachment.name = @"pitch quality";
+    attachment.lifetime = XCTAttachmentLifetimeKeepAlways;
+    [self addAttachment:attachment];
+}
+// A slice that ramps the ratio down keeps the kernel stretched for where the
+// ramp starts. A 22 kHz tone is in that kernel's stopband at +16%, so the
+// slice ramping to −1% is silent; with the target's kernel the tone would
+// pass while the ratio is still above 1, and fold back. Once the ratio has
+// landed, the tone plays at −1% as it should, about 6 dB down.
+- (void)testARampDownKeepsTheWiderKernel {
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _blockSize = 4096;
+    NSData *tone = StereoTone(3 * 48000, 48000, 22000, 0.5f);
+    _player.maxPitch = 16;
+    _player.pitch = 16;
+    [self play:[self write:tone rate:48000 channels:2 name:@"22k.wav"] paused:NO position:0];
+    [self render:48000];
+    _player.pitch = -1;
+    NSData *ramp = [self renderSeconds:4096 / 48000.0];
+    [self render:4096];
+    NSData *landed = [self renderSeconds:8192 / 48000.0];
+    XCTAssertLessThan(RMS(ramp, 2, 0, NSMakeRange(0, 4096)), 1e-5, @"the ramp down let the tone through");
+    XCTAssertGreaterThan(RMS(landed, 2, 0, NSMakeRange(0, 8192)), 0.1, @"the tone plays once the ratio has landed");
 }
 // Under the pump the output cannot follow the file's rate, so this measures
 // the bus's converter: the fallback a device that refuses a rate takes.
@@ -4527,12 +5020,13 @@ static NSData *MP3Frames(NSData *mp3) {
 @end
 @implementation AudioPlayerRenderOutputTests
 
-// At zero pitch the varispeed is hosted but not in the chain, so the output is
-// the file exactly. Leaving and returning to zero engages and disengages it
-// with no click or skip: on a 100 Hz tone every transition keeps the waveform
-// continuous and its envelope full, and the file advances exactly as far as
-// the rates played.
-- (void)testZeroPitchRendersTheBusDirectlyAndTogglesAreClickFree {
+// At zero pitch the varispeed is a bit-perfect pass-through: it is hosted but
+// not in the chain, so the output is the file exactly, and so is a track that
+// plays on after the fader returns to zero. Leaving and returning to zero
+// engages and disengages it with no click: on a 100 Hz tone every transition
+// keeps the waveform continuous and its envelope full. Every edge is read to
+// the frame by testPitchEngagesAndDisengagesAtTheExactFrame.
+- (void)testZeroPitchIsBitPerfectAndTogglesAreClickFree {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *noise = [self fixture:@"noise-48000-24-2.wav"];
     [self play:noise paused:NO position:0];
@@ -4547,29 +5041,11 @@ static NSData *MP3Frames(NSData *mp3) {
     NSArray<NSNumber *> *pitches = @[@0, @4, @0, @-4, @0, @8, @-8, @0];
     [self play:[self fixture:@"100.wav"] paused:NO position:0];
     [_capture setLength:0];
-    // Each segment advances the file by its own rate, within a few frames.
-    // An engage first plays the slice in which the unit's history is
-    // recorded directly, at rate 1, then pulls the unit's latency ahead of
-    // its output; a disengage plays that pulled-ahead latency from the ring
-    // without consuming. So the two segments carry those frames each way.
-    double expected = 0, latency = 0;
-    BOOL wasEngaged = NO;
     for (NSNumber *pitch in pitches) {
-        double before = _player.position, rate = 1 + pitch.doubleValue / 100;
         _player.pitch = pitch.floatValue;
         [self render:9600];
-        NSDictionary *counts = _player.debugRenderCounts;
-        BOOL engaged = [counts[@"varispeedEngaged"] boolValue];
-        XCTAssertEqual(engaged, pitch.floatValue != 0, @"pitch %@", pitch);
-        if (engaged) latency = [counts[@"varispeedLatency"] doubleValue];
-        double direct = ceil(2 * latency * 48000 / _blockSize) * _blockSize / 48000;
-        double advance = 0.2 * rate + (engaged && !wasEngaged ? latency + direct * (1 - rate) : 0) - (!engaged && wasEngaged ? latency : 0);
-        XCTAssertEqualWithAccuracy(_player.position - before, advance, 0.0002, @"the file advanced at pitch %@", pitch);
-        expected += advance;
-        wasEngaged = engaged;
+        XCTAssertEqual([_player.debugRenderCounts[@"varispeedEngaged"] boolValue], pitch.floatValue != 0, @"pitch %@", pitch);
     }
-    XCTAssertGreaterThan(latency, 0.0005, @"the unit's declared latency, read while engaged");
-    XCTAssertEqualWithAccuracy(_player.position, expected, 0.0002, @"the file advanced as far as the rates played");
     uint64_t historyWrites = [_player.debugRenderCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
     XCTAssertGreaterThan(historyWrites, 0ull, @"the engages recorded their history");
     // A 100 Hz tone at 0.25 moves 0.0033 per frame at most; a skipped or
@@ -4591,15 +5067,285 @@ static NSData *MP3Frames(NSData *mp3) {
         XCTAssertGreaterThan(rms, nominal * 0.93, @"a dip in the window at frame %lu", (unsigned long)f);
         if (rms <= nominal * 0.93) return;
     }
-    // Back at zero: the unit is idle, nothing is copied, and the output is
-    // the file, exactly.
+    // Back at zero mid-track: from the first frame after the fader returns,
+    // the replay of what the converter pulled ahead included, the track that
+    // plays on is the file bit for bit, one unbroken excerpt.
+    [self play:noise paused:NO position:0];
+    [self render:12000];
+    _player.pitch = 4;
+    [self render:12000];
+    _player.pitch = 0;
+    [_capture setLength:0];
+    [self render:24000];
+    XCTAssertEqual([self assertExactExcerptsOf:@[PCM([self read:noise])] inCapture:[_capture copy] rampFrames:0 ramped:NULL], 1u,
+                   @"the track after the fader returned to zero is the file exactly");
+    // Settled at zero: the converter is idle, nothing is copied, and a fresh
+    // play is the file, exactly.
     uint64_t renders = [_player.debugRenderCounts[@"varispeedRenders"] unsignedLongLongValue];
+    historyWrites = [_player.debugRenderCounts[@"varispeedHistoryWrites"] unsignedLongLongValue];
     XCTAssertGreaterThan(renders, 0ull, @"the varispeed rendered while the pitch was off zero");
     [self play:noise paused:NO position:0];
     [self assertReference:PCM([self read:noise]) capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
     counts = _player.debugRenderCounts;
     XCTAssertEqual([counts[@"varispeedRenders"] unsignedLongLongValue], renders, @"the varispeed rendered at zero pitch");
     XCTAssertEqual([counts[@"varispeedHistoryWrites"] unsignedLongLongValue], historyWrites, @"the history ring was written at zero pitch");
+}
+
+// The converter joins and leaves at the exact frame, at every rate from 44.1
+// to 192 kHz in stereo, and at 48 kHz in mono.
+// On a linear ramp each sample's value is its frame in the file, the
+// converter's output included, since its kernel passes DC and is symmetric,
+// so every edge can be read off the output. Joining, a slice after the fader
+// leaves zero (the direct path plays it while it records the kernel's past),
+// the first converted frame is the frame after the last direct one. Leaving,
+// the first direct frame is the converter's next position rounded, and the
+// file runs on from it exactly. A frame skipped or repeated at either edge
+// moves it by one. Five toggles at different pitches and lengths land the
+// edges at different fractions. The test reads a position to about
+// frame × 2^-23, whatever the rate, so the file is the same frames long at
+// every rate.
+- (void)testPitchEngagesAndDisengagesAtTheExactFrame {
+    const double step = 1.0 / (1 << 20); // a frame's rise: exact in float32 at every frame of the file
+    const NSUInteger length = 192000;
+    NSArray<NSNumber *> *pitches = @[@4, @-4, @8, @-8, @1];
+    NSArray<NSNumber *> *engaged = @[@9600, @10000, @7681, @12345, @8888];
+    NSArray<NSArray<NSNumber *> *> *configurations = @[@[@44100, @2], @[@48000, @2], @[@88200, @2], @[@96000, @2],
+                                                       @[@176400, @2], @[@192000, @2], @[@48000, @1]];
+    for (NSArray<NSNumber *> *configuration in configurations) {
+        NSNumber *rate = configuration[0];
+        NSUInteger channels = configuration[1].unsignedIntegerValue;
+        NSMutableData *ramp = [NSMutableData dataWithLength:length * channels * sizeof(float)];
+        float *samples = ramp.mutableBytes;
+        for (NSUInteger i = 0; i < length * channels; i++) samples[i] = (float)(i / channels * step);
+        [self startPlayerAt:rate.doubleValue channels:channels fx:NO bitPerfect:NO automatic:NO];
+        NSString *name = [NSString stringWithFormat:@"ramp-%@-%lu.wav", rate, (unsigned long)channels];
+        [self play:[self write:ramp rate:rate.doubleValue channels:channels name:name] paused:NO position:0];
+        [self render:12000]; // past the declick
+        NSUInteger at = 12000;
+        for (NSUInteger s = 0; s < pitches.count; s++) {
+            NSUInteger on = engaged[s].unsignedIntegerValue, off = 6000 + 333 * s;
+            double ratio = 1 + pitches[s].doubleValue / 100;
+            _player.pitch = pitches[s].floatValue;
+            [self render:on];
+            _player.pitch = 0;
+            [self render:off];
+            const float *out = _capture.bytes;
+            NSString *label = [NSString stringWithFormat:@"%@ Hz, %lu channel(s), pitch %@", rate, (unsigned long)channels, pitches[s]];
+            NSUInteger join = at + _blockSize;
+            double lastDirect = out[(join - 1) * channels] / step, firstConverted = out[join * channels] / step;
+            XCTAssertEqual(lastDirect, round(lastDirect), @"%@: the frame before the converter joins is the file's", label);
+            XCTAssertEqualWithAccuracy(firstConverted, lastDirect + 1, 0.05, @"%@: the converter joins at the next frame", label);
+            NSUInteger leave = at + on;
+            double lastConverted = out[(leave - 1) * channels] / step, firstDirect = out[leave * channels] / step;
+            XCTAssertEqual(firstDirect, round(firstDirect), @"%@: the frame after the converter leaves is the file's", label);
+            XCTAssertEqualWithAccuracy(firstDirect, lastConverted + ratio, 0.55,
+                                       @"%@: the direct path resumes at the converter's next position", label);
+            for (NSUInteger n = 1; n < off; n++) {
+                if (out[(leave + n) * channels] != (float)((firstDirect + n) * step)) {
+                    XCTFail(@"%@: frame %lu after the converter left is not the file's next frame", label, (unsigned long)n);
+                    break;
+                }
+            }
+            at = leave + off;
+        }
+    }
+}
+
+// The sawtooth the pitched transport and long-play tests read: file frame i
+// is (i mod 65536 − 32768) / 32768, exact in 16 bits and in float32, so a
+// file whose first frame is another's next continues it. The converter
+// passes a ramp through, so each output frame reads back as the file frame it
+// plays, to about 0.002 of a frame. Near the wrap it rings on the step, and
+// the frames on the step itself read anywhere, so a frame is read only when
+// its value is kSawGuard clear of the wrap and the frame it should play is
+// kSawStep clear of it.
+static const double kSawPeriod = 65536, kSawGuard = 8000, kSawStep = 256;
+
+static NSData *SawPCM(NSUInteger first, NSUInteger frames, NSUInteger channels, uint16_t bits) {
+    NSMutableData *data = [NSMutableData dataWithLength:frames * channels * bits / 8];
+    int16_t *integers = data.mutableBytes;
+    float *floats = data.mutableBytes;
+    for (NSUInteger f = 0; f < frames; f++) {
+        int value = (int)((first + f) % (NSUInteger)kSawPeriod) - 32768;
+        for (NSUInteger c = 0; c < channels; c++) {
+            if (bits == 16) integers[f * channels + c] = (int16_t)value;
+            else floats[f * channels + c] = value / 32768.0f;
+        }
+    }
+    return data;
+}
+
+// A frame of the sawtooth read: the file frame it played, and its output
+// frame from the start of the capture being read.
+typedef struct {
+    double frame, at;
+} SawReading;
+
+// Reads `capture` on from `last`: every frame read must play the file frame
+// `step` per output frame on from the last one read, within 0.05. With
+// `loose`, the first frame read may be anywhere within half a period of that,
+// but must step on to the next frame by `step`, so silence or a frame on the
+// wrap's step is not taken for it. Stops at the first frame that would play
+// `end` or past it. Returns the last frame read.
+- (SawReading)readSaw:(NSData *)capture from:(SawReading)last loose:(BOOL)loose step:(double)step end:(double)end
+                label:(NSString *)label {
+    const float *p = capture.bytes;
+    NSUInteger frames = capture.length / sizeof(float) / _channels;
+    double (^phaseAt)(NSUInteger) = ^double(NSUInteger n) {
+        double phase = p[n * self->_channels] * 32768.0 + 32768;
+        return phase < kSawGuard || phase > kSawPeriod - kSawGuard ? NAN : phase;
+    };
+    for (NSUInteger n = 0; n < frames; n++) {
+        double predicted = last.frame + ((double)n - last.at) * step;
+        if (predicted >= end) break;
+        if (_channels == 2 && p[n * 2] != p[n * 2 + 1]) {
+            XCTFail(@"%@: output frame %lu, the channels differ", label, (unsigned long)n);
+            break;
+        }
+        double phase = phaseAt(n), wrap = fmod(predicted, kSawPeriod);
+        if (isnan(phase) || (!loose && (wrap < kSawStep || wrap > kSawPeriod - kSawStep))) continue;
+        if (loose && (n + 1 == frames || isnan(phaseAt(n + 1)) || fabs(phaseAt(n + 1) - phase - step) > 0.05)) continue;
+        double offset = remainder(phase - predicted, kSawPeriod);
+        if (!loose && fabs(offset) > 0.05) {
+            XCTFail(@"%@: output frame %lu plays file frame %.3f, not %.3f", label, (unsigned long)n, predicted + offset, predicted);
+            break;
+        }
+        last = (SawReading){ predicted + offset, (double)n };
+        loose = NO;
+    }
+    if (loose) XCTFail(@"%@: no frame of the sawtooth was read", label);
+    return last;
+}
+
+// What the stage holds at a steady ratio: the bus leads the file frame the
+// capture's last frame plays by the kernel's half-width and one or two bus
+// frames, the half-width read from the latency the player reports. The bus's
+// next frame is the player's position into a 48 kHz sawtooth whose first
+// frame is `firstFrame`; `step` is file frames per output frame.
+- (BOOL)assertBusLeadsSaw:(SawReading)last capture:(NSData *)capture step:(double)step ratio:(double)ratio
+               firstFrame:(double)firstFrame label:(NSString *)label {
+    double half = round([_player.debugRenderCounts[@"varispeedLatency"] doubleValue] * _rate * ratio);
+    double frames = capture.length / sizeof(float) / _channels;
+    double heard = last.frame + (frames - 1 - last.at) * step;
+    double lead = (firstFrame + _player.position * 48000 - heard) * _rate / 48000;
+    XCTAssertEqual(half, ceil(64 * ratio), @"%@", label);
+    BOOL held = lead > half + 0.9 && lead < half + 2.1;
+    XCTAssertTrue(held, @"%@: the bus leads by %.3f frames, the half-width %.0f", label, lead, half);
+    return held;
+}
+
+// The pitch fader held at +8% through the transport: a seek, a pause past
+// the idle stop and its resume, a gapless track change and a change of the
+// output's rate. After each, once the kernel is past the edge, the output is
+// the sawtooth again at the ratio. The bus leads what plays by exactly what
+// the stage holds: its kernel's half-width and one or two frames, so no file
+// frame is skipped or repeated, and the position is what is heard.
+- (void)testPitchedTransportKeepsThePositionHeard {
+    const double ratio = 1.08;
+    const NSUInteger lengthA = 4 * 48000, lengthB = 3 * 48000, settle = 4096;
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
+    _player.declick = NO;
+    _player.pitch = 8;
+    NSURL *a = VibeWriteWAV([_temporary URLByAppendingPathComponent:@"saw-a.wav"], SawPCM(0, lengthA, 2, 32), 48000, 2, 32,
+                            (uint32_t)(lengthA * 8));
+    NSURL *b = VibeWriteWAV([_temporary URLByAppendingPathComponent:@"saw-b.wav"], SawPCM(lengthA, lengthB, 2, 32), 48000, 2, 32,
+                            (uint32_t)(lengthB * 8));
+    NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:a], [AudioTrack withURL:b]];
+    [_player play:tracks[0]];
+    [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
+    [_player prefetchTrack:tracks[1]];
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+    NSData *capture = [self renderSeconds:1];
+    // Each edge's output, read from `settle` frames on, from near the file
+    // frame `near`, in the track whose first frame is `first`.
+    SawReading (^readAfterEdge)(NSData *, double, double, double, NSString *) =
+        ^SawReading(NSData *data, double step, double near, double first, NSString *label) {
+        NSUInteger skip = settle * self->_channels * sizeof(float);
+        NSData *settled = [data subdataWithRange:NSMakeRange(skip, data.length - skip)];
+        SawReading reading = [self readSaw:settled from:(SawReading){ near, 0 } loose:YES step:step end:INFINITY label:label];
+        [self assertBusLeadsSaw:reading capture:settled step:step ratio:ratio firstFrame:first label:label];
+        return reading;
+    };
+    readAfterEdge(capture, ratio, settle * ratio, 0, @"the start");
+
+    [_player seekToPosition:2];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
+    readAfterEdge([self renderSeconds:0.5], ratio, 2 * 48000 + settle * ratio, 0, @"the seek");
+
+    [_player pause];
+    [self renderSeconds:6.1];
+    XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue], @"the pause reached the idle stop");
+    double paused = _player.position;
+    [_player resume];
+    [self settleUntil:^BOOL { return [self count:@"resume"] == 1; }];
+    capture = [self renderSeconds:0.5];
+    SawReading reading = readAfterEdge(capture, ratio, paused * 48000 + settle * ratio, 0, @"the resume");
+    [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
+
+    // Through the splice: B continues A's sawtooth, read on unbroken.
+    reading.at -= capture.length / sizeof(float) / 2 - settle;
+    capture = [self renderSeconds:1.5];
+    reading = [self readSaw:capture from:reading loose:NO step:ratio end:INFINITY label:@"the splice"];
+    XCTAssertEqual([self count:@"advance"], 1u);
+    XCTAssertEqual(_player.currentTrack, tracks[1]);
+    [self assertBusLeadsSaw:reading capture:capture step:ratio ratio:ratio firstFrame:lengthA label:@"the splice"];
+
+    // At 96 kHz the stage is hosted again, and the file is resampled before
+    // it, so each output frame plays half as many file frames on. The
+    // resampler adds nothing to the lead, since the position counts the bus.
+    double before = _player.position;
+    XCTAssertTrue([_player debugSetOutputRate:96000]);
+    _rate = 96000;
+    readAfterEdge([self renderSeconds:0.5], ratio / 2, lengthA + before * 48000 + settle * ratio / 2, lengthA, @"the rate change");
+    XCTAssertTrue([_player.debugRenderCounts[@"varispeedEngaged"] boolValue]);
+}
+
+// Ten minutes at +8%, every frame read: the output plays the file at exactly
+// the ratio, the bus leads it by what the stage holds at every second, the
+// duration is the file's, and the track ends as the bus reaches the file's
+// last frame. So nothing drifts over a long play.
+- (void)testALongPitchedPlayKeepsItsPosition {
+    const double ratio = 1.08, rate = 48000;
+    const NSUInteger length = 10 * 60 * 48000;
+    [self startPlayerAt:rate channels:1 fx:NO bitPerfect:NO automatic:NO];
+    _blockSize = 4096;
+    _player.pitch = 8;
+    NSURL *url = VibeWriteWAV([_temporary URLByAppendingPathComponent:@"saw-long.wav"], SawPCM(0, length, 1, 16), 48000, 1, 16,
+                              (uint32_t)(length * 2));
+    [self play:url paused:NO position:0];
+    XCTAssertEqual(_player.duration, length / rate);
+    [self render:2 * _blockSize]; // the engage, then the ratio's ramp from 1
+    double half = ceil(64 * ratio), rendered = 2 * _blockSize;
+    SawReading reading = { 0, 0 }, anchor = { NAN, NAN };
+    // The output frame where the bus reaches the file's end: where the output
+    // plays the file frame the lead short of it.
+    double ends = INFINITY, finishedAt = NAN;
+    while (isnan(finishedAt) && rendered < length / ratio + rate) {
+        [_capture setLength:0];
+        [self render:rendered + rate < ends - rate ? (NSUInteger)rate : _blockSize]; // a slice at a time near the end
+        NSData *capture = [_capture copy];
+        double frames = capture.length / sizeof(float);
+        reading = [self readSaw:capture from:reading loose:isnan(anchor.frame) step:ratio end:length - 2 * half label:@"the long play"];
+        if (isnan(anchor.frame)) {
+            anchor = (SawReading){ reading.frame, rendered + reading.at };
+            ends = anchor.at + (length - half - 1.5 - anchor.frame) / ratio;
+        }
+        if ([self count:@"finish"]) {
+            finishedAt = rendered + frames;
+        }
+        else if (![self assertBusLeadsSaw:reading capture:capture step:ratio ratio:ratio firstFrame:0
+                                    label:[NSString stringWithFormat:@"at %.0f s", rendered / rate]]) {
+            return;
+        }
+        reading.at -= frames;
+        rendered += frames;
+    }
+    XCTAssertFalse(isnan(finishedAt), @"the track never ended");
+    // Read against the first frame read: no drift.
+    XCTAssertEqualWithAccuracy(reading.frame, anchor.frame + (rendered + reading.at - anchor.at) * ratio, 0.05);
+    // The drain after the slice that reached the end reports it.
+    XCTAssertGreaterThanOrEqual(finishedAt, ends, @"the end was reported early");
+    XCTAssertLessThan(finishedAt, ends + 2 * _blockSize, @"the end was reported late");
 }
 
 // The volume is the render's last stage, after the meter. At full volume the
@@ -5218,8 +5964,12 @@ static NSData *MP3Frames(NSData *mp3) {
     XCTAssertEqual([bus[@"liveVoices"] intValue], 1);
     XCTAssertTrue([varispeed[@"present"] boolValue]);
     XCTAssertFalse([varispeed[@"engaged"] boolValue]);
-    XCTAssertEqual([varispeed[@"quality"] intValue], 127, @"the varispeed at its highest render quality");
-    XCTAssertGreaterThan([varispeed[@"latencyFrames"] intValue], 0);
+    XCTAssertEqual([varispeed[@"latencyFrames"] doubleValue], 0, @"no delay at zero pitch");
+    _player.pitch = -1;
+    [self render:4800];
+    NSDictionary *pitched = _player.audioPathSnapshot[3];
+    XCTAssertTrue([pitched[@"engaged"] boolValue]);
+    XCTAssertEqualWithAccuracy([pitched[@"latencyFrames"] doubleValue], 64 / 0.99, 1e-9, @"the kernel's half-width at the ratio");
     XCTAssertTrue([fx[@"connected"] boolValue]);
     XCTAssertTrue([fx[@"inRender"] boolValue]);
     XCTAssertEqual([fx[@"hostedUnits"] intValue], 10);
@@ -5624,6 +6374,185 @@ static NSData *MP3Frames(NSData *mp3) {
         method_setImplementation(produce, originalProduce);
         imp_removeBlock(heldProduce);
     }
+}
+
+@end
+
+// A link opened through LinkStore over HTTPStub: the probe, the placeholder,
+// the coordinator's streaming open of the store's fetch, and the client's
+// resends, all production. Played on the decode pool, Declick off, and at the
+// file's own rate, so every edge is a cut and the capture is the file's own
+// samples.
+@interface AudioPlayerRenderLinkTests : AudioPlayerRenderTests
+@end
+
+@implementation AudioPlayerRenderLinkTests {
+    HTTPStub *_stub;
+    LinkStore *_links;
+    NSMutableArray<dispatch_semaphore_t> *_gates;
+}
+
+static NSString *const kLinkFixture = @"noise-48000-24-2.wav";
+// The fixture's frame and header, 48 kHz 24-bit stereo.
+static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
+
+- (void)setUp {
+    [super setUp];
+    _stub = [[HTTPStub alloc] init];
+    LinkClient *client = [[LinkClient alloc] initWithConfiguration:_stub.configuration];
+    client.retryDelayScale = 0.01;
+    _links = [[LinkStore alloc] initWithClient:client rootURL:[_temporary URLByAppendingPathComponent:@"Links"
+                                                                                           isDirectory:YES]];
+    [_links installAsRemoteBackend];
+    _gates = [NSMutableArray array];
+}
+
+- (void)tearDown {
+    // A held stub delivery goes on to find its load stopped.
+    for (dispatch_semaphore_t gate in _gates) {
+        dispatch_semaphore_signal(gate);
+    }
+    [super tearDown];
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+}
+
+// The fixture served with a strong ETag, opened as a link: its placeholder.
+- (NSURL *)link {
+    [_stub serveData:[NSData dataWithContentsOfURL:[self fixture:kLinkFixture]]
+              atPath:[@"/" stringByAppendingString:kLinkFixture] headers:@{@"ETag": @"\"v1\""}];
+    __block NSURL *file = nil;
+    __block NSError *failure = nil;
+    [_links resolveURLString:[_stub URLForPath:kLinkFixture].absoluteString completion:^(NSURL *answer, NSError *error) {
+        file = answer;
+        failure = error ?: [NSError errorWithDomain:NSPOSIXErrorDomain code:0 userInfo:nil];
+    }];
+    [self settleUntil:^BOOL { return failure != nil; }];
+    XCTAssertNotNil(file, @"%@", failure);
+    XCTAssertTrue([NSURLUtil isDatalessFile:file], @"a placeholder under the registered root");
+    return file;
+}
+
+- (NSUInteger)offsetOfSecond:(double)seconds {
+    return kLinkHeaderBytes + (NSUInteger)(seconds * 48000) * kLinkFrameBytes;
+}
+
+// The fetch's requests: the download, and its tail read when the fixture
+// takes a window.
+- (int)requestsPerFetch {
+    uint64_t size = [NSData dataWithContentsOfURL:[self fixture:kLinkFixture]].length;
+    return VibeAudioFileTailWindowBytes(kLinkFixture.pathExtension, size) > 0 ? 2 : 1;
+}
+
+// The fetch's download and its tail read arrive in either order. Each takes
+// a stall past the tail's whole length, so only the download is held.
+- (dispatch_semaphore_t)stallAt:(double)seconds {
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    [_gates addObject:gate];
+    NSString *path = [@"/" stringByAppendingString:kLinkFixture];
+    for (int request = 0; request < [self requestsPerFetch]; request++) {
+        [_stub queueStep:[HTTPStubStep stallAfter:[self offsetOfSecond:seconds] gate:gate] forPath:path];
+    }
+    return gate;
+}
+
+- (void)playLink:(NSURL *)url {
+    [self playOnTheDecodePoolBitPerfect:NO play:^{
+        self->_player.declick = NO;
+        [self play:url paused:NO position:0];
+    }];
+}
+
+// Renders until `frames` audible frames follow a cut, and answers them.
+- (NSData *)audibleFramesAfterCut:(NSUInteger)frames {
+    [_capture setLength:0];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudibleFrames(self->_capture, 2).length >= frames * 8; }]);
+    return [AudibleFrames(_capture, 2) subdataWithRange:NSMakeRange(0, frames * 8)];
+}
+
+- (void)assertFrames:(NSData *)frames are:(NSData *)reference from:(double)seconds {
+    NSUInteger at = (NSUInteger)(seconds * 48000) * 8;
+    NSDictionary *comparison = ComparePCM([reference subdataWithRange:NSMakeRange(at, frames.length)], frames, 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"from %.2f s: %@", seconds, comparison);
+}
+
+// A download held behind the audio: the voice holds silent in place, then
+// plays on once the bytes come. The whole capture, silences taken out, is
+// the file.
+- (void)testALinkHoldsAtAStallAndPlaysOnExactly {
+    NSURL *url = [self link];
+    dispatch_semaphore_t gate = [self stallAt:1.0];
+    [self playLink:url];
+    NSData *reference = PCM([self read:[self fixture:kLinkFixture]]);
+    [_capture setLength:0];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    NSTimeInterval held = _player.position;
+    NSUInteger before = _capture.length / 8;
+    [self render:9600];
+    XCTAssertEqual(_player.position, held, @"the hold keeps its place");
+    XCTAssertEqual(RMS(_capture, 2, 0, NSMakeRange(before, _capture.length / 8 - before)), 0);
+    XCTAssertTrue(_player.isPlaying);
+    XCTAssertNotNil([_links availabilityForURL:url], @"streaming");
+
+    dispatch_semaphore_signal(gate);
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:url], [NSData dataWithContentsOfURL:[self fixture:kLinkFixture]]);
+}
+
+// A seek past the download's edge lands once the bytes come. A seek back into what has arrived lands at once. Both play the
+// file's own samples from their targets.
+- (void)testALinkSeeksAheadAndBehindExactly {
+    NSURL *url = [self link];
+    dispatch_semaphore_t gate = [self stallAt:1.0];
+    [self playLink:url];
+    NSData *reference = PCM([self read:[self fixture:kLinkFixture]]);
+    // Held at the edge, its ring played out.
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+
+    [_player seekToPosition:1.3];
+    [_capture setLength:0];
+    [self render:4800];
+    XCTAssertEqual(AudibleFrames(_capture, 2).length, 0u, @"nothing plays before its bytes");
+    dispatch_semaphore_signal(gate);
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
+    XCTAssertTrue([self renderUntil:^BOOL { return AudibleFrames(self->_capture, 2).length >= 9600 * 8; }]);
+    [self assertFrames:[AudibleFrames(_capture, 2) subdataWithRange:NSMakeRange(0, 9600 * 8)] are:reference from:1.3];
+
+    [_player seekToPosition:0.2];
+    [self settleUntil:^BOOL { return [self count:@"seek"] == 2; }];
+    [self assertFrames:[self audibleFramesAfterCut:9600] are:reference from:0.2];
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    XCTAssertNil(_playError);
+}
+
+// A connection lost mid-body is resent from the last byte written: the
+// capture, silences taken out, is the file, with no failure.
+- (void)testALinkDroppedMidBodyResumesExactly {
+    NSURL *url = [self link];
+    NSUInteger drop = [self offsetOfSecond:1.2];
+    NSString *part = [NSURLUtil remotePlaceholderPartURL:url].path;
+    NSString *path = [@"/" stringByAppendingString:kLinkFixture];
+    for (int request = 0; request < [self requestsPerFetch]; request++) {
+        [_stub queueStep:[HTTPStubStep dropAfter:drop ready:^BOOL {
+            struct stat st;
+            return stat(part.fileSystemRepresentation, &st) == 0 && (NSUInteger)st.st_size >= drop;
+        }] forPath:path];
+    }
+    [self playLink:url];
+    NSData *reference = PCM([self read:[self fixture:kLinkFixture]]);
+    [_capture setLength:0];
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    XCTAssertNil(_playError);
+    NSDictionary *comparison = ComparePCM(AudibleFrames(reference, 2), AudibleFrames(_capture, 2), 2, 0, 0);
+    XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
+    NSString *resend = [NSString stringWithFormat:@"bytes=%lu-", (unsigned long)drop];
+    NSUInteger resends = [[_stub requestsToPath:path] indexesOfObjectsPassingTest:^BOOL(NSURLRequest *request,
+                                                                                       NSUInteger index, BOOL *stop) {
+        return [[request valueForHTTPHeaderField:@"Range"] isEqualToString:resend];
+    }].count;
+    XCTAssertEqual(resends, 1u, @"one resend, from the last byte");
 }
 
 @end

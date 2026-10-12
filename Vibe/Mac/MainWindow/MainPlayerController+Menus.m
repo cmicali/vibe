@@ -20,6 +20,7 @@
 #import "AudioTrack.h"
 #import "AudioWaveformView.h"
 #import "AudioFileConverter.h"
+#import "NSURLUtil.h"
 #import "VibeStrings.h"
 
 // Validation runs on every menu open and every bound keypress, a held skip
@@ -206,7 +207,13 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) menuItem.title = manager.redoMenuItemTitle;
     return VibeEditMenuEnabled(menuItem.identifier, self.isConversionUndoRedoInFlight,
             manager.canUndo, manager.canRedo, [self hasVisiblePlaylistSelection],
-            self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil);
+            self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil,
+            [self focusedTextView] != nil);
+}
+
+- (nullable NSTextView *)focusedTextView {
+    NSResponder *responder = NSApp.keyWindow.firstResponder;
+    return [responder isKindOfClass:NSTextView.class] ? (NSTextView *)responder : nil;
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
@@ -217,7 +224,9 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     }
     // Shared with the window-body context menu. Hiding it here is how the
     // context menus follow the Convert setting live.
-    menuItem.hidden = !AppSettings.sharedInstance.convertEnabled;
+    NSString *path = self.playlistController.currentTrack.url.path;
+    menuItem.hidden = VibeConvertMenuItemHidden(AppSettings.sharedInstance.convertEnabled,
+                                                path && VibePathIsUnderRemotePlaceholderRoot(path));
     if (menuItem.hidden) {
         return NO;
     }

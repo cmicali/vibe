@@ -40,10 +40,18 @@ typedef void (^OpenRequestDelivery)(NSArray<AudioTrack *> *rows, NSUInteger fold
                  rows:(NSArray<AudioTrack *> *)rows
           folderCount:(NSUInteger)folderCount;
 
+// A held request is never given up on. Its owner is still deciding what it
+// opens, in a wait that is bounded and can be cancelled: a dropped link
+// resolving. Release starts the deadline again for what then buffers behind
+// it. Either one on a superseded token does nothing.
+- (void)holdRequest:(OpenRequestToken *)token;
+- (void)releaseRequest:(OpenRequestToken *)token;
+
 // Gives up on the one request the buffered results wait behind (a walk on a
 // mount that never answers) and delivers what that frees. Only that one, so a
 // merely slow walk behind it still delivers; each stalled request costs one
-// deadline. Armed automatically; exposed for the tests.
+// deadline. A held request is not given up on. Armed automatically; exposed
+// for the tests.
 - (void)abandonStalledRequests;
 
 // How long a finished result waits behind an earlier one.

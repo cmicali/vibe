@@ -35,6 +35,12 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
 #define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
 
+// 3-Band's palettes on iOS, resolved to colors only by WaveformTheme. On macOS
+// the theme's band wells are the palette.
+#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN       @"rekord_bin"
+#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE          @"dengine"
+#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM           @"custom"
+
 // The crossfade slider in milliseconds: off is 10, the declick minimum, then
 // tenths of a second up to three. The getter snaps any other stored value to
 // the nearest step.
@@ -69,6 +75,18 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 - (void)setWaveformCustomPlayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
 - (nullable VibeColor *)waveformCustomUnplayedColorForDark:(BOOL)isDark;
 - (void)setWaveformCustomUnplayedColor:(nullable VibeColor *)color forDark:(BOOL)isDark;
+
+// 3-Band's palette. It is kept apart from waveformTheme, so a style switch
+// keeps both choices. Normalized on read: an unknown identifier snaps to
+// Rekord Bin.
+- (NSString *)waveformBandTheme;
+- (void)setWaveformBandTheme:(NSString *)identifier;
+
+// The custom palette's bands per appearance. band is 0 for low, 1 for mid and
+// 2 for high. Stored opaque as #RRGGBB, because the layers stack. nil when
+// unset or unparsable.
+- (nullable VibeColor *)waveformCustomBandColor:(NSUInteger)band forDark:(BOOL)isDark;
+- (void)setWaveformCustomBandColor:(nullable VibeColor *)color band:(NSUInteger)band forDark:(BOOL)isDark;
 
 // Whether the playhead is a line over a waveform drawn wholly as played. nil
 // until the user chooses, and deliberately unregistered: the default is the

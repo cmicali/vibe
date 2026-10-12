@@ -51,6 +51,14 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
     return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
 }
 
+static inline NSString *VibeNormalizedWaveformBandTheme(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE] ||
+        [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
+}
+
 static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
         return VibeFolderOpenSortNewestFirst;

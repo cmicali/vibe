@@ -65,6 +65,8 @@ NSString *VibeViewTreeDump(void);
 NSArray *VibeMenuArray(NSMenu *menu);
 NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
+NSDictionary *VibeOpenURLWindowState(void);
+NSString *VibeDriveOpenURLWindow(NSArray<NSString *> *tokens);
 
 // DebugInput.m — synthesized input, synthetic drags and row selection.
 NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,

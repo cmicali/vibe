@@ -12,9 +12,13 @@ options:
     icon:                     # Icon Composer AppIcon.icon: treat the .icon package as a single
       file: true              # file reference (not a group to recurse into) so actool compiles it.
 
+# Release is the direct download (Developer ID, `make release`); AppStore is
+# the Mac App Store archive, the one configuration without the updater. The
+# iOS App Store path archives Release.
 configs:
   Debug: debug
   Release: release
+  AppStore: release
 
 # Shared between the app targets so a second platform cannot drift from the
 # first on where TagLib, PINCache and the generated git-info header live.
@@ -22,11 +26,11 @@ settingGroups:
   # THE version, for every target: both apps ship under one bundle identifier,
   # so they must carry the same number, and a per-target copy drifts silently.
   # A release bumps these two lines, and a stable one also sets
-  # VIBE_VERBOSE_LOGGING to 0 (the vibe-release skill); the release scripts
-  # read the number back out of the BUILT app.
+  # VIBE_BETA_DEBUG to 0 (the vibe-release skill); the release scripts read
+  # the number back out of the BUILT app.
   vibe-version:
-    MARKETING_VERSION: "1.16-beta2"
-    CURRENT_PROJECT_VERSION: 309
+    MARKETING_VERSION: "1.16-beta4"
+    CURRENT_PROJECT_VERSION: 311
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
@@ -91,12 +95,15 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GCC_C_LANGUAGE_STANDARD: c17
     GCC_NO_COMMON_BLOCKS: YES
+    # The beta switch: 1 for a beta, 0 for a stable release. It sets
+    # VIBE_VERBOSE_LOGGING below and the Beta updates default on the mac.
+    VIBE_BETA_DEBUG: 1
     # 1 for betas: info, debug and warn are persisted at Default, so Save Debug
     # Info retrieves them, and every timed playback step is recorded, so a
     # report with nothing logged means the path was not taken. 0 for a stable
     # release: info and debug are stream-only, and only steps over their
     # threshold are recorded.
-    VIBE_VERBOSE_LOGGING: 1
+    VIBE_VERBOSE_LOGGING: $(VIBE_BETA_DEBUG)
     # Nothing else fails on a compiler warning: the analyze gate matches only
     # checker findings. If a toolchain warns on vendored code, give that file a
     # per-file -Wno-* flag beside the PIN caches' entries rather than turning
@@ -123,10 +130,11 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS:
         - "DEBUG=1"
         - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
+        - "VIBE_BETA_DEBUG=$(VIBE_BETA_DEBUG)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: INCLUDE_SOURCE
       ONLY_ACTIVE_ARCH: YES
-    Release:
+    Release: &release-project-settings
       DEBUG_INFORMATION_FORMAT: "dwarf-with-dsym"
       # Only `archive` turns this on by itself, so without it a local Release
       # `build` (and `make install`) keeps its symbol table and is not what
@@ -138,8 +146,10 @@ settings:
       GCC_PREPROCESSOR_DEFINITIONS:
         - "NDEBUG=1"
         - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
+        - "VIBE_BETA_DEBUG=$(VIBE_BETA_DEBUG)"
         - "$(inherited)"
       MTL_ENABLE_DEBUG_INFO: NO
+    AppStore: *release-project-settings
 
 targets:
   Vibe:
@@ -158,7 +168,9 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/System
+      - path: Vibe/Loading
+        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
@@ -184,6 +196,7 @@ targets:
           - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
           - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
           - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
+          - "Sparkle/**"                      # prebuilt; the Vibe target re-adds it as a dependency
           - "**/*.inc"                        # r8brain's filter tables, #included by its headers: keep UNbundled
           - "**/PINDiskCache.m"               # re-added below with its per-file flags
           - "**/r8bsrc.cpp"                   # same
@@ -279,6 +292,21 @@ targets:
         basedOnDependencyAnalysis: false
         outputFiles:
           - "$(SRCROOT)/build/generated/VibeGitInfo.h"
+    postBuildScripts:
+      # The Mac App Store build carries no updater (App Review guideline
+      # 2.4.5): EXCLUDED_SOURCE_FILE_NAMES keeps the framework out, and this
+      # takes Sparkle's keys out of its Info.plist. release-appstore.sh checks
+      # both.
+      - script: |
+          [ "$VIBE_DIRECT_DISTRIBUTION" = 1 ] && exit 0
+          plist="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          for key in $(/usr/libexec/PlistBuddy -c Print "$plist" | awk '/^    SU/ { print $1 }'); do
+              /usr/libexec/PlistBuddy -c "Delete :$key" "$plist"
+          done
+        name: Remove Updater Keys
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)"
     info:
       path: Vibe/Mac/App/Info.plist
       properties:
@@ -293,6 +321,23 @@ targets:
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
 
         ITSAppUsesNonExemptEncryption: false
+
+        # Open URL: https to any host, plain http only on the local network.
+        # InfoPlist.xcstrings localizes the usage text.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
+        # Sparkle's. The AppStore configuration strips every SU* key from the
+        # built Info.plist (the script below). The feed and the key are
+        # permanent: every shipped build trusts them.
+        SUFeedURL: "$(VIBE_SPARKLE_FEED_URL)"
+        SUPublicEDKey: "$(VIBE_SPARKLE_PUBLIC_KEY)"
+        SUEnableInstallerLauncherService: true   # required under the App Sandbox
+        SUVerifyUpdateBeforeExtraction: true
+        # On from the first launch, weekly, with no prompt: Sparkle asks only
+        # when this key is absent. Settings > General can change both.
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 604800
 
         LSMultipleInstancesProhibited: YES
         NSSupportsAutomaticTermination: YES
@@ -390,13 +435,23 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         CLANG_ENABLE_MODULES: YES
-        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
+        # The direct download's: the App Store's plus Sparkle's network access
+        # and installer connection. Temporary exceptions pass Developer ID
+        # review, not App Review, so the AppStore configuration signs with
+        # Vibe.entitlements instead.
+        CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe-Direct.entitlements"
         CODE_SIGN_IDENTITY: "-"             # Sign to Run Locally: no dev cert; the release
                                             # scripts re-sign for distribution.
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_APP_SANDBOX: YES
-        ENABLE_HARDENED_RUNTIME: YES
+        # TRAP: off in a local build. Under the hardened runtime, library
+        # validation refuses an ad-hoc-signed Sparkle in an ad-hoc-signed app
+        # ("different Team IDs"), so it would die at launch. asc_archive turns
+        # it on for every archive, and the Developer ID export re-signs both
+        # under one team; notarization rejects a build without it.
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES    # Open URL, in both builds
         ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
@@ -406,7 +461,29 @@ targets:
         LIBRARY_SEARCH_PATHS: "$(inherited)"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         PROVISIONING_PROFILE_SPECIFIER: ""
+        # The one channel marker: 1 for the direct download (Debug, Release),
+        # 0 for the Mac App Store. Nothing else may infer the channel.
+        VIBE_DIRECT_DISTRIBUTION: 1
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "VIBE_DIRECT_DISTRIBUTION=$(VIBE_DIRECT_DISTRIBUTION)"
+        # release.sh's arm64-only archive passes appcast-arm64.xml, so an
+        # arm64-only install stays arm64-only.
+        VIBE_SPARKLE_FEED_URL: "https://vibeplayer.app/appcast.xml"
+        # The public half of the EdDSA key `generate_keys` keeps in the
+        # releaser's login keychain. release.sh refuses to ship without it.
+        VIBE_SPARKLE_PUBLIC_KEY: "HUolDn2S16W1lsK6ibAmHxeFprgzPCFWzEXQF/QoFIg="
+      configs:
+        AppStore:
+          VIBE_DIRECT_DISTRIBUTION: 0
+          CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
+          # Unlinks and unembeds the framework the dependency below adds.
+          EXCLUDED_SOURCE_FILE_NAMES: Sparkle.framework
     dependencies:
+      # The updater, direct download only (the AppStore configuration above).
+      - framework: Vibe/ThirdParty/Sparkle/Sparkle.framework
+        embed: true
+        codeSign: true
       - sdk: AVFAudio.framework             # AVAudioFormat/PCMBuffer/ChannelLayout; MediaPlayer loads AVFoundation regardless
       - sdk: Accelerate.framework
       - sdk: ApplicationServices.framework
@@ -435,7 +512,9 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      - path: Vibe/System
+      - path: Vibe/Loading
+        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
+      - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
@@ -454,6 +533,7 @@ targets:
           - "**/*.xcprivacy"
           - "**/*.txt"
           - "**/LICENSE.MPL"
+          - "Sparkle/**"
           - "**/*.inc"
           - "**/PINDiskCache.m"
           - "**/r8bsrc.cpp"
@@ -506,6 +586,11 @@ targets:
         LSApplicationCategoryType: "public.app-category.music"
         ITSAppUsesNonExemptEncryption: false
         NSHumanReadableCopyright: "Copyright © 2026 Christopher Micali. All rights reserved."
+        # Open URL: https to any host, plain http only on the local network.
+        # InfoPlist.xcstrings localizes the usage text.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
         UILaunchScreen: {}                    # system launch screen; no storyboard
         UIBackgroundModes: [audio]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
@@ -715,6 +800,7 @@ targets:
       - path: Vibe/Debug/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/DebugWireFormat.m
       - path: Vibe/Debug/VibeFakeCloud.m
+      - path: Vibe/Debug/VibeFakeHTTP.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
@@ -725,10 +811,11 @@ targets:
       - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
+      - path: Vibe/Audio/FX/AudioVarispeed.m
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
@@ -736,8 +823,8 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
-      - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Audio/Loading/AudioWorkScheduler.m
+      - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
@@ -748,15 +835,18 @@ targets:
       - path: Vibe/Audio/Metadata/FolderArt/FolderArtFileIO.m
       - path: Vibe/Audio/Metadata/AudioTrackArtwork.m
       - path: Vibe/Audio/Metadata/ArtworkLoadRegistry.m
-      - path: Vibe/Audio/Loading/CloudTransferRegistry.m
+      - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
-      - path: Vibe/System/NowPlayingController.m
-      - path: Vibe/System/CloudFileMaterializer.m
-      - path: Vibe/System/DownloadProgressMonitor.m
-      - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/NowPlaying/NowPlayingController.m
+      - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/DownloadProgressMonitor.m
+      - path: Vibe/Loading/DownloadProgressSourceAdapters.m
+      - path: Vibe/Loading/Net/HTTPTransferClient.m
+      - path: Vibe/Loading/Net/RemotePlaceholderStore.m
+      - path: Vibe/Loading/Net/LinkStore.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -769,6 +859,7 @@ targets:
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
+      - path: Vibe/Util/Mac/TrackCommands.m
       - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
@@ -829,7 +920,9 @@ targets:
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
-          - "$(SRCROOT)/Vibe/System"
+          - "$(SRCROOT)/Vibe/NowPlaying"
+          - "$(SRCROOT)/Vibe/Loading"
+          - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
@@ -841,7 +934,6 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Vibe/Audio/Analysis"
           - "$(SRCROOT)/Vibe/Audio/FX"
-          - "$(SRCROOT)/Vibe/Audio/Loading"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
           # The theme and zoom math; the renderers, level math and host-less morph engine.
@@ -872,9 +964,13 @@ targets:
     sources:
       - path: Tests/AudioPlayerRenderTests.m
       - path: Tests/TestFilesystemGuard.m
+      - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
+      - path: Vibe/Debug/VibeFakeHTTP.m       # HTTPStub's serving engine
+      - path: Tests/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
+      - path: Vibe/Audio/FX/AudioVarispeed.m
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Audio/AudioVoiceBus.m
@@ -887,7 +983,7 @@ targets:
       - path: Vibe/Audio/AudioTrack.m
       - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Audio/Loading/AudioLoadingConfiguration.m
+      - path: Vibe/Loading/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
@@ -895,9 +991,9 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
-      - path: Vibe/Audio/Loading/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Audio/Loading/AudioWorkScheduler.m
-      - path: Vibe/Audio/Loading/CloudTransferRegistry.m
+      - path: Vibe/Loading/AudioFileMaterializationCoordinator.m
+      - path: Vibe/Loading/AudioWorkScheduler.m
+      - path: Vibe/Loading/CloudTransferRegistry.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
       - path: Vibe/Audio/Mac/Devices/AudioDevice.m
@@ -909,9 +1005,12 @@ targets:
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Debug/VibeManualRenderPump.m
       - path: Vibe/Debug/VibeWorkTally.m
-      - path: Vibe/System/CloudFileMaterializer.m
-      - path: Vibe/System/DownloadProgressMonitor.m
-      - path: Vibe/System/DownloadProgressSourceAdapters.m
+      - path: Vibe/Loading/CloudFileMaterializer.m
+      - path: Vibe/Loading/DownloadProgressMonitor.m
+      - path: Vibe/Loading/DownloadProgressSourceAdapters.m
+      - path: Vibe/Loading/Net/HTTPTransferClient.m
+      - path: Vibe/Loading/Net/RemotePlaceholderStore.m
+      - path: Vibe/Loading/Net/LinkStore.m
       - path: Vibe/Util/NSURLUtil.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m

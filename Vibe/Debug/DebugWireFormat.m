@@ -49,6 +49,17 @@ BOOL VibeParseDouble(NSString *token, double *out) {
     return [scanner scanDouble:out] && scanner.isAtEnd;
 }
 
+BOOL VibeParseByteCount(NSString *token, uint64_t *bytes) {
+    double scale = [token hasSuffix:@"K"] ? 1024 : [token hasSuffix:@"M"] ? 1024 * 1024 : 1;
+    NSString *digits = scale > 1 ? [token substringToIndex:token.length - 1] : token;
+    double number = 0;
+    if (!VibeParseDouble(digits, &number) || number < 0) {
+        return NO;
+    }
+    *bytes = (uint64_t)(number * scale);
+    return YES;
+}
+
 BOOL VibeParseNonnegativeInteger(NSString *token, NSUInteger *out) {
     if (!token.length) {
         return NO;

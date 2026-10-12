@@ -99,6 +99,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self updateUI]; // ends with the Now Playing publish
 }
 
+// A hold stops Now Playing's clock. Nothing on screen shows it: the
+// waveform's loading indicator would wipe the waveform and its click-seek.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBuffering:(BOOL)buffering
+              forTrack:(AudioTrack *)track {
+    if (track != self.playlistController.currentTrack) {
+        return;
+    }
+    [self updateNowPlaying];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     // Acting on a stale start would reset the new track's shimmer and
     // waveform, start a wasted decode and prefetch, and cache the wrong

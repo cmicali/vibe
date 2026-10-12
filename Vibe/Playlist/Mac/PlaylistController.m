@@ -202,7 +202,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     NSPasteboardItem *item = [NSPasteboardItem new];
     [item setString:_dragSessionToken forType:kPlaylistReorderPasteboardType];
     NSURL *url = [_model trackAtIndex:(NSUInteger)row].url;
-    if (url.isFileURL && ![_dragSessionFileURLs containsObject:url]) {
+    // A placeholder's row still reorders. It only carries no file out.
+    if (![_dragSessionFileURLs containsObject:url] && [TrackCommands handsOutURL:url]) {
         [_dragSessionFileURLs addObject:url];
         [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
     }

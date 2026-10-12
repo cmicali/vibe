@@ -19,6 +19,11 @@
 #import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+#if VIBE_DIRECT_DISTRIBUTION
+#import "AppDelegate.h"
+#import <Sparkle/Sparkle.h>
+#endif
+
 static const CGFloat kAdvancedPopUpWidth = 200;
 
 
@@ -519,6 +524,11 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     }
     MainPlayerController *player = self.playerController;
     [player applySettingsLiveEffects:VibeSettingsLiveEffectAll];
+#if VIBE_DIRECT_DISTRIBUTION
+    // Sparkle's check settings went with the rest, and it reschedules only
+    // when told.
+    [[(AppDelegate *)NSApp.delegate updaterController].updater resetUpdateCycle];
+#endif
     // TRAP: reset cleared the saved device UID while the player keeps the old
     // binding, so mode writes would miss. selectOutputDevice: holds the mode
     // switches disabled until the bind settles; a refused bind reannounces the

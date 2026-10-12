@@ -5,14 +5,18 @@
 //  The Dropbox account and the HTTP calls made as it: PKCE sign-in, the
 //  refresh token in the Keychain, the access token in memory, and a JSON call
 //  and a download that refresh an expired token and retry a throttled request
-//  on their own, the download resuming a dropped connection too. Knows nothing
-//  of files on disk; DropboxMirror does.
+//  on their own. The download and the ranged read are HTTPTransferClient's,
+//  which resumes a dropped connection too; this class makes their requests
+//  and reads Dropbox's answers. Knows nothing of files on disk; DropboxMirror
+//  does.
 //
 //  Thread-safe. Completions run on an arbitrary queue unless stated.
 //
 
 #import <Foundation/Foundation.h>
 #import <AuthenticationServices/AuthenticationServices.h>
+
+#import "HTTPTransferClient.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -40,10 +44,11 @@ static inline NSError *VibeDropboxMakeError(VibeDropboxError code, NSString *des
 // Posted on main when the account is linked, unlinked or renamed.
 extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 
-@interface DropboxClient : NSObject
+@interface DropboxClient : HTTPTransferClient
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
+- (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration NS_UNAVAILABLE;
 
 // keychainService nil keeps the account in memory only (the tests).
 - (instancetype)initWithAppKey:(NSString *)appKey
@@ -70,35 +75,9 @@ extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
            arguments:(nullable NSDictionary *)arguments
           completion:(void (^)(NSDictionary *_Nullable result, NSError *_Nullable error))completion;
 
-// files/download, streamed into destination as the bytes arrive, so its
-// size on disk is the transfer's progress. Made once, at the first response:
-// a resend (a refreshed token, a throttle, a dropped connection) continues it
-// with a Range header rather than starting over, and only for the same rev.
-// The completion carries the first response's metadata (the
-// Dropbox-API-Result header); on failure destination is gone. A file whose
-// length differs from that metadata's size fails, and one dropped after its
-// last byte is complete.
-// progress, on the download's serial delivery queue and never after the
-// completion, is called with 0 once the file is made, then after each write
-// with the bytes on disk; size and rev are the metadata's, -1 and nil when it
-// names none.
-// The returned block cancels, any thread, at any point: before the request
-// starts it never starts.
-- (dispatch_block_t)downloadPath:(NSString *)path
-                           toURL:(NSURL *)destination
-                        progress:(nullable void (^)(uint64_t bytesWritten, int64_t size,
-                                                    NSString *_Nullable rev))progress
-                      completion:(void (^)(NSDictionary *_Nullable metadata, NSError *_Nullable error))completion;
-
-// `length` bytes of files/download from `offset`, through a Range header:
-// how a tag parse reads a file it does not download. Fewer bytes come back
-// only at the file's end. metadata is the response's Dropbox-API-Result, nil
-// when it carries none. The returned block cancels, as the download's does.
-- (dispatch_block_t)readPath:(NSString *)path
-                      offset:(uint64_t)offset
-                      length:(uint64_t)length
-                  completion:(void (^)(NSData *_Nullable data, NSDictionary *_Nullable metadata,
-                                       NSError *_Nullable error))completion;
+// The download and the ranged read are HTTPTransferClient's downloadTarget:…
+// and readTarget:…, with a Dropbox path as the target. Their metadata is the
+// response's Dropbox-API-Result, nil when it carries none.
 
 // Once per launch, off main, and only with an account: refreshes the access
 // token and opens both sessions' connections to the content host, so the

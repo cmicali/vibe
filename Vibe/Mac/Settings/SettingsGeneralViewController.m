@@ -4,6 +4,7 @@
 //
 
 #import "SettingsGeneralViewController.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioDeviceManager.h"
@@ -46,6 +47,10 @@ static const double kWaveformGainDetentDB = 0.75;
     VibeSwitch *_reopenPlaylistSwitch;
     NSPopUpButton *_waveformDragPopUp;
     NSPopUpButton *_artworkDragPopUp;
+#if VIBE_DIRECT_DISTRIBUTION
+    NSPopUpButton *_updateCheckPopUp;
+    VibeSwitch *_betaUpdatesSwitch;
+#endif
     // Shown on refresh while the async check runs.
     BOOL _lastKnownIsDefaultPlayer;
     NSUInteger _defaultPlayerCheckGeneration;
@@ -105,6 +110,20 @@ static const double kWaveformGainDetentDB = 0.75;
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_PATH value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH to:_artworkDragPopUp];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
+#if VIBE_DIRECT_DISTRIBUTION
+    // Seconds, as AppDelegate.updateCheckInterval takes them; 0 is never.
+    _updateCheckPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(updateCheckChanged:)];
+    [self addItem:STR_SETTINGS_UPDATE_CHECK_NEVER value:@0 to:_updateCheckPopUp];
+    NSArray<NSString *> *intervalTitles = @[STR_SETTINGS_UPDATE_CHECK_DAILY, STR_SETTINGS_UPDATE_CHECK_WEEKLY,
+                                            STR_SETTINGS_UPDATE_CHECK_MONTHLY];
+    NSAssert(intervalTitles.count == kVibeUpdateCheckIntervalPresetCount,
+             @"Every update check interval needs a title");
+    for (size_t i = 0; i < kVibeUpdateCheckIntervalPresetCount; i++) {
+        [self addItem:intervalTitles[i] value:@(kVibeUpdateCheckIntervalPresets[i]) to:_updateCheckPopUp];
+    }
+    _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
+#endif
+
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BEHAVIOR_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
@@ -119,6 +138,11 @@ static const double kWaveformGainDetentDB = 0.75;
                                   caption:STR_SETTINGS_LOCK_WINDOW_POSITION_CAPTION control:_lockWindowPositionSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
+#if VIBE_DIRECT_DISTRIBUTION
+            [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL
+                                  caption:STR_SETTINGS_BETA_UPDATES_CAPTION control:_betaUpdatesSwitch],
+#endif
             [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
         ]],
     ]];
@@ -190,6 +214,11 @@ static const double kWaveformGainDetentDB = 0.75;
     _reopenPlaylistSwitch.state = AppSettings.sharedInstance.reopenLastPlaylist ? NSControlStateValueOn : NSControlStateValueOff;
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
+#if VIBE_DIRECT_DISTRIBUTION
+    [self selectValue:@([(AppDelegate *)NSApp.delegate updateCheckInterval]) in:_updateCheckPopUp];
+    _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates ? NSControlStateValueOn : NSControlStateValueOff;
+    [self refreshBetaUpdatesEnabled];
+#endif
 }
 
 // On, the caption is the player's report, which settles asynchronously: the
@@ -282,6 +311,24 @@ static const double kWaveformGainDetentDB = 0.75;
 - (void)artworkDragChanged:(id)sender {
     AppSettings.sharedInstance.artworkDragAction = _artworkDragPopUp.selectedItem.representedObject;
 }
+
+#if VIBE_DIRECT_DISTRIBUTION
+- (void)updateCheckChanged:(id)sender {
+    [(AppDelegate *)NSApp.delegate setUpdateCheckInterval:[_updateCheckPopUp.selectedItem.representedObject doubleValue]];
+    [self refreshBetaUpdatesEnabled];
+}
+
+// Never disables the row but keeps its value: Check for Updates… still
+// honors it.
+- (void)refreshBetaUpdatesEnabled {
+    [SettingsRowView setControl:_betaUpdatesSwitch
+                        enabled:[(AppDelegate *)NSApp.delegate updateCheckInterval] > 0];
+}
+
+- (void)betaUpdatesChanged:(id)sender {
+    AppSettings.sharedInstance.receiveBetaUpdates = _betaUpdatesSwitch.state == NSControlStateValueOn;
+}
+#endif
 
 #pragma mark - Output device
 

@@ -10,6 +10,7 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
+#import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "PlaylistFile.h"
 #import "SearchFolderStoreInternal.h"
@@ -895,12 +896,13 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     NSMutableArray<NSData *> *additionBookmarks = [NSMutableArray array];
     NSURL *base = appending ? nil : (folderURL ?: contributors.firstObject);
     if ([self isCurrentOpenIntent:openIntentGeneration]) {
-        // A one-file open never replaces a folder bookmark, whose broader
-        // grant powers expansion and restore. An open that brought any folder
-        // in is not that case, whatever its base.
-        BOOL openedNoFolder = !folderURL && addedFolders.count == 0;
+        // An open that brought any folder in persists, whatever its base. So
+        // does a link opened alone: it restores from its placeholder, offline
+        // too (VibeFolderSessionPersistsBase).
+        BOOL openedFolder = folderURL || addedFolders.count > 0;
+        BOOL baseIsLink = base && [LinkStore.shared containsURL:base];
         BOOL persistedBaseIsFolder = NO;
-        if (base && !keepsSessionBookmark && openedNoFolder) {
+        if (base && !keepsSessionBookmark && !openedFolder && !baseIsLink) {
             NSNumber *isDirectory = nil;
             [resolvePersistedBase() getResourceValue:&isDirectory
                                               forKey:NSURLIsDirectoryKey
@@ -909,7 +911,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
         // Each mint is provider IPC, so the recents reuse these.
         NSMutableDictionary<NSURL *, NSData *> *minted = [NSMutableDictionary dictionary];
-        if (base && !keepsSessionBookmark && (!openedNoFolder || !persistedBaseIsFolder)) {
+        if (base && VibeFolderSessionPersistsBase(keepsSessionBookmark, openedFolder, persistedBaseIsFolder,
+                                                  baseIsLink)) {
             baseBookmark = [self bookmarkForURL:base];
             minted[base] = baseBookmark;
         }
@@ -951,22 +954,26 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 opened = @[shared ?: opened.firstObject];
             }
             NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
+            // A link's host, read here off main: a link is named by it.
+            NSMutableArray *linkHosts = [NSMutableArray arrayWithCapacity:opened.count];
             for (NSURL *url in opened) {
                 NSMutableDictionary *item = [NSMutableDictionary dictionary];
                 item[@"path"] = VibeComparablePath(url.path);
                 item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
                 item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
                 [recents addObject:item];
+                [linkHosts addObject:[LinkStore.shared hostOfLinkFileURL:url] ?: NSNull.null];
             }
             run_on_main_thread({
                 // On main: the name asks the Dropbox mirror and UIDevice.
                 // Recorded, not derived at draw time: the path can outlive
                 // the app container it names.
-                for (NSMutableDictionary *item in recents) {
+                [recents enumerateObjectsUsingBlock:^(NSMutableDictionary *item, NSUInteger index, BOOL *stop) {
                     NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
-                    item[@"location"] = [SearchFolderStore displayNameForFolderURL:
-                            [NSURL fileURLWithPath:parent isDirectory:YES]];
-                }
+                    id host = linkHosts[index];
+                    item[@"location"] = host != NSNull.null
+                            ? host : [SearchFolderStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
+                }];
                 [self recordRecentItems:recents];
             });
         }

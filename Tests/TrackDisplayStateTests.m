@@ -155,7 +155,8 @@
 
 - (void)testTimeTicksCannotOverwritePlaceholderStates {
     for (NSNumber *state in @[@(TrackDisplayStateLoading), @(TrackDisplayStateEmpty),
-                             @(TrackDisplayStateLaunchGrace), @(TrackDisplayStateError)]) {
+                             @(TrackDisplayStateLaunchGrace), @(TrackDisplayStateError),
+                             @(TrackDisplayStateNotice)]) {
         XCTAssertFalse(VibeTrackTimeMayUpdate(state.integerValue, 120, NO));
         XCTAssertFalse(VibeTrackTimeMayUpdate(state.integerValue, 120, YES));
     }

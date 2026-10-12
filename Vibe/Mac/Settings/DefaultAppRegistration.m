@@ -81,9 +81,9 @@ static void AddResolvedPath(NSMutableSet<NSString *> *paths, NSURL *_Nullable ur
 }
 
 // One type at a time: each request can raise its own confirmation panel, and
-// they must not stack. TRAP: a failure ends only its own type — the user
-// keeping Books for one format once ended the walk there, silently, leaving
-// every later format unclaimed.
+// they must not stack. TRAP: a failure ends only its own type. Ending the
+// walk there would silently leave every later format unclaimed when the user
+// keeps Books for one format.
 + (void)requestTypes:(NSArray<UTType *> *)types atIndex:(NSUInteger)index
             failures:(NSUInteger)failures declined:(BOOL)declined
           completion:(void (^)(BOOL refused))completion {

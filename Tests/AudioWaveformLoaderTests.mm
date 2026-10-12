@@ -13,6 +13,7 @@
 
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioFileHandle.h"
+#import "AudioFileHandle+Debug.h"
 #import "AudioFixtures.h"
 #import "AudioLoadTiming.h"
 #import "AudioTrack.h"
@@ -21,6 +22,7 @@
 #import "AudioWaveformCache+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "NSURL+Hash.h"
+#import "VibeReadAheadScript.h"
 
 #include <fcntl.h>
 #include <atomic>
@@ -125,6 +127,8 @@
     // The streams the remote backend answers, by path; set only by a test
     // that streams, and uninstalled in tearDown.
     NSMutableDictionary<NSString *, WaveformStreamAvailability *> *_streams;
+    // The read-ahead test's script. tearDown releases its stalled reads.
+    VibeReadAheadScript *_readAhead;
 }
 
 - (void)setUp {
@@ -147,6 +151,13 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 - (void)tearDown {
     if (_streams) {
         [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    }
+    if (_readAhead) {
+        // The read-ahead counts are process-wide: every parked thread is
+        // released and gone before the next test counts.
+        [_readAhead releaseEverything];
+        XCTAssertTrue([self eventually:^BOOL { return VibeReadAheadScript.threadsGone; }]);
+        [VibeReadAheadScript removeHook];
     }
     [NSFileManager.defaultManager removeItemAtURL:_tempDirectory error:nil];
     _loader = nil;
@@ -781,6 +792,33 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     [self abandon:stream as:url];
     XCTAssertTrue([self await:done]);
     XCTAssertFalse(loader.isComplete, @"a partial decode is never complete, so never persisted");
+}
+
+// A load on a network mount reads ahead, its handle waiting for bytes as a
+// stream's does, so it publishes its first block at once, before a read
+// stalled on the server can hold it: a snapshot arrives while the decode
+// waits. A cancel then ends that wait.
+- (void)testAReadAheadLoadPublishesItsFirstBlockBeforeAStalledRead {
+    NSURL *url = [self writeNoiseWAVNamed:@"network.wav" seconds:6.0 seed:17];
+    _readAhead = [[VibeReadAheadScript alloc] initForPathsContaining:url.path];
+    // The first decode read takes blocks 0 and 1; the second waits on block 2.
+    [_readAhead stallFrom:2 * kReadAheadBlock];
+    WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:recorder];
+    __block CodableAudioWaveform *result = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        result = [loader load:url.path];
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertTrue([self await:_readAhead.stalled], @"the read-ahead stalled on block 2");
+    XCTAssertTrue([self eventually:^BOOL { return recorder.snapshots.count >= 1; }],
+                  @"the first block published while the next read waits");
+    XCTAssertLessThan(recorder.fractions.firstObject.floatValue, 1.0f);
+    XCTAssertFalse(loader.isComplete);
+    [loader cancel];
+    XCTAssertTrue([self await:done], @"the cancel ended the wait");
+    XCTAssertNil(result);
 }
 
 #pragma mark - Through the cache

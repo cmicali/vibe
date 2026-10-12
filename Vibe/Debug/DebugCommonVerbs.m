@@ -16,6 +16,7 @@
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugConsistency.h"
+#import "AudioFileHandle+Debug.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileMaterializationCoordinator+Debug.h"
 #import "AudioLoadingConfiguration.h"
@@ -34,11 +35,15 @@
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
 #import "EqualizerIndicatorView+Debug.h"
+#import "LinkStore.h"
 #import "NSURLUtil.h"
 #import "NSURLUtil+Debug.h"
+#import "RemotePlaceholderStoreInternal.h"
 #import "VibeFakeCloud.h"
+#import "VibeFakeHTTP.h"
 #import "VibeWorkTally.h"
 
 #if TARGET_OS_OSX
@@ -98,6 +103,173 @@ static void VibeBurstJumps(__weak id<VibeDebugPlayerSurface> surface,
     run_on_main_thread({
         VibeBurstJumps(surface, remaining - 1, state);
     });
+}
+
+// set_slow_volume's state. The verb writes it on main. The read-ahead hook
+// reads it on read-ahead threads. Both hold the condition's lock. A held read
+// waits on the condition until its due time or until the next
+// set_slow_volume moves slowVolumeGeneration.
+static NSString *sSlowVolumeMode = @"off";
+static double sSlowVolumeBytesPerSecond;
+static int sSlowVolumeErrno;
+static uint64_t sSlowVolumeGeneration;
+static CFAbsoluteTime sSlowVolumeNextDue;
+static NSInteger sSlowVolumeHeldReads;
+static NSInteger sSlowVolumeReads;
+
+static NSCondition *VibeSlowVolumeCondition(void) {
+    static NSCondition *condition;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        condition = [NSCondition new];
+    });
+    return condition;
+}
+
+// A throttle paces every read-ahead together, as one slow link would. Each
+// read is due once the reads before it have had their share of the rate.
+static int VibeSlowVolumeBeforeRead(uint64_t length) {
+    NSCondition *condition = VibeSlowVolumeCondition();
+    @autoreleasepool {
+        [condition lock];
+        sSlowVolumeReads++;
+        int failure = sSlowVolumeErrno;
+        NSDate *until = nil;
+        if ([sSlowVolumeMode isEqualToString:@"stall"]) {
+            until = NSDate.distantFuture;
+        } else if (sSlowVolumeBytesPerSecond > 0) {
+            sSlowVolumeNextDue = MAX(CFAbsoluteTimeGetCurrent(), sSlowVolumeNextDue)
+                    + (double)length / sSlowVolumeBytesPerSecond;
+            until = [NSDate dateWithTimeIntervalSinceReferenceDate:sSlowVolumeNextDue];
+        }
+        uint64_t generation = sSlowVolumeGeneration;
+        if (until) {
+            sSlowVolumeHeldReads++;
+            while (generation == sSlowVolumeGeneration && [condition waitUntilDate:until]) {
+            }
+            sSlowVolumeHeldReads--;
+        }
+        [condition unlock];
+        return failure;
+    }
+}
+
+// Lets every held read go, then applies the new mode. Answers how many reads
+// it let go.
+static NSInteger VibeSetSlowVolume(NSString *mode, double bytesPerSecond, int failure) {
+    NSCondition *condition = VibeSlowVolumeCondition();
+    [condition lock];
+    NSInteger released = sSlowVolumeHeldReads;
+    sSlowVolumeGeneration++;
+    sSlowVolumeMode = mode;
+    sSlowVolumeBytesPerSecond = bytesPerSecond;
+    sSlowVolumeErrno = failure;
+    sSlowVolumeNextDue = 0;
+    sSlowVolumeReads = 0;
+    [condition broadcast];
+    [condition unlock];
+    BOOL forced = ![mode isEqualToString:@"off"];
+    [AudioFileHandle debugSetMountRule:forced ? ^NSNumber *(NSURL *url) {
+        return @YES;
+    } : nil];
+    [AudioFileHandle debugSetBeforeRead:forced ? ^int(NSURL *url, uint64_t offset, uint64_t length) {
+        return VibeSlowVolumeBeforeRead(length);
+    } : nil];
+    return released;
+}
+
+static NSDictionary *VibeSlowVolumeReply(NSNumber *released) {
+    NSCondition *condition = VibeSlowVolumeCondition();
+    [condition lock];
+    NSMutableDictionary *reply = [@{
+        @"ok": @YES,
+        @"mode": sSlowVolumeMode,
+        @"forced": @(![sSlowVolumeMode isEqualToString:@"off"]),
+        @"reads": @(sSlowVolumeReads),
+        @"heldReads": @(sSlowVolumeHeldReads),
+    } mutableCopy];
+    if (sSlowVolumeBytesPerSecond > 0) {
+        reply[@"bytesPerSecond"] = @(sSlowVolumeBytesPerSecond);
+    }
+    if (sSlowVolumeErrno) {
+        reply[@"errno"] = @(sSlowVolumeErrno);
+        reply[@"error"] = @(strerror(sSlowVolumeErrno));
+    }
+    [condition unlock];
+    if (released) {
+        reply[@"releasedReads"] = released;
+    }
+    reply[@"liveReadAheads"] = @(AudioFileHandle.debugLiveReadAheads);
+    reply[@"orphanedReadAheads"] = @(AudioFileHandle.debugOrphanedReadAheads);
+    return reply;
+}
+
+// A VibeLinkError by its link.error key's last part. A script reads the
+// failure the shell would show.
+static NSString *VibeLinkErrorName(VibeLinkError code) {
+    switch (code) {
+        case VibeLinkErrorNone: return @"none";
+        case VibeLinkErrorInvalid: return @"invalid";
+        case VibeLinkErrorInsecure: return @"insecure";
+        case VibeLinkErrorUnreachable: return @"unreachable";
+        case VibeLinkErrorLocalNetwork: return @"local_network";
+        case VibeLinkErrorNotFound: return @"not_found";
+        case VibeLinkErrorDenied: return @"denied";
+        case VibeLinkErrorNotAudio: return @"not_audio";
+        case VibeLinkErrorNoSize: return @"no_size";
+        case VibeLinkErrorLiveStream: return @"live_stream";
+        case VibeLinkErrorServer: return @"server";
+        case VibeLinkErrorCancelled: return @"cancelled";
+        case VibeLinkErrorICloudPrivate: return @"icloud_private";
+        case VibeLinkErrorICloudFolder: return @"icloud_folder";
+        case VibeLinkErrorICloudUnreadable: return @"icloud_unreadable";
+    }
+    return @"unknown";
+}
+
+static NSDictionary *VibeOpenLinkReply(NSURL *file, NSError *error) {
+    if (file) {
+        return @{@"ok": @YES, @"file": file.path, @"placeholder": @([NSURLUtil isRemotePlaceholderFile:file])};
+    }
+    BOOL linkError = [error.domain isEqualToString:VibeLinkErrorDomain];
+    NSError *cause = error.userInfo[NSUnderlyingErrorKey];
+    return @{
+        @"ok": @NO,
+        @"linkError": linkError ? VibeLinkErrorName((VibeLinkError)error.code) : [NSString stringWithFormat:@"%@ %ld",
+                                                                        error.domain, (long)error.code],
+        @"code": @(error.code),
+        @"status": error.userInfo[VibeHTTPErrorStatusCodeKey] ?: NSNull.null,
+        @"cause": cause ? [NSString stringWithFormat:@"%@ %ld", cause.domain, (long)cause.code] : NSNull.null,
+    };
+}
+
+// Each link's directory under the Links root, with its record and its file:
+// a placeholder or a download, and the stream writing it now.
+static NSArray<NSDictionary *> *VibeLinkDirectories(LinkStore *store) {
+    NSMutableArray<NSDictionary *> *links = [NSMutableArray array];
+    NSFileManager *files = NSFileManager.defaultManager;
+    NSArray<NSURL *> *directories = [files contentsOfDirectoryAtURL:store.rootURL includingPropertiesForKeys:nil
+                                                            options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                              error:NULL];
+    for (NSURL *directory in [directories sortedArrayUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        return [a.lastPathComponent compare:b.lastPathComponent];
+    }]) {
+        NSURL *file = [files contentsOfDirectoryAtURL:directory includingPropertiesForKeys:nil
+                                              options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL].firstObject;
+        CloudFileAvailability *stream = file ? [store availabilityForURL:file] : nil;
+        BOOL placeholder = file && [NSURLUtil isRemotePlaceholderFile:file];
+        [links addObject:@{
+            @"directory": directory.lastPathComponent,
+            @"record": [store indexOfDirectory:directory] ?: NSNull.null,
+            @"file": file.lastPathComponent ?: NSNull.null,
+            @"path": file.path ?: NSNull.null,
+            @"placeholder": @(placeholder),
+            @"stream": stream ? @{@"size": @(stream.size), @"writtenBytes": @(stream.writtenBytes),
+                                  @"windowBytes": @(stream.windowLength), @"readers": @(stream.readerCount)}
+                              : NSNull.null,
+        }];
+    }
+    return links;
 }
 
 NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> surface) {
@@ -659,6 +831,129 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 [surface debugAppendPath:path];
                 return VibeJSONString(@{@"ok": @YES, @"appending": path});
             }),
+            // Each shell's Open URL road: the resolve, then the file through
+            // the shell's replace. Replies when the resolve settles, with the
+            // file or the link's failure, never waiting for playback.
+            VibeDebugCmd(@"open_url <url>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                           id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count != 2) {
+                    return VibeErrorJSON(@"usage: open_url <url>");
+                }
+                [surface debugOpenLink:tokens[1] completion:^(NSURL *file, NSError *error) {
+                    VibeWriteDebugResponse(commandId, VibeJSONString(VibeOpenLinkReply(file, error)));
+                }];
+                return nil; // response written by the completion above
+            }),
+            VibeDebugCmd(@"dump_links", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                        id<VibeDebugPlayerSurface> surface) {
+                LinkStore *store = LinkStore.shared;
+                [store measureDownloadsWithCompletion:^(long long bytes) {
+                    VibeWriteDebugResponse(commandId, VibeJSONString(@{
+                        @"root": store.rootURL.path,
+                        @"budgetBytes": @(store.downloadBudget),
+                        @"downloadsBytes": @(bytes),
+                        @"links": VibeLinkDirectories(store),
+                    }));
+                }];
+                return nil; // response written by the completion above
+            }),
+            // A directory serves as https://fake.vibe.test/ and
+            // http://fake.local/ under the Links client (VibeFakeHTTP.h).
+            VibeDebugCmd(@"set_fake_http <directory>|off [<transfer-seconds>]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2 || tokens.count > 3) {
+                    return VibeErrorJSON(@"usage: set_fake_http <directory>|off [<transfer-seconds>]");
+                }
+                HTTPTransferClient *client = LinkStore.shared.client;
+                if ([tokens[1] isEqualToString:@"off"]) {
+                    [VibeFakeHTTP uninstallFromClient:client];
+                    return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
+                }
+                BOOL isDirectory = NO;
+                if (![NSFileManager.defaultManager fileExistsAtPath:tokens[1] isDirectory:&isDirectory]
+                        || !isDirectory) {
+                    return VibeErrorJSON(@"not a directory: %@", tokens[1]);
+                }
+                double seconds = 0;
+                if (tokens.count > 2 && (!VibeParseDouble(tokens[2], &seconds) || seconds < 0)) {
+                    return VibeErrorJSON(@"not a number of seconds: %@", tokens[2]);
+                }
+                [VibeFakeHTTP installWithDirectory:[NSURL fileURLWithPath:tokens[1] isDirectory:YES]
+                                   transferSeconds:seconds client:client];
+                return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": tokens[1],
+                                        @"transferSeconds": @(seconds),
+                                        @"hosts": @[@"https://fake.vibe.test/", @"http://fake.local/"]});
+            }),
+            VibeDebugCmd(@"dump_fake_http", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                           id<VibeDebugPlayerSurface> surface) {
+                return VibeJSONString(VibeFakeHTTP.statistics);
+            }),
+            // The value is the kind's own: drop, etag-change, and stall take
+            // bytes (after=), rate bytes per second, latency and expiry
+            // seconds, status a code. Byte counts take K and M.
+            VibeDebugCmd(@"fake_http_fault <stall|drop|etag-change|rate|latency|no-range|no-length|icy|status|html"
+                         @"|gzip|expiry|off> [<value>] [file=<basename>] [after=<bytes>] [once|always]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count < 2) {
+                    return VibeErrorJSON(@"usage: fake_http_fault <kind|off> [<value>] [file=<basename>] "
+                                         @"[after=<bytes>] [once|always]");
+                }
+                NSString *kind = tokens[1];
+                if ([kind isEqualToString:@"off"]) {
+                    [VibeFakeHTTP clearFaults];
+                    return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeHTTP.statistics[@"faults"]});
+                }
+                NSString *file = nil;
+                NSNumber *once = nil;
+                // Past the 256 KB readable mark by default. The stream has begun there.
+                uint64_t after = 512 * 1024, rate = 0;
+                double seconds = 1, number = 0;
+                NSInteger status = 0;
+                for (NSUInteger i = 2; i < tokens.count; i++) {
+                    NSString *token = tokens[i];
+                    if (i == 2 && [token rangeOfString:@"="].location == NSNotFound
+                            && ![@[@"once", @"always"] containsObject:token]) {
+                        BOOL valid = NO;
+                        if ([kind isEqualToString:@"rate"]) {
+                            valid = VibeParseByteCount(token, &rate) && rate > 0;
+                        }
+                        else if ([kind isEqualToString:@"latency"] || [kind isEqualToString:@"expiry"]) {
+                            valid = VibeParseDouble(token, &seconds) && seconds >= 0;
+                        }
+                        else if ([kind isEqualToString:@"status"]) {
+                            valid = VibeParseDouble(token, &number) && number >= 100 && number < 600;
+                            status = (NSInteger)number;
+                        }
+                        else {
+                            valid = VibeParseByteCount(token, &after);
+                        }
+                        if (!valid) {
+                            return VibeErrorJSON(@"bad value for %@: %@", kind, token);
+                        }
+                    }
+                    else if ([token hasPrefix:@"file="] && token.length > 5) {
+                        file = [token substringFromIndex:5];
+                    }
+                    else if ([token hasPrefix:@"after="]) {
+                        if (!VibeParseByteCount([token substringFromIndex:6], &after)) {
+                            return VibeErrorJSON(@"bad argument: %@", token);
+                        }
+                    }
+                    else if ([token isEqualToString:@"once"] || [token isEqualToString:@"always"]) {
+                        once = @([token isEqualToString:@"once"]);
+                    }
+                    else {
+                        return VibeErrorJSON(@"bad argument: %@", token);
+                    }
+                }
+                if (![VibeFakeHTTP addFaultOfKind:kind file:file after:after seconds:seconds rate:rate
+                                           status:status once:once]) {
+                    return VibeErrorJSON(@"unknown fault, or its value missing: %@", kind);
+                }
+                return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeHTTP.statistics[@"faults"]});
+            }),
             // clientTimeout 20 exceeds the 15s wait below: the waveform clear
             // queues behind any in-flight load, and the default 5s client wait
             // could give up on a clear that then succeeds.
@@ -837,6 +1132,33 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString([NSURLUtil datalessDiagnostics]);
+            }),
+            // Every file opened from now on reads ahead, as if on a share. See
+            // AudioFileHandle+Debug.h. No argument reports and changes nothing.
+            VibeDebugCmd(@"set_slow_volume [off|on|throttle <bytes-per-second>|stall|fail [<errno>]]", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                if (tokens.count == 1) {
+                    return VibeJSONString(VibeSlowVolumeReply(nil));
+                }
+                NSString *mode = tokens[1].lowercaseString;
+                double bytesPerSecond = 0;
+                NSUInteger failure = EIO;
+                BOOL valid = tokens.count == 2 && [@[@"off", @"on", @"stall"] containsObject:mode];
+                if ([mode isEqualToString:@"throttle"]) {
+                    valid = tokens.count == 3 && VibeParseDouble(tokens[2], &bytesPerSecond) && bytesPerSecond > 0;
+                }
+                else if ([mode isEqualToString:@"fail"]) {
+                    valid = tokens.count == 2 || (tokens.count == 3 && VibeParseNonnegativeInteger(tokens[2], &failure)
+                            && failure > 0 && failure <= ELAST);
+                }
+                if (!valid) {
+                    return VibeErrorJSON(@"usage: set_slow_volume [off|on|throttle <bytes-per-second>|stall"
+                                         @"|fail [<errno 1-%d>]]", ELAST);
+                }
+                NSInteger released = VibeSetSlowVolume(mode, bytesPerSecond,
+                                                       [mode isEqualToString:@"fail"] ? (int)failure : 0);
+                return VibeJSONString(VibeSlowVolumeReply(@(released)));
             }),
             // Every recent waveform decode, playback's or file_cache's. See
             // AudioLoadTiming.h.

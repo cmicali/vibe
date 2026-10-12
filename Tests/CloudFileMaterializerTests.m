@@ -13,15 +13,25 @@
 #import "CloudFileMaterializer+Debug.h"
 #import "NSURLUtil+Debug.h"
 
+#include <limits.h>
+#include <stdlib.h>
+
 @interface CloudFileMaterializerTests : XCTestCase
 @end
 
-@implementation CloudFileMaterializerTests
+@implementation CloudFileMaterializerTests {
+    NSMutableArray<NSURL *> *_temporaryRoots;
+}
 
 - (void)tearDown {
     [CloudFileMaterializer setFakeTransferProvider:nil acquireSlot:nil
                                        releaseSlot:nil didFinish:nil];
     [NSURLUtil setDatalessProbe:nil];
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    for (NSURL *root in _temporaryRoots) {
+        [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
+    }
+    _temporaryRoots = nil;
     [super tearDown];
 }
 
@@ -229,10 +239,24 @@
 - (dispatch_semaphore_t)wait:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
                  interrupted:(BOOL (^)(void))interrupted result:(CloudFileAvailabilityWait *)result
                        error:(NSError *__strong *)error {
+    return [self read:availability at:offset length:length into:nil copied:NULL interrupted:interrupted result:result
+                error:error];
+}
+
+// The same wait, copying what blocks hold into `buffer` when one is given.
+- (dispatch_semaphore_t)read:(CloudFileAvailability *)availability at:(uint64_t)offset length:(uint64_t)length
+                        into:(NSMutableData *)buffer copied:(uint64_t *)copied
+                 interrupted:(BOOL (^)(void))interrupted result:(CloudFileAvailabilityWait *)result
+                       error:(NSError *__strong *)error {
     dispatch_semaphore_t returned = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        uint64_t got = 0;
         NSError *waitError = nil;
-        *result = [availability waitForBytesAt:offset length:length windowInto:NULL capacity:0 copied:NULL interrupted:interrupted deadline:nil error:&waitError];
+        *result = [availability waitForBytesAt:offset length:length windowInto:buffer.mutableBytes capacity:buffer.length
+                                        copied:&got interrupted:interrupted deadline:nil error:&waitError];
+        if (copied) {
+            *copied = got;
+        }
         if (error) {
             *error = waitError;
         }
@@ -545,6 +569,537 @@ static CloudFileAvailabilityWait Probe(CloudFileAvailability *availability, uint
     XCTAssertNil([CloudFileMaterializer availabilityForURL:[NSURL fileURLWithPath:@"/remote/other.flac"]]);
     [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     XCTAssertNil([CloudFileMaterializer availabilityForURL:url]);
+}
+
+#pragma mark - Remote backends per root
+
+// A fresh directory, spelled as realpath answers it, removed in tearDown.
+- (NSURL *)makeTemporaryRoot {
+    char resolved[PATH_MAX];
+    NSString *base = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
+    [NSFileManager.defaultManager createDirectoryAtPath:base withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSURL *root = [NSURL fileURLWithPath:@(realpath(base.fileSystemRepresentation, resolved)) isDirectory:YES];
+    if (!_temporaryRoots) {
+        _temporaryRoots = [NSMutableArray array];
+    }
+    [_temporaryRoots addObject:root];
+    return root;
+}
+
+// A one-byte file its owner may not read: a remote placeholder under a root.
+- (NSURL *)makePlaceholder:(NSString *)relative under:(NSURL *)root {
+    NSURL *url = [root URLByAppendingPathComponent:relative];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:NULL];
+    XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:url.path contents:[NSData dataWithBytes:"x" length:1]
+                                                      attributes:@{NSFilePosixPermissions: @0}]);
+    return url;
+}
+
+// A backend that logs its name for every call, and reads back its name.
+- (void)installBackendNamed:(NSString *)name at:(NSURL *)root
+               availability:(CloudFileAvailability *)availability log:(NSMutableArray<NSString *> *)log {
+    [CloudFileMaterializer setRemoteRoot:root fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
+                                                          void (^onCancel)(dispatch_block_t), NSError **error) {
+        [log addObject:[@"fetch " stringByAppendingString:name]];
+        return YES;
+    } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
+        [log addObject:[@"read " stringByAppendingString:name]];
+        return [name dataUsingEncoding:NSUTF8StringEncoding];
+    } availability:^CloudFileAvailability *(NSURL *url) {
+        [log addObject:[@"availability " stringByAppendingString:name]];
+        return availability;
+    }];
+}
+
+- (BOOL)materialize:(NSURL *)url {
+    CloudFileMaterializer *materializer = [CloudFileMaterializer new];
+    return [materializer materializeURL:url token:[materializer prepareMaterialization] onReadable:nil error:NULL];
+}
+
+- (NSString *)remoteReadOf:(NSURL *)url {
+    CloudFileRemoteRead read = [CloudFileMaterializer remoteReadForURL:url];
+    NSData *bytes = read ? read(url, 0, 1, NULL) : nil;
+    return bytes ? [[NSString alloc] initWithData:bytes encoding:NSUTF8StringEncoding] : nil;
+}
+
+// Two roots each reach their own blocks, and a root inside another wins over it.
+- (void)testEachRootReachesItsOwnBackendAndTheLongestRootWins {
+    NSURL *outer = [self makeTemporaryRoot];
+    NSURL *inner = [outer URLByAppendingPathComponent:@"inner" isDirectory:YES];
+    NSURL *other = [self makeTemporaryRoot];
+    NSURL *outerFile = [self makePlaceholder:@"a.flac" under:outer];
+    NSURL *innerFile = [self makePlaceholder:@"b.flac" under:inner];
+    NSURL *otherFile = [self makePlaceholder:@"c.flac" under:other];
+    CloudFileAvailability *outerStream = [[CloudFileAvailability alloc] initWithoutPartFile];
+    CloudFileAvailability *innerStream = [[CloudFileAvailability alloc] initWithoutPartFile];
+    NSMutableArray<NSString *> *log = [NSMutableArray array];
+    [self installBackendNamed:@"inner" at:inner availability:innerStream log:log];
+    [self installBackendNamed:@"outer" at:outer availability:outerStream log:log];
+    [self installBackendNamed:@"other" at:other availability:nil log:log];
+
+    XCTAssertTrue([self materialize:outerFile]);
+    XCTAssertTrue([self materialize:innerFile]);
+    XCTAssertTrue([self materialize:otherFile]);
+    XCTAssertEqualObjects(log, (@[@"fetch outer", @"fetch inner", @"fetch other"]));
+
+    XCTAssertEqualObjects([self remoteReadOf:outerFile], @"outer");
+    XCTAssertEqualObjects([self remoteReadOf:innerFile], @"inner");
+    XCTAssertEqualObjects([self remoteReadOf:otherFile], @"other");
+
+    XCTAssertEqual([CloudFileMaterializer availabilityForURL:outerFile], outerStream);
+    XCTAssertEqual([CloudFileMaterializer availabilityForURL:innerFile], innerStream);
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:otherFile]);
+
+    // Installing a root again replaces its backend alone.
+    [log removeAllObjects];
+    [self installBackendNamed:@"outer again" at:outer availability:nil log:log];
+    XCTAssertEqualObjects([self remoteReadOf:outerFile], @"outer again");
+    XCTAssertEqualObjects([self remoteReadOf:innerFile], @"inner");
+    XCTAssertEqualObjects(log, (@[@"read outer again", @"read inner"]));
+}
+
+- (void)testRemovingOneRootKeepsTheOthersAndANilRootRemovesThemAll {
+    NSURL *outer = [self makeTemporaryRoot];
+    NSURL *inner = [outer URLByAppendingPathComponent:@"inner" isDirectory:YES];
+    NSURL *other = [self makeTemporaryRoot];
+    NSURL *innerFile = [self makePlaceholder:@"b.flac" under:inner];
+    NSURL *otherFile = [self makePlaceholder:@"c.flac" under:other];
+    NSMutableArray<NSString *> *log = [NSMutableArray array];
+    [self installBackendNamed:@"outer" at:outer availability:nil log:log];
+    [self installBackendNamed:@"inner" at:inner availability:nil log:log];
+    [self installBackendNamed:@"other" at:other availability:nil log:log];
+
+    [CloudFileMaterializer setRemoteRoot:inner fetch:nil read:nil availability:nil];
+    XCTAssertEqualObjects([self remoteReadOf:innerFile], @"outer");
+    XCTAssertEqualObjects([self remoteReadOf:otherFile], @"other");
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
+
+    [CloudFileMaterializer setRemoteRoot:other fetch:nil read:nil availability:nil];
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:otherFile]);
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:innerFile]);
+
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:innerFile]);
+    XCTAssertNil([CloudFileMaterializer availabilityForURL:innerFile]);
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:innerFile]);
+    XCTAssertFalse([NSURLUtil isDatalessFile:innerFile]);
+    XCTAssertEqualObjects(log, (@[@"read outer", @"read other"]));
+}
+
+// Each URL's read is its own backend's, and nil under no root.
+- (void)testTheRemoteReadIsPerURL {
+    NSURL *first = [self makeTemporaryRoot];
+    NSURL *second = [self makeTemporaryRoot];
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[first URLByAppendingPathComponent:@"x.flac"]]);
+    NSMutableArray<NSString *> *log = [NSMutableArray array];
+    [self installBackendNamed:@"first" at:first availability:nil log:log];
+    [self installBackendNamed:@"second" at:second availability:nil log:log];
+
+    XCTAssertEqualObjects([self remoteReadOf:[second URLByAppendingPathComponent:@"x.flac"]], @"second");
+    XCTAssertEqualObjects([self remoteReadOf:[first URLByAppendingPathComponent:@"x.flac"]], @"first");
+    XCTAssertNil([CloudFileMaterializer remoteReadForURL:[NSURL fileURLWithPath:@"/nowhere/x.flac"]]);
+    XCTAssertEqualObjects(log, (@[@"read second", @"read first"]));
+}
+
+#pragma mark - Blocks, and a writer with no part file
+
+// The writer's wait for work on a worker, signalling when it returns. Its
+// deadline outlasts every guard the test waits on, so only news returns it.
+- (dispatch_semaphore_t)waitForWork:(CloudFileAvailability *)availability open:(BOOL *)open
+                             wanted:(uint64_t *)wanted length:(uint64_t *)length position:(uint64_t *)position {
+    dispatch_semaphore_t returned = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        uint64_t offset = 0, count = 0, at = 0;
+        *open = [availability waitForWorkUntil:[NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_GATE_TIMEOUT]
+                                        wanted:&offset length:&count readerPosition:&at];
+        *wanted = offset;
+        *length = count;
+        *position = at;
+        dispatch_semaphore_signal(returned);
+    });
+    return returned;
+}
+
+// Takes whatever news is pending, so the next writer's wait waits.
+static void TakeNews(CloudFileAvailability *availability) {
+    uint64_t offset, length, position;
+    [availability waitForWorkUntil:[NSDate distantPast] wanted:&offset length:&length readerPosition:&position];
+}
+
+// Contiguous blocks answer a range across their boundary, as much as the
+// capacity takes, clipped to the size; a gap waits until a block fills it.
+- (void)testBlocksServeARangeAcrossTheirBoundaryAndAGapWaits {
+    NSData *file = WindowPattern(300);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:300];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 100)] atOffset:0];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(100, 100)] atOffset:100];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(250, 50)] atOffset:250];
+    XCTAssertEqual(availability.windowLength, 250u);
+
+    uint8_t buffer[256] = {0};
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 90, 20, buffer, 256, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 110u, @"to the end of the contiguous blocks");
+    XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 90, 110), 0);
+    XCTAssertEqual(Probe(availability, 90, 20, buffer, 15, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 15u, @"never past the capacity");
+    XCTAssertEqual(Probe(availability, 260, 100, buffer, 256, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 40u, @"clipped to the size");
+    XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 260, 40), 0);
+    XCTAssertEqualObjects([availability readyBytesAt:50 length:100], [file subdataWithRange:NSMakeRange(50, 100)]);
+    XCTAssertNil([availability readyBytesAt:220 length:10]);
+
+    NSMutableData *read = [NSMutableData dataWithLength:64];
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:190 length:20 into:read copied:&copied
+                                   interrupted:nil result:&result error:NULL];
+    [self assertStillWaiting:returned];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(200, 50)] atOffset:200];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 64u);
+    XCTAssertEqual(memcmp(read.bytes, (const uint8_t *)file.bytes + 190, 64), 0);
+}
+
+// A block the blocks already hold is ignored; one overlapping them replaces
+// every block it overlaps. Past the size, nothing is installed.
+- (void)testABlockAlreadyHeldIsIgnoredAndAnOverlapReplaces {
+    NSData *file = WindowPattern(400);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:400];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 100)] atOffset:0];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(100, 100)] atOffset:100];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(50, 100)] atOffset:50];
+    XCTAssertEqual(availability.windowLength, 200u);
+    XCTAssertEqual(availability.progressBytes, 200u, @"wholly held: ignored");
+
+    [availability installBlock:[file subdataWithRange:NSMakeRange(150, 100)] atOffset:150];
+    XCTAssertEqual(availability.windowLength, 200u);
+    XCTAssertEqual(availability.progressBytes, 300u);
+    uint8_t buffer[64];
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 100, 10, buffer, 64, &copied), CloudFileAvailabilityInterrupted,
+                   @"the block it overlapped is gone");
+    XCTAssertEqual(Probe(availability, 160, 50, buffer, 64, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(memcmp(buffer, (const uint8_t *)file.bytes + 160, (size_t)copied), 0);
+
+    [availability installBlock:WindowPattern(100) atOffset:350];
+    XCTAssertEqual(availability.windowLength, 200u, @"past the size");
+}
+
+// With no part file the size is unknown, so a wait waits; once noted, a range
+// at or past it is the end, with nothing copied. Only an error finishes it.
+- (void)testWithNoPartFileAWaitBeforeTheSizeBlocksAndTheEndCopiesNothing {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    XCTAssertNil(availability.partURL);
+    XCTAssertEqual(availability.size, UINT64_MAX);
+    NSMutableData *read = [NSMutableData dataWithLength:16];
+    uint64_t copied = 99;
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:1000 length:10 into:read copied:&copied
+                                   interrupted:nil result:&result error:NULL];
+    [self assertStillWaiting:returned];
+    [availability noteSize:500];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 0u);
+
+    [availability noteSize:800];
+    XCTAssertEqual(availability.size, 500u, @"noted once");
+    uint8_t buffer[16];
+    XCTAssertEqual(Probe(availability, 500, 1, buffer, 16, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 0u);
+    XCTAssertEqual(Probe(availability, 0, 1, buffer, 16, &copied), CloudFileAvailabilityInterrupted,
+                   @"below the size, only blocks answer");
+    XCTAssertThrows([availability finishWithError:nil]);
+}
+
+// A shortened end makes a wait at or past it the end, wakes one blocked
+// there, and clips copies; it never raises the size.
+- (void)testAShortenedEndIsTheEndAndNeverRaisesTheSize {
+    NSData *file = WindowPattern(100);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    [availability installBlock:file atOffset:0];
+    NSMutableData *read = [NSMutableData dataWithLength:16];
+    uint64_t copied = 99;
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:500 length:10 into:read copied:&copied
+                                   interrupted:nil result:&result error:NULL];
+    [self assertStillWaiting:returned];
+    [availability noteShortenedEnd:400];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 0u);
+    XCTAssertEqual(availability.size, 400u);
+
+    [availability noteShortenedEnd:900];
+    XCTAssertEqual(availability.size, 400u, @"never raised");
+    uint8_t buffer[128];
+    XCTAssertEqual(Probe(availability, 400, 10, buffer, 128, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 0u);
+    XCTAssertEqual(Probe(availability, 390, 20, buffer, 128, &copied), CloudFileAvailabilityInterrupted);
+    [availability noteShortenedEnd:80];
+    XCTAssertEqual(Probe(availability, 50, 100, buffer, 128, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 30u, @"a held block is clipped to the end");
+}
+
+// Progress counts every block byte once, at install, and the bytes noted, so
+// a drop never lowers it.
+- (void)testProgressOnlyGrows {
+    NSData *file = WindowPattern(1000);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 100)] atOffset:0];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(500, 100)] atOffset:500];
+    XCTAssertEqual(availability.progressBytes, 200u);
+    [availability dropBlocksOutsideRangeAt:0 length:100];
+    XCTAssertEqual(availability.windowLength, 100u);
+    XCTAssertEqual(availability.progressBytes, 200u);
+    [availability installBlock:[file subdataWithRange:NSMakeRange(500, 100)] atOffset:500];
+    XCTAssertEqual(availability.progressBytes, 300u);
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    [transfer noteWrittenBytes:10];
+    [transfer installWindow:[file subdataWithRange:NSMakeRange(60, 40)] atOffset:60];
+    XCTAssertEqual(transfer.progressBytes, 50u);
+    [transfer noteWrittenBytes:65];
+    XCTAssertEqual(transfer.windowLength, 0u);
+    XCTAssertEqual(transfer.progressBytes, 105u);
+}
+
+// What is held from an offset ends where the contiguous bytes do, the disk's
+// below the bytes written and then the blocks'; asking records no reader
+// position and raises no news for the writer.
+- (void)testHeldEndIsTheContiguousBytesAndRecordsNothing {
+    NSData *file = WindowPattern(1000);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 100)] atOffset:0];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(100, 100)] atOffset:100];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(500, 100)] atOffset:500];
+    TakeNews(availability);
+    uint8_t buffer[8];
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 550, 1, buffer, 8, &copied), CloudFileAvailabilityReady);
+    TakeNews(availability);
+    XCTAssertEqual([availability heldEndAt:0], 200u, @"across the boundary");
+    XCTAssertEqual([availability heldEndAt:150], 200u);
+    XCTAssertEqual([availability heldEndAt:200], 200u, @"a gap: the offset itself");
+    XCTAssertEqual([availability heldEndAt:300], 300u);
+    XCTAssertEqual([availability heldEndAt:520], 600u);
+    uint64_t offset = 0, length = 0, position = 0;
+    NSDate *soon = [NSDate dateWithTimeIntervalSinceNow:0.05];
+    XCTAssertTrue([availability waitForWorkUntil:soon wanted:&offset length:&length readerPosition:&position]);
+    XCTAssertEqual(position, 550u, @"the last wait's offset, not the queries'");
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:1000];
+    [transfer noteWrittenBytes:300];
+    [transfer installWindow:[file subdataWithRange:NSMakeRange(600, 400)] atOffset:600];
+    XCTAssertEqual([transfer heldEndAt:10], 300u, @"the disk below the bytes written");
+    XCTAssertEqual([transfer heldEndAt:300], 300u);
+    XCTAssertEqual([transfer heldEndAt:700], 1000u, @"the tail window");
+    [transfer noteWrittenBytes:600];
+    XCTAssertEqual([transfer heldEndAt:10], 600u, @"the window is dropped once the disk reaches it");
+}
+
+// Noting the reader's position wakes the writer's wait for work, which then
+// reports it. A transfer ignores it.
+- (void)testNotingTheReaderPositionWakesTheWriter {
+    NSData *file = WindowPattern(1000);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(900, 100)] atOffset:900];
+    uint8_t buffer[8];
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 950, 1, buffer, 8, &copied), CloudFileAvailabilityReady);
+    TakeNews(availability);
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t returned = [self waitForWork:availability open:&open wanted:&wanted length:&length
+                                             position:&position];
+    [availability noteReaderPosition:0];
+    [self awaitReturn:returned];
+    XCTAssertTrue(open);
+    XCTAssertEqual(position, 0u, @"the head, not the last wait's offset");
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:1000];
+    [transfer noteReaderPosition:500];
+    uint64_t offset = 0, at = 7;
+    [transfer waitForWorkUntil:[NSDate distantPast] wanted:&offset length:&length readerPosition:&at];
+    XCTAssertEqual(at, 0u, @"a transfer ignores it");
+}
+
+// A drop keeps the block at byte 0, the block ending at the size, and a block
+// a blocked wait wants; with no wait blocked, that one goes too.
+- (void)testADropKeepsTheFirstTheLastAndTheWantedBlocks {
+    NSData *file = WindowPattern(500);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:500];
+    for (NSUInteger offset = 0; offset < 500; offset += 100) {
+        if (offset != 200) {
+            [availability installBlock:[file subdataWithRange:NSMakeRange(offset, 100)] atOffset:offset];
+        }
+    }
+    TakeNews(availability);
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    NSMutableData *read = [NSMutableData dataWithLength:20];
+    uint64_t copied = 0;
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:190 length:20 into:read copied:&copied
+                                   interrupted:nil result:&result error:NULL];
+    [self awaitReturn:woken];
+    XCTAssertEqual(wanted, 190u);
+    XCTAssertEqual(length, 20u);
+
+    [availability dropBlocksOutsideRangeAt:300 length:100];
+    XCTAssertEqual(availability.windowLength, 400u, @"first, wanted, inside and last are all kept");
+    [availability installBlock:[file subdataWithRange:NSMakeRange(200, 100)] atOffset:200];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual(memcmp(read.bytes, (const uint8_t *)file.bytes + 190, 20), 0);
+
+    [availability dropBlocksOutsideRangeAt:300 length:100];
+    XCTAssertEqual(availability.windowLength, 300u, @"nothing wanted now");
+    uint8_t buffer[16];
+    XCTAssertEqual(Probe(availability, 150, 10, buffer, 16, &copied), CloudFileAvailabilityInterrupted);
+    XCTAssertEqual(Probe(availability, 0, 10, buffer, 16, &copied), CloudFileAvailabilityReady);
+    XCTAssertEqual(Probe(availability, 490, 10, buffer, 16, &copied), CloudFileAvailabilityReady);
+}
+
+// A reader blocking wakes the writer's wait for work with the range it
+// wants; its read once a block lands clears it.
+- (void)testABlockedReaderWakesTheWritersWaitForWork {
+    NSData *file = WindowPattern(1000);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:1000];
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    [self assertStillWaiting:woken];
+    NSMutableData *read = [NSMutableData dataWithLength:50];
+    uint64_t copied = 0;
+    CloudFileAvailabilityWait result = CloudFileAvailabilityFailed;
+    dispatch_semaphore_t returned = [self read:availability at:200 length:50 into:read copied:&copied
+                                   interrupted:nil result:&result error:NULL];
+    [self awaitReturn:woken];
+    XCTAssertTrue(open);
+    XCTAssertEqual(wanted, 200u);
+    XCTAssertEqual(length, 50u);
+    XCTAssertEqual(position, 200u);
+
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 256)] atOffset:0];
+    [self awaitReturn:returned];
+    XCTAssertEqual(result, CloudFileAvailabilityReady);
+    XCTAssertEqual(copied, 50u);
+    XCTAssertTrue([availability waitForWorkUntil:[NSDate distantPast] wanted:&wanted length:&length readerPosition:&position]);
+    XCTAssertEqual(length, 0u, @"no wait is blocked");
+}
+
+// A reader entering another block wakes the writer's wait for work; reads
+// within one block do not. A finish wakes it, and it answers NO from then on.
+- (void)testACrossedBlockAndAFinishWakeTheWritersWaitForWork {
+    NSData *file = WindowPattern(300);
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:300];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(0, 100)] atOffset:0];
+    [availability installBlock:[file subdataWithRange:NSMakeRange(100, 100)] atOffset:100];
+    uint8_t buffer[16];
+    uint64_t copied = 0;
+    XCTAssertEqual(Probe(availability, 10, 10, buffer, 16, &copied), CloudFileAvailabilityReady);
+    TakeNews(availability);
+
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 99, position = 0;
+    dispatch_semaphore_t woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    XCTAssertEqual(Probe(availability, 50, 10, buffer, 16, &copied), CloudFileAvailabilityReady);
+    [self assertStillWaiting:woken];
+    XCTAssertEqual(Probe(availability, 150, 10, buffer, 16, &copied), CloudFileAvailabilityReady);
+    [self awaitReturn:woken];
+    XCTAssertTrue(open);
+    XCTAssertEqual(position, 150u);
+    XCTAssertEqual(length, 0u);
+
+    woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    [self assertStillWaiting:woken];
+    [availability finishWithError:[NSError errorWithDomain:@"com.vibe.test-read-ahead" code:1 userInfo:nil]];
+    [self awaitReturn:woken];
+    XCTAssertFalse(open);
+    XCTAssertFalse([availability waitForWorkUntil:[NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT]
+                                           wanted:&wanted length:&length readerPosition:&position]);
+    XCTAssertEqual(availability.windowLength, 0u);
+}
+
+// Setting the pause wakes nobody; clearing it wakes the writer's wait for
+// work. The deadline alone returns it otherwise.
+- (void)testClearingThePauseWakesTheWritersWaitForWork {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:100];
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    availability.readAheadPaused = YES;
+    XCTAssertTrue(availability.readAheadPaused);
+    [self assertStillWaiting:woken];
+    availability.readAheadPaused = NO;
+    [self awaitReturn:woken];
+    XCTAssertTrue(open);
+    XCTAssertFalse(availability.readAheadPaused);
+
+    woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    availability.readAheadPaused = NO;
+    [self assertStillWaiting:woken];
+    [availability finishWithError:[NSError errorWithDomain:@"com.vibe.test-read-ahead" code:2 userInfo:nil]];
+    [self awaitReturn:woken];
+
+    CloudFileAvailability *idle = [[CloudFileAvailability alloc] initWithoutPartFile];
+    XCTAssertTrue([idle waitForWorkUntil:[NSDate dateWithTimeIntervalSinceNow:0.05]
+                                  wanted:&wanted length:&length readerPosition:&position]);
+}
+
+// Either writer's wait, once blocked, sees an interrupt set after it blocked
+// when wakeWaiters wakes it. Nothing asserts it stays blocked until the wake.
+// NSCondition may wake early, and an early look at the flag is harmless.
+- (void)testAWakeMakesABlockedWaitSeeAnInterrupt {
+    CloudFileAvailability *withoutPart = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [withoutPart noteSize:100];
+    for (CloudFileAvailability *availability in @[
+             [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100], withoutPart]) {
+        __block _Atomic bool interrupted = false;
+        dispatch_semaphore_t asked = dispatch_semaphore_create(0);
+        BOOL (^isInterrupted)(void) = ^BOOL{
+            dispatch_semaphore_signal(asked);
+            return atomic_load(&interrupted);
+        };
+        CloudFileAvailabilityWait result = CloudFileAvailabilityReady;
+        dispatch_semaphore_t returned = [self wait:availability at:10 length:10 interrupted:isInterrupted
+                                            result:&result error:NULL];
+        [self awaitReturn:asked];
+        atomic_store(&interrupted, true);
+        [availability wakeWaiters];
+        [self awaitReturn:returned];
+        XCTAssertEqual(result, CloudFileAvailabilityInterrupted, @"%@",
+                       availability.partURL ? @"transfer" : @"no part file");
+    }
+}
+
+// With no part file the deadline is honored: short or long, the wait ends
+// Interrupted, never before it.
+- (void)testWithNoPartFileTheDeadlineIsHonored {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:100];
+    for (NSNumber *seconds in @[@0.05, @0.6]) {
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:seconds.doubleValue];
+        XCTAssertEqual([availability waitForBytesAt:10 length:10 windowInto:NULL capacity:0 copied:NULL
+                                        interrupted:^BOOL { return NO; } deadline:deadline error:NULL],
+                       CloudFileAvailabilityInterrupted);
+        // A lower bound: descheduling only makes the clock later, never earlier.
+        XCTAssertGreaterThanOrEqual([NSDate.date timeIntervalSinceDate:deadline], 0.0);
+    }
 }
 
 @end

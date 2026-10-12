@@ -13,8 +13,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface MainPlayerController (NowPlaying) <NowPlayingControllerDelegate>
 
-// Called from updateUI, and on a seek, a pitch-range change and a fader
-// gesture's end.
+// Called from updateUI, and on a seek, a pitch-range change, a fader
+// gesture's end and a buffering edge.
 - (void)updateNowPlaying;
 
 @end

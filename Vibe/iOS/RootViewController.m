@@ -101,6 +101,10 @@ static NSString *const kTabSearch = @"search";
     return _library;
 }
 
+- (BrowserViewController *)filesBrowser {
+    return _filesController;
+}
+
 - (FavoritesViewController *)favorites {
     return _favorites;
 }
@@ -910,24 +914,15 @@ static const CGFloat kLandedRowScale = 0.1;
     [self settleEveryLiftedRowUnlanded];
 }
 
-// Over whatever is up: the add sheet, or the card.
-- (UIViewController *)topmostPresenter {
-    UIViewController *presenter = self;
-    while (presenter.presentedViewController) {
-        presenter = presenter.presentedViewController;
-    }
-    return presenter;
-}
-
 - (void)playback:(PlaybackController *)playback didGiveUpOpeningPath:(NSString *)path {
-    VibePresentAlert([self topmostPresenter], path.lastPathComponent, STR_ERROR_OPEN_TOO_SLOW);
+    VibePresentAlert(VibeTopmostPresenter(self), path.lastPathComponent, STR_ERROR_OPEN_TOO_SLOW);
 }
 
 // "Open in Vibe" can arrive with the card presented.
 - (void)playback:(PlaybackController *)playback
         needsFolderOfSheetAtURL:(NSURL *)sheetURL
                       appending:(BOOL)appending {
-    UIViewController *presenter = [self topmostPresenter];
+    UIViewController *presenter = VibeTopmostPresenter(self);
     NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, VibeAppName(),
                          sheetURL.lastPathComponent];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil

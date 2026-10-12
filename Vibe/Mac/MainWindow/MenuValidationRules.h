@@ -80,8 +80,10 @@ static NSString *const kVibeMenuPitchRange8 = @"pitch_range_8";
 static NSString *const kVibeMenuPitchRange16 = @"pitch_range_16";
 
 static NSString *const kVibeMenuPlay = @"menu_play";
-// Absent from the domains below: File > Open targets the app delegate.
+// Absent from the domains below: File > Open and Open URL target the app
+// delegate, which enables them always.
 static NSString *const kVibeMenuOpen = @"menu_open";
+static NSString *const kVibeMenuOpenLink = @"menu_open_link";
 static NSString *const kVibeMenuSavePlaylist = @"menu_save_playlist";
 static NSString *const kVibeMenuClose = @"menu_close";
 static NSString *const kVibeMenuShowInFinder = @"show_in_finder";
@@ -91,6 +93,9 @@ static NSString *const kVibeMenuEditRedo = @"menu_edit_redo";
 static NSString *const kVibeMenuEditCopyFile = @"menu_edit_copy_file";
 static NSString *const kVibeMenuEditCopyName = @"menu_edit_copy_name";
 static NSString *const kVibeMenuEditRemoveFromPlaylist = @"menu_edit_remove_from_playlist";
+// Absent from the domains below: nil-targeted, for the focused text field.
+static NSString *const kVibeMenuEditCut = @"menu_edit_cut";
+static NSString *const kVibeMenuEditPaste = @"menu_edit_paste";
 
 // Also Cancel Conversion, swapped in validation as menu_play swaps to Pause;
 // there is deliberately no menu_convert_cancel.
@@ -194,6 +199,12 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
     return VibeMenuValidationDomainUnknown;
 }
 
+// The Edit menu's delegate keeps only items with this prefix, to strip what
+// macOS appends (MainMenuBuilder.m). Every Edit item and separator carries it.
+static inline BOOL VibeEditMenuKeepsItem(NSString *_Nullable identifier) {
+    return [identifier hasPrefix:@"menu_edit"];
+}
+
 // Validation reads snapshots only; it never probes files or opens a window.
 static inline BOOL VibeMenuHasVisibleSelection(BOOL keyWindow, BOOL playlistShown, NSInteger selectedRow) {
     return keyWindow && playlistShown && selectedRow >= 0;
@@ -214,12 +225,15 @@ static inline BOOL VibeFileMenuEnabled(NSString *identifier, NSUInteger count, B
     return [identifier isEqualToString:kVibeMenuShowInFinder] && hasURL;
 }
 
+// textFocused: a text view has keyboard focus in the key window, a field
+// editor included. Copy File holds ⌘C, so it copies that text instead of the
+// file, and must be enabled to.
 static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL undoRedoInFlight,
-        BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL hasTrack, BOOL hasURL) {
+        BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL hasTrack, BOOL hasURL, BOOL textFocused) {
     if ([identifier isEqualToString:kVibeMenuEditUndo]) return !undoRedoInFlight && canUndo;
     if ([identifier isEqualToString:kVibeMenuEditRedo]) return !undoRedoInFlight && canRedo;
     if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) return visibleSelection;
-    if ([identifier isEqualToString:kVibeMenuEditCopyFile]) return hasURL;
+    if ([identifier isEqualToString:kVibeMenuEditCopyFile]) return textFocused || hasURL;
     return [identifier isEqualToString:kVibeMenuEditCopyName] && hasTrack;
 }
 
@@ -227,6 +241,15 @@ static inline NSString *_Nullable VibeFileMenuTitle(NSString *identifier, NSUInt
     if ([identifier isEqualToString:kVibeMenuPlay]) return playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
     if ([identifier isEqualToString:kVibeMenuClose]) return count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
     return nil;
+}
+
+// Convert to FLAC shows only with Convert switched on, and never for a file
+// under a remote root: an Open URL link's file belongs to the store, and a
+// FLAC beside it would land in the store's directory. underRemoteRoot is
+// VibePathIsUnderRemotePlaceholderRoot, a spelling test, since validation
+// never stats.
+static inline BOOL VibeConvertMenuItemHidden(BOOL convertEnabled, BOOL underRemoteRoot) {
+    return !convertEnabled || underRemoteRoot;
 }
 
 static inline NSString *VibeConvertMenuTitle(BOOL converting) {

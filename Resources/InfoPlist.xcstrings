@@ -1488,6 +1488,192 @@
           }
         }
       }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "comment": "Info.plist NSLocalNetworkUsageDescription, both apps: the system's permission prompt for the local network, and the app's row in Privacy & Security > Local Network. Keyed on the Info.plist key, so the English value is spelled out here. Vibe is the app name.",
+      "extractionState": "manual",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe се свързва с устройства в локалната ви мрежа само за да възпроизведе въведен от вас адрес, например музикален сървър у дома."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikace Vibe se připojuje k zařízením v místní síti jen proto, aby přehrála adresu, kterou zadáte, například domácí hudební server."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe opretter kun forbindelse til enheder på dit lokale netværk for at afspille en adresse, du skriver, f.eks. en musikserver derhjemme."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe verbindet sich nur mit Geräten in deinem lokalen Netzwerk, um eine Adresse abzuspielen, die du eingibst, etwa einen Musikserver zu Hause."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Το Vibe συνδέεται με συσκευές στο τοπικό σας δίκτυο μόνο για να αναπαραγάγει μια διεύθυνση που εισαγάγετε, όπως έναν διακομιστή μουσικής στο σπίτι."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe se conecta a dispositivos de tu red local solo para reproducir una dirección que introduzcas, como un servidor de música en casa."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe muodostaa yhteyden paikallisverkon laitteisiin vain toistaakseen kirjoittamasi osoitteen, kuten kotisi musiikkipalvelimen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe se connecte aux appareils de votre réseau local uniquement pour lire une adresse que vous saisissez, comme un serveur de musique chez vous."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe se povezuje s uređajima na vašoj lokalnoj mreži samo kako bi reproducirao adresu koju unesete, primjerice glazbeni poslužitelj kod kuće."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Vibe csak azért csatlakozik a helyi hálózat eszközeihez, hogy lejátssza az általad megadott címet, például egy otthoni zeneszervert."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe terhubung ke perangkat di jaringan lokal Anda hanya untuk memutar alamat yang Anda masukkan, seperti server musik di rumah."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe si connette ai dispositivi della tua rete locale solo per riprodurre un indirizzo che inserisci, come un server musicale di casa."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibeは、入力されたアドレス（自宅の音楽サーバなど）を再生する場合にのみ、ローカルネットワーク上のデバイスに接続します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe는 사용자가 입력한 주소(예: 집에 있는 음악 서버)를 재생할 때만 로컬 네트워크의 기기에 연결합니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe kobler seg bare til enheter på det lokale nettverket ditt for å spille av en adresse du skriver inn, for eksempel en musikktjener hjemme."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe maakt alleen verbinding met apparaten op je lokale netwerk om een adres af te spelen dat je invoert, zoals een muziekserver thuis."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe łączy się z urządzeniami w sieci lokalnej tylko po to, aby odtworzyć wprowadzony przez Ciebie adres, na przykład domowy serwer muzyki."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe se conecta a dispositivos da sua rede local apenas para reproduzir um endereço que você digitar, como um servidor de música em casa."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Vibe liga-se a dispositivos na sua rede local apenas para reproduzir um endereço que introduzir, como um servidor de música em casa."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe se conectează la dispozitive din rețeaua locală doar pentru a reda o adresă pe care o introduceți, cum ar fi un server de muzică de acasă."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe подключается к устройствам в вашей локальной сети, только чтобы воспроизвести введенный вами адрес, например домашний музыкальный сервер."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplikácia Vibe sa pripája k zariadeniam v lokálnej sieti len na prehratie adresy, ktorú zadáte, napríklad domáceho hudobného servera."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe ansluter bara till enheter på ditt lokala nätverk för att spela upp en adress som du anger, till exempel en musikserver hemma."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe เชื่อมต่อกับอุปกรณ์ในเครือข่ายเฉพาะที่ของคุณเพื่อเล่นที่อยู่ที่คุณป้อนเท่านั้น เช่น เซิร์ฟเวอร์เพลงที่บ้าน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe, yerel ağınızdaki aygıtlara yalnızca girdiğiniz bir adresi (örneğin evdeki bir müzik sunucusunu) çalmak için bağlanır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe підключається до пристроїв у вашій локальній мережі лише для того, щоб відтворити введену вами адресу, наприклад домашній музичний сервер."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe chỉ kết nối với các thiết bị trong mạng cục bộ của bạn để phát một địa chỉ bạn nhập, chẳng hạn như máy chủ nhạc ở nhà."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 仅在播放你输入的地址（例如家中的音乐服务器）时连接本地网络中的设备。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vibe 只會在播放你輸入的位址（例如家中的音樂伺服器）時連線至區域網路中的裝置。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

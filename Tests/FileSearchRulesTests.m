@@ -2,7 +2,10 @@
 //  FileSearchRulesTests.m
 //  VibeTests
 //
-//  The header ships only in VibeiOS but is Foundation-only, so it compiles here.
+//  What a search matches, and the Files tab's decisions: the root's rows, what
+//  Recents names for a link, which open the next launch restores, and the
+//  recents a launch's pruning keeps. The header ships only in VibeiOS but is
+//  Foundation-only, so it compiles here.
 //
 
 #import <XCTest/XCTest.h>
@@ -374,6 +377,69 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     }];
     [self waitForExpectations:@[incremental] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(index.lastFilterEvaluationCountForTesting, 1u);
+}
+
+#pragma mark - The root's rows
+
+- (void)testTheLocationsAreTheSourcesThenTheGrantedFolders {
+    NSArray *unlinked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowLocation), @(VibeBrowserRootRowLocation)];
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 2, NO), unlinked);
+    NSArray *linked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox), @(VibeBrowserRootRowLocation)];
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 1, YES), linked);
+}
+
+- (void)testThePasteRowFollowsOpenURLOnlyWithALinkOnTheClipboard {
+    NSArray *expected = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)];
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, YES, 1, YES), expected);
+    NSArray *noLink = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL)];
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, NO, 1, NO), noLink);
+    for (NSInteger section = VibeBrowserRootSectionLocations; section < VibeBrowserRootSectionActions; section++) {
+        XCTAssertFalse([VibeBrowserRootRows((VibeBrowserRootSection)section, YES, 1, YES)
+                containsObject:@(VibeBrowserRootRowPasteURL)]);
+    }
+}
+
+- (void)testTheRecentsSectionIsRecentsAlone {
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionRecents, YES, 3, NO), @[@(VibeBrowserRootRowRecents)]);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionCount, YES, 3, NO), @[]);
+}
+
+#pragma mark - Recents
+
+- (void)testTheRecentsURLsAreTheirPaths {
+    NSArray *items = @[@{@"path": @"/a/Song.mp3", @"folder": @NO},
+                       @{@"path": @"/b", @"folder": @YES},
+                       @{@"folder": @NO},
+                       @{@"path": @""},
+                       @"not an item"];
+    NSArray<NSURL *> *urls = VibeRecentItemURLs(items);
+    XCTAssertEqual(urls.count, 2u);
+    XCTAssertEqualObjects(urls[0].path, @"/a/Song.mp3");
+    XCTAssertEqualObjects(urls[1].path, @"/b");
+    XCTAssertTrue(urls[0].isFileURL);
+    // From the recorded flag, never a stat of the path.
+    XCTAssertFalse(urls[0].hasDirectoryPath);
+    XCTAssertTrue(urls[1].hasDirectoryPath);
+}
+
+#pragma mark - The restored playlist
+
+- (void)testAOneFileOpenKeepsAFolderBookmark {
+    XCTAssertFalse(VibeFolderSessionPersistsBase(NO, NO, YES, NO), @"a mirror file too: it is not a link");
+    XCTAssertTrue(VibeFolderSessionPersistsBase(NO, NO, NO, NO), @"over a file bookmark, or none");
+}
+
+- (void)testALinkOpenedAloneReplacesAFolderBookmark {
+    XCTAssertTrue(VibeFolderSessionPersistsBase(NO, NO, YES, YES));
+}
+
+- (void)testAnOpenThatBroughtAFolderPersists {
+    XCTAssertTrue(VibeFolderSessionPersistsBase(NO, YES, YES, NO));
+}
+
+- (void)testAnOpenInsideAOneOffPickKeepsTheSessions {
+    XCTAssertFalse(VibeFolderSessionPersistsBase(YES, YES, NO, NO));
+    XCTAssertFalse(VibeFolderSessionPersistsBase(YES, NO, NO, YES));
 }
 
 @end

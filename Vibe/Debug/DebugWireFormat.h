@@ -27,6 +27,8 @@ NSString *VibeErrorJSON(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
 
 BOOL VibeParseDouble(NSString *token, double *out);
 BOOL VibeParseNonnegativeInteger(NSString *token, NSUInteger *out);
+// A byte count, with a K or M suffix for KiB or MiB.
+BOOL VibeParseByteCount(NSString *token, uint64_t *bytes);
 
 // The mac table's spec for verb (Mac/DebugUtil.m). The client reads its
 // clientTimeout, so its wait derives from the table the app dispatches with.

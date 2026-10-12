@@ -55,19 +55,25 @@ static NSArray<VibeColor *> *VibeBandColors(VibeColor *low, VibeColor *mid, Vibe
              VibeColorBlended(high, lowMid, shade ? tint * kBandAllThreeTint : tint)];
 }
 
-// Rekord Bin's bands, shaded: iOS's always, and a mac theme's until it sets
-// its own (AppTheme's unset band wells are these).
-static NSArray<VibeColor *> *VibeDefaultBandColors(BOOL isDark) {
-    static NSArray<VibeColor *> *colors[2];
+// The built-in palettes. Rekord Bin's is shaded, and a mac theme draws it
+// until it sets its own (AppTheme's unset band wells are these). Dengine's is
+// Engine DJ's deck, unshaded; its dark bands are the Dengine theme's, and its
+// light ones darken the mid and the high so they read on white.
+static NSArray<VibeColor *> *VibeBuiltInBandColors(BOOL dengine, BOOL isDark) {
+    static NSArray<VibeColor *> *colors[2][2];
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         for (NSUInteger dark = 0; dark < 2; dark++) {
-            colors[dark] = VibeBandColors(VibeColorFromHexString(@"0055E1"),
-                                          VibeColorFromHexString(dark ? @"FFA600" : @"D97706"),
-                                          VibeColorFromHexString(dark ? @"FFFFFF" : @"262626"), YES, dark);
+            VibeColor *high = VibeColorFromHexString(dark ? @"FFFFFF" : @"262626");
+            colors[0][dark] = VibeBandColors(VibeColorFromHexString(@"0055E1"),
+                                             VibeColorFromHexString(dark ? @"FFA600" : @"D97706"),
+                                             high, YES, dark);
+            colors[1][dark] = VibeBandColors(VibeColorFromHexString(@"2F69E0"),
+                                             VibeColorFromHexString(dark ? @"4CDF80" : @"16A34A"),
+                                             high, NO, dark);
         }
     });
-    return colors[isDark ? 1 : 0];
+    return colors[dengine ? 1 : 0][isDark ? 1 : 0];
 }
 
 static BOOL VibeGetRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b) {
@@ -96,7 +102,7 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _playedColor = played;
         _unplayedColor = unplayed;
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
-        _bandColors = VibeDefaultBandColors(isDark);
+        _bandColors = VibeBuiltInBandColors(NO, isDark);
         CGFloat pr, pg, pb, ur, ug, ub;
         // Alphas aside on purpose: the scrubber's single-bitmap fast path
         // recovers the level difference from unplayedOverPlayedOpacity.
@@ -105,6 +111,14 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                  fabs(pr - ur) < 0.001 && fabs(pg - ug) < 0.001 && fabs(pb - ub) < 0.001);
     }
     return self;
+}
+
+- (NSString *)paletteSignature {
+    NSMutableString *signature = [NSMutableString string];
+    for (VibeColor *color in [@[_playedColor, _unplayedColor] arrayByAddingObjectsFromArray:_bandColors]) {
+        [signature appendFormat:@"%@,", VibeHexStringFromColor(color) ?: @""];
+    }
+    return signature;
 }
 
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark {
@@ -136,6 +150,38 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     return resolved;
 }
 #endif
+
+#if !TARGET_OS_OSX
++ (WaveformTheme *)themeForSettings:(AppSettings *)settings isDark:(BOOL)isDark
+                       artworkColor:(VibeColor *)artworkColor {
+    WaveformTheme *resolved = [self themeForIdentifier:settings.waveformTheme
+                                                isDark:isDark
+                                          artworkColor:artworkColor
+                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark]
+                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark]];
+    NSString *bandTheme = settings.waveformBandTheme;
+    NSMutableArray<VibeColor *> *custom = [NSMutableArray arrayWithCapacity:3];
+    if ([bandTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM]) {
+        // An unset band draws Rekord Bin's, which is what its well shows.
+        for (NSUInteger band = 0; band < 3; band++) {
+            [custom addObject:[settings waveformCustomBandColor:band forDark:isDark] ?: resolved.bandColors[band]];
+        }
+    }
+    resolved.bandColors = [self bandColorsForIdentifier:bandTheme isDark:isDark customBands:custom];
+    return resolved;
+}
+#endif
+
++ (NSArray<VibeColor *> *)bandColorsForIdentifier:(NSString *)identifier isDark:(BOOL)isDark
+                                      customBands:(NSArray<VibeColor *> *)custom {
+    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE]) {
+        return VibeBuiltInBandColors(YES, isDark);
+    }
+    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM] && custom.count == 3) {
+        return VibeBandColors(custom[0], custom[1], custom[2], YES, isDark);
+    }
+    return VibeBuiltInBandColors(NO, isDark);
+}
 
 + (WaveformTheme *)themeForIdentifier:(NSString *)identifier
                                isDark:(BOOL)isDark

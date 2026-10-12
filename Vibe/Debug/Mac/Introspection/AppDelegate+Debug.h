@@ -14,6 +14,11 @@
 // The burst coalescer's queue depth, forwarded so the coalescer stays a
 // private ivar.
 - (NSUInteger)debugQueuedOpenCount;
+// Open URL's window while it is up, else nil. The open_url_window verb drives
+// its field and buttons.
+- (nullable NSWindow *)debugOpenLinkWindow;
+// YES while the window's link resolves.
+- (BOOL)debugOpenLinkResolving;
 @end
 
 #endif

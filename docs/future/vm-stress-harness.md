@@ -1,7 +1,6 @@
 # Future: running the stress harness in a Tart VM
 
-**Status: planned, unimplemented (verified 2026-09-27).** The references below are to files and
-skill sections; re-check them before acting.
+**Status: Not built.**
 
 ## Context
 
@@ -17,9 +16,9 @@ that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 A snapshot-restored guest kills all four by construction, and gives cold caches and a cold
 container every run without trusting `clear_caches` to have covered everything.
 
-**This is isolation work, not a prerequisite for hardware testing.** The macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback, and pump rendering remains the default. What real-HAL stress coverage exists, and what is still missing before the default could change, is the `vibe-stress` skill's; silent real-HAL playback, on System Output and bound, did not pull auto-switching AirPods off an idle iPhone (2026-09-28).
+**This is isolation work, not a prerequisite for hardware testing.** The macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback. Pump rendering is the default. The `vibe-stress` skill says what real-HAL stress coverage exists.
 
-A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected render path (pump or HAL output unit) explicit; do not make VM provisioning depend on an assumed future harness-default change.
+A guest needs a CoreAudio output device only for a hardware campaign. Keep the render path (pump or output unit) explicit in each run.
 
 ## Decisions
 
@@ -48,9 +47,9 @@ One-time, scripted as far as possible (`scripts/vm/provision.sh`, run in-guest o
 
 1. `tart clone ghcr.io/cirruslabs/macos-<release>-xcode:<version> vibe-golden`, pinned to an
    image whose Xcode matches the host's and builds `project.yml`'s deployment targets (iOS 26.0
-   needs Xcode 26 or later; the host is on macOS 27 and Xcode 27), never `:latest`; resize the
+   needs Xcode 26 or later), never `:latest`; resize the
    disk to ~100 GB (`tart set --disk-size`).
-2. In-guest: `brew install xcodegen ffmpeg` (ffmpeg for `make-cloud-corpus.py`), BlackHole if
+2. In-guest: `brew install xcodegen ffmpeg` (ffmpeg for the `vibe-stress` skill's `make-cloud-corpus.py`), BlackHole if
    needed per the audio decision, and configure for unattended runs (disable sleep and the
    screen saver, exclude the build tree from Spotlight).
 3. Copy the corpora over (`scp`): the real-music corpus, plus pre-built cloud and hostile

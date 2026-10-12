@@ -19,6 +19,7 @@
 #import "NSURLUtil+Debug.h"
 #import "NSURLUtilInternal.h"
 #import "PlayableExtensions.h"
+#import "TrackCommands.h"
 
 @interface NSURLUtilTests : XCTestCase
 @end
@@ -47,6 +48,7 @@
 
 - (void)tearDown {
     [NSURLUtil setPlaylistFolderGrantHandler:nil];
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
     [self unlock:_root];
     [NSFileManager.defaultManager removeItemAtURL:_root error:nil];
     [super tearDown];
@@ -725,7 +727,77 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"open.mp3"]));
 }
 
+// A remote placeholder's mode denies its owner, which access(2) reports as
+// denied. It is readable to a playlist all the same: the player downloads it.
+- (void)testAPlaylistNamingARemotePlaceholderNeverAsksForAGrant {
+    [self makeFile:@"open.mp3"];
+    NSURL *remote = [self makeFile:@"remote/song.mp3"];
+    chmod(remote.fileSystemRepresentation, 0000);
+    [NSURLUtil setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
+    NSURL *playlist = [self makeText:@"open.mp3\nremote/song.mp3\n" at:@"set.m3u"];
+    __block NSUInteger asked = 0;
+    [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        return NO;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL],
+                          (@[@"open.mp3", @"remote/song.mp3"]));
+    XCTAssertEqual(asked, 0u);
+}
+
 #pragma mark - Dataless files
+
+// Every installed root scopes the placeholder rule, and only those do.
+- (void)testEveryRemoteRootScopesThePlaceholderRule {
+    NSURL *first = [self makeFile:@"first/a.mp3"];
+    NSURL *second = [self makeFile:@"second/b.mp3"];
+    NSURL *outside = [self makeFile:@"outside/c.mp3"];
+    for (NSURL *url in @[first, second, outside]) {
+        chmod(url.fileSystemRepresentation, 0000);
+    }
+    NSURL *firstRoot = first.URLByDeletingLastPathComponent;
+    NSURL *secondRoot = second.URLByDeletingLastPathComponent;
+
+    [NSURLUtil setRemotePlaceholderRoots:@[firstRoot, secondRoot]];
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:first]);
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:second]);
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:outside]);
+    XCTAssertTrue(VibePathIsUnderRemotePlaceholderRoot(second.path));
+    XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(outside.path));
+
+    [NSURLUtil setRemotePlaceholderRoots:@[firstRoot]];
+    XCTAssertTrue([NSURLUtil isRemotePlaceholderFile:first]);
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:second]);
+
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
+    XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:first]);
+    XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(first.path));
+}
+
+// Copy Files and a drag out of the playlist hand no remote placeholder to
+// another app. A download under the root, a file elsewhere, and an unreadable
+// file elsewhere are handed out.
+- (void)testOnlyARemotePlaceholderIsNeverHandedOut {
+    NSURL *placeholder = [self makeFile:@"remote/aa/link.mp3"];
+    NSURL *download = [self makeFile:@"remote/bb/kept.mp3"];
+    NSURL *local = [self makeFile:@"music/local.mp3"];
+    NSURL *unreadable = [self makeFile:@"music/locked.mp3"];
+    chmod(placeholder.fileSystemRepresentation, 0000);
+    chmod(unreadable.fileSystemRepresentation, 0000);
+    [NSURLUtil setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
+
+    XCTAssertFalse([TrackCommands handsOutURL:placeholder]);
+    XCTAssertTrue([TrackCommands handsOutURL:download]);
+    XCTAssertTrue([TrackCommands handsOutURL:local]);
+    XCTAssertTrue([TrackCommands handsOutURL:unreadable]);
+    XCTAssertFalse([TrackCommands handsOutURL:[NSURL URLWithString:@"https://example.com/a.mp3"]]);
+    XCTAssertFalse([TrackCommands handsOutURL:nil]);
+
+    // With no root, nothing is a placeholder.
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
+    XCTAssertTrue([TrackCommands handsOutURL:placeholder]);
+}
 
 - (void)testAMaterializedFileIsNotDataless {
     XCTAssertFalse([NSURLUtil isDatalessFile:[self makeFile:@"local.mp3"]]);

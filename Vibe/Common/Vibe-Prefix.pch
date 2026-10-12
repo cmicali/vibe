@@ -86,7 +86,8 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 #define LogError(fmt, ...)  VibeLogAt(OS_LOG_TYPE_ERROR, fmt, ##__VA_ARGS__)
 #define LogWarn(fmt, ...)   VibeLogAt(OS_LOG_TYPE_DEFAULT, fmt, ##__VA_ARGS__)
 
-// VIBE_VERBOSE_LOGGING is the beta setting, independent of DEBUG: it writes
+// VIBE_VERBOSE_LOGGING follows the beta switch, VIBE_BETA_DEBUG (project.yml),
+// independent of DEBUG: it writes
 // every level at Default, the level the unified log persists, so Save Debug
 // Info retrieves info and debug from a Release build nobody was streaming.
 #if VIBE_VERBOSE_LOGGING

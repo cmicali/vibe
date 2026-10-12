@@ -3,8 +3,9 @@
 //  Vibe (iOS)
 //
 //  Settings > Appearance > Waveform theme; not a SettingsChoiceViewController
-//  because Custom brings four color wells. All four mac themes are offered;
-//  album art's color is per page (root AGENTS.md).
+//  because Custom brings color wells. All four mac waveform themes are
+//  offered; album art's color is per page (root AGENTS.md). Under 3-Band the
+//  screen offers the band palettes instead: Rekord Bin, Dengine and Custom.
 //
 
 #import <UIKit/UIKit.h>
@@ -13,7 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface WaveformThemeSettingsViewController : UITableViewController
 
-// The theme in force, resolved: an unknown identifier reads as Mono.
+// The theme in force for the current style, resolved: an unknown identifier
+// reads as Mono, or as Rekord Bin under 3-Band.
 + (NSString *)currentThemeDisplayName;
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;

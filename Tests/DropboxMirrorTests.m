@@ -565,10 +565,10 @@ static struct stat StatOf(NSURL *url) {
                                                      isDirectory:&isDirectory]);
     XCTAssertTrue(isDirectory);
 
-    [NSURLUtil setRemotePlaceholderRoot:_root];
+    [NSURLUtil setRemotePlaceholderRoots:@[_root]];
     XCTAssertTrue([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"01 Song.flac"]]);
     XCTAssertFalse([NSURLUtil isDatalessFile:[folder URLByAppendingPathComponent:@"Album.cue"]]);
-    [NSURLUtil setRemotePlaceholderRoot:nil];
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
 }
 
 // Two refreshes of one folder share a sheet's part file, so they share one
@@ -969,14 +969,14 @@ static struct stat StatOf(NSURL *url) {
         return [self defaultResponseFor:request json:json];
     }];
     XCTestExpectation *read = [self expectationWithDescription:@"read"];
-    dispatch_block_t cancelRead = [_client readPath:@"/Music/a.flac" offset:0 length:8
+    dispatch_block_t cancelRead = [_client readTarget:@"/Music/a.flac" offset:0 length:8
                                          completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         XCTAssertNil(data);
         XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
         [read fulfill];
     }];
     XCTestExpectation *download = [self expectationWithDescription:@"download"];
-    dispatch_block_t cancelDownload = [_client downloadPath:@"/Music/a.flac"
+    dispatch_block_t cancelDownload = [_client downloadTarget:@"/Music/a.flac"
                                                       toURL:[_root URLByAppendingPathComponent:@"a.part"]
                                                    progress:nil
                                                  completion:^(NSDictionary *metadata, NSError *error) {
@@ -1098,7 +1098,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTestExpectation *done = [self expectationWithDescription:@"download"];
     __block NSError *failure = nil;
     __block NSDictionary *result = nil;
-    [_client downloadPath:@"/song.flac" toURL:[self partURL] progress:nil
+    [_client downloadTarget:@"/song.flac" toURL:[self partURL] progress:nil
                completion:^(NSDictionary *answer, NSError *error) {
         result = answer;
         failure = error;
@@ -1279,7 +1279,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTestExpectation *done = [self expectationWithDescription:@"download"];
     __block NSInteger completions = 0;
     __block NSError *failure = nil;
-    dispatch_block_t cancel = [_client downloadPath:@"/song.flac" toURL:[self partURL] progress:nil
+    dispatch_block_t cancel = [_client downloadTarget:@"/song.flac" toURL:[self partURL] progress:nil
                                          completion:^(NSDictionary *metadata, NSError *error) {
         @synchronized (self) {
             completions++;
@@ -1366,7 +1366,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
         return (DropboxStubResponse){0, nil, nil, YES};
     }];
     XCTestExpectation *done = [self expectationWithDescription:@"cancelled"];
-    dispatch_block_t cancel = [_client downloadPath:@"/song.flac" toURL:[self partURL] progress:nil
+    dispatch_block_t cancel = [_client downloadTarget:@"/song.flac" toURL:[self partURL] progress:nil
                                          completion:^(NSDictionary *metadata, NSError *error) {
         [done fulfill];
     }];
@@ -1566,7 +1566,7 @@ static BOOL IsClosedRange(NSURLRequest *request) {
     XCTAssertEqual(finish[@"availability"], availability);
     XCTAssertEqualObjects(finish[@"error"], error ?: NSNull.null);
     // Installed, or deleted; kept only when the link ended the transfer.
-    XCTAssertEqualObjects(finish[@"partExists"], @(VibeDropboxKeepsPart(error)));
+    XCTAssertEqualObjects(finish[@"partExists"], @([_client keepsPartAfterError:error]));
     XCTAssertEqualObjects(finish[@"installed"], @(error == nil));
     XCTAssertEqualObjects(finish[@"registered"], @YES, @"the lookup let go before the finish");
     XCTAssertNil([_mirror availabilityForURL:_streamTrack]);
@@ -1880,8 +1880,8 @@ static os_unfair_lock sReadLock = OS_UNFAIR_LOCK_INIT;
 static dispatch_block_t sReadObserver;
 static IMP sReadIMP;
 
-static dispatch_block_t ObservedReadPath(id client, SEL selector, NSString *path, uint64_t offset, uint64_t length,
-                                         void (^completion)(NSData *, NSDictionary *, NSError *)) {
+static dispatch_block_t ObservedReadTarget(id client, SEL selector, id target, uint64_t offset, uint64_t length,
+                                           void (^completion)(NSData *, NSDictionary *, NSError *)) {
     void (^observed)(NSData *, NSDictionary *, NSError *) = ^(NSData *data, NSDictionary *metadata, NSError *error) {
         completion(data, metadata, error);
         os_unfair_lock_lock(&sReadLock);
@@ -1891,16 +1891,18 @@ static dispatch_block_t ObservedReadPath(id client, SEL selector, NSString *path
             observer();
         }
     };
-    return ((dispatch_block_t (*)(id, SEL, NSString *, uint64_t, uint64_t, id))sReadIMP)(client, selector, path, offset,
-                                                                                         length, observed);
+    return ((dispatch_block_t (*)(id, SEL, id, uint64_t, uint64_t, id))sReadIMP)(client, selector, target, offset,
+                                                                                 length, observed);
 }
 
 static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        sReadIMP = method_setImplementation(class_getInstanceMethod(DropboxClient.class,
-                                                                    @selector(readPath:offset:length:completion:)),
-                                            (IMP)ObservedReadPath);
+        // Added on the subclass, so other clients' reads are not observed.
+        Method read = class_getInstanceMethod(HTTPTransferClient.class, @selector(readTarget:offset:length:completion:));
+        sReadIMP = method_getImplementation(read);
+        class_addMethod(DropboxClient.class, method_getName(read), (IMP)ObservedReadTarget,
+                        method_getTypeEncoding(read));
     });
     os_unfair_lock_lock(&sReadLock);
     sReadObserver = [observer copy];

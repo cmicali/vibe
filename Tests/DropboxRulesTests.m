@@ -20,7 +20,7 @@
 @implementation DropboxRulesTests
 
 - (void)tearDown {
-    [NSURLUtil setRemotePlaceholderRoot:nil];
+    [NSURLUtil setRemotePlaceholderRoots:@[]];
     [super tearDown];
 }
 
@@ -105,11 +105,11 @@
 }
 
 - (void)testThrottlingIsRetriedAfterACappedDelay {
-    XCTAssertEqual(VibeDropboxRetryDelay(429, @"3"), 3.0);
-    XCTAssertEqual(VibeDropboxRetryDelay(429, nil), 1.0);
-    XCTAssertEqual(VibeDropboxRetryDelay(503, @"300"), 10.0);
-    XCTAssertLessThan(VibeDropboxRetryDelay(409, @"3"), 0);
-    XCTAssertLessThan(VibeDropboxRetryDelay(500, nil), 0);
+    XCTAssertEqual(VibeHTTPRetryDelay(429, @"3"), 3.0);
+    XCTAssertEqual(VibeHTTPRetryDelay(429, nil), 1.0);
+    XCTAssertEqual(VibeHTTPRetryDelay(503, @"300"), 10.0);
+    XCTAssertLessThan(VibeHTTPRetryDelay(409, @"3"), 0);
+    XCTAssertLessThan(VibeHTTPRetryDelay(500, nil), 0);
 }
 
 - (void)testTimestampsParseAsUTCSeconds {
@@ -217,7 +217,7 @@
     XCTAssertFalse([NSURLUtil isDatalessFile:placeholder], @"the mac never installs a backend");
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:placeholder]);
 
-    [NSURLUtil setRemotePlaceholderRoot:[NSURL fileURLWithPath:root isDirectory:YES]];
+    [NSURLUtil setRemotePlaceholderRoots:@[[NSURL fileURLWithPath:root isDirectory:YES]]];
     // An unreadable file elsewhere is merely unreadable: no backend serves it.
     XCTAssertFalse([NSURLUtil isDatalessFile:outside]);
     XCTAssertFalse([NSURLUtil isRemotePlaceholderFile:outside]);

@@ -96,6 +96,9 @@ NSString *VibeBenchComponentsTemporaryDirectory(NSString *label);
 // Runs the main queue, where metadata deliveries land, until done or a
 // generous bound; running out fails the benchmark.
 void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void));
+// `count` samples of white noise at half scale from a seeded LCG, the same
+// for a seed in every build: what the resample and pitch benchmarks convert.
+void VibeBenchComponentsNoise(float *samples, size_t count, uint32_t seed);
 // `count` one-byte files in folders of 100, the relative paths returned.
 NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger count, NSString *extension);
 

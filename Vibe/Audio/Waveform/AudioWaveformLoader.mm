@@ -380,9 +380,9 @@
             dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     __block VibeLoadPhaseNanos procNanos = {};
     // A local decode accumulates a full interval before its first snapshot.
-    // A stream publishes its first block before its next read can stall.
-    __block CFAbsoluteTime lastProgressTime = [CloudFileMaterializer availabilityForURL:file.url]
-            ? 0 : CFAbsoluteTimeGetCurrent();
+    // A file whose reads wait for bytes, a stream or a read-ahead, publishes
+    // its first block before its next read can stall.
+    __block CFAbsoluteTime lastProgressTime = file.waitsForBytes ? 0 : CFAbsoluteTimeGetCurrent();
     __block NSUInteger chunksFilled = 0;
     __block NSUInteger chunkIndex = 0;
     __block AVAudioFramePosition framesProcessed = 0;

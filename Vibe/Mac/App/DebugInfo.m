@@ -19,6 +19,11 @@
 #import "MainPlayerController.h"
 #import "NSBundle+BuildInfo.h"
 #import "PlaylistController.h"
+
+#if VIBE_DIRECT_DISTRIBUTION
+#import "AppDelegate.h"
+#import <Sparkle/Sparkle.h>
+#endif
 #import <OSLog/OSLog.h>
 #import <sys/sysctl.h>
 
@@ -99,6 +104,25 @@ static id VibeJSONSafe(id value) {
     return [value description] ?: @"";
 }
 
+#if VIBE_DIRECT_DISTRIBUTION
+// What the updater will actually do, not just what is stored: a Debug build's
+// --update-feed and the Info.plist's defaults included.
+static NSDictionary *VibeUpdatesDictionary(void) {
+    SPUUpdater *updater = [(AppDelegate *)NSApp.delegate updaterController].updater;
+    if (!updater) {
+        return @{@"running": @NO};
+    }
+    return @{
+        @"running": @YES,
+        @"feed": updater.feedURL.absoluteString ?: @"",
+        @"automaticChecks": @(updater.automaticallyChecksForUpdates),
+        @"intervalSeconds": @(updater.updateCheckInterval),
+        @"lastCheck": updater.lastUpdateCheckDate.description ?: @"",
+        @"betaUpdates": @(AppSettings.sharedInstance.receiveBetaUpdates),
+    };
+}
+#endif
+
 static NSDictionary *VibeAppDictionary(void) {
     NSBundle *bundle = NSBundle.mainBundle;
     NSDate *launched = NSRunningApplication.currentApplication.launchDate;
@@ -120,6 +144,12 @@ static NSDictionary *VibeAppDictionary(void) {
         @"launched": launched.description ?: @"",
         @"runningSeconds": @(launched ? (NSInteger)-launched.timeIntervalSinceNow : 0),
         @"verboseLogging": @((BOOL)VIBE_VERBOSE_LOGGING),
+#if VIBE_DIRECT_DISTRIBUTION
+        @"channel": @"direct",
+        @"updates": VibeUpdatesDictionary(),
+#else
+        @"channel": @"app store",
+#endif
     };
 }
 
