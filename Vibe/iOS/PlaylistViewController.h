@@ -1,5 +1,5 @@
 //
-//  LibraryViewController.h
+//  PlaylistViewController.h
 //  Vibe (iOS)
 //
 //  The Playlist tab. Selecting a row plays it and stays here; expanding the
@@ -12,7 +12,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface LibraryViewController : UITableViewController
+@interface PlaylistViewController : UITableViewController
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL equalizerSurfaceVisible;
 
 // The empty state's Open. Set by the shell, the only thing that knows about
-// tabs; the library holds no reference back.
+// tabs; this screen holds no reference back.
 @property (nonatomic, copy, nullable) void (^openFilesHandler)(void);
 
 @end

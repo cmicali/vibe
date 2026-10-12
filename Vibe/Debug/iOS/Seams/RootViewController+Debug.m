@@ -22,9 +22,9 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "BrowserViewController.h"
+#import "FilesRootViewController.h"
 #import "FavoritesStore.h"
-#import "LibraryViewController.h"
+#import "PlaylistViewController.h"
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
 #import "PlaybackController.h"
@@ -240,12 +240,12 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
 }
 
 - (BOOL)debugTapFavoriteStar {
-    // No library means the Playlist tab, and its star, was never built.
-    LibraryViewController *library = self.library;
-    if (!library || !self.playback.folderURL) {
+    // No screen means the Playlist tab, and its star, was never built.
+    PlaylistViewController *playlistScreen = self.playlistScreen;
+    if (!playlistScreen || !self.playback.folderURL) {
         return NO;
     }
-    [library favoriteTapped];
+    [playlistScreen favoriteTapped];
     return YES;
 }
 
@@ -383,7 +383,7 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
 }
 
 - (void)debugPlayIndex:(NSUInteger)index {
-    // What tapping a library row does; selectTrackAtIndex: range-checks.
+    // What tapping a Playlist tab row does; selectTrackAtIndex: range-checks.
     [self.playback selectTrackAtIndex:index];
 }
 
@@ -416,12 +416,12 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     [self.playback openLinkString:link replacingPlaylistFrom:self completion:completion];
 }
 
-- (BrowserViewController *)debugActiveBrowser {
+- (FilesRootViewController *)debugActiveBrowser {
     for (UIViewController *shown = self.presentedViewController; shown; shown = shown.presentedViewController) {
         UIViewController *first = [shown isKindOfClass:UINavigationController.class]
                 ? ((UINavigationController *)shown).viewControllers.firstObject : nil;
-        if ([first isKindOfClass:BrowserViewController.class]) {
-            return (BrowserViewController *)first;
+        if ([first isKindOfClass:FilesRootViewController.class]) {
+            return (FilesRootViewController *)first;
         }
     }
     return self.filesBrowser;

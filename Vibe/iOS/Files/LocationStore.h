@@ -1,10 +1,11 @@
 //
-//  SearchFolderStore.h
+//  LocationStore.h
 //  Vibe (iOS)
 //
-//  The folders the user handed the app to search: persisted bookmarks, each
-//  scope started at launch and held for the session. Search scope and nothing
-//  else. The iOS twin of the mac's FolderAccessManager.
+//  The Files tab's Locations: the folders the user granted the app, kept as
+//  persisted bookmarks. Each scope starts at launch and is held for the
+//  session. The Files tab lists them, and Search walks them. It also names
+//  every folder the app shows. The iOS twin of the mac's FolderAccessManager.
 //
 //  Main thread only. Resolution is bounded and concurrent and minting has its
 //  own queue, so one slow provider cannot hold every row.
@@ -18,13 +19,13 @@ NS_ASSUME_NONNULL_BEGIN
 // a screen has appeared.
 extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 
-@interface SearchFolderStore : NSObject
+@interface LocationStore : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
 // A singleton: a second instance would hold a second set of scopes.
-@property (class, nonatomic, readonly) SearchFolderStore *shared;
+@property (class, nonatomic, readonly) LocationStore *shared;
 
 // Settings' rows, in order; grows as launch restorations settle.
 @property (nonatomic, readonly) NSArray<NSURL *> *folderURLs;

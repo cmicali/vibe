@@ -13,11 +13,12 @@
 | Runs on the Mac today | Tested by |
 | --- | --- |
 | `DropboxClient`, `DropboxMirror` | `DropboxMirrorTests`, over an `NSURLProtocol` stub and a temp root |
-| `FileSearchIndex`, `FileSearchRules.h` | `FileSearchRulesTests` |
+| `FileSearchIndex`, `FileSearchRules.h`, `FolderSessionRules.h` | `FileSearchRulesTests` |
+| `BrowserRules.h` | `BrowserRulesTests` |
 | `PageWaveformCoordinator` | `PageWaveformCoordinatorTests` |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
-The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `BrowserViewController`, `RootViewController` and `LibraryViewController` sit beside the UIKit calls that act on them.
+The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `FilesRootViewController`, `FolderViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
 
 ## Three moves, in order of payoff
 
@@ -34,7 +35,7 @@ The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/
 
 Each is a race or an ordering rule. On local files a resolve takes a millisecond and hides it. On a cold provider it is wide open. A test with held provider calls makes it deterministic.
 
-Its header imports UIKit, but its implementation does not draw. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FilePaths.h`, `FolderWalk`, `PlaceholderFiles`, `PlaylistFile` and `SearchFolderStoreInternal.h`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `SearchFolderStore` uses `UIDevice` for a display name, which needs a platform boundary or a test seam first.
+Its header imports UIKit, but its implementation does not draw. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `PlaylistFile`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `LocationStore` uses `UIDevice` for a display name, which needs a platform boundary or a test seam first.
 
 Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores in with a temp defaults suite, or stub them at their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant, because `startAccessingSecurityScopedResource` answers NO, which the session treats as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
 
@@ -53,7 +54,7 @@ A header-only seam that the shipping class calls, tested from the Mac (`Tests/AG
 
 - **The browser's row actions.** What a tap and a long press offer per row kind (file, folder, Dropbox placeholder, CUE sheet, M3U), in the browser and the Add sheet. The replace-confirm rule (`PlaybackController`'s `confirmReplacingPlaylistFrom:…` asks only when the playlist was built by hand). Select mode's glyphs, the filter field's threshold and the subfolder walk's caps.
 - **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate part of it today. A wrong answer here once clamped a bottom-scrolled playlist by the accessory's height on expand.
-- **The library's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle.
+- **The Playlist tab's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle.
 - **The pager's waveform gate** (`WaveformWaitsForOpen` in `PlayerViewController+Pager.m`). Ask for a waveform unless the file is a provider's dataless file. A Dropbox placeholder is asked, since the cache answers from its stat.
 
 Each seam also retires a sentence from `Vibe/iOS/AGENTS.md`, since the test states the rule.
@@ -88,5 +89,5 @@ Layout and the safe area, animations and their frame rate, the fixed height of `
 1. `FolderSession` into `VibeTests` with the six tests above. Report the dependency pull before moving anything.
 2. The card fold seam, the smallest.
 3. The browser's row-action seam, against the regression cases.
-4. The library follow rule and the waveform gate, as their files are next touched.
+4. The Playlist tab's follow rule and the waveform gate, as their files are next touched.
 5. Decide whether the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` can share one fixture. Both stand on the same two `DropboxClientInternal.h` methods. They differ on purpose today: the tests script inconsistencies a fixture directory cannot express.

@@ -46,7 +46,7 @@ CarPlay needs a second view of the one engine. The change:
 
 ### 3. The library
 
-Vibe's model is that the picked folder is the playlist. The pick comes from the Files tab or the system document picker, and no template browses Files. In the car the app can offer only what it holds: the current or restored `FolderSession` and the files under `SearchFolderStore`'s persistent roots. `FileSearchIndex` already indexes those roots. CarPlay needs a presentation of that library, not a second persistence model.
+Vibe's model is that the picked folder is the playlist. The pick comes from the Files tab or the system document picker, and no template browses Files. In the car the app can offer only what it holds: the current or restored `FolderSession` and the files under `LocationStore`'s persistent roots. `FileSearchIndex` already indexes those roots. CarPlay needs a presentation of that library, not a second persistence model.
 
 Templates: a `CPListTemplate` of persistent roots, a `CPListTemplate` of the open folder's tracks (`isPlaying` on the current row), a `CPSearchTemplate` over the match `SearchViewController` uses, and `CPNowPlayingTemplate`.
 
@@ -63,7 +63,7 @@ The new directory and types below need a complexity-budget exception before work
 - `Vibe/iOS/VibeiOSAppDelegate.{h,m}`: owns `PlaybackController`.
 - `Vibe/iOS/VibeiOSSceneDelegate.m`: borrows it.
 - `Vibe/iOS/CarPlay/` (new): the `CPTemplateApplicationSceneDelegate` and the template controllers, with a `PlaybackObserver` between them.
-- `Vibe/iOS/Search/SearchFolderStore` and `FileSearchIndex`: reused by the templates.
+- `Vibe/iOS/Files/LocationStore` and `Vibe/iOS/Search/FileSearchIndex`: reused by the templates.
 - `Vibe/NowPlaying/NowPlayingController.m`: the CarPlay-scoped skip commands.
 - `Vibe/Common/VibeStrings.h`: every template title and label. Run `make strings` after.
 - `Vibe/iOS/AGENTS.md`: the multi-scene paragraph and a CarPlay section.

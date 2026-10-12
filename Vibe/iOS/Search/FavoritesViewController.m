@@ -189,13 +189,6 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     return [VibeComparablePath(favorite.path) isEqualToString:_playback.openingPath];
 }
 
-- (void)playbackDidChangeOpening:(PlaybackController *)playback {
-    if (self.viewIfLoaded.window) {
-        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
-                              withRowAnimation:UITableViewRowAnimationNone];
-    }
-}
-
 // The one opening path for the tap and every row action.
 - (void)openFavorite:(FavoriteFolder *)favorite appending:(BOOL)appending {
     // The token is taken HERE, before the resolve: an Add outliving a replace
@@ -267,6 +260,15 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
 // The row stays: a signed-out provider or an unmounted volume is temporary.
 - (void)showUnavailableAlertForFavorite:(FavoriteFolder *)favorite {
     [self vibePresentAlertWithTitle:favorite.name message:STR_ERROR_FAVORITE_UNAVAILABLE];
+}
+
+#pragma mark - PlaybackObserver
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
+    }
 }
 
 @end

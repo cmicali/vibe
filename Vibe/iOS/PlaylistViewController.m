@@ -1,22 +1,22 @@
 //
-//  LibraryViewController.m
+//  PlaylistViewController.m
 //  Vibe (iOS)
 //
 
-#import "LibraryViewController.h"
+#import "PlaylistViewController.h"
 
 #import "AudioTrack.h"
-#import "BrowserViewController.h"
+#import "FilesRootViewController.h"
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
 #import "FileRow.h"
-#import "LibraryTrackCell.h"
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
+#import "PlaylistTrackCell.h"
 #import "SettingsViewController.h"
 #import "VibeStrings.h"
 
@@ -24,10 +24,10 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 #pragma mark - The screen
 
-@interface LibraryViewController () <PlaybackObserver, CloudTransferRegistryObserver>
+@interface PlaylistViewController () <PlaybackObserver, CloudTransferRegistryObserver>
 @end
 
-@implementation LibraryViewController {
+@implementation PlaylistViewController {
     PlaybackController *_playback;
     Playlist           *_playlist;
     // Changes what the empty state says until the next open finds audio.
@@ -37,7 +37,7 @@ static NSString *const kTrackCellIdentifier = @"track";
     BOOL               _viewPresentationVisible;
     BOOL               _equalizerSurfaceVisible;
     // The add sheet's browser, which this screen's exposure exposes.
-    __weak BrowserViewController *_addSheet;
+    __weak FilesRootViewController *_addSheet;
     // A hidden track change, parked at once on the next reveal.
     NSUInteger         _pendingScrollIndex;
     UIBarButtonItem    *_settingsItem;
@@ -58,7 +58,7 @@ static NSString *const kTrackCellIdentifier = @"track";
     [super viewDidLoad];
     // Clear Playlist alone in a destructive inline group, as the Favorites
     // long-press menu builds Remove.
-    __weak LibraryViewController *weakSelf = self;
+    __weak PlaylistViewController *weakSelf = self;
     UIAction *settings = [UIAction actionWithTitle:STR_SETTINGS_TITLE
                                              image:[UIImage systemImageNamed:@"gearshape"]
                                         identifier:nil
@@ -95,7 +95,7 @@ static NSString *const kTrackCellIdentifier = @"track";
     // The rule starts at the title.
     self.tableView.separatorInset =
             UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kFileTileSide + kArtTextGap, 0, 0);
-    [self.tableView registerClass:LibraryTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
+    [self.tableView registerClass:PlaylistTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
     [CloudTransferRegistry.sharedRegistry addObserver:self];
@@ -191,9 +191,8 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 // The Files tab's browser as a sheet in which every action appends.
 - (void)addTapped {
-    BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:_playback
-                                                                        directoryURL:nil
-                                                                           appending:YES];
+    FilesRootViewController *browser = [[FilesRootViewController alloc] initWithPlayback:_playback
+                                                                               appending:YES];
     browser.equalizerSurfaceVisible = _equalizerSurfaceVisible;
     _addSheet = browser;
     [self presentViewController:[[UINavigationController alloc] initWithRootViewController:browser]
@@ -238,7 +237,7 @@ static NSString *const kTrackCellIdentifier = @"track";
     button.title = STR_BUTTON_OPEN;
     button.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
     empty.button = button;
-    __weak LibraryViewController *weakSelf = self;
+    __weak PlaylistViewController *weakSelf = self;
     empty.buttonProperties.primaryAction =
             [UIAction actionWithHandler:^(__kindof UIAction *action) {
         [weakSelf openTapped];
@@ -294,8 +293,8 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    LibraryTrackCell *cell = [tableView dequeueReusableCellWithIdentifier:kTrackCellIdentifier
-                                                             forIndexPath:indexPath];
+    PlaylistTrackCell *cell = [tableView dequeueReusableCellWithIdentifier:kTrackCellIdentifier
+                                                              forIndexPath:indexPath];
     NSUInteger index = (NSUInteger)indexPath.row;
     BOOL playing = index == _playlist.currentIndex && _playlist.count > 0;
     cell.levelSource = _playback;
@@ -310,27 +309,27 @@ static NSString *const kTrackCellIdentifier = @"track";
 - (void)tableView:(UITableView *)tableView
   willDisplayCell:(UITableViewCell *)cell
 forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if ([cell isKindOfClass:LibraryTrackCell.class]) {
+    if ([cell isKindOfClass:PlaylistTrackCell.class]) {
         // TRAP: UIKit displays a prepared cell without re-running
         // cellForRowAtIndexPath:, and the thumbnail and metadata refreshes
         // repaint only visible rows, so a prepared cell can arrive stale.
         // Re-render here; the art read is a non-blocking cache lookup.
         NSUInteger index = (NSUInteger)indexPath.row;
         if (index < _playlist.count) {
-            [(LibraryTrackCell *)cell renderTrack:[_playlist trackAtIndex:index]
-                                           number:index + 1
-                                          playing:index == _playlist.currentIndex];
-            [self syncLoadingForCell:(LibraryTrackCell *)cell trackIndex:index];
+            [(PlaylistTrackCell *)cell renderTrack:[_playlist trackAtIndex:index]
+                                            number:index + 1
+                                           playing:index == _playlist.currentIndex];
+            [self syncLoadingForCell:(PlaylistTrackCell *)cell trackIndex:index];
         }
-        [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
+        [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
     }
 }
 
 - (void)tableView:(UITableView *)tableView
 didEndDisplayingCell:(UITableViewCell *)cell
  forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if ([cell isKindOfClass:LibraryTrackCell.class]) {
-        LibraryTrackCell *trackCell = (LibraryTrackCell *)cell;
+    if ([cell isKindOfClass:PlaylistTrackCell.class]) {
+        PlaylistTrackCell *trackCell = (PlaylistTrackCell *)cell;
         trackCell.equalizerPresentationVisible = NO;
         trackCell.equalizerAudioOutputActive = NO;
         trackCell.loading = NO;
@@ -341,11 +340,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
     [self syncCurrentEqualizerActivity];
 }
 
-- (BOOL)isCellMateriallyVisible:(LibraryTrackCell *)cell {
+- (BOOL)isCellMateriallyVisible:(PlaylistTrackCell *)cell {
     return _equalizerSurfaceVisible && _viewPresentationVisible && [cell vibeIsInViewportOfTableView:self.tableView];
 }
 
-- (void)syncEqualizerActivityForCell:(LibraryTrackCell *)cell {
+- (void)syncEqualizerActivityForCell:(PlaylistTrackCell *)cell {
     NSIndexPath *path = [self.tableView indexPathForCell:cell];
     BOOL current = path && _playlist.count > 0
             && (NSUInteger)path.row == _playlist.currentIndex;
@@ -355,7 +354,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     cell.equalizerPresentationVisible = eligible && [self isCellMateriallyVisible:cell];
 }
 
-- (void)syncLoadingForCell:(LibraryTrackCell *)cell trackIndex:(NSUInteger)index {
+- (void)syncLoadingForCell:(PlaylistTrackCell *)cell trackIndex:(NSUInteger)index {
     AudioTrack *track = index < _playlist.count ? [_playlist trackAtIndex:index] : nil;
     CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
     BOOL loading = track.url != nil && [registry isTransferringURL:track.url];
@@ -367,16 +366,16 @@ didEndDisplayingCell:(UITableViewCell *)cell
 // and disturb its demand balancing.
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
     for (UITableViewCell *cell in self.tableView.visibleCells) {
-        if (![cell isKindOfClass:LibraryTrackCell.class]) {
+        if (![cell isKindOfClass:PlaylistTrackCell.class]) {
             continue;
         }
         NSIndexPath *path = [self.tableView indexPathForCell:cell];
         if (!path) {
             continue;
         }
-        [self syncLoadingForCell:(LibraryTrackCell *)cell
+        [self syncLoadingForCell:(PlaylistTrackCell *)cell
                       trackIndex:(NSUInteger)path.row];
-        [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
+        [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
     }
 }
 
@@ -387,8 +386,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)_playlist.currentIndex
                                            inSection:0];
     UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:path];
-    if ([cell isKindOfClass:LibraryTrackCell.class]) {
-        [self syncEqualizerActivityForCell:(LibraryTrackCell *)cell];
+    if ([cell isKindOfClass:PlaylistTrackCell.class]) {
+        [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
     }
 }
 
@@ -402,7 +401,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         return;
     }
     NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)index inSection:0];
-    LibraryTrackCell *cell = [self.tableView cellForRowAtIndexPath:path];
+    PlaylistTrackCell *cell = [self.tableView cellForRowAtIndexPath:path];
     if (!cell) {
         return;
     }

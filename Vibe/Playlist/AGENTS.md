@@ -1,6 +1,6 @@
 # Playlist
 
-`Playlist` (the model), `FolderWalk` (the disk walk) and `PlaylistFile` (the CUE and M3U readers and the M3U writer) are shared with iOS. All three are tested. **`Mac/` is the `NSTableView` half and the last-playlist store, and has its own `AGENTS.md`.** The iOS list is `Vibe/iOS/LibraryViewController`.
+`Playlist` (the model), `FolderWalk` (the disk walk) and `PlaylistFile` (the CUE and M3U readers and the M3U writer) are shared with iOS. All three are tested. **`Mac/` is the `NSTableView` half and the last-playlist store, and has its own `AGENTS.md`.** The iOS list is `Vibe/iOS/PlaylistViewController`.
 
 ## The model
 

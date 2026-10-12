@@ -21,7 +21,7 @@
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
 #import "PlayerViewController+Debug.h"
-#import "SearchFolderStore.h"
+#import "LocationStore.h"
 #import "WaveformRendererRegistry.h"
 
 // What the system's Paste hands its target for copied text. Text that
@@ -132,11 +132,11 @@ static NSDictionary *VibeSearchScopeDictionary(RootViewController *controller) {
     for (NSURL *root in controller.playback.searchRoots) {
         [roots addObject:root.path ?: @""];
     }
-    SearchFolderStore *store = SearchFolderStore.shared;
+    LocationStore *store = LocationStore.shared;
     NSMutableArray<NSDictionary *> *folders = [NSMutableArray array];
     NSArray<NSURL *> *urls = store.folderURLs;
     for (NSUInteger i = 0; i < urls.count; i++) {
-        [folders addObject:@{@"name": [SearchFolderStore displayNameForFolderURL:urls[i]],
+        [folders addObject:@{@"name": [LocationStore displayNameForFolderURL:urls[i]],
                              @"path": urls[i].path ?: @""}];
     }
     return @{@"roots": roots, @"folders": folders};
@@ -277,7 +277,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 NSURL *url = [NSURL fileURLWithPath:tokens[1] isDirectory:YES];
                 // added:NO is the "already covered" answer, not a failure.
-                BOOL added = [SearchFolderStore.shared addFolderURL:url];
+                BOOL added = [LocationStore.shared addFolderURL:url];
                 NSMutableDictionary *reply =
                         [VibeSearchScopeDictionary(controller) mutableCopy];
                 reply[@"ok"] = @YES;
@@ -286,10 +286,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             }),
             VibeDebugCmd(@"remove_search_folder <index>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
-                if (index < 0 || (NSUInteger)index >= SearchFolderStore.shared.folderURLs.count) {
+                if (index < 0 || (NSUInteger)index >= LocationStore.shared.folderURLs.count) {
                     return VibeErrorJSON(@"usage: remove_search_folder <index in dump_search.folders>");
                 }
-                [SearchFolderStore.shared removeFolderAtIndex:(NSUInteger)index];
+                [LocationStore.shared removeFolderAtIndex:(NSUInteger)index];
                 NSMutableDictionary *reply =
                         [VibeSearchScopeDictionary(controller) mutableCopy];
                 reply[@"ok"] = @YES;
@@ -416,7 +416,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // the system's Paste would. open and cancel are the bar's buttons.
             // Read dump_state.ui.linkSheet after.
             VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                BrowserViewController *browser = controller.debugActiveBrowser;
+                FilesRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }
@@ -424,7 +424,8 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 NSString *text = tokens.count > 2
                         ? [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] componentsJoinedByString:@" "]
                         : @"";
-                UITextView *field = browser.debugLinkField;
+                OpenURLSheetController *sheet = browser.debugLinkSheet;
+                UITextView *field = sheet.debugField;
                 if ([action isEqualToString:@"show"]) {
                     if (!field) {
                         [browser presentLinkSheet];
@@ -450,10 +451,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     [field pasteItemProviders:@[VibeDebugPasteProvider(text)]];
                 }
                 else if ([action isEqualToString:@"open"]) {
-                    [browser openLinkFromSheet];
+                    [sheet openFromSheet];
                 }
                 else {
-                    [browser cancelLinkSheet];
+                    [sheet cancelSheet];
                 }
                 return VibeJSONString(@{@"ok": @YES});
             }),
@@ -461,7 +462,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // pasteItemProviders:, handed what a clipboard read would. A real
             // read of another app's copy raises the system's prompt.
             VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                BrowserViewController *browser = controller.debugActiveBrowser;
+                FilesRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }

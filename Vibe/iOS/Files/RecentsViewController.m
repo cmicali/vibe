@@ -5,12 +5,13 @@
 
 #import "RecentsViewController.h"
 
-#import "BrowserViewController.h"
+#import "FilesRootViewController.h"
 #import "FileRow.h"
 #import "LinkStore.h"
 #import "FilePaths.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "PlaylistFile.h"
+#import "RecentsStore.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
@@ -73,12 +74,12 @@ static NSString *const kRecentCellIdentifier = @"item";
 }
 
 - (void)clearRecents {
-    [_playback clearRecentItems];
+    [RecentsStore.shared clearRecentItems];
     [self reloadItems];
 }
 
 - (void)reloadItems {
-    _items = _playback.recentItems;
+    _items = RecentsStore.shared.recentItems;
     [self.tableView reloadData];
     // Absent, not disabled, with nothing to clear.
     self.navigationItem.rightBarButtonItem.hidden = !_appending && _items.count == 0;
@@ -110,13 +111,6 @@ static NSString *const kRecentCellIdentifier = @"item";
     [content vibeApplyFileIconForName:path folder:[item[@"folder"] boolValue] art:nil];
     [cell vibeApplyRowContent:content opening:[VibeComparablePath(path) isEqualToString:_playback.openingPath]];
     return cell;
-}
-
-- (void)playbackDidChangeOpening:(PlaybackController *)playback {
-    if (self.viewIfLoaded.window) {
-        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
-                              withRowAnimation:UITableViewRowAnimationNone];
-    }
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -182,7 +176,7 @@ static NSString *const kRecentCellIdentifier = @"item";
                                                                                 isDirectory:[item[@"folder"] boolValue]]];
     NSString *name = [item[@"path"] lastPathComponent];
     __weak RecentsViewController *weakSelf = self;
-    [playback resolveRecentItem:item completion:^(NSURL *url) {
+    [RecentsStore.shared resolveRecentItem:item completion:^(NSURL *url) {
         if (!url) {
             if (!appending) {
                 [playback endOpeningForReplaceRequest:token];
@@ -211,13 +205,13 @@ static NSString *const kRecentCellIdentifier = @"item";
     NSString *name = [item[@"path"] lastPathComponent];
     BOOL folder = [item[@"folder"] boolValue];
     __weak RecentsViewController *weakSelf = self;
-    [_playback resolveRecentItem:item completion:^(NSURL *url) {
+    [RecentsStore.shared resolveRecentItem:item completion:^(NSURL *url) {
         RecentsViewController *strongSelf = weakSelf;
-        BrowserViewController *root = (BrowserViewController *)strongSelf.navigationController.viewControllers.firstObject;
+        FilesRootViewController *root = (FilesRootViewController *)strongSelf.navigationController.viewControllers.firstObject;
         if (!url) {
             [strongSelf showUnavailableAlertForName:name];
         }
-        else if ([root isKindOfClass:BrowserViewController.class]) {
+        else if ([root isKindOfClass:FilesRootViewController.class]) {
             [root showDirectory:folder ? url : url.URLByDeletingLastPathComponent
                    highlighting:folder ? nil : url];
         }
@@ -229,6 +223,15 @@ static NSString *const kRecentCellIdentifier = @"item";
     UIViewController *presenter = self.view.window ? self : self.navigationController.presentingViewController;
     if (presenter) {
         [presenter vibePresentAlertWithTitle:name message:STR_ERROR_RECENT_UNAVAILABLE];
+    }
+}
+
+#pragma mark - PlaybackObserver
+
+- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+    if (self.viewIfLoaded.window) {
+        [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
+                              withRowAnimation:UITableViewRowAnimationNone];
     }
 }
 
