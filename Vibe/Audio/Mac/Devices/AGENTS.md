@@ -2,6 +2,8 @@
 
 The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `AudioDeviceEventLog`, `CoreAudioUtil`, `OutputFormatRules.h`, `AudioPlayer+Devices`, and `AudioPlayer+BitPerfect`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
 
+`CoreAudioUtil` is three files. `CoreAudioUtil.m` keeps the bounded read and the device identity reads. Its `+BitPerfect` category holds transport, rate, physical format, volume and hog. Its `+Diagnostics` category holds Save Debug Info's read and the HAL event log's formatter. All three are declared in `CoreAudioUtil.h`, and they share their HAL helpers through `CoreAudioUtilInternal.h`.
+
 `CoreAudioUtil.diagnosticDescriptionOfDeviceID:` is the one read-everything call (formats, declared latency, clock, exclusive owner). It exists for Save Debug Info (`Mac/App/AGENTS.md`), and nothing that changes a device reads it. The player's side of that report is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too. The snapshot reads on the player queue, so shipping callers invoke it off main.
 
 ## AudioDeviceManager

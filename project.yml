@@ -1027,6 +1027,8 @@ targetTemplates:
       - path: Vibe/Audio/Mac/Devices/AudioDeviceEventLog.m
       - path: Vibe/Audio/Mac/Devices/AudioDeviceManager.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+BitPerfect.m
+      - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+Diagnostics.m
       - path: Vibe/Audio/AudioOutputUnit.m
       - path: Vibe/Util/FilePaths.m
       - path: Vibe/Loading/PlaceholderFiles.m
