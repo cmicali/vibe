@@ -416,7 +416,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // the system's Paste would. open and cancel are the bar's buttons.
             // Read dump_state.ui.linkSheet after.
             VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                BrowserViewController *browser = controller.debugActiveBrowser;
+                FilesRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }
@@ -462,7 +462,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // pasteItemProviders:, handed what a clipboard read would. A real
             // read of another app's copy raises the system's prompt.
             VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                BrowserViewController *browser = controller.debugActiveBrowser;
+                FilesRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }

@@ -6,7 +6,7 @@
 #import "PlaylistViewController.h"
 
 #import "AudioTrack.h"
-#import "BrowserViewController.h"
+#import "FilesRootViewController.h"
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
 #import "EqualizerIndicatorView.h"
@@ -37,7 +37,7 @@ static NSString *const kTrackCellIdentifier = @"track";
     BOOL               _viewPresentationVisible;
     BOOL               _equalizerSurfaceVisible;
     // The add sheet's browser, which this screen's exposure exposes.
-    __weak BrowserViewController *_addSheet;
+    __weak FilesRootViewController *_addSheet;
     // A hidden track change, parked at once on the next reveal.
     NSUInteger         _pendingScrollIndex;
     UIBarButtonItem    *_settingsItem;
@@ -191,9 +191,8 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 // The Files tab's browser as a sheet in which every action appends.
 - (void)addTapped {
-    BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:_playback
-                                                                        directoryURL:nil
-                                                                           appending:YES];
+    FilesRootViewController *browser = [[FilesRootViewController alloc] initWithPlayback:_playback
+                                                                               appending:YES];
     browser.equalizerSurfaceVisible = _equalizerSurfaceVisible;
     _addSheet = browser;
     [self presentViewController:[[UINavigationController alloc] initWithRootViewController:browser]

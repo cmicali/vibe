@@ -9,7 +9,7 @@
 #import "AudioTrackMetadata.h"
 #import "CueFolderGrantPrompt.h"
 #import "FavoritesViewController.h"
-#import "BrowserViewController.h"
+#import "FilesRootViewController.h"
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
 #import "PlayerScreenRules.h"
@@ -44,7 +44,7 @@ static NSString *const kTabSearch = @"search";
     // What scales under a moving card: a snapshot of the tabs, never the tabs
     // themselves (applyBackdropProgress:). Present only while the card moves.
     UIView               *_backdropSnapshot;
-    BrowserViewController *_filesController;
+    FilesRootViewController *_filesController;
     FavoritesViewController *_favorites;
     PlaylistViewController *_playlistScreen;
     SearchViewController *_searchController;
@@ -98,7 +98,7 @@ static NSString *const kTabSearch = @"search";
     return _playlistScreen;
 }
 
-- (BrowserViewController *)filesBrowser {
+- (FilesRootViewController *)filesBrowser {
     return _filesController;
 }
 
@@ -188,9 +188,8 @@ static NSString *const kTabSearch = @"search";
         if (!root) {
             return nil;
         }
-        BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:root->_playback
-                                                                            directoryURL:nil
-                                                                               appending:NO];
+        FilesRootViewController *browser = [[FilesRootViewController alloc] initWithPlayback:root->_playback
+                                                                                   appending:NO];
         root->_filesController = browser;
         browser.addedRowsHandler = ^(NSArray<UIView *> *rows) {
             [weakSelf liftAddedRows:rows];

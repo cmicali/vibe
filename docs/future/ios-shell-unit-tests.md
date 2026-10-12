@@ -18,7 +18,7 @@
 | `PageWaveformCoordinator` | `PageWaveformCoordinatorTests` |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
-The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `BrowserViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
+The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `FilesRootViewController`, `FolderViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
 
 ## Three moves, in order of payoff
 

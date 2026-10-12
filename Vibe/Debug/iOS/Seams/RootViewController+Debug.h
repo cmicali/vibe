@@ -12,7 +12,7 @@
 
 #import "RootViewController.h"
 #import "DebugPlayerSurface.h"
-#import "BrowserViewController.h"   // the categories below need the classes
+#import "FilesRootViewController.h"   // the categories below need the classes
 #import "FavoritesViewController.h"
 #import "PlaylistViewController.h"
 #import "SearchViewController.h"
@@ -34,7 +34,7 @@
 @property (nonatomic, readonly) PlaylistViewController *playlistScreen;
 @property (nonatomic, readonly) FavoritesViewController *favorites;
 @property (nonatomic, readonly) SearchViewController *searchScreen;
-@property (nonatomic, readonly) BrowserViewController *filesBrowser;
+@property (nonatomic, readonly) FilesRootViewController *filesBrowser;
 @property (nonatomic, readonly, getter=isPlayerExpanded) BOOL playerExpanded;
 @property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
 @property (nonatomic, copy) NSString *selectedTabIdentifier;
@@ -68,12 +68,12 @@
 - (void)favoriteTapped;
 @end
 
-@interface BrowserViewController (DebugSurface)
+@interface FilesRootViewController (DebugSurface)
 // Shows Open URL's sheet.
 - (void)presentLinkSheet;
 @end
 
-@interface BrowserViewController (Debug)
+@interface FilesRootViewController (Debug)
 // {pasteRowShown, pasteRowResolving, linkSheet: {shown, text, resolving,
 // openEnabled}}. On a root browser.
 - (NSDictionary *)debugLinkState;
@@ -136,7 +136,7 @@
 - (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *file, NSError *error))completion;
 // The root browser Open URL acts on: the add sheet's while it is up, else
 // the Files tab's. nil until the Files tab was visited.
-- (BrowserViewController *)debugActiveBrowser;
+- (FilesRootViewController *)debugActiveBrowser;
 - (AudioTrackMetadataCache *)debugMetadataCache;
 - (AudioWaveformCache *)debugWaveformCache;
 
