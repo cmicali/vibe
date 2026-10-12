@@ -14,7 +14,7 @@ Goal: each agent's Debug build gets its own executable, bundle id and container.
 
 The slot comes from `CLAUDE_CODE_SESSION_ID`, which Task subagents inherit. It never comes from the worktree name, since agents may share a checkout.
 
-**What exists.** `scripts/build-lock.sh` is the checkout-wide `mkdir` lock. `make project`'s generate, `make build-ios`, `make test-audio`, `drive-ios.sh start` and the skill's `sim-install.sh` hold it. `scripts/build.sh`, `make test`'s xcodebuild, `scripts/install-ios.sh`, `scripts/analyze.sh` and `asc_generate_and_archive` do not. A CoreSimulator-filtered `pgrep -x Vibe` loop is copied into seven scripts: `launch.sh`, `run.sh`, `screenshot-lib.sh`, `clear-caches.sh`, `capture-window.sh`, `run-torture.sh` and `reset-state.sh`.
+**What exists.** `scripts/build/build-lock.sh` is the checkout-wide `mkdir` lock. `make project`'s generate, `make build-ios`, `make test-audio`, `drive-ios.sh start` and the skill's `sim-install.sh` hold it. `scripts/build/build.sh`, `make test`'s xcodebuild, `scripts/build/install-ios.sh`, `scripts/build/analyze.sh` and `asc_generate_and_archive` do not. A CoreSimulator-filtered `pgrep -x Vibe` loop is copied into seven scripts: `launch.sh`, `run.sh`, `screenshot-lib.sh`, `clear-caches.sh`, `capture-window.sh`, `run-torture.sh` and `reset-state.sh`.
 
 ## Decisions
 
@@ -45,10 +45,10 @@ Resolution order:
 It exports `VIBE_SLOT`, `VIBE_PRODUCT`, `VIBE_BUNDLE_ID`, `VIBE_DERIVED_DATA`, `VIBE_APP`, `VIBE_BIN` and `VIBE_CONTAINER`. A pre-set `VIBE_APP` wins, and its ids are read from its `Info.plist`. Its functions are `vibe_own_pids`, `vibe_quit_own` (by bundle id), `vibe_kill_own` and `vibe_assert_stock_bundle`.
 
 **Build.**
-- `scripts/build.sh` uses a per-slot `-derivedDataPath`. For a slotted Debug build it passes `PRODUCT_NAME=` and `PRODUCT_BUNDLE_IDENTIFIER=`, then checks that the product exists.
+- `scripts/build/build.sh` uses a per-slot `-derivedDataPath`. For a slotted Debug build it passes `PRODUCT_NAME=` and `PRODUCT_BUNDLE_IDENTIFIER=`, then checks that the product exists.
 - `make test` uses per-slot DerivedData with no product overrides, since the scheme builds `VibeTests`.
 - `make install` refuses a slotted Debug build.
-- `scripts/clean.sh` removes only the slot's DerivedData. `--all` keeps today's wipe.
+- `scripts/build/clean.sh` removes only the slot's DerivedData. `--all` keeps today's wipe.
 - Every generate that skips the build lock takes it.
 - `generate-git-info.sh` writes a temp file, then moves it.
 

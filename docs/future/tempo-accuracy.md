@@ -1,6 +1,6 @@
 # Future: improving tempo detection accuracy
 
-**Status: Not built.** The baseline: `AudioBPMAnalyzer` scored **Accuracy1 85.1%, Accuracy2 92.6%** over the 652 scorable files of the GiantSteps tempo dataset (annotations v2). The analyzer has been optimized for speed since, with its 140/0.5 constants unchanged. Re-measure before acting with `scripts/validate-tempo.py --jobs 6`. How the analyzer works is `Audio/Analysis/AGENTS.md`.
+**Status: Not built.** The baseline: `AudioBPMAnalyzer` scored **Accuracy1 85.1%, Accuracy2 92.6%** over the 652 scorable files of the GiantSteps tempo dataset (annotations v2). The analyzer has been optimized for speed since, with its 140/0.5 constants unchanged. Re-measure before acting with `scripts/analysis/validate-tempo.py --jobs 6`. How the analyzer works is `Audio/Analysis/AGENTS.md`.
 
 ## Where the error is
 

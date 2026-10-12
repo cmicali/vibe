@@ -168,7 +168,7 @@ Playback diagnostics are in `Audio/AGENTS.md`, hardware observation in `Audio/Ma
 
 ## Localization
 
-**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro. Keys are symbolic and stable (`menu.file`, `label.bpm`). The English text lives in the macro's default. **Run `make strings` after touching any UI string.** `make check-strings` fails when the catalog is stale. **Display names are never identifiers.** A registry key, a defaults value and a menu item's identifier stay separate from the localized label. Read the **`vibe-strings` skill** before editing `VibeStrings.h`, the catalogs or `scripts/extract-strings.sh`.
+**Every user-facing string is declared in `Vibe/Common/VibeStrings.h` and nowhere else.** Call sites use a `STR_*` macro. Keys are symbolic and stable (`menu.file`, `label.bpm`). The English text lives in the macro's default. **Run `make strings` after touching any UI string.** `make check-strings` fails when the catalog is stale. **Display names are never identifiers.** A registry key, a defaults value and a menu item's identifier stay separate from the localized label. Read the **`vibe-strings` skill** before editing `VibeStrings.h`, the catalogs or `scripts/strings/extract-strings.sh`.
 
 ## Key patterns
 

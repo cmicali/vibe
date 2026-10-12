@@ -30,7 +30,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/../../../.." && pwd)"
 APP="${VIBE_IOS_APP:-$ROOT/build/DerivedData/Build/Products/Debug-iphonesimulator/Vibe.app}"
 BUNDLE_ID="com.commonwealthrecordings.Vibe"
-. "$ROOT/scripts/build-lock.sh"
+. "$ROOT/scripts/build/build-lock.sh"
 
 [ -d "$APP" ] || { echo "no app at $APP — build the VibeiOS scheme first, or set VIBE_IOS_APP" >&2; exit 1; }
 

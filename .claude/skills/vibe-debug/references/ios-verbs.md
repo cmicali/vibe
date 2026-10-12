@@ -92,7 +92,7 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 
 `sim-udid.sh` names the device `Vibe-<dir>-<hash>` from the checkout path plus `CLAUDE_CODE_SESSION_ID`. Each session therefore has its own app container, channel and touch driver (command dir `build/ios-driver/<UDID>`). Devices from ended sessions are deleted on every `sim-udid.sh` call once shut down and untouched for 12 hours. `VIBE_SIM_UDID` pins a device. `VIBE_SIM_NAME` renames it.
 
-Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
+Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
 
 ## iPad
 

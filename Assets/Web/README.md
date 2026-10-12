@@ -27,7 +27,7 @@ works too.
 
 ## Where the images come from
 
-`scripts/web-build-images.sh` derives the screenshots in `img/` from captures
+`scripts/web/web-build-images.sh` derives the screenshots in `img/` from captures
 already in the repo, so they are regenerated rather than edited. Run it after
 any screenshot change. `--check` fails when a derivative no longer matches its
 source. Nothing else notices a stale one.
@@ -95,7 +95,7 @@ Apple-silicon-and-Intel promise. The release also carries
 `Vibe-macOS-arm64-<version>.dmg` for Apple silicon, plus architecture-named
 ZIPs; those are GitHub alternatives rather than the website default.
 
-So the link is rewritten instead. `scripts/web-set-version.sh <version>` edits
+So the link is rewritten instead. `scripts/web/web-set-version.sh <version>` edits
 the four places in `index.html` that name a version. Two are the button's
 `href` and the label under it, keyed on the `dmg-link` and `dmg-version`
 element ids rather than the markup around them. The other two are the JSON-LD
@@ -171,7 +171,7 @@ of that file. That has two consequences, and the second is the one that bites:
    holding a copy under the old TTL will not ask again until it expires, so
    the fix appears not to work for hours.
 
-Only changing the URL solves (2). `scripts/web-stamp-assets.sh` writes each
+Only changing the URL solves (2). `scripts/web/web-stamp-assets.sh` writes each
 asset's content hash into the `?v=` on every page that references it. That
 covers the stylesheet **and every image under `img/`**, so a changed file is a
 changed URL and no cache is consulted. `deploy-web.sh` runs it with `--check`

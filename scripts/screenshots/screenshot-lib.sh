@@ -31,7 +31,7 @@ say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 require_debug_build() {
     if [ -z "${VIBE_SKIP_BUILD:-}" ]; then
         say "building Debug"
-        "$ROOT/scripts/build.sh" Debug >/dev/null
+        "$ROOT/scripts/build/build.sh" Debug >/dev/null
     fi
     [ -x "$V" ] || { echo "no debug build at $APP" >&2; exit 1; }
 }

@@ -56,7 +56,7 @@ fi
 TMP="$ROOT/build/ios-driver/$UDID"
 LOG="$TMP/driver.log"
 
-. "$ROOT/scripts/build-lock.sh"
+. "$ROOT/scripts/build/build-lock.sh"
 
 # Ready means the marker AND both processes: xcodebuild owns the automation
 # session, the runner performs the gestures. The marker outlives a crash, kill

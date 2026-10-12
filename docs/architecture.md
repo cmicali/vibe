@@ -155,7 +155,7 @@ Each feature beside the engine has its own directory and doc:
 
 `Resources/` holds the string catalogs, the built-in themes (`Themes/*.json`), the app icon, and the bundled welcome track. `make strings` writes `Localizable.xcstrings`. Never edit that file by hand. Read `Resources/AGENTS.md`, and `Resources/Themes-README.md` before making a theme.
 
-`scripts/` holds what the `Makefile` runs. Most scripts have a `make` target, and the `Makefile` comments each one. Releases go through the `vibe-release` skill.
+`scripts/` holds what the `Makefile` runs. Each job has its own directory: `build/`, `checks/`, `strings/`, `test/`, `release/`, `appstore/`, `web/`, `screenshots/`, `bench/`, and `analysis/`. Most scripts have a `make` target, and the `Makefile` comments each one. Releases go through the `vibe-release` skill.
 
 ## From open to sound
 
