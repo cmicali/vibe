@@ -561,7 +561,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         NSURL *sessionRoot = root;
         LocationGrant *grant = [LocationStore.shared grantCoveringURL:url];
         if (!grant) {
-            // A removed Settings row: carry the current playlist's retained
+            // A removed Location: carry the current playlist's retained
             // grant over rather than revoke it when this result wins.
             for (LocationGrant *held in _searchGrants) {
                 if (VibeSearchRootCoversPath(VibeComparablePath(held.rootURL.path), path)) {

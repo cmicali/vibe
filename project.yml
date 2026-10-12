@@ -788,7 +788,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
-      - path: Vibe/Util/Categories/PINCache+VibeAudioCache.m
+      - path: Vibe/Audio/PINCache+VibeAudioCache.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
       - path: Vibe/ThirdParty/PINCache/PINCache.m
         compilerFlags: *third-party-flags
@@ -1000,6 +1000,7 @@ targetTemplates:
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/AudioFileHandle+MPEG.m
       - path: Vibe/Loading/Transfer/NetworkReadAhead.m
+      - path: Vibe/Debug/Seams/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_flac/dr_flac.c

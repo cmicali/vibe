@@ -25,7 +25,8 @@
 @class PlaybackController;
 @class PlayerViewController;
 
-// Declaration-only access to production methods in RootViewController.m.
+// Declaration-only access to production methods in RootViewController.m and
+// RootViewController+AddedRows.m.
 @interface RootViewController (DebugSurface)
 
 @property (nonatomic, readonly) PlaybackController *playback;

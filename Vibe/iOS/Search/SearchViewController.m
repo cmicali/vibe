@@ -590,7 +590,7 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 // A playlist row selects and stays; a file row plays that file alone, and a
-// Dropbox folder opens as the playlist.
+// Dropbox folder opens in the Files tab.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     if (indexPath.section == VibeSearchSectionPlaylist) {

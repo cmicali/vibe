@@ -3,16 +3,16 @@
 #import "AudioTrack.h"
 #import "FolderWalk.h"
 
-@interface NSURLUtilListingTests : XCTestCase
+@interface FolderWalkListingTests : XCTestCase
 @end
 
-@implementation NSURLUtilListingTests {
+@implementation FolderWalkListingTests {
     NSURL *_dir;
 }
 
 - (void)setUp {
     [super setUp];
-    NSString *name = [NSString stringWithFormat:@"NSURLUtilListingTests-%@", NSUUID.UUID.UUIDString];
+    NSString *name = [NSString stringWithFormat:@"FolderWalkListingTests-%@", NSUUID.UUID.UUIDString];
     _dir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:name]
                       isDirectory:YES];
     NSError *error = nil;

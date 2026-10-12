@@ -3,7 +3,7 @@
 //  Vibe
 //
 // One decode of one file, in five phases — the five methods below, in the
-// order load: calls them: open and validate, size the chunk array, run the
+// order decode: calls them: open and validate, size the chunk array, run the
 // pipelined decode, settle what "complete" means, and stretch a short file
 // across the full width. Only the third is long, and it is one thing: a
 // two-slot producer/consumer loop whose halves must not be read apart.
@@ -113,9 +113,9 @@
         // Tempo and key detection ride the same decode pass: each analyzer
         // consumes the buffer right after the waveform chunk does, so neither
         // costs a second full-file read, which matters for cloud-backed files.
-        // With one off there is no analyzer, and the waveform caches with no
-        // BPM or key — a file scanned while off is not re-analyzed on
-        // re-enable until its cache entry goes. The explicit scan_bpm and
+        // With one off there is no analyzer, and the entry is filed without
+        // that analysis (bpmAnalyzed, keyAnalyzed). A later request that runs
+        // it misses on the entry and decodes again. The explicit scan_bpm and
         // scan_key debug paths run the analyzers directly and ignore this.
         VibeWaveformAnalysis analysis = self.analysis;
         bpmAnalyzer = analysis.bpm ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
@@ -291,7 +291,7 @@
     }
     // file.length is exact for every CoreAudio format, an estimate made so at
     // the open, so no prescan is needed; a streaming MP3's own estimate is
-    // checked once its pass ends (load:). Chunk i covers frames
+    // checked once its pass ends (decode:). Chunk i covers frames
     // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always
     // fills exactly numChunks chunks at their final positions, so nothing
     // moves when the load completes. Only a file with fewer frames than chunks
@@ -336,7 +336,7 @@
     // Two buffers, because the decode and the processing are pipelined: block
     // N+1 decodes on this thread while block N runs through the mono mix, the
     // analyzers and the chunker on a serial queue one block behind. The pass
-    // is decode-bound — CoreAudio's MP3 and FLAC codecs cost 3-5x everything
+    // is decode-bound — the MP3 and FLAC decoders cost 3-5x everything
     // downstream combined — so overlapping them takes the wall time down to
     // roughly the decode alone. A
     // slot's buffer is reused only after its semaphore signals, so the decode

@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  A delivery can arrive after the track has changed, so it is matched against
-//  the current track (or the URL it was loaded for) before it is applied.
+//  the current track (or the sourceKey it was loaded for) before it is applied.
 //
 
 #import "PlayerViewController+Delivery.h"

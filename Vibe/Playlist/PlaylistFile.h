@@ -101,7 +101,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSArray<AudioTrack *> *)cueRowsInText:(NSString *)text sheetURL:(nullable NSURL *)sheetURL
                            resolvingFile:(NSURL *_Nullable (^)(NSString *_Nullable name, BOOL sole))resolve;
 
-// The sheet at url as rows, each FILE resolved through the entry rungs below.
+// The sheet at url as rows, each FILE resolved through rowsForPlaylistAtURL:'s rungs.
 // A sheet naming one image — or none — that no rung finds takes the audio named
 // like the sheet beside it (Mix.cue's Mix.flac). An entry readable nowhere
 // still yields its primary candidate, as for M3U. knownFiles, from a folder

@@ -71,8 +71,8 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // cancelled, and its uncancellable stat/open worker keeps the path's claim
 // until it returns, so a same-file request waits and restarts once rather
 // than adding a stranded worker. A live detached decode is reattached in
-// place. BPM and key from a detached decode are still delivered, tagged with
-// their URL for the receiver to match against its playlist.
+// place. BPM and key from a detached decode are still delivered, with the
+// track they were loaded for. The receiver matches it against its playlist.
 - (void)cancelLoad;
 
 @end

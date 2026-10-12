@@ -6,7 +6,7 @@
 //  tags, waveforms and caches a file works on Dropbox unchanged. Lazy: a
 //  Dropbox folder exists here only once something listed it, as a directory
 //  holding a placeholder per audio file (PlaceholderFiles' remote placeholders: the
-//  real size and mtime, no readable bytes) and the CUE sheets beside them.
+//  real size and mtime, no readable bytes) and the playlist files beside them.
 //  The placeholders, their fetch, the ranged read, and the download budget
 //  are RemotePlaceholderStore's. This class lists, names, and searches.
 //
@@ -65,7 +65,7 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 - (BOOL)hasListedDirectory:(NSURL *)url;
 
 // Lists the Dropbox folder and makes its directory here match: placeholders
-// for new or changed audio, CUE sheets downloaded, departed entries removed.
+// for new or changed audio, playlist files downloaded, departed entries removed.
 // Completion on main with the folder's local URL. A directory already here
 // is relisted by its dropboxPathForURL:.
 - (void)refreshDropboxFolder:(NSString *)path

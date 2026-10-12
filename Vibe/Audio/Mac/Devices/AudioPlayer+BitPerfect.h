@@ -30,7 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 // player queue. The delegate rereads the current UID's modes on the player
 // queue; explicit flags supply submission-time FX cleanup and the fallback
 // without a provider. Bit-perfect outranks the saved FX choice. Exclusive
-// access applies only in bit-perfect mode; the build flag can remove it.
+// access applies only in bit-perfect mode.
 // allowAnyDevice bypasses only transport eligibility for Advanced testing.
 - (void)setBitPerfectOutput:(BOOL)bitPerfectOutput exclusiveOutput:(BOOL)exclusiveOutput
                   enableFX:(BOOL)enableFX allowAnyDevice:(BOOL)allowAnyDevice;

@@ -82,7 +82,7 @@ static const CGFloat kCellTimeGap = 12;
 // it an iPad window's art and transport row crowd the waveform. A phone's
 // fixed landscape keeps the full layout.
 static const CGFloat kCellCompactMaximumHeight = 600;
-// The portrait chain was built for the old 480pt window floor.
+// The portrait chain's floor.
 static const CGFloat kCellPortraitMinimumHeight = 480;
 static const CGFloat kCellStripAspect = 2;
 // The mac's art: carries the 138pt row, so the strip's floor.

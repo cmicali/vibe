@@ -57,9 +57,9 @@ static const NSInteger kArtRowMargin = 20;
     NSURL *_directoryURL;
     BOOL _appending;
 
-    // A directory's whole listing, sorted as the Files app sorts names; which
-    // of the files are Dropbox placeholders and each file's size — found with
-    // the listing, off main. The M3U playlists lead the files, and a folder
+    // A directory's whole listing, in the folder-open order. Which of the
+    // files are Dropbox placeholders, and each file's size, are found with the
+    // listing, off main. The M3U playlists lead the files, and a folder
     // holding nothing else has no song for the play button to play.
     NSArray<NSURL *> *_allFolders;
     NSArray<NSURL *> *_allFiles;

@@ -6,6 +6,7 @@
 #import <XCTest/XCTest.h>
 #import "PlaylistFile.h"
 #import "PlaylistFile+Session.h"
+#import "PlaylistFile+CueFileNames.h"
 #import "AudioTrack.h"
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
@@ -24,8 +25,6 @@
 @implementation PlaylistWriterFakeMetadata
 @end
 
-// The FILE names a sheet resolves, in resolution order: the FILE-line lexing,
-// read through the one CUE reader. Declared again in PlaylistFileFuzzTests.
 @implementation PlaylistFile (CueFileNames)
 + (NSArray<NSString *> *)fileNamesInCueText:(NSString *)text {
     NSMutableArray<NSString *> *names = [NSMutableArray new];

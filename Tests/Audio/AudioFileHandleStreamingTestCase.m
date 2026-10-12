@@ -281,8 +281,8 @@ NSData *VibeWithoutVBRHeader(NSData *mp3) {
     }
 }
 
-// The spike's tail-reading opens, by the decoder each reaches, and a WAV,
-// whose open reads its head alone.
+// The tail-reading opens, by the decoder each reaches, and a WAV. The WAV's
+// open reads its head alone.
 - (NSDictionary<NSURL *, NSString *> *)tailFixtures {
     NSMutableDictionary<NSURL *, NSString *> *fixtures = [NSMutableDictionary dictionary];
     NSError *error = nil;

@@ -890,16 +890,21 @@
     }];
     dispatch_semaphore_t release = dispatch_semaphore_create(0), entered = dispatch_semaphore_create(0);
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
-    __block IMP originalProduce;
+    // TRAP: atomic, and stored before the swizzle goes live. The first track's
+    // decode is already running, so a turn can enter the block while the
+    // swizzle is installed. A plain variable assigned from
+    // method_setImplementation's return is a race (and a NULL call).
+    __block _Atomic(IMP) originalProduce;
     __block _Atomic(BOOL) held = NO;
     IMP blocked = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
         if (receiver == bus && slot == 0 && [bus snapshotOfVoice:old].boundary == 12000 && !atomic_exchange(&held, YES)) {
             dispatch_semaphore_signal(entered);
             dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
         }
-        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))atomic_load(&originalProduce))(receiver, @selector(produceChunkForSlot:final:), slot, final);
     });
-    originalProduce = method_setImplementation(produce, blocked);
+    atomic_store(&originalProduce, method_getImplementation(produce));
+    method_setImplementation(produce, blocked);
     @try {
         [_player prefetchTrack:next];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
@@ -929,7 +934,7 @@
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [_player runSyncOnQueue:^{ [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }]; }];
         XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
-        method_setImplementation(produce, originalProduce);
+        method_setImplementation(produce, atomic_load(&originalProduce));
         imp_removeBlock(blocked);
     }
 }
@@ -956,7 +961,10 @@
     dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
     Method retire = class_getInstanceMethod(AudioPlayer.class, @selector(retireVoiceOnQueue:milliseconds:));
-    __block IMP originalProduce, originalRetire;
+    // The decode is already running, so the produce IMP is stored atomically
+    // before the swizzle goes live, as in the test above.
+    __block _Atomic(IMP) originalProduce;
+    __block IMP originalRetire;
     __block _Atomic(BOOL) heldRead = NO; // the decoder writes it, the render loop below polls it
     __block BOOL heldRetire = NO;
     IMP heldProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
@@ -965,7 +973,7 @@
             dispatch_semaphore_signal(reading);
             dispatch_semaphore_wait(letRead, DISPATCH_TIME_FOREVER);
         }
-        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))atomic_load(&originalProduce))(receiver, @selector(produceChunkForSlot:final:), slot, final);
     });
     IMP heldRetirement = imp_implementationWithBlock(^(id receiver, VibeVoiceID voice, uint64_t milliseconds) {
         if (receiver == self->_player && !heldRetire) {
@@ -977,7 +985,8 @@
         }
         ((void (*)(id, SEL, VibeVoiceID, uint64_t))originalRetire)(receiver, @selector(retireVoiceOnQueue:milliseconds:), voice, milliseconds);
     });
-    originalProduce = method_setImplementation(produce, heldProduce);
+    atomic_store(&originalProduce, method_getImplementation(produce));
+    method_setImplementation(produce, heldProduce);
     originalRetire = method_setImplementation(retire, heldRetirement);
     @try {
         // The play's settle filled the ring to the top, so render it down past
@@ -1003,7 +1012,7 @@
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
         dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)); // the swizzled read must be over before its IMP goes
-        method_setImplementation(produce, originalProduce);
+        method_setImplementation(produce, atomic_load(&originalProduce));
         method_setImplementation(retire, originalRetire);
         imp_removeBlock(heldProduce);
         imp_removeBlock(heldRetirement);

@@ -79,7 +79,7 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 ## Dragging rows: reorder inside, files outside
 
-**One drag has two destinations, chosen by the operation mask.** Each row's `NSPasteboardItem` carries the private reorder type, with the session token as payload, and the file URL. The mask is `NSDragOperationMove` locally and `NSDragOperationCopy` elsewhere. So inside the table a drag reorders, and onto the Finder or another app it copies the files.
+**One drag has two destinations, chosen by the operation mask.** Each row's `NSPasteboardItem` carries the private reorder type, with the session token as payload. The first dragged row of each file also carries its file URL, so a drop outside copies each file once. The mask is `NSDragOperationMove` locally and `NSDragOperationCopy` elsewhere. So inside the table a drag reorders, and onto the Finder or another app it copies the files.
 
 **The private type plus the live token is the whole proof that a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`). A file URL alone is what an external drag carries too. The table registers only the private type, so an external file drag still falls to the window's wells. `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open.
 
@@ -93,4 +93,4 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 ## Track commands
 
-**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `NSURLUtilTests`). Menu validation reads no file, so Copy File stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.
+**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `FolderWalkTests`). Menu validation reads no file, so Copy File stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.

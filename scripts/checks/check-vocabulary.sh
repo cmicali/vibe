@@ -40,9 +40,9 @@ while IFS= read -r header; do
     fail "$header — a header-only static-inline seam must be *Rules.h (returns a decision) or *Math.h (returns a number)"
 done < <(find Vibe -name '*.h' ! -path '*/ThirdParty/*')
 
-# 4. Debug surface is a declaration-only category under Vibe/Debug/, with no
-# allowlist. Storage a category cannot add has three answers: a debug-only
-# property ships as a pointer (MainPlayerControllerInternal.h's
+# 4. Debug surface is declared in a +Debug category header under Vibe/Debug/,
+# with no allowlist. Storage a category cannot add has three answers: a
+# debug-only property ships as a pointer (MainPlayerControllerInternal.h's
 # conversionUndoRedoSettledHandler), debug-only state lives in a debug-only
 # object the shipping class holds (VibeManualRenderPump), and a debug-only
 # field a seam reads is declared unconditionally in the class's private header,

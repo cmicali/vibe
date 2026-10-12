@@ -15,9 +15,9 @@
 #endif
 
 // One production player with two open sources (playback, prefetch), plus four
-// stranded whole-file calls; a streaming open never strands, since a cancel
-// ends its waits. Purpose-blind, so saturation can refuse playback. A new
-// player, source or multi-flight source means re-deriving it.
+// stranded whole-file calls; a streaming or read-ahead open never strands,
+// since a cancel ends its waits. Purpose-blind, so saturation can refuse
+// playback. A new player, source or multi-flight source means re-deriving it.
 static const NSUInteger kMaximumHandleRunCount = 6;
 
 @implementation AudioFileMaterializationCoordinator (HandleOpen)
@@ -117,9 +117,10 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             [self->_handleRuns removeObjectForKey:run.key];
         }
         else {
-            // The open keeps its membership until it returns: at once for a
-            // streaming open, whose waits end here; a whole-file open does
-            // none and cannot be stopped.
+            // The open keeps its membership until it returns. A streaming
+            // open returns at once, since the wake below ends its waits. A
+            // read-ahead open returns at its next poll. A whole-file open
+            // makes no waits and cannot be stopped.
             run.openInterrupted = YES;
             [[CloudFileMaterializer availabilityForURL:run.url] wakeWaiters];
         }

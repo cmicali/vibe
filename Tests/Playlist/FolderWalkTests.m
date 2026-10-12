@@ -1,5 +1,5 @@
 //
-//  NSURLUtilTests.m
+//  FolderWalkTests.m
 //
 //  What a drop expands to: the folder walk's filtering, ordering and skips,
 //  playlist files, and the sandbox grant an unreadable entry raises.
@@ -21,10 +21,10 @@
 #import "PlayableExtensions.h"
 #import "TrackCommands.h"
 
-@interface NSURLUtilTests : XCTestCase
+@interface FolderWalkTests : XCTestCase
 @end
 
-@implementation NSURLUtilTests {
+@implementation FolderWalkTests {
     NSURL *_root;
 }
 

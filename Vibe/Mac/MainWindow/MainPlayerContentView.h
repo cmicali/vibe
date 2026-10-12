@@ -28,7 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Glass takes a layer radius; the pre-26 frost a regenerated mask.
 + (void)applyCornerRadius:(CGFloat)radius toBackdrop:(NSView *)backdrop;
 
-// The header glass panel is hidden under the theme's clear window background.
+// The header glass panel is hidden under the theme's clear and solid window
+// backgrounds.
 - (void)applyWindowBackgroundStyle;
 
 // Split so a color drag does not reset fonts, which forces a title re-fit.

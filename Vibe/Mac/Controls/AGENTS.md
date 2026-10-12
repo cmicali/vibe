@@ -14,11 +14,11 @@ It fades to its highlight color on hover, dims to half that while pressed, track
 
 `DrawnControls.h` holds controls drawn in `drawRect:` in place of AppKit's, to AppKit's measured metrics and colors. They draw gray while the window is not key and at half alpha when disabled.
 
-**TRAP: never an `NSSlider` or an `NSSwitch`.** Under the macOS 26 design AppKit draws both through a SwiftUI host. Its first render brings up RenderBox's Metal device, and the GPU driver's 256 MB texture heap with it, for about a second, hidden or not. A switch has no public opt-out, since AppKit picks its host from a private app config alone. A slider subclass that draws for itself is drawn by AppKit, unhosted. `VibeDetentSlider` (the theme editor) is one. Check `dump_view_tree` for `_NSCoreHostingView` before changing one.
+**TRAP: never an `NSSlider` or an `NSSwitch`.** Under the macOS 26 design AppKit draws both through a SwiftUI host. Its first render brings up RenderBox's Metal device, and the GPU driver's 256 MB texture heap with it, for about a second, hidden or not. A switch has no public opt-out, since AppKit picks its host from a private app config alone. A slider subclass that draws for itself is drawn by AppKit, unhosted. `VibeDetentSlider` (Settings) is one. Check `dump_view_tree` for `_NSCoreHostingView` before changing one.
 
 - **`VibeSlider`** is the main window's volume slider: 0 to 1, the fill `trackFillColor` or the system accent, and a VoiceOver slider stepping 5%. It sends its action from the mouse-down, every moving drag and, always, the mouse-up, each from its own event handler. So `NSApp.currentEvent` tells the volume control's drag hold which it was (`MainWindow/LAYOUT.md`).
 - **`VibeSwitch`** is every Settings switch (`switchWithAction:`). It matches the small `NSSwitch`, with its slide, Space under full keyboard access, and a VoiceOver checkbox of the switch subrole. Setting `state` neither slides nor sends the action.
-- **`VibeDetentSlider`** is the Settings slider with a detent, in a file of its own. The theme editor's corner radius and Appearance's waveform gain use it. It draws ticks above and below the track at `detentValue`, where its action snaps.
+- **`VibeDetentSlider`** is the Settings slider with a detent, in a file of its own. The theme editor's corner radius, bar density and bar width sliders use it, and so does Appearance's waveform gain. It draws ticks above and below the track at `detentValue`, where its action snaps.
 
 ## Image views
 

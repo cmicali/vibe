@@ -15,7 +15,7 @@
 + (NSFont *)fontForNumbers:(CGFloat)size;
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold;
 
-// The themed slots. Util may not read a setting, so the theme is PUSHED here;
+// The themed slots. Fonts reads no setting. The theme is PUSHED here, and
 // until the first push the slots resolve the factory look. An empty or
 // uninstalled face falls back to font: (fontForNumbers: for info and
 // duration), so a slot never returns nil. A named info or duration face gains

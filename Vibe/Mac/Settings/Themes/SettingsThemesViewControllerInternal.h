@@ -96,7 +96,7 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)applyEditorVisibility;
 
 // Theme: <name> on the editor (the Name field's live text while editing),
-// Appearance otherwise.
+// Themes otherwise.
 - (void)applyEditorTitle;
 
 // Every themed row funnels here after writing its currentTheme field.

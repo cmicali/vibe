@@ -89,8 +89,9 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
 // Suppresses a result whose completion block has not begun and detaches the
 // stage-1 waiter. A handle open already begun keeps its run registered until
 // the call returns, so a same-purpose/path retry binds to it instead of
-// starting another: a streaming open returns at once, its waits interrupted,
-// and a whole-file open, which does no waits, cannot be stopped.
+// starting another: a streaming or read-ahead open returns once its waits
+// are interrupted, and a whole-file open, which does no waits, cannot be
+// stopped.
 //
 // No detach-without-cancel variant: cancelling also marks the run abandoned,
 // which is how a rebound waiter gets a fresh run instead of the abandoned

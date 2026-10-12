@@ -218,7 +218,7 @@ static inline time_t VibeDropboxParseTimestamp(NSString *_Nullable text) {
     return timegm(&parts);
 }
 
-// Which entries the mirror keeps: playable audio, and the CUE sheets the
+// Which entries the mirror keeps: playable audio, and the playlist files the
 // listing reads beside it. Everything else costs a placeholder for nothing.
 static inline BOOL VibeDropboxNameIsMirrored(NSString *name, NSSet<NSString *> *playableExtensions) {
     if ([name hasPrefix:@"."]) {

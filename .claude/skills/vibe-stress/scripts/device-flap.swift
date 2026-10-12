@@ -6,7 +6,7 @@
 // disappears. `move` only reassigns the default between two persistent devices,
 // separating "the default moved" from "the device vanished". `rotate` cycles the
 // default across real devices, creating nothing, to measure per-interface bind
-// cost (the table in SKILL.md).
+// cost (SKILL.md, "What a device change costs").
 //
 // TRAP: this changes the SYSTEM default output, moving audio for every app. It
 // restores the default and destroys its aggregate on every exit path including

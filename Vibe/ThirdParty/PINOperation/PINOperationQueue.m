@@ -112,12 +112,13 @@
     
     //Create a queue with max - 1 because this plus the serial queue add up to max.
     _concurrentSemaphore = dispatch_semaphore_create(_maxConcurrentOperations - 1);
-    // Vibe patch (not upstream): pin the semaphore queue to utility QoS. With
-    // no attribute its blocks inherit the enqueuer's QoS, and a user-initiated
-    // enqueue then waits on the slot semaphore signaled by utility-QoS ops — a
-    // priority inversion the Thread Performance Checker flags (semaphores
-    // carry no ownership, so no donation). Pinned, the waiter never outranks
-    // the ops it waits on; all async ops consequently execute at utility.
+    // Vibe: the semaphore queue is pinned to utility QoS. Without the
+    // attribute its blocks inherit the enqueuer's QoS. A user-initiated
+    // enqueue then waits on the slot semaphore that utility-QoS operations
+    // signal. The Thread Performance Checker flags that priority inversion.
+    // A semaphore has no owner, so no priority is donated. Pinned, the waiter
+    // never outranks the operations it waits on. Every async operation
+    // therefore runs at utility QoS.
     _semaphoreQueue = dispatch_queue_create("PINOperationQueue Serial Semaphore Queue", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     
     _queuedOperations = [[NSMutableOrderedSet alloc] init];

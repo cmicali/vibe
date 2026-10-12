@@ -277,8 +277,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)bookmarkFolderURL:(NSURL *)folderURL
                completion:(void (^)(NSData *_Nullable bookmark))completion;
 
-// Every tree the search screen may walk: the session's, then Settings' and
-// Documents, then resolved favorites. FileSearchIndex prunes nesting.
+// Every tree the search screen may walk: the session's, then the Locations and
+// Documents, then resolved favorites. Never a Dropbox folder. FileSearchIndex
+// prunes nesting.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 
 // A search hit or a recent (FolderSession openURL:inFolder:): a folder opens,

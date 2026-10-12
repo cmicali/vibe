@@ -1005,7 +1005,9 @@
     [self settleUntil:^BOOL { return [bus snapshotOfVoice:old].written >= 65536; }];
     dispatch_semaphore_t reading = dispatch_semaphore_create(0), letRead = dispatch_semaphore_create(0);
     Method produce = class_getInstanceMethod(AudioVoiceBus.class, @selector(produceChunkForSlot:final:));
-    __block IMP originalProduce;
+    // The old track's decode can still be running, so the produce IMP is
+    // stored atomically before the swizzle goes live (Tests/AGENTS.md).
+    __block _Atomic(IMP) originalProduce;
     __block _Atomic(BOOL) heldRead = NO;
     IMP heldProduce = imp_implementationWithBlock(^uint32_t(id receiver, NSUInteger slot, BOOL *final) {
         if (receiver == bus && !heldRead) {
@@ -1013,9 +1015,10 @@
             dispatch_semaphore_signal(reading);
             dispatch_semaphore_wait(letRead, DISPATCH_TIME_FOREVER);
         }
-        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))originalProduce)(receiver, @selector(produceChunkForSlot:final:), slot, final);
+        return ((uint32_t (*)(id, SEL, NSUInteger, BOOL *))atomic_load(&originalProduce))(receiver, @selector(produceChunkForSlot:final:), slot, final);
     });
-    originalProduce = method_setImplementation(produce, heldProduce);
+    atomic_store(&originalProduce, method_getImplementation(produce));
+    method_setImplementation(produce, heldProduce);
     @try {
         for (int i = 0; i < 64 && !heldRead; i++) [self render:1024];
         XCTAssertEqual(dispatch_semaphore_wait(reading, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
@@ -1038,7 +1041,7 @@
         dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
         [_player runSyncOnQueue:^{ [bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }]; }];
         XCTAssertEqual(dispatch_semaphore_wait(stopped, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
-        method_setImplementation(produce, originalProduce);
+        method_setImplementation(produce, atomic_load(&originalProduce));
         imp_removeBlock(heldProduce);
     }
 }

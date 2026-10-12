@@ -8,7 +8,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// AudioFileHandle.m's read-ahead block, the unit a script's offsets count in.
+// NetworkReadAhead.m's read-ahead block, the unit a script's offsets count in.
 static const uint64_t kReadAheadBlock = 256 * 1024;
 
 @interface VibeReadAheadScript : NSObject

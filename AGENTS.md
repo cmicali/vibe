@@ -157,7 +157,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 **`Coordinator` is deliberately generic** and names three contracts: request identity (`PlaybackRequestCoordinator`), single-flight ownership (`MetadataParseCoordinator`, `AudioFileMaterializationCoordinator`), and ordered, target-matched delivery (`OpenRequestCoordinator`, `PageWaveformCoordinator`). A new one must say which it is.
 
-`make check-vocabulary` enforces the mechanical half of these rules and is the authority on what is checkable. One rule it enforces is stated only here: **no `#if DEBUG` in a shipping header.** Debug surface is a declaration-only category under `Vibe/Debug/`, with no allowlist. A debug-only property ships as a pointer. Debug-only *state* belongs to a debug-only object the shipping class holds (`VibeManualRenderPump`). A debug-only field a seam reads is declared unconditionally in the class's private header, marked as debug-only.
+`make check-vocabulary` enforces the mechanical half of these rules and is the authority on what is checkable. One rule it enforces is stated only here: **no `#if DEBUG` in a shipping header.** Debug surface is declared in a `+Debug` category header under `Vibe/Debug/`, with no allowlist. Its methods live beside it in `<Class>+Debug.m` when the class's header or `*Internal.h` is enough. Otherwise they stay in the class's own file under `#if DEBUG` (`Debug/AGENTS.md`). A debug-only property ships as a pointer. Debug-only *state* belongs to a debug-only object the shipping class holds (`VibeManualRenderPump`). A debug-only field a seam reads is declared unconditionally in the class's private header, marked as debug-only.
 
 ## Logging
 

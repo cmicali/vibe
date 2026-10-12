@@ -6,9 +6,6 @@
 #import "AudioFileHandleInternal.h"
 #import "CloudFileMaterializer.h"
 #import "NetworkReadAhead.h"
-#if DEBUG
-#import "AudioFileHandle+Debug.h"
-#endif
 
 #import <AudioToolbox/AudioToolbox.h>
 
@@ -1017,31 +1014,3 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 }
 
 @end
-
-#if DEBUG
-
-@implementation AudioFileHandle (Debug)
-
-+ (void)debugSetMountRule:(NSNumber *(^)(NSURL *))rule {
-    VibeNetworkReadAheadDebugSetMountRule(rule);
-}
-
-+ (void)debugSetBeforeRead:(int (^)(NSURL *, uint64_t, uint64_t))beforeRead {
-    VibeNetworkReadAheadDebugSetBeforeRead(beforeRead);
-}
-
-+ (void)debugSetRetryScale:(double)scale {
-    VibeNetworkReadAheadDebugSetRetryScale(scale);
-}
-
-+ (NSInteger)debugLiveReadAheads {
-    return VibeNetworkReadAheadDebugLive();
-}
-
-+ (NSInteger)debugOrphanedReadAheads {
-    return VibeNetworkReadAheadDebugOrphaned();
-}
-
-@end
-
-#endif

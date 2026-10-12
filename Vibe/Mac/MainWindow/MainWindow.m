@@ -268,7 +268,7 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *VibeDropItemsOfPasteboar
 
 #pragma mark - Public API
 
-// The rationale is in Util/WindowAnimation.h; the settings window shares it.
+// The rationale is in Util/Mac/WindowAnimation.h; the settings window shares it.
 - (NSTimeInterval)animationResizeTime:(NSRect)newFrame {
     return kWindowResizeAnimationDuration;
 }
