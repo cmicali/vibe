@@ -41,11 +41,12 @@ while IFS= read -r header; do
 done < <(find Vibe -name '*.h' ! -path '*/ThirdParty/*')
 
 # 4. Debug surface is a declaration-only category under Vibe/Debug/, with no
-# allowlist. Storage a category cannot add has two answers: a debug-only
+# allowlist. Storage a category cannot add has three answers: a debug-only
 # property ships as a pointer (MainPlayerControllerInternal.h's
 # conversionUndoRedoSettledHandler), debug-only state lives in a debug-only
-# object the shipping class holds (VibeManualRenderPump). Anchored to the
-# directive, so a comment may mention it.
+# object the shipping class holds (VibeManualRenderPump), and a debug-only
+# field a seam reads is declared unconditionally in the class's private header,
+# marked as debug-only. Anchored to the directive, so a comment may mention it.
 stray_debug=$(grep -rlnE '^[[:space:]]*#if[[:space:]]+DEBUG' Vibe --include='*.h' 2>/dev/null \
         | grep -v ThirdParty | grep -v '^Vibe/Debug/' || true)
 if [ -n "$stray_debug" ]; then

@@ -16,9 +16,7 @@
 #import "MetadataRetryRules.h"
 #import "PlaceholderFiles.h"
 
-#if DEBUG
 #import "AudioTrackMetadataLoader+Debug.h"
-#endif
 
 @implementation AudioTrackMetadataLoader (Materialization)
 

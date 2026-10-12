@@ -73,16 +73,6 @@
     return (NSTimeInterval)length / sampleRate;
 }
 
-#if DEBUG
-// Debug-only, declared in AudioPlayer+Debug.h: dump_state is the one caller.
-- (NSUInteger)numChannels {
-    os_unfair_lock_lock(&_stateLock);
-    AudioFileHandle *file = _file;
-    os_unfair_lock_unlock(&_stateLock);
-    return file.processingFormat.channelCount;
-}
-#endif
-
 // Where in the window the voice began plus what it has rendered since, less
 // the frames of a file it was promoted out of. Bus and file frames agree in
 // seconds at any bus rate, and under the pitch fader this advances with the

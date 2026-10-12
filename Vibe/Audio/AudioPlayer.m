@@ -13,7 +13,6 @@
 #import "AudioMasterBusInternal.h"
 #if DEBUG
 #import "VibeManualRenderPump.h"
-#import "AudioPlayer+Debug.h"
 #endif
 #import "AudioFX+Pipeline.h"
 #import "AudioLoadingConfiguration.h"
@@ -28,12 +27,6 @@
 #import "PlaceholderFiles.h"
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
-
-#if DEBUG
-@interface AudioLevelPublisher (AudioPlayerDebugPrivate)
-- (NSDictionary<NSString *, NSNumber *> *)debugState;
-@end
-#endif
 
 // An open still pending after this long is worth a visible loading state;
 // a dataless file's is from the start (submitOpenOnQueueForTrack:).
@@ -53,7 +46,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 @implementation AudioPlayer {
     float                   _maxPitch;
     float                   _volume;
-    AudioLoadingConfiguration *_loadingConfiguration;
     // The fade-in length for the play in flight: the user's crossfade when it
     // replaced an audibly playing track, the declick minimum otherwise.
     uint64_t                _incomingFadeMilliseconds;
@@ -76,14 +68,6 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
     // movement.
     uint64_t                _bufferingStartBytes;
     uint64_t                _bufferingBytes;
-#if DEBUG
-    // debugBufferingRecord's, under _stateLock: holds begun, how they ended.
-    NSUInteger              _debugBufferingHolds;
-    NSUInteger              _debugBufferingReleases;
-    NSUInteger              _debugBufferingStalls;
-    NSTimeInterval          _debugBufferingSinceUptime;
-    NSTimeInterval          _debugBufferingLastHeldSeconds;
-#endif
 }
 
 #pragma mark - Init
@@ -1579,183 +1563,5 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         [self.delegate audioPlayer:self error:error];
     }];
 }
-
-#pragma mark - Debug introspection
-#if DEBUG
-- (instancetype)initForManualRendering:(AVAudioFormat *)format enableFX:(BOOL)enableFX automatic:(BOOL)automatic delegate:(id<AudioPlayerDelegate>)delegate {
-    NSParameterAssert(format.commonFormat == AVAudioPCMFormatFloat32 && !format.interleaved);
-    return [self initWithDeviceUID:@"" modelUID:@"" name:@"" enableFX:enableFX delegate:delegate
-                        manualPump:[[VibeManualRenderPump alloc] initWithFormat:format automatic:automatic]];
-}
-
-- (AVAudioPCMBuffer *)debugRenderFrames:(AVAudioFrameCount)frames error:(NSError **)error {
-    __block AVAudioPCMBuffer *buffer;
-    __block NSError *failure;
-    [self runSyncOnQueue:^{ buffer = [(VibeManualRenderPump *)self->_manualPump renderFrames:frames error:&failure]; }];
-    if (error) *error = failure;
-    return buffer;
-}
-
-- (void)debugSetCapture:(void (^)(AVAudioPCMBuffer *))capture {
-    [self runSyncOnQueue:^{ [(VibeManualRenderPump *)self->_manualPump setCapture:capture]; }];
-}
-
-- (void)debugBlockQueueForSeconds:(NSTimeInterval)seconds {
-    dispatch_async(_queue, ^{ usleep((useconds_t)(MIN(10, MAX(0, seconds)) * 1e6)); });
-}
-
-- (void)debugStarveDecoder:(BOOL)starve {
-    [self runSyncOnQueue:^{ [(VibeManualRenderPump *)self->_manualPump setStarveDecoder:starve]; }];
-}
-
-- (void)debugShutdown {
-    self.delegate = nil;
-    [self runSyncOnQueue:^{
-        self->_terminating = YES;
-        [self stopOnQueue];
-        [(VibeManualRenderPump *)self->_manualPump cancel];
-        [self stopOutputOnQueue];
-    }];
-}
-
-// dump_audio_loading compares the three consumers' snapshots — the
-// materialization coordinator's, the metadata cache's and this one.
-- (AudioLoadingConfiguration *)loadingConfiguration {
-    __block AudioLoadingConfiguration *configuration;
-    [self runSyncOnQueue:^{ configuration = self->_loadingConfiguration; }];
-    return configuration;
-}
-
-- (NSDictionary<NSString *, NSNumber *> *)debugBufferingRecord {
-    os_unfair_lock_lock(&_stateLock);
-    NSDictionary *record = @{
-        @"holds": @(_debugBufferingHolds),
-        @"releases": @(_debugBufferingReleases),
-        @"stalls": @(_debugBufferingStalls),
-        @"heldSeconds": @(_buffering ? NSProcessInfo.processInfo.systemUptime - _debugBufferingSinceUptime
-                                     : _debugBufferingLastHeldSeconds),
-    };
-    os_unfair_lock_unlock(&_stateLock);
-    return record;
-}
-
-- (BOOL)manualRenderingActive {
-    return _manualPump != nil;
-}
-
-- (AudioLevelMeter *)debugLevelMeter {
-    __block AudioLevelMeter *meter;
-    [self runSyncOnQueue:^{ meter = self->_levelMeter; }];
-    return meter;
-}
-
-- (void)debugClearRenderCounters {
-    [self runSyncOnQueue:^{
-        [self->_outputUnit clearCounters];
-        [self clearRenderRefusalsOnQueue];
-    }];
-}
-
-- (NSDictionary<NSString *, NSNumber *> *)debugRenderCounts {
-    __block NSDictionary *counts = nil;
-    [self runSyncOnQueue:^{
-        VibeVoiceSnapshot snapshot = [self->_voiceBus snapshotOfVoice:self->_voice];
-        NSDictionary *unit = [self outputUnitCountersOnQueue];
-        NSDictionary *varispeed = [self pipelineRenderSnapshotOnQueue][@"varispeed"];
-        counts = @{@"hostedUnits": @(self.fx.hostedUnitCount),
-                   @"unitRenders": @(self.fx.unitRenders),
-                   @"outputDropouts": unit[@"dropouts"],
-                   @"renderCycles": unit[@"renderCycles"],
-                   @"renderMeanMicros": unit[@"renderMeanMicros"],
-                   @"renderMaxMicros": unit[@"renderMaxMicros"],
-                   @"retiredFades": @(self->_retiringVoices.count),
-                   @"prefetched": @(self->_prefetchedFile != nil),
-                   @"renderLeaveWork": @(self->_renderLeaveWork.count),
-                   @"renderRefusals": @([self renderRefusalsOnQueue]),
-                   @"rendersHeld": @([self debugRendersHeld]),
-                   @"liveVoices": @(self->_voiceBus.liveVoiceCount),
-                   @"decodeTurns": @(self->_voiceBus.decodeTurns),
-                   @"pollActive": @(self->_drainTimer != nil),
-                   @"running": @([self renderingOnQueue]),
-                   @"frames": @([(VibeManualRenderPump *)self->_manualPump renderedFrames]),
-                   @"varispeed": @([self varispeedPresentOnQueue]),
-                   @"fxConnected": @(self.fx.connected),
-                   @"gain": @(snapshot.gain),
-                   @"underrunFrames": @(snapshot.underrunFrames),
-                   @"varispeedLatency": @([self varispeedLatencyOnQueue]),
-                   @"varispeedEngaged": varispeed[@"engaged"],
-                   @"varispeedRenders": varispeed[@"renders"],
-                   @"varispeedHistoryWrites": varispeed[@"historyWrites"],
-                   @"outputRate": @([self masterBusFormatOnQueue].sampleRate)};
-    }];
-    return counts;
-}
-
-- (BOOL)debugSetOutputRate:(double)rate {
-    __block BOOL followed = NO;
-    [self runSyncOnQueue:^{
-        AVAudioFormat *current = [self masterBusFormatOnQueue];
-        AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:rate
-                                                                             channels:current ? current.channelCount : 2];
-        followed = [self followOutputFormatOnQueue:format];
-    }];
-    return followed;
-}
-
-- (NSDictionary<NSString *, id> *)debugCurrentConversion {
-    __block NSDictionary *conversion;
-    [self runSyncOnQueue:^{ conversion = [self->_voiceBus conversionOfVoice:self->_voice]; }];
-    return conversion;
-}
-
-- (NSDictionary<NSString *, id> *)debugResamplerCostsResetting:(BOOL)reset {
-    __block NSDictionary *costs;
-    [self runSyncOnQueue:^{ costs = [self->_voiceBus debugResamplerCostsResetting:reset]; }];
-    return costs;
-}
-
-static NSString *VibeAudioLevelNormalizationModeName(VibeAudioLevelNormalizationMode normalizationMode) {
-    switch (normalizationMode) {
-        case VibeAudioLevelNormalizationModeBalancedSpectrum:
-            return @"balanced";
-        case VibeAudioLevelNormalizationModeSharedSpectrum:
-            return @"spectrum";
-        case VibeAudioLevelNormalizationModeRelativeActivity:
-        default:
-            return @"activity";
-    }
-}
-
-- (void)debugSetEqualizerNormalizationMode:(VibeAudioLevelNormalizationMode)normalizationMode {
-    if (normalizationMode != VibeAudioLevelNormalizationModeRelativeActivity
-            && normalizationMode != VibeAudioLevelNormalizationModeSharedSpectrum
-            && normalizationMode != VibeAudioLevelNormalizationModeBalancedSpectrum) {
-        return;
-    }
-    [self runSyncOnQueue:^{
-        if (self->_levelNormalizationMode == normalizationMode) {
-            return;
-        }
-        [self dropLevelMeterOnQueue];
-        self->_levelNormalizationMode = normalizationMode;
-        [self applyLevelMeterOnQueue];
-    }];
-}
-
-- (NSDictionary<NSString *, id> *)debugEqualizerState {
-    __block NSDictionary *state = nil;
-    [self runSyncOnQueue:^{
-        NSMutableDictionary<NSString *, id> *snapshot = [[self->_levelPublisher debugState] mutableCopy];
-        snapshot[@"requested"] = @(self->_levelsWanted);
-        snapshot[@"signalProbe"] = @(self.signalProbeWanted); // beta builds' hold for a start's capture
-        snapshot[@"meterObject"] = @(self->_levelMeter != nil);
-        snapshot[@"retiredOutputCount"] = @(self->_retiringVoices.count);
-        snapshot[@"outputAudioActive"] = @(self.outputAudioActive);
-        snapshot[@"normalizationMode"] = VibeAudioLevelNormalizationModeName(self->_levelNormalizationMode);
-        state = snapshot;
-    }];
-    return state;
-}
-#endif
 
 @end

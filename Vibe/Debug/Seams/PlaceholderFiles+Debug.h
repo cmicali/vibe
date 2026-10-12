@@ -7,12 +7,14 @@
 //  in reach. VibeFakeCloud is the only installer; unset means the real stat.
 //  It is injected because a real file cannot be staged as one: SF_DATALESS
 //  cannot be set by hand, and a file merely carrying it would not block on
-//  read. Declaration-only, like AudioPlayer+Debug.h.
+//  read. Implemented in PlaceholderFiles+Debug.m.
 //
 
 #if DEBUG
 
 #import "PlaceholderFiles.h"
+
+#include <stdatomic.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -35,6 +37,12 @@ typedef BOOL (^VibeDatalessProbe)(NSURL *url);
 + (NSDictionary *)datalessDiagnostics;
 
 @end
+
+// isDatalessFile:'s hooks. The probe, when installed, answers instead of the
+// stat. The stat path reads the flag, then records only while it is set.
+VibeDatalessProbe _Nullable VibeDatalessProbeHook(void);
+extern _Atomic(BOOL) VibeDatalessDiagEnabled;
+void VibeRecordDatalessStat(NSURL *url, BOOL dataless, uint32_t flags, BOOL statFailed);
 
 NS_ASSUME_NONNULL_END
 

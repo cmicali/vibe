@@ -100,18 +100,7 @@ static const NSUInteger kMaximumDatalessProbeRunningCount = 8;
 static const NSUInteger kMaximumDatalessProbePendingCount = 16;
 static const NSTimeInterval kDatalessProbePendingGrace = 5;
 
-@implementation AudioFileMaterializationCoordinator {
-    // Here, not in the class extension, since a shipping header has no #if DEBUG.
-#if DEBUG
-    // Atomic for the health probe's lock-free read; written on the state queue.
-    _Atomic uint64_t _handleOpensStarted;
-    _Atomic uint64_t _handleOpensCompleted;
-    uint64_t _requestsReady;
-    uint64_t _requestsFailed;
-    uint64_t _requestsYielded;
-    uint64_t _requestsAdmissionExhausted;
-#endif
-}
+@implementation AudioFileMaterializationCoordinator
 
 + (instancetype)sharedCoordinator {
     static AudioFileMaterializationCoordinator *coordinator;
@@ -1170,23 +1159,5 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
     }];
     return snapshot;
 }
-
-#if DEBUG
-// Started first: an open racing the two loads reads low, never one high,
-// which quiescence's zero-at-rest check would report as a stranded open.
-- (uint64_t)handleOpensInFlight {
-    uint64_t started = atomic_load(&_handleOpensStarted);
-    uint64_t completed = atomic_load(&_handleOpensCompleted);
-    return started > completed ? started - completed : 0;
-}
-
-- (void)countHandleOpenStarted {
-    atomic_fetch_add(&_handleOpensStarted, 1);
-}
-
-- (void)countHandleOpenCompleted {
-    atomic_fetch_add(&_handleOpensCompleted, 1);
-}
-#endif
 
 @end

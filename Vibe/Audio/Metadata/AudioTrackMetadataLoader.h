@@ -118,6 +118,10 @@ NS_ASSUME_NONNULL_BEGIN
     MetadataParseCoordinator *_parseCoordinator;
     VibeAudioTrackMetadataCacheReader _cacheReader;
     VibeAudioTrackMetadataFileParser _fileParser;
+    // Debug builds only (AudioTrackMetadataLoader+Debug.m). Guarded by
+    // _materializationLock.
+    dispatch_block_t _debugBeforeScanPickValidation;
+    NSQualityOfService _debugLastScheduledParseQualityOfService;
 }
 @end
 

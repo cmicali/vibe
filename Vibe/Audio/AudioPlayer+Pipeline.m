@@ -137,45 +137,6 @@ static const NSTimeInterval kSlowOutputStartLogThresholdSeconds = 0.25;
              @"renderMaxMicros": @(_outputUnit.renderMaxMicroseconds)};
 }
 
-#if DEBUG
-- (void)attachPumpOnQueue:(VibeManualRenderPump *)pump render:(VibeManualRenderBlock)render running:(BOOL (^)(void))running {
-    // The pump stands in for the IO thread: the frame-driven mode decodes
-    // inline before each slice, and both modes drain after it.
-    __weak AudioPlayer *weakSelf = self;
-    pump.beforeRender = pump.automatic ? nil : ^{
-        AudioPlayer *strongSelf = weakSelf;
-        [strongSelf->_voiceBus fillInline];
-    };
-    pump.afterRender = ^{ [weakSelf drainVoiceBusOnQueue]; };
-    [pump attachRender:render running:running queue:_queue];
-}
-
-- (void)debugHoldDecoder:(BOOL)hold {
-    [self runSyncOnQueue:^{ [self->_voiceBus debugHoldDecoder:hold]; }];
-}
-
-- (void)debugHoldRenderInside:(BOOL)hold {
-    atomic_store_explicit(&_masterBus->holdRenderInside, hold ? 1 : 0, memory_order_seq_cst);
-}
-
-- (NSUInteger)debugRendersHeld {
-    return (NSUInteger)atomic_load_explicit(&_masterBus->rendersHeld, memory_order_seq_cst);
-}
-
-// An output unit's callback on the caller's thread: buffers of its own, the
-// pipeline's channels, nothing of the player's queue-owned state read.
-- (void)debugRenderOnCallerThread:(NSUInteger)frames {
-    VibeMasterBus *master = _masterBus;
-    UInt32 count = (UInt32)MIN(frames, (NSUInteger)kVibeMasterBusMaxFrames);
-    uint32_t channels = VibeMasterBusChannels(master);
-    float *storage = calloc((size_t)count * 2 + 1, sizeof(float));
-    UInt32 bytes = count * (UInt32)sizeof(float);
-    VibeStereoBufferList list = { channels, {{ 1, bytes, storage }, { 1, bytes, storage + count }} };
-    VibeMasterBusRender(master, NULL, count, (AudioBufferList *)&list);
-    free(storage);
-}
-#endif
-
 // The pipeline's format changed: the master bus follows, the FX chain is
 // re-hosted at it, and the meter, which analyzes at one rate for its life,
 // is replaced. The bus is the source segment's to rebuild.

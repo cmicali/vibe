@@ -787,6 +787,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
+      - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: Vibe/Util/Categories/PINCache+VibeAudioCache.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
       - path: Vibe/ThirdParty/PINCache/PINCache.m
@@ -809,6 +810,7 @@ targets:
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
       - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
+      - path: Vibe/Debug/Seams/AudioTrackMetadataLoader+Debug.m   # the lane state the tests read
       - path: Vibe/Audio/Metadata/MetadataScanEntry.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
@@ -948,6 +950,8 @@ targets:
       - path: Vibe/Audio/AudioMasterBus.m
       - path: Vibe/Audio/AudioPlayer+Prefetch.m
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
+      - path: Vibe/Debug/Seams/AudioPlayer+Debug.m   # the render suites drive the player through it
+      - path: Vibe/Debug/Seams/AudioLevelPublisher+Debug.m   # debugEqualizerState reads its counters
       - path: Vibe/Util/StallWatch.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+BitPerfect.m
@@ -1004,6 +1008,7 @@ targetTemplates:
         compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
+      - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens
       - path: Vibe/Loading/Claim/AudioFileMaterializationTokens.m
       - path: Vibe/Loading/Claim/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
@@ -1011,8 +1016,10 @@ targetTemplates:
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
       - path: Vibe/Loading/Transfer/CloudTransferRegistry.m
       - path: Vibe/Loading/Transfer/CloudFileMaterializer.m
+      - path: Vibe/Debug/Seams/CloudFileMaterializer+Debug.m   # its materialize asks the fake first
       - path: Vibe/Loading/Transfer/CloudFileAvailability.m
       - path: Vibe/Loading/Transfer/DownloadProgressMonitor.m
+      - path: Vibe/Debug/Seams/DownloadProgressMonitor+Debug.m   # its start asks the fake first
       - path: Vibe/Loading/Transfer/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
@@ -1025,6 +1032,7 @@ targetTemplates:
       - path: Vibe/Audio/AudioOutputUnit.m
       - path: Vibe/Util/FilePaths.m
       - path: Vibe/Loading/PlaceholderFiles.m
+      - path: Vibe/Debug/Seams/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: Vibe/Playlist/FolderWalk.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Playlist/PlaylistFile+CUE.m
