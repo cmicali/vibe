@@ -126,11 +126,11 @@ jobs:
       # suited to unattended CI (it drives a real window and needs Screen
       # Recording and Accessibility grants).
       #
-      # Beside it, the render suite: real AudioPlayer/AudioFX graphs, pulled
-      # offline, no audio device or app. The two share nothing but the project
-      # (test-audio has its own derived data), and -k keeps one suite's failure
-      # from stopping the other. Their logs interleave; the summaries below
-      # read each suite's own result bundle.
+      # Beside it, the render suite: the real AudioPlayer and FX pipeline,
+      # driven by the debug render pump, with no audio device or app. The two
+      # share nothing but the project (test-audio has its own derived data),
+      # and -k keeps one suite's failure from stopping the other. Their logs
+      # interleave; the summaries below read each suite's own result bundle.
       - name: Run unit and audio tests
         if: ${{ !cancelled() }}
         run: make -k -j2 test test-audio
