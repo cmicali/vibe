@@ -7,7 +7,7 @@
 
 #import "DropboxMirrorTestCase.h"
 
-// DropboxMirror's kStreamReadableBytes.
+// RemotePlaceholderStore's kStreamReadableBytes, which DropboxMirror inherits.
 static const uint64_t kReadableBytes = 256 * 1024;
 
 // Every availability's notes and finish pass through these while they are
@@ -570,7 +570,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
 
 #pragma mark The tail window
 
-// A small format's window (DropboxRules.h).
+// A small format's window (AudioFileOpenRules.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 
 // Every ranged read that completes calls this after its completion returns,

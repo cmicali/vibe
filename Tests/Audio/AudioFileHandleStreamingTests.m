@@ -252,8 +252,8 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     }
 }
 
-// The spike's head-only formats open on their head alone; AIFF also reads at
-// exactly the file's size, which is the end, never a wait. A hang here is a
+// The head-only formats open on their head alone. AIFF also reads at exactly
+// the file's size, which is the end, never a wait. A hang here is a
 // wait the open should not have made.
 - (void)testAHeadOnlyFormatOpensOnItsHeadAlone {
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
@@ -312,11 +312,11 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
 
 #pragma mark - The tail window
 
-// With the tail window, every open the spike saw read past its head — an MP3
-// (its ID3v1 check), an M4A with its moov last, a FLAC with no length — opens
-// on its head and the window, never waiting for the download; its first
-// second decodes with the download still short of the end; the whole decode
-// is the whole file's; and the download reaching the window drops it. The
+// With the tail window, every open that reads past its head opens on its head
+// and the window, never waiting for the download. Those are an MP3 (its ID3v1
+// check), an M4A with its moov last and a FLAC with no length. Each one's
+// first second decodes with the download still short of the end. The whole
+// decode is the whole file's. The download reaching the window drops it. The
 // WAV's open never asks the window. An MP3 with no VBR header opens on them
 // too, on an estimate from its head's frames, which for a constant rate is the
 // length that rate gives, and which reading to its end settles.

@@ -316,8 +316,9 @@ static double SkipBaseBars(void) {
     [self updateNowPlaying];
 }
 
-// A drag tick: the slider moved itself and the control is on, so the
-// player and the percentage are all that follow.
+// Every tick of a drag, and once at the release. The slider moved itself and
+// the control is on. So the player, the percentage and the drag's hover hold
+// are all that follow.
 - (IBAction)volumeChanged:(VibeSlider *)sender {
     AppSettings.sharedInstance.volume = sender.doubleValue;
     self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;

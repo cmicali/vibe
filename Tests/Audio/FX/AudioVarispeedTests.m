@@ -7,8 +7,8 @@
 //  exact in float32, and the converter passes a ramp through, since its
 //  kernel passes DC and is symmetric. So every output frame reads back as
 //  the stage's position, to about 0.004 of a frame, and a skipped or repeated
-//  frame anywhere shows. The player's own suite (AudioPlayerRenderTests)
-//  measures quality and the edges through the real render.
+//  frame anywhere shows. AudioPlayerRenderPitchTests measures quality and
+//  the edges through the real render.
 //
 
 #import <XCTest/XCTest.h>
