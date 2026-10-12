@@ -4,17 +4,12 @@
 //
 
 #import "PlaceholderFiles.h"
-#if DEBUG
 #import "PlaceholderFiles+Debug.h"   // the dataless probe, declared out of the shipping header
-#endif
 #import "FilePaths.h"
 #import "PlayableExtensions.h"
 
-#include <errno.h>
 #include <os/lock.h>
 #include <stdatomic.h>
-#include <string.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
 
 // The remote backends' roots as comparable paths ending in "/", set at
@@ -42,64 +37,6 @@ BOOL VibePathIsUnderRemotePlaceholderRoot(NSString *path) {
     }
     return NO;
 }
-
-#if DEBUG
-static VibeDatalessProbe sDatalessProbe;
-
-static VibeDatalessProbe DatalessProbe(void) {
-    @synchronized (PlaceholderFiles.class) {
-        return sDatalessProbe;
-    }
-}
-
-// See PlaceholderFiles+Debug.h. Behind an atomic flag, so the stat path pays
-// one relaxed load while it is off.
-static _Atomic(BOOL) sDatalessDiagEnabled;
-static NSMutableDictionary<NSString *, NSMutableDictionary *> *sDatalessDiag;
-static NSUInteger sDatalessDiagOverflow;
-static const NSUInteger kDatalessDiagDirectoryCap = 128;
-
-static void VibeRecordDatalessStat(NSURL *url, BOOL dataless, uint32_t flags, BOOL statFailed) {
-    NSString *directory = url.URLByDeletingLastPathComponent.path ?: @"?";
-    NSString *bucket = statFailed ? @"statFailed" : (dataless ? @"dataless" : @"local");
-    NSMutableDictionary *added = nil;
-    @synchronized (PlaceholderFiles.class) {
-        NSMutableDictionary *entry = sDatalessDiag[directory];
-        if (!entry) {
-            if (sDatalessDiag.count >= kDatalessDiagDirectoryCap) {
-                sDatalessDiagOverflow++;
-                return;
-            }
-            entry = [@{@"dataless": @0, @"local": @0, @"statFailed": @0} mutableCopy];
-            sDatalessDiag[directory] = entry;
-            added = entry;
-        }
-        entry[bucket] = @([entry[bucket] unsignedIntegerValue] + 1);
-        if (!statFailed) {
-            entry[@"lastFlags"] = [NSString stringWithFormat:@"0x%x", flags];
-        }
-    }
-    if (!added) {
-        return;
-    }
-    // Once per directory, outside the lock: a network mount can be slow to
-    // answer. This is the phone's report, since no channel reaches a device.
-    struct statfs fs;
-    if (statfs(url.fileSystemRepresentation, &fs) != 0) {
-        LogInfo(@"Dataless diag: %@: %@, flags 0x%x, no mount (%s)", directory, bucket, flags, strerror(errno));
-        return;
-    }
-    BOOL localMount = (fs.f_flags & MNT_LOCAL) != 0;
-    @synchronized (PlaceholderFiles.class) {
-        added[@"fsType"] = @(fs.f_fstypename);
-        added[@"mountedOn"] = @(fs.f_mntonname);
-        added[@"localMount"] = @(localMount);
-    }
-    LogInfo(@"Dataless diag: %@: %@, flags 0x%x, %s mounted on %s, %@",
-            directory, bucket, flags, fs.f_fstypename, fs.f_mntonname, localMount ? @"local mount" : @"network mount");
-}
-#endif
-
 
 @implementation PlaceholderFiles
 
@@ -134,14 +71,6 @@ NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
     return [url.URLByDeletingLastPathComponent URLByAppendingPathComponent:name isDirectory:NO];
 }
 
-#if DEBUG
-+ (void)setDatalessProbe:(VibeDatalessProbe)probe {
-    @synchronized (self) {
-        sDatalessProbe = [probe copy];
-    }
-}
-#endif
-
 // TRAP: never second-guess SF_DATALESS with an NSURL resource value
 // (NSURLUbiquitousItemDownloadingStatus or any other). NSURL memoizes them per
 // instance, and these URLs live as long as their AudioTrack, so a placeholder
@@ -153,7 +82,7 @@ NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
 // foreground hold. Fix it here, with a round trip per directory, not per file.
 + (BOOL)isDatalessFile:(NSURL *)url {
 #if DEBUG
-    VibeDatalessProbe probe = DatalessProbe();
+    VibeDatalessProbe probe = VibeDatalessProbeHook();
     if (probe) {
         return probe(url);
     }
@@ -161,7 +90,7 @@ NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
     struct stat st;
     if (stat(url.fileSystemRepresentation, &st) != 0) {
 #if DEBUG
-        if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
+        if (atomic_load_explicit(&VibeDatalessDiagEnabled, memory_order_relaxed)) {
             VibeRecordDatalessStat(url, NO, 0, YES);
         }
 #endif
@@ -170,31 +99,11 @@ NSString *const VibeRemotePlaceholderPartSuffix = @".vibe-download";
     BOOL dataless = (st.st_flags & SF_DATALESS) != 0
             || (VibeFileModeIsRemotePlaceholder(st.st_mode) && VibePathIsUnderRemotePlaceholderRoot(url.path));
 #if DEBUG
-    if (atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)) {
+    if (atomic_load_explicit(&VibeDatalessDiagEnabled, memory_order_relaxed)) {
         VibeRecordDatalessStat(url, dataless, st.st_flags, NO);
     }
 #endif
     return dataless;
 }
-
-#if DEBUG
-+ (void)setDatalessDiagnosticsEnabled:(BOOL)enabled {
-    @synchronized (self) {
-        sDatalessDiag = enabled ? [NSMutableDictionary dictionary] : nil;
-        sDatalessDiagOverflow = 0;
-    }
-    atomic_store_explicit(&sDatalessDiagEnabled, enabled, memory_order_relaxed);
-}
-
-+ (NSDictionary *)datalessDiagnostics {
-    @synchronized (self) {
-        return @{
-            @"enabled": @(atomic_load_explicit(&sDatalessDiagEnabled, memory_order_relaxed)),
-            @"directories": [sDatalessDiag copy] ?: @{},
-            @"overflowed": @(sDatalessDiagOverflow),
-        };
-    }
-}
-#endif
 
 @end
