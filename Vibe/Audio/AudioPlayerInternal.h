@@ -249,10 +249,11 @@ NSError *VibeAudioErrorForTrack(VibeAudioErrorCode code, NSString *description, 
 // it; requires a current voice and file.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position;
 
-// The full-tuple publisher; the two unpublish variants are the only partial
-// writers. Anything that moves the position comes through here. `window` is
-// the track's frames of `file` — its duration — and `startSeconds` is where in
-// it the voice began.
+// The full-tuple publisher. The partial writers are the two unpublish
+// variants, republishEstimatedWindowOnQueue and the stall's park
+// (publishPausedWithoutVoiceOnQueueAtSeconds:). Only this and the stall's
+// park move the position's origin. `window` is the track's frames of `file`
+// (its duration), and `startSeconds` is where in it the voice began.
 - (void)publishState:(VibePlayerState)state
                voice:(VibeVoiceID)voice
                 file:(nullable AudioFileHandle *)file

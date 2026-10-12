@@ -1,6 +1,6 @@
 # Audio
 
-The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Metadata/Artwork/FolderArt/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/` and `iOS/`. Convert to FLAC is the mac shell's (`Mac/Convert/AGENTS.md`).
+The playback engine: `AudioPlayer` and its categories, `AudioVoiceBus`, `AudioFileHandle`, `AudioOutputUnit`, `AudioTrack`, `AudioError`, `MusicalKey.h` and the fade math. The file-open path beneath it is `Vibe/Loading/` (`Loading/AGENTS.md`). Every feature beside it has its own `AGENTS.md`: `FX/` (the DJ master-bus segment and the pitch stage), `Metadata/`, `Metadata/Artwork/FolderArt/`, `Waveform/` (data only; rendering is `Vibe/WaveformUI/`), `Analysis/`, `Levels/`, `Mac/Devices/` and `iOS/`. Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `AudioFileFormat` names the codecs that the metadata display and the converter share.
 
 ## The model in one page
 
@@ -26,8 +26,8 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | --- | --- |
 | `AudioPlayer.h` | the public API, platform-free: the transport verbs, the `(State)` getters, the delegate |
 | `AudioPlayer.m` | the transport: init and teardown, play submission → open → settlement, pause/resume/seek/stop/finish, the voice vocabulary, the published tuple, bus-event interpretation, delegate delivery with submitted-play identity |
-| `AudioPlayerInternal.h` | the class extension the categories share: every ivar but the mac device ivars (`Mac/Devices/AudioPlayer+DevicesInternal.h`), the queue helpers, and the ownership statement |
-| `AudioPlayer+Pipeline` | the render pipeline's player-queue side and its lifetime: the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer, the debug pump hooks |
+| `AudioPlayerInternal.h` | the class extension the categories share: every ivar a category reads, but the mac device ivars (`Mac/Devices/AudioPlayer+DevicesInternal.h`), the queue helpers, and the ownership statement. `AudioPlayer.m` keeps its own transport ivars in its `@implementation` |
+| `AudioPlayer+Pipeline` | the render pipeline's player-queue side and its lifetime: the output unit's platform-blind half (attach, counters, failures, system stops), the lazily built source segment and its varispeed, the FX reconcile, the meter install, the output start, the deferred idle stop, the drain and its timer. The debug pump hooks are `Vibe/Debug/Seams/AudioPlayer+Debug.m`'s |
 | `AudioMasterBus` | the render, `VibeMasterBusRender`: the door, the slices, the stages in order and the volume, and the master bus's create and free. `AudioMasterBusInternal.h` is its layout, which the pipeline category writes |
 | `AudioPlayer+Prefetch` | the park (the pre-opened next file), the successor (that file queued on the current voice), and the promote |
 | `AudioPlayer+State.m` | published-state and voice-snapshot getters, with no player-queue waits |
@@ -46,7 +46,7 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 
 **`PlaybackRequestCoordinator` owns the in-flight open**: identity, row, intent, slow-load state and what the delegate must be told (Foundation-only, tested). An identifier is never reused, not even across `invalidate`, so a worker blocked on a dead mount cannot consume a later open of the same path. A re-drop or replay rebinds the row in place instead of starting a second open, re-firing `didBeginLoading:` when the request is already slow. A seek is accepted on either the row or the exact submitted play. The identifier covers a seek issued before its play reached the queue, and the row one issued after.
 
-**The published tuple is written whole.** `publishState:voice:file:window:startSeconds:baseFrames:` writes state, voice, file (as its rate and the track's window, so a getter never messages an object) and the position's origin under `_stateLock` in one acquisition. The two `unpublishVoiceOnQueue…` variants and `republishEstimatedWindowOnQueue` are the only partial writers, safe because they never move the origin. Position is `startSeconds + (consumed − promotedBaseFrames) / busRate`, read from the voice's own counter, so it holds across an output stop and needs no cache.
+**The published tuple is written whole.** `publishState:voice:file:window:startSeconds:baseFrames:` writes state, voice, file (as its rate and the track's window, so a getter never messages an object) and the position's origin under `_stateLock` in one acquisition. The two `unpublishVoiceOnQueue…` variants and `republishEstimatedWindowOnQueue` write part of it and never move the origin. The stall's park (`publishPausedWithoutVoiceOnQueueAtSeconds:`) moves the origin with the state, voice and file in one acquisition, and keeps the window. Position is `startSeconds + (consumed − promotedBaseFrames) / busRate`, read from the voice's own counter, so it holds across an output stop and needs no cache.
 
 ## The voice bus
 
@@ -181,7 +181,7 @@ The bus takes an end frame per voice and per successor: the row's cue end in fil
 
 ## Opening a file
 
-**Files open off-queue against an abandon deadline, so a cloud placeholder cannot wedge playback.** A slow open surfaces Loading instead. `AudioFileOpenTimeoutMath.h` (`Loading/`) owns the monotonic deadline: a 60 s no-progress baseline, extended (never shortened) to 60 s past each positive raw movement. `AudioLoadingConfiguration.openTimeouts` is snapshotted when the open starts, so a configuration change cannot move its deadline. The claim, admission and transfer machinery underneath is `Loading/AGENTS.md`'s.
+**Files open off-queue against an abandon deadline, so a cloud placeholder cannot wedge playback.** A slow open surfaces Loading instead. `AudioFileOpenTimeoutMath.h` (`Loading/Claim/`) owns the monotonic deadline: a 60 s no-progress baseline, extended (never shortened) to 60 s past each positive raw movement. `AudioLoadingConfiguration.openTimeouts` is snapshotted when the open starts, so a configuration change cannot move its deadline. The claim, admission and transfer machinery underneath is `Loading/AGENTS.md`'s.
 
 The coordinator's accepted dataless verdict surfaces Loading for a provider file as soon as the probe settles. A probe still running falls back to the half-second delay, as do local files and the remote streaming backend. Both paths match the open identifier and notify once. The player never repeats the filesystem probe on its queue, where a stalled stat would also block stop and the deadline.
 
