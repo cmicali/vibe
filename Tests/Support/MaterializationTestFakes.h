@@ -1,10 +1,10 @@
 //
 //  MaterializationTestFakes.h
 //
-//  The fakes AudioFileMaterializationCoordinatorTests builds its coordinator
-//  over. VibeTestDatalessProbeController answers the dataless probe, and a
-//  test can gate each call. VibeTestMaterializationController hands out
-//  provider operations that a test completes or cancels by hand.
+//  The fakes AudioFileMaterializationCoordinatorTestCase builds its
+//  coordinator over. VibeTestDatalessProbeController answers the dataless
+//  probe, and a test can gate each call. VibeTestMaterializationController
+//  hands out provider operations that a test completes or cancels by hand.
 //
 
 #import <Foundation/Foundation.h>
