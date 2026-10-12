@@ -736,7 +736,11 @@
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     [_player play:[AudioTrack withURL:url]];
     [self settleUntil:^BOOL { return [self count:@"start"] || self->_playError; }];
-    if (!_playError) { [self renderSeconds:2.1]; XCTAssertTrue(_player.isStopped); XCTAssertEqual([self count:@"finish"],1u); }
+    if (!_playError) {
+        [self renderSeconds:2.1];
+        [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
+        XCTAssertTrue(_player.isStopped); XCTAssertEqual([self count:@"finish"],1u);
+    }
     _playError=nil; [self play:source paused:NO position:0];
     [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
 }

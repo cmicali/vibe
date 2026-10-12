@@ -246,6 +246,9 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
     XCTAssertEqualObjects(pcm,VibePCM([self read:url]),@"Lossless decode %@",url.lastPathComponent);
     return pcm;
 }
+// TRAP: the player hands each delegate event to main by an async hop. On a
+// loaded runner it lands after the last block's run-loop turn now and then.
+// Settle a count that must have risen (settleUntil:) before asserting it.
 - (NSUInteger)count:(NSString *)event {
     NSUInteger count=0; for (NSDictionary *entry in _events) if ([entry[@"event"] isEqual:event]) count++; return count;
 }
