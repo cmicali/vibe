@@ -11,6 +11,7 @@
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
 #import "MainMenuBuilder.h"
 #import "MenuValidationRules.h"
+#import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -18,9 +19,9 @@
 #import "MainWindow.h"
 #import "PlaylistController.h"
 #import "AudioTrack.h"
-#import "AudioWaveformView.h"
+#import "WaveformView.h"
 #import "AudioFileConverter.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "VibeStrings.h"
 
 // Validation runs on every menu open and every bound keypress, a held skip
@@ -185,7 +186,9 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
 
 - (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
     return VibeTransportMenuEnabled(menuItem.identifier, self.playlistController.hasNextTrack,
-            self.playlistController.hasPreviousTrack, [self hasVisiblePlaylistSelection],
+            VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
+                    self.playlistController.currentTrack != nil, self.audioPlayer.isStopped),
+            [self hasVisiblePlaylistSelection],
             self.playlistController.currentTrack != nil, self.audioPlayer.isStopped);
 }
 
@@ -285,10 +288,6 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
             [self applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
         }
     }
-}
-
-- (void)refreshWaveformTheme {
-    [self.waveformView refreshThemeColors];
 }
 
 @end

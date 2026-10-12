@@ -6,7 +6,7 @@
 #import "MiniPlayerView.h"
 
 #import "AudioTrack.h"
-#import "BrowserViewController.h"
+#import "FileRow.h"
 #import "VibeStrings.h"
 
 // TRAP: the strip is 48pt, not negotiable. UITabAccessory frames its content

@@ -4,21 +4,21 @@
 //
 //  The private surface MainPlayerController.m and its categories share. Only
 //  the debug channel imports it from outside; the channel's own additions stay
-//  in Debug/Mac/Introspection/MainPlayerController+Debug.h, so no production
+//  in Debug/Mac/Seams/MainPlayerController+Debug.h, so no production
 //  file declares a tool that does not ship.
 //
 
 #import "MainPlayerController.h"
 #import "TrackDisplayController.h" // TrackDisplayState, returned below
 #import "MainWindow.h"             // FileDropDelegate, adopted below
-#import "PitchControlPanel.h"      // PitchControlPanelDelegate, adopted below
 #import "EqualizerLevelSource.h"
 #import "AudioWaveformLoader.h"    // VibeWaveformAnalysis, held below
 
 @class ArtworkDisplayController;
 @class AudioTrack;
-@class AudioWaveformView;
+@class WaveformView;
 @class MainPlayerContentView;
+@class PitchControlPanel;
 @class NowPlayingController;
 @class PlaylistTableView;
 @class SymbolButton;
@@ -28,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The conformances MainPlayerController.m implements; every other one is
 // declared on the category that implements it.
-@interface MainPlayerController () <FileDropDelegate, PitchControlPanelDelegate, EqualizerLevelSource> {
+@interface MainPlayerController () <FileDropDelegate, EqualizerLevelSource> {
     UIUpdateTimer*              _uiTimer;
     // The slow open the shimmer is up for, from didBeginLoading: to its
     // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).
@@ -49,6 +49,13 @@ NS_ASSUME_NONNULL_BEGIN
     // The waveform provider's answer as of the last style or detection change,
     // so only a widened ask (the bands, a tempo, a key) requests the track again.
     VibeWaveformAnalysis        _waveformAnalysisWanted;
+    // The playlist the empty header names (revealEmptyStateNamingPlaylist:);
+    // cleared by every load and by Close.
+    NSString*                   _unplayablePlaylistName;
+    // The launch grace (revealEmptyStateNamingPlaylist:). Once cleared, never
+    // set again.
+    BOOL                        _emptyStateSuppressed;
+    BOOL                        _folderArtRefreshScheduled;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
@@ -70,7 +77,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak) NSView *windowBackdropView;
 @property (weak) NSView *windowBackgroundOverlayView;
 // Per-track rendering goes through trackDisplay; this is for wiring.
-@property (weak) AudioWaveformView *waveformView;
+@property (weak) WaveformView *waveformView;
 
 // The debug channel is its only setter. An always-nil block pointer keeps
 // `#if DEBUG` out of this header.
@@ -91,8 +98,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)updateUI;
 // The position tick, and the refresh after a seek or a rate change.
 - (void)updatePlaybackUI;
-// Only the rate-dependent labels, cheap enough for fader ticks.
-- (void)updateRateDependentUI;
 // Every effective-tempo and key change funnels through here.
 - (void)effectiveTempoDidChange;
 // The header's display state and the track it describes (nil while empty or
@@ -112,9 +117,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Settings live effects
 
-- (void)applyPitchRange;
-- (void)applyEndOfTrackAction;
-- (void)applyReopenLastPlaylist;
 - (void)syncUITimerRate;
 // One update aimed just past the time label's next change, after a start, resume or seek.
 - (void)scheduleUpdateAtNextDisplayedSecond;
@@ -135,22 +137,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Ends the loading open's progress: its URL, identifier and fraction together.
 - (void)endLoadingProgress;
 
-#pragma mark - The successor prefetch
+#pragma mark - Loading a playlist
 
-// The track every prefetch site parks: the next track, or nil past the end or
-// under On track end = Pause. The audio half of that setting: with nothing
-// parked nothing splices, and didFinishPlaying: re-reads it to park.
-- (nullable AudioTrack *)successorPrefetchTrack;
-
-#pragma mark - Saving the playlist
-
-// Extended M3U, noted in Open Recent; the playlist is snapshotted at the
-// write. Shared with the save_playlist debug verb.
-- (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error;
+- (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index startPaused:(BOOL)startPaused;
 
 #pragma mark - Deferred metadata load and the error mask
 
 - (void)startPendingMetadataLoad;
+- (void)cancelDeferredMetadataLoad;
 // The only writers of the error mask.
 - (void)setErrorMaskForTrack:(nullable AudioTrack *)track status:(nullable NSString *)status;
 - (void)clearErrorMask;

@@ -14,7 +14,8 @@
 #import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
 #import "HTTPTransferClientInternal.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
+#import "PlaceholderFiles.h"
 #import "PlaylistFile.h"
 
 // A ranged read slower than this is given up, so a stalled request cannot
@@ -249,7 +250,7 @@ static NSError *VibePOSIXError(void) {
                    installingAtURL:(NSURL *)url
                           progress:(void (^)(uint64_t, int64_t, NSString *))progress
                         completion:(void (^)(NSError *))completion {
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:url];
     return [_client downloadTarget:target toURL:part progress:progress completion:^(NSDictionary *metadata,
                                                                                     NSError *error) {
         NSError *installError = nil;
@@ -513,7 +514,7 @@ static NSError *VibePOSIXError(void) {
         return NO;
     }
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
-    NSURL *part = [NSURLUtil remotePlaceholderPartURL:url];
+    NSURL *part = [PlaceholderFiles remotePlaceholderPartURL:url];
     NSString *key = VibeComparablePath(url.path);
     NSString *name = url.lastPathComponent;
     dispatch_semaphore_t done = dispatch_semaphore_create(0);

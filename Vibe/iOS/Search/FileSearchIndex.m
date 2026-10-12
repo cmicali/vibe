@@ -9,7 +9,7 @@
 
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
-#import "NSURLUtil.h"
+#import "FolderWalk.h"
 
 // A cap, not a target: a root can be a whole Dropbox. A few megabytes here.
 static const NSUInteger kMaxIndexedFiles = 20000;
@@ -133,7 +133,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 
 // Walk queue only.
 - (void)walkRoots:(NSArray<NSURL *> *)roots generation:(uint64_t)generation {
-    NSSet<NSString *> *supported = [NSURLUtil supportedExtensions];
+    NSSet<NSString *> *supported = [FolderWalk supportedExtensions];
     NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:kFlushBatchSize];
     NSTimeInterval lastFlush = CFAbsoluteTimeGetCurrent();
     NSUInteger total = 0;

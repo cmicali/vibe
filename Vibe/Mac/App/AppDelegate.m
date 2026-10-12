@@ -11,13 +11,14 @@
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
 #import "MainPlayerController.h"
-#import "NSURLUtil.h"
+#import "MainPlayerController+Playlist.h"
+#import "FolderWalk.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
 #import "MainMenuBuilder.h"
-#import "MenuValidationRules.h"
 #import "OpenBurstCoalescer.h"
 #import "OpenRequestCoordinator.h"
+#import "OpenLinkWindowController.h"
 #import "OpenRecentMenuController.h"
 #import "PlaylistController.h"
 #import "PlaylistFile.h"
@@ -28,32 +29,27 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
+#import "LinkDropRules.h"
 #import "LinkStore.h"
-#import "SettingsRules.h"
-#import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import <Sparkle/Sparkle.h>
+#import "AppDelegate+Updates.h"
 #endif
 
 #if DEBUG
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 #import "OpenBurstCoalescer+Debug.h"
+#import "OpenLinkWindowController+Debug.h"
 #endif
 
 
-@interface AppDelegate () <NSMenuItemValidation, NSWindowDelegate, NSTextFieldDelegate>
+@interface AppDelegate () <NSMenuItemValidation>
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
 @property (nonatomic, strong) SettingsWindowController *settingsWindowController;
 
 @end
-
-#if VIBE_DIRECT_DISTRIBUTION
-@interface AppDelegate () <SPUUpdaterDelegate>
-@end
-#endif
 
 
 // Long enough to absorb a split multi-file open, short enough that a
@@ -66,14 +62,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
-    // Open URL's window and its controls while it is up. A second ⌘U
-    // re-fronts it.
-    NSPanel *_openLinkWindow;
-    NSTextField *_openLinkField;
-    NSButton *_openLinkButton;
-    NSProgressIndicator *_openLinkSpinner;
-    // Cancels the window's link while it resolves.
-    dispatch_block_t _cancelOpenLink;
+    OpenLinkWindowController *_openLinkWindowController;
     // One cancel per open still resolving its links, until it settles.
     NSMutableArray<dispatch_block_t> *_linkOpenCancels;
 }
@@ -101,24 +90,25 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [LinkStore.shared installAsRemoteBackend];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
-    [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
     }];
-    [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
+    [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
                                      artFilenameByDirectory:artFilenameByDirectory];
     }];
-    [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
+    [FolderWalk setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
 #if VIBE_DIRECT_DISTRIBUTION
     // Before the menu, whose Check for Updates… targets it.
-    [self createUpdater];
+    _updaterController = [self makeUpdaterController];
 #endif
     // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
+    _openLinkWindowController = [[OpenLinkWindowController alloc] initWithAppDelegate:self];
     [MainMenuBuilder installMainMenuWithAppDelegate:self
                                    playerController:self.mainPlayerController
                            openRecentMenuController:_openRecentMenuController];
@@ -205,58 +195,6 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         });
     });
 }
-
-#if VIBE_DIRECT_DISTRIBUTION
-#pragma mark - Updates
-
-#if DEBUG
-// A Debug build checks only the feed this names, so the debug channel, stress
-// runs and screenshots never raise an update dialog.
-static NSString *DebugUpdateFeed(void) {
-    NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
-    NSUInteger index = [args indexOfObject:@"--update-feed"];
-    return index != NSNotFound && index + 1 < args.count ? args[index + 1] : nil;
-}
-
-- (NSString *)feedURLStringForUpdater:(SPUUpdater *)updater {
-    return DebugUpdateFeed();
-}
-#endif
-
-- (void)createUpdater {
-#if DEBUG
-    if (!DebugUpdateFeed()) {
-        return;
-    }
-#endif
-    _updaterController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO
-                                                                       updaterDelegate:self
-                                                                    userDriverDelegate:nil];
-}
-
-// Any other stored interval reads as the nearest preset.
-- (NSTimeInterval)updateCheckInterval {
-    SPUUpdater *updater = _updaterController.updater;
-    if (!updater.automaticallyChecksForUpdates) {
-        return 0;
-    }
-    return VibeNearestPreset((NSInteger)updater.updateCheckInterval,
-                             kVibeUpdateCheckIntervalPresets, kVibeUpdateCheckIntervalPresetCount);
-}
-
-- (void)setUpdateCheckInterval:(NSTimeInterval)interval {
-    SPUUpdater *updater = _updaterController.updater;
-    updater.automaticallyChecksForUpdates = interval > 0;
-    if (interval > 0) {
-        updater.updateCheckInterval = interval;
-    }
-}
-
-// Asked at every check. A stable item carries no channel and always qualifies.
-- (NSSet<NSString *> *)allowedChannelsForUpdater:(SPUUpdater *)updater {
-    return AppSettings.sharedInstance.receiveBetaUpdates ? [NSSet setWithObject:@"beta"] : [NSSet set];
-}
-#endif
 
 - (void)cleanupLegacyCaches {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
@@ -473,9 +411,9 @@ static NSString *DebugUpdateFeed(void) {
     // Bookmark while the open's sandbox grant is live.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     // Read on main; the walk reads no setting itself.
-    [NSURLUtil expandAndFilterList:urls
-                          sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
+    [FolderWalk expandAndFilterList:urls
+                           sortedBy:AppSettings.sharedInstance.folderOpenSort
+                         completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
         [OpenRequestCoordinator.sharedCoordinator finishRequest:token
                                                            rows:rows
                                                     folderCount:folderCount];
@@ -591,7 +529,7 @@ static NSString *DebugUpdateFeed(void) {
     NSWindowLevel level = AppSettings.sharedInstance.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     self.aboutWindowController.window.level = level;
     self.settingsWindowController.window.level = level;
-    _openLinkWindow.level = level;
+    _openLinkWindowController.window.level = level;
 }
 
 - (IBAction)openDocument:(id)sender {
@@ -627,159 +565,17 @@ static NSString *DebugUpdateFeed(void) {
     }];
 }
 
-// Its own window, not a sheet, so the player keeps working while it is up.
-// It stays up when Vibe is not active, since the link is often copied from a
-// browser.
 - (IBAction)openLink:(id)sender {
-    NSWindow *player = self.mainPlayerController.window;
-    [player makeKeyAndOrderFront:sender];
-    if (_openLinkWindow) {
-        [_openLinkWindow makeKeyAndOrderFront:sender];
-        [_openLinkWindow makeFirstResponder:_openLinkField];
-        return;
-    }
-    const CGFloat width = 480;
-    const CGFloat margin = 20;
-    NSTextField *label = [NSTextField labelWithString:STR_LINK_PROMPT_LABEL];
-    NSTextField *field = [NSTextField textFieldWithString:@""];
-    field.placeholderString = VibeNotLocalized(@"https://");
-    field.usesSingleLineMode = NO;
-    field.cell.wraps = YES;
-    field.cell.scrollable = NO;
-    field.lineBreakMode = NSLineBreakByCharWrapping;
-    field.delegate = self;
-    NSButton *open = [NSButton buttonWithTitle:STR_BUTTON_OPEN target:self action:@selector(confirmOpenLink:)];
-    open.keyEquivalent = @"\r";
-    open.enabled = NO;
-    NSButton *cancel = [NSButton buttonWithTitle:STR_BUTTON_CANCEL target:self action:@selector(cancelOpenLink:)];
-    cancel.keyEquivalent = @"\e";
-    NSProgressIndicator *spinner = [[NSProgressIndicator alloc] init];
-    spinner.style = NSProgressIndicatorStyleSpinning;
-    spinner.controlSize = NSControlSizeSmall;
-    spinner.displayedWhenStopped = NO;
-    [spinner sizeToFit];
-    [open sizeToFit];
-    [cancel sizeToFit];
-
-    // Bottom up: the buttons at the right, the spinner beside them, a field
-    // three lines tall, and its label.
-    CGFloat buttonWidth = MAX(MAX(NSWidth(open.frame), NSWidth(cancel.frame)), 80);
-    CGFloat buttonHeight = NSHeight(open.frame);
-    open.frame = NSMakeRect(width - margin - buttonWidth, margin, buttonWidth, buttonHeight);
-    cancel.frame = NSOffsetRect(open.frame, -(buttonWidth + 12), 0);
-    NSSize spin = spinner.frame.size;
-    spinner.frame = NSMakeRect(NSMinX(cancel.frame) - 10 - spin.width,
-                               margin + (buttonHeight - spin.height) / 2, spin.width, spin.height);
-    CGFloat lineHeight = [[[NSLayoutManager alloc] init] defaultLineHeightForFont:field.font];
-    field.frame = NSMakeRect(margin, NSMaxY(open.frame) + margin, width - 2 * margin, ceil(3 * lineHeight) + 6);
-    [label sizeToFit];
-    label.frame = NSMakeRect(margin, NSMaxY(field.frame) + 6, NSWidth(label.frame), NSHeight(label.frame));
-
-    NSPanel *panel = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, width, NSMaxY(label.frame) + margin)
-                                                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-                                                  backing:NSBackingStoreBuffered
-                                                    defer:YES];
-    panel.title = STR_LINK_PROMPT_TITLE;
-    panel.hidesOnDeactivate = NO;
-    panel.releasedWhenClosed = NO;
-    panel.delegate = self;
-    panel.initialFirstResponder = field;
-    for (NSView *view in @[label, field, spinner, cancel, open]) {
-        [panel.contentView addSubview:view];
-    }
-    NSRect frame = panel.frame;
-    frame.origin = NSMakePoint(round(NSMidX(player.frame) - NSWidth(frame) / 2),
-                               round(NSMidY(player.frame) - NSHeight(frame) / 2));
-    [panel setFrame:[panel constrainFrameRect:frame toScreen:player.screen] display:NO];
-    _openLinkWindow = panel;
-    _openLinkField = field;
-    _openLinkButton = open;
-    _openLinkSpinner = spinner;
-    [self applyAuxiliaryWindowLevels];
-    [panel makeKeyAndOrderFront:sender];
+    [_openLinkWindowController showWindow:sender];
 }
 
-// Open is enabled only with a link in the field. The window stays up until
-// the link settles. Its field and Open are disabled, and its spinner turns.
-- (void)confirmOpenLink:(id)sender {
-    _openLinkField.enabled = NO;
-    _openLinkButton.enabled = NO;
-    [_openLinkSpinner startAnimation:nil];
-    __weak AppDelegate *weakSelf = self;
-    NSPanel *window = _openLinkWindow;
-    _cancelOpenLink = [self openLinkString:_openLinkField.stringValue completion:^(NSURL *file, NSError *error) {
-        // However it settled, a newer open's cancel included. The user's own
-        // cancel already closed it, and a later window is not this one.
-        AppDelegate *strongSelf = weakSelf;
-        if (strongSelf && strongSelf->_openLinkWindow == window) {
-            strongSelf->_cancelOpenLink = nil;
-            [window close];
-        }
-    }];
-}
-
-// Cancel, Escape, and ⌘.: the window closes, which cancels the resolve.
-- (void)cancelOpenLink:(id)sender {
-    [_openLinkWindow close];
-}
-
-// ⌘W while the window is key. As its delegate, this catches the nil-targeted
-// closeFile: ahead of the player's, which clears the playlist.
+// ⌘W and Close's validation with no window ahead of this one to take them.
 - (IBAction)closeFile:(id)sender {
-    [_openLinkWindow performClose:sender];
+    [_openLinkWindowController closeFile:sender];
 }
 
-// The player may have retitled the shared item "Close All Files".
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
-        menuItem.title = STR_MENU_FILE_CLOSE;
-        return _openLinkWindow.isKeyWindow;
-    }
-    return YES;
-}
-
-// Every way the window goes ends here. A link still resolving stops, and
-// nothing opens.
-- (void)windowWillClose:(NSNotification *)notification {
-    if (notification.object != _openLinkWindow) {
-        return;
-    }
-    dispatch_block_t cancel = _cancelOpenLink;
-    _cancelOpenLink = nil;
-    _openLinkWindow = nil;
-    _openLinkField = nil;
-    _openLinkButton = nil;
-    _openLinkSpinner = nil;
-    if (cancel) {
-        cancel();
-    }
-}
-
-// A link has no line breaks, so a paste's are dropped.
-- (void)controlTextDidChange:(NSNotification *)notification {
-    NSText *editor = _openLinkField.currentEditor;
-    NSString *text = editor.string;
-    NSString *joined = [[text componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
-            componentsJoinedByString:@""];
-    if (joined.length != text.length) {
-        editor.string = joined;
-    }
-    _openLinkButton.enabled = !VibeLinkTextIsBlank(joined);
-}
-
-// Return presses Open, with or without a modifier, and never breaks the line.
-// Escape and ⌘. arrive as cancelOperation:, which would otherwise complete.
-- (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)selector {
-    if (selector == @selector(insertNewline:) || selector == @selector(insertNewlineIgnoringFieldEditor:)
-            || selector == @selector(insertLineBreak:)) {
-        [_openLinkButton performClick:nil];
-        return YES;
-    }
-    if (selector == @selector(cancelOperation:)) {
-        [self cancelOpenLink:control];
-        return YES;
-    }
-    return NO;
+    return [_openLinkWindowController validateMenuItem:menuItem];
 }
 
 #if DEBUG
@@ -788,11 +584,11 @@ static NSString *DebugUpdateFeed(void) {
 }
 
 - (NSWindow *)debugOpenLinkWindow {
-    return _openLinkWindow;
+    return _openLinkWindowController.window;
 }
 
 - (BOOL)debugOpenLinkResolving {
-    return _cancelOpenLink != nil;
+    return [_openLinkWindowController debugResolving];
 }
 #endif
 

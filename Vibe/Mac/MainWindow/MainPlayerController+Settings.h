@@ -2,6 +2,9 @@
 //  MainPlayerController+Settings.h
 //  Vibe
 //
+//  The settings live effects, which apply settings already stored. Also the
+//  one write path for shortcuts and the push of the theme's fonts.
+//
 
 #import "MainPlayerController.h"
 #import "ShortcutRules.h"

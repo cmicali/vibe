@@ -6,11 +6,11 @@
 #import "FilesSettingsViewController.h"
 
 #import "AppSettings.h"
-#import "BrowserViewController.h"
 #import "SettingsRules.h"
 #import "DropboxMirror.h"
 #import "DropboxRules.h"
 #import "SettingsChoiceViewController.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
 typedef NS_ENUM(NSInteger, VibeFilesSection) {
@@ -299,7 +299,7 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
             return;
         }
         LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
-        VibePresentAlert(strongSelf, VibeNotLocalized(@"Dropbox"), STR_SETTINGS_DROPBOX_CONNECT_FAILED);
+        [strongSelf vibePresentAlertWithTitle:VibeNotLocalized(@"Dropbox") message:STR_SETTINGS_DROPBOX_CONNECT_FAILED];
     }];
 }
 

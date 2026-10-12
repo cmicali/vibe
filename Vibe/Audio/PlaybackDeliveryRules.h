@@ -9,13 +9,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
 
-// Both ways a track end advances use this, on either shell: parking a
-// successor in the engine, and handling the end callback on main. A setting
-// change must reach both even when no prefetched handle ever arrived. The
-// successor is Playlist.trackEndSuccessor, which the repeat mode and shuffle
-// decide; Pause outranks both.
-static inline BOOL VibePlaybackShouldAdvanceAtTrackEnd(BOOL hasTrackEndSuccessor, BOOL pauseAtTrackEnd) {
-    return hasTrackEndSuccessor && !pauseAtTrackEnd;
+// Previous moves to the previous row. On the first row it restarts the
+// loaded track instead. Both shells' Previous, the mac's menu item and the
+// system's Previous command use this, so they agree. The current track is
+// read too: stop is asynchronous, so a publish right after a close still
+// reads a player that is not stopped.
+static inline BOOL VibePlaybackPreviousIsAvailable(BOOL hasPreviousTrack, BOOL hasCurrentTrack,
+                                                   BOOL playerIsStopped) {
+    return hasPreviousTrack || (hasCurrentTrack && !playerIsStopped);
 }
 
 // An empty seek's settlement is meaningful only while still stopped. A real

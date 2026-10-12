@@ -6,6 +6,7 @@
 #import "SettingsPaneViewController.h"
 #import "NSImage+Util.h"
 #import "NSView+DarkMode.h"
+#import "VibeDetentSlider.h"
 #import "WindowAnimation.h"
 
 

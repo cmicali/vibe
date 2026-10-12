@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  A delivery can arrive after the track has changed, so it is matched against
-//  the current track (or the URL it was loaded for) before it is applied.
+//  the current track (or the sourceKey it was loaded for) before it is applied.
 //
 
 #import "PlayerViewController+Delivery.h"
@@ -12,7 +12,7 @@
 
 #import "AudioTrack.h"
 #import "Formatters.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "PlaybackController+NowPlaying.h"
 #import "Playlist.h"
 #import "TrackPageCell.h"
@@ -46,7 +46,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
-    if (track && index == _playback.currentIndex && [NSURLUtil isRemotePlaceholderFile:track.url]) {
+    if (track && index == _playback.currentIndex && [PlaceholderFiles isRemotePlaceholderFile:track.url]) {
         return;
     }
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];

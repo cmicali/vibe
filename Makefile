@@ -6,23 +6,42 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: help compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
 	brew bundle
 
+# List every target with the first sentence of the comment block above it.
+# A target with no comment of its own prints with an empty description.
+help:
+	@awk ' \
+	    /^#/ { if (!inblock) { text = ""; done = 0 } inblock = 1; \
+	           line = $$0; sub(/^# ?/, "", line); \
+	           if (line == "" || line ~ /^ /) done = 1; \
+	           else if (!done) text = text (text == "" ? "" : " ") line; next } \
+	    { inblock = 0 } \
+	    /^$$/ { text = "" } \
+	    /^[a-z][a-z0-9-]*:/ && !/^[^:]*:[^=]*=/ { \
+	        name = substr($$0, 1, index($$0, ":") - 1); \
+	        if (!(name in seen)) { seen[name] = 1; names[++n] = name; \
+	            if (match(text, /\. /)) text = substr(text, 1, RSTART); \
+	            desc[name] = text; if (length(name) > width) width = length(name) } \
+	        text = "" } \
+	    END { for (i = 1; i <= n; i++) printf "  %-" width "s  %s\n", names[i], desc[names[i]] } \
+	' $(MAKEFILE_LIST)
+
 # Generate Vibe.xcodeproj from project.yml (requires xcodegen — `make setup`).
-# Under the build lock (scripts/build-lock.sh), taken per command: sessions
+# Under the build lock (scripts/build/build-lock.sh), taken per command: sessions
 # share one checkout, and rewriting the project under another session's
 # xcodebuild fails that build or feeds it a half-written project.
 project:
-	scripts/build-lock.sh xcodegen generate
+	scripts/build/build-lock.sh xcodegen generate
 
 # The macOS app. `project` has already regenerated, so build.sh skips its own.
 # ARGS reaches xcodebuild: CI's Debug build is ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'.
 build: project
-	SKIP_GENERATE=1 scripts/build.sh $(CONFIG) $(ARGS)
+	SKIP_GENERATE=1 scripts/build/build.sh $(CONFIG) $(ARGS)
 
 # Unsigned by default, which is what CI wants: no credentials, no keychain.
 #
@@ -43,7 +62,7 @@ endif
 # this and `drive-ios.sh start` write the products directory the touch driver
 # installs from.
 build-ios: project
-	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
+	scripts/build/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -configuration $(CONFIG) \
 	    -destination 'generic/platform=iOS Simulator' ARCHS=arm64 \
 	    -derivedDataPath build/DerivedData $(IOS_SIM_SIGN) build
 
@@ -51,7 +70,7 @@ build-ios: project
 # development certificate and profile. With more than one device paired, name
 # it: make install-ios DEVICE="cmicali iPhone"
 install-ios: project
-	SKIP_GENERATE=1 scripts/install-ios.sh $(CONFIG)
+	SKIP_GENERATE=1 scripts/build/install-ios.sh $(CONFIG)
 
 # Writes compile_commands.json, clang's compilation database. clangd, CLion
 # and clang-tidy read it. It covers the macOS app, VibeTests and the iOS app,
@@ -92,46 +111,51 @@ test: project check-cloud-scenarios
 	    test
 
 # One compiled PCM verifier shared by hardware and device-free audio tests.
-build/verify-bit-perfect: .claude/skills/vibe-debug/scripts/verify-bit-perfect.swift
+build/verify-bit-perfect: scripts/test/verify-bit-perfect.swift
 	@mkdir -p build
 	@swiftc -O $< -o $@
 
-# Opt-in live acceptance, never CI: the test drivers from build-test-blackhole,
-# and the Debug app already running on VibeBlackHole 16ch. See
-# vibe-debug/references/test-audio.md.
+# Build the VibeBlackHole driver fixtures that test-bit-perfect plays through.
+# Installing them needs administrator authentication (vibe-debug).
 build-test-blackhole:
-	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --blackhole-drivers
+	@scripts/test/generate-test-audio.sh --blackhole-drivers
 
 AUDIO_DEVICE ?= BlackHole 2ch
 AUDIO_APP ?= $(abspath build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe)
+# Opt-in live acceptance, never CI: the test drivers from build-test-blackhole,
+# and the Debug app already running on VibeBlackHole 16ch. See
+# vibe-debug/references/test-audio.md.
 test-bit-perfect: AUDIO_DEVICE = VibeBlackHole 16ch
 test-bit-perfect: build/verify-bit-perfect
 	@build/verify-bit-perfect --self-test
-	@.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	@scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 	@build/verify-bit-perfect --acceptance "$(abspath build/audio-fixtures)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" --require-driver-fixtures $(ARGS)
 
 # The render suite produces real PCM without opening hardware. ARGS can narrow XCTest.
 AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
 test-audio: project build/verify-bit-perfect
 	@build/verify-bit-perfect --self-test
-	.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+	scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 	rm -rf $(AUDIO_RESULT_BUNDLE)
-	scripts/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
+	scripts/build/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
 	    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData \
 	    -resultBundlePath $(AUDIO_RESULT_BUNDLE) -collect-test-diagnostics never $(ARGS) test
 
+# The last `make test-audio` as a markdown pass/fail table.
 test-audio-summary:
-	scripts/test-summary.sh $(AUDIO_RESULT_BUNDLE)
+	scripts/checks/test-summary.sh $(AUDIO_RESULT_BUNDLE)
 
-# Opt-in: launch an idle, unmuted Debug app on AUDIO_DEVICE first (vibe-debug).
-# Regular loopback: ARGS='--set-rate --ordinary'. Device check: bit-perfect off.
 AUDIO_FILE ?= build/audio-fixtures/noise-48000-24-2.wav
 AUDIO_SECONDS ?= 3
 
+# Opt-in loopback through a real device: launch an idle, unmuted Debug app on
+# AUDIO_DEVICE first (vibe-debug). Regular loopback: ARGS='--set-rate --ordinary'.
 test-audio-loopback: build/verify-bit-perfect
 	build/verify-bit-perfect \
 	    "$(AUDIO_FILE)" "$(AUDIO_SECONDS)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
 
+# Opt-in device check through the verifier, with bit-perfect off. Same launch
+# as test-audio-loopback.
 test-audio-device: build/verify-bit-perfect
 	build/verify-bit-perfect --device-check \
 	    "$(AUDIO_FILE)" "$(AUDIO_DEVICE)" --play-app "$(AUDIO_APP)" $(ARGS)
@@ -144,12 +168,12 @@ check-cloud-scenarios:
 # The last `make test` as a markdown pass/fail table; CI appends it to the run
 # summary.
 test-summary:
-	scripts/test-summary.sh $(RESULT_BUNDLE)
+	scripts/checks/test-summary.sh $(RESULT_BUNDLE)
 
 # clang's static analyzer over both app targets; fails on any finding outside
 # ThirdParty/. Findings are configuration-dependent, and CI checks Release.
 analyze:
-	scripts/analyze.sh $(CONFIG)
+	scripts/build/analyze.sh $(CONFIG)
 
 # Seeded stress/fuzz of the Debug app against a folder of real audio files, with
 # oracles between batches and an NDJSON journal a failure can be shrunk from.
@@ -186,20 +210,25 @@ torture:
 bench-components:
 	python3 .claude/skills/vibe-perf/scripts/perf.py compare $(or $(BASE),main) $(ARGS)
 
+# The component benchmarks per release, page redrawn (VERSIONS as above).
 bench-components-releases:
 	python3 .claude/skills/vibe-perf/scripts/perf.py releases $(VERSIONS) $(ARGS)
 
+# The app benchmarks per release, page redrawn. About half an hour a version.
 bench-app:
 	python3 scripts/bench/bench.py app $(VERSIONS) $(ARGS)
 
+# Both benchmark suites per release, page redrawn.
 bench-releases:
 	python3 scripts/bench/bench.py all $(VERSIONS) $(ARGS)
 
+# Redraw the performance page from results.json alone.
 bench-report:
 	python3 scripts/bench/bench.py report
 
-# The rm matters: BSD cp -R copies INTO an existing destination directory, so
-# without it a second install produces /Applications/Vibe.app/Vibe.app.
+# Copy the built app into /Applications. The rm matters: BSD cp -R copies INTO
+# an existing destination directory, so without it a second install produces
+# /Applications/Vibe.app/Vibe.app.
 install: build
 	@echo "🔊 installing to /Applications/Vibe.app"
 	rm -rf /Applications/Vibe.app
@@ -207,94 +236,94 @@ install: build
 
 # Build universal and arm64-only Release archives, then independently export,
 # sign (Developer ID), notarize and staple both apps and their
-# drag-to-Applications disk images. See scripts/release.sh for credentials.
+# drag-to-Applications disk images. See scripts/release/release.sh for credentials.
 release:
-	scripts/release.sh
+	scripts/release/release.sh
 
 # Publish what `make release` produced as a GitHub release, tagged v<version>.
-# See scripts/github-release.sh. ARGS reaches its [--draft|--prerelease];
+# See scripts/release/github-release.sh. ARGS reaches its [--draft|--prerelease];
 # without it a beta publishes as Latest and repoints the website at it. It
 # ends by running deploy-web, which publishes the page and the update feeds.
 github-release:
-	scripts/github-release.sh $(ARGS)
+	scripts/release/github-release.sh $(ARGS)
 
 # Publish Assets/Web to Cloudflare Pages (the canonical vibeplayer.app).
 # github-release runs it, so this is for a retry or a page-only change.
 # Local-only: the token stays out of CI secrets and the script refuses to run
 # there. ARGS="--dry-run" lists what would go and needs no credentials.
 deploy-web:
-	scripts/deploy-web.sh $(ARGS)
+	scripts/web/deploy-web.sh $(ARGS)
 
 # Point the page's Download button at a release: make web-set-version V=1.10.
 # github-release runs this itself, so this is for repointing by hand.
 web-set-version:
-	scripts/web-set-version.sh $(V)
+	scripts/web/web-set-version.sh $(V)
 
 # Point the Homebrew tap (cmicali/homebrew-tap) at a published stable release:
 # make brew-set-version V=1.15. github-release runs it itself; ARGS="--dry-run"
 # prints the cask instead.
 brew-set-version:
-	scripts/brew-set-version.sh $(V) $(ARGS)
+	scripts/release/brew-set-version.sh $(V) $(ARGS)
 
 # Build a universal (arm64 + x86_64) Release signed for the Mac App Store and
 # run App Store Connect's validation, WITHOUT submitting. See
-# scripts/release-appstore.sh for the required credentials.
+# scripts/appstore/release-appstore.sh for the required credentials.
 appstore-build:
-	scripts/release-appstore.sh
+	scripts/appstore/release-appstore.sh
 
 # Same, then actually upload the build to App Store Connect.
 appstore-upload-signed-build:
-	scripts/release-appstore.sh --upload
+	scripts/appstore/release-appstore.sh --upload
 
 # The same two steps for the iOS app (.ipa with the widget embedded). Both
 # platforms share one bundle id, so these upload to the SAME app record, on a
 # separate version train. The script's header has the prerequisites.
 appstore-build-ios:
-	scripts/release-appstore.sh --platform ios
+	scripts/appstore/release-appstore.sh --platform ios
 
 # Same, then upload; TestFlight sees it once processing finishes.
 appstore-upload-signed-build-ios:
-	scripts/release-appstore.sh --platform ios --upload
+	scripts/appstore/release-appstore.sh --platform ios --upload
 
 # Remove build/ and the generated Vibe.xcodeproj.
 clean:
-	scripts/clean.sh
+	scripts/build/clean.sh
 
 # Wipe Vibe's persisted state (settings, folder grants, caches, saved window
 # state) so the next launch is a first launch. Prompts before deleting.
 # Options pass through: make reset-state ARGS="--both -y", or ARGS=-n to preview.
 reset-state:
-	scripts/reset-state.sh $(ARGS)
+	scripts/build/reset-state.sh $(ARGS)
 
 # Launch the app, building it first only if it isn't built yet.
 run:
-	scripts/run.sh $(CONFIG)
+	scripts/build/run.sh $(CONFIG)
 
-# Regenerate the README screenshots in Assets/ (debug build + real screen
+# Regenerate the README screenshots in Assets/readme/ (debug build + real screen
 # capture). Needs Screen Recording and Accessibility for the terminal, and
 # ALLOW_GLOBAL_INPUT=1 per run: it moves the real pointer.
 screenshots:
-	scripts/generate-readme-screenshots.sh
+	scripts/screenshots/generate-readme-screenshots.sh
 
 # The shipped App Store screenshots (2880x1800): the captures `screenshots`
-# leaves in Assets/ composited onto generated backgrounds. Needs no app, only
+# leaves in Assets/readme/ composited onto generated backgrounds. Needs no app, only
 # those captures; rerun `screenshots` first if the UI changed. LOCALE, not LANG
 # or LANGUAGE, which make would silently import from the environment. macOS
-# only; for iOS: scripts/appstore-generate-store-screenshots.sh --platform ios [LOCALE].
+# only; for iOS: scripts/appstore/appstore-generate-store-screenshots.sh --platform ios [LOCALE].
 #   make appstore-generate-store-screenshots               # English → Assets/app-store/screenshots/en/macos/
 #   make appstore-generate-store-screenshots LOCALE=de     # copy/de/macos captions → screenshots/de/macos/
 appstore-generate-store-screenshots:
-	scripts/appstore-generate-store-screenshots.sh $(LOCALE)
+	scripts/appstore/appstore-generate-store-screenshots.sh $(LOCALE)
 
 # Every catalog language (list read from Resources/Localizable.xcstrings).
 appstore-generate-store-screenshots-all:
-	scripts/appstore-generate-store-screenshots.sh --all
+	scripts/appstore/appstore-generate-store-screenshots.sh --all
 
 # Fail unless every catalog language has complete App Store copy for both
 # platforms in Assets/app-store/copy/<lang>/<platform>/, within ASC limits,
 # with every caption fitting the screenshot layout.
 appstore-validate-copy:
-	scripts/appstore-validate-copy.sh
+	scripts/appstore/appstore-validate-copy.sh
 
 # Upload the localized copy and screenshots to the editable version's product
 # page on ONE platform; no build is involved. Flags are the script's:
@@ -303,7 +332,7 @@ appstore-validate-copy:
 #   make appstore-upload-metadata ARGS="--locales de,fr --skip-screenshots"
 #   make appstore-upload-metadata ARGS="--platform ios"    # everything, iOS
 appstore-upload-metadata: appstore-validate-copy
-	scripts/appstore-upload-metadata.sh $(ARGS)
+	scripts/appstore/appstore-upload-metadata.sh $(ARGS)
 
 # The other App Store path: photograph the window over a staged desktop, so the
 # Liquid Glass shows a real backdrop; the window stays small on the canvas,
@@ -312,28 +341,28 @@ appstore-upload-metadata: appstore-validate-copy
 # pitch); it is word-split, so run the script directly for paths with spaces.
 #   make appstore-capture-app-screenshots BACKGROUND=path/to/background.png
 appstore-capture-app-screenshots:
-	scripts/appstore-capture-app-screenshots.sh $(BACKGROUND)
+	scripts/appstore/appstore-capture-app-screenshots.sh $(BACKGROUND)
 
 # Re-extract UI strings into Resources/Localizable.xcstrings after touching any
 # UI string; nothing extracts ObjC strings at build time.
 strings:
-	scripts/extract-strings.sh
+	scripts/strings/extract-strings.sh
 
 # Fail if the catalog doesn't match the source.
 check-strings:
-	scripts/extract-strings.sh --check
+	scripts/strings/extract-strings.sh --check
 
-# Fail on a break of AGENTS.md's mechanical vocabulary rules, listed in the
-# script.
+# Fail on a break of AGENTS.md's mechanical vocabulary rules or a doc line over
+# 1500 characters, all listed in the script.
 check-vocabulary:
-	scripts/check-vocabulary.sh
+	scripts/checks/check-vocabulary.sh
 
 # Fail if the tree breaks AGENTS.md's layout rule; the script's header states
 # the five assertions.
 check-layout:
-	scripts/check-layout.sh
+	scripts/checks/check-layout.sh
 
 # Fail if any key is missing a catalog language; check-strings compares the
 # catalog to the source and cannot see coverage. Both release paths run this.
 check-translations:
-	scripts/check-translations.sh
+	scripts/checks/check-translations.sh

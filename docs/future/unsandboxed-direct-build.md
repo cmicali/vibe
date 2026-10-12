@@ -2,7 +2,7 @@
 
 **Status: Not built.** It stands on the Sparkle updater, the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker (`Vibe/Mac/App/AGENTS.md`, Updates). The updater is also what lets Phase 4's data migration reach existing users.
 
-Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Audio/Mac/Convert/AGENTS.md`, `Vibe/Audio/Metadata/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
+Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Mac/Convert/AGENTS.md`, `Vibe/Audio/Metadata/Artwork/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
 
 ## The feature
 
@@ -25,7 +25,7 @@ Each phase builds, passes `make test` and can be verified alone. Read first: the
 - **Security-scope calls on plain URLs**: `PlaylistController`'s drag-out (`startAccessingSecurityScopedResource` per dragged track) and `ArtworkImageView`'s art drag. Both already tolerate a `NO` answer.
 - **`+realHomeDirectory`** (`getpwuid`): correct in both modes.
 - **Where state lives**: defaults, the PINCache disk caches (`NSCachesDirectory`), `LastPlaylist.m3u` and `ThemeArt/` (`NSApplicationSupportDirectory/<bundle id>/`), saved window state. Sandboxed, all of it resolves under `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/`.
-- **The debug channel** (`DebugUtil.h`, `DebugClient.m`): the client and the app meet in the container's tmp and rely on sharing a container. `scripts/reset-state.sh` treats the container as the whole state and says so in its header.
+- **The debug channel** (`DebugMacEntry.h`, `DebugClient.m`): the client and the app meet in the container's tmp and rely on sharing a container. `scripts/build/reset-state.sh` treats the container as the whole state and says so in its header.
 - **Docs and rules** that state "the app is sandboxed" as a fact: root `AGENTS.md` (the folder-art and no-private-APIs bullets), the directory docs above, `SECURITY.md`, and the website copy if it advertises the sandbox.
 
 ## Phase 1 — The sandbox becomes a per-configuration setting
@@ -53,7 +53,7 @@ The budget is zero new files and zero new types: each item is a branch at the to
 - **Folder art**: the "no active grant, leave untouched" rule answers `YES` everywhere through `canReadInsideDirectory:`. The reason behind the rule still stands in a new form: **unasked-for background work must never raise a permission panel**, and unsandboxed the panels are TCC's (Phase 3).
 - **Drag-out scopes** (`PlaylistController`, `ArtworkImageView`): unchanged; `startAccessingSecurityScopedResource` answers `NO` for a plain URL and both sites already handle it.
 - **`DebugInfo`**: report sandboxed or not, and the state directory in use.
-- **Debug channel and tooling**, for `SANDBOX=0` builds: the client and the app share the per-user temporary directory unsandboxed, so the handoff should work as written; confirm, and fix `DebugUtil.h`'s comments and the `vibe-debug` skill's screenshot path. `reset-state.sh` already sweeps the unsandboxed paths "in case"; its header and its "only the container is expected to exist" note become wrong and are corrected, and it gains `~/Library/Application Support/<bundle id>`, which it does not list today.
+- **Debug channel and tooling**, for `SANDBOX=0` builds: the client and the app share the per-user temporary directory unsandboxed, so the handoff should work as written; confirm, and fix `DebugMacEntry.h`'s comments and the `vibe-debug` skill's screenshot path. `reset-state.sh` already sweeps the unsandboxed paths "in case"; its header and its "only the container is expected to exist" note become wrong and are corrected, and it gains `~/Library/Application Support/<bundle id>`, which it does not list today.
 
 **Verify**, on an unsandboxed Debug build through the debug channel: open a playlist file whose entries sit in a folder never opened before (no panel, rows play); folder art appears for a folder never granted; convert a file opened singly from Finder (FLAC lands beside it, no panel); Settings > Files shows no grant list; quit and relaunch restores the last playlist. Then the same list on a sandboxed build, to prove nothing moved. Run `make stress` and `make torture` once against the unsandboxed build.
 
@@ -68,7 +68,7 @@ An unsandboxed app is not free of permission panels; it trades the sandbox's for
   2. The deferred metadata sweep over a restored or dropped playlist. Same as 1.
   3. `FolderArtResolver` probing a directory beside a track. It only ever reads beside a file already in the playlist, so it cannot prompt for a location the playlist has not already touched; confirm.
   4. A playlist file that names entries in a different protected location than the one it was opened from. This is the case the grant panel covered; unsandboxed it becomes a system prompt, which is acceptable.
-- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `NSURLUtil`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
+- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `FolderWalk`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
 - A denied prompt is not asked again. Decide whether a row's unreadable state should point at System Settings > Privacy & Security > Files and Folders; not in the first version unless testing shows users get stuck.
 
 **Verify:** on a fresh macOS user account (or after `tccutil reset All com.commonwealthrecordings.Vibe`), walk the four cases with Allow and with Don't Allow, on the exported, notarized build, since TCC keys on the signature.

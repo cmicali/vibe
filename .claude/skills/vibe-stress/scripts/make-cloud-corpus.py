@@ -60,7 +60,7 @@ def main():
     missing = [p for p in with_art + without_art if not p.exists()]
     if missing:
         sys.exit("missing test audio: " + ", ".join(p.name for p in missing)
-                 + "\nrun the vibe-debug skill's generate-test-audio.sh first")
+                 + "\nrun scripts/test/generate-test-audio.sh first")
 
     out = pathlib.Path(args.out)
     if out.exists():

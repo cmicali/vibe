@@ -81,6 +81,7 @@ def features(src):
         return next((src / 'Vibe').rglob(name), None)
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
     waveform = find('AudioWaveform.h')
+    resampler = find('AudioResampler.h')
     metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,
@@ -92,6 +93,7 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART': any('displayArtData' in h.read_text() for h in metadata),
         'VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE': levels is not None and 'VibeAudioLevelAnalyzerSummarize' in levels.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text(),
+        'VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER': resampler is not None and 'VibeResamplerCreate' in resampler.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]
@@ -121,7 +123,18 @@ def tool_spec(src, dumped):
 
     def path_of(source):
         return source if isinstance(source, str) else source.get('path', '')
-    sources = [s for s in app['sources'] if path_of(s) != 'main.m' and not path_of(s).startswith('Resources')]
+
+    def without_main(source):
+        # Older checkouts keep main.m at the repo root, newer ones under
+        # Vibe/Mac/App. A directory entry must not bring it in beside the
+        # harness's own main.
+        if '.' in Path(path_of(source)).name:
+            return source
+        source = {'path': source} if isinstance(source, str) else dict(source)
+        source['excludes'] = list(source.get('excludes', [])) + ['main.m', '**/main.m']
+        return source
+    sources = [without_main(s) for s in app['sources']
+               if Path(path_of(s)).name != 'main.m' and not path_of(s).startswith('Resources')]
     sources.append({'path': 'Tests/BenchComponents', 'excludes': ['**/*.md', '**/*.py']})
     settings = json.loads(json.dumps(app.get('settings', {})))
     for block in [settings.get('base', {})] + list(settings.get('configs', {}).values()):

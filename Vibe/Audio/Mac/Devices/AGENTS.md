@@ -1,6 +1,8 @@
 # Output devices (macOS only)
 
-The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `CoreAudioUtil`, `OutputFormatRules.h` and `AudioPlayer+Devices`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
+The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `AudioDeviceEventLog`, `CoreAudioUtil`, `OutputFormatRules.h`, `AudioPlayer+Devices`, and `AudioPlayer+BitPerfect`. The iOS counterpart is `Audio/iOS/`, which is an `AVAudioSession` and nothing like this.
+
+`CoreAudioUtil` is three files. `CoreAudioUtil.m` keeps the bounded read and the device identity reads. Its `+BitPerfect` category holds transport, rate, physical format, volume and hog. Its `+Diagnostics` category holds Save Debug Info's read and the HAL event log's formatter. All three are declared in `CoreAudioUtil.h`, and they share their HAL helpers through `CoreAudioUtilInternal.h`.
 
 `CoreAudioUtil.diagnosticDescriptionOfDeviceID:` is the one read-everything call (formats, declared latency, clock, exclusive owner). It exists for Save Debug Info (`Mac/App/AGENTS.md`), and nothing that changes a device reads it. The player's side of that report is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too. The snapshot reads on the player queue, so shipping callers invoke it off main.
 
@@ -8,7 +10,7 @@ The CoreAudio HAL output-device layer: `AudioDevice`, `AudioDeviceManager`, `Cor
 
 A singleton that owns device-change listening. At init it registers CoreAudio listeners for the default output device and the device list, kept for the process's life, then sweeps. `outputDevices` serves the latest immutable snapshot and waits at most 250 ms for the first one, so an unavailable `coreaudiod` cannot strand a caller's serial queue. `cachedOutputDevices`, `knowsOutputDeviceIsAbsent:` and `outputDeviceForId:` never wait, because the player queue calls them.
 
-With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log follows published devices, watched device and stream property changes, arrivals and removals, default and alert output changes, and `coreaudiod` restarts. **TRAP: HAL delivers running/overload notifications synchronously on its IO thread, and a property read there can deadlock its stop.** A delivery queue does not make them asynchronous: HAL waits for that queue. So the event-log listeners register with a NULL queue, copy the addresses, and enqueue their reads on `_eventLogQueue` (`CoreAudioUtil.eventLogListenerForObject:name:queue:`). Playback never waits on that queue, and its work changes no playback state.
+With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log (`AudioDeviceEventLog`) follows published devices, watched device and stream property changes, arrivals and removals, default and alert output changes, and `coreaudiod` restarts. **TRAP: HAL delivers running/overload notifications synchronously on its IO thread, and a property read there can deadlock its stop.** A delivery queue does not make them asynchronous: HAL waits for that queue. So the event-log listeners register with a NULL queue, copy the addresses, and enqueue their reads on `_eventLogQueue` (`AudioDeviceEventLog.listenerForObject:name:queue:`). Playback never waits on that queue, and its work changes no playback state.
 
 **A snapshot is normally published only after every read agrees**: the device list, the system default, each device's output-channel, name and UID properties, and the default appearing in the list. A partial result keeps the prior snapshot and takes the two-second retry, so a transient HAL failure cannot look like removal and persist a false System Output fallback.
 
@@ -20,11 +22,11 @@ With `VIBE_VERBOSE_LOGGING=1`, the `HAL:` event log follows published devices, w
 
 `refreshOutputDevicesCache` runs only on that serial refresh queue, so an older sweep can never overwrite a newer one. `initWithEnumerator:retryScheduler:` lets the host-less suite control the HAL and timer boundaries. `refreshOutputDevicesWithCompletion:` is the shared refresh entry for notifications and tests.
 
-**Observers are fanned out on main in the common run-loop modes**, not with a plain `dispatch_async`. GCD main-queue blocks do not run during menu tracking, and this way the devices menu refreshes while open. Observers (`AudioDeviceManagerObserver`) are held weakly: `AudioPlayer`, `OutputDevicesMenuController` and `SettingsGeneralViewController`.
+**Observers are fanned out on main in the common run-loop modes**, not with a plain `dispatch_async`. GCD main-queue blocks do not run during menu tracking, and this way the devices menu refreshes while open. Observers (`AudioDeviceManagerObserver`) are held weakly: `AudioPlayer`, `OutputDevicesMenuController` and `SettingsAudioOutputViewController`.
 
 ## AudioPlayer+Devices
 
-All device management: resolution, switching, the rate the pipeline runs at, and parking or falling back when a device vanishes. Its `(PlatformOutput)` implementation owns the output unit's device half: binding it, starting it under exclusive access, feeding it the device's rate. `AudioPlayer+Pipeline` owns the platform-blind half. The unit itself, `Audio/AudioOutputUnit`, is shared with iOS, and everything device-shaped in it (the bind, the HAL latency reads) is `TARGET_OS_OSX`. `(DevicesInternal)` owns the device policy, on `AudioPlayerInternal.h`'s private surface as the iOS `AudioPlayer+Recovery` is. Its public half, `(Devices)`, has its own header, which the macOS shell imports beside `AudioPlayer.h`.
+All device management: resolution, switching, the rate the pipeline runs at, and parking or falling back when a device vanishes. Its `(PlatformOutput)` implementation owns the output unit's device half: binding it, starting it under exclusive access, feeding it the device's rate. `AudioPlayer+Pipeline` owns the platform-blind half. The unit itself, `Audio/AudioOutputUnit`, is shared with iOS, and everything device-shaped in it (the bind, the HAL latency reads) is `TARGET_OS_OSX`. `(DevicesInternal)` owns the device policy. It is declared in `AudioPlayer+DevicesInternal.h`, with the device ivars and bit-perfect's `(BitPerfectInternal)`. Only `AudioPlayerInternal.h` imports that header, under `TARGET_OS_OSX`. So it is on the player's private surface. Its public half, `(Devices)`, has its own header, which the macOS shell imports beside `AudioPlayer.h`.
 
 ### The unit waits on the HAL so the player queue never does
 
@@ -82,7 +84,7 @@ Vibe's own format writes arrive with the pipeline already at the rate, a no-op. 
 
 ## Bit-perfect output
 
-`AudioPlayer.setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:` (Settings > Audio) delivers each file's decoded samples to the chosen device unchanged.
+`AudioPlayer.setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:` (Settings > Audio) delivers each file's decoded samples to the chosen device unchanged. The mode is `AudioPlayer+BitPerfect`. Its public half, `(BitPerfect)`, is the setter and the report, in its own header, which the macOS shell imports beside `AudioPlayer.h`. The queue-side mechanism is `(BitPerfectInternal)`, declared in `AudioPlayer+DevicesInternal.h`.
 
 **Declick** (`AppSettings.declick`, default on, `Audio/AGENTS.md`) decides what the mode does at a transport edge. On, each play, seek, pause, resume, stop or track change gets the ≤10 ms declick ramp, and every other frame, a gapless boundary included, is unchanged. Off, the edge is a cut that leaves every sample untouched. It reaches the player as `AudioPlayer.declick` through `VibeSettingsLiveEffectDeclick`, with no rebuild. The crossfade never enters the mode: `effectiveCrossfadeMilliseconds` clamps it to the declick minimum, so with Declick off the mode applies no gain at all. The loopback verifier turns Declick off around its captures, which compare from the first frame.
 
@@ -96,7 +98,7 @@ Vibe's own format writes arrive with the pipeline already at the rate, a no-op. 
 - The public selection completion runs on main after the device callback, failed switches included, so the shell can release its mode-edit guard.
 - `setOutputDeviceOnQueue:` also rebuilds when only the standing graph disagrees with the flags. A switch from a bit-perfect device to System Output may stay on the same hardware but must restore its format and FX route.
 
-The decisions are `OutputFormatRules.h`. Raw HAL reads and writes are `CoreAudioUtil`'s. The loopback oracle (`verify-bit-perfect.swift`, the `vibe-debug` skill) measures 44.1, 48, 88.2 and 96 kHz WAVs and a 96/24 FLAC sample-exact.
+The decisions are `OutputFormatRules.h`. Raw HAL reads and writes are `CoreAudioUtil`'s. The loopback oracle (`scripts/test/verify-bit-perfect.swift`) measures 44.1, 48, 88.2 and 96 kHz WAVs and a 96/24 FLAC sample-exact.
 
 **Exclusive output is a separate opt-in**, off by default. Bit-perfect, exclusive output and the saved FX preference land on the player queue in one setter. They use the same-device rebuild, which keeps the track, position and pause state, reading `getPlaybackIntent:forTrack:` before stopping the output. Changed settings stop the output before changing ownership. Identical settings return without rebuilding. An exclusive preference changed while bit-perfect is off is saved without touching the graph. Disabling exclusivity releases the device without restoring its format. Disabling bit-perfect restores the format and releases it through `leaveOutputDeviceOnQueue`, inside the rebuild. While saved-device discovery is pending, turning bit-perfect off still works on the current binding. An in-flight open also rebinds the warm output without consuming the request, so its settlement starts with the latest preference. The saved exclusive preference survives a bit-perfect toggle, but acts only while bit-perfect is on. With an eligible device prepared, it *is* `hogWanted`.
 

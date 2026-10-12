@@ -3,7 +3,7 @@
 Use the generated files in `Assets/test_audio_files/` (gitignored), never your own synthesis:
 
 ```bash
-.claude/skills/vibe-debug/scripts/generate-test-audio.sh   # idempotent; --force regenerates
+scripts/test/generate-test-audio.sh   # idempotent; --force regenerates
 ```
 
 | File | For |
@@ -36,7 +36,7 @@ The Loading state, the shimmer and the load-timeout error need an open that bloc
 "$V" --debug-cmd set_fake_cloud 0       # uninstall
 ```
 
-It replaces the three things the app asks about a file. `NSURLUtil.isDatalessFile:` answers YES for the chosen paths. `CloudFileMaterializer`'s coordinated read becomes a cancellable wait. `DownloadProgressMonitor` reports that wait's progress, in twelfths at 1 Hz, and a third of the corpus stalls partway. Everything above them runs unchanged. `VibeFakeCloud.h` is the contract. **The seconds are a base, not the answer**: each file's time comes from a hash of its path, 0.5x to 2x, with one in ten at 18x and one in fifty stuck past the open timeout. Sending it again re-arms the whole corpus.
+It replaces the three things the app asks about a file. `PlaceholderFiles.isDatalessFile:` answers YES for the chosen paths. `CloudFileMaterializer`'s coordinated read becomes a cancellable wait. `DownloadProgressMonitor` reports that wait's progress, in twelfths at 1 Hz, and a third of the corpus stalls partway. Everything above them runs unchanged. `VibeFakeCloud.h` is the contract. **The seconds are a base, not the answer**: each file's time comes from a hash of its path, 0.5x to 2x, with one in ten at 18x and one in fifty stuck past the open timeout. Sending it again re-arms the whole corpus.
 
 The log names each progress line's source (`fake`, `poll`, `iCloud` or `provider`):
 
@@ -49,7 +49,7 @@ Download progress (fake): 42% (5.0s) tone-long.wav   <- a stall
 
 **TRAP: `next` alone often proves nothing.** `didStartPlaying:` prefetches the following track, so the next open is answered from the parked handle and starts instantly. Aim at a track that is not the parked one: `previous`, a distant row, or an `open`.
 
-**A named pipe cannot stand in for a slow file.** A fifo stats as `st_size == 0`, and `NSURL+AudioOpen.isEmptyOrDirectory` drops it before anything opens it.
+**A named pipe cannot stand in for a slow file.** A fifo stats as `st_size == 0`, and `NSURL+Emptiness.isEmptyOrDirectory` drops it before anything opens it.
 
 ## One-shot BPM and key
 
@@ -72,7 +72,7 @@ Download progress (fake): 42% (5.0s) tone-long.wav   <- a stall
 make build CONFIG=Debug
 make build-test-blackhole
 open build/blackhole-drivers/VibeBlackHoleTests.pkg      # install, then restart CoreAudio or reboot
-.claude/skills/vibe-debug/scripts/generate-test-audio.sh --render-tests build/audio-fixtures
+scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 VIBE_NOW_PLAYING=0 VIBE_AUDIBLE=1 .claude/skills/vibe-debug/scripts/launch.sh
 V="$PWD/build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe"
 "$V" --debug-cmd settings_open audio

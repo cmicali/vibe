@@ -17,6 +17,7 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 "$V" --debug-cmd dump_build          # {version, git, built, pid, path}: the answering instance's identity (both platforms)
 "$V" --debug-cmd dump_stats          # {filesOpened, foldersOpened, secondsPlayed}: AppStats lifetime counters
 "$V" --debug-cmd dump_equalizer      # producer/renderer snapshot: references/equalizer-counters.md
+"$V" --debug-cmd dump_resampler_costs [reset]  # {costs: {cpuSeconds, audioSeconds, corePercent}, conversion}: the resampler's decode-thread CPU since the bus was made or the last reset, file reads excluded. corePercent is the real-time cost. Both platforms
 "$V" --debug-cmd dump_audio_path     # {stages: [{stage, present, …}]}: source, decode, bus, varispeed, fx, meter, output, device. Rates, sample formats, channels, the decoder's conversion, varispeed engagement and latency, FX activity and latencySeconds. The output stage reports running, idleStopPending, idle and renderedBy (outputUnit, or pump under --no-audio-hw), presentationLatency, bufferLatency and render counters. It also reports cycleFrames, resampledCycles and resampledPullFrames. A nonzero resampledCycles means the unit itself resampled this run. The device stage reports channels, physicalChannels and latencySeconds
 "$V" --debug-cmd dump_health         # {process: {footprintBytes, residentBytes, residentPeakBytes, mallocLiveBytes, mallocReservedBytes, threads, fileDescriptors, machPorts, uptimeSeconds}, ui: {windows, visibleWindows, views, layers, trackingAreas}, app: {playlistCount, tableRows, currentIndex, playerLoading, gaplessArmed, hostedUnits, outputDropouts, renderRefusals, renderCycles, renderMeanMicros, renderMaxMicros, canUndo, canRedo, …}, materialization: {…}, pending: {…}}. Diff it across a run, never read it alone. mallocLiveBytes, not footprintBytes, is the leak signal (vibe-stress references/health-metrics.md)
 "$V" --debug-cmd clear_render_counters  # {ok}: zeroes renderCycles, renderMeanMicros, renderMaxMicros, outputDropouts and renderRefusals, so a phase reads on its own
@@ -163,6 +164,9 @@ All but `set_analysis` are app-side verbs applied at once. `set_analysis` is a C
 "$V" --debug-cmd set_analysis bpm off  # {ok, analyzeBPM, analyzeKey}: <bpm|key> <on|off>; the next waveform decode reads it, no relaunch
 "$V" --debug-cmd set_folder_art off  # {ok, folderArt}: writes and re-resolves the loaded playlist's folder art. Needs a running app
 "$V" --debug-cmd set_pause_at_track_end off  # {ok, pauseAtTrackEnd}: writes and requests the EndOfTrack live effect
+"$V" --debug-cmd set_repeat all      # {ok, repeatMode}: off|all|one. Writes and requests the EndOfTrack live effect. Both platforms
+"$V" --debug-cmd set_shuffle on      # {ok, shuffleEnabled}: the same path. Both platforms
+"$V" --debug-cmd set_decoder apple   # {ok, decoder}: apple|dr_mp3, the MPEG decoder for later opens, this session only. Writes no setting. Both platforms. It is iOS's only decoder switch. dump_audio_path reports the decoder in use
 "$V" --debug-cmd set_reopen_playlist on  # {ok, reopenLastPlaylist}: off deletes the container mirror at once; the mirror is written only at quit
 "$V" --debug-cmd set_declick off     # {ok, declick}: Settings > Audio > Declick, applied live. dump_state.settings.declick is the stored choice, player.declick what the player holds. The loopback verifier turns it off around its captures
 ```

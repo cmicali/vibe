@@ -1,12 +1,24 @@
 # Main window (macOS)
 
-**Layout geometry, the Liquid Glass chrome, the art-tint pipeline and the codec line are `APPEARANCE.md`. Read it before changing any of those.** This file is behavior: the controller, display states, the playlist edits the shell owns, and the window's resize and drop rules. `Transport/` (bare keys, skips, FX toggles) and `Convert/` (the FLAC swap and its undo) have their own `AGENTS.md`.
+This directory holds the main window and its controller, `MainPlayerController`, with its categories. It also holds the window's body, the track and artwork display controllers, and the volume control.
+
+**Layout geometry, the Liquid Glass chrome, the art-tint pipeline and the codec line are `LAYOUT.md`. Read it before changing any of those.** `MainPlayerContentView` is the window's body. `MainPlayerContentView.m` keeps the appearance pass, the artist line's edge and the hover reveal. Its `+Construction` category builds the subviews and holds the theme passes that restyle them. The two share `MainPlayerContentViewInternal.h`: the layout block, the ivars and the methods each calls on the other. The volume control inside it is its own view, `VolumeControlView`. This file is behavior: the controller, display states, the playlist edits the shell owns, and the window's resize and drop rules. `Transport/` (bare keys, skips, FX toggles) and `Convert/` (the FLAC swap and its undo) have their own `AGENTS.md`.
 
 ## The controller
 
-`MainPlayerController` (`NSWindowController`) is the coordinator. `MainPlayerController.m` keeps the `updateUI` funnel, display-state resolution and the open and playlist entry points. Each `MainPlayerController+*.h` preamble states what its category owns. **A method a category implements is declared in that category's header.** It is never declared in `MainPlayerController.h` or in `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared under `Vibe/Debug/Mac/Introspection/`.
+`MainPlayerController` (`NSWindowController`) is the coordinator. `MainPlayerController.m` keeps the `updateUI` funnel, display-state resolution and the open entry points. Each `MainPlayerController+*.h` preamble states what its category owns:
 
-**Menu identifiers and the domain that validates each are `MenuValidationRules.h`.** Each identifier has one `kVibeMenu*` constant, and the literal appears nowhere else, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED** (and asserts in Debug). A new controller-targeted menu item must be added there, or it never enables.
+- `+Playlist`: Close, Save Playlist, the last playlist, and removing and moving rows with their undo.
+- `+Transport` (`Transport/`): the skips and the FX toggles. Also shuffle, repeat, On track end and the successor prefetch. Also the pitch fader and its range, the volume slider and the waveform's seek.
+- `+PlayerEvents`: every `AudioPlayerDelegate` callback.
+- `+Delivery`: the metadata, waveform, tempo and key deliveries. Also the grant, folder-art and thumbnail notifications.
+- `+Window`: the content build, the resize, lock and occlusion rules, the window chrome and the waveform theme.
+- `+Menus`: menu validation and the View > Theme submenu.
+- `+Settings`: the live effects, the shortcut write path and the theme's fonts.
+- `+NowPlaying`: the system's Now Playing info and remote commands.
+- `+Convert` (`Convert/`): Convert to FLAC's swap and its undo.
+
+**A method a category implements is declared in that category's header.** It is never declared in `MainPlayerController.h` or in `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared under `Vibe/Debug/Mac/Seams/`.
 
 **`+PlayerEvents` and `+Delivery` carry the root doc's staleness guarantee.** Every callback can be stale and must match its track against the playlist's current one. The decisions are tested seams: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).
 
@@ -14,13 +26,13 @@
 
 ## Folder art invalidation
 
-`FolderArtResolver` (`Audio/Metadata/FolderArt/`) is the feature. This controller owns invalidation and redraw.
+`FolderArtResolver` (`Audio/Metadata/Artwork/FolderArt/`) is the feature. This controller owns invalidation and redraw.
 
 - The `FolderArt` effect calls `refreshFolderArt`, which calls `folderArtSettingDidChange`. **The resolver caches the setting on the cell-draw path, so this effect is the only way a write is ever seen.** It keeps settled answers.
 - A grant change (`FolderAccessManagerDidChangeNotification`) is narrower. It is observed here because a grant can change with the Files pane gone. `invalidateDirectoriesSettledWithoutGrant` forgets the no-grant answers and re-arms known cover reads.
 - `folderArtDidResolve:` fires for "none" as well as a cover. It coalesces a reload of the visible rows over a short delay. The resolver is serial, so a per-turn gate would coalesce nothing.
 
-Neither may wipe everything (`Audio/Metadata/FolderArt/AGENTS.md`).
+Neither may wipe everything (`Audio/Metadata/Artwork/FolderArt/AGENTS.md`).
 
 ## The UI tick
 
@@ -34,9 +46,9 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 ## Track end, close and save
 
-**Whether a track end advances is `AppSettings.pauseAtTrackEnd`, and where it goes is the playlist's `trackEndSuccessor`** (root `AGENTS.md`). The audio side is `successorPrefetchTrack`, which answers nil under Pause. The shell side is `advanceOrParkAtTrackEnd`, which reads the setting again.
+**Where a track end goes is the playlist's `trackEndSuccessor`, which is nil under On track end = Pause** (root `AGENTS.md`). `pushTransportModesToPlaylist` pushes Pause with repeat and shuffle. Every prefetch parks `trackEndSuccessor`, and `advanceOrParkAtTrackEnd` calls `advanceAtTrackEnd`.
 
-**Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`APPEARANCE.md`).
+**Shuffle (⌥⌘S) and Repeat (⌘R, Off → All → One) are Playback-menu items, the mac's only controls for them.** Repeat's item is titled by its mode. Each writes its setting and requests `EndOfTrack`. That effect pushes both modes into the playlist and Now Playing, re-parks the successor and refreshes Next. Launch pushes them before the restore, so a shuffled restore starts its order on the saved row. While on, each shows as a glyph on the codec line (`LAYOUT.md`).
 
 **File > Close (⌘W, `closeFile:`) is nil-targeted.** The key window's target owns the action and the shared item's title. The player retitles it Close File or Close All Files and enables it for a nonempty playlist. Settings, About and the Open URL panel restore the singular and close themselves. The player's action invalidates the open coordinator, calls `AudioPlayer.stop` (no delegate event), clears the playlist, cancels the deferred metadata load, and drops the scan loader with `cancelScan`. **A cancelled loader still holds every queued track strongly.**
 
@@ -44,7 +56,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 ## The last playlist
 
-`AppSettings.reopenLastPlaylist` (off by default) mirrors the playlist to `Application Support/<bundle id>/LastPlaylist.m3u` at quit and reopens it at launch. `PlaylistFile` owns the save and restore (`Playlist/AGENTS.md`).
+`AppSettings.reopenLastPlaylist` (off by default) mirrors the playlist to `Application Support/<bundle id>/LastPlaylist.m3u` at quit and reopens it at launch. `PlaylistFile+Session` owns the save and restore (`Playlist/Mac/AGENTS.md`).
 
 - `saveLastPlaylist` writes absolute paths and never touches Open Recent. The current row goes in the `VibeLastPlaylistCurrentIndex` defaults key. It is state, not a preference, so a reset leaves it. The mirror is deleted when the setting is off or the playlist is empty. Turning the setting off deletes it at once (`applyReopenLastPlaylist`).
 - `restoreLastPlaylist` lands **parked**, through `loadTracks:selectingIndex:startPaused:YES`. Every row comes back, readable or not, and a cue row keeps its window and names. The mirror is read through `PlaylistFile.rowsInM3UData:`, not the open funnel. Nothing is stat'd, not even a cue row's sheet, and no grant panel is raised.
@@ -63,11 +75,11 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 - **The registration is stamped with `PlaylistController.structureGeneration`.** It forwards the model's own generation, which every replace or clear bumps before announcing. A restore whose playlist was replaced does nothing, its redo does nothing, and the dead pair falls off both stacks.
 - `levelsOfUndo` is capped, so dead registrations cannot hold tracks without bound.
 - A whole-playlist removal routes to `closeFile:` before registering, so Close stays un-undoable.
-- **Re-prefetch after a removal, a restore or an append (`reconcileAfterPlaylistStructureEdit`) needs a player that is not Stopped.** A Stopped player advances nothing, so an errored player must not open or download a successor over a list edit.
+- **Every re-park of the successor goes through `prefetchSuccessor`, which does nothing while the player is Stopped.** That covers a removal, a restore, an append (`reconcileAfterPlaylistStructureEdit`), a Pause, repeat or shuffle change (`applyEndOfTrackAction`) and a conversion. A Stopped player advances nothing. So a stopped or errored player must not open or download a successor.
 
 ## Reordering playlist rows
 
-The drag is `Playlist/Mac/AGENTS.md`'s. **`playlistOrderDidChangeHandler` is a reorder's whole follow-up.** It registers the inverse, re-parks through `successorPrefetchTrack` behind the same not-Stopped gate, refreshes the metadata neighborhood once, and calls `updateUI`. **A move never enters a play funnel.** The current object survives at its new row, so a Loading row keeps its pending play and a paused row stays paused.
+The drag is `Playlist/Mac/AGENTS.md`'s. **`playlistOrderDidChangeHandler` is a reorder's whole follow-up.** It registers the inverse, re-parks through `prefetchSuccessor`, refreshes the metadata neighborhood once, and calls `updateUI`. **A move never enters a play funnel.** The current object survives at its new row, so a Loading row keeps its pending play and a paused row stays paused.
 
 **The handler is the ONE undo registration point.** The model operation is its own inverse with the two index sets swapped. The handler registers `movePlaylistTracksFromIndexes:toIndexes:generation:` under `STR_MENU_EDIT_REORDER`. It fires for every completed move, whether a drag, an undo or a redo, so `NSUndoManager` chains undo and redo with no second path. The bare row sets stay exact because of LIFO plus the generation. Every undoable edit between a move and its undo has been unwound. No un-undoable edit shifts rows without replacing the list: appends extend it, the convert swap keeps its row, and Close and every replacement bump `structureGeneration`. A stale restore performs no move and registers nothing.
 
@@ -99,4 +111,4 @@ Undo and Redo forward from the window to its controller, so menu routing through
 
 **TRAP: a Finder drag delivers file-reference URLs** (`file:///.file/id=…`). Their `.path` re-resolves to wherever the file *is*. Everything downstream treats a track's URL as fixed: cache keys hash it, and the convert undo record restores to it. Unpinned, a converted source's URL follows the file into the Trash, and the undo restore becomes a move onto itself. **Testing with `open` never shows it.** `performDragOperation:` pins every file to `fileURLWithPath:`, and `didConvertTrack:` pins the undo record's source again.
 
-**The window takes files and web links** (`kVibeDropType*`, `LinkRules.h`). `draggingEntered:` decides once per drag, through `VibeDropURLsOfItems`, and draws the wells only for a drag it takes. A drag holding no file and no http or https link is refused. A link goes on as it came. The drop resolves the empty-state wells into append or replace **synchronously**, since the dragging session is gone by the time the expansion lands. `openDroppedItems:appending:` is the drop's whole road, shared with the debug channel's `file_drag_drop`. It ends in `AppDelegate.openDroppedURLs:appending:`, the one open funnel (`Mac/App/AGENTS.md`). The window's `cancelOperation:` is Escape's. It cancels the opens still resolving their links, and passes Escape on when there are none.
+**The window takes files and web links** (`kVibeDropType*`, `LinkDropRules.h`). `draggingEntered:` decides once per drag, through `VibeDropURLsOfItems`, and draws the wells only for a drag it takes. A drag holding no file and no http or https link is refused. A link goes on as it came. The drop resolves the empty-state wells into append or replace **synchronously**, since the dragging session is gone by the time the expansion lands. `openDroppedItems:appending:` is the drop's whole road, shared with the debug channel's `file_drag_drop`. It ends in `AppDelegate.openDroppedURLs:appending:`, the one open funnel (`Mac/App/AGENTS.md`). The window's `cancelOperation:` is Escape's. It cancels the opens still resolving their links, and passes Escape on when there are none.

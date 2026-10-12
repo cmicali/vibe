@@ -1,5 +1,7 @@
 # The now-playing card (iOS)
 
+This directory holds the now-playing card: `PlayerViewController`, its track pager, and the pages (`TrackPageCell`). It also holds each page's FX pad and output-route indicator. `PageWaveformCoordinator` hands each page its waveform.
+
 The scrubber itself is `WaveformUI/iOS/AGENTS.md`. The shell is `../AGENTS.md`.
 
 ## PlayerViewController
@@ -40,7 +42,7 @@ The track pager and the chrome over it. It observes `PlaybackController` and own
 
 ## TrackPageCell
 
-One full-screen page: blurred art (a baked image, `Util/iOS/AGENTS.md`), header and transport row. `applyLayoutForBounds:` swaps the layout on the cell's own bounds: portrait is the centered card, landscape is the mac window transplanted, and a short iPad window takes one of the two compact layouts. The three wide layouts share one header and differ in the body. Geometry constants are private to the cell.
+One full-screen page: blurred art (a baked image, `Util/iOS/AGENTS.md`), header and transport row. `applyLayoutForBounds:` swaps the layout on the cell's own bounds: portrait is the centered card, landscape is the mac window transplanted, and a short iPad window takes one of the two compact layouts. The three wide layouts share one header and differ in the body. Geometry constants are private to the cell. The small views it is built from (the action bar, the time control and the art card) are `TrackPageViews.h`.
 
 **The compact layouts are the mac's transport-over-art, for a short iPad window.** A wide window under `kCellCompactMaximumHeight`, or a tall one under the portrait chain's floor (`kCellPortraitMinimumHeight`), keeps landscape's header. It hides the FX pad, the route pill and the shuffle and repeat flanks outright, so they leave hit testing and accessibility. **A mode that is on while its flank is hidden leads the codec line as a glyph** (`applyFileInfoText`), so the card never hides a mode that is on. Previous, play and next ride the art's lower edge in the mac's geometry over the mac's `buttonGradient`, always on, since iOS has no hover. The times move into the header's bottom corners and keep the right time's tap. **Compact** gives the waveform its own full-width row and lets the art take the height above, capped at half the width. **The strip** is the mac window: in a window at least `kCellStripAspect` times as wide as tall, or too short for the waveform's row, the art fills the band and the names, waveform and times sit beside it. **iPhone never goes compact.** The choice reads the bounds, the safe area and the constants, never a layout, so applying it cannot feed back. iPadOS 26 holds every window at least about 486pt tall, so on an iPad the strip comes by width (about 972pt and up), never by height.
 

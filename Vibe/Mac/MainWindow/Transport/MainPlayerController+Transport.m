@@ -5,10 +5,13 @@
 
 #import "MainPlayerController+Transport.h"
 #import "MainPlayerControllerInternal.h"
+#import "MainPlayerController+NowPlaying.h"
+#import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Window.h" // waveformViewDidResolveTheme:, the protocol's other half
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
-#import "AudioPlayer+Devices.h"
+#import "AudioPlayer+BitPerfect.h"
 #import "AudioFX.h"
 #import "Formatters.h"
 #import "VibeStrings.h"
@@ -16,6 +19,12 @@
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
 #import "TransportMath.h"
+#import "DrawnControls.h"
+#import "MainPlayerContentView.h"
+#import "MenuValidationRules.h"
+#import "NowPlayingController.h"
+#import "SettingsRules.h"
+#import "SymbolButton.h"
 
 // Without a tempo: fixed wall-clock distances that ignore the bar base.
 static const NSTimeInterval kSkipSeconds = 10.0;
@@ -219,6 +228,109 @@ static double SkipBaseBars(void) {
             return STR_SETTINGS_BIT_PERFECT_LOSSY;
     }
     return @"";
+}
+
+#pragma mark - Modes, pitch and volume
+
+- (IBAction)setPitchRange:(id)sender {
+    if ([sender isKindOfClass:[NSMenuItem class]]) {
+        NSMenuItem *item = sender;
+        AppSettings.sharedInstance.pitchRange = [item.identifier isEqualToString:kVibeMenuPitchRange16] ? 16 : 8;
+        [self applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
+    }
+}
+
+- (IBAction)toggleShuffle:(nullable id)sender {
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.shuffleEnabled = !settings.shuffleEnabled;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+}
+
+- (IBAction)cycleRepeatMode:(nullable id)sender {
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.repeatMode = VibeRepeatModeAfter(settings.repeatMode);
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+}
+
+// TRAP: the Stopped gate is load-bearing. A stopped or errored player holds no
+// file, and re-parking its successor after a list edit or a mode change would
+// open one. On a cloud folder that is an unasked download. A new play
+// prefetches at its start anyway.
+- (void)prefetchSuccessor {
+    if (self.audioPlayer.isStopped) {
+        return;
+    }
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
+}
+
+// The model and the system's controls, which show the same modes.
+- (void)pushTransportModesToPlaylist {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [self.playlistController setRepeatMode:settings.repeatMode shuffleEnabled:settings.shuffleEnabled
+                           pauseAtTrackEnd:settings.pauseAtTrackEnd];
+    [self.nowPlayingController updateShuffleEnabled:settings.shuffleEnabled
+                                         repeatMode:settings.repeatMode
+                                          available:YES];
+}
+
+- (void)applyEndOfTrackAction {
+    [self pushTransportModesToPlaylist];
+    // nil unschedules an armed splice, so a mid-track switch to Pause does not
+    // advance anyway; a new successor replaces one armed before a repeat or
+    // shuffle change.
+    [self prefetchSuccessor];
+    // Next's availability and the codec line's glyphs follow the modes, on
+    // screen and in Now Playing.
+    self.nextButton.enabled = self.playlistController.hasNextTrack;
+    [self updateFXIndicators];
+    [self updateNowPlaying];
+}
+
+- (void)applyPitchRange {
+    float range = (float)AppSettings.sharedInstance.pitchRange;
+    self.audioPlayer.maxPitch = range;
+    _pitchPanel.maxPitch = range;
+    // A narrower range clamps the pitch.
+    _pitchPanel.pitch = self.audioPlayer.pitch;
+    [self updateRateDependentUI];
+    // No gesture end publishes the clamped duration.
+    [self updateNowPlaying];
+}
+
+// Cheap enough for every fader tick, unlike updateUI. No Now Playing publish,
+// an XPC round trip a rate change always dirties: a gesture publishes once at
+// its end, and the other callers publish for themselves.
+- (void)updateRateDependentUI {
+    [self.trackDisplay renderTotalDuration:self.audioPlayer.duration
+                                      rate:self.playbackRate
+                                     state:[self headerState]];
+    [self effectiveTempoDidChange];
+    [self syncUITimerRate];
+    [self updatePlaybackUI];
+}
+
+- (void)pitchControlPanel:(PitchControlPanel *)panel didChangePitch:(float)pitch {
+    self.audioPlayer.pitch = pitch;
+    [self updateRateDependentUI]; // the update timer is off while paused
+}
+
+- (void)pitchControlPanelDidEndAdjusting:(PitchControlPanel *)panel {
+    [self updateNowPlaying];
+}
+
+// Every tick of a drag, and once at the release. The slider moved itself and
+// the control is on. So the player, the percentage and the drag's hover hold
+// are all that follow.
+- (IBAction)volumeChanged:(VibeSlider *)sender {
+    AppSettings.sharedInstance.volume = sender.doubleValue;
+    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
+    [self.playerContentView volumeSliderDidMove];
+}
+
+#pragma mark - WaveformViewDelegate: the scrub seek
+
+- (void)waveformView:(WaveformView *)waveformView didSeek:(float)percentage {
+    [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
 }
 
 @end

@@ -6,7 +6,8 @@
 //  over its own voice bus and render pipeline. It publishes state the moment a
 //  verb lands and reports every outcome to its delegate on main; the audio
 //  follows within a declick. The platform halves are
-//  Mac/Devices/AudioPlayer+Devices.h and iOS/AudioPlayer+Recovery.h.
+//  Mac/Devices/AudioPlayer+Devices.h, Mac/Devices/AudioPlayer+BitPerfect.h, and
+//  iOS/AudioPlayer+Recovery.h.
 //
 
 #import <Foundation/Foundation.h>

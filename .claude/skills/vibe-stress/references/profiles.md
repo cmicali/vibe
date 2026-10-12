@@ -52,7 +52,7 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 
 ## Unreachable from this driver
 
-`--debug-cmd open` calls `NSURLUtil expandAndFilterList:` then `play:` directly, bypassing the burst coalescer and the open-request coordinator. `openBurstQueued` moves only under a real Launch Services open or the open panel. `openResultsBuffered` moves only under the funnel's verbs, `file_drag_drop` and `append`. **Do not read zeroes there as evidence those paths are clean.**
+`--debug-cmd open` calls `FolderWalk expandAndFilterList:` then `play:` directly, bypassing the burst coalescer and the open-request coordinator. `openBurstQueued` moves only under a real Launch Services open or the open panel. `openResultsBuffered` moves only under the funnel's verbs, `file_drag_drop` and `append`. **Do not read zeroes there as evidence those paths are clean.**
 
 ## `torture.py` phases
 

@@ -3,75 +3,71 @@
 //  Vibe (iOS)
 //
 
-#import "FolderSession.h"
+#import "FolderSessionInternal.h"
 #import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioTrack.h"
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
+#import "FolderSessionRules.h"
 #import "LinkStore.h"
-#import "NSURLUtil.h"
+#import "LocationStoreInternal.h"
+#import "FilePaths.h"
+#import "FolderWalk.h"
 #import "PlaylistFile.h"
-#import "SearchFolderStoreInternal.h"
+#import "RecentsStore.h"
 #import <stdatomic.h>
 
-// iOS app-layer state, so not AppSettings.
-static NSString *const kFolderBookmarkKey = @"VibeiOSFolderBookmark";
-static NSString *const kAdditionBookmarksKey = @"VibeiOSAdditionBookmarks";
-// Holds a standardized path despite its name: the shipped key is kept so a
-// bare filename an older build wrote restores through the filename tier.
-static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
-// SearchFolderStore's bound, for its reason: one stalled provider must not
-// head-of-line every other bookmark.
-static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
-// Every file and folder opened or added, newest first: path, bookmark, folder.
-static NSString *const kRecentItemsKey = @"VibeiOSRecentItems";
-static const NSUInteger kMaximumRecentItems = 50;
 // Past this many contributors an open is ONE recent, the folder they share.
 static const NSUInteger kMaximumRecentItemsPerOpen = 5;
 // An open waits this long for Dropbox to list a folder before reading what
 // the disk has.
 static const NSTimeInterval kDropboxListingTimeout = 20;
 
-@interface FolderSession ()
+// One open on the work queue, handed from phase to phase. The request is set
+// before the first phase. Each phase fills in what the next one reads.
+@interface FolderSessionOpen : NSObject
+@property (nonatomic) NSArray<NSURL *> *urls;
+@property (nonatomic) BOOL appending;
+@property (nonatomic) BOOL restored;
+@property (nonatomic) BOOL keepsSessionBookmark;
+@property (nonatomic) BOOL expandsFile;
+@property (nonatomic) VibeFolderOpenSort sort;
+@property (nonatomic) NSArray<NSString *> *coveringRootPaths;
+@property (nonatomic, copy) NSURL *(^resolvePersistedBase)(void);
+// resolveRowsOfOpen:
+@property (nonatomic, readonly) NSMutableArray<AudioTrack *> *tracks;
+@property (nonatomic, readonly) NSMutableArray<NSURL *> *ownedScopes;
+@property (nonatomic, readonly) NSMutableArray<NSURL *> *addedFolders;
+@property (nonatomic, readonly) NSMutableArray<NSURL *> *contributors;
+@property (nonatomic) NSURL *folderURL;
+@property (nonatomic) NSURL *selectedURL;
+@property (nonatomic) NSURL *deniedSheetURL;
+// mintBookmarksOfOpen:
+@property (nonatomic) NSData *baseBookmark;
+@property (nonatomic, readonly) NSMutableArray<NSData *> *additionBookmarks;
+@property (nonatomic, readonly) NSMutableDictionary<NSURL *, NSData *> *minted;
 @end
 
-@implementation FolderSession {
-    // Every scope this session started, held for the session (the player,
-    // TagLib and the waveform loader read under them at any time) and released
-    // only once a successor set is in hand. Main-confined. A URL may appear
-    // twice, each start balanced by its own stop.
-    NSMutableArray<NSURL *> *_scopedURLs;
-    // Persistent-root grants retained for this playlist, same lifetime.
-    NSMutableArray<SearchFolderGrant *> *_searchGrants;
-    // The BASE: title, star, bookmark. Appends never move it; nil for a
-    // single-file base.
-    NSURL *_folderURL;
-    // Search roots only — never the title or the star.
-    NSMutableArray<NSURL *> *_addedFolderURLs;
-    // YES when this session's replace wrote the base bookmark, so the
-    // persisted addition list is this session's to extend.
-    BOOL _additionsPersisted;
-    // Replaces run concurrently so a new intent never waits behind an older
-    // provider call; the generation decides which result delivers.
-    dispatch_queue_t _workQueue;
-    // Serial, so two Adds land in order, but never behind a replace.
-    dispatch_queue_t _appendQueue;
-    _Atomic(uint64_t) _openIntentGeneration;
-    // The last SETTLED replace's generation; an append lands only against it.
-    // Zero: nothing has landed, so an Add is promoted to an Open. Main-confined.
-    uint64_t _landedOpenIntentGeneration;
-    // YES from a promotion until that open settles; later Adds park in
-    // _addWaiters. Set only by a promotion, so after a failed launch restore
-    // the next Add still plays. Main-confined.
-    BOOL _promotedOpenInFlight;
-    // The generation a promotion created, or zero; see addURLs:token:.
-    uint64_t _promotedOpenIntentGeneration;
-    // Waiters, delivered once when the promoted open settles, however it
-    // settles. Main-confined.
-    NSMutableArray<void (^)(void)> *_addWaiters;
+@implementation FolderSessionOpen
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _tracks = [NSMutableArray array];
+        _ownedScopes = [NSMutableArray array];
+        _addedFolders = [NSMutableArray array];
+        _contributors = [NSMutableArray array];
+        _additionBookmarks = [NSMutableArray array];
+        _minted = [NSMutableDictionary dictionary];
+    }
+    return self;
 }
+
+@end
+
+@implementation FolderSession
 
 - (instancetype)init {
     self = [super init];
@@ -96,7 +92,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 }
 
 - (NSString *)folderDisplayName {
-    return _folderURL ? [SearchFolderStore displayNameForFolderURL:_folderURL] : nil;
+    return _folderURL ? [LocationStore displayNameForFolderURL:_folderURL] : nil;
 }
 
 - (NSArray<NSURL *> *)searchRoots {
@@ -132,392 +128,6 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
     }
     return nil;
-}
-
-#pragma mark - External opens
-
-- (void)openURLs:(NSArray<NSURL *> *)urls openInPlace:(BOOL)openInPlace {
-    if (!openInPlace) {
-        // An inbox copy, readable without a scope. It skips the worker:
-        // Documents/Inbox sits under Documents, so with Documents as the base
-        // the coverage rule would expand the copy into the whole Inbox. Its
-        // rows still come off main: a large FLAC's are read from its header.
-        NSURL *url = urls.firstObject;
-        if (!url) {
-            return;
-        }
-        uint64_t openIntentGeneration = [self beginOpenIntent];
-        dispatch_async(_workQueue, ^{
-            NSArray<AudioTrack *> *rows = [NSURLUtil rowsForFile:url];
-            run_on_main_thread({
-                [self finishOpenIntent:openIntentGeneration appending:NO tracks:rows
-                             folderURL:nil addedFolders:@[] selectedURL:nil restored:NO
-                           ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]];
-            });
-        });
-        return;
-    }
-    [self beginOpenURLs:urls appending:NO expandsFile:YES grantedFolder:nil];
-}
-
-- (uint64_t)addRequestToken {
-    return atomic_load_explicit(&_openIntentGeneration, memory_order_acquire);
-}
-
-- (void)addURLs:(NSArray<NSURL *> *)urls {
-    [self addURLs:urls token:[self addRequestToken]];
-}
-
-- (void)addURLs:(NSArray<NSURL *> *)urls token:(uint64_t)token {
-    // The token is taken when the USER asks, so a favorite whose resolve
-    // outlived a replace is dropped rather than appended to the new playlist.
-    //
-    // TRAP: a PROMOTION is not a supersession. Promoting the first of several
-    // Adds onto an empty playlist bumps the generation; without this exemption
-    // its siblings are dropped here before they can park as waiters (seconds
-    // on a cold provider). A token one below the live promoted generation is
-    // still the user's; a real replace or a clear bumps past it.
-    BOOL supersededByOwnPromotion = _promotedOpenIntentGeneration != 0
-            && token + 1 == _promotedOpenIntentGeneration
-            && [self isCurrentOpenIntent:_promotedOpenIntentGeneration];
-    if (![self isCurrentOpenIntent:token] && !supersededByOwnPromotion) {
-        LogInfo(@"FolderSession: dropping an Add superseded while its URL resolved");
-        return;
-    }
-    [self beginOpenURLs:urls appending:YES expandsFile:NO grantedFolder:nil];
-}
-
-// Work queue. A Dropbox folder nothing has listed yet is listed from Dropbox
-// before it is read: the mirror holds only what something has listed, so a
-// folder played or added from its parent's listing, never browsed into, was
-// empty on disk and the open landed nothing. One already listed is read as it
-// is — the browser relists it when shown — so a restore never waits on the
-// network. Bounded, so an open offline still reads the disk.
-- (void)listFromDropboxIfMirrored:(NSURL *)url {
-    DropboxMirror *mirror = DropboxMirror.shared;
-    NSString *dropboxPath = [mirror dropboxPathForURL:url];
-    if (!dropboxPath || [mirror hasListedDirectory:url]) {
-        return;
-    }
-    dispatch_semaphore_t listed = dispatch_semaphore_create(0);
-    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
-        if (error) {
-            LogWarn(@"FolderSession: could not list %@ from Dropbox: %@", url.lastPathComponent,
-                    error.localizedDescription);
-        }
-        dispatch_semaphore_signal(listed);
-    }];
-    dispatch_semaphore_wait(listed, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDropboxListingTimeout * NSEC_PER_SEC)));
-}
-
-- (void)openURL:(NSURL *)url inFolder:(BOOL)inFolder {
-    [self beginOpenURLs:@[url] appending:NO expandsFile:inFolder grantedFolder:nil];
-}
-
-- (void)openSheetURL:(NSURL *)sheetURL inGrantedFolder:(NSURL *)folderURL appending:(BOOL)appending {
-    [self beginOpenURLs:@[sheetURL] appending:appending expandsFile:!appending grantedFolder:folderURL];
-}
-
-- (void)clearSession {
-    // FIRST: an open in flight is superseded and releases its own scopes on
-    // its own path. No successor set, so acquire-before-release does not apply.
-    [self beginOpenIntent];
-    for (NSURL *url in _scopedURLs) {
-        [url stopAccessingSecurityScopedResource];
-    }
-    _scopedURLs = [NSMutableArray array];
-    _searchGrants = [NSMutableArray array];
-    _folderURL = nil;
-    _addedFolderURLs = [NSMutableArray array];
-    _hasAdditions = NO;
-    _additionsPersisted = NO;
-    // Nothing has landed, so the next Add is promoted to an Open.
-    _landedOpenIntentGeneration = 0;
-    _promotedOpenInFlight = NO;
-    _promotedOpenIntentGeneration = 0;
-    _addWaiters = nil;
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:kAdditionBookmarksKey];
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
-}
-
-- (void)cancelOpen {
-    uint64_t openIntentGeneration = [self beginOpenIntent];
-    // An empty open's settle, as finishOpenIntent: makes it: without the carry,
-    // every later Add is captured at a generation nothing landed.
-    if (_landedOpenIntentGeneration != 0) {
-        _landedOpenIntentGeneration = openIntentGeneration;
-    }
-    [self releaseAddWaitersAfterSettle];
-}
-
-#pragma mark - Recents
-
-- (NSArray<NSDictionary *> *)recentItems {
-    return [NSUserDefaults.standardUserDefaults arrayForKey:kRecentItemsKey] ?: @[];
-}
-
-// Main thread. A path already listed moves to the top; picked together, the
-// first picked lands on top.
-- (void)recordRecentItems:(NSArray<NSDictionary *> *)items {
-    NSMutableArray<NSDictionary *> *recents = [NSMutableArray arrayWithArray:items];
-    NSMutableSet<NSString *> *paths = [NSMutableSet set];
-    for (NSDictionary *item in items) {
-        [paths addObject:item[@"path"]];
-    }
-    for (NSDictionary *item in self.recentItems) {
-        NSString *path = [item isKindOfClass:NSDictionary.class] ? item[@"path"] : nil;
-        if ([path isKindOfClass:NSString.class] && ![paths containsObject:path]) {
-            [recents addObject:item];
-        }
-    }
-    NSUInteger kept = MIN(recents.count, kMaximumRecentItems);
-    [NSUserDefaults.standardUserDefaults setObject:[recents subarrayWithRange:NSMakeRange(0, kept)]
-                                            forKey:kRecentItemsKey];
-}
-
-- (void)clearRecentItems {
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:kRecentItemsKey];
-}
-
-// A stale bookmark — the item moved or was replaced — is minted again and
-// stored with where it now is, as FavoritesStore refreshes its own. Minting
-// needs the scope open; the open that follows starts its own.
-- (void)resolveRecentItem:(NSDictionary *)item completion:(void (^)(NSURL *))completion {
-    dispatch_async(_workQueue, ^{
-        NSData *bookmark = item[@"bookmark"];
-        BOOL stale = NO;
-        NSURL *url = [bookmark isKindOfClass:NSData.class]
-                ? [NSURL URLByResolvingBookmarkData:bookmark options:0 relativeToURL:nil
-                                bookmarkDataIsStale:&stale error:NULL]
-                : nil;
-        NSData *refreshed = nil;
-        if (url && stale) {
-            BOOL scoped = [url startAccessingSecurityScopedResource];
-            refreshed = [self bookmarkForURL:url];
-            if (scoped) {
-                [url stopAccessingSecurityScopedResource];
-            }
-        }
-        NSString *path = item[@"path"];
-        if (!url && [path isKindOfClass:NSString.class]
-                && [NSFileManager.defaultManager fileExistsAtPath:path]) {
-            url = [NSURL fileURLWithPath:path isDirectory:[item[@"folder"] boolValue]];
-        }
-        run_on_main_thread({
-            if (refreshed) {
-                [self replaceRecentItemAtPath:path withURL:url bookmark:refreshed];
-            }
-            completion(url);
-        });
-    });
-}
-
-// Main thread. In place: refreshing a bookmark is not a use.
-- (void)replaceRecentItemAtPath:(NSString *)path withURL:(NSURL *)url bookmark:(NSData *)bookmark {
-    NSMutableArray<NSDictionary *> *recents = [self.recentItems mutableCopy];
-    for (NSUInteger i = 0; i < recents.count; i++) {
-        if (![recents[i] isKindOfClass:NSDictionary.class] || ![recents[i][@"path"] isEqual:path]) {
-            continue;
-        }
-        NSMutableDictionary *item = [recents[i] mutableCopy];
-        item[@"path"] = VibeComparablePath(url.path) ?: path;
-        item[@"bookmark"] = bookmark;
-        recents[i] = item;
-        [NSUserDefaults.standardUserDefaults setObject:recents forKey:kRecentItemsKey];
-        return;
-    }
-}
-
-#pragma mark - Persistence
-
-- (BOOL)restorePersistedFolder {
-    NSData *bookmark = [NSUserDefaults.standardUserDefaults dataForKey:kFolderBookmarkKey];
-    if (!bookmark) {
-        return NO;
-    }
-    NSArray *additions =
-            [NSUserDefaults.standardUserDefaults arrayForKey:kAdditionBookmarksKey] ?: @[];
-    // Base first, then additions, in persisted order: the dedupe and the
-    // first-contributor base rule rest on it.
-    NSMutableArray<NSData *> *bookmarks = [NSMutableArray arrayWithObject:bookmark];
-    for (id data in additions) {
-        if ([data isKindOfClass:NSData.class]) {
-            [bookmarks addObject:data];
-        }
-        else {
-            LogWarn(@"FolderSession: an addition bookmark is not data");
-        }
-    }
-    uint64_t openIntentGeneration = [self beginOpenIntent];
-    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
-    dispatch_async(_workQueue, ^{
-        if (![self isCurrentOpenIntent:openIntentGeneration]) {
-            return;
-        }
-        // No refresh of a stale bookmark here: minting needs the scope OPEN,
-        // and the landing re-persists anyway.
-        NSArray<NSURL *> *urls = [self resolveBookmarksConcurrently:bookmarks
-                                              openIntentGeneration:openIntentGeneration];
-        // Only a restore where NOTHING resolved fails. A dead base's
-        // surviving additions restore, the first becoming the base.
-        if (urls.count == 0 || ![self isCurrentOpenIntent:openIntentGeneration]) {
-            if (urls.count == 0) {
-                LogWarn(@"FolderSession: no persisted bookmark resolves");
-            }
-            run_on_main_thread({
-                if ([self isCurrentOpenIntent:openIntentGeneration]) {
-                    [NSUserDefaults.standardUserDefaults removeObjectForKey:kFolderBookmarkKey];
-                    [NSUserDefaults.standardUserDefaults removeObjectForKey:kAdditionBookmarksKey];
-                    [self.delegate folderSessionRestoreDidFail:self];
-                }
-            });
-            return;
-        }
-        [self openURLsOnWorkQueue:urls appending:NO restored:YES keepsSessionBookmark:NO expandsFile:YES
-                         sortedBy:sort coveringRootPaths:@[] holds:@[] grants:@[]
-             openIntentGeneration:openIntentGeneration];
-    });
-    return YES;
-}
-
-// Answers the URLs that resolved, IN THE ORDER PASSED; a failure, the base
-// included, is simply missing, and the landing's rewrite of both keys is the
-// pruning. Parallel because a concurrent queue does not parallelize inside
-// one block, and resolving in a row cost the sum. It still waits for the
-// slowest bookmark, since the walk needs the whole union. The listing and
-// minting that follow stay serial on purpose: one order-dependent loop owns
-// the dedupe, the base rule and each scope's start-stop pairing.
-- (NSArray<NSURL *> *)resolveBookmarksConcurrently:(NSArray<NSData *> *)bookmarks
-                              openIntentGeneration:(uint64_t)openIntentGeneration {
-    NSMutableArray *slots = [NSMutableArray arrayWithCapacity:bookmarks.count];
-    for (NSUInteger i = 0; i < bookmarks.count; i++) {
-        [slots addObject:NSNull.null];
-    }
-    NSOperationQueue *queue = [[NSOperationQueue alloc] init];
-    queue.name = @"FolderSession.restore";
-    queue.qualityOfService = NSQualityOfServiceUserInitiated;
-    queue.maxConcurrentOperationCount = kMaximumConcurrentBookmarkRestorations;
-    [bookmarks enumerateObjectsUsingBlock:^(NSData *data, NSUInteger index, BOOL *stop) {
-        [queue addOperationWithBlock:^{
-            if (![self isCurrentOpenIntent:openIntentGeneration]) {
-                return;
-            }
-            NSError *error = nil;
-            NSURL *url = [self resolveBookmark:data error:&error];
-            if (!url) {
-                LogWarn(@"FolderSession: a bookmark no longer resolves (%@)", error);
-                return;
-            }
-            // Its own slot: completion order must not become playlist order.
-            @synchronized (slots) {
-                slots[index] = url;
-            }
-        }];
-    }];
-    [queue waitUntilAllOperationsAreFinished];
-    NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:slots.count];
-    for (id slot in slots) {
-        if (slot != NSNull.null) {
-            [urls addObject:slot];
-        }
-    }
-    return urls;
-}
-
-- (NSString *)persistedTrackKey {
-    return [NSUserDefaults.standardUserDefaults stringForKey:kLastTrackPathKey];
-}
-
-- (void)setPersistedTrackKey:(NSString *)key {
-    if (key) {
-        [NSUserDefaults.standardUserDefaults setObject:key forKey:kLastTrackPathKey];
-    }
-    else {
-        [NSUserDefaults.standardUserDefaults removeObjectForKey:kLastTrackPathKey];
-    }
-}
-
-- (NSURL *)resolveBookmark:(NSData *)bookmark error:(NSError **)error {
-    BOOL stale = NO;
-    return [NSURL URLByResolvingBookmarkData:bookmark
-                                     options:0
-                               relativeToURL:nil
-                         bookmarkDataIsStale:&stale
-                                       error:error];
-}
-
-- (NSData *)bookmarkForURL:(NSURL *)url {
-    // iOS has no WithSecurityScope option: a default bookmark of a granted
-    // URL carries the scope. Requires the scope open, which every caller holds.
-    NSError *error = nil;
-    NSData *bookmark = [url bookmarkDataWithOptions:0
-                     includingResourceValuesForKeys:nil
-                                      relativeToURL:nil
-                                              error:&error];
-    if (!bookmark) {
-        LogWarn(@"FolderSession: could not bookmark %@ (%@)", url, error);
-    }
-    return bookmark;
-}
-
-// Only this session's own base may be extended: after a search hit, an inbox
-// copy or a one-file open over a folder bookmark, it is an earlier playlist's.
-- (void)persistAdditionBookmarks:(NSArray<NSData *> *)additionBookmarks {
-    if (additionBookmarks.count == 0) {
-        return;
-    }
-    if (!_additionsPersisted) {
-        LogInfo(@"FolderSession: addition is session-only — the persisted base is not this session's");
-        return;
-    }
-    NSArray *list = [NSUserDefaults.standardUserDefaults arrayForKey:kAdditionBookmarksKey] ?: @[];
-    [NSUserDefaults.standardUserDefaults setObject:[list arrayByAddingObjectsFromArray:additionBookmarks]
-                                            forKey:kAdditionBookmarksKey];
-}
-
-// The hold makes this safe off main: a newer open landing releases the
-// previous scopes, and a mint under a closed scope fails.
-- (void)bookmarkOpenFolderWithCompletion:(void (^)(NSURL *folderURL,
-                                                   NSData *bookmark))completion {
-    NSURL *folderURL = _folderURL;
-    if (!folderURL) {
-        completion(nil, nil);
-        return;
-    }
-    // The scoped list, not the search roots: see rootCoveringPath:in:.
-    NSURL *scopedURL = [self rootCoveringPath:VibeComparablePath(folderURL.path)
-                                           in:_scopedURLs];
-    BOOL scopeHoldStarted = [scopedURL startAccessingSecurityScopedResource];
-    dispatch_async(_workQueue, ^{
-        NSData *bookmark = [self bookmarkForURL:folderURL];
-        if (scopeHoldStarted) {
-            [scopedURL stopAccessingSecurityScopedResource];
-        }
-        run_on_main_thread({
-            completion(bookmark ? folderURL : nil, bookmark);
-        });
-    });
-}
-
-// The URL arrives with the browser's grant, so its scope is started directly.
-- (void)bookmarkFolderURL:(NSURL *)folderURL
-               completion:(void (^)(NSData *bookmark))completion {
-    if (!folderURL) {
-        completion(nil);
-        return;
-    }
-    // NO is not failure: the app's own container is not security-scoped.
-    BOOL scopeHoldStarted = [folderURL startAccessingSecurityScopedResource];
-    dispatch_async(_workQueue, ^{
-        NSData *bookmark = [self bookmarkForURL:folderURL];
-        if (scopeHoldStarted) {
-            [folderURL stopAccessingSecurityScopedResource];
-        }
-        run_on_main_thread({
-            completion(bookmark);
-        });
-    });
 }
 
 #pragma mark - Opening
@@ -581,7 +191,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     }
     // The app's own trees need no grant, so a file picked in one always
     // reaches its folder: Documents, and the Dropbox mirror.
-    NSString *documents = VibeComparablePath(SearchFolderStore.containerDocumentsURL.path);
+    NSString *documents = VibeComparablePath(LocationStore.containerDocumentsURL.path);
     NSString *dropbox = VibeComparablePath(DropboxMirror.shared.accountURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
@@ -590,7 +200,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [coveringRootPaths addObject:dropbox];
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
-    NSMutableArray<SearchFolderGrant *> *grants = [NSMutableArray array];
+    NSMutableArray<LocationGrant *> *grants = [NSMutableArray array];
     BOOL keepsSessionBookmark = NO;
     for (NSURL *url in urls) {
         NSString *path = VibeComparablePath(url.path);
@@ -598,11 +208,11 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // a derived root would also mask the favorites lookup below.
         NSURL *root = [self rootCoveringPath:path in:_scopedURLs];
         NSURL *sessionRoot = root;
-        SearchFolderGrant *grant = [SearchFolderStore.shared grantCoveringURL:url];
+        LocationGrant *grant = [LocationStore.shared grantCoveringURL:url];
         if (!grant) {
-            // A removed Settings row: carry the current playlist's retained
+            // A removed Location: carry the current playlist's retained
             // grant over rather than revoke it when this result wins.
-            for (SearchFolderGrant *held in _searchGrants) {
+            for (LocationGrant *held in _searchGrants) {
                 if (VibeSearchRootCoversPath(VibeComparablePath(held.rootURL.path), path)) {
                     grant = held;
                     break;
@@ -642,6 +252,29 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     });
 }
 
+// Work queue. A Dropbox folder nothing has listed yet is listed from Dropbox
+// before it is read: the mirror holds only what something has listed, so a
+// folder played or added from its parent's listing, never browsed into, was
+// empty on disk and the open landed nothing. One already listed is read as it
+// is — the browser relists it when shown — so a restore never waits on the
+// network. Bounded, so an open offline still reads the disk.
+- (void)listFromDropboxIfMirrored:(NSURL *)url {
+    DropboxMirror *mirror = DropboxMirror.shared;
+    NSString *dropboxPath = [mirror dropboxPathForURL:url];
+    if (!dropboxPath || [mirror hasListedDirectory:url]) {
+        return;
+    }
+    dispatch_semaphore_t listed = dispatch_semaphore_create(0);
+    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+        if (error) {
+            LogWarn(@"FolderSession: could not list %@ from Dropbox: %@", url.lastPathComponent,
+                    error.localizedDescription);
+        }
+        dispatch_semaphore_signal(listed);
+    }];
+    dispatch_semaphore_wait(listed, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDropboxListingTimeout * NSEC_PER_SEC)));
+}
+
 // Answers how many it took, so a caller can tell "contributed nothing". Keyed
 // by what sounds: rows of one file are distinct, a file twice is not.
 - (NSUInteger)appendFresh:(NSArray<AudioTrack *> *)rows
@@ -659,6 +292,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     return taken;
 }
 
+// Work queue. Each phase hands the next its result through open: the rows,
+// then the holds adopted, then the bookmarks, then the recents.
 - (void)openURLsOnWorkQueue:(NSArray<NSURL *> *)urls
                   appending:(BOOL)appending
                    restored:(BOOL)restored
@@ -667,7 +302,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                    sortedBy:(VibeFolderOpenSort)sort
           coveringRootPaths:(NSArray<NSString *> *)coveringRootPaths
                       holds:(NSArray<NSURL *> *)holds
-                     grants:(NSArray<SearchFolderGrant *> *)grants
+                     grants:(NSArray<LocationGrant *> *)grants
        openIntentGeneration:(uint64_t)openIntentGeneration {
     if (![self isCurrentOpenIntent:openIntentGeneration]) {
         for (NSURL *hold in holds) {
@@ -675,27 +310,19 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
         return;
     }
-    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray array];
-    // One delivery names each row once. A restore's list can overlap and is
-    // delivered as a REPLACE, which does not dedupe: without this, every
-    // relaunch grows a copy of each re-added folder.
-    NSMutableSet<NSString *> *seenKeys = [NSMutableSet set];
-    NSMutableArray<NSURL *> *ownedScopes = [NSMutableArray array];
-    NSMutableArray<NSURL *> *addedFolders = [NSMutableArray array];
-    // The URLs that produced tracks, in pick order. Bookmarks are minted from
-    // these, never from urls, so a folder with no audio persists nothing.
-    NSMutableArray<NSURL *> *contributors = [NSMutableArray array];
-    NSURL *folderURL = nil;
-    NSURL *selectedURL = nil;
-    // The first picked sheet that found nothing because its folder is
-    // denied: reported once the empty open settles, so the user can grant it.
-    NSURL *deniedSheetURL = nil;
-    BOOL expands = expandsFile && urls.count == 1;
+    FolderSessionOpen *open = [[FolderSessionOpen alloc] init];
+    open.urls = urls;
+    open.appending = appending;
+    open.restored = restored;
+    open.keepsSessionBookmark = keepsSessionBookmark;
+    open.expandsFile = expandsFile;
+    open.sort = sort;
+    open.coveringRootPaths = coveringRootPaths;
     // Resolved lazily and at most once: a resolve is provider IPC, and a
     // folder open never needs it.
     __block BOOL persistedBaseResolved = NO;
     __block NSURL *persistedBase = nil;
-    NSURL *(^resolvePersistedBase)(void) = ^NSURL *{
+    open.resolvePersistedBase = ^NSURL *{
         if (!persistedBaseResolved) {
             persistedBaseResolved = YES;
             NSData *data = [NSUserDefaults.standardUserDefaults dataForKey:kFolderBookmarkKey];
@@ -703,6 +330,73 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
         return persistedBase;
     };
+    [self resolveRowsOfOpen:open];
+
+    if (open.tracks.count == 0) {
+        for (NSURL *hold in holds) {
+            [hold stopAccessingSecurityScopedResource];
+        }
+        for (NSURL *owned in open.ownedScopes) {
+            [owned stopAccessingSecurityScopedResource];
+        }
+        NSURL *deniedSheetURL = open.deniedSheetURL;
+        // Still settles (finishOpenIntent:), and only then asks.
+        run_on_main_thread({
+            if ([self finishOpenIntent:openIntentGeneration appending:appending tracks:@[]
+                             folderURL:nil addedFolders:@[] selectedURL:nil restored:restored
+                           ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]]
+                    && deniedSheetURL) {
+                [self.delegate folderSession:self needsFolderOfSheetAtURL:deniedSheetURL
+                                   appending:appending];
+            }
+        });
+        return;
+    }
+
+    [self adoptHolds:holds coveringContributorsOfOpen:open];
+
+    // Minting needs the scope OPEN, so it runs before any release.
+    if ([self isCurrentOpenIntent:openIntentGeneration]) {
+        [self mintBookmarksOfOpen:open];
+        if (!restored) {
+            [self recordRecentsOfOpen:open];
+        }
+    }
+
+    run_on_main_thread({
+        [self finishOpenIntent:openIntentGeneration appending:appending tracks:open.tracks
+                     folderURL:open.folderURL addedFolders:open.addedFolders selectedURL:open.selectedURL
+                      restored:restored ownedScopes:open.ownedScopes ownedGrants:grants
+                  baseBookmark:open.baseBookmark additionBookmarks:open.additionBookmarks];
+    });
+}
+
+// Work queue. Lists every picked URL into open.tracks, and records which URLs
+// contributed and which scopes the rows need.
+- (void)resolveRowsOfOpen:(FolderSessionOpen *)open {
+    NSArray<NSURL *> *urls = open.urls;
+    BOOL appending = open.appending;
+    BOOL restored = open.restored;
+    VibeFolderOpenSort sort = open.sort;
+    BOOL expandsFile = open.expandsFile;
+    NSArray<NSString *> *coveringRootPaths = open.coveringRootPaths;
+    NSURL *(^resolvePersistedBase)(void) = open.resolvePersistedBase;
+    NSMutableArray<AudioTrack *> *tracks = open.tracks;
+    // One delivery names each row once. A restore's list can overlap and is
+    // delivered as a REPLACE, which does not dedupe: without this, every
+    // relaunch grows a copy of each re-added folder.
+    NSMutableSet<NSString *> *seenKeys = [NSMutableSet set];
+    NSMutableArray<NSURL *> *ownedScopes = open.ownedScopes;
+    NSMutableArray<NSURL *> *addedFolders = open.addedFolders;
+    // The URLs that produced tracks, in pick order. Bookmarks are minted from
+    // these, never from urls, so a folder with no audio persists nothing.
+    NSMutableArray<NSURL *> *contributors = open.contributors;
+    NSURL *folderURL = nil;
+    NSURL *selectedURL = nil;
+    // The first picked sheet that found nothing because its folder is
+    // denied: reported once the empty open settles, so the user can grant it.
+    NSURL *deniedSheetURL = nil;
+    BOOL expands = expandsFile && urls.count == 1;
     // A recent FOLDER's bookmark is the grant for a one-off pick the browser
     // reached again through Recents: the browser holds that root only while
     // its screen is up, and the session's own hold went with the playlist,
@@ -710,7 +404,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     // the persisted base. Resolved at most once per recent: provider IPC.
     NSMutableDictionary<NSString *, NSURL *> *recentRoots = [NSMutableDictionary dictionary];
     NSURL *(^resolveRecentRootCovering)(NSString *) = ^NSURL *(NSString *coveredPath) {
-        for (NSDictionary *item in self.recentItems) {
+        for (NSDictionary *item in RecentsStore.shared.recentItems) {
             NSString *recentPath = item[@"path"];
             NSData *bookmark = item[@"bookmark"];
             if (![item[@"folder"] boolValue] || ![recentPath isKindOfClass:NSString.class]
@@ -780,7 +474,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             }
             if (listable) {
                 [self listFromDropboxIfMirrored:parent];
-                if ([self appendFresh:[NSURLUtil rowsInDirectory:parent sortedBy:sort]
+                if ([self appendFresh:[FolderWalk rowsInDirectory:parent sortedBy:sort]
                                    to:tracks
                                  seen:seenKeys] > 0) {
                     if (started) {
@@ -816,15 +510,15 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 [self listFromDropboxIfMirrored:folder];
             }
         }
-        NSArray<AudioTrack *> *produced = isDir ? [NSURLUtil rowsInDirectory:url sortedBy:sort]
-                                                : [NSURLUtil rowsForFile:url];
+        NSArray<AudioTrack *> *produced = isDir ? [FolderWalk rowsInDirectory:url sortedBy:sort]
+                                                : [FolderWalk rowsForFile:url];
         if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {
             if (started) {
                 [held stopAccessingSecurityScopedResource];
             }
             if (!isDir && !restored && !deniedSheetURL && produced.count == 0
                     && [PlaylistFile isCueExtension:url.pathExtension.lowercaseString]
-                    && [NSURLUtil isReadDenied:url.URLByDeletingLastPathComponent]) {
+                    && [FolderWalk isReadDenied:url.URLByDeletingLastPathComponent]) {
                 deniedSheetURL = url;
             }
             continue;
@@ -847,29 +541,18 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         }
     }
 
-    if (tracks.count == 0) {
-        for (NSURL *hold in holds) {
-            [hold stopAccessingSecurityScopedResource];
-        }
-        for (NSURL *owned in ownedScopes) {
-            [owned stopAccessingSecurityScopedResource];
-        }
-        // Still settles (finishOpenIntent:), and only then asks.
-        run_on_main_thread({
-            if ([self finishOpenIntent:openIntentGeneration appending:appending tracks:@[]
-                             folderURL:nil addedFolders:@[] selectedURL:nil restored:restored
-                           ownedScopes:@[] ownedGrants:@[] baseBookmark:nil additionBookmarks:@[]]
-                    && deniedSheetURL) {
-                [self.delegate folderSession:self needsFolderOfSheetAtURL:deniedSheetURL
-                                   appending:appending];
-            }
-        });
-        return;
-    }
+    open.folderURL = folderURL;
+    open.selectedURL = selectedURL;
+    open.deniedSheetURL = deniedSheetURL;
+}
 
-    // A hold covering no contributor is released; the rest are adopted.
-    // Contributors, not tracks: the listing is flat, so covering a contributor
-    // is covering its tracks, and there are far fewer of them.
+// Work queue. A hold covering no contributor is released; the rest are
+// adopted into open.ownedScopes.
+// Contributors, not tracks: the listing is flat, so covering a contributor
+// is covering its tracks, and there are far fewer of them.
+- (void)adoptHolds:(NSArray<NSURL *> *)holds coveringContributorsOfOpen:(FolderSessionOpen *)open {
+    NSArray<NSURL *> *contributors = open.contributors;
+    NSMutableArray<NSURL *> *ownedScopes = open.ownedScopes;
     NSMutableArray<NSString *> *contributorPaths = [NSMutableArray arrayWithCapacity:contributors.count];
     for (NSURL *contributor in contributors) {
         [contributorPaths addObject:VibeComparablePath(contributor.path) ?: @""];
@@ -890,100 +573,110 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             [hold stopAccessingSecurityScopedResource];
         }
     }
+}
 
-    // Minting needs the scope OPEN, so it runs before any release.
+// Work queue, under every scope the open owns. Mints the base bookmark and the
+// addition bookmarks; finishOpenIntent: persists them.
+- (void)mintBookmarksOfOpen:(FolderSessionOpen *)open {
+    BOOL appending = open.appending;
+    BOOL keepsSessionBookmark = open.keepsSessionBookmark;
+    NSURL *(^resolvePersistedBase)(void) = open.resolvePersistedBase;
+    NSURL *folderURL = open.folderURL;
+    NSArray<NSURL *> *addedFolders = open.addedFolders;
+    NSArray<NSURL *> *contributors = open.contributors;
     NSData *baseBookmark = nil;
-    NSMutableArray<NSData *> *additionBookmarks = [NSMutableArray array];
+    NSMutableArray<NSData *> *additionBookmarks = open.additionBookmarks;
     NSURL *base = appending ? nil : (folderURL ?: contributors.firstObject);
-    if ([self isCurrentOpenIntent:openIntentGeneration]) {
-        // An open that brought any folder in persists, whatever its base. So
-        // does a link opened alone: it restores from its placeholder, offline
-        // too (VibeFolderSessionPersistsBase).
-        BOOL openedFolder = folderURL || addedFolders.count > 0;
-        BOOL baseIsLink = base && [LinkStore.shared containsURL:base];
-        BOOL persistedBaseIsFolder = NO;
-        if (base && !keepsSessionBookmark && !openedFolder && !baseIsLink) {
-            NSNumber *isDirectory = nil;
-            [resolvePersistedBase() getResourceValue:&isDirectory
-                                              forKey:NSURLIsDirectoryKey
-                                               error:NULL];
-            persistedBaseIsFolder = isDirectory.boolValue;
-        }
-        // Each mint is provider IPC, so the recents reuse these.
-        NSMutableDictionary<NSURL *, NSData *> *minted = [NSMutableDictionary dictionary];
-        if (base && VibeFolderSessionPersistsBase(keepsSessionBookmark, openedFolder, persistedBaseIsFolder,
-                                                  baseIsLink)) {
-            baseBookmark = [self bookmarkForURL:base];
-            minted[base] = baseBookmark;
-        }
-        if (appending || baseBookmark) {
-            for (NSURL *contributor in contributors) {
-                NSData *bookmark = contributor == base ? nil : [self bookmarkForURL:contributor];
-                if (bookmark) {
-                    [additionBookmarks addObject:bookmark];
-                    minted[contributor] = bookmark;
-                }
+    // An open that brought any folder in persists, whatever its base. So
+    // does a link opened alone: it restores from its placeholder, offline
+    // too (VibeFolderSessionPersistsBase).
+    BOOL openedFolder = folderURL || addedFolders.count > 0;
+    BOOL baseIsLink = base && [LinkStore.shared containsURL:base];
+    BOOL persistedBaseIsFolder = NO;
+    if (base && !keepsSessionBookmark && !openedFolder && !baseIsLink) {
+        NSNumber *isDirectory = nil;
+        [resolvePersistedBase() getResourceValue:&isDirectory
+                                          forKey:NSURLIsDirectoryKey
+                                           error:NULL];
+        persistedBaseIsFolder = isDirectory.boolValue;
+    }
+    // Each mint is provider IPC, so the recents reuse these.
+    NSMutableDictionary<NSURL *, NSData *> *minted = open.minted;
+    if (base && VibeFolderSessionPersistsBase(keepsSessionBookmark, openedFolder, persistedBaseIsFolder,
+                                              baseIsLink)) {
+        baseBookmark = [self bookmarkForURL:base];
+        minted[base] = baseBookmark;
+    }
+    if (appending || baseBookmark) {
+        for (NSURL *contributor in contributors) {
+            NSData *bookmark = contributor == base ? nil : [self bookmarkForURL:contributor];
+            if (bookmark) {
+                [additionBookmarks addObject:bookmark];
+                minted[contributor] = bookmark;
             }
-        }
-        if (!restored) {
-            // The picked URLs that produced tracks; a file that expanded is
-            // still the file, and only a lone file expands.
-            NSArray<NSURL *> *opened = selectedURL ? @[selectedURL] : contributors;
-            // Play with Subfolders, or a long multi-select: recorded each, a
-            // library of two hundred albums replaced the whole list in one
-            // tap. It is one entry — the folder they share, when a root in
-            // hand covers it, else the first of them.
-            NSURL *shared = nil;
-            if (opened.count > kMaximumRecentItemsPerOpen) {
-                NSArray<NSString *> *common = nil;
-                for (NSURL *url in opened) {
-                    BOOL isFolder = url == folderURL || [addedFolders containsObject:url];
-                    NSArray<NSString *> *components =
-                            (isFolder ? url : url.URLByDeletingLastPathComponent).URLByStandardizingPath.pathComponents;
-                    NSUInteger length = 0;
-                    while (common && length < common.count && length < components.count
-                            && [common[length] isEqualToString:components[length]]) {
-                        length++;
-                    }
-                    common = common ? [common subarrayWithRange:NSMakeRange(0, length)] : components;
-                }
-                NSString *sharedPath = [NSString pathWithComponents:common ?: @[]];
-                if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, sharedPath) != NSNotFound) {
-                    shared = [NSURL fileURLWithPath:sharedPath isDirectory:YES];
-                }
-                opened = @[shared ?: opened.firstObject];
-            }
-            NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
-            // A link's host, read here off main: a link is named by it.
-            NSMutableArray *linkHosts = [NSMutableArray arrayWithCapacity:opened.count];
-            for (NSURL *url in opened) {
-                NSMutableDictionary *item = [NSMutableDictionary dictionary];
-                item[@"path"] = VibeComparablePath(url.path);
-                item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
-                item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
-                [recents addObject:item];
-                [linkHosts addObject:[LinkStore.shared hostOfLinkFileURL:url] ?: NSNull.null];
-            }
-            run_on_main_thread({
-                // On main: the name asks the Dropbox mirror and UIDevice.
-                // Recorded, not derived at draw time: the path can outlive
-                // the app container it names.
-                [recents enumerateObjectsUsingBlock:^(NSMutableDictionary *item, NSUInteger index, BOOL *stop) {
-                    NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
-                    id host = linkHosts[index];
-                    item[@"location"] = host != NSNull.null
-                            ? host : [SearchFolderStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
-                }];
-                [self recordRecentItems:recents];
-            });
         }
     }
+    open.baseBookmark = baseBookmark;
+}
 
+// Work queue; the record itself lands on main. Reuses the bookmarks
+// mintBookmarksOfOpen: made.
+- (void)recordRecentsOfOpen:(FolderSessionOpen *)open {
+    NSURL *folderURL = open.folderURL;
+    NSArray<NSURL *> *addedFolders = open.addedFolders;
+    NSArray<NSURL *> *contributors = open.contributors;
+    NSURL *selectedURL = open.selectedURL;
+    NSArray<NSString *> *coveringRootPaths = open.coveringRootPaths;
+    NSDictionary<NSURL *, NSData *> *minted = open.minted;
+    // The picked URLs that produced tracks; a file that expanded is
+    // still the file, and only a lone file expands.
+    NSArray<NSURL *> *opened = selectedURL ? @[selectedURL] : contributors;
+    // Play with Subfolders, or a long multi-select: recorded each, a
+    // library of two hundred albums replaced the whole list in one
+    // tap. It is one entry — the folder they share, when a root in
+    // hand covers it, else the first of them.
+    NSURL *shared = nil;
+    if (opened.count > kMaximumRecentItemsPerOpen) {
+        NSArray<NSString *> *common = nil;
+        for (NSURL *url in opened) {
+            BOOL isFolder = url == folderURL || [addedFolders containsObject:url];
+            NSArray<NSString *> *components =
+                    (isFolder ? url : url.URLByDeletingLastPathComponent).URLByStandardizingPath.pathComponents;
+            NSUInteger length = 0;
+            while (common && length < common.count && length < components.count
+                    && [common[length] isEqualToString:components[length]]) {
+                length++;
+            }
+            common = common ? [common subarrayWithRange:NSMakeRange(0, length)] : components;
+        }
+        NSString *sharedPath = [NSString pathWithComponents:common ?: @[]];
+        if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, sharedPath) != NSNotFound) {
+            shared = [NSURL fileURLWithPath:sharedPath isDirectory:YES];
+        }
+        opened = @[shared ?: opened.firstObject];
+    }
+    NSMutableArray<NSMutableDictionary *> *recents = [NSMutableArray arrayWithCapacity:opened.count];
+    // A link's host, read here off main: a link is named by it.
+    NSMutableArray *linkHosts = [NSMutableArray arrayWithCapacity:opened.count];
+    for (NSURL *url in opened) {
+        NSMutableDictionary *item = [NSMutableDictionary dictionary];
+        item[@"path"] = VibeComparablePath(url.path);
+        item[@"bookmark"] = minted[url] ?: [self bookmarkForURL:url];
+        item[@"folder"] = @(url == shared || url == folderURL || [addedFolders containsObject:url]);
+        [recents addObject:item];
+        [linkHosts addObject:[LinkStore.shared hostOfLinkFileURL:url] ?: NSNull.null];
+    }
     run_on_main_thread({
-        [self finishOpenIntent:openIntentGeneration appending:appending tracks:tracks
-                     folderURL:folderURL addedFolders:addedFolders selectedURL:selectedURL
-                      restored:restored ownedScopes:ownedScopes ownedGrants:grants
-                  baseBookmark:baseBookmark additionBookmarks:additionBookmarks];
+        // On main: the name asks the Dropbox mirror and UIDevice.
+        // Recorded, not derived at draw time: the path can outlive
+        // the app container it names.
+        [recents enumerateObjectsUsingBlock:^(NSMutableDictionary *item, NSUInteger index, BOOL *stop) {
+            NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
+            id host = linkHosts[index];
+            item[@"location"] = host != NSNull.null
+                    ? host : [LocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
+        }];
+        [RecentsStore.shared recordRecentItems:recents];
     });
 }
 
@@ -998,7 +691,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
              selectedURL:(NSURL *)selectedURL
                 restored:(BOOL)restored
              ownedScopes:(NSArray<NSURL *> *)ownedScopes
-             ownedGrants:(NSArray<SearchFolderGrant *> *)ownedGrants
+             ownedGrants:(NSArray<LocationGrant *> *)ownedGrants
             baseBookmark:(NSData *)baseBookmark
        additionBookmarks:(NSArray<NSData *> *)additionBookmarks {
     BOOL current = [self isCurrentOpenIntent:openIntentGeneration];
@@ -1018,23 +711,22 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // captured at a generation nothing landed and Add is dead for the
         // session. Zero stays zero, so an Add is still promoted, and an append
         // carries nothing.
-        if (!appending && _landedOpenIntentGeneration != 0) {
-            _landedOpenIntentGeneration = openIntentGeneration;
-        }
         if (appending) {
             // Delivered empty, never dropped: whoever asked is waiting to
             // hear how it landed, and nothing else will tell them.
             LogInfo(@"FolderSession: nothing to append");
             [self.delegate folderSession:self didAppendTracks:@[]];
         }
-        else if (restored) {
-            [self.delegate folderSessionRestoreDidFail:self];
-        }
         else {
-            [self.delegate folderSessionDidOpenEmptyFolder:self];
-        }
-        // Replayed, not left hanging; the first promotes in its turn.
-        if (!appending) {
+            _landedOpenIntentGeneration = VibeFolderSessionCarriedOpenIntentGeneration(
+                    _landedOpenIntentGeneration, openIntentGeneration);
+            if (restored) {
+                [self.delegate folderSessionRestoreDidFail:self];
+            }
+            else {
+                [self.delegate folderSessionDidOpenEmptyFolder:self];
+            }
+            // Replayed, not left hanging; the first promotes in its turn.
             [self releaseAddWaitersAfterSettle];
         }
         return YES;

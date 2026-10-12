@@ -4,11 +4,13 @@ What the file-load and metadata subsystem does, as observable behavior. It spans
 
 The spec does **not** constrain mechanism. Holds or preemption, one coordinator or two, which object owns a timer: all are free, as long as every numbered behavior survives. File references are pointers for verification.
 
+Where this spec and `Vibe/Loading/AGENTS.md` overlap, this spec is the authority for behavior and its policy numbers. `Vibe/Loading/AGENTS.md` is the authority for how the code works.
+
 ---
 
 ## A. Definitions
 
-- **A1. Local and dataless.** A file is *local* when its contents are on disk. It is *dataless* when it is a File Provider or app-owned remote placeholder that needs a transfer (`NSURLUtil.isDatalessFile:`). Every rule that bounds or suspends downloads binds *transfers*. A local file never starts one and is exempt from all of them.
+- **A1. Local and dataless.** A file is *local* when its contents are on disk. It is *dataless* when it is a File Provider or app-owned remote placeholder that needs a transfer (`PlaceholderFiles.isDatalessFile:`). Every rule that bounds or suspends downloads binds *transfers*. A local file never starts one and is exempt from all of them.
 - **A2. Materialization.** Making a standardized path local: a provider or remote download, or a no-op for a local file. A remote stream can become readable before that operation completes. **At most one materialization operation exists per standardized path at any time.** Every interested party joins it rather than starting a second transfer. This is the most load-bearing rule in the subsystem.
 - **A3. Open.** Producing a usable `AudioFileHandle` for a purpose: playback or prefetch. Gapless opens nothing (B6). Purposes hold **independent handles** for the same path, since a handle has one stateful read position.
 - **A4. Roles.** Work competing for transfers is playback, prefetch, metadata for the current track ("priority"), metadata for the playlist sweep ("scan"), or artwork extraction. Playback and prefetch are *foreground*. The rest are *background*.
@@ -40,7 +42,7 @@ The spec does **not** constrain mechanism. Holds or preemption, one coordinator 
 ## D. Metadata loading
 
 - **D1. Cache first, never touching audio.** A row whose metadata is in the disk cache populates without reading the audio file: tags, duration and thumbnail. On a playlist of placeholders, every cached row lands at disk speed before any download is chosen. Stage 1 of the scan checks every row against the cache. Only stage 2 may download.
-- **D2. The cache key follows the audio file** (root `AGENTS.md`, File hashing). A changed size, mtime or path misses. A rewrite preserving all three is undetectable. A sidecar image cannot move it. A remote install that changes the placeholder's stamp re-keys its tracks.
+- **D2. The cache key follows the audio file** (root `AGENTS.md`, Key patterns). A changed size, mtime or path misses. A rewrite preserving all three is undetectable. A sidecar image cannot move it. A remote install that changes the placeholder's stamp re-keys its tracks.
 - **D3. Current track first.** The playing or loading track's tags and art are produced ahead of the sweep, at user-initiated priority, whether or not a sweep runs. The mac header, the iOS now-playing page and Now Playing all read them.
 - **D4. The sweep is deferred** until the picked track's open settles, with a **2 s** fallback so a wedged open cannot leave the playlist unpopulated. A parked restore with no play starts the sweep directly. C1 still gates dataless work.
 - **D5. Sweep order follows the listener.** Among pending misses: **local files first**, since their materialization is free. Then untried before deferred, so a failed-once record sorts last. Then neighborhood rank: **next, next+1, previous** in play order, shuffle included. Then playlist index as the stable tie-break. The order is re-evaluated on every track change and every submit. Selection is one O(n) pass, since real playlists reach 10⁵ misses: no sorting, and no per-entry pre-submission.
@@ -87,7 +89,7 @@ Current production values, all reviewable.
 | Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
 | Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m` |
-| Live handle runs (shared production coordinator) | 6, refused at once, no pending, grace or configuration | `AudioFileMaterializationCoordinator.m` |
+| Live handle runs (shared production coordinator) | 6, refused at once, no pending, grace or configuration | `AudioFileMaterializationCoordinator+HandleOpen.m` |
 | Prefetch depth | 1 | `AudioLoadingConfiguration.m` |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |
 | Admission-exhausted retry delay | 0.25 s → 2 s escalating | `MetadataRetryRules.h` |
@@ -96,8 +98,8 @@ Current production values, all reviewable.
 | Neighborhood offsets | +1, +2, −1 | `Playlist.neighborhoodTracks` |
 | Art requests (running / pending) | 2 / 5 | `ArtworkLoadRegistry` |
 | Art admission backoff | 0.1–1 s | same |
-| Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork.m` |
-| Thumbnail LRU | 16,384 entries | `AudioTrackArtwork.m` |
+| Extraction retries / backoff | 3 reads / 2 s | `AudioTrackArtwork+Loading.m` |
+| Thumbnail LRU | 16,384 entries | `EmbeddedThumbnailCache.m` |
 | Thumbnail size | 128 px | — |
 | Display rendition bound | 640 px mac / 1024 px iOS | `PlatformImage.h` |
 | Full-art decode bound | 1024 px | — |

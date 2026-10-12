@@ -4,7 +4,7 @@ The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` ges
 
 ## The channel
 
-Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugCommands.m` over `Vibe/Debug/DebugChannel.m`.
+Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugiOSEntry.m`, `DebugiOSVerbs.m` and `DebugDropboxVerbs.m` over `Vibe/Debug/Channel/DebugChannel.m`.
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
@@ -34,7 +34,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" append_favorite 0   # the same row added instead of opened. Same caveat
 "$S" search zebra        # {ok, query, materiallyVisible, filesWalkRunning, sections:[{header, rows:[{text, secondaryText}]}]}: replies once the table settles. The only way to query, since nothing synthesizes keystrokes into the field. Needs select_tab search first
 "$S" open_search_hit 0   # index into search.sections[1].rows (Local): plays that file alone with the card up
-"$S" dump_dropbox        # {linked, fake, accountID, accountName, accountPath, playlistTracks:[{dropboxPath, placeholder, stream}]} (iOS/Dropbox/AGENTS.md). A real sign-in is Dropbox's own web sheet, which only a human can fill
+"$S" dump_dropbox        # {linked, fake, accountID, accountName, accountPath, playlistTracks:[{dropboxPath, placeholder, stream}]} (Loading/iOS/Dropbox/AGENTS.md). A real sign-in is Dropbox's own web sheet, which only a human can fill
 "$S" set_fake_dropbox <directory>|off [<transfer-seconds>]   # a host directory answers as the Dropbox account over the client's HTTP boundary (VibeFakeDropbox.h), linked at once. Downloads are paced in 64 KB pieces over transfer-seconds; closed ranges answer at once. Installing again swaps the tree and clears faults and log without rebuilding the client's sessions (VibeFakeDropbox.m's TRAP). To open a folder no listing has made, mkdir it under accountPath and `open` it
 "$S" fake_dropbox_fault <kind> [file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]   # {ok, faults}. Kinds: stall (until `fake_dropbox_fault resume`), drop, rev-change, throttle, expired-token, tail-fail, slow-tail, slow-tags, rate, latency; `clear` drops them all. VibeFakeDropbox.h has each kind's effect
 "$S" dump_fake_dropbox   # {fake, requests, downloads:{whole, resume, ranged, tail}, faults, transfers, log:[{seq, t, file, kind, range, rev, status, delivered, outcome}]}: the last 200 download requests. delivered is what the fake handed the URL loading system, so a resend's Range can start below a drop
@@ -84,15 +84,15 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 - `springboard tap|press|drag|type|tap_label|tree …` targets the Home screen and widget gallery. Start with `VIBE_SIGN_SIM=1` for widget work.
 - The runner disables XCTest's per-event quiescence waits, which never settle under Vibe's display link. That reaches XCTest internals and degrades to slow-but-working if an Xcode update renames them (`Tests/iOSDriver/VibeiOSDriverTests.m`).
 
-## Staleness: `install-ios.sh`
+## Staleness: `sim-install.sh`
 
-`install-ios.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
+`sim-install.sh` is the one home of "the installed app matches the built one". `launch-ios.sh` and `drive-ios.sh start` both call it, and it installs only when the bundles differ. It hashes every file of both bundles (about 80 ms), never mtimes, since every xcodebuild run relinks the executable. `drive-ios.sh status` reports `appStale` as the backstop, since a driver session outlives any number of rebuilds.
 
 ## Per-session simulators and the build lock
 
 `sim-udid.sh` names the device `Vibe-<dir>-<hash>` from the checkout path plus `CLAUDE_CODE_SESSION_ID`. Each session therefore has its own app container, channel and touch driver (command dir `build/ios-driver/<UDID>`). Devices from ended sessions are deleted on every `sim-udid.sh` call once shut down and untouched for 12 hours. `VIBE_SIM_UDID` pins a device. `VIBE_SIM_NAME` renames it.
 
-Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
+Same-checkout sessions share `build/DerivedData`, `Vibe.xcodeproj` and the built `.app`, so builds and installs serialize through `scripts/build/build-lock.sh`. `drive-ios.sh start` holds the lock across `xcodegen generate`, the build and the install. A stuck lock is `build/.build-lock`. It names its holder's pid and is broken automatically once that process is gone. A waiting caller says so once on stderr.
 
 ## iPad
 

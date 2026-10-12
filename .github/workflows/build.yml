@@ -71,9 +71,9 @@ jobs:
 
       # The macOS leg signs ad-hoc (project.yml CODE_SIGN_IDENTITY: "-"), so no
       # certificates or secrets are needed. Distribution signing lives in
-      # scripts/release.sh.
+      # scripts/release/release.sh.
       - name: Build Release and analyze (${{ matrix.leg }})
-        run: scripts/analyze.sh Release ${{ matrix.leg }}
+        run: scripts/build/analyze.sh Release ${{ matrix.leg }}
 
       - name: Verify code signature
         if: matrix.leg == 'macos'
@@ -87,8 +87,8 @@ jobs:
       - name: Analyze AppStore and check it has no updater
         if: matrix.leg == 'macos'
         run: |
-          SKIP_GENERATE=1 scripts/analyze.sh AppStore macos
-          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/asc-build-lib.sh;
+          SKIP_GENERATE=1 scripts/build/analyze.sh AppStore macos
+          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
             asc_require_no_updater build/AnalyzeDD/Build/Products/AppStore/Vibe.app'
 
   # Everything Debug: both apps' Debug builds (Vibe/Debug compiles only here,
@@ -126,11 +126,11 @@ jobs:
       # suited to unattended CI (it drives a real window and needs Screen
       # Recording and Accessibility grants).
       #
-      # Beside it, the render suite: real AudioPlayer/AudioFX graphs, pulled
-      # offline, no audio device or app. The two share nothing but the project
-      # (test-audio has its own derived data), and -k keeps one suite's failure
-      # from stopping the other. Their logs interleave; the summaries below
-      # read each suite's own result bundle.
+      # Beside it, the render suite: the real AudioPlayer and FX pipeline,
+      # driven by the debug render pump, with no audio device or app. The two
+      # share nothing but the project (test-audio has its own derived data),
+      # and -k keeps one suite's failure from stopping the other. Their logs
+      # interleave; the summaries below read each suite's own result bundle.
       - name: Run unit and audio tests
         if: ${{ !cancelled() }}
         run: make -k -j2 test test-audio
@@ -184,9 +184,9 @@ jobs:
       # everyone to ignore the check. release.sh / release-appstore.sh block on
       # it instead. Annotations here make the batch's worklist visible early.
       - name: Report untranslated keys
-        run: scripts/check-translations.sh --github
+        run: scripts/checks/check-translations.sh --github
 
-      # The caption-fit measurement compiles scripts/compose-app-store-overlay.swift
+      # The caption-fit measurement compiles scripts/appstore/compose-app-store-overlay.swift
       # (swiftc, no project) — no pip installs since the compositor moved off
       # Python/PIL.
       - name: Validate App Store copy

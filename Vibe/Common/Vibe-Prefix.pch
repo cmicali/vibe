@@ -1,5 +1,5 @@
 //
-//  Vibe.pch
+//  Vibe-Prefix.pch
 //  Vibe
 //
 //  Created by Christopher Micali on 12/19/19.
@@ -129,7 +129,7 @@ static inline void VibeLogEmit(os_log_type_t type, NSString *message) {
 
 // Frame-budget instrumentation, DEBUG only. An interval lands in Instruments'
 // Points of Interest track, under Animation Hitches, and is also tallied by
-// name (Vibe/Debug/VibeWorkTally.h) for a device with no Instruments attached.
+// name (Vibe/Debug/Oracles/VibeWorkTally.h) for a device with no Instruments attached.
 #if DEBUG
 
 #import <os/signpost.h>

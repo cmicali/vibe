@@ -11,6 +11,7 @@
 #import "AudioDeviceManager.h"
 #import "AudioFX.h"
 #import "AudioPlayer.h"
+#import "AudioPlayer+BitPerfect.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"

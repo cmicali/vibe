@@ -19,7 +19,7 @@
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
-#import "NSURLUtil.h"
+#import "PlaceholderFiles.h"
 #import "UIImage+DominantColor.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
@@ -70,7 +70,7 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 // stream is live for it, when the decode rides the download the play holds.
 // Either way the page starts no download of its own.
 static BOOL WaveformWaitsForOpen(NSURL *url) {
-    return [NSURLUtil isDatalessFile:url] && ![NSURLUtil isRemotePlaceholderFile:url];
+    return [PlaceholderFiles isDatalessFile:url] && ![PlaceholderFiles isRemotePlaceholderFile:url];
 }
 
 - (void)requestCurrentWaveform {

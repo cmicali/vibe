@@ -13,6 +13,7 @@
 #import <Foundation/Foundation.h>
 
 #import "HTTPTransferClient.h"
+#import "LinkClient.h"
 #import "LinkRules.h"
 #import "RemotePlaceholderStore.h"
 
@@ -25,14 +26,8 @@ NS_ASSUME_NONNULL_BEGIN
 // it, if any, is under NSUnderlyingErrorKey. Each shell shows its
 // link.error string.
 extern NSErrorDomain const VibeLinkErrorDomain;
-
-// The client every link goes through: the plain client, and an iCloud Drive
-// share's lookup before each request to it. The lookup's address lives about
-// 15 minutes, so each request gets one looked up in the last 10. A refused
-// address is looked up again once. The checksum the lookup states is the
-// version, so a resend after a fresh lookup continues the same bytes.
-@interface LinkClient : HTTPTransferClient
-@end
+// A link error with that code, carrying underlying and its status.
+NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying);
 
 @interface LinkStore : RemotePlaceholderStore
 

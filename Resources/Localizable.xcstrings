@@ -53384,7 +53384,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.add": {
-      "comment": "Settings, Appearance pane: pull-down button over the ways to add a theme — new, duplicate, import.",
+      "comment": "Settings, Themes pane: pull-down button over the ways to add a theme — new, duplicate, import.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -61196,7 +61196,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.customize": {
-      "comment": "Appearance pane: primary button for a built-in theme; copies its current appearance into an editable custom theme and opens the editor.",
+      "comment": "Themes pane: primary button for a built-in theme. It opens the theme editor. The first edit there saves a copy as a new custom theme.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -61940,7 +61940,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.duplicate": {
-      "comment": "Add menu item, and the button on a built-in theme's read-only editor page: copies the selected theme into an editable one.",
+      "comment": "Add menu item: copies the selected theme into an editable one.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -62126,7 +62126,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.edit": {
-      "comment": "Appearance pane: primary button opening the current custom theme's editor. Ends with a real ellipsis character (…).",
+      "comment": "Themes pane: primary button opening the current custom theme's editor. Ends with a real ellipsis character (…).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -62498,7 +62498,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.export": {
-      "comment": "Settings, Appearance pane: button that saves the selected theme as a JSON file. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Settings, Themes pane: button that saves the selected theme as a JSON file. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -64172,7 +64172,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.group_built_in": {
-      "comment": "Settings, Appearance pane: header row in the theme list, above the themes that ship with the app.",
+      "comment": "Settings, Themes pane: header row in the theme list, above the themes that ship with the app.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -64358,7 +64358,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.group_user": {
-      "comment": "Settings, Appearance pane: header row in the theme list, above the themes the user created, duplicated or imported. Shown only once at least one exists.",
+      "comment": "Settings, Themes pane: header row in the theme list, above the themes the user created, duplicated or imported. Shown only once at least one exists.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -68078,7 +68078,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.remove": {
-      "comment": "Settings, Appearance pane: button that deletes the selected theme. Built-in themes cannot be removed.",
+      "comment": "Settings, Themes pane: button that deletes the selected theme. Built-in themes cannot be removed.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -68264,7 +68264,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.remove_built_in_tip": {
-      "comment": "Settings, Appearance pane: tooltip on the disabled Remove button while a built-in theme is selected.",
+      "comment": "Settings, Themes pane: tooltip on the disabled Remove button while a built-in theme is selected.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -79982,7 +79982,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.window_tint_label": {
-      "comment": "Row beside the dropdown choosing a translucent color wash: in the Appearance pane's Window group, laid over the player window's header background; in the theme editor's Playlist group, laid over the playlist background, with the same choices.",
+      "comment": "Row beside the dropdown choosing a translucent color wash: in the theme editor's Window group, laid over the player window's header background; in its Playlist group, laid over the playlist background, with the same choices.",
       "localizations": {
         "bg": {
           "stringUnit": {

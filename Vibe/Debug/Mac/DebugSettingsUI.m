@@ -4,7 +4,7 @@
 //
 
 #import "DebugSettingsUI.h"
-#import "SettingsAppearanceViewController.h"
+#import "SettingsThemesViewController.h"
 
 #if DEBUG
 
@@ -886,7 +886,7 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                     @"action": @"navigated"});
         }
         if (undo) {
-            // Edit > Undo's own road: the theme history on Appearance, the
+            // Edit > Undo's own road: the theme history on Themes, the
             // selected pane's undo stack elsewhere.
             NSMenuItem *probe = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(undo:) keyEquivalent:@""];
             if (![(id<NSMenuItemValidation>)controller validateMenuItem:probe]) {
@@ -896,7 +896,7 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone",
                                     @"undid": probe.title});
         }
-        SettingsAppearanceViewController *pane = [controller themesPane];
+        SettingsThemesViewController *pane = [controller themesPane];
         if (pane) {
             if (preview) {
                 BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;

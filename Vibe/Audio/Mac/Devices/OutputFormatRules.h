@@ -8,7 +8,7 @@
 //  word length is, which of a device's formats carries it unchanged, whether
 //  a device may be driven at all, and how the reasons fold into the one
 //  status the header and Settings show. The mechanism they serve is
-//  AudioPlayer+Devices.m.
+//  AudioPlayer+Devices.m and AudioPlayer+BitPerfect.m.
 //
 
 #import <Foundation/Foundation.h>
