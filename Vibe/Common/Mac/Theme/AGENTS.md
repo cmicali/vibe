@@ -83,3 +83,7 @@ The theme record. The store that holds it (the keys, `currentThemeDidChange`, un
 ## The dice
 
 **Two dice, neither uniform noise, both `AppTheme` operations** so the host-less suite can roll them by the hundred. `randomizeSettingsWithWaveformStyles:` rolls the appearance choices — backgrounds and tints (never custom, which is a color), corner radius, waveform style/theme/gradient, button gradient and glyphs from the `SettingsRules.h` tables — and the fonts as one face from `randomizableFontFaces` (test-checked installed), the numeric slots monospace half the time, every size at its factory value; colors, the playhead line and the images stay. The styles are passed in because their registry is the renderer's. `randomizeColors` resets every pair, then paints one hue (`HueColor`: a pastel for dark, a deeper shade for light) in one of five schemes, switching on only what shows a painted pair and snapping a leftover custom choice back.
+
+## Fonts
+
+**`Fonts`**: the app's typography. The five themed slots (`VibeFontSlot`, declared with the theme) resolve against the theme that `MainPlayerController.applyStoredFonts` **pushes** through `applyThemeFonts:`. Fonts reads no setting. Until the first push they resolve the factory look. An empty or uninstalled face falls back to the slot's built-in font, so a slot accessor never returns nil.

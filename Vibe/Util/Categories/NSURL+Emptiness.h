@@ -1,5 +1,5 @@
 //
-//  NSURL+AudioOpen.h
+//  NSURL+Emptiness.h
 //  Vibe
 //
 
@@ -15,7 +15,7 @@ static inline BOOL VibeStatIsEmptyOrDirectory(const struct stat *info) {
     return S_ISDIR(info->st_mode) || info->st_size == 0;
 }
 
-@interface NSURL (AudioOpen)
+@interface NSURL (Emptiness)
 
 // A zero-length file or a directory. One stat, no open; NO when the stat
 // fails, so the real open reports why.

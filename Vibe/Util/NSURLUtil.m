@@ -9,7 +9,7 @@
 #endif
 #import "AudioTrack.h"
 #import "FolderArtRules.h"
-#import "NSURL+AudioOpen.h"
+#import "NSURL+Emptiness.h"
 #import "PlayableExtensions.h"
 #import "PlaylistFile.h"
 

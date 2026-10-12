@@ -864,14 +864,14 @@ targets:
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Util/NSURLUtil.m
-      - path: Vibe/Util/Mac/TrackCommands.m
+      - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Util/UIUpdateTimer.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
-      - path: Vibe/Util/Categories/NSURL+AudioOpen.m
+      - path: Vibe/Util/Categories/NSURL+Emptiness.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
@@ -1024,7 +1024,7 @@ targets:
       - path: Vibe/Util/Formatters.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Common/PlayableExtensions.m
-      - path: Vibe/Util/Categories/NSURL+AudioOpen.m
+      - path: Vibe/Util/Categories/NSURL+Emptiness.m
       - path: Vibe/Util/Categories/NSURL+FileIdentity.m
       - path: Vibe/Util/Categories/NSURL+Hash.m
     settings:

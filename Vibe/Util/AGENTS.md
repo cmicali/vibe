@@ -30,7 +30,7 @@ The playable extension set is `Common/PlayableExtensions`. The walk's filter and
 
 ## Traps
 
-**Every audio file is opened through `AudioFileHandle` (`Audio/`). `NSURL+AudioOpen` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. Its rule is `VibeStatIsEmptyOrDirectory`, for the folder walk, which has a stat in hand. There is no preflight. A handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
+**Every audio file is opened through `AudioFileHandle` (`Audio/`). `NSURL+Emptiness` is `isEmptyOrDirectory` alone**, the stat-only test for list filtering. Its rule is `VibeStatIsEmptyOrDirectory`, for the folder walk, which has a stat in hand. There is no preflight. A handle that fails to open leaks nothing, because the descriptor is this process's own (`AudioFileHandle.h`, `Audio/AGENTS.md`).
 
 **TRAP: the emptiness test is `st_size`, never `st_blocks` or `NSURLFileAllocatedSizeKey`.** A dataless cloud file has its true size but zero allocated blocks, so an allocation test would reject every cloud track. `stat()` never materializes the file.
 

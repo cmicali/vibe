@@ -49,7 +49,7 @@ Download progress (fake): 42% (5.0s) tone-long.wav   <- a stall
 
 **TRAP: `next` alone often proves nothing.** `didStartPlaying:` prefetches the following track, so the next open is answered from the parked handle and starts instantly. Aim at a track that is not the parked one: `previous`, a distant row, or an `open`.
 
-**A named pipe cannot stand in for a slow file.** A fifo stats as `st_size == 0`, and `NSURL+AudioOpen.isEmptyOrDirectory` drops it before anything opens it.
+**A named pipe cannot stand in for a slow file.** A fifo stats as `st_size == 0`, and `NSURL+Emptiness.isEmptyOrDirectory` drops it before anything opens it.
 
 ## One-shot BPM and key
 
