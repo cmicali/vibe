@@ -787,6 +787,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
+      - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: Vibe/Util/Categories/PINCache+VibeAudioCache.m
       - path: Vibe/ThirdParty/PINCache/PINCache.m
         compilerFlags: *third-party-flags

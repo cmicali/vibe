@@ -2,7 +2,7 @@
 //  AudioWaveformCache+Debug.h
 //  Vibe
 //
-//  Declaration-only, like AudioPlayer+Debug.h.
+//  Implemented in AudioWaveformCache+Debug.mm.
 //
 
 #if DEBUG

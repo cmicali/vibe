@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "AudioWaveformCache.h"
+#import "AudioWaveformCacheInternal.h"
 #import "AudioWaveform.h"
 #import "PINCache.h"
 #import "PINCache+VibeAudioCache.h"
@@ -60,12 +60,6 @@ static const NSUInteger kMaxRunningWaveformLookups = 2;
 static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 
 @implementation AudioWaveformCache {
-    dispatch_queue_t                _loaderQueue;
-    // Stat and open cannot be interrupted; fixed slots bound blocked workers.
-    AudioWorkScheduler              *_lookupScheduler;
-    AudioWorkScheduler              *_previewScheduler;
-    AudioWorkScheduler              *_decodeScheduler;
-    PINCache*                       _waveformCache;
     __weak AudioWaveformLoader*     _currentLoader;
     // The track _currentLoader is decoding for, so the progressive deliveries
     // can carry it. Main-thread confined, like _currentLoader itself.
@@ -596,83 +590,5 @@ awaitPersist:(BOOL)awaitPersist
         [self.delegate audioWaveformCache:self didDetectKey:waveform.key forTrack:track];
     }
 }
-
-#if DEBUG
-
-#pragma mark - Debug: decode pace
-
-static std::atomic<double> sDebugDecodeSeconds{0};
-
-+ (NSTimeInterval)debugDecodeSeconds {
-    return sDebugDecodeSeconds;
-}
-
-+ (void)setDebugDecodeSeconds:(NSTimeInterval)seconds {
-    sDebugDecodeSeconds = MAX(0.0, seconds);
-}
-
-#pragma mark - Debug: per-file cache control
-
-- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float, NSInteger))completion {
-    AudioTrack *track = [AudioTrack withURL:url];
-    // A private loader, never assigned to _currentLoader. The UI's in-flight
-    // load is not cancelled, and no delegate progress or delivery fires; this
-    // path reports through the completion instead. The typed nil delegate
-    // local dodges -Wnonnull.
-    id<AudioWaveformLoaderDelegate> noDelegate = nil;
-    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:noDelegate];
-    loader.analysis = self.analysisProvider ? self.analysisProvider() : (VibeWaveformAnalysis){};
-    // The key is computed off the loader queue; see loadWaveformForTrack:.
-    [_lookupScheduler submitWork:^{
-        NSString *cacheKey = track.cacheKey;
-        if (!cacheKey) {
-            LogWarn(@"No cache key for %@ — cannot cache waveform", url.path);
-            run_on_main_thread({ if (completion) completion(NO, NO, 0, -1); });
-            return;
-        }
-        dispatch_sync(self->_loaderQueue, ^{
-            [self load:track cacheKey:cacheKey withLoader:loader claim:nil
-                    awaitPersist:YES completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
-                float bpm = waveform.bpm; // nil → 0
-                // Explicitly -1 for nil: messaging nil returns 0, which as a
-                // key would read as C major.
-                NSInteger key = waveform ? waveform.key : -1;
-                run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm, key); });
-            } settled:nil];
-        });
-    } failureQueue:dispatch_get_main_queue()
-      admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
-        LogWarn(@"Waveform cache admission exhausted for %@ (%ld)",
-                url.path, (long)failure);
-        if (completion) completion(NO, NO, 0, -1);
-    }];
-}
-
-- (void)clearCachedWaveformForURL:(NSURL *)url completion:(void (^)(BOOL))completion {
-    AudioTrack *track = [AudioTrack withURL:url];
-    // The key is computed off the loader queue; see loadWaveformForTrack:.
-    [_lookupScheduler submitWork:^{
-        NSString *cacheKey = track.cacheKey;
-        if (!cacheKey) {
-            // The file cannot be statted, so its entry cannot be resolved
-            // anyway: the key derives from the current size and mtime.
-            LogWarn(@"No cache key for %@ — cannot clear waveform entry", url.path);
-            run_on_main_thread({ if (completion) completion(NO); });
-            return;
-        }
-        dispatch_sync(self->_loaderQueue, ^{
-            BOOL present = [self->_waveformCache.diskCache containsObjectForKey:cacheKey];
-            [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
-            run_on_main_thread({ if (completion) completion(present); });
-        });
-    } failureQueue:dispatch_get_main_queue()
-      admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
-        LogWarn(@"Waveform clear admission exhausted for %@ (%ld)",
-                url.path, (long)failure);
-        if (completion) completion(NO);
-    }];
-}
-
-#endif
 
 @end
