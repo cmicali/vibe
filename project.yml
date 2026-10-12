@@ -800,6 +800,7 @@ targets:
       - path: Vibe/Debug/Channel/DebugWireFormat.m
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m
+      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Audio/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Audio/AudioTrack.m
@@ -979,7 +980,8 @@ targets:
       - path: Tests/AudioPlayerRenderTests.m
       - path: Tests/TestFilesystemGuard.m
       - path: Tests/HTTPStub.m                # a link played over it (AudioPlayerRenderLinkTests)
-      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m       # HTTPStub's serving engine
+      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
+      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # its sessionConfiguration
       - path: Tests/VibeReadAheadScript.m
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
