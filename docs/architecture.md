@@ -207,7 +207,7 @@ Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registr
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. It opens CoreAudio's parser once (`initParserForReading:`) for the file's facts. Then it picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). FLAC uses dr_flac, and WAV and AIFF use dr_wav. Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
+`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. It opens CoreAudio's parser once (`initParserForReading:`) for the file's facts. Then it picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). FLAC uses dr_flac, and WAV and AIFF use dr_wav (`AudioFileHandle+Stream.m`). Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
 
 A handle reads its bytes in one of three ways:
 
@@ -280,7 +280,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | A setting, or add one | `Common/AGENTS.md` | `Common/AppSettings.h` or `Common/Mac/AppSettings+Mac.h` |
 | A user-facing string | [localization.md](localization.md), the `vibe-strings` skill | `Common/VibeStrings.h`, then `make strings` |
 | Which formats play | `Audio/AGENTS.md` (the decoders) | `Common/PlayableExtensions.m`, `Audio/AudioFileHandle.m` |
-| How a file is decoded | `Audio/AGENTS.md`, `ThirdParty/AGENTS.md` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m` |
+| How a file is decoded | `Audio/AGENTS.md`, `ThirdParty/AGENTS.md` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m`, `Audio/AudioFileHandle+Stream.m` |
 | Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `Audio/FadeMath.h` |
 | Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |
 | What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |

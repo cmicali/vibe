@@ -997,6 +997,7 @@ targetTemplates:
       - path: Vibe/Loading/Claim/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/AudioFileHandle+MPEG.m
+      - path: Vibe/Audio/AudioFileHandle+Stream.m
       - path: Vibe/Loading/Transfer/NetworkReadAhead.m
       - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
         compilerFlags: *dr-libs-flags
