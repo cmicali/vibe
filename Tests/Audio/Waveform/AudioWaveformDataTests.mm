@@ -11,6 +11,7 @@
 #import "AudioWaveform.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numeric>
 #include <vector>
@@ -141,6 +142,40 @@ static AudioWaveform VibeRampWaveform(NSUInteger count) {
     plain.getBandWindowMeanSquares(2, 2, bands.data());
     XCTAssertEqual(bands[0], 0);
     XCTAssertEqual(bands[2 * kAudioWaveformBandCount - 1], 0);
+}
+
+// The iOS widget draws a waveform off main while the scrubber draws it on
+// main. The first read builds the running sums, so every thread can find
+// them missing. Each round is a fresh waveform, so each round races the build.
+- (void)testBandWindowMeanSquaresAreTheSameOnEveryThread {
+    std::vector<AudioWaveformCacheChunk> chunks(8192);
+    std::vector<float> bandSums;
+    for (NSUInteger i = 0; i < chunks.size(); i++) {
+        chunks[i].set(-0.1f, 0.1f, 0.01f, 1);
+        bandSums.insert(bandSums.end(), {(float)(i % 7), (float)(i % 13), (float)(i % 5)});
+    }
+    const std::array<NSUInteger, 3> sizes = {1024, 333, 2};
+    std::vector<std::vector<float>> expected;
+    AudioWaveform alone(chunks.size(), chunks.data(), bandSums.data());
+    for (NSUInteger size : sizes) {
+        expected.emplace_back(size * kAudioWaveformBandCount);
+        alone.getBandWindowMeanSquares(size, 256, expected.back().data());
+    }
+    const size_t threads = 16;
+    for (NSUInteger round = 0; round < 20; round++) {
+        AudioWaveform shared(chunks.size(), chunks.data(), bandSums.data());
+        std::vector<std::vector<float>> answers(threads);
+        AudioWaveform *waveform = &shared;
+        std::vector<std::vector<float>> *out = &answers;
+        dispatch_apply(threads, DISPATCH_APPLY_AUTO, ^(size_t i) {
+            std::vector<float> &answer = (*out)[i];
+            answer.resize(sizes[i % sizes.size()] * kAudioWaveformBandCount);
+            waveform->getBandWindowMeanSquares(sizes[i % sizes.size()], 256, answer.data());
+        });
+        for (size_t i = 0; i < threads; i++) {
+            XCTAssertTrue(answers[i] == expected[i % sizes.size()], @"round %lu thread %zu", round, i);
+        }
+    }
 }
 
 

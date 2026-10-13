@@ -4,6 +4,7 @@
 //
 
 #include <Accelerate/Accelerate.h>
+#include <os/lock.h>
 #include <simd/simd.h>
 #include <cmath>
 #include <vector>
@@ -180,7 +181,10 @@ private:
     bool complete;
     // getBandWindowMeanSquares's running sums of the frames and the bands,
     // built on its first call and kept while the chunks stand, so a resize's
-    // frames do not rebuild them. Every chunk setter clears it.
+    // frames do not rebuild them. Every chunk setter clears it. A setter runs
+    // only before the waveform is shared, so it takes no lock. The build is
+    // under the lock, because the iOS widget draws a shared waveform off main.
+    os_unfair_lock bandRunningSumsLock = OS_UNFAIR_LOCK_INIT;
     std::vector<double> bandRunningSums;
 };
 
