@@ -748,8 +748,8 @@
         return [coordinator stateSnapshotForTesting].requestsAdmissionExhausted == 1;
     } description:@"loader request was not admission exhausted"];
     [self waitForCondition:^BOOL{
-        return [[loader debugScanLaneState][@"delayed"] containsObject:@"delayed.wav"];
-    } description:@"admission-exhausted record did not enter the delayed set"];
+        return retries.count > 0;
+    } description:@"admission retry was not captured"];
     NSDictionary *delayedState = [loader debugScanLaneState];
     XCTAssertEqualObjects(delayedState[@"pending"], (@[]));
     XCTAssertEqualObjects(delayedState[@"delayed"], (@[@"delayed.wav"]));
@@ -827,9 +827,10 @@
         return [coordinator stateSnapshotForTesting].requestsAdmissionExhausted == 1;
     } description:@"loader request was not admission exhausted"];
     [self waitForCondition:^BOOL{
-        return [[loader debugScanLaneState][@"delayed"]
-                containsObject:target.url.lastPathComponent];
-    } description:@"admission-exhausted record did not enter the delayed set"];
+        return retries.count > 0;
+    } description:@"admission retry was not captured"];
+    XCTAssertEqualObjects([loader debugScanLaneState][@"delayed"],
+            (@[target.url.lastPathComponent]));
 
     controller.allStartsExpectation =
             [self expectationWithDescription:@"delayed retry started"];
