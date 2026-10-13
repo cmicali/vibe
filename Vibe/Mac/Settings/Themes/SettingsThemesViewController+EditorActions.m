@@ -401,6 +401,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 - (void)clearCustomImage:(NSButton *)sender {
     NSString *key = sender.identifier;
+    [_imagePickTokens removeObjectForKey:key];
     [AppSettings.sharedInstance.currentTheme setImageReference:@"" forKey:key];
     [self themeFieldDidChange:VibeThemeImageEditEffect(key)];
     [self refreshFromSettings]; // hides the badge, though the cursor is still over it
@@ -423,28 +424,46 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
             [self refreshFromSettings];
             return;
         }
-        NSError *error = nil;
-        NSString *destination = target;
-        if ([destination isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]
-                && [self forkBuiltInForEdit]) {
-            destination = AppSettings.sharedInstance.activeThemeIdentifier;
-        }
-        BOOL stored = [AppSettings.sharedInstance setCurrentThemeImageForKey:key
-                themeIdentifier:destination data:^{
-            return [NSData dataWithContentsOfURL:panel.URL options:NSDataReadingMappedIfSafe error:NULL];
-        } error:&error];
-        if (!stored) {
-            [self refreshFromSettings];
-            if (!error) return; // a theme switch superseded the picker
-            NSAlert *alert = [[NSAlert alloc] init];
-            alert.messageText = STR_SETTINGS_THEME_ALBUM_ART_INVALID;
-            alert.informativeText = STR_SETTINGS_THEME_ALBUM_ART_REQUIREMENTS;
-            [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
-            return;
-        }
-        [self themeFieldDidChange:VibeThemeImageEditEffect(key)];
-        [self refreshFromSettings];
+        // Read off main: the picked file can sit on a share or in iCloud.
+        NSURL *url = panel.URL;
+        id token = [NSObject new];
+        self->_imagePickTokens[key] = token;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:NULL];
+            run_on_main_thread({
+                [self storePickedImageData:data forKey:key target:target token:token];
+            });
+        });
     }];
+}
+
+// `target` is the theme active when the panel opened. TRAP: the slot can
+// change while the file reads. A pick, a clear or a glyph made since then
+// wins, and this one stores nothing.
+- (void)storePickedImageData:(NSData *)data forKey:(NSString *)key target:(NSString *)target token:(id)token {
+    if (_imagePickTokens[key] != token) {
+        return;
+    }
+    [_imagePickTokens removeObjectForKey:key];
+    NSError *error = nil;
+    NSString *destination = target;
+    if ([destination isEqualToString:AppSettings.sharedInstance.activeThemeIdentifier]
+            && [self forkBuiltInForEdit]) {
+        destination = AppSettings.sharedInstance.activeThemeIdentifier;
+    }
+    BOOL stored = [AppSettings.sharedInstance setCurrentThemeImageForKey:key
+            themeIdentifier:destination data:data error:&error];
+    if (!stored) {
+        [self refreshFromSettings];
+        if (!error) return; // a theme switch superseded the picker
+        NSAlert *alert = [[NSAlert alloc] init];
+        alert.messageText = STR_SETTINGS_THEME_ALBUM_ART_INVALID;
+        alert.informativeText = STR_SETTINGS_THEME_ALBUM_ART_REQUIREMENTS;
+        [alert beginSheetModalForWindow:self.view.window completionHandler:nil];
+        return;
+    }
+    [self themeFieldDidChange:VibeThemeImageEditEffect(key)];
+    [self refreshFromSettings];
 }
 
 #pragma mark - Editor: transport buttons
@@ -457,6 +476,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
         [self chooseImageForKey:key];
         return;
     }
+    // The glyph retires the button's pictures, picks still reading included.
+    [_imagePickTokens removeObjectsForKeys:[AppTheme imageKeysForButton:key]];
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     [theme setGlyph:choice forButtonImageKey:key];
     [self themeFieldDidChange:VibeSettingsLiveEffectTransportButtons];

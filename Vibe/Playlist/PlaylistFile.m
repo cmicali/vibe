@@ -7,6 +7,7 @@
 #import "PlaylistFileInternal.h"
 
 #import "AudioTrack.h"
+#import "FilePaths.h"
 #import "PlayableExtensions.h"
 #import "PlaybackIntent.h"
 
@@ -438,8 +439,9 @@ static NSString *M3UInfoName(AudioTrack *track) {
 
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory {
     // The trailing slash keeps /Music/Album from claiming /Music/Album2/x.mp3.
-    // Both sides use the same path standardization.
-    NSString *dir = directory.path.stringByStandardizingPath;
+    // Both sides use VibeComparablePath, which reads the spelling alone. Save
+    // Playlist builds this text on main.
+    NSString *dir = VibeComparablePath(directory.path);
     NSString *prefix = [dir hasSuffix:@"/"] ? dir : [dir stringByAppendingString:@"/"];
     NSMutableString *text = [NSMutableString stringWithString:@"#EXTM3U\n"];
     for (AudioTrack *track in tracks) {
@@ -456,7 +458,7 @@ static NSString *M3UInfoName(AudioTrack *track) {
             }
             [text appendFormat:@"%@%@\n", kVibeCueDirective, CuePayload(track)];
         }
-        [text appendFormat:@"%@\n", M3UPathLine(track.url.path.stringByStandardizingPath, prefix)];
+        [text appendFormat:@"%@\n", M3UPathLine(VibeComparablePath(track.url.path), prefix)];
     }
     return text;
 }
@@ -474,7 +476,7 @@ static NSString *M3UInfoName(AudioTrack *track) {
     NSArray<NSString *> *common = nil;
     for (AudioTrack *track in tracks) {
         NSArray<NSString *> *components =
-                track.url.path.stringByStandardizingPath.stringByDeletingLastPathComponent.pathComponents;
+                VibeComparablePath(track.url.path).stringByDeletingLastPathComponent.pathComponents;
         if (!common) {
             common = components;
             continue;

@@ -179,7 +179,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // for its name is IPC that can block main.
 + (NSString *)displayNameForFolderURL:(NSURL *)url {
     // The account's mirror directory is named for its Dropbox account id.
-    if ([[DropboxMirror.shared dropboxPathForURL:url] isEqualToString:@""]) {
+    if ([[DropboxMirror.shared derivedDropboxPathForURL:url] isEqualToString:@""]) {
         return VibeNotLocalized(@"Dropbox");
     }
     static NSString *documentsPath;

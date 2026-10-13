@@ -812,19 +812,18 @@
     XCTAssertEqualObjects(settings.currentTheme.dictionaryRepresentation, before);
 }
 
-- (void)testSupersededOrBuiltInImagePickerDoesNotEvenReadThePickedData {
+- (void)testSupersededOrBuiltInImagePickerStoresNothing {
     AppSettings *settings = self.editingSettings;
     NSString *original = settings.activeThemeIdentifier;
     NSString *other = [settings addUserThemeWithRecord:@{} name:@"Other"];
     [settings applyThemeWithIdentifier:other];
-    __block NSUInteger reads = 0;
-    NSData *(^data)(void) = ^{ reads++; return VibeSquarePNG(96); };
+    NSData *data = VibeSquarePNG(96);
     NSError *error = nil;
     XCTAssertFalse([settings setCurrentThemeImageForKey:kVibeThemeImageAppIcon themeIdentifier:original data:data error:&error]);
     XCTAssertNil(error);
     [settings applyThemeWithIdentifier:kVibeThemeIdentifierVibe];
     XCTAssertFalse([settings setCurrentThemeImageForKey:kVibeThemeImageAppIcon themeIdentifier:kVibeThemeIdentifierVibe data:data error:&error]);
-    XCTAssertEqual(reads, 0u);
+    XCTAssertNil(error);
     XCTAssertFalse(settings.canUndoThemeEdit);
     XCTAssertEqual(settings.currentTheme.dictionaryRepresentation.count, 0u);
 }
@@ -834,14 +833,14 @@
     NSString *identifier = settings.activeThemeIdentifier;
     NSError *error = nil;
     XCTAssertTrue([settings setCurrentThemeImageForKey:kVibeThemeImageNextButtonLight themeIdentifier:identifier
-            data:^{ return VibeSquarePNG(96); } error:&error]);
+            data:VibeSquarePNG(96) error:&error]);
     [settings currentThemeDidChange];
     XCTAssertNil(error);
     XCTAssertTrue([[settings.currentTheme imageReferenceForKey:kVibeThemeImageNextButtonLight] hasPrefix:@"custom:"]);
     XCTAssertEqualObjects([settings.currentTheme imageReferenceForKey:kVibeThemeImageNextButtonDark], @"");
     NSDictionary *before = settings.currentTheme.dictionaryRepresentation;
     XCTAssertFalse([settings setCurrentThemeImageForKey:kVibeThemeImageNextButtonLight themeIdentifier:identifier
-            data:^{ return [@"not an image" dataUsingEncoding:NSUTF8StringEncoding]; } error:&error]);
+            data:[@"not an image" dataUsingEncoding:NSUTF8StringEncoding] error:&error]);
     XCTAssertNotNil(error);
     XCTAssertEqualObjects(settings.currentTheme.dictionaryRepresentation, before);
     [settings undoThemeEdit];

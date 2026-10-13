@@ -138,7 +138,7 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 }
 
 static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
-    NSString *path = VibeAliasFreePath(url.URLByStandardizingPath.path);
+    NSString *path = VibeComparablePath(url.path);
     return VibeUncanonicalPathIsUnderFolder(path,
                                             VibeAliasFreePath(grantedPath));
 }
@@ -406,7 +406,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
 }
 
 - (BOOL)hasActiveAccessForURL:(NSURL *)url {
-    return [self.class readablePath:url.URLByStandardizingPath.path
+    return [self.class readablePath:VibeComparablePath(url.path)
                    isCoveredByAnyOf:self.activePathSnapshot ?: @[]];
 }
 

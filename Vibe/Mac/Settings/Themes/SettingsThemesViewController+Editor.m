@@ -246,6 +246,7 @@ static const CGFloat kImageBadgeInset = 1.5;
     _imagePreviews = [NSMutableDictionary dictionary];
     _imageClearBadges = [NSMutableDictionary dictionary];
     _imageMissingBadges = [NSMutableDictionary dictionary];
+    _imagePickTokens = [NSMutableDictionary dictionary];
     _glyphPopUps = [NSMutableDictionary dictionary];
     _buttonColorRows = [NSMutableDictionary dictionary];
     _buttonImageRows = [NSMutableDictionary dictionary];

@@ -68,12 +68,13 @@ NS_ASSUME_NONNULL_BEGIN
                         fallingBackTo:(nullable NSString *)successor;
 - (void)renameUserThemeWithIdentifier:(NSString *)identifier toName:(NSString *)name;
 
-// NO, without calling `data`, when `identifier` is no longer the active user
-// theme. The caller then calls currentThemeDidChange and requests the field's
-// live effect.
+// NO, with no error and nothing stored, when `identifier` is no longer the
+// active user theme. The caller reads `data` off main, since a picked file can
+// sit on a share. It then calls currentThemeDidChange and requests the
+// field's live effect.
 - (BOOL)setCurrentThemeImageForKey:(NSString *)key
                  themeIdentifier:(NSString *)identifier
-                            data:(NSData * _Nullable (^)(void))data
+                            data:(nullable NSData *)data
                            error:(NSError * _Nullable * _Nullable)error;
 
 @end
