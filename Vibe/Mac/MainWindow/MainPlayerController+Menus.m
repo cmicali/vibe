@@ -207,7 +207,7 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     NSUndoManager *manager = self.window.undoManager;
     if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) menuItem.title = manager.undoMenuItemTitle;
     if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) menuItem.title = manager.redoMenuItemTitle;
-    return VibeEditMenuEnabled(menuItem.identifier, self.isConversionUndoRedoInFlight,
+    return VibeEditMenuEnabled(menuItem.identifier, self.isFileMoveInFlight,
             manager.canUndo, manager.canRedo, [self hasVisiblePlaylistSelection],
             self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil,
             [self focusedTextView] != nil);

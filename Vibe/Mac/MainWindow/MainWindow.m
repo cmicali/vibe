@@ -27,7 +27,7 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     NSDragOperation _dragOperation;
 }
 
-// Keep the controller's conversion guards when Undo follows the responder chain.
+// Keep the controller's file-move gate when Undo follows the responder chain.
 - (IBAction)undo:(id)sender {
     [NSApp sendAction:@selector(undo:) to:self.windowController from:sender];
 }

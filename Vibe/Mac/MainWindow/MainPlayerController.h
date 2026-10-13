@@ -75,6 +75,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;
 
+// The window's NSUndoManager, gated on fileMoveInFlight.
+- (IBAction)undo:(nullable id)sender;
+- (IBAction)redo:(nullable id)sender;
+
 @end
 
 NS_ASSUME_NONNULL_END

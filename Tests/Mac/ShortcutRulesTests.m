@@ -96,6 +96,7 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 - (void)testKeypadEnterAndForwardDeleteFoldIntoTheirTwins {
     XCTAssertEqualObjects(CommandForKey(76, 0, nil), kVibeMenuPlaySelected);
     XCTAssertEqualObjects(CommandForKey(117, 0, nil), kVibeMenuEditRemoveFromPlaylist);
+    XCTAssertEqualObjects(CommandForKey(117, kCmd, nil), kVibeMenuEditMoveToTrash);
     NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuPlay, VibeShortcutMake(76, kCmd), 0, NULL);
     XCTAssertEqualObjects(overrides[kVibeMenuPlay], @(VibeShortcutMake(36, kCmd)));
     XCTAssertEqualObjects(CommandForKey(36, kCmd, overrides), kVibeMenuPlay);
@@ -161,10 +162,22 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
                    commandK);
 }
 
+// The Finder's own shortcut, by physical key. An override stored on ⌘⌫
+// before the default existed keeps the key.
+- (void)testMoveToTrashIsCommandDelete {
+    XCTAssertEqual(VibeShortcutDefault(kVibeMenuEditMoveToTrash), VibeShortcutMake(51, kCmd));
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(51, kCmd, 0x7F, 0x7F, nil), kVibeMenuEditMoveToTrash);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(51, 0, 0, 0x7F, nil), kVibeMenuEditRemoveFromPlaylist);
+    XCTAssertFalse(VibeShortcutIsReserved(51, 0x7F, kCmd));
+    VibeShortcut commandDelete = VibeShortcutMake(51, kCmd);
+    NSDictionary *overrides = @{kVibeMenuPlay: @(commandDelete)};
+    XCTAssertEqualObjects(CommandForKey(51, kCmd, overrides), kVibeMenuPlay);
+    XCTAssertEqual(MenuItemForKey(kVibeMenuEditMoveToTrash, commandDelete, 0, overrides), kVibeShortcutNone);
+}
+
 - (void)testOpenURLIsCommandUByItsLetter {
     VibeShortcut commandU = VibeShortcutMakeCharacter('u', kCmd);
     XCTAssertEqual(VibeShortcutDefault(kVibeMenuOpenLink), commandU);
-    XCTAssertEqualObjects(VibeShortcutIdentifiers().lastObject, kVibeMenuOpenLink);
     XCTAssertEqualObjects(VibeShortcutCommandForPress(32, kCmd, 'u', 'u', nil), kVibeMenuOpenLink);
     XCTAssertEqualObjects(VibeShortcutCommandForPress(3, kCmd, 'u', 'u', nil), kVibeMenuOpenLink,
                           @"Dvorak types u on QWERTY's F key");

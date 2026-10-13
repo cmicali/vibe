@@ -181,7 +181,8 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 }
 
 // Remove goes through its menu item, whose validation needs the playlist
-// showing; a held delete takes one gesture's rows.
+// showing; a held delete takes one gesture's rows. ⌘ makes it Move to Trash,
+// which never repeats either.
 - (void)testDeleteRepeatIsSwallowedAndHiddenOrModifiedDeletesDoNotRemove {
     TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
     for (NSNumber *keyCode in @[@(kKeyDelete), @(kKeyForwardDelete)]) {
@@ -197,9 +198,15 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
         XCTAssertNil([monitor handleKeyEvent:down inWindow:self.window]);
         self.playlistShown = YES;
         NSEvent *modified = [self key:code characters:@"x" type:NSEventTypeKeyDown time:12 repeat:NO
-                            modifiers:NSEventModifierFlagCommand];
+                            modifiers:NSEventModifierFlagOption];
         XCTAssertEqual([monitor handleKeyEvent:modified inWindow:self.window], modified);
         XCTAssertEqualObjects(self.commands, @[kVibeMenuEditRemoveFromPlaylist]);
+        // What ⌘⌫ types: ⌘X would be Cut's, and pass on.
+        for (NSNumber *repeat in @[@NO, @YES]) {
+            XCTAssertNil([monitor handleKeyEvent:[self key:code characters:@"\x7f" type:NSEventTypeKeyDown time:13
+                    repeat:repeat.boolValue modifiers:NSEventModifierFlagCommand] inWindow:self.window]);
+        }
+        XCTAssertEqualObjects(self.commands, (@[kVibeMenuEditRemoveFromPlaylist, kVibeMenuEditMoveToTrash]));
     }
 }
 

@@ -78,6 +78,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd select_rows 0 2     # {ok, selectedRows}: table selection without focus; all/none accepted; rows beyond the list are ignored
 "$V" --debug-cmd select_rows current 50  # `current` resolves the playing row at execution time
 "$V" --debug-cmd remove_selected     # the shell's removal action over that selection, transport and undo included
+"$V" --debug-cmd trash_selected      # Move to Trash over that selection, without the key window: real files go to the Trash, so use working copies. Replies before the moves settle; poll dump_state
 "$V" --debug-cmd save_playlist ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/set.m3u  # {ok, path, tracks}: File > Save Playlist… without its panel. The path must be writable by the sandboxed app
 "$V" --debug-cmd file_cache song.flac        # {ok, path, wasCached, bpm, key, camelot, timing}: decode and cache one file's waveform, UI untouched; waits up to 60 s and replies once the entry is on disk
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, path, wasPresent}: evict one file's waveform entry. Clear then file_cache is a forced cold decode
@@ -134,7 +135,7 @@ A synthetic playlist row-reorder drag: the real `NSTableViewDataSource` calls wi
 ```
 
 - `keep|delete` writes Convert > Delete Original before converting and **leaves it written**. Restore it if a later test expects the default (off). `dump_state.settings.deleteOriginalAfterConvert` reports it. `sourceDeleted` is what disposal did. `sourceRemains` stats the original after the Trash move settled. `ls ~/.Trash` from a terminal trips the same TCC denial as reading the container.
-- `undo` and `redo` drive the window's NSUndoManager, which also holds Remove from Playlist and Reorder (`Vibe/Mac/Menu/AGENTS.md`). Run them straight after the conversion they reverse. `committed:false` carries one of `restore_failed`, `replacement_location_unknown`, `replacement_unavailable`, `already_at_target`. `click_menu menu_edit_undo` exercises the menu path but has no settled signal, so prefer the verbs when a later step depends on the moves.
+- `undo` and `redo` drive the window's NSUndoManager, which also holds Remove from Playlist, Move to Trash and Reorder (`Vibe/Mac/Menu/AGENTS.md`). Move to Trash's file moves settle like a conversion's, so the reply waits for them. TRAP: channel commands post no event, so consecutive edits made through verbs share one undo group. Drive the edits with `key` to get one undo step each. Run them straight after the conversion they reverse. `committed:false` carries one of `restore_failed`, `replacement_location_unknown`, `replacement_unavailable`, `already_at_target`, or Move to Trash's `file_move_failed`. `click_menu menu_edit_undo` exercises the menu path but has no settled signal, so prefer the verbs when a later step depends on the moves.
 - `omit-trash-url` is a one-shot fault (requires `delete`, working copy only): the source goes to the Trash but its location is withheld. The refused undo must leave the converted row in place, and its registered inverse must settle as already satisfied:
 
 ```bash

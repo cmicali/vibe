@@ -22,17 +22,6 @@ NS_ASSUME_NONNULL_BEGIN
 // conversion settles does nothing.
 - (IBAction)cancelConversion:(nullable id)sender;
 
-// The window's NSUndoManager, gated on conversionUndoRedoInFlight. A
-// conversion's round trip moves files through the Trash and never re-encodes;
-// a removal or reorder moves no files.
-- (IBAction)undo:(nullable id)sender;
-- (IBAction)redo:(nullable id)sender;
-
-// YES from a conversion inverse's invocation until its last file move settles,
-// so the async inverse cannot be re-entered.
-@property (nonatomic, readonly, getter=isConversionUndoRedoInFlight)
-        BOOL conversionUndoRedoInFlight;
-
 // A running conversion keeps the value it was accepted with.
 - (IBAction)toggleDeleteOriginalAfterConvert:(nullable id)sender;
 
