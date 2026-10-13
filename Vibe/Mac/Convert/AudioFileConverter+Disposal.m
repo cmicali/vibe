@@ -12,6 +12,7 @@
 #import <AVFAudio/AVFAudio.h>
 
 #import "AudioFileHandle.h"
+#import "FilePaths.h"
 #import "VibeStrings.h"
 
 @implementation AudioFileConverter (Disposal)
@@ -120,8 +121,9 @@
         return;
     }
     // The placement rungs refuse this, but trashing here would take the only
-    // audio with it if a filesystem alias escaped that boundary.
-    if ([sourceURL.URLByStandardizingPath.path isEqualToString:outputURL.URLByStandardizingPath.path]) {
+    // audio with it if a filesystem alias escaped that boundary. Compared by
+    // spelling, as the controller's guard is, since this runs on main.
+    if ([VibeComparablePath(sourceURL.path) isEqualToString:VibeComparablePath(outputURL.path)]) {
         LogWarn(@"Not deleting %@: the conversion landed on the source itself", sourceURL.lastPathComponent);
         run_on_main_thread({
             if (completion) completion(VibeTrashOutcomeSkipped, nil, nil);

@@ -463,10 +463,16 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             completion(nil, error);
             return;
         }
-        NSArray<NSString *> *existing = [NSFileManager.defaultManager
-                contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
-        NSString *local = VibeDropboxLocalName(name, VibeDropboxNameIndex(existing));
-        completion([folderURL URLByAppendingPathComponent:local isDirectory:NO], nil);
+        // Listed on the disk queue, which writes the folder's names, never main.
+        dispatch_async(self.diskQueue, ^{
+            NSArray<NSString *> *existing = [NSFileManager.defaultManager
+                    contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
+            NSURL *url = [folderURL URLByAppendingPathComponent:VibeDropboxLocalName(name, VibeDropboxNameIndex(existing))
+                                                    isDirectory:NO];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(url, nil);
+            });
+        });
     }];
 }
 

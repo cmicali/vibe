@@ -589,12 +589,12 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 
 - (BOOL)setCurrentThemeImageForKey:(NSString *)key
                  themeIdentifier:(NSString *)identifier
-                            data:(NSData * _Nullable (^)(void))data
+                            data:(NSData *)data
                            error:(NSError **)error {
     if (error) *error = nil;
     if (![self.activeThemeIdentifier isEqualToString:identifier]
             || [AppTheme isBuiltInIdentifier:identifier]) return NO;
-    NSString *reference = [AppTheme storeCustomImageData:data() error:error];
+    NSString *reference = [AppTheme storeCustomImageData:data error:error];
     if (!reference) return NO;
     [self.currentTheme setImageReference:reference forKey:key];
     return YES;

@@ -15,6 +15,7 @@
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
+#import "FilePaths.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
 
@@ -80,9 +81,8 @@
     // record must not follow the source into the Trash. A vanished file's
     // reference URL has a nil path, which fileURLWithPath: throws on.
     NSString *sourcePath = track.url.path;
-    NSURL *sourceURL = sourcePath ? [NSURL fileURLWithPath:sourcePath] : track.url;
-    if ([sourceURL.URLByStandardizingPath.path
-            isEqualToString:outputURL.URLByStandardizingPath.path]) {
+    NSURL *sourceURL = sourcePath ? [NSURL fileURLWithPath:sourcePath isDirectory:NO] : track.url;
+    if ([VibeComparablePath(sourceURL.path) isEqualToString:VibeComparablePath(outputURL.path)]) {
         LogError(@"Convert to FLAC kept the playlist unchanged because the output replaced its source at %@",
                 sourceURL.path);
         NSBeep();
@@ -190,9 +190,14 @@
     LogError(@"Undo could not put %@ back: %@",
             trashURL.lastPathComponent, error.localizedDescription);
     NSBeep();
-    if ([NSFileManager.defaultManager fileExistsAtPath:trashURL.path]) {
-        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[trashURL]];
-    }
+    // Checked off main: the Trash of a share's file is on that share.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        if ([NSFileManager.defaultManager fileExistsAtPath:trashURL.path]) {
+            run_on_main_thread({
+                [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[trashURL]];
+            });
+        }
+    });
 }
 
 - (IBAction)toggleDeleteOriginalAfterConvert:(id)sender {

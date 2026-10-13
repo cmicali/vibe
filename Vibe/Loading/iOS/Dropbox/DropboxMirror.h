@@ -57,8 +57,14 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 @property (nonatomic, readonly, nullable) NSURL *accountURL;
 
 // The Dropbox path ("" for the root, else "/Music/Album") a mirror URL stands
-// for; nil outside the linked account's mirror.
+// for; nil outside the linked account's mirror. A folder below the root may
+// read its listing's index, an xattr in the app's container, once per folder.
+// Nothing outside the mirror is read.
 - (nullable NSString *)dropboxPathForURL:(NSURL *)url;
+
+// The same from the URL's spelling alone, with no index read. A folder whose
+// local name gained a collision suffix answers that local spelling.
+- (nullable NSString *)derivedDropboxPathForURL:(NSURL *)url;
 
 // Whether anything has listed this mirror directory: one never listed is
 // empty on disk whatever Dropbox holds.

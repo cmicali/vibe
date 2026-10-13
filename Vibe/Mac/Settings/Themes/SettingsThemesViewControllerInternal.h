@@ -55,6 +55,9 @@ static NSString *const kChoiceStandard = @"standard";
     NSMutableDictionary<NSString *, NSButton *> *_imagePreviews;
     NSMutableDictionary<NSString *, NSButton *> *_imageClearBadges;
     NSMutableDictionary<NSString *, NSImageView *> *_imageMissingBadges;
+    // The token of each slot's newest pick still reading its file. A later
+    // pick, a clear or a glyph for the slot replaces or drops it.
+    NSMutableDictionary<NSString *, id> *_imagePickTokens;
     // The transport buttons' rows by the button's dark image key.
     NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
     NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;

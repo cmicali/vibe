@@ -49,18 +49,16 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
 // The ivars the sandbox and disposal categories reach are in
 // AudioFileConverterInternal.h.
 @implementation AudioFileConverter {
-    // The destination stats, serial: each menu open against an unreachable
-    // mount would otherwise park another global-pool worker for the whole
-    // mount timeout — the generation drops stale answers but not stale work.
-    dispatch_queue_t _statQueue;
     // Whether the FLAC beside the track the menus name exists, and which
     // destination that answer is about. Menu validation reads this rather than
     // statting — a stat on an unreachable mount blocks the main thread.
-    // refreshDestinationStateForTrack: keeps it warm; the generation drops a
-    // superseded stat. Main-thread confined.
+    // refreshDestinationStateForTrack: keeps it warm. One stat runs at a time,
+    // and only the newest destination asked for waits behind it. A hung mount
+    // then parks one worker, not one per menu open. Main-thread confined.
     NSURL *_destinationCheckedURL;
     BOOL _destinationExists;
-    uint64_t _destinationGeneration;
+    BOOL _destinationStatRunning;
+    NSURL *_destinationQueuedURL; // asked for while a stat runs; nil when none waits
     // Set on main by cancelConversionWithCompletion:, polled once per buffer
     // on the converter queue, reset at accept.
     atomic_bool _cancelRequested;
@@ -96,8 +94,6 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
         // User-initiated: the user waits on every move here before Undo works.
         _disposeQueue = dispatch_queue_create("com.vibe.flacconvert.dispose",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
-        _statQueue = dispatch_queue_create("com.vibe.flacconvert.stat",
-                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     }
     return self;
 }
@@ -126,21 +122,34 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
 
 - (void)refreshDestinationStateForTrack:(AudioTrack *)track {
     NSAssert(NSThread.isMainThread, @"refreshDestinationStateForTrack must be called on the main thread");
-    uint64_t generation = ++_destinationGeneration;
     NSURL *sourceURL = track.url;
     if (!sourceURL.isFileURL) {
         _destinationCheckedURL = nil;
+        _destinationQueuedURL = nil;
         return;
     }
-    NSURL *destinationURL = [self.class flacDestinationForURL:sourceURL];
-    dispatch_async(_statQueue, ^{
+    _destinationQueuedURL = [self.class flacDestinationForURL:sourceURL];
+    if (!_destinationStatRunning) {
+        [self statQueuedDestination];
+    }
+}
+
+// Main. Stats the newest destination asked for, then the next one asked for
+// meanwhile, if any.
+- (void)statQueuedDestination {
+    NSURL *destinationURL = _destinationQueuedURL;
+    _destinationQueuedURL = nil;
+    _destinationStatRunning = YES;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         BOOL exists = [NSFileManager.defaultManager fileExistsAtPath:destinationURL.path];
         run_on_main_thread({
-            if (generation != self->_destinationGeneration) {
-                return; // a newer refresh owns the answer now
-            }
+            // Labeled with its destination, which validation matches.
+            self->_destinationStatRunning = NO;
             self->_destinationCheckedURL = destinationURL;
             self->_destinationExists = exists;
+            if (self->_destinationQueuedURL) {
+                [self statQueuedDestination];
+            }
         });
     });
 }

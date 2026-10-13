@@ -530,9 +530,12 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
        acceptDrop:(id<NSDraggingInfo>)info
               row:(NSInteger)row
     dropOperation:(NSTableViewDropOperation)operation {
-    return [self importThemesFromURLs:[info.draggingPasteboard
-            readObjectsForClasses:@[NSURL.class]
-                          options:self.class.themeFileReadingOptions]];
+    NSArray<NSURL *> *urls = [info.draggingPasteboard readObjectsForClasses:@[NSURL.class]
+                                                                    options:self.class.themeFileReadingOptions];
+    [self importThemesFromURLs:urls];
+    // Taken once there is something to read. The alert names any file that
+    // failed.
+    return urls.count > 0;
 }
 
 #pragma mark - Theme actions
@@ -613,15 +616,31 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
 // The Import… panel's and the drop's one funnel. Activates once, after the
 // whole list. Reads mapped, so AppTheme's size gate refuses a huge pick
-// without loading it.
-- (BOOL)importThemesFromURLs:(NSArray<NSURL *> *)urls {
+// without loading it. Reads off main, since a picked file can sit on a share
+// or in iCloud.
+- (void)importThemesFromURLs:(NSArray<NSURL *> *)urls {
+    if (urls.count == 0) {
+        return;
+    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableArray *contents = [NSMutableArray arrayWithCapacity:urls.count];
+        for (NSURL *url in urls) {
+            NSData *data = [NSData dataWithContentsOfURL:url options:NSDataReadingMappedIfSafe error:NULL];
+            [contents addObject:data ?: NSNull.null];
+        }
+        run_on_main_thread({
+            [self importThemesFromContents:contents ofURLs:urls];
+        });
+    });
+}
+
+- (void)importThemesFromContents:(NSArray *)contents ofURLs:(NSArray<NSURL *> *)urls {
     NSString *lastImported = nil;
     NSMutableArray<NSString *> *failed = [NSMutableArray array];
-    for (NSURL *url in urls) {
+    for (NSUInteger index = 0; index < urls.count; index++) {
+        NSURL *url = urls[index];
         NSString *name = nil;
-        NSData *data = [NSData dataWithContentsOfURL:url
-                                             options:NSDataReadingMappedIfSafe
-                                               error:NULL];
+        NSData *data = contents[index] == NSNull.null ? nil : contents[index];
         NSDictionary *record = [AppTheme recordFromJSONOrArchiveData:data
                                                                 name:&name
                                                                error:NULL];
@@ -639,7 +658,6 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     if (failed.count) {
         [self presentThemeImportFailedAlertForFiles:failed];
     }
-    return lastImported != nil;
 }
 
 // The plural form states no count, so no language needs plural agreement.
