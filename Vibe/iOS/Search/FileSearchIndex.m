@@ -7,6 +7,7 @@
 
 #import <stdatomic.h>
 
+#import "FilePaths.h"
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 #import "FolderWalk.h"
@@ -50,10 +51,10 @@ static const NSTimeInterval kFlushInterval = 0.2;
 - (IndexedSearchFile *)indexedFileForURL:(NSURL *)url;
 @end
 
-static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
+static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:urls.count];
     for (NSURL *url in urls) {
-        [paths addObject:url.URLByStandardizingPath.path ?: @""];
+        [paths addObject:VibeComparablePath(url.path) ?: @""];
     }
     return paths;
 }
@@ -104,7 +105,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 
 - (void)setRoots:(NSArray<NSURL *> *)roots {
     NSArray<NSURL *> *pruned = [FileSearchIndex pruneNestedRoots:roots];
-    if ([VibeStandardizedPaths(pruned) isEqualToArray:VibeStandardizedPaths(_roots)]) {
+    if ([VibeComparablePaths(pruned) isEqualToArray:VibeComparablePaths(_roots)]) {
         return;
     }
     atomic_fetch_add(&_buildGeneration, 1);
@@ -300,32 +301,24 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 // roots covered by earlier ones walks that tree, and lists every file, twice.
 // Hence shortest first, keeping a root only when nothing kept covers it.
 + (NSArray<NSURL *> *)pruneNestedRoots:(NSArray<NSURL *> *)roots {
-    NSArray<NSURL *> *shortestFirst = [roots sortedArrayUsingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
-        NSUInteger lengthA = a.URLByStandardizingPath.path.length;
-        NSUInteger lengthB = b.URLByStandardizingPath.path.length;
+    NSArray<NSURL *> *shortestFirst = [roots sortedArrayWithOptions:NSSortStable
+                                                    usingComparator:^NSComparisonResult(NSURL *a, NSURL *b) {
+        NSUInteger lengthA = VibeComparablePath(a.path).length;
+        NSUInteger lengthB = VibeComparablePath(b.path).length;
         if (lengthA != lengthB) {
             return lengthA < lengthB ? NSOrderedAscending : NSOrderedDescending;
         }
-        return NSOrderedSame;   // stable
+        return NSOrderedSame;
     }];
     NSMutableArray<NSURL *> *kept = [NSMutableArray arrayWithCapacity:roots.count];
     NSMutableArray<NSString *> *keptPaths = [NSMutableArray arrayWithCapacity:roots.count];
     for (NSURL *root in shortestFirst) {
-        NSString *path = root.URLByStandardizingPath.path;
-        if (path.length == 0) {
+        NSString *path = VibeComparablePath(root.path);
+        if (path.length == 0 || VibeSearchFolderCoveringRootIndex(keptPaths, path) != NSNotFound) {
             continue;
         }
-        BOOL covered = NO;
-        for (NSString *keptPath in keptPaths) {
-            if (VibeSearchRootCoversPath(keptPath, path)) {
-                covered = YES;
-                break;
-            }
-        }
-        if (!covered) {
-            [kept addObject:root];
-            [keptPaths addObject:path];
-        }
+        [kept addObject:root];
+        [keptPaths addObject:path];
     }
     return kept;
 }

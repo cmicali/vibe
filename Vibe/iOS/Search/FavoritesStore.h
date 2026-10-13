@@ -14,7 +14,7 @@ extern NSNotificationName const VibeFavoritesDidChangeNotification;
 @property (nonatomic, readonly) NSString *name;
 // The containing folder's name, telling two "Disc 1"s apart; may be empty.
 @property (nonatomic, readonly) NSString *location;
-// Standardized; the identity.
+// VibeComparablePath's spelling; the identity.
 @property (nonatomic, readonly) NSString *path;
 
 @end

@@ -5,6 +5,7 @@
 
 #import "FavoritesStore.h"
 
+#import "FilePaths.h"
 #import "FileSearchRules.h"
 #import "LocationStore.h"
 
@@ -25,8 +26,8 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 // Set once prepareSearchScope resolves the row; its scope is held until the
 // row goes.
 @property (nonatomic) NSURL *resolvedURL;
-// Standardized off main: coverage is tested per URL of every open, and a moved
-// folder's hits live under here, not under path.
+// Where the bookmark resolved, as a comparable path. Coverage is tested per
+// URL of every open, and a moved folder's hits live under here, not under path.
 @property (nonatomic) NSString *resolvedPath;
 @property (nonatomic) BOOL scopeStarted;
 // resolvedURL lands late, so it cannot be the already-asked test: every
@@ -138,7 +139,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 }
 
 - (BOOL)containsFolderURL:(NSURL *)url {
-    return [self indexOfPath:url.URLByStandardizingPath.path] != NSNotFound;
+    return [self indexOfPath:VibeComparablePath(url.path)] != NSNotFound;
 }
 
 - (NSUInteger)indexOfPath:(NSString *)path {
@@ -154,15 +155,15 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 #pragma mark - Adding and removing
 
 - (void)addFolderURL:(NSURL *)url bookmark:(NSData *)bookmark {
-    NSString *path = url.URLByStandardizingPath.path;
+    NSString *path = VibeComparablePath(url.path);
     if (path.length == 0 || !bookmark || [self indexOfPath:path] != NSNotFound) {
         return;
     }
     NSString *name = [LocationStore displayNameForFolderURL:url];
-    NSURL *parent = url.URLByStandardizingPath.URLByDeletingLastPathComponent;
+    NSString *parent = path.stringByDeletingLastPathComponent;
     // Empty rather than "/": the row drops its second line.
-    NSString *location = parent.path.length > 1
-            ? [LocationStore displayNameForFolderURL:parent]
+    NSString *location = parent.length > 1
+            ? [LocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]]
             : @"";
     FavoriteFolder *favorite = [[FavoriteFolder alloc] initWithName:name location:location
                                                                path:path bookmark:bookmark];
@@ -174,7 +175,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 }
 
 - (void)removeFolderURL:(NSURL *)url {
-    NSUInteger index = [self indexOfPath:url.URLByStandardizingPath.path];
+    NSUInteger index = [self indexOfPath:VibeComparablePath(url.path)];
     if (index != NSNotFound) {
         [self removeFavoriteAtIndex:index];
     }
@@ -258,7 +259,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
 }
 
 - (NSURL *)resolvedRootCoveringURL:(NSURL *)url {
-    NSString *path = url.URLByStandardizingPath.path;
+    NSString *path = VibeComparablePath(url.path);
     FavoriteFolder *best = nil;
     for (FavoriteFolder *favorite in _favorites) {
         // Longest match: nesting is legitimate here.
@@ -293,7 +294,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
                                                  error:NULL];
         // NO is not failure: the app's own container is not security-scoped.
         BOOL scoped = url ? [url startAccessingSecurityScopedResource] : NO;
-        NSString *resolvedPath = url.URLByStandardizingPath.path;
+        NSString *resolvedPath = VibeComparablePath(url.path);
         run_on_main_thread({
             favorite.scopeResolveInFlight = NO;
             if (!url) {
