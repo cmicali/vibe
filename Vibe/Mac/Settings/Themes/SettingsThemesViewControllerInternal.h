@@ -68,6 +68,9 @@ static NSString *const kChoiceStandard = @"standard";
     NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
     NSMapTable<VibeSwitch *, void (^)(AppTheme *, BOOL)> *_themeSwitchWrites;
     NSPopUpButton *_waveformPopUp;
+    // The style's types; the row shows only for a style that has them.
+    NSPopUpButton *_waveformTypePopUp;
+    SettingsRowView *_waveformTypeRow;
     NSSlider *_waveformBarDensitySlider;
     NSTextField *_waveformBarDensityValue;
     NSSlider *_waveformBarWidthSlider;
@@ -106,10 +109,13 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous;
 
 // One style popup per page, twins sharing an action. selectWaveformStyle:in:
-// shows the default style for an unknown identifier, the view's own fallback.
+// shows the default style for an unknown identifier, the view's own fallback,
+// and a Detailed type under Detailed's one entry.
 - (NSPopUpButton *)waveformStylePopUpButton;
 - (NSImageView *)waveformPreviewView;
 - (void)selectWaveformStyle:(NSString *)identifier in:(NSPopUpButton *)popUp;
+// The editor's Type popup. It writes the type's identifier as the style.
+- (void)waveformTypeChanged:(NSPopUpButton *)sender;
 
 // Copies the active working record, built-in changes included, and edits it.
 - (IBAction)duplicateTheme:(nullable id)sender;

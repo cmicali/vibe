@@ -249,7 +249,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 #pragma mark - State
 
 - (void)selectWaveformStyle:(NSString *)identifier in:(NSPopUpButton *)popUp {
-    [self selectValue:identifier in:popUp];
+    [self selectValue:[WaveformRendererRegistry styleIdentifierForIdentifier:identifier] in:popUp];
     if (popUp.indexOfSelectedItem < 0) {
         [self selectValue:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT in:popUp];
     }
@@ -362,7 +362,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 - (NSPopUpButton *)waveformStylePopUpButton {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(waveformStyleChanged:)];
-    NSArray<NSString *> *styles = [[WaveformRendererRegistry availableIdentifiers]
+    NSArray<NSString *> *styles = [[WaveformRendererRegistry styleIdentifiers]
             sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
                 return [[WaveformRendererRegistry displayNameForIdentifier:a]
                         localizedStandardCompare:[WaveformRendererRegistry displayNameForIdentifier:b]];
@@ -376,9 +376,22 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
 - (void)waveformStyleChanged:(NSPopUpButton *)sender {
     NSString *identifier = sender.selectedItem.representedObject;
-    if (!identifier) {
+    NSString *current = [WaveformRendererRegistry
+            resolveStyleIdentifier:AppSettings.sharedInstance.currentTheme.waveformStyle];
+    if (!identifier || [[WaveformRendererRegistry styleIdentifierForIdentifier:current] isEqualToString:identifier]) {
         return;
     }
+    [self applyWaveformStyle:identifier];
+}
+
+- (void)waveformTypeChanged:(NSPopUpButton *)sender {
+    NSString *identifier = sender.selectedItem.representedObject;
+    if (identifier) {
+        [self applyWaveformStyle:identifier];
+    }
+}
+
+- (void)applyWaveformStyle:(NSString *)identifier {
     AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
     [self refreshFromSettings];

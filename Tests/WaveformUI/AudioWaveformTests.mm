@@ -470,6 +470,38 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     }
 }
 
+// The Detailed family is one style whose Type picks its identifier, so the
+// choosers list it once and keep each persisted identifier.
+- (void)testDetailedTypesAreOneStyleInTheChoosers {
+    NSArray<NSString *> *types = @[@"detailed", @"oversampling_detailed_x2",
+                                   @"oversampling_detailed_x4", @"oversampling_detailed_x8"];
+    NSArray<NSString *> *styles = WaveformRendererRegistry.styleIdentifiers;
+    XCTAssertEqual(styles.count, WaveformRendererRegistry.availableIdentifiers.count - types.count + 1);
+    NSMutableSet<NSString *> *listedTypes = [NSMutableSet setWithArray:styles];
+    [listedTypes intersectSet:[NSSet setWithArray:types]];
+    XCTAssertEqualObjects(listedTypes, [NSSet setWithObject:@"oversampling_detailed_x4"]);
+    NSMutableSet<NSString *> *typeNames = [NSMutableSet set];
+    for (NSString *type in types) {
+        XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:type], types);
+        XCTAssertEqualObjects([WaveformRendererRegistry styleIdentifierForIdentifier:type], @"oversampling_detailed_x4");
+        XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:type], STR_WAVEFORM_STYLE_DETAILED);
+        [typeNames addObject:[WaveformRendererRegistry typeDisplayNameForIdentifier:type]];
+    }
+    XCTAssertEqual(typeNames.count, types.count);
+    XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:@"basic"], @[]);
+    XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:nil], @[]);
+    XCTAssertEqualObjects([WaveformRendererRegistry styleIdentifierForIdentifier:@"basic"], @"basic");
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"basic"], STR_WAVEFORM_STYLE_BASIC);
+    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"cupertino_basic"],
+                          STR_WAVEFORM_STYLE_CUPERTINO_BASIC);
+    // NSPopUpButton drops an item whose title repeats another's.
+    NSMutableSet<NSString *> *styleNames = [NSMutableSet set];
+    for (NSString *style in styles) {
+        [styleNames addObject:[WaveformRendererRegistry displayNameForIdentifier:style]];
+    }
+    XCTAssertEqual(styleNames.count, styles.count);
+}
+
 - (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
     DetailedWaveformRenderer *renderer = (DetailedWaveformRenderer *)[self rendererForStyle:@"wiggle_centered"];
     CALayer *host = renderer.parentLayer;

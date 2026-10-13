@@ -135,6 +135,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
         views[2].hidden = single;
         views[3].hidden = single;
     }
+    _waveformTypeRow.hidden = [WaveformRendererRegistry typeIdentifiersForIdentifier:
+            [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle]].count == 0;
     VibeWaveformPaletteKind kind = [WaveformRendererRegistry paletteKindForIdentifier:theme.waveformStyle];
     BOOL bandWells = kind == VibeWaveformPaletteKindBands ||
             (kind == VibeWaveformPaletteKindSpectrum &&
@@ -220,6 +222,12 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     _transportButtonsSwitch.state = StateForBOOL(theme.showTransportButtons);
 
     [self selectWaveformStyle:theme.waveformStyle in:_waveformPopUp];
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
+    [_waveformTypePopUp removeAllItems];
+    for (NSString *type in [WaveformRendererRegistry typeIdentifiersForIdentifier:style]) {
+        [self addItem:[WaveformRendererRegistry typeDisplayNameForIdentifier:type] value:type to:_waveformTypePopUp];
+    }
+    [self selectValue:style in:_waveformTypePopUp];
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     [self selectValue:theme.waveformSpectrumPalette in:_spectrumPalettePopUp];
@@ -249,7 +257,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
     [SettingsRowView setControlsInView:_transportSection enabled:theme.showTransportButtons];
     [SettingsRowView setControl:_transportButtonsSwitch enabled:YES];
-    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
     [SettingsRowView setControl:_waveformBarDensitySlider
             enabled:[WaveformRendererRegistry supportsBarDensityForIdentifier:style]];
     [SettingsRowView setControl:_waveformBarWidthSlider

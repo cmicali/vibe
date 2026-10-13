@@ -402,6 +402,8 @@ static const CGFloat kImageBadgeInset = 1.5;
 
 - (NSArray<SettingsRowView *> *)buildWaveformRows {
     _waveformPopUp = [self waveformStylePopUpButton];
+    _waveformTypePopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(waveformTypeChanged:)];
+    _waveformTypeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_TYPE control:_waveformTypePopUp];
     NSStackView *densityCluster = [self detentSliderClusterWithDetent:kVibeThemeWaveformBarScaleDefault
             min:kVibeThemeWaveformBarScaleMin max:kVibeThemeWaveformBarScaleMax
             action:@selector(waveformBarSizingChanged:)
@@ -461,6 +463,7 @@ static const CGFloat kImageBadgeInset = 1.5;
 
     return @[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
+        _waveformTypeRow,
         [SettingsRowView rowWithContentView:[self waveformPreviewView]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_WIDTH control:widthCluster],
