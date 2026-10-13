@@ -103,16 +103,19 @@ static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, c
     }
     // Live bars match backing pixels until the bar cap. Only a stretched
     // strip needs colors held for interpolation.
-    std::vector<float> bar(count == pixels ? 0 : count * 3);
-    for (NSUInteger i = 0; !bar.empty() && i < count; i++) {
-        VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, &bar[i * 3]);
+    BOOL direct = count == pixels;
+    std::vector<float> bar(direct ? 0 : count * 3);
+    if (!direct) {
+        for (NSUInteger i = 0; i < count; i++) {
+            VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, &bar[i * 3]);
+        }
     }
     NSMutableData *bytes = [NSMutableData dataWithLength:pixels * 4];
     uint8_t *pixel = (uint8_t *)bytes.mutableBytes;
     double step = (double)count / (double)pixels;
     for (size_t p = 0; p < pixels; p++, pixel += 4) {
         float rgb[3];
-        if (bar.empty()) {
+        if (direct) {
             VibeSpectrumColor(samples + p * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, rgb);
         } else {
             double position = clampRange(((double)p + 0.5) * step - 0.5, 0.0, (double)(count - 1));
@@ -175,9 +178,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     CALayer *_hoverColumn;
     // Kept across morph frames so the vector does not regrow per rebuild.
     std::vector<CGPoint> _points;
-    // Compare-only identity, as in the morph. Samples are immutable.
-    const AudioWaveform *_referenceWaveform;
-    float _referenceRMS;
 }
 
 + (NSString *)styleIdentifier {
@@ -335,10 +335,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 }
 
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
-    if (!waveform) {
-        _referenceWaveform = nullptr;
-        _referenceRMS = 0;
-    }
     CGRect local = CGRectMake(0, 0, bounds.size.width, bounds.size.height);
     // Implicit animations would leave the waveform chasing an animated window
     // resize.
@@ -397,38 +393,30 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     }
 }
 
-// Normalize against the loudest band relative to its share.
-// Reuse the fill's mean squares up to 1,024 bars. Beyond that, measure
-// 1,024 columns to keep the reference stable across resizes.
+// Normalize against the loudest band relative to its share. Under 1,024 bars
+// the fill's own mean squares give it. From 1,024 bars the waveform's own
+// 1,024 columns give it. The waveform keeps that answer. The reference does
+// not step as a resize crosses 1,024 bars. A resize past that measures
+// nothing. drawn may be NULL from 1,024 bars.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
-    if (_referenceWaveform != waveform) {
-        _referenceWaveform = waveform;
-        _referenceRMS = 0;
-    }
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
-    BOOL fixedReference = count >= kVibeWaveformEnergyColumns;
-    if (fixedReference && _referenceRMS > 0) {
-        return _referenceRMS;
-    }
-    std::vector<float> columns;
-    if (count > kVibeWaveformEnergyColumns || !drawn) {
-        count = MIN(count, kVibeWaveformEnergyColumns);
-        columns.resize(count * kAudioWaveformBandCount);
-        waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, columns.data());
-        drawn = columns.data();
+    float maxima[kAudioWaveformBandCount];
+    if (count < kVibeWaveformEnergyColumns) {
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maxima[b], count);
+        }
+    } else {
+        waveform->getLoudestBandMeanSquares(kVibeWaveformEnergyColumns,
+                VibeWaveformWindowReach(kVibeWaveformEnergyColumns, kFullReachBars), maxima);
     }
     float loudest = 0;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-        float maximum = 0;
-        vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maximum, count);
-        loudest = fmaxf(loudest, sqrtf(maximum) / kBandShareOfFullScale[b]);
+        loudest = fmaxf(loudest, sqrtf(maxima[b]) / kBandShareOfFullScale[b]);
     }
-    float reference = VibeWaveformNormalizedFullScaleRMS(loudest);
-    if (fixedReference) _referenceRMS = reference;
-    return reference;
+    return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
 
 - (void)rebuildPaths {

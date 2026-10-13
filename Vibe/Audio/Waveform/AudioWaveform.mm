@@ -288,8 +288,30 @@ void AudioWaveform::getBandWindowMeanSquares(NSUInteger size, NSUInteger columns
     }
 }
 
+void AudioWaveform::getLoudestBandMeanSquares(NSUInteger size, float reach, float* loudest) {
+    os_unfair_lock_lock(&loudestBandsLock);
+    bool kept = size > 0 && loudestBandsSize == size && loudestBandsReach == reach;
+    if (kept) memcpy(loudest, loudestBands, kBandBytes);
+    os_unfair_lock_unlock(&loudestBandsLock);
+    if (kept) return;
+    std::fill(loudest, loudest + kAudioWaveformBandCount, 0.0f);
+    if (size == 0) return;
+    // Measured outside the lock. Two threads may both measure, and they store
+    // the same answer.
+    std::vector<float> bars(size * kAudioWaveformBandCount);
+    getBarMeanSquares(size, reach, NULL, bars.data());
+    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+        vDSP_maxv(bars.data() + b, kAudioWaveformBandCount, &loudest[b], size);
+    }
+    os_unfair_lock_lock(&loudestBandsLock);
+    memcpy(loudestBands, loudest, kBandBytes);
+    loudestBandsSize = size;
+    loudestBandsReach = reach;
+    os_unfair_lock_unlock(&loudestBandsLock);
+}
+
 void AudioWaveform::setBandMeanSquares(const float* meanSquares) {
-    bandRunningSums.clear();
+    chunksChanged();
     if (!bandSums) {
         bandSums = static_cast<float*>(calloc(numChunks, kBandBytes));
     }
@@ -302,7 +324,7 @@ void AudioWaveform::setBandMeanSquares(const float* meanSquares) {
 }
 
 void AudioWaveform::copyChunk(NSUInteger from, NSUInteger to) {
-    bandRunningSums.clear();
+    chunksChanged();
     if (from >= numChunks || to >= numChunks) return;
     chunks[to] = chunks[from];
     if (bandSums) {

@@ -809,11 +809,43 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
             XCTAssertEqual([reused normalizationGainForWaveform:waveform], 1);
             reused.normalizesLevels = YES;
         }
-        [reused updateWaveform:reused.parentLayer.bounds progress:0 waveform:nullptr];
-        [reused updateWaveform:reused.parentLayer.bounds progress:0 waveform:&loud];
-        XCTAssertEqualWithAccuracy([reused normalizationGainForWaveform:&loud],
-                                  kVibeWaveformFullScaleRMS / sqrtf(0.1f), 1e-6);
+        // New samples at the same address, as a freed waveform's slot can
+        // hold the next track's.
+        AudioWaveform rewritten = VibeThreeBandTestWaveform({0.001f, 0.0001f, 0.00001f});
+        reused.parentLayer.bounds = CGRectMake(0, 0, 3000, 80);
+        [reused updateWaveform:reused.parentLayer.bounds progress:0 waveform:&rewritten];
+        XCTAssertEqualWithAccuracy([reused normalizationGainForWaveform:&rewritten],
+                                  kVibeWaveformFullScaleRMS / sqrtf(0.001f), 1e-4, @"%@", style);
+        const float louder[kAudioWaveformBandCount] = {0.1f, 0.01f, 0.001f};
+        for (NSUInteger i = 0; i < rewritten.getNumChunks(); i++) {
+            rewritten.setBandSumSquaresAtIndex(louder, i);
+        }
+        XCTAssertEqualWithAccuracy([reused normalizationGainForWaveform:&rewritten],
+                                  kVibeWaveformFullScaleRMS / sqrtf(0.1f), 1e-6, @"%@", style);
     }
+}
+
+// One answer on every thread, kept until a chunk setter drops it.
+- (void)testLoudestBandMeanSquaresAreKeptUntilTheChunksChange {
+    AudioWaveform waveform = VibeThreeBandTestWaveform({0.001f, 0.0001f, 0.00001f});
+    AudioWaveform *shared = &waveform;
+    std::vector<std::array<float, 3>> answers(8);
+    std::array<float, 3> *out = answers.data();
+    dispatch_apply(answers.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
+        shared->getLoudestBandMeanSquares(1024, 1, out[i].data());
+    });
+    for (const auto &answer : answers) {
+        XCTAssertTrue(answer == answers[0]);
+    }
+    XCTAssertEqualWithAccuracy(answers[0][0], 0.001f, 1e-7);
+    XCTAssertEqualWithAccuracy(answers[0][1], 0.0001f, 1e-8);
+    XCTAssertEqualWithAccuracy(answers[0][2], 0.00001f, 1e-9);
+
+    const float kick[kAudioWaveformBandCount] = {0.1f, 0, 0};
+    waveform.setBandSumSquaresAtIndex(kick, 512);
+    float loudest[kAudioWaveformBandCount];
+    waveform.getLoudestBandMeanSquares(1024, 1, loudest);
+    XCTAssertEqualWithAccuracy(loudest[0], 0.1f, 1e-6);
 }
 
 // The bars' levels, low to high, as 3-Band draws them across this width.

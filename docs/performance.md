@@ -62,9 +62,9 @@ Measured on an Apple M4 Max with 64 GB of memory, macOS 27.0.1 and Xcode 27.0. T
 
 The initial survey covered 134 component benchmarks. It covered opening, decoding, seeking, playback stages, analysis, caches, library loading and UI work. Two new cases measure Spectrum with display gain at -6 dB and +6 dB. The final comparison covered all 136 cases.
 
-Spectrum now mixes RGB and brightness in one SIMD vector. A strip with one bar per pixel skips the color scratch and interpolation. The band renderer also keeps its completed waveform's fixed normalization reference. Resizing no longer repeats that scan. The iOS completion gain reads the same reference.
+Spectrum now mixes RGB and brightness in one SIMD vector. A strip with one bar per pixel skips the color scratch and interpolation. A completed waveform now keeps each band's loudest of 1,024 columns. Resizing no longer repeats that scan. The iOS completion gain reads the same answer.
 
-The waveform comparison alternates baseline and changed binaries for five rounds of twenty repetitions. Each resize repetition draws 60 frames from 700 to 936 points at 2x backing scale. These are CPU and instruction measurements. They do not measure GPU frame completion.
+The waveform comparison alternates baseline and changed binaries for five rounds of twenty repetitions. Each resize repetition draws 60 frames from 700 to 936 points at 2x backing scale. These are CPU and instruction measurements. They do not measure GPU frame completion. iOS was not measured on a device.
 
 | Spectrum resize case | Instructions before | Instructions after | CPU before | CPU after |
 | --- | ---: | ---: | ---: | ---: |
@@ -74,31 +74,11 @@ The waveform comparison alternates baseline and changed binaries for five rounds
 
 The normalized case uses 26% fewer instructions and 24% less CPU time. The gain cases use 9% fewer instructions and 7–8% less CPU time. Before #244, the same changes measured 30% fewer instructions and 25–28% less CPU time in the normalized case. The table above includes #244 on both sides. Other waveform styles have unchanged instruction counts within measurement variation. Their CPU timings vary between batches. An apparent oversampling slowdown reversed in an isolated repeat. It did not reproduce as an instruction increase.
 
-The saved waveform envelopes, masks, bakes and Spectrum strips are byte-identical. Strip checks include widths below and above the 8,192-bar cap. A new test covers normalization across resizes, track changes, partial waveforms and empty views.
-
-The app suite also ran startup, a 600-file library and playback during the initial pass against `54351183`, before #244. These are diagnostic observations from one pass per version. CPU scheduling and filesystem cache state affect them. They do not establish improvements outside the renderer.
-
-| App observation | Before | After |
-| --- | ---: | ---: |
-| Fresh-state window, median of 3 launches | 243 ms | 214 ms |
-| Warm window, median of 10 launches | 238 ms | 213 ms |
-| 600-file library, rows listed | 42 ms | 86 ms |
-| 600-file library, cold metadata scan | 377 ms | 320 ms |
-| 600-file library, warm metadata scan | 74 ms | 72 ms |
-| First MP3 playback after launch | 15.4 ms | 13.5 ms |
-| MP3 playback, percent of one CPU core | 1.31% | 1.50% |
-| FLAC 24/192 playback, percent of one CPU core | 1.70% | 1.08% |
-| Seek stalls across six file cases | 0 | 0 |
-
-Average seek latencies per file were 1.4–2.9 ms. The run included hour-long MP3s, an MP3 without Xing, high-rate FLAC, FX and pitch changes. Playback instructions were close despite the CPU-time variation. No startup, loading or playback speedup is claimed.
+The saved waveform envelopes, masks, bakes and Spectrum strips are byte-identical. Strip checks include widths below and above the 8,192-bar cap.
 
 The audio path already uses Accelerate and SIMD for mixing, resampling, metering and analysis. The high-rate FLAC profile spends most decoder time in the existing NEON residual decoder. The Detailed resize profile spends much of its time in Core Graphics path construction. Spectrum with nonzero display gain still spends substantial time in `powf`.
 
 Broader SIMD rewrites of waveform energy windows did not improve the measured work. A whole-target `-O3` build also showed no convincing general gain. Those experiments were discarded. The retained changes consolidate the normalization scan and remove the common strip's intermediate color pass.
-
-Validation passed 2,194 unit tests after merging `main`. The audio pipeline suite passed 172 tests. The macOS and iOS Release analyzers were clean. The iOS Debug build passed. CI exposed a race in the metadata retry tests. The fix from #249 waits for the captured retry callback before firing it. Both affected tests failed in a repeated run before the fix. Both passed 100 repetitions after it.
-
-Live macOS checks covered resizing, normalization, gain, track changes and both appearances. All four consistency checks passed. iOS performance was not measured on a device.
 
 To repeat the component comparison:
 
