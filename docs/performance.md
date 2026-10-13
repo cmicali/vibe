@@ -58,7 +58,7 @@ The component benchmarks, VibeBenchComponents, built against each version's own 
 
 ## October 2026 performance pass
 
-Measured on an Apple M4 Max with 64 GB of memory, macOS 27.0.1 and Xcode 27.0. The baseline is `54351183`. Both sides use the same benchmark harness and the shipping `-Os` settings. This pass is separate from the release charts above.
+Measured on an Apple M4 Max with 64 GB of memory, macOS 27.0.1 and Xcode 27.0. The initial baseline was `54351183`. After the Spectrum color-window change in #244, the branch was rebased and the component comparisons were repeated against `2e8059a2`. Both sides use the same benchmark harness and the shipping `-Os` settings. This pass is separate from the release charts above.
 
 The initial survey covered 134 component benchmarks. It covered opening, decoding, seeking, playback stages, analysis, caches, library loading and UI work. Two new cases measure Spectrum with display gain at -6 dB and +6 dB. The final comparison covered all 136 cases.
 
@@ -68,15 +68,15 @@ The waveform comparison alternates baseline and changed binaries for five rounds
 
 | Spectrum resize case | Instructions before | Instructions after | CPU before | CPU after |
 | --- | ---: | ---: | ---: | ---: |
-| Normalized | 122.0 million | 85.2 million | 4.9 ms | 3.7 ms |
-| Gain -6 dB | 119.5 million | 106.8 million | 4.6 ms | 4.1 ms |
-| Gain +6 dB | 119.5 million | 106.8 million | 4.5 ms | 4.3 ms |
+| Normalized | 138.7 million | 102.0 million | 5.7 ms | 4.3 ms |
+| Gain -6 dB | 136.3 million | 123.5 million | 5.4 ms | 5.0 ms |
+| Gain +6 dB | 136.3 million | 123.5 million | 5.4 ms | 4.9 ms |
 
-The normalized case uses 30% fewer instructions and 25% less CPU time. An earlier run measured 28% less CPU time. The gain cases use 11% fewer instructions and 4–11% less CPU time across those runs. Other waveform styles have unchanged instruction counts within measurement variation. Their CPU timings vary between batches. An apparent oversampling slowdown reversed in an isolated repeat. It did not reproduce as an instruction increase.
+The normalized case uses 26% fewer instructions and 24% less CPU time. The gain cases use 9% fewer instructions and 7–8% less CPU time. Before #244, the same changes measured 30% fewer instructions and 25–28% less CPU time in the normalized case. The table above includes #244 on both sides. Other waveform styles have unchanged instruction counts within measurement variation. Their CPU timings vary between batches. An apparent oversampling slowdown reversed in an isolated repeat. It did not reproduce as an instruction increase.
 
 The saved waveform envelopes, masks, bakes and Spectrum strips are byte-identical. Strip checks include widths below and above the 8,192-bar cap. A new test covers normalization across resizes, track changes, partial waveforms and empty views.
 
-The app suite also ran startup, a 600-file library and playback at both versions. These are diagnostic observations from one pass per version. CPU scheduling and filesystem cache state affect them. They do not establish improvements outside the renderer.
+The app suite also ran startup, a 600-file library and playback during the initial pass against `54351183`, before #244. These are diagnostic observations from one pass per version. CPU scheduling and filesystem cache state affect them. They do not establish improvements outside the renderer.
 
 | App observation | Before | After |
 | --- | ---: | ---: |
@@ -96,14 +96,14 @@ The audio path already uses Accelerate and SIMD for mixing, resampling, metering
 
 Broader SIMD rewrites of waveform energy windows did not improve the measured work. A whole-target `-O3` build also showed no convincing general gain. Those experiments were discarded. The retained changes consolidate the normalization scan and remove the common strip's intermediate color pass.
 
-Validation passed 2,190 unit tests and 172 audio pipeline tests. The macOS and iOS Release analyzers were clean. The iOS Debug build passed. One metadata retry test failed during the first unit run and passed in the full rerun.
+Validation passed 2,192 unit tests and 172 audio pipeline tests after the rebase. The macOS and iOS Release analyzers were clean. The iOS Debug build passed. One metadata retry test failed during the initial unit run and passed in the full reruns.
 
 Live macOS checks covered resizing, normalization, gain, track changes and both appearances. All four consistency checks passed. iOS performance was not measured on a device.
 
 To repeat the component comparison:
 
 ```bash
-python3 .claude/skills/vibe-perf/scripts/perf.py compare 54351183 --filter '^ui-waveform\.' --rounds 5 --reps 20
+python3 .claude/skills/vibe-perf/scripts/perf.py compare 2e8059a2 --filter '^ui-waveform\.' --rounds 5 --reps 20
 ```
 
 ## How it works
