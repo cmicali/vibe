@@ -223,6 +223,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
         openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
     NSMenu *fileMenu = Submenu(mainMenu, STR_MENU_FILE).submenu;
     AddItem(fileMenu, STR_MENU_FILE_OPEN, @selector(openDocument:), nil, @"", 0, kVibeMenuOpen);
+    AddItem(fileMenu, STR_MENU_FILE_ADD_TO_PLAYLIST, @selector(addToPlaylist:), appDelegate, @"", 0, kVibeMenuAddToPlaylist);
     AddItem(fileMenu, STR_MENU_FILE_OPEN_URL, @selector(openLink:), appDelegate, @"", 0, kVibeMenuOpenLink);
     NSMenuItem *openRecentItem = Submenu(fileMenu, STR_MENU_FILE_OPEN_RECENT);
     openRecentItem.submenu.delegate = openRecentMenuController; // populated from NSDocumentController on open

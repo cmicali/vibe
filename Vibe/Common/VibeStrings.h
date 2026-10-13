@@ -63,6 +63,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_MENU_FILE                   NSLS(@"menu.file",                   @"File",            @"Menu bar: the File menu.")
 #define STR_MENU_FILE_OPEN              NSLS(@"menu.file.open",              @"Open…",           @"File menu item: shows the open panel. Ends with a real ellipsis character (…), not three periods.")
+#define STR_MENU_FILE_ADD_TO_PLAYLIST   NSLS(@"menu.file.add_to_playlist",   @"Add to Playlist…", @"File menu item: shows the open panel, then adds the chosen files and folders to the end of the playlist. Playback is not interrupted. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_FILE_OPEN_URL          NSLS(@"menu.file.open_url",          @"Open URL…",       @"File menu item: asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_FILE_OPEN_RECENT       NSLS(@"menu.file.open_recent",       @"Open Recent",     @"File menu: submenu listing recently opened files.")
 #define STR_MENU_FILE_OPEN_RECENT_CLEAR NSLS(@"menu.file.open_recent.clear", @"Clear Menu",      @"Open Recent submenu: empties the list of recent files.")
@@ -639,10 +640,11 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Buttons
 
-// Shared by both platforms: the Open URL prompt and iOS alerts.
+// The Open URL prompt, iOS alerts and the Mac's open panel.
 
 #define STR_BUTTON_CANCEL NSLS(@"button.cancel", @"Cancel", @"The button that dismisses an alert without doing anything: a confirmation alert on iOS, and the Open URL prompt on both platforms. Use the wording the system uses for this button in this language.")
-#define STR_BUTTON_OPEN   NSLS(@"button.open",  @"Open",   @"Button that opens something. On iOS, the empty playlist screen's button, which brings the Files tab forward to browse for a folder or file to play. On both platforms, the Open URL prompt's button, which plays the address entered.")
+#define STR_BUTTON_OPEN   NSLS(@"button.open",  @"Open",   @"Button that opens something. On iOS, the empty playlist screen's button, which brings the Files tab forward to browse for a folder or file to play. On both platforms, the Open URL prompt's button, which plays the address entered. On the Mac, also the open panel's button, which replaces the playlist with the chosen files and folders.")
+#define STR_BUTTON_ADD    NSLS(@"button.add",   @"Add",    @"Mac: the open panel's button when File > Add to Playlist… shows it. It adds the chosen files and folders to the end of the playlist.")
 
 #pragma mark - Open URL
 

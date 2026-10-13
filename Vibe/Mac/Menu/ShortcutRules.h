@@ -129,6 +129,7 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             // before it. A duplicate resolves in table order.
             @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('u', cmd))],
             @[kVibeMenuEditMoveToTrash,   @(VibeShortcutMake(kVibeKeyCodeDelete, cmd))],
+            @[kVibeMenuAddToPlaylist,     @(VibeShortcutMakeCharacter('o', cmd | NSEventModifierFlagShift))],
         ];
     });
     return table;

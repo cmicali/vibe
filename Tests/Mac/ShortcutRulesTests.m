@@ -31,8 +31,8 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
     NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
     for (NSString *identifier in VibeShortcutIdentifiers()) {
         VibeShortcut shortcut = VibeShortcutDefault(identifier);
-        // Every command but Open and Open URL is one the player validates.
-        XCTAssertTrue([identifier isEqualToString:kVibeMenuOpen] || [identifier isEqualToString:kVibeMenuOpenLink]
+        // Every command but Open, Add to Playlist and Open URL is one the player validates.
+        XCTAssertTrue(([@[kVibeMenuOpen, kVibeMenuAddToPlaylist, kVibeMenuOpenLink] containsObject:identifier])
                       || VibeMenuValidationDomainForIdentifier(identifier) != VibeMenuValidationDomainUnknown,
                       @"%@", identifier);
         if (shortcut != kVibeShortcutNone) {
@@ -70,12 +70,12 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kShift), 's', nil, nil));
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kOption | kShift), 's', nil, nil));
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(15, kCmd | kShift), 'r', nil, nil));
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(31, kCmd | kShift), 'o', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(31, kCmd | kShift), 'o', nil, nil), kVibeMenuAddToPlaylist);
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(8, kShift), 'c', nil, nil));
     XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, 0), 'r', nil, nil), kVibeMenuFXDelay,
                           @"bare R is the delay's key code, not Repeat");
-    for (NSString *identifier in @[kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen, kVibeMenuSavePlaylist,
-                                   kVibeMenuEditCopyName]) {
+    for (NSString *identifier in @[kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen, kVibeMenuAddToPlaylist,
+                                   kVibeMenuSavePlaylist, kVibeMenuEditCopyName]) {
         XCTAssertFalse(VibeShortcutCommandRepeats(identifier), @"%@", identifier);
     }
 }

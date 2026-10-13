@@ -62,6 +62,8 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
+    // Open and Add to Playlist share the panel. The command chosen last wins.
+    BOOL _openPanelAppends;
     OpenLinkWindowController *_openLinkWindowController;
     // One cancel per open still resolving its links, until it settles.
     NSMutableArray<dispatch_block_t> *_linkOpenCancels;
@@ -532,11 +534,22 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 }
 
 - (IBAction)openDocument:(id)sender {
+    [self showOpenPanelAppending:NO];
+}
+
+- (IBAction)addToPlaylist:(id)sender {
+    [self showOpenPanelAppending:YES];
+}
+
+- (void)showOpenPanelAppending:(BOOL)append {
+    _openPanelAppends = append;
     if (_openPanel) {
-        [_openPanel makeKeyAndOrderFront:sender];
+        _openPanel.prompt = append ? STR_BUTTON_ADD : STR_BUTTON_OPEN;
+        [_openPanel makeKeyAndOrderFront:nil];
         return;
     }
     NSOpenPanel* panel = [NSOpenPanel openPanel];
+    panel.prompt = append ? STR_BUTTON_ADD : STR_BUTTON_OPEN;
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;
@@ -559,7 +572,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [panel beginWithCompletionHandler:^(NSInteger result){
         self->_openPanel = nil;
         if (result == NSModalResponseOK) {
-            [self->_openBurstCoalescer openDeliberateURLs:panel.URLs appending:NO];
+            [self->_openBurstCoalescer openDeliberateURLs:panel.URLs appending:self->_openPanelAppends];
         }
     }];
 }

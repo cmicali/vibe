@@ -182,8 +182,9 @@
     XCTAssertFalse(VibeEditMenuKeepsItem(@"menu_cut"));
 }
 
-- (void)testOpenAndOpenURLAreTheAppDelegatesNotThePlayers {
-    [self assertIdentifiers:@[kVibeMenuOpen, kVibeMenuOpenLink] classify:VibeMenuValidationDomainUnknown];
+- (void)testOpenAddToPlaylistAndOpenURLAreTheAppDelegatesNotThePlayers {
+    [self assertIdentifiers:@[kVibeMenuOpen, kVibeMenuAddToPlaylist, kVibeMenuOpenLink]
+                   classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqualObjects(kVibeMenuOpenLink, @"menu_open_link");
     XCTAssertFalse([kVibeMenuOpenLink isEqualToString:kVibeMenuOpen]);
 }

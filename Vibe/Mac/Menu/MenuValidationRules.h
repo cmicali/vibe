@@ -80,9 +80,10 @@ static NSString *const kVibeMenuPitchRange8 = @"pitch_range_8";
 static NSString *const kVibeMenuPitchRange16 = @"pitch_range_16";
 
 static NSString *const kVibeMenuPlay = @"menu_play";
-// Absent from the domains below: File > Open and Open URL target the app
-// delegate, which enables them always.
+// Absent from the domains below: File > Open, Add to Playlist and Open URL
+// target the app delegate, which enables them always.
 static NSString *const kVibeMenuOpen = @"menu_open";
+static NSString *const kVibeMenuAddToPlaylist = @"menu_add_to_playlist";
 static NSString *const kVibeMenuOpenLink = @"menu_open_link";
 static NSString *const kVibeMenuSavePlaylist = @"menu_save_playlist";
 static NSString *const kVibeMenuClose = @"menu_close";
