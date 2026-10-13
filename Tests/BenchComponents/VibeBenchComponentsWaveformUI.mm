@@ -301,12 +301,40 @@ static void VibeBenchComponentsRegisterRenderers(void) {
 #endif
 
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM
+    for (float gain : {-6.0f, 6.0f}) {
+        auto gained = std::make_shared<VibeBenchComponentsUIRenderer>();
+        VibeBenchComponentsAdd("ui-waveform", gain < 0 ? "spectrum-gain-down-resize" : "spectrum-gain-up-resize",
+                              "frame", [gained, gain]() -> double {
+            CGRect bounds = VibeBenchComponentsUIHost(gained.get(), 800, 13);
+            gained->renderer = [[SpectrumWaveformRenderer alloc] initWithLayer:gained->parent bounds:bounds isDark:YES];
+            gained->renderer.gainDB = gain;
+            [gained->renderer updateWaveform:bounds progress:0.4 waveform:gained->waveform.get()];
+            [gained->renderer settleMorphImmediately];
+            return 60;
+        }, [gained]() {
+            VibeBenchComponentsUILiveResize(gained.get());
+        });
+    }
+
     auto spectrum = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "spectrum-resize", "frame", [spectrum]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(spectrum.get(), 800, 13);
         spectrum->renderer = [[SpectrumWaveformRenderer alloc] initWithLayer:spectrum->parent bounds:bounds
                                                                       isDark:YES];
         spectrum->renderer.normalizesLevels = YES;
+        NSMutableData *envelopes = [NSMutableData data], *pixels = [NSMutableData data];
+        for (CGFloat width : {300.0, 801.0, 3000.0, 5000.0}) {
+            spectrum->parent.bounds = CGRectMake(0, 0, width, 60);
+            [spectrum->renderer updateWaveform:spectrum->parent.bounds progress:0.4 waveform:spectrum->waveform.get()];
+            [spectrum->renderer settleMorphImmediately];
+            [envelopes appendData:[spectrum->renderer envelopeSamplesForWaveform:spectrum->waveform.get()]];
+            CALayer *fill = [spectrum->renderer valueForKey:@"_spectrumFill"];
+            CGImageRef strip = (__bridge CGImageRef)fill.contents;
+            [pixels appendData:CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(strip)))];
+        }
+        VibeBenchComponentsUIDump(@"ui-waveform-spectrum-envelopes.raw", envelopes);
+        VibeBenchComponentsUIDump(@"ui-waveform-spectrum-strip.raw", pixels);
+        spectrum->parent.bounds = bounds;
         [spectrum->renderer updateWaveform:bounds progress:0.4 waveform:spectrum->waveform.get()];
         [spectrum->renderer settleMorphImmediately];
         return 60;

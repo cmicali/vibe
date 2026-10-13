@@ -136,6 +136,11 @@ public:
     // and the hats' bands from bar to bar, and a box leaks the beat (the
     // constant in WaveformLevelMath.h). Zeros without bands.
     void getBandWindowMeanSquares(NSUInteger size, NSUInteger columns, float* bandMeanSquares);
+    // Each band's loudest bar of getBarMeanSquares's answer at this size and
+    // reach, low to high into loudest. Zeros without bands. The answer is
+    // kept for the last size and reach while the chunks stand. A resize then
+    // measures nothing. It is safe on any thread. The widget draws off main.
+    void getLoudestBandMeanSquares(NSUInteger size, float reach, float* loudest);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;
@@ -146,13 +151,13 @@ public:
     // the first with no frames is the edge. Complete or empty waveforms return 1.
     double getDecodedFraction();
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
-        if (index < numChunks) { chunks[index] = chunk; bandRunningSums.clear(); }
+        if (index < numChunks) { chunks[index] = chunk; chunksChanged(); }
     }
     // A no-op without bands.
     inline void setBandSumSquaresAtIndex(const float* sums, NSUInteger index) {
         if (bandSums && index < numChunks) {
             memcpy(&bandSums[index * kAudioWaveformBandCount], sums, kBandBytes);
-            bandRunningSums.clear();
+            chunksChanged();
         }
     }
     // The chunk and its bands.
@@ -173,6 +178,12 @@ private:
     // The chunks [start, start + count) column index of size combines.
     void getColumnRange(NSUInteger index, NSUInteger size, NSUInteger* start, NSUInteger* count);
     void allocate(NSUInteger count, bool withBands);
+    // Every chunk setter drops what the reads keep. A setter runs only before
+    // the waveform is shared. It takes no lock.
+    inline void chunksChanged() noexcept {
+        bandRunningSums.clear();
+        loudestBandsSize = 0;
+    }
 
     NSUInteger numChunks;
     AudioWaveformCacheChunk* chunks;
@@ -181,11 +192,16 @@ private:
     bool complete;
     // getBandWindowMeanSquares's running sums of the frames and the bands,
     // built on its first call and kept while the chunks stand, so a resize's
-    // frames do not rebuild them. Every chunk setter clears it. A setter runs
-    // only before the waveform is shared, so it takes no lock. The build is
-    // under the lock, because the iOS widget draws a shared waveform off main.
-    os_unfair_lock bandRunningSumsLock = OS_UNFAIR_LOCK_INIT;
+    // frames do not rebuild them.
     std::vector<double> bandRunningSums;
+    // getLoudestBandMeanSquares's answer for loudestBandsSize bars at
+    // loudestBandsReach. A size of 0 is none.
+    NSUInteger loudestBandsSize = 0;
+    float loudestBandsReach = 0;
+    float loudestBands[kAudioWaveformBandCount] = {};
+    // Guards what the reads keep. The iOS widget draws a shared waveform off
+    // main.
+    os_unfair_lock keptReadsLock = OS_UNFAIR_LOCK_INIT;
 };
 
 // The entry-format version. It is encoded in every archive and embedded in the

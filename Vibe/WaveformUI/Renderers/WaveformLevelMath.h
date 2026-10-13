@@ -2,14 +2,13 @@
 //  WaveformLevelMath.h
 //  Vibe
 //
-//  The chunk-to-level mapping every bar style draws from, and the one gain
-//  setting that bends it, and the bar-count rules around it. Spectrum's
-//  color mix is here too. Header-only and Foundation-only, so all of it is
-//  testable without the renderer headers' C++ and Core Animation imports.
+//  Level mapping, display gain, bar counts and Spectrum color mixing.
+//  Header-only for tests without the renderers' C++ or Core Animation.
 //
 
 #import <Foundation/Foundation.h>
 #import <math.h>
+#import <simd/simd.h>
 #import "HelperMacros.h"
 
 // Energy, not peaks: on a limited master every coarse bar holds a full-scale
@@ -40,34 +39,27 @@ static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, f
 // Restore the weighted primary brightness. Silence uses the plain mean.
 // Levels may exceed one; only their ratios matter.
 static inline void VibeSpectrumColor(const float *levels, const float primaries[3][3], float *rgb) {
-    float weights[3];
-    float total = 0;
-    for (int b = 0; b < 3; b++) {
-        float level = fmaxf(levels[b], 0.0f);
-        float energy = level * level;
-        weights[b] = energy * energy;
-        total += weights[b];
-    }
+    simd_float3 level = simd_max(simd_make_float3(levels[0], levels[1], levels[2]), 0);
+    simd_float3 energy = level * level;
+    simd_float3 weights = energy * energy;
+    float total = weights.x + weights.y + weights.z;
     if (total <= 0) {
         for (int c = 0; c < 3; c++) {
             rgb[c] = (primaries[0][c] + primaries[1][c] + primaries[2][c]) / 3;
         }
         return;
     }
-    float brightness = 0;
-    rgb[0] = rgb[1] = rgb[2] = 0;
+    simd_float4 mixed = 0;
+#pragma clang loop unroll(full)
     for (int b = 0; b < 3; b++) {
         float weight = weights[b] / total;
-        brightness += weight * fmaxf(primaries[b][0], fmaxf(primaries[b][1], primaries[b][2]));
-        for (int c = 0; c < 3; c++) {
-            rgb[c] += weight * primaries[b][c];
-        }
+        float brightness = fmaxf(primaries[b][0], fmaxf(primaries[b][1], primaries[b][2]));
+        mixed += weight * simd_make_float4(primaries[b][0], primaries[b][1], primaries[b][2], brightness);
     }
-    float peak = fmaxf(rgb[0], fmaxf(rgb[1], rgb[2]));
-    float scale = peak > 0 ? brightness / peak : 0;
-    for (int c = 0; c < 3; c++) {
-        rgb[c] *= scale;
-    }
+    float peak = fmaxf(mixed.x, fmaxf(mixed.y, mixed.z));
+    float scale = peak > 0 ? mixed.w / peak : 0;
+    mixed *= scale;
+    memcpy(rgb, &mixed, 3 * sizeof(float));
 }
 
 // A bar's level averages energy over a column no finer than 1/1024 of the

@@ -56,6 +56,36 @@ The component benchmarks, VibeBenchComponents, built against each version's own 
 
 <!-- performance:end -->
 
+## October 2026 performance pass
+
+Measured on an Apple M4 Max with 64 GB of memory, macOS 27.0.1 and Xcode 27.0. The initial baseline was `54351183`. After the Spectrum color-window change in #244, the branch was rebased and the component comparisons were repeated against `2e8059a2`. Both sides use the same benchmark harness and the shipping `-Os` settings. This pass is separate from the release charts above.
+
+The initial survey covered 134 component benchmarks. It covered opening, decoding, seeking, playback stages, analysis, caches, library loading and UI work. Two new cases measure Spectrum with display gain at -6 dB and +6 dB. The final comparison covered all 136 cases.
+
+Spectrum now mixes RGB and brightness in one SIMD vector. A strip with one bar per pixel skips the color scratch and interpolation. A completed waveform now keeps each band's loudest of 1,024 columns. Resizing no longer repeats that scan. The iOS completion gain reads the same answer.
+
+The waveform comparison alternates baseline and changed binaries for five rounds of twenty repetitions. Each resize repetition draws 60 frames from 700 to 936 points at 2x backing scale. These are CPU and instruction measurements. They do not measure GPU frame completion. iOS was not measured on a device.
+
+| Spectrum resize case | Instructions before | Instructions after | CPU before | CPU after |
+| --- | ---: | ---: | ---: | ---: |
+| Normalized | 138.7 million | 102.0 million | 5.7 ms | 4.3 ms |
+| Gain -6 dB | 136.3 million | 123.5 million | 5.4 ms | 5.0 ms |
+| Gain +6 dB | 136.3 million | 123.5 million | 5.4 ms | 4.9 ms |
+
+The normalized case uses 26% fewer instructions and 24% less CPU time. The gain cases use 9% fewer instructions and 7–8% less CPU time. Before #244, the same changes measured 30% fewer instructions and 25–28% less CPU time in the normalized case. The table above includes #244 on both sides. Other waveform styles have unchanged instruction counts within measurement variation. Their CPU timings vary between batches. An apparent oversampling slowdown reversed in an isolated repeat. It did not reproduce as an instruction increase.
+
+The saved waveform envelopes, masks, bakes and Spectrum strips are byte-identical. Strip checks include widths below and above the 8,192-bar cap.
+
+The audio path already uses Accelerate and SIMD for mixing, resampling, metering and analysis. The high-rate FLAC profile spends most decoder time in the existing NEON residual decoder. The Detailed resize profile spends much of its time in Core Graphics path construction. Spectrum with nonzero display gain still spends substantial time in `powf`.
+
+Broader SIMD rewrites of waveform energy windows did not improve the measured work. A whole-target `-O3` build also showed no convincing general gain. Those experiments were discarded. The retained changes consolidate the normalization scan and remove the common strip's intermediate color pass.
+
+To repeat the component comparison:
+
+```bash
+python3 .claude/skills/vibe-perf/scripts/perf.py compare 2e8059a2 --filter '^ui-waveform\.' --rounds 5 --reps 20
+```
+
 ## How it works
 
 The numbers above come from two benchmark suites, each run unchanged against every release. Their job is to show a regression or an improvement between versions, so everything about them is held fixed except the app's own code. The **app benchmarks** (`scripts/bench/`, this section) launch each version's own app and drive it; the **component benchmarks** (the `vibe-perf` skill, [below](#the-component-benchmarks)) run each version's production code in-process, without the app.

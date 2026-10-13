@@ -101,21 +101,33 @@ static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, c
     if (count == 0 || pixels == 0) {
         return NULL;
     }
-    std::vector<float> bar(count * 3);
-    for (NSUInteger i = 0; i < count; i++) {
-        VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, &bar[i * 3]);
+    // Live bars match backing pixels until the bar cap. Only a stretched
+    // strip needs colors held for interpolation.
+    BOOL direct = count == pixels;
+    std::vector<float> bar(direct ? 0 : count * 3);
+    if (!direct) {
+        for (NSUInteger i = 0; i < count; i++) {
+            VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, &bar[i * 3]);
+        }
     }
     NSMutableData *bytes = [NSMutableData dataWithLength:pixels * 4];
     uint8_t *pixel = (uint8_t *)bytes.mutableBytes;
     double step = (double)count / (double)pixels;
     for (size_t p = 0; p < pixels; p++, pixel += 4) {
-        double position = clampRange(((double)p + 0.5) * step - 0.5, 0.0, (double)(count - 1));
-        NSUInteger left = (NSUInteger)position;
-        NSUInteger right = MIN(left + 1, count - 1);
-        float t = (float)(position - (double)left);
+        float rgb[3];
+        if (direct) {
+            VibeSpectrumColor(samples + p * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, rgb);
+        } else {
+            double position = clampRange(((double)p + 0.5) * step - 0.5, 0.0, (double)(count - 1));
+            NSUInteger left = (NSUInteger)position;
+            NSUInteger right = MIN(left + 1, count - 1);
+            float t = (float)(position - (double)left);
+            for (NSUInteger c = 0; c < 3; c++) {
+                rgb[c] = bar[left * 3 + c] + (bar[right * 3 + c] - bar[left * 3 + c]) * t;
+            }
+        }
         for (NSUInteger c = 0; c < 3; c++) {
-            float value = bar[left * 3 + c] + (bar[right * 3 + c] - bar[left * 3 + c]) * t;
-            pixel[c] = (uint8_t)lroundf(clampRange(value, 0.0f, 1.0f) * 255);
+            pixel[c] = (uint8_t)lroundf(clampRange(rgb[c], 0.0f, 1.0f) * 255);
         }
         pixel[3] = 255;
     }
@@ -381,26 +393,28 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     }
 }
 
-// Normalize against the loudest band relative to its share.
-// Reuse the fill's mean squares up to 1,024 bars. Beyond that, measure
-// 1,024 columns to keep the reference stable across resizes.
+// Normalize against the loudest band relative to its share. Under 1,024 bars
+// the fill's own mean squares give it. From 1,024 bars the waveform's own
+// 1,024 columns give it. The waveform keeps that answer. The reference does
+// not step as a resize crosses 1,024 bars. A resize past that measures
+// nothing. drawn may be NULL from 1,024 bars.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
                          meanSquares:(const float *)drawn {
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
-    std::vector<float> columns;
-    if (count > kVibeWaveformEnergyColumns) {
-        count = kVibeWaveformEnergyColumns;
-        columns.resize(count * kAudioWaveformBandCount);
-        waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, columns.data());
-        drawn = columns.data();
+    float maxima[kAudioWaveformBandCount];
+    if (count < kVibeWaveformEnergyColumns) {
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maxima[b], count);
+        }
+    } else {
+        waveform->getLoudestBandMeanSquares(kVibeWaveformEnergyColumns,
+                VibeWaveformWindowReach(kVibeWaveformEnergyColumns, kFullReachBars), maxima);
     }
     float loudest = 0;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-        float maximum = 0;
-        vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maximum, count);
-        loudest = fmaxf(loudest, sqrtf(maximum) / kBandShareOfFullScale[b]);
+        loudest = fmaxf(loudest, sqrtf(maxima[b]) / kBandShareOfFullScale[b]);
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
@@ -453,10 +467,7 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
         return 1;
     }
-    NSUInteger count = kVibeWaveformEnergyColumns;
-    std::vector<float> columns(count * kAudioWaveformBandCount);
-    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, columns.data());
-    float reference = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:columns.data()];
+    float reference = [self bandFullScaleRMSForWaveform:waveform count:kVibeWaveformEnergyColumns meanSquares:NULL];
     return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
 }
 
