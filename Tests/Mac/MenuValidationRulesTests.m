@@ -162,8 +162,10 @@
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyName, NO, NO, NO, NO, NO, NO, YES));
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, NO, NO, NO, YES, YES, YES));
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, NO, NO, NO, YES, YES, YES));
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, YES, YES, YES, YES, YES, YES, NO),
-                   @"a trash still moving its files");
+    for (NSString *identifier in @[kVibeMenuEditRemoveFromPlaylist, kVibeMenuEditMoveToTrash]) {
+        XCTAssertFalse(VibeEditMenuEnabled(identifier, YES, YES, YES, YES, YES, YES, NO),
+                       @"%@ while a trash still moves its files", identifier);
+    }
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditUndo, NO, NO, NO, NO, YES, YES, YES));
 }
 

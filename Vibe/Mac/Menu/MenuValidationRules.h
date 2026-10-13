@@ -230,13 +230,13 @@ static inline BOOL VibeFileMenuEnabled(NSString *identifier, NSUInteger count, B
 // textFocused: a text view has keyboard focus in the key window, a field
 // editor included. Copy File holds ⌘C, so it copies that text instead of the
 // file, and must be enabled to. fileMoveInFlight: an undoable file move has
-// not landed, so Undo, Redo and Move to Trash wait for it.
+// not landed, so Undo, Redo, Remove and Move to Trash wait for it.
 static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL fileMoveInFlight,
         BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL hasTrack, BOOL hasURL, BOOL textFocused) {
     if ([identifier isEqualToString:kVibeMenuEditUndo]) return !fileMoveInFlight && canUndo;
     if ([identifier isEqualToString:kVibeMenuEditRedo]) return !fileMoveInFlight && canRedo;
-    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) return visibleSelection;
-    if ([identifier isEqualToString:kVibeMenuEditMoveToTrash]) return !fileMoveInFlight && visibleSelection;
+    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]
+            || [identifier isEqualToString:kVibeMenuEditMoveToTrash]) return !fileMoveInFlight && visibleSelection;
     if ([identifier isEqualToString:kVibeMenuEditCopyFile]) return textFocused || hasURL;
     return [identifier isEqualToString:kVibeMenuEditCopyName] && hasTrack;
 }

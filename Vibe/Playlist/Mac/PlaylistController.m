@@ -240,7 +240,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 - (NSIndexSet *)reorderDestinationForInfo:(id<NSDraggingInfo>)info
                               proposedRow:(NSInteger)row
                                sourceRows:(NSIndexSet **)outSourceRows {
-    if (![self draggingInfoIsLiveReorderSession:info]) {
+    if (self.structureEditsHeld || ![self draggingInfoIsLiveReorderSession:info]) {
         return nil;
     }
     NSIndexSet *sourceRows = [self rowsForTracks:_dragSessionTracks];
@@ -829,7 +829,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     if ([menuItem.identifier isEqualToString:@"remove_clicked_track_from_playlist"] ||
         [menuItem.identifier isEqualToString:@"move_clicked_track_to_trash"]) {
         // By identity, not row number: something at those rows is not proof.
-        return [self menuOpenSurvivingTracks].count > 0;
+        return !self.structureEditsHeld && [self menuOpenSurvivingTracks].count > 0;
     }
     return YES;
 }

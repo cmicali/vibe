@@ -28,14 +28,22 @@
 
 #pragma mark - Close and save
 
+- (IBAction)closeFile:(nullable id)sender {
+    [self unloadPlaybackClearingPlaylist:YES];
+}
+
+// Close's teardown. A removal that empties the list keeps its structure, and
+// with it every older undo registration, so it passes NO.
 // stop sends no callback, so nothing auto-advances; didFinishPlaying:'s stale
 // guard drops one already in flight.
-- (IBAction)closeFile:(nullable id)sender {
+- (void)unloadPlaybackClearingPlaylist:(BOOL)clear {
     [OpenRequestCoordinator.sharedCoordinator invalidate];
     [self endLoadingProgress];
     [self.audioPlayer stop];
     [self.waveformCache cancelLoad];
-    [self.playlistController clear];
+    if (clear) {
+        [self.playlistController clear];
+    }
     // A cancelled scan loader still holds every queued track; drop it.
     [self cancelDeferredMetadataLoad];
     [self.metadataCache cancelScan];
@@ -144,12 +152,20 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 // Remove from Playlist: the funnel plus Remove's undo.
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks {
+    // A held playlist is waiting for Move to Trash's undo to land its rows.
+    if (self.isFileMoveInFlight) {
+        return;
+    }
     PlaylistController *playlist = self.playlistController;
     // Each exact object once; departed ones drop out.
     NSIndexSet *rows = [playlist rowsForTracks:tracks];
+    // Removing every row is File > Close, which stays un-undoable.
+    if (rows.count > 0 && rows.count == playlist.count) {
+        [self closeFile:nil];
+        return;
+    }
     NSArray<AudioTrack *> *removed = [self removePlaylistRows:rows];
-    // An emptied list was a Close, which stays un-undoable.
-    if (removed.count == 0 || playlist.count == 0) {
+    if (removed.count == 0) {
         return;
     }
     // Undo restores the exact objects to their rows and never touches
@@ -174,12 +190,6 @@ static NSURL *VibeLastPlaylistURL(void) {
     if (rows.count == 0) {
         return @[];
     }
-    // Removing every row is an unload, which closeFile: owns whole.
-    if (rows.count == playlist.count) {
-        NSArray<AudioTrack *> *all = playlist.playlist;
-        [self closeFile:nil];
-        return all;
-    }
 
     NSUInteger currentIndex = playlist.currentIndex;
     BOOL removingCurrent = [rows containsIndex:currentIndex];
@@ -196,6 +206,12 @@ static NSURL *VibeLastPlaylistURL(void) {
     // Departed rows must not spend a provider transfer; undo re-requests them.
     for (AudioTrack *track in removed) {
         [self.metadataCache abandonQueuedTrack:track];
+    }
+    // TRAP: emptied as an edit, never a clear. A clear bumps the generation,
+    // which retires every older undo registration.
+    if (playlist.count == 0) {
+        [self unloadPlaybackClearingPlaylist:NO];
+        return removed;
     }
     // The cursor callback is not raised for a structural edit, so this is the
     // removal's one reconciliation.
@@ -238,25 +254,34 @@ static NSURL *VibeLastPlaylistURL(void) {
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] removePlaylistTracks:tracks];
     [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
-    if (![self restorePlaylistTracks:tracks atIndexes:indexes generation:generation]) {
+    [self restorePlaylistTracks:tracks atIndexes:indexes generation:generation];
+}
+
+// The row half of both removal undos. A replaced playlist takes nothing back.
+- (void)restorePlaylistTracks:(NSArray<AudioTrack *> *)tracks
+                    atIndexes:(NSIndexSet *)indexes
+                   generation:(NSUInteger)generation {
+    PlaylistController *playlist = self.playlistController;
+    if (generation != playlist.structureGeneration) {
         return;
     }
+    // Only Move to Trash empties the list as an edit, and nothing is loaded
+    // then. Rows with nothing loaded would rest in Loading.
+    BOOL emptied = playlist.count == 0;
+    [playlist insertTracks:tracks atIndexes:indexes];
     // Re-requests the scan work abandoned at removal.
     for (AudioTrack *track in tracks) {
         [self.metadataCache loadMetadataNow:track];
     }
-}
-
-// The row half of both removal undos. NO when the playlist was replaced since.
-- (BOOL)restorePlaylistTracks:(NSArray<AudioTrack *> *)tracks
-                    atIndexes:(NSIndexSet *)indexes
-                   generation:(NSUInteger)generation {
-    if (generation != self.playlistController.structureGeneration) {
-        return NO;
+    if (!emptied) {
+        [self reconcileAfterPlaylistStructureEdit];
+        return;
     }
-    [self.playlistController insertTracks:tracks atIndexes:indexes];
-    [self reconcileAfterPlaylistStructureEdit];
-    return YES;
+    // Parked on the cursor's row, as a removal parks. The play funnel
+    // repaints and prefetches.
+    [self updateMetadataNeighborhood];
+    [self pauseUIUpdateTimer];
+    [playlist playStartPaused:YES];
 }
 
 // A reorder's undo and redo. A replaced playlist, or indexes the model
@@ -303,8 +328,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 // Move to Trash, and its redo. Every row of each file goes at once, found by
 // URL as the model indexes rows: all of a cue image's rows share its URL, and
 // a duplicate row must not outlive its file. The rows leave through the
-// funnel's undo-free half, so the player lets go of a removed current file
-// before it moves.
+// funnel, so the player lets go of a removed current file before it moves.
 - (void)moveFilesToTrash:(NSArray<NSURL *> *)urls
                trashURLs:(NSMutableDictionary<NSURL *, id> *)trashURLs {
     PlaylistController *playlist = self.playlistController;
@@ -312,29 +336,24 @@ static NSURL *VibeLastPlaylistURL(void) {
     for (NSURL *url in urls) {
         [rows addIndexes:[playlist indexesOfTracksWithURL:url]];
     }
-    NSUInteger currentIndex = playlist.currentIndex;
-    NSArray<AudioTrack *> *tracks = [self removePlaylistRows:rows];
-    // Read after the removal: a Close bumps it, and the undo must find the
-    // playlist still closed.
     NSUInteger generation = playlist.structureGeneration;
+    NSArray<AudioTrack *> *tracks = [self removePlaylistRows:rows];
     NSUndoManager *undoManager = self.window.undoManager;
     [undoManager registerUndoWithTarget:self handler:^(MainPlayerController *controller) {
-        [controller putBackFiles:urls tracks:tracks atIndexes:rows currentIndex:currentIndex
+        [controller putBackFiles:urls tracks:tracks atIndexes:rows
                       generation:generation trashURLs:trashURLs];
     }];
     [undoManager setActionName:STR_MENU_EDIT_MOVE_TO_TRASH];
     [self moveFiles:urls toTrash:YES trashURLs:trashURLs completion:nil];
 }
 
-// Move to Trash's undo. Rows that only left the list come back at once, so
-// every older registration's row numbers hold. A trash that emptied the
-// playlist closed it. Its rows come back as a parked load once their files
-// are back, unless something was opened since. Either way the scan work the
-// removal abandoned waits for the files.
+// Move to Trash's undo. The rows come back only once their files are back,
+// so no prefetch or play reaches a file still in the Trash. The playlist is
+// held until then (fileMoveInFlight), so every older registration's row
+// numbers still hold when the rows land.
 - (void)putBackFiles:(NSArray<NSURL *> *)urls
               tracks:(NSArray<AudioTrack *> *)tracks
            atIndexes:(NSIndexSet *)rows
-        currentIndex:(NSUInteger)currentIndex
           generation:(NSUInteger)generation
            trashURLs:(NSMutableDictionary<NSURL *, id> *)trashURLs {
     // TRAP: register the opposite first, synchronously. NSUndoManager's stack
@@ -344,18 +363,8 @@ static NSURL *VibeLastPlaylistURL(void) {
         [controller moveFilesToTrash:urls trashURLs:trashURLs];
     }];
     [undoManager setActionName:STR_MENU_EDIT_MOVE_TO_TRASH];
-    PlaylistController *playlist = self.playlistController;
-    // Only a Close empties the list, and every Close bumps the generation.
-    BOOL closed = tracks.count > 0 && playlist.count == 0 && generation == playlist.structureGeneration;
-    BOOL reinserted = !closed && [self restorePlaylistTracks:tracks atIndexes:rows generation:generation];
     [self moveFiles:urls toTrash:NO trashURLs:trashURLs completion:^{
-        if (reinserted) {
-            for (AudioTrack *track in tracks) {
-                [self.metadataCache loadMetadataNow:track];
-            }
-        } else if (closed && generation == playlist.structureGeneration) {
-            [self loadTracks:tracks selectingIndex:currentIndex startPaused:YES];
-        }
+        [self restorePlaylistTracks:tracks atIndexes:rows generation:generation];
     }];
 }
 
@@ -369,7 +378,7 @@ static NSURL *VibeLastPlaylistURL(void) {
           toTrash:(BOOL)toTrash
         trashURLs:(NSMutableDictionary<NSURL *, id> *)trashURLs
        completion:(nullable void (^)(void))completion {
-    _trashInFlight = YES;
+    self.playlistController.structureEditsHeld = YES;
     __block NSError *failure = nil;
     dispatch_group_t group = dispatch_group_create();
     // The completions run on main, so trashURLs needs no lock. A nil place
@@ -401,7 +410,7 @@ static NSURL *VibeLastPlaylistURL(void) {
         }
     }
     dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-        self->_trashInFlight = NO;
+        self.playlistController.structureEditsHeld = NO;
         if (completion) {
             completion();
         }

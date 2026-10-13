@@ -56,9 +56,6 @@ NS_ASSUME_NONNULL_BEGIN
     // set again.
     BOOL                        _emptyStateSuppressed;
     BOOL                        _folderArtRefreshScheduled;
-    // While Move to Trash's file moves, or its undo's or redo's, settle
-    // (+Playlist). Part of fileMoveInFlight.
-    BOOL                        _trashInFlight;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;

@@ -777,7 +777,7 @@ static const NSTimeInterval kNoticeSeconds = 4;
 }
 
 - (BOOL)isFileMoveInFlight {
-    return self.fileConverter.isUndoRedoInFlight || _trashInFlight;
+    return self.fileConverter.isUndoRedoInFlight || self.playlistController.structureEditsHeld;
 }
 
 - (void)undoRedoDidSettleCommitted:(BOOL)committed reason:(nullable NSString *)reason {
