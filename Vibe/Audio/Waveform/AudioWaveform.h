@@ -6,6 +6,7 @@
 #include <Accelerate/Accelerate.h>
 #include <simd/simd.h>
 #include <cmath>
+#include <vector>
 
 // The waveform chunker, BPM and key analyzers share one mono mix per buffer.
 // For mono
@@ -125,10 +126,15 @@ public:
     // changes as a resize moves a bar edge across a transient. Intermediate
     // reach blends the own-window and loudest answers. A window past the track's
     // edge, or past the end of a load still streaming, is the mean of the
-    // frames it does cover. ownBandMeanSquares uses the same band layout at
-    // reach 0. It requires a non-null bandMeanSquares and shares its pass.
-    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares,
-                           float* ownBandMeanSquares = nullptr);
+    // frames it does cover.
+    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares);
+    // Every one of size bars' bands' mean squares, in the same layout, under
+    // a tent window centered on the bar: 1/columns of the track from foot to
+    // foot, never narrower than two bars, clipped to the track. Spectrum's
+    // colors read it: a window the bar's own alternates between the kick's
+    // and the hats' bands from bar to bar, and a box leaks the beat (the
+    // constant in WaveformLevelMath.h). Zeros without bands.
+    void getBandWindowMeanSquares(NSUInteger size, NSUInteger columns, float* bandMeanSquares);
     // The loader's own verdict, carried on the data: a decode it accepts can
     // end a chunk or two short, so the chunks cannot answer this. A fresh
     // waveform is a load still streaming, and a snapshot copies the answer;
@@ -139,11 +145,14 @@ public:
     // the first with no frames is the edge. Complete or empty waveforms return 1.
     double getDecodedFraction();
     inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
-        if (index < numChunks) { chunks[index] = chunk; }
+        if (index < numChunks) { chunks[index] = chunk; bandRunningSums.clear(); }
     }
     // A no-op without bands.
     inline void setBandSumSquaresAtIndex(const float* sums, NSUInteger index) {
-        if (bandSums && index < numChunks) { memcpy(&bandSums[index * kAudioWaveformBandCount], sums, kBandBytes); }
+        if (bandSums && index < numChunks) {
+            memcpy(&bandSums[index * kAudioWaveformBandCount], sums, kBandBytes);
+            bandRunningSums.clear();
+        }
     }
     // The chunk and its bands.
     void copyChunk(NSUInteger from, NSUInteger to);
@@ -169,6 +178,10 @@ private:
     // kAudioWaveformBandCount sums of squares per chunk, or null.
     float* bandSums;
     bool complete;
+    // getBandWindowMeanSquares's running sums of the frames and the bands,
+    // built on its first call and kept while the chunks stand, so a resize's
+    // frames do not rebuild them. Every chunk setter clears it.
+    std::vector<double> bandRunningSums;
 };
 
 // The entry-format version. It is encoded in every archive and embedded in the

@@ -352,30 +352,30 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // kick as it is.
 static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 
-// Heights use the reach window. Spectrum colors use the same pass's own
-// window before clamping. Reach would blend neighboring hits' colors.
+// Heights use the reach window. Spectrum colors use a window of their own,
+// floored at kVibeWaveformSpectrumColorColumns and unclamped.
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     std::vector<float> scratch(_spectrum ? count * kSpectrumSamplesPerBar : 0);
     float *heights = _spectrum ? scratch.data() : out;
-    float *own = heights + count * kAudioWaveformBandCount;
-    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, heights,
-                                _spectrum ? own : NULL);
+    float *colors = heights + count * kAudioWaveformBandCount;
+    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, heights);
     float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:heights];
     float gainDB = self.gainDB;
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
         float bandFullScaleRMS = fullScaleRMS * kBandShareOfFullScale[b];
-        for (float *level = heights + b; level < own; level += kAudioWaveformBandCount) {
+        for (float *level = heights + b; level < colors; level += kAudioWaveformBandCount) {
             *level = VibeWaveformBarLevel(*level, bandFullScaleRMS, gainDB);
         }
     }
     if (!_spectrum) {
         return;
     }
+    waveform->getBandWindowMeanSquares(count, kVibeWaveformSpectrumColorColumns, colors);
     for (NSUInteger i = 0; i < count; i++) {
         float *bar = out + i * kSpectrumSamplesPerBar;
         for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
             bar[b] = heights[i * kAudioWaveformBandCount + b];
-            float meanSquare = fmaxf(own[i * kAudioWaveformBandCount + b], 0);
+            float meanSquare = fmaxf(colors[i * kAudioWaveformBandCount + b], 0);
             bar[kAudioWaveformBandCount + b] = sqrtf(meanSquare) / (fullScaleRMS * kBandShareOfFullScale[b]);
         }
     }

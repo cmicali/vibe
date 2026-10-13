@@ -1007,29 +1007,60 @@ static uint32_t VibeStripRGBAt(CGImageRef strip, size_t column) {
     XCTAssertNotEqual(purple, high);
 }
 
-// The height reach would mix neighboring bands into identical colors.
-- (void)testSpectrumColorsEachBarByItsOwnWindow {
-    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
-    theme.flatFill = YES;
+// The strip's pixel colors for a waveform whose chunks alternate between a
+// low band and a high band every period chunks, at scale bars per point.
+- (std::vector<uint32_t>)spectrumStripRGBForAlternationPeriod:(NSUInteger)period scale:(CGFloat)scale
+                                                        theme:(WaveformTheme *)theme {
     std::vector<AudioWaveformCacheChunk> chunks(1024);
     std::vector<float> bandSums;
     for (NSUInteger i = 0; i < chunks.size(); i++) {
         chunks[i].set(-0.1f, 0.1f, 0.01f, 1);
-        // Two chunks a bar at the renderer's 512 bars.
-        bool low = (i / 2) % 2 == 0;
+        bool low = (i / period) % 2 == 0;
         bandSums.insert(bandSums.end(), {low ? 1.0f : 0.0f, 0.0f, low ? 0.0f : 0.2f});
     }
     AudioWaveform waveform(chunks.size(), chunks.data(), bandSums.data());
     WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    renderer.parentLayer.contentsScale = scale;
     renderer.theme = theme;
     [renderer updateColors:YES];
     [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:&waveform];
     [renderer settleMorphImmediately];
     CGImageRef strip = (__bridge CGImageRef)VibeThreeBandHost(renderer).sublayers.firstObject.contents;
     XCTAssertTrue(strip != NULL);
-    if (strip) {
-        XCTAssertEqual(VibeStripRGBAt(strip, 256), VibeSRGBOf(theme.spectrumColors[0]));
-        XCTAssertEqual(VibeStripRGBAt(strip, 257), VibeSRGBOf(theme.spectrumColors[2]));
+    std::vector<uint32_t> rgb;
+    for (size_t column = 0; strip && column < CGImageGetWidth(strip); column++) {
+        rgb.push_back(VibeStripRGBAt(strip, column));
+    }
+    return rgb;
+}
+
+// The height reach would mix neighboring bands into identical colors. The
+// tent is 1/256 of the track foot to foot: four chunks here, two bars at
+// 512 bars, so a bar's own band leads with a quarter of each neighbor's.
+- (void)testSpectrumColorsEachBarByItsOwnBandDownToTheTent {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    std::vector<uint32_t> rgb = [self spectrumStripRGBForAlternationPeriod:2 scale:1 theme:theme];
+    XCTAssertEqual(rgb.size(), 1024u / 2);
+    if (rgb.size() == 512) {
+        XCTAssertGreaterThan(rgb[256] >> 16 & 0xff, rgb[256] & 0xff, @"red leads a low bar");
+        XCTAssertGreaterThan(rgb[257] & 0xff, rgb[257] >> 16 & 0xff, @"blue leads a high bar");
+        XCTAssertNotEqual(rgb[256], VibeSRGBOf(theme.spectrumColors[0]), @"a quarter of each neighbor");
+        XCTAssertNotEqual(rgb[257], VibeSRGBOf(theme.spectrumColors[2]));
+    }
+}
+
+// Bars finer than the tent read the tent about their centers, so chunks
+// alternating every chunk color every one-chunk bar the same.
+- (void)testSpectrumColorsBarsFinerThanTheTentByTheTent {
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    std::vector<uint32_t> rgb = [self spectrumStripRGBForAlternationPeriod:1 scale:2 theme:theme];
+    XCTAssertEqual(rgb.size(), 1024u);
+    if (rgb.size() == 1024) {
+        XCTAssertEqual(rgb[512], rgb[513]);
+        XCTAssertNotEqual(rgb[512], VibeSRGBOf(theme.spectrumColors[0]));
+        XCTAssertNotEqual(rgb[512], VibeSRGBOf(theme.spectrumColors[2]));
     }
 }
 

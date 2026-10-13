@@ -96,17 +96,53 @@ static AudioWaveform VibeRampWaveform(NSUInteger count) {
             }
         }
     }
-    // The own windows ride the same pass at any reach, and are reach 0's.
-    for (NSUInteger size : {(NSUInteger)64, (NSUInteger)24, (NSUInteger)7}) {
-        std::vector<float> plain(size * kAudioWaveformBandCount), reached(size * kAudioWaveformBandCount),
-                own(size * kAudioWaveformBandCount);
+    // The tent is symmetric about the bar's center, so on a ramp it reads
+    // reach 0's value too, except at the edge bars, where the track clips it.
+    for (NSUInteger size : {(NSUInteger)64, (NSUInteger)32, (NSUInteger)8}) {
+        std::vector<float> plain(size * kAudioWaveformBandCount), window(size * kAudioWaveformBandCount);
         w.getBarMeanSquares(size, 0, nullptr, plain.data());
-        w.getBarMeanSquares(size, 1, nullptr, reached.data(), own.data());
-        for (NSUInteger i = 0; i < plain.size(); i++) {
-            XCTAssertEqualWithAccuracy(own[i], plain[i], 1e-3f, @"size %lu value %lu", size, i);
+        w.getBandWindowMeanSquares(size, size, window.data());
+        for (NSUInteger i = kAudioWaveformBandCount; i < plain.size() - kAudioWaveformBandCount; i++) {
+            XCTAssertEqualWithAccuracy(window[i], plain[i], 1e-3f, @"size %lu value %lu", size, i);
         }
+        // Clipped to the track, the edge bars lean inward; at a chunk a bar
+        // the tent's feet weigh nothing and they read as the box.
+        XCTAssertGreaterThanOrEqual(window[0], plain[0], @"size %lu", size);
+        XCTAssertLessThanOrEqual(window[plain.size() - 1], plain[plain.size() - 1], @"size %lu", size);
     }
 }
+
+// The tent is 1/columns of the track foot to foot about the bar's center,
+// clipped to the track, and two bars wide when that is wider.
+- (void)testBandWindowMeanSquaresAreATentAboutTheBar {
+    std::vector<AudioWaveformCacheChunk> chunks(8);
+    std::vector<float> bandSums;
+    for (NSUInteger i = 0; i < chunks.size(); i++) {
+        chunks[i].set(-0.1f, 0.1f, 0.01f, 1);
+        bandSums.insert(bandSums.end(), {(float)i, 0.0f, 1.0f});
+    }
+    AudioWaveform waveform(chunks.size(), chunks.data(), bandSums.data());
+    std::vector<float> bands(8 * kAudioWaveformBandCount);
+    // Four chunks foot to foot about a one-chunk bar: 7/8 of the tent's area
+    // over the bar's own chunk, 1/2 over each neighbor, 1/16 over the next.
+    waveform.getBandWindowMeanSquares(8, 2, bands.data());
+    XCTAssertEqualWithAccuracy(bands[3 * kAudioWaveformBandCount], 3, 1e-5);
+    XCTAssertEqualWithAccuracy(bands[3 * kAudioWaveformBandCount + 2], 1, 1e-5);
+    const float edge = 0.875f + 0.5f + 0.0625f;
+    XCTAssertEqualWithAccuracy(bands[0], (1 * 0.5f + 2 * 0.0625f) / edge, 1e-5);
+    XCTAssertEqualWithAccuracy(bands[7 * kAudioWaveformBandCount], (7 * 0.875f + 6 * 0.5f + 5 * 0.0625f) / edge, 1e-5);
+    // Bars wider than the floor: two bars foot to foot, symmetric about
+    // the track's middle here.
+    waveform.getBandWindowMeanSquares(2, 2, bands.data());
+    XCTAssertEqualWithAccuracy(bands[0] + bands[kAudioWaveformBandCount], 7, 1e-5);
+    XCTAssertGreaterThan(bands[0], 1.5);
+    XCTAssertLessThan(bands[0], 2.5);
+    AudioWaveform plain(chunks.size(), chunks.data());
+    plain.getBandWindowMeanSquares(2, 2, bands.data());
+    XCTAssertEqual(bands[0], 0);
+    XCTAssertEqual(bands[2 * kAudioWaveformBandCount - 1], 0);
+}
+
 
 // The frames are windowed as the sums are, so a steady level reads as itself
 // at every width and reach, the bars whose windows slide off the track
