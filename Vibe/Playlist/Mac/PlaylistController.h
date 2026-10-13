@@ -51,9 +51,16 @@ NS_ASSUME_NONNULL_BEGIN
 // later edit is unwound, restoring its coordinates.
 @property (nonatomic, readonly) NSUInteger structureGeneration;
 
+// YES while Move to Trash moves files (the shell sets it). The rows a pending
+// undo will put back are absent, so a reorder or removal now would shift the
+// rows every older undo registration names. Drops and the row menu's
+// removals refuse while it is set.
+@property (nonatomic) BOOL structureEditsHeld;
+
 // A row-menu removal of exact objects; the shell removes them and owns the
-// transport consequences.
-@property (nonatomic, copy, nullable) void (^removeTracksRequestHandler)(NSArray<AudioTrack *> *tracks);
+// transport consequences. With trashFiles, it is Move to Trash: every row of
+// each object's file goes, and the files follow to the Trash.
+@property (nonatomic, copy, nullable) void (^removeTracksRequestHandler)(NSArray<AudioTrack *> *tracks, BOOL trashFiles);
 
 - (NSArray<AudioTrack *> *)playlist;
 

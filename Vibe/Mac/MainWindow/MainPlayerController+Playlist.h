@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  The playlist edits the shell owns: Close, Save Playlist, the last playlist,
-//  and removing and moving rows with their undo. The model touches no audio,
-//  so each edit's playback consequences are decided here.
+//  removing and moving rows with their undo, and Move to Trash. The model
+//  touches no audio, so each edit's playback consequences are decided here.
 //
 
 #import "MainPlayerController.h"
@@ -35,6 +35,11 @@ NS_ASSUME_NONNULL_BEGIN
 // play intent to its forward successor, or parks on the row before.
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks;
+// Moves every selected row's file to the Trash and removes every row of each
+// file: all of a cue sheet's rows, and any duplicate. Undo puts the files
+// back and restores the rows; redo trashes them again.
+- (IBAction)moveSelectedPlaylistTracksToTrash:(nullable id)sender;
+- (void)trashPlaylistTracks:(NSArray<AudioTrack *> *)tracks;
 - (void)movePlaylistTracksFromIndexes:(NSIndexSet *)sourceIndexes
                             toIndexes:(NSIndexSet *)destinationIndexes
                            generation:(NSUInteger)generation;

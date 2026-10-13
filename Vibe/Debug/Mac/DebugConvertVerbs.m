@@ -15,15 +15,16 @@
 
 #import "AudioTrack.h"
 
-// A conversion's file moves settle after the undo manager call returns, so the
-// reply waits on the controller's one-shot settled hook rather than racing the
-// Trash; a reply outliving the client's timeout writes one orphan response and
-// cannot fire on a later menu-driven undo. A non-conversion undo settles inside
-// the call and never fires the hook, so the post-call check answers it.
+// The file moves of a conversion and of Move to Trash settle after the undo
+// manager call returns, so the reply waits on the controller's one-shot settled
+// hook rather than racing the Trash; a reply outliving the client's timeout
+// writes one orphan response and cannot fire on a later menu-driven undo. An
+// undo that moves no file settles inside the call and never fires the hook, so
+// the post-call check answers it.
 static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerController *controller, BOOL redo) {
     NSUndoManager *undoManager = controller.window.undoManager;
-    if (controller.isConversionUndoRedoInFlight) {
-        return VibeErrorJSON(@"conversion undo/redo is still in progress");
+    if (controller.isFileMoveInFlight) {
+        return VibeErrorJSON(@"a file move is still in progress");
     }
     if (redo ? !undoManager.canRedo : !undoManager.canUndo) {
         return VibeErrorJSON(redo ? @"nothing to redo" : @"nothing to undo");
@@ -42,18 +43,18 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
         }
         VibeWriteDebugResponse(commandId, VibeJSONString(response));
     };
-    controller.conversionUndoRedoSettledHandler = settled;
+    controller.undoRedoSettledHandler = settled;
     if (redo) {
         [controller redo:nil];
     }
     else {
         [controller undo:nil];
     }
-    // The hook clears itself as it fires. Still installed with no conversion
-    // in flight means this undo was not a conversion's: reply now.
-    if (controller.conversionUndoRedoSettledHandler
-            && !controller.isConversionUndoRedoInFlight) {
-        controller.conversionUndoRedoSettledHandler = nil;
+    // The hook clears itself as it fires. Still installed with no file move
+    // in flight means this undo moved no file: reply now.
+    if (controller.undoRedoSettledHandler
+            && !controller.isFileMoveInFlight) {
+        controller.undoRedoSettledHandler = nil;
         settled(YES, nil);
     }
     return nil; // response written by the settled block

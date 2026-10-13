@@ -93,6 +93,7 @@ static NSString *const kVibeMenuEditRedo = @"menu_edit_redo";
 static NSString *const kVibeMenuEditCopyFile = @"menu_edit_copy_file";
 static NSString *const kVibeMenuEditCopyName = @"menu_edit_copy_name";
 static NSString *const kVibeMenuEditRemoveFromPlaylist = @"menu_edit_remove_from_playlist";
+static NSString *const kVibeMenuEditMoveToTrash = @"menu_edit_move_to_trash";
 // Absent from the domains below: nil-targeted, for the focused text field.
 static NSString *const kVibeMenuEditCut = @"menu_edit_cut";
 static NSString *const kVibeMenuEditPaste = @"menu_edit_paste";
@@ -189,7 +190,8 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
             || [identifier isEqualToString:kVibeMenuEditRedo]
             || [identifier isEqualToString:kVibeMenuEditCopyFile]
             || [identifier isEqualToString:kVibeMenuEditCopyName]
-            || [identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) {
+            || [identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]
+            || [identifier isEqualToString:kVibeMenuEditMoveToTrash]) {
         return VibeMenuValidationDomainEdit;
     }
     if ([identifier isEqualToString:kVibeMenuConvertToFLAC]
@@ -227,12 +229,14 @@ static inline BOOL VibeFileMenuEnabled(NSString *identifier, NSUInteger count, B
 
 // textFocused: a text view has keyboard focus in the key window, a field
 // editor included. Copy File holds ⌘C, so it copies that text instead of the
-// file, and must be enabled to.
-static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL undoRedoInFlight,
+// file, and must be enabled to. fileMoveInFlight: an undoable file move has
+// not landed, so Undo, Redo, Remove and Move to Trash wait for it.
+static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL fileMoveInFlight,
         BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL hasTrack, BOOL hasURL, BOOL textFocused) {
-    if ([identifier isEqualToString:kVibeMenuEditUndo]) return !undoRedoInFlight && canUndo;
-    if ([identifier isEqualToString:kVibeMenuEditRedo]) return !undoRedoInFlight && canRedo;
-    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) return visibleSelection;
+    if ([identifier isEqualToString:kVibeMenuEditUndo]) return !fileMoveInFlight && canUndo;
+    if ([identifier isEqualToString:kVibeMenuEditRedo]) return !fileMoveInFlight && canRedo;
+    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]
+            || [identifier isEqualToString:kVibeMenuEditMoveToTrash]) return !fileMoveInFlight && visibleSelection;
     if ([identifier isEqualToString:kVibeMenuEditCopyFile]) return textFocused || hasURL;
     return [identifier isEqualToString:kVibeMenuEditCopyName] && hasTrack;
 }

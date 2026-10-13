@@ -242,6 +242,10 @@ void AudioWaveform::getBandWindowMeanSquares(NSUInteger size, NSUInteger columns
     }
     // Per chunk edge, the planes' F1 then their F2: frames, then the bands.
     enum { kFrames, kBands, kPlaneCount = kBands + kAudioWaveformBandCount, kStride = 2 * kPlaneCount };
+    // A second reader waits out the first one's build rather than repeating
+    // it. Built sums never change while shared, so the bars read them
+    // outside the lock.
+    os_unfair_lock_lock(&keptReadsLock);
     if (bandRunningSums.empty()) {
         bandRunningSums.assign((numChunks + 1) * kStride, 0.0);
         for (NSUInteger c = 0; c < numChunks; c++) {
@@ -256,6 +260,7 @@ void AudioWaveform::getBandWindowMeanSquares(NSUInteger size, NSUInteger columns
         }
     }
     const double* sums = bandRunningSums.data();
+    os_unfair_lock_unlock(&keptReadsLock);
     // F2 at x for every plane, into out.
     auto F2 = [&](double x, double* out) {
         if (x <= 0) {
@@ -289,10 +294,10 @@ void AudioWaveform::getBandWindowMeanSquares(NSUInteger size, NSUInteger columns
 }
 
 void AudioWaveform::getLoudestBandMeanSquares(NSUInteger size, float reach, float* loudest) {
-    os_unfair_lock_lock(&loudestBandsLock);
+    os_unfair_lock_lock(&keptReadsLock);
     bool kept = size > 0 && loudestBandsSize == size && loudestBandsReach == reach;
     if (kept) memcpy(loudest, loudestBands, kBandBytes);
-    os_unfair_lock_unlock(&loudestBandsLock);
+    os_unfair_lock_unlock(&keptReadsLock);
     if (kept) return;
     std::fill(loudest, loudest + kAudioWaveformBandCount, 0.0f);
     if (size == 0) return;
@@ -303,11 +308,11 @@ void AudioWaveform::getLoudestBandMeanSquares(NSUInteger size, float reach, floa
     for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
         vDSP_maxv(bars.data() + b, kAudioWaveformBandCount, &loudest[b], size);
     }
-    os_unfair_lock_lock(&loudestBandsLock);
+    os_unfair_lock_lock(&keptReadsLock);
     memcpy(loudestBands, loudest, kBandBytes);
     loudestBandsSize = size;
     loudestBandsReach = reach;
-    os_unfair_lock_unlock(&loudestBandsLock);
+    os_unfair_lock_unlock(&keptReadsLock);
 }
 
 void AudioWaveform::setBandMeanSquares(const float* meanSquares) {

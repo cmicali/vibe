@@ -196,10 +196,12 @@ private:
     std::vector<double> bandRunningSums;
     // getLoudestBandMeanSquares's answer for loudestBandsSize bars at
     // loudestBandsReach. A size of 0 is none.
-    os_unfair_lock loudestBandsLock = OS_UNFAIR_LOCK_INIT;
     NSUInteger loudestBandsSize = 0;
     float loudestBandsReach = 0;
     float loudestBands[kAudioWaveformBandCount] = {};
+    // Guards what the reads keep. The iOS widget draws a shared waveform off
+    // main.
+    os_unfair_lock keptReadsLock = OS_UNFAIR_LOCK_INIT;
 };
 
 // The entry-format version. It is encoded in every archive and embedded in the

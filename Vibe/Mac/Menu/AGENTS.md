@@ -34,7 +34,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 ## Edit
 
-**Copy Name, Copy File and Remove from Playlist target the player controller. Undo, Redo, Cut, Paste and Select All are nil-targeted.**
+**Copy Name, Copy File, Remove from Playlist and Move to Trash target the player controller. Undo, Redo, Cut, Paste and Select All are nil-targeted.**
 
 - **Select All** is nil-targeted so ⌘A reaches whichever list has keyboard focus, such as the granted-folder list in Settings > Files. AppKit dispatches ⌘A only through the menu bar, and `NSTableView` never claims it itself. `NSTableView` responds to `selectAll:` whether or not it can act, so a table the chain can reach must answer honestly: `PlaylistTableView.validateMenuItem:` answers `allowsMultipleSelection`.
 - **Cut and Paste exist for text fields**, such as the Open URL field and Settings' fields. They sit in Apple's order around the two Copy items. They reach the focused field and stay disabled anywhere else.
@@ -42,11 +42,11 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to any menu it takes for an Edit menu.** They are no use in the app's few short text fields. `VibeEditMenuCleaner` (in `MainMenuBuilder.m`), the Edit menu's delegate, strips them in `menuNeedsUpdate:`. It drops every item without a `menu_edit_*` identifier (`VibeEditMenuKeepsItem`). That is the one uniform public-API path, since AppKit's opt-outs cover only Dictation and the character palette. **So every Edit separator carries the prefix too** (`menu_edit_separator`, `menu_edit_separator_remove`, `menu_edit_separator_select`). **The cleaner deliberately does not implement `menuHasKeyEquivalent:…`** as the other delegates do. Edit carries real key equivalents, and that override would answer for them instead of letting AppKit walk the items.
 
-**Undo and Redo use the responder chain.** Text fields keep native undo. The Settings window routes them to theme history on the Themes pane and to the Shortcuts pane's own manager there. The main window forwards them to the player controller, which keeps the conversion guard.
+**Undo and Redo use the responder chain.** Text fields keep native undo. The Settings window routes them to theme history on the Themes pane and to the Shortcuts pane's own manager there. The main window forwards them to the player controller, which keeps the file-move gate.
 
-**The player's Undo and Redo validate from the stack alone** (`canUndo` and `canRedo`, titles from `undoMenuItemTitle` and `redoMenuItemTitle`). Validation never stats a file (`Mac/Convert/AGENTS.md`). Three actions register: Convert to FLAC, Remove from Playlist and Reorder (`MainWindow/AGENTS.md`).
+**The player's Undo and Redo validate from the stack alone** (`canUndo` and `canRedo`, titles from `undoMenuItemTitle` and `redoMenuItemTitle`). Validation never stats a file (`Mac/Convert/AGENTS.md`). Four actions register: Convert to FLAC, Remove from Playlist, Move to Trash and Reorder (`MainWindow/AGENTS.md`).
 
-**Remove from Playlist is the one Edit item that acts on the *selected* rows, and the only one that changes the playlist.** Its symbol is `minus.circle`, never `trash`, because it edits the list and leaves the file on disk. Its default Delete is drawn as `NSBackspaceCharacter` (⌫), while a real press delivers `NSDeleteCharacter`. So `TransportKeyMonitor` is the actual handler, matching by key code, Forward Delete included. Validation needs the player window key, the playlist showing and a selection. The row menu carries the same command for the **clicked** row under its own identifier (`Playlist/Mac/AGENTS.md`).
+**Remove from Playlist and Move to Trash are the Edit items that act on the *selected* rows, and the only ones that change the playlist.** Remove's symbol is `minus.circle`, never `trash`, because it edits the list and leaves the file on disk. Move to Trash uses `trash`, and its default ⌘⌫ is the Finder's. Remove's default Delete is drawn as `NSBackspaceCharacter` (⌫), while a real press delivers `NSDeleteCharacter`. So `TransportKeyMonitor` is the actual handler, matching by key code, Forward Delete included. Both validate on the player window key, the playlist showing and a selection, and both wait for `fileMoveInFlight`. The row menu carries the same commands for the **clicked** row under its own identifiers (`Playlist/Mac/AGENTS.md`).
 
 **There is deliberately no Clear Playlist item.** File > Close retitles itself Close All Files, and `closeFile:` owns the whole teardown. A second whole-list command would be an alias, or a second teardown path that could miss a future piece of playback state.
 

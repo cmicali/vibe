@@ -128,6 +128,7 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             // Last: a default added later loses its key to an override stored
             // before it. A duplicate resolves in table order.
             @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('u', cmd))],
+            @[kVibeMenuEditMoveToTrash,   @(VibeShortcutMake(kVibeKeyCodeDelete, cmd))],
         ];
     });
     return table;

@@ -164,27 +164,6 @@
     }
 }
 
-#pragma mark - Undo and redo
-
-// The window's manager is the player's one undo stack.
-- (IBAction)undo:(id)sender {
-    NSUndoManager *manager = self.window.undoManager;
-    if (!self.isConversionUndoRedoInFlight && manager.canUndo) {
-        [manager undo];
-    }
-}
-
-- (IBAction)redo:(id)sender {
-    NSUndoManager *manager = self.window.undoManager;
-    if (!self.isConversionUndoRedoInFlight && manager.canRedo) {
-        [manager redo];
-    }
-}
-
-- (BOOL)isConversionUndoRedoInFlight {
-    return self.fileConverter.isUndoRedoInFlight;
-}
-
 - (void)registerUndoOfConversion:(VibeFLACConversionRecord *)record {
     __weak MainPlayerController *weakSelf = self;
     [self.fileConverter registerUndoForConversion:record undoManager:self.window.undoManager
@@ -202,7 +181,7 @@
             NSBeep();
         }
         [controller.fileConverter refreshDestinationStateForTrack:controller.playlistController.currentTrack];
-        [controller conversionUndoRedoDidSettleCommitted:committed reason:reason];
+        [controller undoRedoDidSettleCommitted:committed reason:reason];
     }];
 }
 
@@ -213,17 +192,6 @@
     NSBeep();
     if ([NSFileManager.defaultManager fileExistsAtPath:trashURL.path]) {
         [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[trashURL]];
-    }
-}
-
-- (void)conversionUndoRedoDidSettleCommitted:(BOOL)committed
-                                      reason:(nullable NSString *)reason {
-    // Always nil in a shipping build. One shot, cleared before it runs: a
-    // timed-out debug command's handler must not fire on a later undo.
-    void (^handler)(BOOL, NSString *_Nullable) = self.conversionUndoRedoSettledHandler;
-    self.conversionUndoRedoSettledHandler = nil;
-    if (handler) {
-        handler(committed, reason);
     }
 }
 
