@@ -396,8 +396,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 #pragma mark - Dropping folders in
 
-// TRAP: never stat a drag. Validation runs on main per mouse move, so
-// folder-ness is asked of the pasteboard; public.folder also refuses a package.
+// Asked of the pasteboard once per drag (pasteboardOfDrag:canReadURLsWithOptions:).
+// public.folder also refuses a package.
 + (NSDictionary<NSPasteboardReadingOptionKey, id> *)folderReadingOptions {
     return @{
         NSPasteboardURLReadingFileURLsOnlyKey: @YES,
@@ -410,8 +410,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
                 validateDrop:(id<NSDraggingInfo>)info
                  proposedRow:(NSInteger)row
        proposedDropOperation:(NSTableViewDropOperation)operation {
-    if (![info.draggingPasteboard canReadObjectForClasses:@[NSURL.class]
-                                                  options:self.class.folderReadingOptions]) {
+    if (![self pasteboardOfDrag:info canReadURLsWithOptions:self.class.folderReadingOptions]) {
         return NSDragOperationNone;
     }
     [tableView setDropRow:-1 dropOperation:NSTableViewDropOn];

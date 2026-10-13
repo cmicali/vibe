@@ -69,16 +69,55 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 // once (the page keeps its indicator; didFailWaveformForIndex:) unless a
 // stream is live for it, when the decode rides the download the play holds.
 // Either way the page starts no download of its own.
-static BOOL WaveformWaitsForOpen(NSURL *url) {
-    return [PlaceholderFiles isDatalessFile:url] && ![PlaceholderFiles isRemotePlaceholderFile:url];
+//
+// Asked off main, since the stat is a provider or network round trip. The
+// answer lands on main, and the caller matches its page and track first.
+static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        BOOL waits = [PlaceholderFiles isDatalessFile:url] && ![PlaceholderFiles isRemotePlaceholderFile:url];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            answer(waits);
+        });
+    });
+}
+
+// The row now at index while it sounds what track did, matched as the
+// coordinator matches: page and sourceKey. nil once it does not.
+- (AudioTrack *)trackAtIndex:(NSUInteger)index matching:(AudioTrack *)track {
+    AudioTrack *current = [_playlist trackAtIndex:index];
+    return [current.sourceKey isEqualToString:track.sourceKey] ? current : nil;
 }
 
 - (void)requestCurrentWaveform {
     NSUInteger index = _playlist.currentIndex;
     AudioTrack *track = [_playlist trackAtIndex:index];
-    if (!track || WaveformWaitsForOpen(track.url)) {
+    if (!track) {
         return;
     }
+    // A complete page starts no load, and a request while held is dropped.
+    // Neither needs the probe.
+    if ([_waveformCoordinator isCompleteAtIndex:index]) {
+        [self requestWaveformAtIndex:index track:track];
+        return;
+    }
+    if (_waveformCoordinator.isHeld) {
+        return;
+    }
+    __weak PlayerViewController *weakSelf = self;
+    WaveformWaitsForOpen(track.url, ^(BOOL waits) {
+        PlayerViewController *strongSelf = weakSelf;
+        if (!strongSelf || waits || strongSelf->_playlist.currentIndex != index) {
+            return;
+        }
+        AudioTrack *current = [strongSelf trackAtIndex:index matching:track];
+        if (!current) {
+            return;
+        }
+        [strongSelf requestWaveformAtIndex:index track:current];
+    });
+}
+
+- (void)requestWaveformAtIndex:(NSUInteger)index track:(AudioTrack *)track {
     [_waveformCoordinator requestIndex:index track:track];
     // TRAP: a page whose waveform is complete starts no load and DELIVERS
     // NOTHING, and a track change clears the widget's strip, so returning to a
@@ -92,7 +131,8 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
 
 // A neighbor whose file is dataless shows nothing: requestCurrentWaveform
 // would skip it, and only the current page's open would ever take an indicator
-// down. Its open, once current, shows one.
+// down. Its open, once current, shows one. A neighbor keeps what it shows until
+// the answer lands, so a refresh does not flash the indicator.
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
@@ -104,12 +144,31 @@ static BOOL WaveformWaitsForOpen(NSURL *url) {
                               animated:![_waveformCoordinator isCompleteAtIndex:index]];
         return;
     }
-    NSURL *url = [_playlist trackAtIndex:index].url;
-    if (index != _playback.currentIndex && url && WaveformWaitsForOpen(url)) {
-        [cell.waveformView hideLoadingIndicator];
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    if (index == _playback.currentIndex || !track) {
+        [cell.waveformView showLoadingIndicator];
         return;
     }
-    [cell.waveformView showLoadingIndicator];
+    __weak PlayerViewController *weakSelf = self;
+    __weak TrackPageCell *weakCell = cell;
+    WaveformWaitsForOpen(track.url, ^(BOOL waits) {
+        PlayerViewController *strongSelf = weakSelf;
+        TrackPageCell *cell = weakCell;
+        // The cell may have been recycled, or the page made current or given
+        // a snapshot, while the probe ran.
+        if (!strongSelf || !cell || [strongSelf cellAtIndex:index] != cell
+                || index == strongSelf->_playback.currentIndex
+                || ![strongSelf trackAtIndex:index matching:track]
+                || [strongSelf->_waveformCoordinator snapshotAtIndex:index]) {
+            return;
+        }
+        if (waits) {
+            [cell.waveformView hideLoadingIndicator];
+        }
+        else {
+            [cell.waveformView showLoadingIndicator];
+        }
+    });
 }
 
 - (void)releasePreparedWaveformAtIndex:(NSUInteger)index {

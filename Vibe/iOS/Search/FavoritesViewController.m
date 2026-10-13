@@ -158,7 +158,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         });
         UIAction *remove = VibeMenuAction(STR_MENU_CONTEXT_REMOVE_FAVORITE, @"star.slash", ^{
             // By path, not row: the list can move while the menu is up.
-            [FavoritesStore.shared removeFolderURL:[NSURL fileURLWithPath:favorite.path]];
+            [FavoritesStore.shared removeFolderURL:[NSURL fileURLWithPath:favorite.path isDirectory:YES]];
         });
         remove.attributes = UIMenuElementAttributesDestructive;
         UIMenu *destructive = [UIMenu menuWithTitle:@""
@@ -194,7 +194,8 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     // would append to the new playlist, and a replace landing after a newer
     // open would take its place (the session and the replace funnel drop them).
     uint64_t token = appending ? [_playback addRequestToken]
-                               : [_playback replaceRequestTokenOpening:[NSURL fileURLWithPath:favorite.path]];
+                               : [_playback replaceRequestTokenOpening:[NSURL fileURLWithPath:favorite.path
+                                                                                   isDirectory:YES]];
     __weak FavoritesViewController *weakSelf = self;
     [FavoritesStore.shared resolveFavorite:favorite completion:^(NSURL *folderURL) {
         [weakSelf finishOpeningFavorite:favorite folderURL:folderURL

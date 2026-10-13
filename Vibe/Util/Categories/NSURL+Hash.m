@@ -4,6 +4,7 @@
 //
 
 #import "NSURL+Hash.h"
+#import "FilePaths.h"
 #include <CommonCrypto/CommonDigest.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -29,11 +30,11 @@
 @implementation NSURL (Hash)
 
 - (nullable NSString *)pathKey {
-    NSString *path = self.URLByStandardizingPath.path;
+    NSString *path = VibeComparablePath(self.path);
     if (!path) {
         return nil;
     }
-    NSString *home = NSHomeDirectory().stringByStandardizingPath;
+    NSString *home = VibeComparablePath(NSHomeDirectory());
     if ([path hasPrefix:[home stringByAppendingString:@"/"]]) {
         path = [@"~" stringByAppendingString:[path substringFromIndex:home.length]];
     }

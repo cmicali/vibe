@@ -248,10 +248,12 @@ static NSArray<NSDictionary<NSString *, NSString *> *> *VibeDropItemsOfPasteboar
     // whose .path follows the file wherever it moves. Downstream treats a
     // track's URL as fixed — cache keys hash it, the convert undo restores to
     // it — so every drop is pinned to its current path.
+    // The folder flag is the dropped URL's slash, not a stat on main. A
+    // file-reference URL carries it, and FolderWalk asks the disk anyway.
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:dropped.count];
     for (NSURL *url in dropped) {
         NSString *path = url.isFileURL ? url.path : nil;
-        [urls addObject:path ? [NSURL fileURLWithPath:path] : url];
+        [urls addObject:path ? [NSURL fileURLWithPath:path isDirectory:url.hasDirectoryPath] : url];
     }
     // The whole open funnel, or a drop skips a tail step such as
     // revealEmptyStateNamingPlaylist:.

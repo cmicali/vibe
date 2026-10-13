@@ -21,9 +21,10 @@
 // callers must then skip caching.
 - (nullable NSString *)cacheKey;
 
-// A stat-free "which track is this" key (the widget's): hex SHA-1 of the
-// standardized path, relative to the app's home for a file inside it. Survives
-// a rewrite. nil for a URL with no path.
+// A "which track is this" key (the widget's): hex SHA-1 of the comparable path
+// (VibeComparablePath), relative to the app's home for a file inside it. From
+// the spelling alone, so it never stats. Survives a rewrite. nil for a URL
+// with no path.
 //
 // TRAP: the data container moves (every simulator install, possibly an iOS
 // update), so a key over the absolute path would disagree with every consumer

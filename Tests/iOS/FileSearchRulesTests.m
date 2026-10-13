@@ -229,6 +229,13 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqual(pruned.count, 2u);
 }
 
+// iOS spells a picked folder under /private/var and the app's container under
+// /var. Spelling alone must see one tree.
+- (void)testAPrivateSpellingIsCoveredByItsAlias {
+    XCTAssertEqualObjects(PrunedPaths(@[@"/private/var/mobile/Documents/Music", @"/var/mobile/Documents"]),
+                          @[@"/var/mobile/Documents"]);
+}
+
 - (void)testDeepNestingCollapsesToTheOutermostRoot {
     XCTAssertEqualObjects(PrunedPaths(@[@"/a/b/c/d", @"/a/b/c", @"/a"]), @[@"/a"]);
 }

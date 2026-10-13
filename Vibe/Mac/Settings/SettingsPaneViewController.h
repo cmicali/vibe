@@ -126,6 +126,13 @@ static const CGFloat kPanePadding = 20;
 // shows the effects (the Themes pane's waveform preview).
 - (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects;
 
+// Whether a file drag's pasteboard holds URLs that `options` admits. TRAP:
+// the pasteboard answers with a getattrlist per URL each time it is asked,
+// and drop validation runs on main per mouse move. So it is asked once per
+// drag, by draggingSequenceNumber.
+- (BOOL)pasteboardOfDrag:(id<NSDraggingInfo>)info
+    canReadURLsWithOptions:(NSDictionary<NSPasteboardReadingOptionKey, id> *)options;
+
 // A pane that keeps its own undo stack; Edit > Undo reaches it while the pane
 // is selected.
 @property (readonly, nonatomic, nullable) NSUndoManager *paneUndoManager;

@@ -503,8 +503,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
 #pragma mark - Dropping theme files in
 
-// Asked of the pasteboard, never the file system: validation runs on main per
-// mouse move, and a stat can block on an unreachable mount.
+// Asked of the pasteboard once per drag (pasteboardOfDrag:canReadURLsWithOptions:).
 + (NSDictionary<NSPasteboardReadingOptionKey, id> *)themeFileReadingOptions {
     return @{
         NSPasteboardURLReadingFileURLsOnlyKey: @YES,
@@ -518,8 +517,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
                 validateDrop:(id<NSDraggingInfo>)info
                  proposedRow:(NSInteger)row
        proposedDropOperation:(NSTableViewDropOperation)operation {
-    if (![info.draggingPasteboard canReadObjectForClasses:@[NSURL.class]
-                                                  options:self.class.themeFileReadingOptions]) {
+    if (![self pasteboardOfDrag:info canReadURLsWithOptions:self.class.themeFileReadingOptions]) {
         return NSDragOperationNone;
     }
     [tableView setDropRow:-1 dropOperation:NSTableViewDropOn];
