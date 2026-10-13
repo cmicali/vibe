@@ -5,6 +5,7 @@
 
 #import "DownloadProgressSourceAdaptersInternal.h"
 #import "CloudFileMaterializer.h"
+#import "FilePaths.h"
 #import "PlaceholderFiles.h"
 
 #include <errno.h>
@@ -136,7 +137,6 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     NSString *_path;
     DownloadProgressFractionHandler _handler;
     DownloadMetadataQueryFactory _queryFactory;
-    DownloadUbiquitousItemProbe _ubiquitousProbe;
     NSMetadataQuery *_query;
     BOOL _active;
 }
@@ -145,26 +145,18 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
                      handler:(DownloadProgressFractionHandler)handler {
     return [self initWithURL:url handler:handler queryFactory:^NSMetadataQuery *{
         return [[NSMetadataQuery alloc] init];
-    } ubiquitousProbe:^BOOL(NSURL *candidate) {
-        id ubiquitous = nil;
-        return [candidate getResourceValue:&ubiquitous
-                                    forKey:NSURLIsUbiquitousItemKey
-                                     error:NULL]
-                && [ubiquitous boolValue];
     }];
 }
 
 - (instancetype)initWithURL:(NSURL *)url
                      handler:(DownloadProgressFractionHandler)handler
-                queryFactory:(DownloadMetadataQueryFactory)queryFactory
-             ubiquitousProbe:(DownloadUbiquitousItemProbe)ubiquitousProbe {
+                queryFactory:(DownloadMetadataQueryFactory)queryFactory {
     self = [super init];
     if (self) {
         _url = [url copy];
         _path = [url.path copy];
         _handler = [handler copy];
         _queryFactory = [queryFactory copy];
-        _ubiquitousProbe = [ubiquitousProbe copy];
     }
     return self;
 }
@@ -173,8 +165,13 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     return _active;
 }
 
+// A transfer starts only for a dataless file (PlaceholderFiles.isDatalessFile:).
+// That is a File Provider item or a remote placeholder. Every File Provider
+// item is ubiquitous (queryUpdated:'s trap). A remote placeholder is the app's
+// own, and iCloud never indexes it. So the path's spelling decides, and main
+// reads no resource value.
 - (void)startIfUbiquitous {
-    if (_query || !_handler || !_ubiquitousProbe(_url)) {
+    if (_query || !_handler || VibePathIsUnderRemotePlaceholderRoot(_path)) {
         return;
     }
 
@@ -202,11 +199,11 @@ static NSString *VibeDownloadingStatus(NSURL *url) {
     }
     [query disableUpdates];
     BOOL matched = NO;
+    NSString *wanted = VibeComparablePath(_path);
     for (NSUInteger i = 0; i < query.resultCount; i++) {
         NSMetadataItem *item = [query resultAtIndex:i];
         NSURL *itemURL = [item valueForAttribute:NSMetadataItemURLKey];
-        if (![itemURL.URLByStandardizingPath.path
-                isEqualToString:_url.URLByStandardizingPath.path]) {
+        if (![VibeComparablePath(itemURL.path) isEqualToString:wanted]) {
             continue;
         }
         matched = YES;

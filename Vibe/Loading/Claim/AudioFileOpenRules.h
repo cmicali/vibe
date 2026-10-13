@@ -37,8 +37,10 @@ static inline BOOL VibeAudioFileOpenDetachDelivery(
 }
 
 // One spelling of a file path for single-flight ownership, without I/O.
-// TRAP: URLByStandardizingPath stats the target, so it can stall the player
-// or state queue before the bounded probe begins. Compare spelling alone.
+// TRAP: URLByStandardizingPath stats a path that starts with /private or holds
+// "..", so it can stall the player or state queue before the bounded probe
+// begins. Every path an iOS provider hands over starts with /private. Compare
+// spelling alone.
 static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
     if (url.isFileURL) {
         return VibeComparablePath(url.path) ?: @"";

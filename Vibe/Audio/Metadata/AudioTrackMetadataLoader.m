@@ -89,12 +89,9 @@
     NSOperation *setup = [NSBlockOperation blockOperationWithBlock:^{
         __typeof(self) setupSelf = weakSelf;
         if (!setupSelf) return;
-        // One record per file, its rows in playlist order. The path is
-        // memoized per URL: standardizing stats, and a sheet's rows share one.
+        // One record per file, its rows in playlist order.
         NSMutableArray<MetadataScanEntry *> *worklist = [NSMutableArray array];
         NSMutableDictionary<NSString *, NSMutableArray<AudioTrack *> *> *rowsByPath =
-                [NSMutableDictionary dictionaryWithCapacity:tracks.count];
-        NSMutableDictionary<NSURL *, NSString *> *pathsByURL =
                 [NSMutableDictionary dictionaryWithCapacity:tracks.count];
         for (NSUInteger index = 0; index < tracks.count; index++) {
             if (setupSelf.isCancelled) break;
@@ -111,13 +108,7 @@
             os_unfair_lock_unlock(&setupSelf->_materializationLock);
             if (alreadyQueued) continue;
             // Keyed like the parse claim, so two spellings share one record.
-            NSString *path = track.url ? pathsByURL[track.url] : nil;
-            if (!path) {
-                path = VibeStandardizedAudioOpenPath(track.url);
-                if (track.url) {
-                    pathsByURL[track.url] = path;
-                }
-            }
+            NSString *path = VibeStandardizedAudioOpenPath(track.url);
             NSMutableArray<AudioTrack *> *rows = rowsByPath[path];
             if (!rows) {
                 rows = [NSMutableArray array];

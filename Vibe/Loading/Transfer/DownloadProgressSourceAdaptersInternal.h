@@ -9,14 +9,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Construction boundaries only; the rest stays production under tests.
 typedef NSMetadataQuery * _Nonnull (^DownloadMetadataQueryFactory)(void);
-typedef BOOL (^DownloadUbiquitousItemProbe)(NSURL *url);
 
 @interface DownloadICloudProgressSource (Internal)
 
 - (instancetype)initWithURL:(NSURL *)url
                      handler:(DownloadProgressFractionHandler)handler
-                queryFactory:(DownloadMetadataQueryFactory)queryFactory
-             ubiquitousProbe:(DownloadUbiquitousItemProbe)ubiquitousProbe;
+                queryFactory:(DownloadMetadataQueryFactory)queryFactory;
 
 @end
 

@@ -239,7 +239,7 @@ static const NSTimeInterval kEmbeddedArtExtractionRetryBackoff = 2.0;
         // the song.
         *sourceURL = needsEmbeddedWork && canExtract && !_embeddedArtData &&
                 !hasArchivedRendition
-                ? [NSURL fileURLWithPath:_sourceFilePath] : nil;
+                ? [NSURL fileURLWithPath:_sourceFilePath isDirectory:NO] : nil;
         *generation = _artGeneration;
         _artLoadPending = YES;
         return YES;

@@ -5,6 +5,7 @@
 #import <XCTest/XCTest.h>
 
 #import "DownloadProgressSourceAdaptersInternal.h"
+#import "PlaceholderFiles.h"
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -250,40 +251,23 @@
     [self waitForExpectations:@[silent] timeout:0.4];
 }
 
-- (void)testNonUbiquitousFileNeverActivatesICloudQuery {
-    NSURL *url = [self URLNamed:@"ordinary.bin"];
-    XCTAssertTrue([self writeAllocatedBytesToURL:url length:4096]);
+// A remote placeholder is the app's own, so iCloud is never asked about it.
+- (void)testRemotePlaceholderNeverActivatesICloudQuery {
+    [PlaceholderFiles setRemotePlaceholderRoots:@[_fixtureDirectory]];
     __block NSUInteger deliveries = 0;
     __block NSUInteger queriesConstructed = 0;
     DownloadICloudProgressSource *source = [[DownloadICloudProgressSource alloc]
-            initWithURL:url handler:^(float fraction) { deliveries++; }
+            initWithURL:[self URLNamed:@"placeholder.mp3"] handler:^(float fraction) { deliveries++; }
             queryFactory:^NSMetadataQuery *{
         queriesConstructed++;
         return [[NSMetadataQuery alloc] init];
-    } ubiquitousProbe:^BOOL(NSURL *candidate) {
-        id ubiquitous = nil;
-        return [candidate getResourceValue:&ubiquitous
-                                    forKey:NSURLIsUbiquitousItemKey
-                                     error:NULL]
-                && [ubiquitous boolValue];
     }];
     [source startIfUbiquitous];
+    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
     XCTAssertFalse(source.isActive);
     XCTAssertEqual(deliveries, 0u);
     XCTAssertEqual(queriesConstructed, 0u);
     [source cancel];
-}
-
-- (void)testProductionICloudProbeRejectsOrdinaryFile {
-    NSURL *url = [self URLNamed:@"ordinary-production.bin"];
-    XCTAssertTrue([self writeAllocatedBytesToURL:url length:4096]);
-    DownloadICloudProgressSource *source = [[DownloadICloudProgressSource alloc]
-            initWithURL:url handler:^(float fraction) {
-        XCTFail(@"ordinary file must not publish iCloud progress");
-    }];
-    [_otherSources addObject:source];
-    [source startIfUbiquitous];
-    XCTAssertFalse(source.isActive);
 }
 
 - (void)testICloudQueryConfiguresFiltersNormalizesUpdatesAndCancels {
@@ -297,7 +281,6 @@
     FakeDownloadMetadataQuery *query = [[FakeDownloadMetadataQuery alloc] init];
     query.items = @[wrong, wanted];
 
-    __block NSUInteger probes = 0;
     __block NSUInteger factories = 0;
     NSMutableArray<NSNumber *> *fractions = [NSMutableArray array];
     DownloadICloudProgressSource *source = [[DownloadICloudProgressSource alloc]
@@ -306,16 +289,11 @@
     } queryFactory:^NSMetadataQuery *{
         factories++;
         return query;
-    } ubiquitousProbe:^BOOL(NSURL *candidate) {
-        probes++;
-        XCTAssertEqualObjects(candidate, target);
-        return YES;
     }];
     [_otherSources addObject:source];
 
     [source startIfUbiquitous];
     [source startIfUbiquitous];
-    XCTAssertEqual(probes, 1u);
     XCTAssertEqual(factories, 1u);
     XCTAssertEqual(query.startCount, 1u);
     XCTAssertEqualObjects(query.searchScopes,
@@ -364,8 +342,6 @@
         deliveries++;
     } queryFactory:^NSMetadataQuery *{
         return query;
-    } ubiquitousProbe:^BOOL(NSURL *candidate) {
-        return YES;
     }];
     [_otherSources addObject:source];
 
@@ -397,8 +373,6 @@
         deliveries++;
     } queryFactory:^NSMetadataQuery *{
         return query;
-    } ubiquitousProbe:^BOOL(NSURL *candidate) {
-        return YES;
     }];
     [_otherSources addObject:source];
 
@@ -423,8 +397,6 @@
     } queryFactory:^NSMetadataQuery *{
         factories++;
         return query;
-    } ubiquitousProbe:^BOOL(NSURL *candidate) {
-        return YES;
     }];
     [_otherSources addObject:source];
 

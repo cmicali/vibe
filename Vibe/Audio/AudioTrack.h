@@ -76,7 +76,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The same over the standardized path, for a key that must survive a
 // provider spelling the file's path another way — dedupe across opens, the
-// remembered track. Standardizing may stat: never on a per-frame path.
+// remembered track. It reads the spelling alone (VibeComparablePath) and never
+// stats. It allocates, unlike sourceKey. Keep it off a per-frame path.
 - (nullable NSString *)standardizedSourceKey;
 
 // `key` with this row's window appended, so rows of one file key apart; `key`
