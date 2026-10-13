@@ -48,8 +48,8 @@ static inline float VibeFadeGainAtFrame(VibeFadeCurve curve, float from, float t
 
 // The length both sides of a track change ride. The user's crossfade applies
 // only to a play replacing an audibly playing track, without `declick` (the
-// convert swap replaces a track with its own audio, which a crossfade would
-// only dip); everything else takes the declick minimum, which is also the
+// convert swap replaces a track with its own audio, which would overlap
+// with itself); everything else takes the declick minimum, which is also the
 // floor.
 static inline uint64_t VibeIncomingFadeMilliseconds(NSInteger crossfadeMilliseconds,
                                                     BOOL replacingAudibleTrack,

@@ -3,8 +3,9 @@
 //  Vibe (iOS)
 //
 //  What a query matches, for both of the search screen's sections, which must
-//  agree where they overlap. Header-only and Foundation-only so the macOS suite
-//  can test it.
+//  agree where they overlap. Then which root covers a path, for the search
+//  walk and LocationStore's merge. Header-only and Foundation-only so the
+//  macOS suite can test it.
 //
 
 #ifndef FileSearchRules_h
@@ -13,6 +14,8 @@
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
+
+#pragma mark - What a query matches
 
 // Case, diacritic and width insensitive, anywhere in the text. An empty query
 // matches everything, for the playlist's browse list; the files section tests
@@ -71,7 +74,7 @@ static inline BOOL VibeSearchRootCoversPath(NSString *rootPath, NSString *path) 
     return [pathPrefix hasPrefix:rootPrefix];
 }
 
-// SearchFolderStore's merge keeps roots minimal: an existing ancestor absorbs a
+// LocationStore's merge keeps roots minimal: an existing ancestor absorbs a
 // candidate (an exact duplicate included), and a candidate ancestor removes
 // every descendant.
 static inline NSUInteger VibeSearchFolderCoveringRootIndex(

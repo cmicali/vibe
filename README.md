@@ -2,7 +2,7 @@
 
 A fast, minimal player for your music files for the Mac, iPhone, and iPad. No third-party engine, no account, no subscription.
 
-<img src="Assets/screenshot-basic.png" width="726" alt="Vibe screenshot">
+<img src="Assets/readme/screenshot-basic.png" width="726" alt="Vibe screenshot">
 
 Website: **[https://vibeplayer.app](https://vibeplayer.app)**
 
@@ -21,26 +21,26 @@ brew install cmicali/tap/vibe
 
 ## Features
 
-- **Waveform view** — every track drawn as a full waveform across the window; click anywhere on it to seek
-- **Fast** — built to be small and fast; tags, artwork, and waveforms are read in the background and cached, so the next open is instant
-- **Custom audio engine** — MP3, MP2, AAC, FLAC, ALAC, MP4/M4A/M4B, QTA (Voice Memos), AIFF, WAV, W64, CAF, Ogg Opus, and Ogg Vorbis (Mac only), played through Vibe's custom CoreAudio engine with high-quality sample-rate conversion
-- **Bit-perfect output** — bit-perfect and exclusive modes send audio to your output device exactly as-is
-- **No library to import** — drop a file or a folder from your disk, iCloud Drive, or Dropbox and it plays; no database to rebuild, no library to manage
-- **DJ tools** — turntable-style pitch control, BPM and key analysis, bar-accurate skips, and performance FX
-- **Themes** — restyle the whole player; build your own in Settings and share it as a file
-- **Speaks 30 languages** — fully localized, from Bulgarian to Vietnamese
+- **Waveform view**: every track is drawn as a full waveform across the window. Click anywhere on it to seek.
+- **Cached browsing**: tags, artwork and waveforms are read in the background and cached for later opens.
+- **Custom audio engine**: MP3, MP2, AAC, FLAC, ALAC, MP4/M4A/M4B/M4R, QTA (Voice Memos, Mac only), AIFF, WAV, W64, CAF, Ogg Opus, and Ogg Vorbis (Mac only). Vibe plays them through its own CoreAudio engine with high-quality sample-rate conversion.
+- **Bit-perfect output**: requests the track's sample rate and reports whether the output path preserves its samples. Exclusive mode requests sole access to the device (Mac).
+- **No library to import**: drop a file or a folder from your disk, iCloud Drive or Dropbox and it plays. There is no database to rebuild.
+- **DJ tools**: BPM detection and performance FX on both platforms. The Mac also has pitch control, key analysis, and bar-aligned skips.
+- **Themes**: restyle the Mac player. Build your own in Settings and share it as a file.
+- **Speaks 30 languages**: fully localized, from Bulgarian to Vietnamese.
 
 <p align="center">
-  <img src="Assets/screenshot-playlist.png" width="726" alt="Vibe with its playlist open">
+  <img src="Assets/readme/screenshot-playlist.png" width="726" alt="Vibe with its playlist open">
 </p>
 
 ## Usage
 
-Drop audio files or a folder on the window to play them, and click the waveform to seek. Drag the artwork out to copy the playing file somewhere else.
+On the Mac, drop audio files or a folder on the window to play them. Click the waveform to seek. Drag the artwork out to copy the playing file somewhere else.
 
 ### Key commands
 
-These are the defaults; every one can be changed in **Settings > Keyboard Shortcuts**. The single-letter keys follow their position on the keyboard, so they stay put under AZERTY, Dvorak, or a non-Latin layout.
+These are the defaults. You can change every one in **Settings > Keyboard Shortcuts**. The single-letter keys follow their position on the keyboard, so they stay put under AZERTY, Dvorak or a non-Latin layout.
 
 | Key | Action |
 | --- | --- |
@@ -56,7 +56,7 @@ These are the defaults; every one can be changed in **Settings > Keyboard Shortc
 
 
 <p align="center">
-  <img src="Assets/screenshot-pitch.png" width="822" alt="Vibe with the pitch fader open">
+  <img src="Assets/readme/screenshot-pitch.png" width="822" alt="Vibe with the pitch fader open">
 </p>
 
 ### FX
@@ -73,50 +73,49 @@ Tap an FX key to latch the effect; hold it for momentary.
 
 ### Themes
 
-Vibe ships with several built-in themes, and you can make your own in **Settings > Appearance**: start from the current look (or duplicate a built-in), then edit the window, fonts, colors, waveform, playlist, and even the no-artwork placeholder — changes apply live. Themes export as a single file (including any custom artwork) that anyone can import, so they're easy to share. See [docs/themes.md](docs/themes.md) for the full guide.
+Vibe ships with several built-in themes, and you can make your own in **Settings > Themes**. Start from the current look or duplicate a built-in. Then edit the window, fonts, colors, waveform, playlist and the no-artwork placeholder. Changes apply live. A theme exports as one file, custom artwork included, that anyone can import. See [docs/themes.md](docs/themes.md) for the full guide.
 
 <p align="center">
-  <img src="Assets/screenshot-themes.png" width="726" alt="Vibe in a custom theme">
+  <img src="Assets/readme/screenshot-themes.png" width="726" alt="Vibe in a custom theme">
 </p>
 
 ## On iPhone and iPad
 
-The same engine and the same file handling with Dropbox integration. The interface is native iOS, while the waveform rendering, audio engine, tag and file handling, and more are shared with the Mac app.
+The iOS app shares the audio engine, waveform drawing, and tag and file handling with the Mac app. Its interface is native iOS, and it adds a Dropbox account.
 
 <p align="center">
-  <img src="Assets/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
-  <img src="Assets/screenshot-ios-iphone-seek.png" width="240" alt="Vibe on iPhone, waveform seek">
-  <img src="Assets/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
+  <img src="Assets/readme/screenshot-ios-iphone-player.png" width="240" alt="Vibe on iPhone, now playing">
+  <img src="Assets/readme/screenshot-ios-iphone-seek.png" width="240" alt="Vibe on iPhone, waveform seek">
+  <img src="Assets/readme/screenshot-ios-iphone-playlist.png" width="240" alt="Vibe on iPhone, playlist">
 </p>
 
 ## Audio quality and performance
 
-Vibe tries to be as fast as possible while keeping the highest possible audio quality.
-
-- **Audio quality guide** — [docs/audio-quality.md](docs/audio-quality.md)
-- **Performance tracking** — [docs/performance.md](docs/performance.md)
+- **Audio quality**: what Vibe does to your audio, and the measurements behind it. [docs/audio-quality.md](docs/audio-quality.md)
+- **Performance**: every release benchmarked on one machine. [docs/performance.md](docs/performance.md)
 
 ## Development
 
-Vibe is written in Objective-C/C++ and is focused on performance and speed. It uses CoreAudio directly and avoids third-party libraries where possible. TagLib 2.3 is included in-tree and used for reading metadata and artwork.
+Vibe is written in Objective-C and Objective-C++, and plays audio through CoreAudio directly.
 
-`Vibe.xcodeproj` is generated by [XcodeGen](https://github.com/yonaskolb/XcodeGen) from `project.yml` and is not checked in, so a fresh clone has no project to open until you generate it:
+Building needs **Xcode 26 or later**. The app runs on macOS 13 or later and iOS 26 or later.
+
+`Vibe.xcodeproj` is generated by [XcodeGen](https://github.com/yonaskolb/XcodeGen) from `project.yml` and is not checked in. Generate it after cloning, after every pull and after every edit to `project.yml`:
 
 ```bash
-brew install xcodegen
-xcodegen generate
+make setup       # brew bundle: xcodegen, jq, gh
+make project     # xcodegen generate
 open Vibe.xcodeproj
 ```
 
-Build and run the `Vibe` scheme with ⌘R. Re-run `xcodegen generate` after every pull or edit to `project.yml`.
+Build and run the `Vibe` scheme with ⌘R. Command-line builds, tests and editor setup are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Requirements, the `make` targets for building and testing from the command line, and the house rules are in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-- **Localization** — adding a string, adding a language, testing one: [docs/localization.md](docs/localization.md)
-- **Releasing** — credentials, localized product-page assets, metadata upload, shipping a build: [docs/app-store-releasing.md](docs/app-store-releasing.md)
+- **Architecture**: how the code is laid out, and the path a file takes from open to sound. [docs/architecture.md](docs/architecture.md)
+- **Localization**: adding a string, adding a language, testing one. [docs/localization.md](docs/localization.md)
+- **Releasing to the App Store**: credentials, localized product-page assets, metadata upload, shipping a build. [docs/app-store-releasing.md](docs/app-store-releasing.md)
 
 ## License
 
 Vibe is licensed under the [Apache License 2.0](LICENSE).
 
-There is no package manager: all third-party code is vendored under `Vibe/ThirdParty/` and compiled into both app targets. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every component and the license it is used under — most notably TagLib, which is dual-licensed and which Vibe uses under the Mozilla Public License 1.1 rather than the LGPL, because it is statically linked.
+There is no package manager. All third-party code is vendored under `Vibe/ThirdParty/`. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every component and its license. TagLib is dual-licensed, and Vibe uses it under the Mozilla Public License 1.1 rather than the LGPL because it is statically linked.

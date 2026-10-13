@@ -5,9 +5,8 @@
 //  The scene's root: the tabs, the mini player in their bottomAccessory, and
 //  the now-playing card above them. It owns presentation only.
 //
-//  A container, not a UITabBarController subclass: the tabs' whole view scales
-//  back behind the card, and a subclass cannot transform its own view without
-//  moving the card too.
+//  A container, not a UITabBarController subclass, so the card and the
+//  backdrop snapshot can sit above the tabs' whole view.
 //
 //  The card is built once and never torn down; minimizing translates it off
 //  the bottom, so its pager, art and waveform snapshots survive.

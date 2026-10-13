@@ -1,13 +1,5 @@
-//
-//  PlaybackSettingsViewController.h
-//  Vibe (iOS)
-//
-//  Settings > Playback: Track transitions (On track end, Crossfade), the
-//  audio effects switch and BPM detection. A write ends on the model —
-//  applyTrackTransitionSettings, applyFXSetting — because the player plays
-//  from these; the effects switch also notifies the card, whose FX pad is
-//  drawn from the setting.
-//
+// Playback settings apply through PlaybackController. BPM detection is read
+// on the next waveform request. The FX switch also notifies the card.
 
 #import <UIKit/UIKit.h>
 

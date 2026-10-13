@@ -6,7 +6,7 @@
 // disappears. `move` only reassigns the default between two persistent devices,
 // separating "the default moved" from "the device vanished". `rotate` cycles the
 // default across real devices, creating nothing, to measure per-interface bind
-// cost (the table in SKILL.md).
+// cost (SKILL.md, "What a device change costs").
 //
 // TRAP: this changes the SYSTEM default output, moving audio for every app. It
 // restores the default and destroys its aggregate on every exit path including
@@ -84,9 +84,7 @@ case "move":
     Thread.sleep(forTimeInterval: goneMs / 1000.0)
     emit(["ok": ok, "mode": "move", "target": target, "defaultAfter": readDefault()])
 
-// One long-lived process, so the original default is restored once at the end
-// rather than after every step. Creates nothing, so unlike vanish it cannot
-// degrade coreaudiod.
+// Restore the original default once after the whole rotation.
 case "rotate":
     guard args.count >= 5 else {
         emit(["ok": false, "error": "rotate needs a comma-separated device list"]); exit(64)

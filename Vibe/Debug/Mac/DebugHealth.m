@@ -34,6 +34,7 @@
 #import "ArtworkDisplayController+Debug.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Debug.h"
+#import "MainPlayerController+Playlist.h"
 #import "TrackDisplayController.h"
 #import "MainWindow.h"
 #import "PlaylistController.h"
@@ -96,10 +97,8 @@ static NSUInteger VibeOpenFileDescriptorCount(void) {
     return (NSUInteger)(bytes / (int)PROC_PIDLISTFD_SIZE);
 }
 
-// The split phys_footprint cannot make: hundreds of megabytes of footprint
-// over a live heap of twenty is the allocator holding freed pages, not a leak,
-// and only the live bytes tell the two apart. Every registered zone is summed,
-// CoreAudio's caulk zones included; a per-zone breakdown is vmmap's job.
+// Live allocations help distinguish retained objects from freed pages the
+// allocator still holds. Sum every registered zone.
 static void VibeMallocBytes(uint64_t *live, uint64_t *reserved) {
     *live = 0;
     *reserved = 0;
@@ -194,12 +193,8 @@ static NSDictionary<NSString *, NSNumber *> *VibePendingCounts(MainPlayerControl
     out[@"datalessProbesInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator
                     datalessProbesInFlight]);
-    // AudioFileHandle calls the OS still owes an answer. Not drainable — a
-    // never-returning open cannot be cancelled — so nonzero at rest means work
-    // that will never finish, and it belongs here rather than in the
-    // diagnostics so a stranded open holds the settle open and names itself.
-    // Read lock-free rather than through debugState: quiesce polls every 100ms
-    // and must not take the coordinator's state queue.
+    // Outstanding handle opens retain admission capacity until they return.
+    // Read lock-free because quiesce polls this every 100ms.
     out[@"handleOpensInFlight"] =
             @([AudioFileMaterializationCoordinator.sharedCoordinator handleOpensInFlight]);
     return out;
@@ -273,8 +268,7 @@ NSString *VibeDebugHealthJSON(MainPlayerController *controller) {
             @"tableRows": @(controller.playlistTableView.numberOfRows),
             @"playerLoading": @(player.isLoading),
             @"gaplessArmed": @(player.isGaplessArmed),
-            // Hosted units, the varispeed and the FX chain's: created once
-            // and kept, so a count that moves is a rebuild that leaked.
+            // Warm every effect before comparing against a leak baseline.
             @"hostedUnits": counts[@"hostedUnits"],
             // The bus's drain timer: on only while the output runs voices, so
             // 1 at rest is a wakeup the idle guarantee forbids.
@@ -497,8 +491,19 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
 
     NSString *title = display.titleTextField.stringValue ?: @"";
     NSString *artist = display.artistTextField.stringValue ?: @"";
+    // The header's own state: a notice covers the display state's labels.
+    TrackDisplayState header = [controller headerState];
 
-    if (state == TrackDisplayStateTrack || state == TrackDisplayStateLoading) {
+    if (header == TrackDisplayStateNotice) {
+        checked++;
+        NSString *status = controller.noticeStatus ?: @"";
+        if (![artist isEqualToString:status]) {
+            VibeDebugViolation(v, @"display.notice_shown",
+                    @"a notice is held but the header shows \"%@\"", artist);
+        }
+    }
+
+    if (header == TrackDisplayStateTrack || header == TrackDisplayStateLoading) {
         checked++;
         NSString *expectedTitle = shown.displayTitle;
         if (shown && ![title isEqualToString:expectedTitle ?: @""]) {
@@ -513,7 +518,7 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
         }
     }
 
-    if (state == TrackDisplayStateEmpty || state == TrackDisplayStateLaunchGrace) {
+    if (header == TrackDisplayStateEmpty || header == TrackDisplayStateLaunchGrace) {
         checked++;
         if (title.length > 0) {
             VibeDebugViolation(v, @"display.empty_state_clears_title",
@@ -521,23 +526,22 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
         }
     }
 
-    // Loading, Empty and Error all render the placeholder rather than a time:
-    // a real clock there means a previous track's position survived the
-    // transition.
-    if (state == TrackDisplayStateLoading || state == TrackDisplayStateEmpty
-            || state == TrackDisplayStateError) {
+    // Every state but Track and the launch grace renders the placeholder
+    // rather than a time: a real clock there means a previous track's position
+    // survived the transition.
+    if (header != TrackDisplayStateTrack && header != TrackDisplayStateLaunchGrace) {
         NSString *placeholder = STR_LABEL_TIME_UNKNOWN;
         checked++;
         NSString *elapsed = display.currentTimeTextField.stringValue ?: @"";
         if (![elapsed isEqualToString:placeholder]) {
             VibeDebugViolation(v, @"display.elapsed_time_placeholder",
-                    @"state %ld shows elapsed \"%@\"", (long)state, elapsed);
+                    @"state %ld shows elapsed \"%@\"", (long)header, elapsed);
         }
         checked++;
         NSString *total = display.totalTimeTextField.stringValue ?: @"";
         if (![total isEqualToString:placeholder]) {
             VibeDebugViolation(v, @"display.total_time_placeholder",
-                    @"state %ld shows total \"%@\"", (long)state, total);
+                    @"state %ld shows total \"%@\"", (long)header, total);
         }
     }
 

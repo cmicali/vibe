@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  The private surface shared by PlaybackController.m and its categories; no
-//  other file imports it. The debug surface is Debug/iOS/PlaybackController+Debug.h.
+//  other file imports it. The debug surface is Debug/iOS/Seams/PlaybackController+Debug.h.
 //  This header is the cost of the split: a category that pushes more state in
 //  here than it takes out of PlaybackController.m is not worth making.
 //
@@ -23,7 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // AudioPlayerDelegate and NowPlayingControllerDelegate are declared on the
 // categories that implement them, so the compiler checks each against its file.
-@interface PlaybackController () <PlaylistObserver, FolderSessionDelegate,
+@interface PlaybackController () <PlaylistObserver,
         AudioSessionControllerDelegate, AudioTrackMetadataCacheDelegate> {
     AudioPlayer             *_player;
     Playlist                *_playlist;
@@ -76,6 +76,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The broadcast
 
+// A handler may add or drop an observer mid-delivery.
+- (NSArray<id<PlaybackObserver>> *)observerSnapshot;
 - (void)notifyDidMoveToCurrentTrackAnimated:(BOOL)animated;
 - (void)notifyDidRenderCurrentTrack;
 - (void)notifyDidChangePlayState;
@@ -83,23 +85,21 @@ NS_ASSUME_NONNULL_BEGIN
 // Publishes Now Playing first, so the lock screen never lags the screens.
 - (void)notifyDidTick;
 - (void)notifyDidBeginLoading;
-// Idempotent: every later pick reaches the same delegate methods.
-- (void)settleLaunchOpen;
 - (void)notifyDidUpdateLoadingProgress:(float)fraction;
 - (void)notifyDidFinishLoading;
 - (void)notifyDidFailCurrentTrack;
-
-#pragma mark - On track end
-
-// Nil at the end of the playlist and under On track end = Pause. Every
-// prefetchTrack: call site asks this; a bypass splices past a track end the
-// setting says to park on (root AGENTS.md).
-- (nullable AudioTrack *)successorPrefetchTrack;
+- (void)notifyHasNothingToRestore;
 
 #pragma mark - Transport follow-ups
 
-// Re-arms the successor unless the player is Stopped; successorPrefetchTrack
-// decides what.
+// Parks on the playlist's current track: the screens describe it, and
+// nothing opens.
+- (void)parkCurrentTrack;
+
+// Hands the playlist's neighborhood to the metadata cache's ranking.
+- (void)updateMetadataNeighborhood;
+
+// Re-arms the playlist's trackEndSuccessor unless the player is Stopped.
 - (void)prefetchSuccessor;
 
 // Parks on track and opens it paused at position: parked, the player holds no
@@ -112,8 +112,21 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The deferred metadata sweep
 
+// Marks the sweep pending, and arms its fallback timer.
+- (void)scheduleDeferredMetadataLoad;
 // Starts the deferred sweep if one is still pending.
 - (void)startPendingMetadataLoad;
+
+@end
+
+// The private half of PlaybackController+Opening.m.
+@interface PlaybackController (OpeningInternal) <FolderSessionDelegate>
+
+// Idempotent: every later pick reaches the same delegate methods.
+- (void)settleLaunchOpen;
+
+// Clears openingPath. The row's spinner goes.
+- (void)endOpening;
 
 @end
 

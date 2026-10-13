@@ -4,16 +4,16 @@ Chế độ xem dạng sóng
 Vibe vẽ mỗi bản nhạc thành một dạng sóng trải hết chiều ngang cửa sổ. Bấm vào bất kỳ điểm nào trên đó để nhảy tới.
 
 Nhanh
-Vibe được dựng để nhỏ gọn và nhanh. Thẻ, ảnh bìa và dạng sóng được đọc ở nền rồi lưu đệm, nên lần mở sau là tức thì.
+Vibe được dựng để nhỏ gọn và nhanh.
 
 Chỉ việc phát tệp của bạn
 Thả một tệp hoặc một thư mục — từ ổ đĩa của bạn, từ iCloud Drive hay Dropbox — là nhạc chạy. Không có cơ sở dữ liệu nào phải dựng lại và không có thư viện nào phải trông nom.
 
 Bộ máy âm thanh riêng của Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, phát qua bộ máy CoreAudio riêng của Vibe, với khả năng chuyển đổi tần số lấy mẫu chất lượng cao. Tệp lossless phát ở độ phân giải đầy đủ.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV và FLAC, phát qua bộ máy CoreAudio riêng của Vibe, với khả năng chuyển đổi tần số lấy mẫu chất lượng cao.
 
 Chế độ bit-perfect
-Chế độ bit-perfect và chế độ độc quyền gửi âm thanh tới thiết bị đầu ra đúng nguyên trạng, cho chất lượng tốt nhất có thể.
+Chế độ bit-perfect dùng tần số lấy mẫu của tệp nếu thiết bị hỗ trợ. Chế độ độc quyền dành thiết bị cho Vibe.
 
 Dựng cho DJ
 Vibe có bộ chỉnh pitch kiểu bàn xoay, phân tích BPM và tông, các bước nhảy chính xác theo ô nhịp, cùng FX biểu diễn.

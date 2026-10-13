@@ -10,7 +10,7 @@ Inget bibliotek att importera
 Det finns ingen databas att bygga om och inget att synka.
 
 Vibes egen ljudmotor
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, spelade genom Vibes egen ljudmotor med högkvalitativ samplingsfrekvenskonvertering. Lossless-filer spelas i full upplösning.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV och FLAC, spelade genom Vibes egen ljudmotor med högkvalitativ samplingsfrekvenskonvertering.
 
 Widgetar
 Den lilla och den mellanstora widgeten visar aktuell låt med omslag och en vågform du kan söka i.

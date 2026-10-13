@@ -2,6 +2,9 @@
 //  MainPlayerController+Settings.h
 //  Vibe
 //
+//  The settings live effects, which apply settings already stored. Also the
+//  one write path for shortcuts and the push of the theme's fonts.
+//
 
 #import "MainPlayerController.h"
 #import "ShortcutRules.h"
@@ -110,7 +113,8 @@ typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
 // buildContentInWindow: runs it before any label exists.
 - (void)applyStoredFonts;
 
-// Applies settings already stored. Never writes settings or window geometry.
+// Applies stored settings. Dependent effects can close the pitch panel and
+// save its resulting geometry.
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects;
 // NO for a device settlement: its modes are applied, and the player may have
 // moved on to another device.

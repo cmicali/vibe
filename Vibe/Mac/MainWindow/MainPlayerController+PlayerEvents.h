@@ -5,9 +5,9 @@
 //  Every AudioPlayerDelegate callback, and the registry's progress for the
 //  open they report loading. Two rules:
 //
-//  1. **Every callback can be stale**, so each handler matches the delivered
-//     track against the playlist's current one before acting.
-//  2. **`stop` fires no callback**, so nothing here auto-advances from it.
+//  1. Track callbacks match the playlist's current track. Device and output
+//     activity callbacks reconcile from their own current state.
+//  2. `stop` fires no transport callback. It never drives auto-advance.
 //     Track end and skip-past-end both funnel through didFinishPlaying:.
 //
 

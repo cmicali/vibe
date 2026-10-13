@@ -27,10 +27,11 @@ static NSString *const kKeyPlaying      = @"playing";
 static NSString *const kKeyDuration     = @"duration";
 static NSString *const kKeyPosition     = @"position";
 static NSString *const kKeyPositionDate = @"positionDate";
+static NSString *const kKeyPlayheadLine = @"playheadLine";
 
 // Bumped when a field's meaning changes; an unknown version draws the empty
 // state until the next publish.
-static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named by it
+static const NSInteger kStateVersion = 3;
 
 @implementation VibeWidgetState
 
@@ -106,6 +107,7 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     state.duration     = [plist[kKeyDuration] doubleValue];
     state.position     = [plist[kKeyPosition] doubleValue];
     state.positionDate = plist[kKeyPositionDate];
+    state.playheadLine = [plist[kKeyPlayheadLine] boolValue];
     return state;
 }
 
@@ -124,6 +126,7 @@ static const NSInteger kStateVersion = 2;   // 2: trackKey, and the images named
     plist[kKeyDuration]     = @(self.duration);
     plist[kKeyPosition]     = @(self.position);
     plist[kKeyPositionDate] = self.positionDate;
+    plist[kKeyPlayheadLine] = @(self.playheadLine);
     return [plist writeToURL:url error:NULL];
 }
 

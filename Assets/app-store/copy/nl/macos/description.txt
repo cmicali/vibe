@@ -4,16 +4,16 @@ Golfvormweergave
 Vibe tekent elk nummer als een volledige golfvorm over het venster. Klik er ergens op om te zoeken.
 
 Snel
-Vibe is klein en snel gebouwd. Tags, artwork en golfvormen worden op de achtergrond gelezen en gecachet, zodat de volgende keer openen meteen gaat.
+Vibe is klein en snel gebouwd.
 
 Speelt gewoon je bestanden
 Sleep een bestand of een map — vanaf je schijf, iCloud Drive of Dropbox — en het speelt. Er is geen database om opnieuw op te bouwen en geen bibliotheek om bij te houden.
 
 Vibes eigen audio-engine
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, afgespeeld via Vibes eigen CoreAudio-engine, met hoogwaardige samplerateconversie. Lossless bestanden spelen op volle resolutie.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV en FLAC, afgespeeld via Vibes eigen CoreAudio-engine, met hoogwaardige samplerateconversie.
 
 Bit-perfect modus
-Bit-perfect en exclusieve modus sturen audio precies zoals het is naar je uitvoerapparaat, voor de best mogelijke geluidskwaliteit.
+De bit-perfect modus gebruikt de samplerate van het bestand als het apparaat die ondersteunt. De exclusieve modus reserveert het apparaat voor Vibe.
 
 Gemaakt met dj’s in gedachten
 Vibe heeft een pitchfader in turntable-stijl, BPM- en toonsoortanalyse, maatnauwkeurige sprongen en performance-FX.

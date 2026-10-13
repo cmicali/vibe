@@ -31,7 +31,7 @@ say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 require_debug_build() {
     if [ -z "${VIBE_SKIP_BUILD:-}" ]; then
         say "building Debug"
-        "$ROOT/scripts/build.sh" Debug >/dev/null
+        "$ROOT/scripts/build/build.sh" Debug >/dev/null
     fi
     [ -x "$V" ] || { echo "no debug build at $APP" >&2; exit 1; }
 }
@@ -132,13 +132,12 @@ ensure_body_width() { # <body-points> [height-points]
     quiet sleep 0.5   # let the autoresize + glass relayout land
 }
 
-# Takes a renderer +styleIdentifier, not the localized +displayName. The style
-# submenu is delegate-built and click_menu does not ask the delegate; dump_menu
-# does, and the items it builds stay, so it runs first.
+# Takes the renderer identifier, not its localized display name.
 ensure_waveform_style() { # <style identifier>
     local want=$1 got
-    quiet dump_menu
-    quiet click_menu "waveform_style_$want"
+    quiet settings_open themes
+    quiet settings_click "Waveform style" "$want"
+    quiet settings_close
     got=$(state | jq -r .settings.waveformStyle)
     [ "$got" = "$want" ] || { echo "waveform style is '$got', wanted '$want'" >&2; exit 1; }
     quiet sleep "$SETTLE"   # the new renderer morphs in

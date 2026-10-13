@@ -131,8 +131,7 @@ static NSString *const kValueCellIdentifier = @"value";
     [self.navigationController pushViewController:[self onTrackEndPicker] animated:YES];
 }
 
-// The store applies no effects (Common/AGENTS.md): every write ends on the
-// model.
+// Apply the transition setting through the model to re-park the successor.
 - (SettingsChoiceViewController *)onTrackEndPicker {
     PlaybackController *playback = _playback;
     return [[SettingsChoiceViewController alloc]

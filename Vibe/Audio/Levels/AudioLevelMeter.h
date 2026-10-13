@@ -3,8 +3,8 @@
 //  Vibe
 //
 //  Demand-driven FFT analysis for the five-bar equalizer, fed the render's
-//  final samples. The meter lives from the first demand, replaced only when
-//  the output's rate or the normalization mode changes.
+//  final samples. The meter lives from the first demand. Rate or mode changes
+//  replace it. An iOS media-services reset discards it too.
 //
 
 #import <AVFAudio/AVFAudio.h>
@@ -41,16 +41,17 @@ typedef struct VibeLevelMeter VibeLevelMeter;
 - (void)remove;
 @property (nonatomic, readonly) BOOL installed;
 
-// The beta signal probe, bounded to first signal or three seconds. Player
-// queue. Poll returns YES while pending; removal completes a partial capture.
-// The last snapshot survives removal.
+// The beta signal probe, bounded to first signal or three seconds, measured
+// in the caller's polls so the bound rides the player's clock. Player queue.
+// Poll returns YES while pending; removal completes a partial capture. The
+// last snapshot survives removal.
 - (uint64_t)beginSignalDiagnosticsAtTime:(AudioTimeStamp)startTime
                 waitingForRetiredAudio:(BOOL)waiting
                             completion:(void (^)(NSDictionary<NSString *, id> *snapshot))completion;
 // The last outgoing fade has settled. The clock is the timestamp's sample
 // time, in the pipeline's frames; without one the capture's clock is unset.
 - (void)endSignalOverlapAtTime:(AudioTimeStamp)time;
-- (BOOL)pollSignalDiagnostics:(uint64_t)request;
+- (BOOL)pollSignalDiagnostics:(uint64_t)request elapsedSeconds:(NSTimeInterval)elapsed;
 - (NSDictionary<NSString *, id> *)signalDiagnosticSnapshot;
 
 @end

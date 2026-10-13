@@ -80,7 +80,8 @@ def features(src):
     def find(name):
         return next((src / 'Vibe').rglob(name), None)
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
-    waveform = find('AudioWaveform.h')
+    waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
+    resampler = find('AudioResampler.h')
     metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,
@@ -92,6 +93,8 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART': any('displayArtData' in h.read_text() for h in metadata),
         'VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE': levels is not None and 'VibeAudioLevelAnalyzerSummarize' in levels.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text(),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM': three_band is not None and 'SpectrumWaveformRenderer' in three_band.read_text(),
+        'VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER': resampler is not None and 'VibeResamplerCreate' in resampler.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]
@@ -121,7 +124,18 @@ def tool_spec(src, dumped):
 
     def path_of(source):
         return source if isinstance(source, str) else source.get('path', '')
-    sources = [s for s in app['sources'] if path_of(s) != 'main.m' and not path_of(s).startswith('Resources')]
+
+    def without_main(source):
+        # Older checkouts keep main.m at the repo root, newer ones under
+        # Vibe/Mac/App. A directory entry must not bring it in beside the
+        # harness's own main.
+        if '.' in Path(path_of(source)).name:
+            return source
+        source = {'path': source} if isinstance(source, str) else dict(source)
+        source['excludes'] = list(source.get('excludes', [])) + ['main.m', '**/main.m']
+        return source
+    sources = [without_main(s) for s in app['sources']
+               if Path(path_of(s)).name != 'main.m' and not path_of(s).startswith('Resources')]
     sources.append({'path': 'Tests/BenchComponents', 'excludes': ['**/*.md', '**/*.py']})
     settings = json.loads(json.dumps(app.get('settings', {})))
     for block in [settings.get('base', {})] + list(settings.get('configs', {}).values()):
@@ -230,8 +244,6 @@ def run_binary(binary, filter_re, reps, json_out, quiet=False):
 
 
 def built(binary, filter_re):
-    """The benchmark names a binary has: a ref that could not build a benchmark
-    file lacks that file's."""
     args = [str(binary), '--list'] + (['--filter', filter_re] if filter_re else [])
     return set(subprocess.run(args, check=True, capture_output=True, text=True).stdout.split())
 
@@ -332,6 +344,10 @@ PAGE_CHARTS = [
         ('key.flac-16-44', 'cpu_per_minute', 'Key, 44.1 kHz'),
         ('bpm.flac-24-96', 'cpu_per_minute', 'Tempo, 96 kHz'),
         ('key.flac-24-96', 'cpu_per_minute', 'Key, 96 kHz')], 1),
+    ('components-pitch', 'The pitch fader\'s converter, CPU per minute of audio', 'ms', [
+        ('pitch.-8', 'cpu_per_minute', '−8%'),
+        ('pitch.+4', 'cpu_per_minute', '+4%'),
+        ('pitch.+16', 'cpu_per_minute', '+16%')], 0),
     ('components-metadata', 'Reading a file\'s tags and cover art', 'ms per file', [
         ('metadata.mp3-320', 'wall_per_unit', 'MP3, 1000 px cover'),
         ('metadata.flac-16-44', 'wall_per_unit', 'FLAC, 1000 px cover'),
@@ -395,8 +411,6 @@ def measure_release(label, ref, reps):
 
 
 def releases(args):
-    """The page's component charts: measure each version, store it in
-    results.json, redraw docs/performance.md."""
     reps = option(args, '--reps', 5, int)
     new_machine = bench.switch(args, '--new-machine')
     results = bench.load_results()

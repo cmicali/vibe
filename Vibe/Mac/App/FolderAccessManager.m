@@ -4,7 +4,7 @@
 //
 
 #import "FolderAccessManagerInternal.h"
-#import "NSURLUtil.h"
+#import "FilePaths.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderAccessRules.h"
 #import "VibeStrings.h"
@@ -23,8 +23,6 @@ static NSString *const kEntryAccessedURLKey = @"accessedURL";
 // Runtime-only: a live powerbox, open or drop grant in this process.
 static NSString *const kEntryPowerboxActiveKey = @"powerboxActive";
 
-// Shared by the launch drain and every per-open wait.
-static const NSTimeInterval kRestoreDeadline = 2.0;
 const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 
 @interface VibeRestorationWaiter : NSObject
@@ -85,6 +83,7 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 @interface FolderAccessManager ()
 // Paths whose scope is live in this process.
 @property (atomic, copy) NSArray<NSString *> *activePathSnapshot;
+@property (nonatomic) NSTimeInterval restoreDeadline;
 @end
 
 @implementation FolderAccessManager {
@@ -123,6 +122,8 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
         _urgentRestorationQueue.qualityOfService = NSQualityOfServiceUserInitiated;
         _urgentRestorationQueue.maxConcurrentOperationCount = 1;
         _pendingRestorations = [NSMutableArray array];
+        // Shared by the launch drain and every per-open wait.
+        _restoreDeadline = 2.0;
         NSArray *stored = [NSUserDefaults.standardUserDefaults arrayForKey:kGrantedFoldersDefaultsKey];
         for (NSDictionary *entry in stored) {
             NSString *path = entry[kEntryPathKey];
@@ -238,7 +239,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
         }
     };
     dispatch_group_notify(group, dispatch_get_main_queue(), finish);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.restoreDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), finish);
 }
 
@@ -330,7 +331,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     waiter.completion = completion;
     [_restorationWaiters addObject:waiter];
     __weak FolderAccessManager *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kRestoreDeadline * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.restoreDeadline * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         [weakSelf releaseWaiter:waiter];
     });

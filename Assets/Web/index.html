@@ -28,7 +28,7 @@
 <!-- Machine-readable facts, for search engines and for agents that read the
      page rather than render it. Every value here is also stated in the visible
      copy; nothing is asserted only to a crawler. softwareVersion and
-     downloadUrl are rewritten by scripts/web-set-version.sh at release, so
+     downloadUrl are rewritten by scripts/web/web-set-version.sh at release, so
      they cannot drift from the button above. -->
 <script type="application/ld+json">
 {
@@ -64,14 +64,15 @@
   "featureList": [
     "Seekable full-track waveform",
     "Plays MP3, MP2, AAC, FLAC, MP4/M4A, AIFF and WAV through its own CoreAudio engine",
-    "Lossless playback at full resolution",
+    "Lossless format support",
     "No library or database to import",
     "Tags, artwork and BPM read in the background and cached",
     "Turntable-style pitch fader",
     "DJ performance FX: low-kill filter, reverb wash and BPM-synced delays",
     "Bar-accurate skipping when the tempo is known",
     "Plays files stored in iCloud Drive, Dropbox and other file providers, with download progress",
-    "The Mac app itself has no network access; the system fetches cloud files on its behalf",
+    "Open URL plays an audio file from a web address, with plain http only on the local network",
+    "The Mac app goes online only for an address you open, and the downloaded version to check for updates. The system fetches cloud files on its behalf",
     "Localized into 30 languages",
     "Companion iPhone and iPad app with home-screen widgets, free on both platforms"
   ],
@@ -81,7 +82,7 @@
   ]
 }
 </script>
-<link rel="stylesheet" href="styles.css?v=0cfc16db86">
+<link rel="stylesheet" href="styles.css?v=563f3f9596">
 </head>
 <body>
 
@@ -147,11 +148,11 @@
     </li>
     <li>
       <h3><svg class="card-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.2 2.5 5.6 13.2h5.3l-1 8.3L18.4 10.8h-5.3z"/></svg>Fast</h3>
-      <p>Vibe is built to be small and fast. Tags, artwork, and waveforms are read in the background and cached, so the next open is instant.</p>
+      <p>Vibe is built to be small and fast. Tags, artwork, and waveforms are read in the background and cached for faster repeat opens.</p>
     </li>
     <li>
       <h3><svg class="card-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="2.5"/><path d="M9.5 3v4M14.5 3v4M9.5 17v4M14.5 17v4M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></svg>Vibe’s own audio engine</h3>
-      <p>MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe’s own CoreAudio engine, with high-quality sample-rate conversion and bit-perfect output. Lossless files play at full resolution.</p>
+      <p>MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe’s own CoreAudio engine, with high-quality sample-rate conversion and bit-perfect output.</p>
     </li>
     <li>
       <h3><svg class="card-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 7.2a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.5.7l1.2 1.4h6.7a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>No library to import</h3>

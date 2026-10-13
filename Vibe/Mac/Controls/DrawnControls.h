@@ -2,11 +2,8 @@
 //  DrawnControls.h
 //  Vibe
 //
-//  Controls drawn in drawRect: in place of AppKit's. TRAP: never an NSSlider
-//  or an NSSwitch. Under the macOS 26 design AppKit draws both through a
-//  SwiftUI host whose first render brings up RenderBox's Metal device, and the
-//  GPU driver's 256 MB texture heap with it, for about a second, hidden or
-//  not. A switch has no public opt-out; see Mac/Controls/AGENTS.md.
+//  TRAP: use custom drawing to avoid AppKit's SwiftUI control hosts and
+//  their Metal startup cost on macOS 26. See Mac/Controls/AGENTS.md.
 //
 //  Both draw gray while the window is not key and at half alpha disabled, as
 //  AppKit's do. Neither is first responder except the switch under full

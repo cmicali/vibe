@@ -4,7 +4,7 @@
 //
 
 #import "DebugSettingsUI.h"
-#import "SettingsAppearanceViewController.h"
+#import "SettingsThemesViewController.h"
 
 #if DEBUG
 
@@ -758,9 +758,7 @@ NSString *VibeDebugSettingsClose(void) {
     if (!window || !window.isVisible) {
         return VibeJSONString(@{@"ok": @YES, @"open": @NO});
     }
-    // A sheet (Add Folder's open panel) cannot be dismissed through the
-    // channel any other way: the injection verbs post into the main player
-    // window, and powerbox owns an open panel.
+    // Dismiss the sheet directly without driving the system open panel.
     NSWindow *sheet = window.attachedSheet;
     if (sheet) {
         [window endSheet:sheet returnCode:NSModalResponseCancel];
@@ -886,7 +884,7 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
                                     @"action": @"navigated"});
         }
         if (undo) {
-            // Edit > Undo's own road: the theme history on Appearance, the
+            // Edit > Undo's own road: the theme history on Themes, the
             // selected pane's undo stack elsewhere.
             NSMenuItem *probe = [[NSMenuItem alloc] initWithTitle:@"" action:@selector(undo:) keyEquivalent:@""];
             if (![(id<NSMenuItemValidation>)controller validateMenuItem:probe]) {
@@ -896,7 +894,7 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens) {
             return VibeJSONString(@{@"ok": @YES, @"control": @"undo", @"action": @"undone",
                                     @"undid": probe.title});
         }
-        SettingsAppearanceViewController *pane = [controller themesPane];
+        SettingsThemesViewController *pane = [controller themesPane];
         if (pane) {
             if (preview) {
                 BOOL dark = [tokens[2] caseInsensitiveCompare:@"dark"] == NSOrderedSame;
@@ -1003,7 +1001,6 @@ NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens) {
         return errorJSON;
     }
     NSView *card = [SettingsSectionView sectionContaining:element.view] ?: element.view;
-    // The pane's stack is flipped, so the card's minY is its top.
     NSView *document = card.enclosingScrollView.documentView;
     [document scrollPoint:NSMakePoint(0, NSMinY([card convertRect:card.bounds toView:document]) - 12)];
     return VibeClickReply(element, @"revealed");

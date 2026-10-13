@@ -9,7 +9,7 @@
 //
 //  SHARED, because the bars ARE the app's playing marker and both platforms
 //  must draw the same ones — the mac playlist table's number column and the
-//  iOS library row's. Everything that gives the indicator its character is
+//  iOS Playlist tab's. Everything that gives the indicator its character is
 //  QuartzCore and identical on both: the pill layers, the collapsed-to-dots
 //  idle pose, the snapshot poller capped at 30 Hz, and explicit scalar
 //  animations for material level changes. Only the superclass, layout

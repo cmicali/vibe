@@ -1,0 +1,990 @@
+
+#import <XCTest/XCTest.h>
+
+#import <fcntl.h>
+#import <limits.h>
+#import <stdatomic.h>
+#import <stdlib.h>
+#import <sys/stat.h>
+#import <unistd.h>
+
+#import "AudioFixtures.h"
+#import "AudioTrack.h"
+#import "PlaceholderFiles+Debug.h"
+#import "FolderWalkInternal.h"
+#import "PlayableExtensions.h"
+#import "TrackCommands.h"
+
+@interface FolderWalkTests : XCTestCase
+@end
+
+@implementation FolderWalkTests {
+    NSURL *_root;
+}
+
+- (void)setUp {
+    [super setUp];
+    _root = [NSURL fileURLWithPath:[NSTemporaryDirectory()
+            stringByAppendingPathComponent:[NSString stringWithFormat:@"VibeURLUtil-%@",
+                                                                      NSUUID.UUID.UUIDString]]
+                       isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:_root
+                           withIntermediateDirectories:YES
+                                            attributes:nil
+                                                 error:nil];
+    // The enumerator answers in resolved paths (/private/var). realpath, not
+    // URLByResolvingSymlinksInPath, which leaves the /var prefix as it found it.
+    char resolved[PATH_MAX];
+    if (realpath(_root.fileSystemRepresentation, resolved)) {
+        _root = [NSURL fileURLWithFileSystemRepresentation:resolved isDirectory:YES relativeToURL:nil];
+    }
+}
+
+- (void)tearDown {
+    [FolderWalk setPlaylistFolderGrantHandler:nil];
+    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
+    [self unlock:_root];
+    [NSFileManager.defaultManager removeItemAtURL:_root error:nil];
+    [super tearDown];
+}
+
+// Each directory is unlocked before it is listed, so an execute-only one is
+// not skipped along with its contents.
+- (void)unlock:(NSURL *)url {
+    chmod(url.fileSystemRepresentation, 0755);
+    NSNumber *isDirectory = nil;
+    [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:nil];
+    if (!isDirectory.boolValue) {
+        return;
+    }
+    for (NSURL *child in [NSFileManager.defaultManager contentsOfDirectoryAtURL:url
+                                                    includingPropertiesForKeys:nil
+                                                                       options:0
+                                                                         error:nil]) {
+        [self unlock:child];
+    }
+}
+
+#pragma mark - Fixtures
+
+- (NSURL *)makeDirectory:(NSString *)relative {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:YES];
+    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:url
+                                        withIntermediateDirectories:YES
+                                                         attributes:nil
+                                                              error:nil], @"%@", relative);
+    return url;
+}
+
+- (NSURL *)makeFile:(NSString *)relative {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES
+                                            attributes:nil
+                                                 error:nil];
+    // One byte: expandAndFilterList: drops empty files.
+    XCTAssertTrue([[NSData dataWithBytes:"\0" length:1] writeToURL:url atomically:YES], @"%@", relative);
+    return url;
+}
+
+// The target need not exist: a broken link is a case the walk classifies.
+- (NSURL *)makeLink:(NSString *)relative to:(NSString *)target {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES
+                                            attributes:nil
+                                                 error:nil];
+    NSError *error = nil;
+    XCTAssertTrue([NSFileManager.defaultManager
+            createSymbolicLinkAtURL:url
+                withDestinationURL:[_root URLByAppendingPathComponent:target]
+                             error:&error], @"%@ -> %@: %@", relative, target, error);
+    return url;
+}
+
+- (NSURL *)makeText:(NSString *)text at:(NSString *)relative {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES
+                                            attributes:nil
+                                                 error:nil];
+    XCTAssertTrue([[text dataUsingEncoding:NSUTF8StringEncoding] writeToURL:url atomically:YES],
+                  @"%@", relative);
+    return url;
+}
+
+// Strips both spellings of the root: the walk answers in resolved paths, and
+// playlist resolution standardizes, which drops the /private prefix again. A
+// windowed row reads as its file plus its window (sourceKey).
+- (NSArray<NSString *> *)relativePaths:(NSArray<AudioTrack *> *)rows {
+    NSArray<NSString *> *prefixes = @[[_root.path stringByAppendingString:@"/"],
+                                      [_root.path.stringByStandardizingPath stringByAppendingString:@"/"]];
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:rows.count];
+    for (AudioTrack *row in rows) {
+        NSString *name = row.sourceKey;
+        for (NSString *prefix in prefixes) {
+            if ([name hasPrefix:prefix]) {
+                name = [name substringFromIndex:prefix.length];
+                break;
+            }
+        }
+        [names addObject:name];
+    }
+    return names;
+}
+
+- (NSArray<NSString *> *)expandAndFilter:(NSArray<NSURL *> *)list folderCount:(NSUInteger *)folderCount {
+    return [self relativePaths:[FolderWalk expandAndFilterList:list sortedBy:VibeFolderOpenSortName
+                                                 folderCount:folderCount]];
+}
+
+#pragma mark - The extension filter
+
+// com.microsoft.waveform-audio alone declares wav, wave AND bwf, and a claimed
+// type takes in every type conforming to it (public.mpeg-4-audio the m4r
+// ringtone, public.aac-audio adts); a spelling missing here lets Finder offer
+// Vibe a file the filter silently discards.
+- (void)testSupportedExtensionsCoverEveryClaimedSpelling {
+    NSSet<NSString *> *supported = [FolderWalk supportedExtensions];
+
+    XCTAssertEqualObjects(supported, ([NSSet setWithArray:@[@"mp2", @"mp3", @"aac", @"adts", @"aif", @"aiff",
+                                                            @"wav", @"wave", @"bwf", @"w64", @"flac", @"caf",
+                                                            @"m4a", @"mp4", @"qta", @"m4b", @"m4r",
+                                                            @"ogg", @"oga", @"opus"]]));
+    NSArray<NSString *> *ordered = PlayableExtensions.ordered;
+    XCTAssertEqualObjects([NSSet setWithArray:ordered], supported);
+    XCTAssertEqual(ordered.count, supported.count);
+    for (NSString *rejected in @[@"ape", @"wv", @"m3u", @"m3u8", @"cue", @"aifc", @"txt", @""]) {
+        XCTAssertFalse([supported containsObject:rejected], @"%@", rejected);
+    }
+}
+
+- (void)testTheFilterIsCaseInsensitiveAndDropsUnplayableFiles {
+    [self makeFile:@"folder/Loud.MP3"];
+    [self makeFile:@"folder/Quiet.FlAc"];
+    [self makeFile:@"folder/notes.txt"];
+    [self makeFile:@"folder/cover.jpg"];
+    [self makeFile:@"folder/album.ape"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"folder"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"folder/Loud.MP3", @"folder/Quiet.FlAc"]));
+}
+
+#pragma mark - The folder walk
+
+// AppleDouble sidecars ("._Song.mp3", written on exFAT, SMB and USB volumes)
+// pass the extension filter but hold no audio.
+- (void)testTheWalkSkipsAppleDoubleSidecarsAndHiddenFiles {
+    [self makeFile:@"folder/Song.mp3"];
+    [self makeFile:@"folder/._Song.mp3"];
+    [self makeFile:@"folder/.hidden.mp3"];
+    [self makeFile:@"folder/.hidden/buried.mp3"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"folder"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"folder/Song.mp3"]));
+}
+
+- (void)testTheWalkSkipsPackageDescendants {
+    [self makeFile:@"folder/Song.mp3"];
+    [self makeFile:@"folder/Sampler.bundle/Contents/Resources/buried.mp3"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"folder"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"folder/Song.mp3"]));
+}
+
+// The enumerator returns APFS hash order, effectively random.
+- (void)testTheWalkSortsNumericallyByFullPath {
+    [self makeFile:@"folder/track10.mp3"];
+    [self makeFile:@"folder/track2.mp3"];
+    [self makeFile:@"folder/track1.mp3"];
+    [self makeFile:@"folder/b-disc/track2.mp3"];
+    [self makeFile:@"folder/b-disc/track1.mp3"];
+    [self makeFile:@"folder/a-disc/track1.mp3"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"folder"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"folder/a-disc/track1.mp3",
+                                    @"folder/b-disc/track1.mp3",
+                                    @"folder/b-disc/track2.mp3",
+                                    @"folder/track1.mp3",
+                                    @"folder/track2.mp3",
+                                    @"folder/track10.mp3"]));
+}
+
+- (void)testAnEmptyOrAudiolessFolderExpandsToNothing {
+    [self makeFile:@"folder/notes.txt"];
+    NSUInteger folderCount = 0;
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[[self makeDirectory:@"folder"],
+                                                         [self makeDirectory:@"empty"]]
+                                           folderCount:&folderCount];
+
+    XCTAssertEqualObjects(files, @[]);
+    XCTAssertEqual(folderCount, 2u);
+}
+
+#pragma mark - The top-level list
+
+// hasDirectoryPath inspects only the trailing slash, so a directory URL built
+// without isDirectory:YES (argv, some pasteboards) would read as a file.
+- (void)testADirectoryURLThatDoesNotLookLikeOneIsStillExpanded {
+    [self makeFile:@"folder/Song.mp3"];
+    NSURL *folder = [self makeDirectory:@"folder"];
+    NSURL *misspelled = [NSURL fileURLWithPath:folder.path isDirectory:NO];
+    XCTAssertFalse(misspelled.hasDirectoryPath);
+    NSUInteger folderCount = 0;
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[misspelled] folderCount:&folderCount];
+
+    XCTAssertEqualObjects(files, (@[@"folder/Song.mp3"]));
+    XCTAssertEqual(folderCount, 1u);
+}
+
+- (void)testFolderCountCountsTopLevelFoldersOnly {
+    [self makeFile:@"one/nested/deeper/Song.mp3"];
+    [self makeFile:@"two/Song.mp3"];
+    NSUInteger folderCount = 0;
+
+    [self expandAndFilter:@[[self makeDirectory:@"one"],
+                            [self makeDirectory:@"two"],
+                            [self makeFile:@"loose.mp3"]]
+              folderCount:&folderCount];
+
+    XCTAssertEqual(folderCount, 2u);
+}
+
+- (void)testANullFolderCountIsAccepted {
+    [self makeFile:@"folder/Song.mp3"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/Song.mp3"]));
+}
+
+- (void)testAnExplicitFileSelectionKeepsItsOrder {
+    NSArray<NSURL *> *picked = @[[self makeFile:@"c.mp3"],
+                                 [self makeFile:@"a.mp3"],
+                                 [self makeFile:@"b.mp3"]];
+
+    for (VibeFolderOpenSort sort = VibeFolderOpenSortName; sort <= VibeFolderOpenSortAsReceived; sort++) {
+        XCTAssertEqualObjects([self relativePaths:[FolderWalk expandAndFilterList:picked sortedBy:sort
+                                                                      folderCount:NULL]],
+                              (@[@"c.mp3", @"a.mp3", @"b.mp3"]), @"sort %ld", (long)sort);
+    }
+}
+
+- (void)testAnEmptyFileIsDropped {
+    NSURL *empty = [_root URLByAppendingPathComponent:@"folder/empty.mp3" isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:empty.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+    XCTAssertTrue([[NSData data] writeToURL:empty atomically:YES]);
+    [self makeFile:@"folder/real.mp3"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/real.mp3"]));
+    XCTAssertEqualObjects([self expandAndFilter:@[empty] folderCount:NULL], @[]);
+}
+
+- (void)testAMixedDropInterleavesFoldersWhereTheyWereDropped {
+    [self makeFile:@"folder/b.mp3"];
+    [self makeFile:@"folder/a.mp3"];
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[[self makeFile:@"first.mp3"],
+                                                         [self makeDirectory:@"folder"],
+                                                         [self makeFile:@"last.mp3"]]
+                                           folderCount:NULL];
+
+    XCTAssertEqualObjects(files, (@[@"first.mp3", @"folder/a.mp3", @"folder/b.mp3", @"last.mp3"]));
+}
+
+#pragma mark - Playlist files
+
+- (void)testATopLevelPlaylistExpandsToItsEntriesInListOrder {
+    [self makeFile:@"b.mp3"];
+    [self makeFile:@"a.mp3"];
+    [self makeFile:@"c.mp3"];
+    NSURL *playlist = [self makeText:@"#EXTM3U\n#EXTINF:1,B\nb.mp3\na.mp3\nc.mp3\n" at:@"set.m3u"];
+
+    for (VibeFolderOpenSort sort = VibeFolderOpenSortName; sort <= VibeFolderOpenSortAsReceived; sort++) {
+        XCTAssertEqualObjects([self relativePaths:[FolderWalk expandAndFilterList:@[playlist] sortedBy:sort
+                                                                      folderCount:NULL]],
+                              (@[@"b.mp3", @"a.mp3", @"c.mp3"]), @"sort %ld", (long)sort);
+    }
+}
+
+static NSString *const kTwoTrackSheet =
+        @"PERFORMER \"DJ\"\nFILE \"mix.flac\" WAVE\n"
+         "  TRACK 01 AUDIO\n    TITLE \"One\"\n    INDEX 01 00:00:00\n"
+         "  TRACK 02 AUDIO\n    TITLE \"Two\"\n    INDEX 01 01:00:00\n";
+
+// 01:00:00 is 4500 CD frames; the last row runs to the file's end.
+- (void)testAnOpenedCueSheetExpandsToARowPerTrack {
+    [self makeFile:@"mix.flac"];
+    NSURL *sheet = [self makeText:kTwoTrackSheet at:@"mix.cue"];
+
+    NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[sheet] sortedBy:VibeFolderOpenSortName
+                                                      folderCount:NULL];
+
+    XCTAssertEqualObjects([self relativePaths:rows], (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
+    XCTAssertEqualObjects(rows[1].cueTitle, @"Two");
+    XCTAssertEqualObjects(rows[1].cuePerformer, @"DJ");
+    XCTAssertEqualObjects(rows[1].cueSheetURL.path.stringByStandardizingPath, sheet.path.stringByStandardizingPath);
+}
+
+- (void)testASheetInAWalkedFolderClaimsItsFile {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeFile:@"folder/mix.flac"];
+    [self makeFile:@"folder/z.mp3"];
+    [self makeText:kTwoTrackSheet at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3", @"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0",
+                             @"folder/z.mp3"]));
+}
+
+// Resolved against the walk's listing, so the row carries the file's own
+// spelling and claims it.
+- (void)testAWalkedSheetSpellingItsFileInAnotherCaseStillClaimsIt {
+    [self makeFile:@"folder/Mix.flac"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"MIX.FLAC"]
+                at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/Mix.flac#0-4500", @"folder/Mix.flac#4500-0"]));
+}
+
+// Inject the listing so case-sensitive-volume coverage runs on any host.
+- (void)testAWalkedSheetClaimsOnlyItsExactFileWhenCaseVariantsExist {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:kTwoTrackSheet at:@"album.cue"];
+
+    for (NSArray<NSURL *> *listing in @[@[sheet, lower, upper], @[sheet, upper, lower]]) {
+        XCTAssertEqualObjects([self relativePaths:[FolderWalk rowsForWalk:listing]],
+                              (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
+    }
+}
+
+- (void)testAWalkedSheetDoesNotChooseAnAmbiguousCaseFallback {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac"
+                                                                         withString:@"MIX.FLAC"]
+                               at:@"album.cue"];
+
+    XCTAssertEqualObjects(([self relativePaths:[FolderWalk rowsForWalk:@[sheet, lower, upper]]]),
+                          (@[@"mix.flac", @"Mix.flac"]));
+}
+
+- (void)testASheetBasenameRescueKeepsTheExactFileWhenCaseVariantsExist {
+    NSURL *lower = [_root URLByAppendingPathComponent:@"mix.flac"];
+    NSURL *upper = [_root URLByAppendingPathComponent:@"Mix.flac"];
+    NSURL *sheet = [self makeText:@"TRACK 01 AUDIO\n INDEX 01 00:00:00\n"
+                                  "TRACK 02 AUDIO\n INDEX 01 01:00:00\n" at:@"mix.cue"];
+
+    XCTAssertEqualObjects(([self relativePaths:[FolderWalk rowsForWalk:@[sheet, lower, upper]]]),
+                          (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
+}
+
+// A sheet written elsewhere spells "é" precomposed; the file here holds it
+// decomposed, and APFS takes both.
+- (void)testAWalkedSheetSpellingItsFileInAnotherNormalizationStillClaimsIt {
+    [self makeFile:@"folder/Café.flac"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"Café.flac"]
+                at:@"folder/mix.cue"];
+
+    NSArray<NSString *> *rows = [self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL];
+
+    XCTAssertEqual(rows.count, 2u, @"%@", rows);
+    XCTAssertTrue([rows.firstObject hasSuffix:@"#0-4500"], @"%@", rows);
+}
+
+// One byte under exactly this spelling: open(2) on the UTF-8, since
+// Foundation's file-system representation would decompose it.
+- (void)makeFileSpelledExactly:(NSString *)path {
+    int fd = open(path.UTF8String, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    XCTAssertGreaterThanOrEqual(fd, 0, @"%@", path);
+    XCTAssertEqual(write(fd, "\0", 1), 1);
+    close(fd);
+}
+
+// The claim is by exact URL, while the volume folds case and Unicode
+// normalization, so a rung answering in the sheet's spelling finds the file
+// and still leaves the listed one to play whole beside its rows. Every rung,
+// under every spelling the volume folds, through both listings that cut
+// sheets: the rows must name the listing's URL and nothing else may.
+- (void)testEveryResolutionRungClaimsTheListedFileUnderEverySpelling {
+    NSString *nfc = @"01 - Caf\u00e9";
+    NSString *nfd = @"01 - Cafe\u0301";
+    // Name, the stem the sheet writes, the stem on disk.
+    NSArray<NSArray<NSString *> *> *spellings = @[
+        @[@"precomposed on disk", nfc, nfc],
+        @[@"case", @"01 - caf\u00e9", nfc],
+        @[@"decomposed on disk", nfc, nfd],
+        @[@"decomposed in the sheet", nfd, nfc],
+        @[@"case and normalization", @"01 - CAFE\u0301", nfc],
+    ];
+    // Name, the FILE entry for the sheet's stem, the sheet's own name.
+    NSArray<NSArray<NSString *> *> *rungs = @[
+        @[@"named path", @"%@.flac", @"album.cue"],
+        @[@"beside, from a Windows path", @"C:\\Rips\\Album\\%@.flac", @"album.cue"],
+        @[@"alternate extension", @"%@.wav", @"album.cue"],
+        @[@"alternate extension beside", @"C:\\Rips\\Album\\%@.wav", @"album.cue"],
+        @[@"named like the sheet", @"CDImage.wav", @"%@.cue"],
+    ];
+    NSUInteger folderNumber = 0;
+    for (NSArray<NSString *> *rung in rungs) {
+        for (NSArray<NSString *> *spelling in spellings) {
+            NSString *folderName = [NSString stringWithFormat:@"rung%lu", (unsigned long)folderNumber++];
+            NSURL *folder = [self makeDirectory:folderName];
+            [self makeFileSpelledExactly:[folder.path stringByAppendingFormat:@"/%@.flac", spelling[2]]];
+            NSString *entry = [NSString stringWithFormat:rung[1], spelling[1]];
+            [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:entry]
+                        at:[folderName stringByAppendingPathComponent:[NSString stringWithFormat:rung[2], spelling[1]]]];
+            NSString *listed = nil;
+            for (NSURL *url in [NSFileManager.defaultManager contentsOfDirectoryAtURL:folder
+                                                           includingPropertiesForKeys:nil
+                                                                              options:0
+                                                                                error:nil]) {
+                if ([url.pathExtension isEqualToString:@"flac"]) {
+                    listed = url.path;
+                }
+            }
+            NSDictionary<NSString *, NSArray<AudioTrack *> *> *walks = @{
+                @"walk": [FolderWalk expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName
+                                             folderCount:NULL],
+                @"listing": [FolderWalk rowsInDirectory:folder sortedBy:VibeFolderOpenSortName],
+            };
+            for (NSString *walk in walks) {
+                NSArray<AudioTrack *> *rows = walks[walk];
+                NSString *context = [NSString stringWithFormat:@"%@, %@, %@: %@", rung[0], spelling[0],
+                                                               walk, [self relativePaths:rows]];
+                XCTAssertEqual(rows.count, 2u, @"%@", context);
+                for (AudioTrack *row in rows) {
+                    XCTAssertEqualObjects(row.url.path, listed, @"%@", context);
+                    XCTAssertTrue(row.isWindowed, @"%@", context);
+                }
+            }
+        }
+    }
+}
+
+// Album.cue beside Album (UTF-8).cue, or CDImage.cue beside Album.cue: the
+// first sheet in the walk's order cuts the image, and a later one naming it
+// adds nothing.
+- (void)testTwoSheetsNamingOneImageListItsTracksOnce {
+    NSURL *image = [self makeFile:@"folder/mix.flac"];
+    NSURL *album = [self makeText:kTwoTrackSheet at:@"folder/Album.cue"];
+    NSURL *cdImage = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"\"One\""
+                                                                              withString:@"\"Uno\""]
+                                 at:@"folder/CDImage.cue"];
+
+    NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[[self makeDirectory:@"folder"]]
+                                                         sortedBy:VibeFolderOpenSortName folderCount:NULL];
+    XCTAssertEqualObjects([self relativePaths:rows], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+    XCTAssertEqualObjects(rows.firstObject.cueTitle, @"One");
+
+    rows = [FolderWalk rowsForWalk:@[cdImage, album, image]];
+    XCTAssertEqualObjects([self relativePaths:rows], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+    XCTAssertEqualObjects(rows.firstObject.cueTitle, @"Uno");
+}
+
+// A later sheet still cuts every file no earlier sheet did.
+- (void)testSheetsNamingDifferentFilesAreEachKept {
+    [self makeFile:@"folder/a.flac"];
+    [self makeFile:@"folder/b.flac"];
+    [self makeFile:@"folder/c.flac"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"a.flac"]
+                at:@"folder/a.cue"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"b.flac"]
+                at:@"folder/b.cue"];
+    [self makeText:[[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"a.flac"]
+                           stringByAppendingString:@"FILE \"c.flac\" WAVE\n  TRACK 03 AUDIO\n    INDEX 01 00:00:00\n"
+                                                    "  TRACK 04 AUDIO\n    INDEX 01 01:00:00\n"]
+                at:@"folder/c.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.flac#0-4500", @"folder/a.flac#4500-0",
+                             @"folder/b.flac#0-4500", @"folder/b.flac#4500-0",
+                             @"folder/c.flac#0-4500", @"folder/c.flac#4500-0"]));
+}
+
+// A walk opens a FLAC for its own sheet only past this size; the fixtures are
+// sparse, so the size costs no disk.
+static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
+
+- (NSURL *)makeFLAC:(NSString *)relative sheet:(NSString *)sheet size:(unsigned long long)size {
+    NSURL *url = [_root URLByAppendingPathComponent:relative isDirectory:NO];
+    [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
+                           withIntermediateDirectories:YES attributes:nil error:nil];
+    XCTAssertNotNil(VibeWriteFLACHeader(url, 44100, sheet, nil, NO, size), @"%@", relative);
+    return url;
+}
+
+- (void)testALargeFLACInAWalkIsCutByItsOwnSheet {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3", @"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+}
+
+- (void)testAnOpenedLargeFLACIsCutByItsOwnSheet {
+    NSURL *flac = [self makeFLAC:@"mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[flac] folderCount:NULL],
+                          (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
+}
+
+// The sheet beside the file is the one its owner can edit.
+- (void)testASheetBesideTheFileOutranksItsOwn {
+    NSString *three = [kTwoTrackSheet stringByAppendingString:@"  TRACK 03 AUDIO\n    INDEX 01 02:00:00\n"];
+    [self makeFLAC:@"folder/mix.flac" sheet:three size:kLargeFLACBytes];
+    [self makeText:kTwoTrackSheet at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+}
+
+- (void)testAnOrdinaryFLACIsNotOpenedForASheet {
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:0];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/mix.flac"]));
+}
+
+// Reading a placeholder would download it.
+- (void)testACloudPlaceholderIsNotOpenedForASheet {
+    [self makeFLAC:@"folder/mix.flac" sheet:kTwoTrackSheet size:kLargeFLACBytes];
+    [PlaceholderFiles setDatalessProbe:^BOOL(NSURL *url) {
+        return YES;
+    }];
+    NSArray<NSString *> *rows = [self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL];
+    [PlaceholderFiles setDatalessProbe:nil];
+
+    XCTAssertEqualObjects(rows, (@[@"folder/mix.flac"]));
+}
+
+- (void)testAWalkedSheetNamingAMissingImageAddsNoRows {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"gone.flac"]
+                at:@"folder/mix.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3"]));
+}
+
+// An opened playlist listing nothing playable adds no rows, never the
+// playlist itself, so the shell keeps the playlist in place and says why.
+// A readable image in a format Vibe does not play lists nothing too.
+- (void)testAnOpenedPlaylistListingNothingPlayableAddsNoRows {
+    NSURL *sheet = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"gone.flac"]
+                               at:@"broken.cue"];
+    NSURL *list = [self makeText:@"gone.mp3\nalso-gone.mp3\n" at:@"broken.m3u"];
+    [self makeFile:@"image.ape"];
+    NSURL *ape = [self makeText:[kTwoTrackSheet stringByReplacingOccurrencesOfString:@"mix.flac" withString:@"image.ape"]
+                             at:@"ape.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[sheet] folderCount:NULL], @[]);
+    XCTAssertEqualObjects([self expandAndFilter:@[list] folderCount:NULL], @[]);
+    XCTAssertEqualObjects([self expandAndFilter:@[ape] folderCount:NULL], @[]);
+}
+
+// Inside a folder the rest of the folder speaks for itself: a sheet naming
+// nothing readable adds no row (testAWalkedSheetNamingAMissingImageAddsNoRows).
+
+// A sheet with no INDEX lines has no windows: its files, whole.
+- (void)testACueSheetWithoutIndexesExpandsToItsFilesWhole {
+    [self makeFile:@"side-a.wav"];
+    [self makeFile:@"side-b.wav"];
+    NSURL *sheet = [self makeText:@"FILE \"side-a.wav\" WAVE\n  TRACK 01 AUDIO\n"
+                                   "FILE \"side-b.wav\" WAVE\n  TRACK 02 AUDIO\n"
+                               at:@"album.cue"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[sheet] folderCount:NULL],
+                          (@[@"side-a.wav", @"side-b.wav"]));
+}
+
+// The walk already yields the folder's audio; expanding the playlist too
+// would double every track.
+- (void)testAPlaylistInsideADroppedFolderIsNotExpandedAgain {
+    [self makeFile:@"folder/a.mp3"];
+    [self makeFile:@"folder/b.mp3"];
+    [self makeText:@"a.mp3\nb.mp3\n" at:@"folder/set.m3u"];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[[self makeDirectory:@"folder"]] folderCount:NULL],
+                          (@[@"folder/a.mp3", @"folder/b.mp3"]));
+}
+
+- (void)testAnEntryThatIsSimplyMissingIsSkippedWithoutAskingForAGrant {
+    [self makeFile:@"here.mp3"];
+    NSURL *playlist = [self makeText:@"here.mp3\ngone.mp3\n" at:@"set.m3u"];
+    __block NSUInteger asked = 0;
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        return NO;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"here.mp3"]));
+    // Missing is not denied: no grant would rescue it.
+    XCTAssertEqual(asked, 0u);
+}
+
+- (void)testAReadablePlaylistNeverAsksForAGrant {
+    [self makeFile:@"a.mp3"];
+    NSURL *playlist = [self makeText:@"a.mp3\n" at:@"set.m3u"];
+    __block NSUInteger asked = 0;
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        return NO;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"a.mp3"]));
+    XCTAssertEqual(asked, 0u);
+}
+
+// Opening a .m3u grants the .m3u alone, not the audio it names.
+- (void)testADeniedEntryAsksOnceAndIsSkippedWhenTheGrantIsRefused {
+    XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
+    [self makeFile:@"open.mp3"];
+    NSURL *locked = [self makeFile:@"locked.mp3"];
+    NSURL *playlist = [self makeText:@"open.mp3\nlocked.mp3\n" at:@"set.m3u"];
+    chmod(locked.fileSystemRepresentation, 0000);
+    __block NSUInteger asked = 0;
+    __block NSURL *askedFor = nil;
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        askedFor = url;
+        return NO;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"open.mp3"]));
+    XCTAssertEqual(asked, 1u);
+    XCTAssertEqualObjects(askedFor.path, playlist.path);
+}
+
+- (void)testAGrantedFolderIsResolvedAgainAndItsEntriesAppear {
+    XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
+    [self makeFile:@"open.mp3"];
+    NSURL *locked = [self makeFile:@"locked.mp3"];
+    NSURL *playlist = [self makeText:@"open.mp3\nlocked.mp3\n" at:@"set.m3u"];
+    chmod(locked.fileSystemRepresentation, 0000);
+    __block NSUInteger asked = 0;
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        chmod(locked.fileSystemRepresentation, 0644);
+        return YES;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL],
+                          (@[@"open.mp3", @"locked.mp3"]));
+    XCTAssertEqual(asked, 1u);
+}
+
+// A Windows absolute path resolves to nothing until the basename beside the
+// playlist becomes readable, so the grant changes what the entry means. An
+// execute-only folder is the closest chmod comes to a sandbox grant on a
+// single opened .m3u: the file readable, its folder not.
+- (void)testAGrantOnADeniedFolderIsFollowedByASecondResolution {
+    XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
+    NSURL *folder = [self makeDirectory:@"set"];
+    NSURL *audio = [self makeFile:@"set/song.mp3"];
+    NSURL *playlist = [self makeText:@"C:\\Music\\song.mp3\n" at:@"set/list.m3u"];
+    chmod(audio.fileSystemRepresentation, 0000);
+    chmod(folder.fileSystemRepresentation, 0111);
+    __block NSUInteger asked = 0;
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        chmod(audio.fileSystemRepresentation, 0644);
+        chmod(folder.fileSystemRepresentation, 0755);
+        return YES;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"set/song.mp3"]));
+    XCTAssertEqual(asked, 1u);
+}
+
+- (void)testWithNoGrantHandlerInstalledADeniedEntryIsSimplySkipped {
+    XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
+    [self makeFile:@"open.mp3"];
+    NSURL *locked = [self makeFile:@"locked.mp3"];
+    NSURL *playlist = [self makeText:@"open.mp3\nlocked.mp3\n" at:@"set.m3u"];
+    chmod(locked.fileSystemRepresentation, 0000);
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL], (@[@"open.mp3"]));
+}
+
+// A remote placeholder's mode denies its owner, which access(2) reports as
+// denied. It is readable to a playlist all the same: the player downloads it.
+- (void)testAPlaylistNamingARemotePlaceholderNeverAsksForAGrant {
+    [self makeFile:@"open.mp3"];
+    NSURL *remote = [self makeFile:@"remote/song.mp3"];
+    chmod(remote.fileSystemRepresentation, 0000);
+    [PlaceholderFiles setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
+    NSURL *playlist = [self makeText:@"open.mp3\nremote/song.mp3\n" at:@"set.m3u"];
+    __block NSUInteger asked = 0;
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *url) {
+        asked++;
+        return NO;
+    }];
+
+    XCTAssertEqualObjects([self expandAndFilter:@[playlist] folderCount:NULL],
+                          (@[@"open.mp3", @"remote/song.mp3"]));
+    XCTAssertEqual(asked, 0u);
+}
+
+#pragma mark - Dataless files
+
+- (void)testEveryRemoteRootScopesThePlaceholderRule {
+    NSURL *first = [self makeFile:@"first/a.mp3"];
+    NSURL *second = [self makeFile:@"second/b.mp3"];
+    NSURL *outside = [self makeFile:@"outside/c.mp3"];
+    for (NSURL *url in @[first, second, outside]) {
+        chmod(url.fileSystemRepresentation, 0000);
+    }
+    NSURL *firstRoot = first.URLByDeletingLastPathComponent;
+    NSURL *secondRoot = second.URLByDeletingLastPathComponent;
+
+    [PlaceholderFiles setRemotePlaceholderRoots:@[firstRoot, secondRoot]];
+    XCTAssertTrue([PlaceholderFiles isRemotePlaceholderFile:first]);
+    XCTAssertTrue([PlaceholderFiles isRemotePlaceholderFile:second]);
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:outside]);
+    XCTAssertTrue(VibePathIsUnderRemotePlaceholderRoot(second.path));
+    XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(outside.path));
+
+    [PlaceholderFiles setRemotePlaceholderRoots:@[firstRoot]];
+    XCTAssertTrue([PlaceholderFiles isRemotePlaceholderFile:first]);
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:second]);
+
+    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
+    XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:first]);
+    XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(first.path));
+}
+
+// Copy Files and a drag out of the playlist hand no remote placeholder to
+// another app. A download under the root, a file elsewhere, and an unreadable
+// file elsewhere are handed out.
+- (void)testOnlyARemotePlaceholderIsNeverHandedOut {
+    NSURL *placeholder = [self makeFile:@"remote/aa/link.mp3"];
+    NSURL *download = [self makeFile:@"remote/bb/kept.mp3"];
+    NSURL *local = [self makeFile:@"music/local.mp3"];
+    NSURL *unreadable = [self makeFile:@"music/locked.mp3"];
+    chmod(placeholder.fileSystemRepresentation, 0000);
+    chmod(unreadable.fileSystemRepresentation, 0000);
+    [PlaceholderFiles setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
+
+    XCTAssertFalse([TrackCommands handsOutURL:placeholder]);
+    XCTAssertTrue([TrackCommands handsOutURL:download]);
+    XCTAssertTrue([TrackCommands handsOutURL:local]);
+    XCTAssertTrue([TrackCommands handsOutURL:unreadable]);
+    XCTAssertFalse([TrackCommands handsOutURL:[NSURL URLWithString:@"https://example.com/a.mp3"]]);
+    XCTAssertFalse([TrackCommands handsOutURL:nil]);
+
+    // With no root, nothing is a placeholder.
+    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
+    XCTAssertTrue([TrackCommands handsOutURL:placeholder]);
+}
+
+- (void)testAMaterializedFileIsNotDataless {
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:[self makeFile:@"local.mp3"]]);
+    // A stat that fails is unknown, not dataless.
+    XCTAssertFalse([PlaceholderFiles isDatalessFile:[_root URLByAppendingPathComponent:@"gone.mp3"]]);
+}
+
+#pragma mark - Concurrency
+
+// Folder walks run four wide, and callers hand the results straight into
+// playlist state on main.
+- (void)testConcurrentExpansionsEachDeliverTheirOwnResultOnMain {
+    static const NSUInteger kDrops = 24;
+    NSMutableArray<NSURL *> *folders = [NSMutableArray arrayWithCapacity:kDrops];
+    for (NSUInteger i = 0; i < kDrops; i++) {
+        NSString *name = [NSString stringWithFormat:@"drop%02lu", (unsigned long)i];
+        for (NSUInteger track = 0; track < 5; track++) {
+            [self makeFile:[NSString stringWithFormat:@"%@/track%lu.mp3", name, (unsigned long)track]];
+        }
+        [self makeFile:[NSString stringWithFormat:@"%@/notes.txt", name]];
+        [folders addObject:[self makeDirectory:name]];
+    }
+
+    NSMutableArray<XCTestExpectation *> *expectations = [NSMutableArray array];
+    for (NSUInteger i = 0; i < kDrops; i++) {
+        NSURL *folder = folders[i];
+        XCTestExpectation *expectation = [self expectationWithDescription:folder.lastPathComponent];
+        [expectations addObject:expectation];
+        [FolderWalk expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
+            XCTAssertTrue(NSThread.isMainThread);
+            XCTAssertEqual(folderCount, 1u);
+            XCTAssertEqual(rows.count, 5u);
+            for (AudioTrack *row in rows) {
+                XCTAssertEqualObjects(row.url.URLByDeletingLastPathComponent.path, folder.path);
+            }
+            [expectation fulfill];
+        }];
+    }
+
+    [self waitForExpectations:expectations timeout:VIBE_TEST_HANG_TIMEOUT];
+}
+
+// Whichever handler a walk sees, each denied playlist must ask exactly once.
+- (void)testTheGrantHandlerCanBeReplacedWhileExpansionsRun {
+    XCTSkipIf(geteuid() == 0, @"root reads through every permission bit, so nothing can be denied");
+    static const NSUInteger kPlaylists = 24;
+    NSMutableArray<NSURL *> *playlists = [NSMutableArray arrayWithCapacity:kPlaylists];
+    for (NSUInteger i = 0; i < kPlaylists; i++) {
+        NSString *name = [NSString stringWithFormat:@"set%02lu", (unsigned long)i];
+        NSURL *locked = [self makeFile:[NSString stringWithFormat:@"%@/locked.mp3", name]];
+        [playlists addObject:[self makeText:@"locked.mp3\n"
+                                         at:[NSString stringWithFormat:@"%@/list.m3u", name]]];
+        chmod(locked.fileSystemRepresentation, 0000);
+    }
+    __block atomic_uint asks = 0;
+    BOOL (^refusing)(NSURL *) = ^BOOL(NSURL *url) {
+        atomic_fetch_add(&asks, 1);
+        return NO;
+    };
+    BOOL (^alsoRefusing)(NSURL *) = ^BOOL(NSURL *url) {
+        atomic_fetch_add(&asks, 1);
+        return NO;
+    };
+    [FolderWalk setPlaylistFolderGrantHandler:refusing];
+
+    NSMutableArray<XCTestExpectation *> *expectations = [NSMutableArray array];
+    for (NSURL *playlist in playlists) {
+        XCTestExpectation *expectation = [self expectationWithDescription:playlist.path];
+        [expectations addObject:expectation];
+        [FolderWalk expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
+            XCTAssertEqual(rows.count, 0u);
+            [expectation fulfill];
+        }];
+    }
+    // Unguarded, a swap under a running walk is a torn read of a block pointer.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        for (NSUInteger i = 0; i < 200; i++) {
+            [FolderWalk setPlaylistFolderGrantHandler:(i % 2) ? alsoRefusing : refusing];
+        }
+    });
+
+    [self waitForExpectations:expectations timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqual((NSUInteger)atomic_load(&asks), kPlaylists);
+}
+
+#pragma mark - Symbolic links
+
+// NSURLIsDirectoryKey is lstat-shaped: a link to a folder answers NO and would
+// fall through to the extension filter.
+- (void)testADroppedFolderLinkExpandsToItsTargetsAudio {
+    [self makeFile:@"Music/Song.mp3"];
+    NSURL *link = [self makeLink:@"NAS" to:@"Music"];
+    NSUInteger folderCount = 0;
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[link] folderCount:&folderCount];
+
+    XCTAssertEqualObjects(files, (@[@"Music/Song.mp3"]));
+    XCTAssertEqual(folderCount, 1u);
+}
+
+// Answered in the target's spelling, so the directories reported to the
+// folder-art resolver and the tracks returned name the same folder.
+- (void)testAFolderLinkInsideAWalkedFolderIsFollowed {
+    [self makeFile:@"library/Own.mp3"];
+    [self makeFile:@"elsewhere/Linked.mp3"];
+    [self makeLink:@"library/shortcut" to:@"elsewhere"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"library"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"elsewhere/Linked.mp3", @"library/Own.mp3"]));
+}
+
+- (void)testALinkToAnAudioFileIsStillAFile {
+    [self makeFile:@"library/Song.mp3"];
+    [self makeLink:@"library/Alias.mp3" to:@"library/Song.mp3"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"library"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"library/Alias.mp3", @"library/Song.mp3"]));
+}
+
+// The emptiness filter keeps anything it cannot stat, leaving a sandbox denial
+// for the real open to report; so only the walk can drop a dangling link.
+- (void)testABrokenLinkFoundByTheWalkIsSkipped {
+    [self makeFile:@"library/Song.mp3"];
+    [self makeLink:@"library/gone.mp3" to:@"nowhere"];
+
+    NSArray<NSString *> *files = [self expandAndFilter:@[[self makeDirectory:@"library"]]
+                                           folderCount:NULL];
+
+    XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
+}
+
+- (void)testALinkCycleTerminates {
+    [self makeFile:@"library/Song.mp3"];
+    [self makeLink:@"library/loop" to:@"library"];
+    [self makeLink:@"library/deep/up" to:@"library"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"library"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"library/Song.mp3"]));
+}
+
+- (void)testALinkIntoAnAlreadyWalkedSubtreeListsItOnce {
+    [self makeFile:@"library/album/Song.mp3"];
+    [self makeLink:@"library/shortcut" to:@"library/album"];
+    [self makeLink:@"library/again" to:@"library/album"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"library"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"library/album/Song.mp3"]));
+}
+
+// The second enumeration must recognize the subtree it already listed.
+- (void)testALinkWalkedBeforeItsRealParentListsItOnce {
+    [self makeFile:@"outer/album/Song.mp3"];
+    [self makeLink:@"drop/toAlbum" to:@"outer/album"];
+    [self makeLink:@"drop/toOuter" to:@"outer"];
+
+    NSArray<NSString *> *files = [self relativePaths:
+            [FolderWalk expandDirectory:[self makeDirectory:@"drop"]
+                               sortedBy:VibeFolderOpenSortName]];
+
+    XCTAssertEqualObjects(files, (@[@"outer/album/Song.mp3"]));
+}
+
+// The folder-art resolver asks by the path a track sits in, so both must spell
+// the link's target the same.
+- (void)testTheWalkedDirectoriesHandlerNamesTheLinkTarget {
+    [self makeFile:@"elsewhere/Song.mp3"];
+    [self makeLink:@"library/shortcut" to:@"elsewhere"];
+    __block NSSet<NSString *> *reported = nil;
+    [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories, NSDictionary *art) {
+        reported = directories;
+    }];
+
+    NSArray<AudioTrack *> *files = [FolderWalk expandDirectory:[self makeDirectory:@"library"]
+                                                      sortedBy:VibeFolderOpenSortName];
+    [FolderWalk setWalkedDirectoriesHandler:nil];
+
+    XCTAssertEqualObjects([self relativePaths:files], (@[@"elsewhere/Song.mp3"]));
+    XCTAssertEqualObjects(reported, [NSSet setWithObject:
+            [_root.path stringByAppendingPathComponent:@"elsewhere"]]);
+}
+
+@end

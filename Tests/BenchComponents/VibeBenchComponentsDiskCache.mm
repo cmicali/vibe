@@ -59,8 +59,7 @@ static void VibeBenchComponentsFillDiskCache(VibeBenchComponentsDiskCache *state
 }
 
 static void VibeBenchComponentsRegisterDiskCache(void) {
-    // Hits on entries already read today, as the sweep and every redraw's
-    // archived art read make them: the read and the bookkeeping it schedules.
+    // Include the bookkeeping scheduled by a disk cache hit.
     auto hits = std::make_shared<VibeBenchComponentsDiskCache>();
     VibeBenchComponentsAdd("pincache", "hit-300", "hit", [hits]() -> double {
         VibeBenchComponentsFillDiskCache(hits.get(), 300, 1024 * 1024 * 1024);

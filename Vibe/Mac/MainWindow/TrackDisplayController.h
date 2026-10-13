@@ -41,16 +41,21 @@ typedef struct {
 
 // track: the displayed track for Track and Loading, the errored track for
 // Error, nil otherwise. duration is file time; the labels divide it by rate.
-// errorStatus is the track's play error: in Error the artist line, where nil
-// reads as the generic playback error; in Track, a parked track's, it stands
-// in for the file info line. unplayablePlaylistName is an opened playlist
-// that listed nothing playable, which Empty says so over.
+// status goes on the artist line: in Error the track's play error, where nil
+// reads as the generic playback error, and in Notice the notice. In Track, a
+// parked track's play error stands in for the file info line. title is what
+// Empty and Notice name: an opened playlist that listed nothing playable, or
+// a link that failed to open.
+// While Notice is drawn, the track's strip stays off the header: the waveform
+// prep, the loading indicator, and the playhead drop their writes until
+// another state is rendered. The caller then loads the waveform again, and
+// keeps a delivered waveform off it.
 - (void)renderState:(TrackDisplayState)state
               track:(nullable AudioTrack *)track
            duration:(NSTimeInterval)duration
                rate:(double)rate
-        errorStatus:(nullable NSString *)errorStatus
-unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
+             status:(nullable NSString *)status
+              title:(nullable NSString *)title;
 
 // The position tick. duration is the caller's cache: the live one reads 0
 // while Loading.
@@ -94,6 +99,7 @@ unplayablePlaylistName:(nullable NSString *)unplayablePlaylistName;
 // Slow-open playback and the debug channel's set_loading drive this directly.
 - (void)showWaveformLoadingIndicator;
 - (void)hideWaveformLoadingIndicator;
+@property (readonly) BOOL waveformLoadingIndicatorShown;
 // Determinate download fill; negative reverts to the indeterminate shimmer.
 - (void)setWaveformLoadingProgress:(float)fraction;
 // Convert to FLAC's sweep; 0 resets it. The getter serves the debug dump.

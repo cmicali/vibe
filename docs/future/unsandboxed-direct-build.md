@@ -1,10 +1,8 @@
-# Future: An unsandboxed direct-download Mac build
+# Future: an unsandboxed direct-download Mac build
 
-**Status: planned, not implemented (verified 2026-10-01).** Issue #125, with `sparkle-updates.md`.
+**Status: Not built.** It stands on the Sparkle updater, the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker (`Vibe/Mac/App/AGENTS.md`, Updates). The updater is also what lets Phase 4's data migration reach existing users.
 
-Written to be executed phase by phase. Each phase builds, passes `make test`, and is verifiable on its own. Read the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Audio/Mac/Convert/AGENTS.md` ("Getting the output past the sandbox"), `Vibe/Audio/Metadata/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md`, and `Tests/AGENTS.md` first; the release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, verification the `vibe-debug` and `vibe-stress` skills.
-
-**Build `sparkle-updates.md` first.** Its Phase 1 adds the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker this plan stands on, and an updater is what lets the data migration here (Phase 4) reach existing users without a manual download. This plan then removes the pieces that plan needs only because the direct build is sandboxed.
+Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Mac/Convert/AGENTS.md`, `Vibe/Audio/Metadata/Artwork/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
 
 ## The feature
 
@@ -12,7 +10,7 @@ Written to be executed phase by phase. Each phase builds, passes `make test`, an
 - The **direct-download** build (Developer ID, `make release`) runs without the App Sandbox, keeping the hardened runtime and notarization.
 - What a direct-download user gains:
   - No folder grants. A playlist file's entries, a sidecar cover, and a remembered playlist are readable wherever they live, with no grant panel and no Settings > Files grant list to maintain.
-  - A converted FLAC always lands beside its source, never through a save panel.
+  - A converted FLAC can land beside its source without a sandbox grant. Read-only destinations and the save-location setting still need a panel.
   - Folder art works for every folder, not only ones with an active grant.
 - What they pay: macOS's own privacy prompts (below) replace the sandbox's, and the app's data moves once, out of its container.
 
@@ -20,21 +18,19 @@ Written to be executed phase by phase. Each phase builds, passes `make test`, an
 
 ## What assumes the sandbox today
 
-`ENABLE_APP_SANDBOX: YES` is set on the `Vibe` target for every configuration. The code that depends on it:
+`ENABLE_APP_SANDBOX: YES` is set on the `Vibe` target for every configuration. Debug and Release sign with `Vibe-Direct.entitlements`, which adds Sparkle's installer exceptions. AppStore signs with `Vibe.entitlements`. Both get `network.client` from `ENABLE_OUTGOING_NETWORK_CONNECTIONS`, for Open URL. The code that depends on the sandbox:
 
-- **`FolderAccessManager`** (`Vibe/Mac/App/`, about 730 lines with its grant panel): the security-scoped bookmark store, launch restoration with its deadlines and lanes, and `canReadInsideDirectory:`. Readers: `AppDelegate` (the launch order grants → drain → restore, the playlist-grant handler at `requestAccessForPlaylistFolder:`), `FolderArtResolver` (`canReadInsideDirectory:`), `MainPlayerController`, `SettingsFilesViewController` (the grant list), and `DebugInfo`.
-- **`AudioFileConverter+Sandbox`** (159 lines): the three rungs that get the encoded file out of the container's tmp — plain move, related-item coordinated move, save panel.
+- **`FolderAccessManager`** (`Vibe/Mac/App/`): the security-scoped bookmark store, launch restoration with its deadlines and lanes, and `canReadInsideDirectory:`. Readers: `AppDelegate` (the launch order grants → drain → restore, and the playlist-grant handler, which calls the grant panel's `requestAccessForPlaylistFolder:`), `FolderArtResolver` (`canReadInsideDirectory:`), `MainPlayerController`, `SettingsFilesViewController` (the grant list), and `DebugInfo`.
+- **`AudioFileConverter+Sandbox`**: the three rungs that get the encoded file out of the container's tmp — plain move, related-item coordinated move, save panel.
 - **Security-scope calls on plain URLs**: `PlaylistController`'s drag-out (`startAccessingSecurityScopedResource` per dragged track) and `ArtworkImageView`'s art drag. Both already tolerate a `NO` answer.
 - **`+realHomeDirectory`** (`getpwuid`): correct in both modes.
 - **Where state lives**: defaults, the PINCache disk caches (`NSCachesDirectory`), `LastPlaylist.m3u` and `ThemeArt/` (`NSApplicationSupportDirectory/<bundle id>/`), saved window state. Sandboxed, all of it resolves under `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/`.
-- **The debug channel** (`DebugUtil.h`, `DebugClient.m`): the client and the app meet in the container's tmp and rely on sharing a container. `scripts/reset-state.sh` treats the container as the whole state and says so in its header.
+- **The debug channel** (`DebugMacEntry.h`, `DebugClient.m`): the client and the app meet in the container's tmp and rely on sharing a container. `scripts/build/reset-state.sh` treats the container as the whole state and says so in its header.
 - **Docs and rules** that state "the app is sandboxed" as a fact: root `AGENTS.md` (the folder-art and no-private-APIs bullets), the directory docs above, `SECURITY.md`, and the website copy if it advertises the sandbox.
 
 ## Phase 1 — The sandbox becomes a per-configuration setting
 
-Requires the `AppStore` configuration from `sparkle-updates.md` Phase 1.
-
-- `project.yml`, `Vibe` target: `ENABLE_APP_SANDBOX` and `CODE_SIGN_ENTITLEMENTS` move under `configs`. `AppStore` and `Debug` keep the sandbox and today's entitlements; `Release` drops the sandbox and signs with a direct entitlements file that carries nothing sandbox-specific (`com.apple.security.assets.music.read-write`, `files.bookmarks.app-scope`, `ENABLE_USER_SELECTED_FILES`, and Sparkle's `network.client` and mach-lookup exceptions all mean nothing without the sandbox).
+- `project.yml`, `Vibe` target: `ENABLE_APP_SANDBOX` and `CODE_SIGN_ENTITLEMENTS` move under `configs`. `AppStore` and `Debug` keep the sandbox and today's entitlements. `Release` drops the sandbox and signs with entitlements that carry nothing sandbox-specific. `com.apple.security.assets.music.read-write`, `files.bookmarks.app-scope`, `ENABLE_USER_SELECTED_FILES`, `network.client` and Sparkle's mach-lookup exceptions all mean nothing without the sandbox.
 - **Debug stays sandboxed by default**, because the sandbox is the stricter mode and the one the App Store ships, and the debug channel, the stress suites, and `reset-state.sh` are built around the container. Add `SANDBOX=0` to `make build` (an `ENABLE_APP_SANDBOX=NO` plus entitlements override passed through `build.sh`) so the unsandboxed behavior is drivable by the debug channel. Without this, the shipping direct build would be the one variant nothing automated can exercise.
 - A define, `VIBE_SANDBOXED=1`, set wherever the sandbox is on. It is the one answer to "is this build sandboxed"; no runtime probing of `APP_SANDBOX_CONTAINER_ID`, and never derived from `VIBE_DIRECT_DISTRIBUTION`, since a sandboxed direct Debug build is the default.
 - `release.sh` preflight: the exported app's entitlements contain no `com.apple.security.app-sandbox`; `release-appstore.sh` preflight: they do.
@@ -53,11 +49,11 @@ The budget is zero new files and zero new types: each item is a branch at the to
   - `requestAccessForPlaylistFolder:` answers `YES` without the panel. `FolderAccessManager+GrantPanel` is not compiled into the path.
   Do not delete the stored bookmarks key on an unsandboxed launch: a user who moves back to the App Store build keeps a separate container anyway, and the direct defaults never had them.
 - **Settings > Files**: the granted-folders section and Add Common Folder are absent unsandboxed. Check what remains in the pane and whether it still earns a pane.
-- **Converter**: no code change expected. Rung 1, the plain move, always succeeds for a writable folder; a read-only destination still falls to the panel rung, which is the right behavior. The encode's temporary file now lives in the per-user `NSTemporaryDirectory()` rather than the container's; confirm the launch sweep of `vibe-convert-<uuid>.flac` targets `NSTemporaryDirectory()` and not a container path. `convertAsksWhereToSave` keeps its meaning.
+- **Converter**: no code change expected. Rung 1 tries the plain move. A failed move still falls through to coordination and the save panel. The encode's temporary file now lives in the per-user `NSTemporaryDirectory()` rather than the container's; confirm the launch sweep of `vibe-convert-<uuid>.flac` targets `NSTemporaryDirectory()` and not a container path. `convertAsksWhereToSave` keeps its meaning.
 - **Folder art**: the "no active grant, leave untouched" rule answers `YES` everywhere through `canReadInsideDirectory:`. The reason behind the rule still stands in a new form: **unasked-for background work must never raise a permission panel**, and unsandboxed the panels are TCC's (Phase 3).
 - **Drag-out scopes** (`PlaylistController`, `ArtworkImageView`): unchanged; `startAccessingSecurityScopedResource` answers `NO` for a plain URL and both sites already handle it.
 - **`DebugInfo`**: report sandboxed or not, and the state directory in use.
-- **Debug channel and tooling**, for `SANDBOX=0` builds: the client and the app share the per-user temporary directory unsandboxed, so the handoff should work as written; confirm, and fix `DebugUtil.h`'s comments and the `vibe-debug` skill's screenshot path. `reset-state.sh` already sweeps the unsandboxed paths "in case"; its header and its "only the container is expected to exist" note become wrong and are corrected, and it gains `~/Library/Application Support/<bundle id>`, which it does not list today.
+- **Debug channel and tooling**, for `SANDBOX=0` builds: the client and the app share the per-user temporary directory unsandboxed, so the handoff should work as written; confirm, and fix `DebugMacEntry.h`'s comments and the `vibe-debug` skill's screenshot path. `reset-state.sh` already sweeps the unsandboxed paths "in case"; its header and its "only the container is expected to exist" note become wrong and are corrected, and it gains `~/Library/Application Support/<bundle id>`, which it does not list today.
 
 **Verify**, on an unsandboxed Debug build through the debug channel: open a playlist file whose entries sit in a folder never opened before (no panel, rows play); folder art appears for a folder never granted; convert a file opened singly from Finder (FLAC lands beside it, no panel); Settings > Files shows no grant list; quit and relaunch restores the last playlist. Then the same list on a sandboxed build, to prove nothing moved. Run `make stress` and `make torture` once against the unsandboxed build.
 
@@ -72,7 +68,7 @@ An unsandboxed app is not free of permission panels; it trades the sandbox's for
   2. The deferred metadata sweep over a restored or dropped playlist. Same as 1.
   3. `FolderArtResolver` probing a directory beside a track. It only ever reads beside a file already in the playlist, so it cannot prompt for a location the playlist has not already touched; confirm.
   4. A playlist file that names entries in a different protected location than the one it was opened from. This is the case the grant panel covered; unsandboxed it becomes a system prompt, which is acceptable.
-- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `NSURLUtil`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
+- **A denial must degrade the way an ungranted folder does today**: unreadable rows, never a hang or a retry loop. `FolderWalk`'s distinction between missing and denied (`access(2)`'s errno) should already hold, since TCC denials surface as `EPERM`; confirm with a denied prompt.
 - A denied prompt is not asked again. Decide whether a row's unreadable state should point at System Settings > Privacy & Security > Files and Folders; not in the first version unless testing shows users get stuck.
 
 **Verify:** on a fresh macOS user account (or after `tccutil reset All com.commonwealthrecordings.Vibe`), walk the four cases with Allow and with Don't Allow, on the exported, notarized build, since TCC keys on the signature.
@@ -87,9 +83,9 @@ Assuming the read is silent:
 
 - One-time, at the top of launch, before `AppSettings` or any cache is touched, only when `!VIBE_SANDBOXED`, only when a marker default is absent, and only when the container exists:
   - **Defaults**: read the container's `Library/Preferences/<bundle id>.plist` and import its keys into standard defaults, skipping the stored folder-grant bookmarks.
-  - **Application Support**: copy `<bundle id>/LastPlaylist.m3u` and `<bundle id>/ThemeArt/`. The last playlist is absolute paths, so it survives the move; stored themes reference `ThemeArt` by a path under the support directory, so confirm whether those references are relative or need rewriting.
+  - **Application Support**: copy `<bundle id>/LastPlaylist.m3u` and `<bundle id>/ThemeArt/`. The last playlist is absolute paths, so it survives the move; image references are `custom:<hash>.<ext>` values resolved under the current `ThemeArt` directory.
   - **Caches**: do not copy. The metadata and waveform caches rebuild, and they are the bulk of the container. State this in the release notes: the first launch re-scans.
-  - **Stats** (`AppStats`): wherever they are stored, they move with the defaults or the support directory; confirm which.
+  - **Stats** (`AppStats`): move the statistics stored in defaults with the other preferences.
   - Set the marker last, so an interrupted migration reruns. The import is copy-only and idempotent.
 - **The container is never deleted or modified.** A user who returns to the App Store build finds it as they left it. The two builds' states diverge from the moment of migration, in both directions, and that is accepted and documented rather than synchronized.
 - It lives in `AppDelegate`, as one function. If it will not fit there without a new file, that is argued then, not assumed now.
@@ -99,7 +95,7 @@ Assuming the read is silent:
 
 ## Phase 5 — Remove what Sparkle needed only for the sandbox
 
-In the `Release` configuration: `SUEnableInstallerLauncherService`, the mach-lookup temporary exceptions, and `network.client` go, with `sparkle-updates.md` Phase 2's signing checks for the Installer XPC service relaxed accordingly. A sandboxed `Debug` build that still links Sparkle keeps them, or Debug stops starting the updater when sandboxed; pick the one that leaves less configuration.
+In the `Release` configuration: `SUEnableInstallerLauncherService`, the mach-lookup temporary exceptions, and `network.client` go, with `release.sh`'s `require_updater` signing checks for the Installer XPC service relaxed accordingly. A sandboxed `Debug` build that still links Sparkle keeps them, or Debug stops starting the updater when sandboxed; pick the one that leaves less configuration.
 
 Sparkle updates a sandboxed build to an unsandboxed one without special handling. The update that crosses the boundary is the one Phase 4's verification runs.
 
@@ -123,6 +119,6 @@ Sparkle updates a sandboxed build to an unsandboxed one without special handling
 ## Complexity report (expected)
 
 - New source files: 0. New types: 0.
-- New non-source files: one direct entitlements file (shared with `sparkle-updates.md` if that plan created it).
+- New non-source files: none expected. `Vibe-Direct.entitlements` already exists and loses its sandbox-only keys for Release, unless Debug still needs them.
 - Removes: Sparkle's sandbox-only keys and entitlements from the shipping direct build; the grant panel, the grant list, and the converter's fallbacks from the direct-download user's experience.
 - Consolidates nothing in the source. `FolderAccessManager` and `AudioFileConverter+Sandbox` stay whole, because the App Store build needs every line. That is this feature's cost stated plainly: it adds a second mode to a subsystem without shrinking the first.

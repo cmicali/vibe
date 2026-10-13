@@ -37,7 +37,6 @@ static NSString *const kOnEndPause = @"pause";
     [self addItem:STR_SETTINGS_ON_END_PLAY_NEXT value:kOnEndPlayNext to:_onEndPopUp];
     [self addItem:STR_SETTINGS_ON_END_PAUSE value:kOnEndPause to:_onEndPopUp];
 
-    // Segment tags are the range in percent.
     _pitchRangeControl = [NSSegmentedControl segmentedControlWithLabels:@[STR_MENU_PITCH_RANGE_8,
                                                                           STR_MENU_PITCH_RANGE_16]
                                                            trackingMode:NSSegmentSwitchTrackingSelectOne
@@ -93,8 +92,7 @@ static NSString *const kOnEndPause = @"pause";
     [_skipStepsPopUp selectItemWithTag:AppSettings.sharedInstance.skipBaseBars];
     [self renderCrossfade:AppSettings.sharedInstance.crossfadeMilliseconds];
     _enableFXSwitch.state = AppSettings.sharedInstance.audioFXEnabled ? NSControlStateValueOn : NSControlStateValueOff;
-    // Bit-perfect output outranks both. The caller of every refresh
-    // remeasures the pane, so the captions' answers go unread.
+    // The refresh caller checks layout changes after these captions settle.
     BOOL bitPerfect = AppSettings.sharedInstance.bitPerfectOutput;
     [SettingsRowView setControl:_crossfadeSlider enabled:!bitPerfect];
     [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];

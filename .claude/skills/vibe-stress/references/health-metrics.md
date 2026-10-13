@@ -1,8 +1,10 @@
-# The `dump_health` metrics: what each counts, which are trustworthy at rest, and the settled footprint investigation. Read when a `resource` failure fires or before adding a metric or limit.
+# The `dump_health` metrics
+
+What each metric counts, which are trustworthy at rest, and why the footprint is not a leak signal. Read when a `resource` failure fires or before adding a metric or limit.
 
 ## The `pending` counters
 
-App-owned work that must unwind at rest; `quiesce` polls until all are zero and names the holdout:
+App-owned work that must unwind at rest. `quiesce` polls until all are zero and names the holdout:
 
 | Counter | Owner |
 | --- | --- |
@@ -12,46 +14,39 @@ App-owned work that must unwind at rest; `quiesce` polls until all are zero and 
 | `retiredFades` | `AudioPlayer`'s voices still fading out after a track change, seek or stop |
 | `cloudParsesPending`, `cloudLaneHeld` | the metadata cloud lane |
 | `priorityRecordsPending` | priority metadata records |
-| `datalessProbesInFlight`, `handleOpensInFlight` | attempt gauges, not containers: probe accounting starts before the scheduler/worker handoff and survives detachment from its claim; handle-open accounting starts before dispatch. A failed quiesce can therefore tell stuck classification from downloading or opening |
+| `datalessProbesInFlight`, `handleOpensInFlight` | attempt gauges, not containers. Probe accounting starts before the worker handoff and survives detachment from its claim. Handle-open accounting starts before dispatch. A failed quiesce can therefore tell stuck classification from downloading or opening |
 
-**The two cloud counters are not scored for growth, and must not be.** A sweep of a cloud folder legitimately holds dozens of pending parses and the lane is held for the whole of every foreground open, so a headroom over a min-of-three baseline would never fire or fire constantly. They are covered where they mean something: `quiesce` refuses to settle until both are zero, and `check_consistency` tests the *conditions*, not the magnitudes. `dump_cloud_health` reports both on both platforms — the only way to see them on iOS, which has no `dump_health` and no `quiesce`.
+**The two cloud counters are not scored for growth, and must not be.** A cloud folder's sweep legitimately holds dozens of pending parses, and the lane is held for every foreground open. `quiesce` refuses to settle until both are zero, and `check_consistency` tests the conditions, not the magnitudes. `dump_cloud_health` reports both on both platforms. It is the only way to see them on iOS, which has no `dump_health` and no `quiesce`.
 
-`outputDropouts` (macOS) counts the IO cycles the hosted output unit wrote as silence because the render returned an error; it is cumulative, so any growth is a finding and a soak holds it at zero. It, the render cost counters and `renderRefusals` are the ones `clear_render_counters` zeroes, for a measurement read per phase rather than as a delta. `renderRefusals` counts the renders the pipeline turned away because another was still inside — an output unit's callback stuck past its bounded stop while the next output unit began — cumulative and zero likewise, and `check_consistency` reports any (`graph.no_render_refused`). `renderCycles`, `renderMeanMicros` and `renderMaxMicros` (macOS) are the unit's callback cost over the cycles it rendered, cumulative too: diff the cycles and the mean across a run, and read the max against the device's buffer period, since a max that approaches it is the dropout before it happens. `retiredFades` is reported under `pending`, beside `hostedUnits` under `app` because they fail apart: a voice that never reports its end strands a fade entry while the unit count stays flat, and a unit count that moves by more than the varispeed (present in ordinary mode, absent in bit-perfect) means a unit was hosted without its predecessor being disposed. Both come from one `dispatch_sync` onto the player queue.
+`MetadataParseCoordinatorTests.testDebugPendingCountsTrackHoldersAndWaiters` checks that live holders and waiters produce nonzero counts.
 
-The counters are nearly impossible to catch nonzero from outside: a local parse is over in microseconds. `MetadataParseCoordinatorTests.testDebugPendingCountsTrackHoldersAndWaiters` pins the holder/waiter accounting deterministically, because a counter that silently always reads zero looks exactly like a clean run.
+## Render counters (macOS)
+
+- `outputDropouts` counts IO cycles the output unit wrote as silence because the render returned an error. It is cumulative, so any growth is a finding.
+- `renderRefusals` counts renders the pipeline turned away because another was still inside: a callback stuck past its bounded stop while the next output unit began. It is cumulative, and `check_consistency` reports any (`graph.no_render_refused`).
+- `renderCycles`, `renderMeanMicros` and `renderMaxMicros` are the callback's cost. Diff the cycles and the mean across a run. Read the max against the device's buffer period, since a max near it is the dropout before it happens.
+- `clear_render_counters` zeroes all five, for a per-phase reading.
+- `retiredFades` (under `pending`) and `hostedUnits` (under `app`) fail apart. A voice that never reports its end strands a fade while the unit count stays flat. The unit count covers hosted FX units. It excludes the output unit and the custom varispeed. Enabling FX can raise it.
 
 ## `quiesce`
 
-Runs `closeFile:` — stop, drop the prefetch handle, cancel the waveform load and deferred scan, clear the playlist, reset the UI — polls until the pending counters unwind, then calls `malloc_zone_pressure_relief` and reports what it released as `pressureRelief.releasedBytes` (~42 KB on a fresh launch, 0 after a heavy run: it does not deliver what a resting-footprint cap would need). The driver takes its at-rest series this way every `--quiesce-every` batches and scores it against tighter limits.
+Runs `closeFile:`: stop, drop the prefetch handle, cancel the waveform load and deferred scan, clear the playlist, reset the UI. It polls until the pending counters unwind, then calls `malloc_zone_pressure_relief` and reports `pressureRelief.releasedBytes`. Pressure relief may release nothing. The driver takes its at-rest series this way every `--quiesce-every` batches.
 
-## What is stable at rest, measured over loading-profile runs
+## What is stable at rest
 
-- **Dead stable**: views 47 (until the Settings window has existed: closing it only hides it, `dump_health` counts hidden windows, and its ~176–229 views join the resting count for the rest of the run, so a resting-views failure starts with `dump_view_tree`'s window list), windows 1, hosted units (the varispeed and, once FX is enabled, the ten FX units; hosted once), every pending counter 0.
-- **Breathe with the loader pool**: threads 14–26, fds about 10–17 (4–6 at rest; torture, 2026-09-27).
-- **Layers are bistable at the chrome**, ~101 and ~350–356, moving in *both* directions within one run on the same binary, unmoved by row count, `quiesce`, or the pitch panel and playlist toggles; that part is AppKit's own glass and hosting-view machinery. On top of it the Sonic Cirrus style draws two layers per bar at a 4pt pitch from the drawn width, capped at 1,024 bars, so ~2,048 layers is a legitimate resting state for a wide window. The limit is +2400 in flight and at rest: a real layer leak is unbounded and clears it too, and views stay the sensitive UI metric.
-- **Resting footprint does not settle**: 47 to 335 MB, the same seed resting at 298 MB in one run and 51 MB in another. It is a gross-leak backstop (+256 MB), not a signal. `mallocLiveBytes` (+64 MB) is the sensitive metric: 37–52 MB across the same decodes that swung the footprint from 94 to 365 MB.
+- **Stable**: windows 1, hosted FX units after initialization, every pending counter 0. Views hold steady until the Settings window has existed. Closing it only hides it, and its views join the resting count for the rest of the run, so a resting-views failure starts with `dump_view_tree`'s window list.
+- **Breathe with the loader pool**: threads and fds.
+- **Layers are bistable at the chrome** (AppKit's glass and hosting views), moving both ways within one run. The Sonic Cirrus style adds two layers per bar, with the count determined by window width. A wide window can retain thousands of layers. The limit is +2400. Views stay the sensitive UI metric.
+- **The resting footprint does not settle.** It is a gross-leak backstop (+256 MB), not a signal. `mallocLiveBytes` (+64 MB) is the sensitive metric.
 
-## Settled: the ~270 MB resting "retention" is not a leak
+## Why the footprint is not a leak signal
 
-Symptom: a run resting flat at 55–61 MB steps to ~330 MB and stays there across a `quiesce`, with no op window reproducing it standalone. **It is the allocator's and the VM's high-water mark, not retained objects.** Two-command repro on big files:
+Footprint includes allocator and VM overhead. It is not a count of retained objects. The driver scores footprint growth only when live heap growth also exceeds its limit. Use `vmmap --summary`, `MallocStackLogging=1` and `malloc_history` to investigate retained pages and allocation sites. This oracle can miss growth outside the measured live heap.
 
-| | footprint | live heap |
-| --- | --- | --- |
-| fresh launch | 94 MB | 38 MB |
-| two `file_cache` decodes of ~200 MB MP3s | 203 MB | 52 MB |
-| after `quiesce` | **365 MB** | **37 MB** |
+## Cross-checking metrics
 
-`heap` agrees from outside (18.8 MB live across 134k nodes at a 203 MB footprint). `vmmap --summary` puts the dirty pages in `MALLOC_LARGE (empty)` (freed large blocks), `VM_ALLOCATE` and `IOSurface`, the malloc zones 54% fragmented and CoreAudio's `caulk` zones at 100%, where pressure relief cannot reach. It is not the big decodes either: the same swing reproduces on an artwork corpus of few-MB files, the footprint flipping both directions between adjacent 25-op samples with `mallocLiveBytes` flat at 26–42 MB, and a freshly launched, quiesced app with nothing loaded already reads 321 MB against an 11 MB live heap. `vmmap`: 107.9 MB total dirty against a 365 MB `phys_footprint`.
+Compare the counters with external tools: `threads` with `ps -M`, `machPorts` with `lsmp` (±1), `footprintBytes` with `footprint`, `residentBytes` with `ps rss`, `mallocLiveBytes` with `heap`'s all-zones total, `views` with a node count of `dump_view_tree`, `fileDescriptors` with `lsof`. `heap Vibe` gives per-class live instance counts from outside the process.
 
-So the footprint oracle counts only when `mallocLiveBytes` agrees; a real gross leak moves both. What remains open is narrower: whether the large transient buffers that fragment the zone are worth pooling, which needs `MallocStackLogging=1` plus `malloc_history` to attribute before anyone refactors.
+`fileDescriptors` must fetch the listing (`VibeOpenFileDescriptorCount`). `proc_pidinfo(PROC_PIDLISTFDS)` with a null buffer answers the descriptor table's size, which grows with peak concurrency and never shrinks, so a burst of parallel opens would read as a permanent leak.
 
-## The metric audit
-
-Every process metric is checked against an external tool, and they agree: `threads` against `ps -M`, `machPorts` against `lsmp` (±1, the sampling itself), `footprintBytes` against `footprint`, `residentBytes` against `ps rss`, `mallocLiveBytes` against `heap`'s all-zones total, `views` against a node count of `dump_view_tree`, `fileDescriptors` against `lsof`.
-
-`fileDescriptors` is the one that was wrong: `proc_pidinfo(PROC_PIDLISTFDS)` with a null buffer answers the descriptor *table* size, which grows with peak concurrency and never shrinks — 420 reported against 41 actual — so a burst of parallel opens read as a permanent leak while a real fd leak was indistinguishable from a concurrency spike. `VibeOpenFileDescriptorCount` fetches the listing for real, which is what let the limits come down to 64 in flight and 8 at rest. An fd leak was a live hazard here: the old reader's failed open against an empty file stranded its descriptor, which is why `AudioFileHandle` owns the descriptor and a failed open leaks nothing.
-
-`heap Vibe` gives per-class live instance counts from outside the process, the attribution `dump_health`'s process-level numbers deliberately leave out.
-
-
-**Sanitizers need their own live-allocation counter.** A standalone 30,000-open `AVAudioFile` probe reported 139 GB in the ASan zone's `size_in_use` against 0.5 MB from `__sanitizer_get_current_allocated_bytes`: the zone counts freed allocations too. TSan has the opposite problem — its zone reports zero against 2.4 MB actually live. The health oracle uses the sanitizer allocator API for either zone, keeping the ordinary zone counters for CoreAudio's separate allocators. Otherwise ASan reports fictitious leaks and TSan hides real ones.
+**Sanitizers need their own live-allocation counter.** The ASan zone's `size_in_use` counts freed allocations too, and the TSan zone reports zero. The health oracle uses the sanitizer allocator API (`__sanitizer_get_current_allocated_bytes`) for either zone, and keeps the ordinary zone counters for CoreAudio's separate allocators. Otherwise ASan reports fictitious leaks and TSan hides real ones.

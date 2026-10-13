@@ -14,8 +14,8 @@ extern "C" {
 }
 
 static void VibeBenchComponentsRegisterLevels(void) {
-    // The render's meter stage on a 48 kHz output, in 512-frame IO cycles,
-    // with a summary per cycle as the publisher's drain takes them.
+    // Summarize every 512-frame block for a fixed workload across versions.
+    // The production meter summarizes at its publication interval.
     VibeBenchComponentsAdd("levels", "render", "audio s", VibeBenchComponentsPCMPrepare(@"flac-24-96", 48000), []() {
         VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(@"flac-24-96");
         VibeAudioLevelAnalyzer *analyzer = VibeAudioLevelAnalyzerCreate(48000, (VibeAudioLevelNormalizationMode)0);

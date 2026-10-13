@@ -2,7 +2,8 @@
 //  AudioTrackMetadataCacheInternal.h
 //  Vibe
 //
-//  What AudioTrackMetadataLoader needs from the cache that owns it.
+//  What AudioTrackMetadataLoader needs from the cache that owns it, and the
+//  loader the debug seam reads (AudioTrackMetadataCache+Debug.m).
 //
 
 #import "AudioTrackMetadataCache.h"
@@ -11,10 +12,13 @@
 
 @class PINCache;
 @class AudioTrack;
+@class AudioTrackMetadataLoader;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface AudioTrackMetadataCache ()
+@interface AudioTrackMetadataCache () {
+    AudioTrackMetadataLoader*   _currentLoader;
+}
 // Atomic: set asynchronously after init, read per track from the loader's
 // workers.
 @property (atomic, strong, nullable) PINCache *metadataCache;

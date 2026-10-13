@@ -1,7 +1,6 @@
 # Future: running the stress harness in a Tart VM
 
-**Status: planned, unimplemented (verified 2026-09-27).** The references below are to files and
-skill sections; re-check them before acting.
+**Status: Not built.**
 
 ## Context
 
@@ -14,18 +13,17 @@ that moment. Four traps documented in the `vibe-stress` skill all trace to that:
 - a concurrent ⌘B swapping the binary mid-campaign
 - `AppSettings` inheriting the last fuzzer run's random final toggle
 
-A snapshot-restored guest kills all four by construction, and gives cold caches and a cold
-container every run without trusting `clear_caches` to have covered everything.
+A fresh guest can isolate a campaign from desktop sessions. Provision it with one app instance, clean settings and empty caches.
 
-**This is isolation work, not a prerequisite for hardware testing.** The macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback, and pump rendering remains the default. What real-HAL stress coverage exists, and what is still missing before the default could change, is the `vibe-stress` skill's; silent real-HAL playback, on System Output and bound, did not pull auto-switching AirPods off an idle iPhone (2026-09-28).
+**This is isolation work, not a prerequisite for hardware testing.** The macOS launchers already suppress Now Playing by default and support opt-in silent HAL playback. Pump rendering is the default. The `vibe-stress` skill says what real-HAL stress coverage exists.
 
-A guest needs a CoreAudio output device only for a hardware campaign. Keep the selected render path (pump or HAL output unit) explicit; do not make VM provisioning depend on an assumed future harness-default change.
+A guest needs a CoreAudio output device only for a hardware campaign. Keep the render path (pump or output unit) explicit in each run.
 
 ## Decisions
 
 - **Tart** over UTM/Parallels: Virtualization.framework (near-native CPU), fully CLI-driven,
   `tart clone` gives instant copy-on-write snapshots, and the cirruslabs base images ship with
-  Xcode, auto-login and SSH enabled. Apple's EULA allows 2 macOS guests per host.
+  Xcode, auto-login and SSH enabled. Check the host OS license before choosing the guest count.
 - **Build inside the guest.** A Debug build is signed to run locally; copying it into another
   machine's session invites exactly the provenance problems `run-torture.sh` exists to catch.
   The sanitizer matrix needs in-guest `xcodebuild` anyway.
@@ -48,9 +46,9 @@ One-time, scripted as far as possible (`scripts/vm/provision.sh`, run in-guest o
 
 1. `tart clone ghcr.io/cirruslabs/macos-<release>-xcode:<version> vibe-golden`, pinned to an
    image whose Xcode matches the host's and builds `project.yml`'s deployment targets (iOS 26.0
-   needs Xcode 26 or later; the host is on macOS 27 and Xcode 27), never `:latest`; resize the
+   needs Xcode 26 or later), never `:latest`; resize the
    disk to ~100 GB (`tart set --disk-size`).
-2. In-guest: `brew install xcodegen ffmpeg` (ffmpeg for `make-cloud-corpus.py`), BlackHole if
+2. In-guest: `brew install xcodegen ffmpeg` (ffmpeg for the `vibe-stress` skill's `make-cloud-corpus.py`), BlackHole if
    needed per the audio decision, and configure for unattended runs (disable sleep and the
    screen saver, exclude the build tree from Spotlight).
 3. Copy the corpora over (`scp`): the real-music corpus, plus pre-built cloud and hostile
@@ -113,8 +111,7 @@ green VM campaign will eventually be read as coverage it never had.
 
 - Does the pinned Tart version attach a virtio sound device that CoreAudio lists as an output
   device, or is BlackHole required? One in-guest command; the plan works either way.
-- Is one guest enough, or do stress and torture campaigns want the second EULA slot as a
-  standing pair?
+- Is one guest enough, or do stress and torture campaigns need separate guests?
 - Does the maintenance cost of the golden image (Xcode upgrades, corpus refreshes, TCC
   re-grants after an OS bump) stay below what the isolation is worth? Worth revisiting after
   the first few campaigns rather than deciding up front.

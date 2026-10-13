@@ -21,7 +21,7 @@ static _Atomic uint64_t sCacheKeyGeneration;
 @interface AudioTrack ()
 @property(copy, readwrite) NSURL *url;
 @property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
-// Atomic, so cacheKey's lock-free fast-path read cannot race the first store.
+// Atomic, so cacheKey's fast-path read cannot race the first store.
 @property (atomic, copy, nullable) NSString *memoizedCacheKey;
 @end
 

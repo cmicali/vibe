@@ -27,6 +27,8 @@
 #define VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART 1      // metadataWithURL:displayArtData:
 #define VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE 1          // the meter summarizes apart from consuming (1.14 on)
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS 1            // a waveform can hold the three bands' energies
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM 1         // SpectrumWaveformRenderer exists
+#define VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER 1            // the resampler is VibeResampler*; VibeConverter* before
 #endif
 
 #include <functional>
@@ -96,6 +98,9 @@ NSString *VibeBenchComponentsTemporaryDirectory(NSString *label);
 // Runs the main queue, where metadata deliveries land, until done or a
 // generous bound; running out fails the benchmark.
 void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void));
+// `count` samples of white noise at half scale from a seeded LCG, the same
+// for a seed in every build: what the resample and pitch benchmarks convert.
+void VibeBenchComponentsNoise(float *samples, size_t count, uint32_t seed);
 // `count` one-byte files in folders of 100, the relative paths returned.
 NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger count, NSString *extension);
 

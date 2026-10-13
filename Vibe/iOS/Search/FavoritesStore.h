@@ -1,21 +1,5 @@
-//
-//  FavoritesStore.h
-//  Vibe (iOS)
-//
-//  The folders the user starred: places to go back to. Not SearchFolderStore's
-//  twin; three differences are the design:
-//
-//  1. NOTHING IS RESOLVED AT LAUNCH. Rows draw from strings recorded at star
-//     time, so favorites cost no provider I/O at launch and a signed-out
-//     provider still renders. A tap, or the search screen, resolves.
-//  2. NESTING IS ALLOWED: a parent and a child are two places to open, so
-//     identity is exact standardized-path equality. VibeSearchRootCoversPath
-//     would be the bug here.
-//  3. A ROW IS NEVER ADDED WITHOUT ITS BOOKMARK. Minting needs the scope open,
-//     which only FolderSession can promise, so the caller brings the bookmark.
-//
-//  Main thread only.
-//
+// Starred folders resolve on demand. Nested favorites are distinct places.
+// Callers supply a bookmark minted under an open scope. Main thread only.
 
 #import <Foundation/Foundation.h>
 

@@ -3,23 +3,23 @@
 //  Vibe (iOS)
 //
 
-#import "RootViewController.h"
+#import "RootViewControllerInternal.h"
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "CueFolderGrantPrompt.h"
 #import "FavoritesViewController.h"
-#import "BrowserViewController.h"
-#import "LibraryViewController.h"
+#import "FilesRootViewController.h"
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
 #import "PlayerScreenRules.h"
 #import "PlayerViewController.h"
 #import "Playlist.h"
+#import "PlaylistViewController.h"
 #import "SearchViewController.h"
+#import "UIViewController+Alert.h"
 #import "VibeStrings.h"
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
-// Apple Music's proportions.
 static const CGFloat kCardCornerRadius = 14;
 static const CGFloat kBackdropScale = 0.92;
 static const CGFloat kBackdropCornerRadius = 38;
@@ -34,7 +34,7 @@ static NSString *const kTabFiles = @"files";
 static NSString *const kTabSearch = @"search";
 
 @interface RootViewController () <PlaybackObserver, MiniPlayerViewDelegate,
-        PlayerViewControllerDelegate, UITabBarControllerDelegate, UIDocumentPickerDelegate>
+        PlayerViewControllerDelegate, UITabBarControllerDelegate>
 @end
 
 @implementation RootViewController {
@@ -43,25 +43,19 @@ static NSString *const kTabSearch = @"search";
     // What scales under a moving card: a snapshot of the tabs, never the tabs
     // themselves (applyBackdropProgress:). Present only while the card moves.
     UIView               *_backdropSnapshot;
-    BrowserViewController *_filesController;
+    FilesRootViewController *_filesController;
     FavoritesViewController *_favorites;
-    LibraryViewController *_library;
+    PlaylistViewController *_playlistScreen;
     SearchViewController *_searchController;
     MiniPlayerView       *_miniPlayer;
     PlayerViewController *_player;
     BOOL                 _expanded;
-    // Whether the accessory is installed.
     BOOL                 _miniWanted;
     // The card between up and away; see updateBackdropVisibility.
     BOOL                 _cardAnimating;
     BOOL                 _interactiveDrag;
     UIViewPropertyAnimator *_cardAnimator;
-    // Rows of Adds asked for and not yet settled, oldest first, and when
-    // each was lifted.
-    NSMutableArray<NSArray<UIView *> *> *_liftedRowBatches;
-    // What the folder picker on screen does with the folder picked.
-    void (^_sheetFolderPicked)(NSURL *folder);
-    NSMutableArray<NSNumber *> *_liftedRowBatchTimes;
+    CueFolderGrantPrompt   *_cueFolderGrantPrompt;
     BOOL                   _playerAppearanceTransitionActive;
     NSArray<UIViewController *> *_parentAppearanceChildren;
     BOOL                   _rootPresentationVisible;
@@ -73,6 +67,7 @@ static NSString *const kTabSearch = @"search";
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
         _playback = playback;
+        _cueFolderGrantPrompt = [[CueFolderGrantPrompt alloc] init];
     }
     return self;
 }
@@ -97,8 +92,12 @@ static NSString *const kTabSearch = @"search";
     return _backdropSnapshot;
 }
 
-- (LibraryViewController *)library {
-    return _library;
+- (PlaylistViewController *)playlistScreen {
+    return _playlistScreen;
+}
+
+- (FilesRootViewController *)filesBrowser {
+    return _filesController;
 }
 
 - (FavoritesViewController *)favorites {
@@ -111,7 +110,6 @@ static NSString *const kTabSearch = @"search";
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    // Shows through the card's rounded corners.
     self.view.backgroundColor = UIColor.blackColor;
 
     [self buildTabs];
@@ -151,15 +149,15 @@ static NSString *const kTabSearch = @"search";
         if (!root) {
             return nil;
         }
-        LibraryViewController *library =
-                [[LibraryViewController alloc] initWithPlayback:root->_playback];
-        root->_library = library;
-        // The empty state's Open; the library knows nothing about tabs.
-        library.openFilesHandler = ^{
+        PlaylistViewController *playlistScreen =
+                [[PlaylistViewController alloc] initWithPlayback:root->_playback];
+        root->_playlistScreen = playlistScreen;
+        // The empty state's Open; the Playlist tab knows nothing about tabs.
+        playlistScreen.openFilesHandler = ^{
             [weakSelf setSelectedTabIdentifier:kTabFiles];
         };
         [root syncTabSurfaces];
-        return [[UINavigationController alloc] initWithRootViewController:library];
+        return [[UINavigationController alloc] initWithRootViewController:playlistScreen];
     }];
 
     UITab *favorites = [[UITab alloc] initWithTitle:STR_TAB_FAVORITES
@@ -187,9 +185,8 @@ static NSString *const kTabSearch = @"search";
         if (!root) {
             return nil;
         }
-        BrowserViewController *browser = [[BrowserViewController alloc] initWithPlayback:root->_playback
-                                                                            directoryURL:nil
-                                                                               appending:NO];
+        FilesRootViewController *browser = [[FilesRootViewController alloc] initWithPlayback:root->_playback
+                                                                                   appending:NO];
         root->_filesController = browser;
         browser.addedRowsHandler = ^(NSArray<UIView *> *rows) {
             [weakSelf liftAddedRows:rows];
@@ -340,7 +337,7 @@ static NSString *const kTabSearch = @"search";
 // selected tab exposed.
 - (void)syncTabSurfaces {
     BOOL tabsExposed = _sceneActive && _rootPresentationVisible && !_tabs.view.hidden;
-    _library.equalizerSurfaceVisible = tabsExposed
+    _playlistScreen.equalizerSurfaceVisible = tabsExposed
             && [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
     _filesController.equalizerSurfaceVisible = tabsExposed
             && [_tabs.selectedTab.identifier isEqualToString:kTabFiles];
@@ -505,7 +502,6 @@ static NSString *const kTabSearch = @"search";
     if (!animated) {
         changes();
         _cardAnimating = NO;
-        // A drag may have left a snapshot up.
         [self endBackdropSnapshot];
         completion();
         return;
@@ -671,7 +667,7 @@ static NSString *const kTabSearch = @"search";
             didSelectTab:(UITab *)selectedTab
              previousTab:(UITab *)previousTab {
     if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]) {
-        [_library.navigationController popToRootViewControllerAnimated:NO];
+        [_playlistScreen.navigationController popToRootViewControllerAnimated:NO];
     }
     [self syncTabSurfaces];
 }
@@ -704,6 +700,36 @@ static NSString *const kTabSearch = @"search";
             return;
         }
     }
+}
+
+- (void)bringPlaylistTabForward {
+    if (![_tabs.selectedTab isKindOfClass:UISearchTab.class]) {
+        [self setSelectedTabIdentifier:kTabPlaylist];
+    }
+}
+
+// The Playlist tab's item, in this view. UITab has no view of its own, so the
+// bar's is found by the label it draws; a bar that is not on screen (the
+// iPad's is elsewhere), or one drawn without that label, answers NO and the
+// rows fade where they are.
+- (BOOL)getPlaylistTabCenter:(CGPoint *)center {
+    UITabBar *bar = _tabs.tabBar;
+    NSString *title = [_tabs tabForIdentifier:kTabPlaylist].title;
+    if (!bar.window || bar.hidden || CGRectIsEmpty(bar.bounds) || title.length == 0) {
+        return NO;
+    }
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:bar.subviews];
+    while (queue.count > 0) {
+        UIView *view = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        if ([view.accessibilityLabel isEqualToString:title]) {
+            *center = [self.view convertPoint:CGPointMake(CGRectGetMidX(view.bounds), CGRectGetMidY(view.bounds))
+                                     fromView:view];
+            return YES;
+        }
+        [queue addObjectsFromArray:view.subviews];
+    }
+    return NO;
 }
 
 #pragma mark - PlayerViewControllerDelegate
@@ -741,148 +767,6 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
-#pragma mark - Added rows
-
-// An Add in the Files tab changes nothing on its own screen, so its rows say
-// what happened: they lift when asked for, fly into the Playlist tab when the
-// tracks land, and set back down when nothing did (all already there, or a
-// folder with no songs directly inside). Every Add ends in a settle event,
-// so there is no timer: a lift that outlives its Add is a bug, and
-// check_consistency reports one (liftedRowTimes).
-static const NSTimeInterval kRowLiftDuration = 0.25;
-static const NSTimeInterval kRowFlightDuration = 0.7;
-static const NSTimeInterval kRowFlightStagger = 0.07;
-static const CGFloat kLiftedRowScale = 1.03;
-static const CGFloat kLandedRowScale = 0.1;
-
-- (void)liftAddedRows:(NSArray<UIView *> *)rows {
-    if (rows.count == 0) {
-        return;
-    }
-    if (!_liftedRowBatches) {
-        _liftedRowBatches = [NSMutableArray array];
-        _liftedRowBatchTimes = [NSMutableArray array];
-    }
-    [_liftedRowBatches addObject:rows];
-    [_liftedRowBatchTimes addObject:@(CACurrentMediaTime())];
-    for (UIView *row in rows) {
-        row.frame = [self.view convertRect:row.frame fromView:nil];
-        row.userInteractionEnabled = NO;
-        row.layer.shadowOpacity = 0.25f;
-        row.layer.shadowRadius = 12;
-        row.layer.shadowOffset = CGSizeMake(0, 4);
-        // Without a path the shadow is re-derived from the snapshot's pixels
-        // on every frame of the flight.
-        row.layer.shadowPath = [UIBezierPath bezierPathWithRect:row.bounds].CGPath;
-        [self.view addSubview:row];
-    }
-    if (!UIAccessibilityIsReduceMotionEnabled()) {
-        [UIView animateWithDuration:kRowLiftDuration delay:0 usingSpringWithDamping:0.6 initialSpringVelocity:0
-                            options:UIViewAnimationOptionAllowUserInteraction animations:^{
-            for (UIView *row in rows) {
-                row.transform = CGAffineTransformMakeScale(kLiftedRowScale, kLiftedRowScale);
-            }
-        } completion:nil];
-    }
-}
-
-- (NSArray<NSNumber *> *)liftedRowTimes {
-    return [_liftedRowBatchTimes copy] ?: @[];
-}
-
-- (void)settleEveryLiftedRowUnlanded {
-    for (NSArray<UIView *> *rows in [_liftedRowBatches copy]) {
-        [self settleLiftedRows:rows landed:NO];
-    }
-}
-
-- (void)settleLiftedRows:(NSArray<UIView *> *)rows landed:(BOOL)landed {
-    NSUInteger index = [_liftedRowBatches indexOfObjectIdenticalTo:rows];
-    if (index == NSNotFound) {
-        return;   // already settled
-    }
-    CFTimeInterval liftedAt = _liftedRowBatchTimes[index].doubleValue;
-    [_liftedRowBatches removeObjectAtIndex:index];
-    [_liftedRowBatchTimes removeObjectAtIndex:index];
-    CGPoint target = CGPointZero;
-    if (!landed || UIAccessibilityIsReduceMotionEnabled() || ![self getPlaylistTabCenter:&target]) {
-        [UIView animateWithDuration:0.2 animations:^{
-            for (UIView *row in rows) {
-                row.transform = CGAffineTransformIdentity;
-                row.alpha = 0;
-            }
-        } completion:^(BOOL finished) {
-            [rows makeObjectsPerformSelector:@selector(removeFromSuperview)];
-        }];
-        if (landed) {
-            [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight] impactOccurred];
-        }
-        return;
-    }
-    // A local Add lands within a frame or two: the flight waits out the lift,
-    // or it would cut the lift short and start with a jump.
-    NSTimeInterval wait = MAX(0, liftedAt + kRowLiftDuration - CACurrentMediaTime());
-    // A UIKit animation, not a CAAnimation added to the layer. An
-    // iPhone caps an app's own CAAnimations at 60 Hz unless its Info.plist
-    // opts out, while UIKit's run at the display's rate, so on a 120 Hz
-    // phone the hand-built flight stuttered beside the swipe it followed.
-    UIViewKeyframeAnimationOptions options = UIViewKeyframeAnimationOptionCalculationModeCubic
-            | (UIViewKeyframeAnimationOptions)UIViewAnimationOptionCurveEaseInOut;
-    CGFloat midScale = (kLiftedRowScale + kLandedRowScale) / 2;
-    [rows enumerateObjectsUsingBlock:^(UIView *row, NSUInteger i, BOOL *stop) {
-        // Across, then down into the tab: the midpoint of the curve whose
-        // control point is the tab's column at the row's height.
-        CGPoint start = row.center;
-        CGPoint mid = CGPointMake(0.25 * start.x + 0.75 * target.x, 0.75 * start.y + 0.25 * target.y);
-        [UIView animateKeyframesWithDuration:kRowFlightDuration
-                                       delay:wait + (NSTimeInterval)i * kRowFlightStagger
-                                     options:options
-                                  animations:^{
-            [UIView addKeyframeWithRelativeStartTime:0 relativeDuration:0.5 animations:^{
-                row.center = mid;
-                row.transform = CGAffineTransformMakeScale(midScale, midScale);
-            }];
-            [UIView addKeyframeWithRelativeStartTime:0.5 relativeDuration:0.5 animations:^{
-                row.center = target;
-                row.transform = CGAffineTransformMakeScale(kLandedRowScale, kLandedRowScale);
-            }];
-            // Solid for most of the way, gone as it reaches the tab.
-            [UIView addKeyframeWithRelativeStartTime:0.7 relativeDuration:0.3 animations:^{
-                row.alpha = 0;
-            }];
-        } completion:^(BOOL finished) {
-            [row removeFromSuperview];
-            if (i == 0) {
-                [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight] impactOccurred];
-            }
-        }];
-    }];
-}
-
-// The Playlist tab's item, in this view. UITab has no view of its own, so the
-// bar's is found by the label it draws; a bar that is not on screen (the
-// iPad's is elsewhere), or one drawn without that label, answers NO and the
-// rows fade where they are.
-- (BOOL)getPlaylistTabCenter:(CGPoint *)center {
-    UITabBar *bar = _tabs.tabBar;
-    NSString *title = [_tabs tabForIdentifier:kTabPlaylist].title;
-    if (!bar.window || bar.hidden || CGRectIsEmpty(bar.bounds) || title.length == 0) {
-        return NO;
-    }
-    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithArray:bar.subviews];
-    while (queue.count > 0) {
-        UIView *view = queue.firstObject;
-        [queue removeObjectAtIndex:0];
-        if ([view.accessibilityLabel isEqualToString:title]) {
-            *center = [self.view convertPoint:CGPointMake(CGRectGetMidX(view.bounds), CGRectGetMidY(view.bounds))
-                                     fromView:view];
-            return YES;
-        }
-        [queue addObjectsFromArray:view.subviews];
-    }
-    return NO;
-}
-
 // The only place the card presents by itself. The Playlist tab comes forward
 // so minimizing lands on what was opened — except over Search, whose tab owns
 // the selection while its field is up, and except a single file played
@@ -910,66 +794,18 @@ static const CGFloat kLandedRowScale = 0.1;
     [self settleEveryLiftedRowUnlanded];
 }
 
-// Over whatever is up: the add sheet, or the card.
-- (UIViewController *)topmostPresenter {
-    UIViewController *presenter = self;
-    while (presenter.presentedViewController) {
-        presenter = presenter.presentedViewController;
-    }
-    return presenter;
-}
-
 - (void)playback:(PlaybackController *)playback didGiveUpOpeningPath:(NSString *)path {
-    VibePresentAlert([self topmostPresenter], path.lastPathComponent, STR_ERROR_OPEN_TOO_SLOW);
+    [self.vibeTopmostPresenter vibePresentAlertWithTitle:path.lastPathComponent message:STR_ERROR_OPEN_TOO_SLOW];
 }
 
 // "Open in Vibe" can arrive with the card presented.
 - (void)playback:(PlaybackController *)playback
         needsFolderOfSheetAtURL:(NSURL *)sheetURL
                       appending:(BOOL)appending {
-    UIViewController *presenter = [self topmostPresenter];
-    NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE, VibeAppName(),
-                         sheetURL.lastPathComponent];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_CANCEL
-                                              style:UIAlertActionStyleCancel
-                                            handler:nil]];
-    UIAlertAction *grant = [UIAlertAction actionWithTitle:STR_PLAYLIST_GRANT_BUTTON
-                                                    style:UIAlertActionStyleDefault
-                                                  handler:^(UIAlertAction *action) {
-        UIDocumentPickerViewController *picker =
-                [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder] asCopy:NO];
-        picker.directoryURL = sheetURL.URLByDeletingLastPathComponent;
-        picker.delegate = self;
-        self->_sheetFolderPicked = ^(NSURL *folder) {
-            [playback openSheetURL:sheetURL inGrantedFolder:folder appending:appending];
-        };
-        [presenter presentViewController:picker animated:YES completion:nil];
-    }];
-    [alert addAction:grant];
-    alert.preferredAction = grant;
-    [presenter presentViewController:alert animated:YES completion:nil];
-}
-
-- (void)documentPicker:(UIDocumentPickerViewController *)controller
-        didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    void (^picked)(NSURL *) = _sheetFolderPicked;
-    _sheetFolderPicked = nil;
-    if (picked && urls.firstObject) {
-        picked(urls.firstObject);
-    }
-}
-
-- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
-    _sheetFolderPicked = nil;
-}
-
-- (void)bringPlaylistTabForward {
-    if (![_tabs.selectedTab isKindOfClass:UISearchTab.class]) {
-        [self setSelectedTabIdentifier:kTabPlaylist];
-    }
+    [_cueFolderGrantPrompt askForFolderOfSheetAtURL:sheetURL
+                                          appending:appending
+                                           playback:playback
+                                          presenter:self.vibeTopmostPresenter];
 }
 
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {

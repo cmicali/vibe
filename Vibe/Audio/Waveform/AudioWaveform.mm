@@ -116,7 +116,8 @@ void AudioWaveform::getBandMeanSquares(NSUInteger index, float* meanSquares) {
 // Cells a quarter bar long, their edges exact in the chunks, and a bar-long
 // window at every cell: a bar's own, and the two either side that the reach
 // compares it with. Without reach a bar is one cell and its own window.
-void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares) {
+void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares,
+                                      float* ownBandMeanSquares) {
     // Silence where there is nothing to read: no chunks, or the bands of a
     // waveform without them.
     bool empty = chunks == nullptr || numChunks == 0 || size == 0;
@@ -124,6 +125,9 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
     if (meanSquares && empty) std::fill(meanSquares, meanSquares + size, 0.0f);
     if (bandMeanSquares && !wantsBands) {
         std::fill(bandMeanSquares, bandMeanSquares + size * kAudioWaveformBandCount, 0.0f);
+    }
+    if (ownBandMeanSquares && !wantsBands) {
+        std::fill(ownBandMeanSquares, ownBandMeanSquares + size * kAudioWaveformBandCount, 0.0f);
     }
     if (empty || !(meanSquares || wantsBands)) return;
 
@@ -202,9 +206,10 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
         vDSP_vadd(padded + 2, 1, sums, 1, sums, 1, numWindows);
         vDSP_vadd(padded + 3, 1, sums, 1, sums, 1, numWindows);
     };
-    auto fillBars = [&](NSUInteger plane, float* out, NSUInteger stride) {
+    auto fillBars = [&](NSUInteger plane, float* out, NSUInteger stride, float* ownOut) {
         if (!slides) {
             vDSP_vmul(cell[plane], 1, perFrame, 1, out, (vDSP_Stride)stride, size);
+            if (ownOut) vDSP_vmul(cell[plane], 1, perFrame, 1, ownOut, (vDSP_Stride)stride, size);
             return;
         }
         sumWindows(plane, windows);
@@ -216,15 +221,17 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
             float own = around[2];
             float loudest = fmaxf(fmaxf(fmaxf(around[0], around[1]), fmaxf(around[3], around[4])), own);
             out[i * stride] = own + reach * (loudest - own);
+            if (ownOut) ownOut[i * stride] = own;
         }
     };
     const float least = FLT_MIN, one = 1;
     if (slides) sumWindows(kFrames, perFrame);
     vDSP_vthr(slides ? perFrame : cell[kFrames], 1, &least, perFrame, 1, numWindows);
     vDSP_svdiv(&one, perFrame, 1, perFrame, 1, numWindows);
-    if (meanSquares) fillBars(kMix, meanSquares, 1);
+    if (meanSquares) fillBars(kMix, meanSquares, 1, nullptr);
     for (NSUInteger b = 0; wantsBands && b < kAudioWaveformBandCount; b++) {
-        fillBars(kBands + b, bandMeanSquares + b, kAudioWaveformBandCount);
+        fillBars(kBands + b, bandMeanSquares + b, kAudioWaveformBandCount,
+                 ownBandMeanSquares ? ownBandMeanSquares + b : nullptr);
     }
 }
 
@@ -288,12 +295,10 @@ AudioWaveformBandSplit::AudioWaveformBandSplit(double sampleRate) {
 
 // The four sections run side by side, so a sample costs one section's
 // latency: mid's lowpass takes its highpass's output from two samples back,
-// which leaves no lane waiting on another within a sample, and direct form I
-// leaves one FMA on each recurrence. vDSP_biquad runs a setup's sections one
-// after another, at 2.6x the cost. The mid band lags the others by two
-// samples, a shift no chunk can see. Double, since a 300 Hz pole at 352.8 kHz
-// sits close enough to the unit circle that float's rounding shows in the
-// energies.
+// which leaves no lane waiting on another within a sample. Direct form I
+// leaves one FMA on each recurrence. The mid band lags the others by two
+// samples. Double precision limits rounding near the unit circle at high
+// sample rates.
 void AudioWaveformBandSplit::addSumSquares(const float* mono, NSUInteger numFrames, float* sums) {
     // Locals, so the stores through sums cannot alias the state.
     simd_double4 x1 = this->x1, x2 = this->x2, y1 = this->y1, y2 = this->y2;

@@ -2,9 +2,8 @@
 //  PlayerViewController+Delivery.h
 //  Vibe (iOS)
 //
-//  Where the pager's asynchronous results land: waveform snapshots and the
-//  scrubber's events, each matched against the current track first. Metadata
-//  is the model's delivery, a PlaybackObserver event.
+//  Waveforms target their page. Scrub events target the bound view.
+//  Metadata arrives through PlaybackObserver.
 //
 
 #import "PlayerViewController.h"

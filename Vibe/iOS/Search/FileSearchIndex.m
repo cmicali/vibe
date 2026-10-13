@@ -9,13 +9,12 @@
 
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
-#import "NSURLUtil.h"
+#import "FolderWalk.h"
 
-// A cap, not a target: a root can be a whole Dropbox. A few megabytes here.
+// Bound memory when a granted root contains a large library.
 static const NSUInteger kMaxIndexedFiles = 20000;
 
-// Whichever comes first. The interval gets first results up promptly on a
-// provider tree, where one listing can take a second.
+// Checked after each accepted file. Provider calls can delay a timed flush.
 static const NSUInteger kFlushBatchSize = 128;
 static const NSTimeInterval kFlushInterval = 0.2;
 
@@ -90,8 +89,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
         _files = [NSMutableArray array];
         atomic_init(&_buildGeneration, 1);
         atomic_init(&_hitRequestGeneration, 1);
-        // Utility: a provider listing is the same IPC the waited-on open needs,
-        // and the open outranks it (root AGENTS.md).
+        // Lower scheduling priority than an open. Provider IPC remains uninterruptible.
         dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
         _walkQueue = dispatch_queue_create("FileSearchIndex", attributes);
@@ -133,7 +131,7 @@ static NSArray<NSString *> *VibeStandardizedPaths(NSArray<NSURL *> *urls) {
 
 // Walk queue only.
 - (void)walkRoots:(NSArray<NSURL *> *)roots generation:(uint64_t)generation {
-    NSSet<NSString *> *supported = [NSURLUtil supportedExtensions];
+    NSSet<NSString *> *supported = [FolderWalk supportedExtensions];
     NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:kFlushBatchSize];
     NSTimeInterval lastFlush = CFAbsoluteTimeGetCurrent();
     NSUInteger total = 0;

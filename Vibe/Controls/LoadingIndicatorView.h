@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The row gutter's host for LoadingIndicator's row style: the small loading
-//  bar a playlist or library row shows while a provider transfer is really
+//  bar a playlist row shows while a provider transfer is really
 //  running for its file. SHARED for the same reason EqualizerIndicatorView is
 //  — the bar is the app's transferring marker and both platforms draw the
 //  same one in the same 16pt number gutter. Only the superclass, the layout
@@ -38,8 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 // retained. Defaults to NO.
 @property (nonatomic, getter=isActive) BOOL active;
 
-// <0 is indeterminate (the pulse); >=0 fills. A control never given a
-// fraction is indeterminate.
+// <0 is indeterminate. The pulse continues until the fill is at least one
+// point wide. A control never given a fraction is indeterminate.
 @property (nonatomic) float progress;
 
 // Overrides the appearance-derived colour, as EqualizerIndicatorView.barColor

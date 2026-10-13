@@ -1,34 +1,7 @@
-# Cloudflare Pages redirects. Config, not content — Pages consumes this file
-# and never serves it.
-#
-# A branded /support means the App Store listing can point at this domain
-# rather than at whatever the support channel happens to be today; changing
-# channels then becomes a commit here instead of an App Store metadata upload.
-# /download is that idea applied to the disk image: a URL anyone may link
-# that always hands back the current release, so an external link never has
-# to be revisited.
-#
-# Both spellings are listed because a rule matches the exact path: /support
-# would not catch /support/.
-#
-# GitHub Pages ignores this file, so these resolve on vibeplayer.app only.
-# That is the canonical host, and the one the store links to.
-
+# Cloudflare Pages redirects; GitHub Pages ignores this file.
+# TRAP: Download redirects must be temporary. Their targets change each release.
 /support   https://github.com/cmicali/vibe/issues   301
 /support/  https://github.com/cmicali/vibe/issues   301
-
-# The target names a version, so scripts/web-set-version.sh rewrites these
-# three lines at release time from the same URL it writes into the page's
-# Download button — one source, so the branded link and the button can never
-# name different builds. GitHub's own /releases/latest/download shortcut
-# cannot stand in: it only redirects for an asset name that never changes,
-# and the default asset is named Vibe-macOS-universal-<version>.dmg. The arm64
-# DMG remains an alternate on GitHub.
-#
-# TRAP: 302, never 301. The target moves every release, and a browser that
-# cached a permanent redirect would keep fetching that one version forever,
-# with nothing on this end able to correct it.
-
 /download         https://github.com/cmicali/vibe/releases/download/v1.15/Vibe-macOS-universal-1.15.dmg   302
 /download/        https://github.com/cmicali/vibe/releases/download/v1.15/Vibe-macOS-universal-1.15.dmg   302
 /download/latest  https://github.com/cmicali/vibe/releases/download/v1.15/Vibe-macOS-universal-1.15.dmg   302

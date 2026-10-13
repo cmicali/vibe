@@ -12,7 +12,7 @@
     BOOL _burstActive;
     NSUInteger _timerGeneration;
     NSTimeInterval _quietPeriod;
-    OpenBurstScheduler _scheduler;
+    VibeScheduler _scheduler;
     OpenBurstSink _sink;
 }
 
@@ -26,7 +26,7 @@
 }
 
 - (instancetype)initWithQuietPeriod:(NSTimeInterval)quietPeriod
-                          scheduler:(OpenBurstScheduler)scheduler
+                          scheduler:(VibeScheduler)scheduler
                                sink:(OpenBurstSink)sink {
     self = [super init];
     if (self) {

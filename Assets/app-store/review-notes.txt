@@ -1,37 +1,44 @@
-Vibe is a local file player. It bundles no music, streams nothing, and has no
-account, no sign-in, and no network access of any kind. Everything it plays is
-a file already on the device or in the reviewer's own cloud storage.
+Vibe is a file player. It bundles no music and has no account of its own.
+It plays files on the device, in the reviewer's own cloud storage, or at a web
+address the reviewer types into Open URL. It goes online only to fetch that
+address, or to reach Dropbox if the reviewer connects it.
 
 WHAT YOU WILL SEE ON FIRST LAUNCH
 
 An empty playlist reading "Nothing to Play". That is correct, not a broken
 build: iOS gives an app no access to a user's files until the user hands them
 over, so there is nothing to show until you do one of the following. Any one
-of the three is enough.
+of the four is enough.
 
 1. THE APP'S OWN FOLDER (no permission prompt)
    In the Files app, go to On My iPhone > Vibe and copy an audio file in.
    Return to Vibe, open the Files tab, and the file is there. Tap it to play.
 
-2. OPEN A FOLDER FROM ANYWHERE (one system picker, no custom prompt)
-   In Vibe, tap the Files tab and browse to any folder - iCloud Drive, On My
-   iPhone, Dropbox, or any other Files provider. Tapping a folder loads every
-   track in it as the playlist; tapping a single file loads that file. Then
-   tap any row, or the play button in the strip above the tab bar, to start.
-   The access comes from the system picker and is remembered, so it is asked
-   once rather than per file.
+2. OPEN A FOLDER FROM ANYWHERE
+   In Vibe’s Files tab, choose Add Folder to grant access through the system
+   picker. Browse the granted folder in Vibe. Tap a file to play it, or tap
+   the folder’s play button to load its songs as a playlist. Dropbox can also be connected
+   directly from the Files tab.
 
 3. THE SHARE SHEET
    From any app showing an audio file, share it to Vibe.
 
+4. OPEN URL
+   In Vibe, open the Files tab and tap Open URL. Paste this public https
+   address of the sample track below, and tap Open:
+   https://raw.githubusercontent.com/cmicali/vibe/main/Assets/app-store/Vibe-sample-track.mp4
+   It starts playing while it downloads. The system's local-network prompt
+   may appear for an address on the local network, such as
+   http://192.168.1.5/song.mp3.
+
 Vibe-sample-track.mp4 is attached to this submission, if you would rather not
-supply audio of your own: a 30-second tone, tagged, that any of the three
+supply audio of your own: a 30-second tone, tagged, that any of the four
 methods above will play.
 
 FORMATS
 
-MP3, MP2, AAC, M4A, MP4, AIFF/AIF, WAV/WAVE/BWF, FLAC, QTA. Playback is
-AVAudioEngine and CoreAudio only - there is no third-party audio library.
+MP3, MP2, AAC, M4A, MP4, AIFF/AIF, WAV/WAVE/BWF, FLAC, CAF and W64. Playback uses Vibe’s CoreAudio and AudioToolbox engine,
+r8brain sample-rate conversion, and the dr_mp3, dr_flac and dr_wav decoders.
 
 THE HOME-SCREEN WIDGET
 
@@ -41,7 +48,7 @@ On a clean install it shows a placeholder until Vibe has played something at
 least once. This is by design, not a failure: the widget is a separate process
 that draws only the snapshot the app publishes into the shared app group, and
 a fresh install has published nothing yet. Play one track and the widget fills
-in with the artwork, the title, and a live waveform. Its buttons drive
+in with the artwork, the title, and a waveform. Playback progress updates through widget timelines. Its buttons drive
 transport in the app, and tapping the waveform seeks.
 
 BACKGROUND AUDIO
@@ -52,10 +59,12 @@ transport controls.
 
 PRIVACY
 
-No data is collected, no analytics, no tracking, and no network requests. The
-app uses no permission-gated APIs, so it asks for nothing beyond the file
-access granted through the system picker. UIFileSharingEnabled is on so that
-method 1 above works; the folder it exposes holds only what the user puts
-there.
+No data is collected, no analytics, and no tracking. The only network
+requests are the ones the reviewer asks for: the address typed into Open URL,
+and Dropbox if connected. Vibe sends nothing else and has no servers of its
+own. Plain http is allowed only to the local network. Local addresses may require local-network permission. File access comes
+from the system picker. Dropbox sign-in uses its own authorization page.
+UIFileSharingEnabled is on so that method 1 above works. The folder it
+exposes holds only what the user puts there.
 
 Vibe is free and open source: https://github.com/cmicali/vibe

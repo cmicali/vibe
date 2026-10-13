@@ -2,11 +2,11 @@
 //  WaveformScrubberView.h
 //  Vibe (iOS)
 //
-//  The iOS counterpart of AudioWaveformView: the same registry, renderers,
+//  The iOS counterpart of WaveformView: the same registry, renderers,
 //  morph engine and waveform data, hosted in a UIView. DJ semantics: the
 //  play position is fixed at the view's horizontal center and the zoomed
-//  waveform scrolls beneath it; a drag moves the content 1:1 and seeks on
-//  release, both ends give and spring back, a tap nudges to the tapped point
+//  waveform scrolls beneath it. A drag moves the content 1:1 and seeks when
+//  its coast ends. Both ends spring back. A tap seeks to the tapped point
 //  in the visible window, and a pinch changes the zoom about the playhead.
 //
 
@@ -46,8 +46,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Repaints are gated per device pixel, so a timer can write it unconditionally.
 @property (nonatomic) CGFloat progress;
 
-// YES through a scrub's drag, coast and bounce and a live pinch; the owner
-// suppresses timer progress writes meanwhile.
+// YES through a scrub's drag, coast and bounce. A pinch counts only when it
+// has a pending seek. Pure zoom keeps following playback.
 @property (nonatomic, readonly) BOOL isScrubbing;
 
 // Whether there is waveform data to manipulate; an unloaded scrubber stays
@@ -83,6 +83,17 @@ NS_ASSUME_NONNULL_BEGIN
 // palette.
 @property (nonatomic, strong, nullable) UIColor *artworkThemeColor;
 
+// Ends a track's gesture without discarding its cached pixels or seeking.
+- (void)cancelInteraction;
+
+// A slow playback open keeps the indicator until settlement, even over cached pixels.
+@property (nonatomic) BOOL playbackLoading;
+
+@end
+
+// WaveformScrubberView+Bitmap.mm.
+@interface WaveformScrubberView (Bitmap)
+
 // Fresh deliveries use showWaveform:; prepared pages pass animated:NO, and
 // install synchronously when a bake of the same picture is stored. The view
 // otherwise decides the entrance from its own state: the
@@ -92,11 +103,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;
 
-// Ends a track's gesture without discarding its cached pixels or seeking.
-- (void)cancelInteraction;
+@end
 
-// A slow playback open keeps the indicator until settlement, even over cached pixels.
-@property (nonatomic) BOOL playbackLoading;
+// WaveformScrubberView+Loading.mm.
+@interface WaveformScrubberView (Loading)
 
 - (void)showLoadingIndicator;
 - (void)hideLoadingIndicator;

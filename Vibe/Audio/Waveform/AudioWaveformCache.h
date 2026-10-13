@@ -71,8 +71,8 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // cancelled, and its uncancellable stat/open worker keeps the path's claim
 // until it returns, so a same-file request waits and restarts once rather
 // than adding a stranded worker. A live detached decode is reattached in
-// place. BPM and key from a detached decode are still delivered, tagged with
-// their URL for the receiver to match against its playlist.
+// place. BPM and key from a detached decode are still delivered, with the
+// track they were loaded for. The receiver matches it against its playlist.
 - (void)cancelLoad;
 
 @end
@@ -99,12 +99,10 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // loadWaveformForTrack: starts a fresh attempt for the same window.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track;
 
-// Fires once per completed waveform load, whether a fresh analysis or a cache
-// hit, when the decode pass detected a tempo. It never fires with 0. It
-// follows the final didLoadData: delivery, on the main thread. track is the
-// one the waveform was loaded for: a final delivery can race a track change,
-// landing after next: but before the cancel is observed, so receivers must
-// match it against their current track rather than assume it.
+// Delivers a nonzero tempo on main after a completed load or cache hit.
+// Active loads deliver it after final didLoadData:. Detached loads and cache
+// previews can deliver analysis without a waveform callback. Match the
+// track's sourceKey against each playlist row before installing the result.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(AudioTrack *)track;
 
 // The key detection twin of didDetectBPM:, with the same timing, threading

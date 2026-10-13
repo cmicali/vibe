@@ -47,7 +47,7 @@ CHARTS = [
         ('play_cpu_pct.flac-24-176', 'From 176.4 kHz'),
         ('play_cpu_pct.flac-24-352', 'From 352.8 kHz'),
         ('play_cpu_pct.flac-16-22-mono', 'From 22.05 mono')], 1),
-    ('pitch-cpu', 'Playback CPU, pitch fader at full throw', '% of one core', [
+    ('pitch-cpu', 'Playback CPU at ±8% pitch', '% of one core', [
         ('play_cpu_pct.pitch.flac-24-192', 'FLAC 24/192, +8%'),
         ('play_cpu_pct.pitch.mp3-320', 'MP3 320k, -8%'),
         ('play_cpu_pct.mp3-320-48k', 'MP3 48 kHz, no pitch')], 1),
@@ -285,7 +285,7 @@ def components_section(results):
     return ['', '### Components', '',
             f'The component benchmarks, VibeBenchComponents, built against each version\'s own code and run on one machine '
             f'({m["chip"]}, {m["memory_gb"]} GB, macOS {m["macos"]}): the code under each feature, without the app '
-            'around it. A line that starts late is a benchmark of code that version does not have; '
+            'around it. A missing point means that benchmark has no stored result for the version; '
             'a version marked pre-release was measured before its release was tagged.', ''] + lines
 
 

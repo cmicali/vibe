@@ -72,6 +72,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Setting the value it already has keeps the order.
 @property (nonatomic) BOOL shuffleEnabled;
 
+// On track end = Pause. It outranks both modes: a track that plays out has no
+// successor. Next still moves.
+@property (nonatomic) BOOL pauseAtTrackEnd;
+
 // arc4random_uniform unless a test injects its own. Answers [0, upperBound).
 @property (nonatomic, copy, null_resettable) uint32_t (^randomBelow)(uint32_t upperBound);
 
@@ -130,17 +134,18 @@ NS_ASSUME_NONNULL_BEGIN
 // splice armed is the one next lands on.
 - (nullable AudioTrack *)nextTrack;
 
-// The next track, the one after it and the previous one, in the order a
-// listener reaches them: what the metadata scan ranks first.
+// The next track, the row two slots ahead in this cycle, and the previous
+// one. Missing entries are omitted. The metadata scan ranks these first.
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
-// What follows a track that plays out, or nil to park: the current track
-// itself under Repeat One, otherwise nextTrack. Every successor prefetch and
-// both track-end reads ask this, never a row neighbor.
+// What follows a track that plays out, or nil to park: nil under
+// pauseAtTrackEnd, the current track itself under Repeat One, otherwise
+// nextTrack. Every successor prefetch and both track-end reads ask this,
+// never a row neighbor.
 - (nullable AudioTrack *)trackEndSuccessor;
 
-// Moves to trackEndSuccessor, returning NO when it is nil. Under Repeat One
-// it re-sets the same index, which still notifies.
+// Moves to trackEndSuccessor, returning NO and moving nothing when it is nil.
+// Under Repeat One it re-sets the same index, which still notifies.
 - (BOOL)advanceAtTrackEnd;
 
 // Adopt a gapless boundary only while BOTH exact objects still describe it:
@@ -158,7 +163,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Every row holding url — the same file can sit in the playlist more than
 // once, and a caller acting on a file has to reach all of them. Empty for nil.
-// O(1), by NSURL equality.
+// Indexed by NSURL equality; returns a copy of the matching row set.
 - (NSIndexSet *)indexesOfTracksWithURL:(nullable NSURL *)url;
 
 // The first row holding url, off the same index.

@@ -2,9 +2,10 @@
 //  SearchViewController.h
 //  Vibe (iOS)
 //
-//  Two sections: the open playlist, matched live by tags and filename, and the
-//  files under every search root, matched off main by filename and folder. An
-//  empty query lists the playlist but never dumps the file index.
+//  Three sections: the open playlist, matched live by tags and filename; the
+//  files under every search root, matched off main by filename and folder;
+//  and Dropbox's own search, while an account is linked. An empty query lists
+//  the playlist but never dumps the file index.
 //
 
 #import <UIKit/UIKit.h>

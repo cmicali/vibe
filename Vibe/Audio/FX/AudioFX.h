@@ -6,8 +6,6 @@
 #import <Foundation/Foundation.h>
 #import <AudioToolbox/AudioToolbox.h>
 
-@class AVAudioFormat;
-
 NS_ASSUME_NONNULL_BEGIN
 
 // The DJ effects: the low-kill high-pass (Q, with a W boost) and the
@@ -21,7 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 //                   +-> 1/8 delay send  -> lanes -> pans -> sum -+-> lowCut -> +
 //                   +-> 1/16 delay send -> lanes -> pans -> sum -+
 //
-// Apple's units (AUNBandEQ, MatrixReverb, AUDelay) do the DSP, rendered in
+// Apple's units (AUNBandEQ, MatrixReverb on macOS or AUReverb2 on iOS,
+// and AUDelay) do the DSP, rendered in
 // place by VibeFXChainRender; gates, pans and sums are buffer math. A stage
 // renders only while it has work and is reset and skipped otherwise, so idle
 // effects cost nothing and dormant FX are sample-exact.
@@ -43,33 +42,16 @@ NS_ASSUME_NONNULL_BEGIN
                     scheduler:(void (^)(NSTimeInterval seconds, dispatch_block_t block))scheduler
             afterRenderLeaves:(void (^)(dispatch_block_t work))afterRenderLeaves;
 
-// On the queue with the output stopped; idempotent. The units are hosted at
-// the first connect (`format` stereo float32 non-interleaved) and kept; a
-// connect at another rate re-hosts them and re-applies the intent.
-// Disconnecting rests every unit and tail without changing intent.
-- (void)setConnected:(BOOL)connected format:(nullable AVAudioFormat *)format maximumFrameCount:(UInt32)maximumFrameCount;
-
-// Media-services reset, on the player queue after withdrawing the chain:
-// dispose orphaned units without messaging them; the next connect re-hosts.
-- (void)markDead;
-
 // Whether the segment is in the chain. Player-queue only.
 @property (nonatomic, readonly) BOOL connected;
 
 // Whether a send is in the render (gate open, or its declared tail still
-// ringing), and the longest such tail, 0 while unhosted: the idle stop waits
-// for a tail, at most that long. Player-queue only.
+// ringing), and the longest declared tail across all hosted sends.
+// Unhosted values are NO and 0. The idle stop waits at most that long.
+// Player-queue only.
 @property (nonatomic, readonly) BOOL sendsActive;
 @property (nonatomic, readonly) NSTimeInterval longestTailSeconds;
 
-// The current hosting, NULL while unhosted. A published chain stays valid for
-// every render that read it. Player queue.
-typedef struct VibeFXChain VibeFXChain;
-- (VibeFXChain *)chain;
-
-// Idle effects render nothing, which the tests read. Any thread.
-- (NSUInteger)hostedUnitCount;
-- (uint64_t)unitRenders;
 // For the audio-path report: intentSnapshot plus what the hosting says.
 // Player queue, because it reads the chain the queue may free.
 - (NSDictionary<NSString *, id> *)diagnosticSnapshot;
@@ -119,22 +101,5 @@ typedef struct VibeFXChain VibeFXChain;
 @property (nonatomic) float delayTapBPM;
 
 @end
-
-// In place over `io`: stereo float32, non-interleaved, at most the hosted
-// maximumFrameCount frames. Audio thread. The first unit render that fails
-// ends the call with its status; the caller silences the slice.
-OSStatus VibeFXChainRender(VibeFXChain *chain, const AudioTimeStamp *timestamp, UInt32 frames, AudioBufferList *io) CA_REALTIME_API;
-
-// The one hosting sequence the FX units and the varispeed share; `configure`
-// runs before the initialize. NO, with nothing hosted, when any step is
-// refused. Player queue, output stopped.
-BOOL VibeHostAudioUnit(AudioUnit _Nullable * _Nonnull unit, OSType type, OSType subtype,
-                       const AudioStreamBasicDescription *format, UInt32 maximumFrameCount,
-                       AURenderCallbackStruct input, void (^ _Nullable configure)(AudioUnit));
-// Uninitializes and disposes `*unit` when there is one, leaving NULL.
-void VibeDisposeAudioUnit(AudioUnit _Nullable * _Nonnull unit);
-// A unit's Float64 global property — latency, tail time — in seconds; 0 when
-// unreadable.
-double VibeAudioUnitSeconds(AudioUnit _Nullable unit, AudioUnitPropertyID property);
 
 NS_ASSUME_NONNULL_END

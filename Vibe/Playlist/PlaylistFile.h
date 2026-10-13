@@ -8,7 +8,6 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrack;
-extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 
 // Readers for playlist-like files — CUE sheets and M3U playlists — and the M3U
 // writer. A CUE sheet reads as rows, each a window of its FILE; an M3U reads
@@ -26,47 +25,13 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 + (BOOL)isM3UExtension:(NSString *)extension;
 
 // Decodes playlist bytes to text: a UTF-16 BOM, then a BOM-less UTF-16
-// signature, then UTF-8, then Windows-1252 and Latin-1 for legacy writers, so
-// a non-empty file always decodes.
+// signature, UTF-8, a NUL-based UTF-16 fallback, then Windows-1252 and Latin-1.
+// Latin-1 ensures non-empty input decodes.
 + (nullable NSString *)textFromData:(NSData *)data;
-
-// A CUE sheet as rows, one per AUDIO TRACK kept, each a window of the FILE its
-// start INDEX sits in (AudioTrack's cue initializer). A track starts at INDEX
-// 01, else INDEX 00; one with neither, or starting before the last kept start
-// in its file, is dropped. A row ends at the next row of its file — so a
-// pregap plays at the end of the row before it — and the last runs to the
-// file's end; a file's first row starts at its first frame, so audio before
-// track 1 is reachable. The performer falls back to the sheet's; only TITLE
-// and PERFORMER are read. A sheet with no usable TRACK gives one whole-file row
-// per FILE. FILE names are unquoted or quoted, a trailing type keyword
-// stripped from unquoted ones, backslashes normalized to slashes, consecutive
-// duplicates collapsed. resolve maps each FILE name to its URL once, nil for a
-// track before any FILE line; sole is YES when the sheet names at most one
-// file. A nil URL drops that file's rows.
-+ (NSArray<AudioTrack *> *)cueRowsInText:(NSString *)text sheetURL:(nullable NSURL *)sheetURL
-                           resolvingFile:(NSURL *_Nullable (^)(NSString *_Nullable name, BOOL sole))resolve;
-
-// The sheet at url as rows, each FILE resolved through the entry rungs below.
-// A sheet naming one image — or none — that no rung finds takes the audio named
-// like the sheet beside it (Mix.cue's Mix.flac). An entry readable nowhere
-// still yields its primary candidate, as for M3U. knownFiles, from a folder
-// walk, groups the files it just listed by knownFileKeyForPath:, and every
-// rung's candidate is looked up there before the disk: an exact path wins,
-// else a sole match supplies the listing's spelling, which is what the walk
-// claims, without a probe.
-+ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
-                                     knownFiles:(nullable NSDictionary<NSString *, NSArray<NSURL *> *> *)knownFiles;
 
 // A lookup bucket folded for case and Unicode normalization, never a file's
 // identity: a case-sensitive volume may hold several matches.
 + (NSString *)knownFileKeyForPath:(NSString *)path;
-
-// The rows of a sheet embedded in the FLAC at url, each a window of the file
-// itself, by the rules of cueRowsInText:; empty when it carries none, or one
-// giving a single row. The CUESHEET tag's text (which has titles) wins over
-// the binary CUESHEET block (which has only marks). Reads the metadata blocks
-// and nothing else — the caller decides the file is worth opening at all.
-+ (NSArray<AudioTrack *> *)cueRowsEmbeddedInFLACAtURL:(NSURL *)url;
 
 // The entries of an M3U playlist in list order: comment and directive lines
 // (#…) skipped, file:// URLs reduced to their paths, other URL schemes
@@ -99,8 +64,8 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // URL>" — the window in CD frames, the names percent-encoded — so it reads back
 // as the same row. A path is written relative to directory when the track sits
 // under it and absolute otherwise; nil means absolute throughout. LF line
-// endings, and the result reads back through m3uEntriesInText: and
-// rowsForPlaylistAtURL: unchanged.
+// endings. Names containing backslashes do not round-trip: the reader treats
+// them as Windows path separators.
 + (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks
            relativeToDirectory:(nullable NSURL *)directory;
 
@@ -115,16 +80,44 @@ extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 // makes every entry relative to. nil when nothing below the root is shared.
 + (nullable NSURL *)commonDirectoryForTracks:(NSArray<AudioTrack *> *)tracks;
 
-// The app's private session mirror: explicit URL/defaults keep it independent
-// of the shell and let tests use a temporary folder. No grants or Open Recent.
-// A failed write removes both stale mirror and cursor; nil write uses atomic M3U.
-+ (BOOL)saveSessionTracks:(NSArray<AudioTrack *> *)tracks currentIndex:(NSUInteger)index
-                 enabled:(BOOL)enabled toURL:(NSURL *)url defaults:(NSUserDefaults *)defaults
-                   write:(BOOL (^_Nullable)(NSError * _Nullable * _Nullable error))write
-                   error:(NSError * _Nullable * _Nullable)error;
-+ (void)removeSessionAtURL:(NSURL *)url defaults:(NSUserDefaults *)defaults;
-+ (BOOL)restoreSessionAtURL:(NSURL *)url enabled:(BOOL)enabled defaults:(NSUserDefaults *)defaults
-                     load:(void (^)(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused))load;
+@end
+
+// CUE sheets, beside their files or embedded in a FLAC (PlaylistFile+CUE.m).
+@interface PlaylistFile (CUE)
+
+// A CUE sheet as rows, one per AUDIO TRACK kept, each a window of the FILE its
+// start INDEX sits in (AudioTrack's cue initializer). A track starts at INDEX
+// 01, else INDEX 00; one with neither, or starting before the last kept start
+// in its file, is dropped. A row ends at the next row of its file — so a
+// pregap plays at the end of the row before it — and the last runs to the
+// file's end; a file's first row starts at its first frame, so audio before
+// track 1 is reachable. The performer falls back to the sheet's; only TITLE
+// and PERFORMER are read. A sheet with no usable TRACK gives one whole-file row
+// per FILE. FILE names are unquoted or quoted, a trailing type keyword
+// stripped from unquoted ones, backslashes normalized to slashes, consecutive
+// duplicates collapsed. resolve maps each FILE name to its URL once, nil for a
+// track before any FILE line; sole is YES when the sheet names at most one
+// file. A nil URL drops that file's rows.
++ (NSArray<AudioTrack *> *)cueRowsInText:(NSString *)text sheetURL:(nullable NSURL *)sheetURL
+                           resolvingFile:(NSURL *_Nullable (^)(NSString *_Nullable name, BOOL sole))resolve;
+
+// The sheet at url as rows, each FILE resolved through rowsForPlaylistAtURL:'s rungs.
+// A sheet naming one image — or none — that no rung finds takes the audio named
+// like the sheet beside it (Mix.cue's Mix.flac). An entry readable nowhere
+// still yields its primary candidate, as for M3U. knownFiles, from a folder
+// walk, groups the files it just listed by knownFileKeyForPath:, and every
+// rung's candidate is looked up there before the disk: an exact path wins,
+// else a sole match supplies the listing's spelling, which is what the walk
+// claims, without a probe.
++ (NSArray<AudioTrack *> *)cueRowsForSheetAtURL:(NSURL *)url
+                                     knownFiles:(nullable NSDictionary<NSString *, NSArray<NSURL *> *> *)knownFiles;
+
+// The rows of a sheet embedded in the FLAC at url, each a window of the file
+// itself, by the rules of cueRowsInText:; empty when it carries none, or one
+// giving a single row. The CUESHEET tag's text (which has titles) wins over
+// the binary CUESHEET block (which has only marks). Reads the metadata blocks
+// and nothing else — the caller decides the file is worth opening at all.
++ (NSArray<AudioTrack *> *)cueRowsEmbeddedInFLACAtURL:(NSURL *)url;
 
 @end
 

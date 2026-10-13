@@ -123,7 +123,6 @@ static SettingsFillView *Hairline(NSView *in) {
     SettingsFillView *_searchMark;
     NSTableView *_listTable;
     SettingsFillView *_listHeader;
-    // Built on first use by setCaption:.
     NSStackView *_cluster;
     NSLayoutConstraint *_titleCenteredConstraint;
     NSArray<NSLayoutConstraint *> *_captionConstraints;
@@ -610,24 +609,6 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     if (![_headerLabel.stringValue isEqualToString:label]) {
         _headerLabel.stringValue = label;
     }
-}
-
-@end
-
-@implementation VibeDetentSlider
-
-- (void)drawRect:(NSRect)dirtyRect {
-    [super drawRect:dirtyRect];
-    if (self.maxValue <= self.minValue) {
-        return;
-    }
-    CGFloat knob = ((NSSliderCell *)self.cell).knobThickness;
-    CGFloat fraction = (self.detentValue - self.minValue) / (self.maxValue - self.minValue);
-    CGFloat x = round(knob / 2 + fraction * (NSWidth(self.bounds) - knob));
-    CGFloat midY = NSMidY(self.bounds);
-    [[NSColor.secondaryLabelColor colorWithAlphaComponent:0.6] setFill];
-    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY + 5, 1, 4), NSCompositingOperationSourceOver);
-    NSRectFillUsingOperation(NSMakeRect(x - 0.5, midY - 9, 1, 4), NSCompositingOperationSourceOver);
 }
 
 @end

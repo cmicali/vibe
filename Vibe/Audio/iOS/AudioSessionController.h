@@ -75,7 +75,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 
 // Category Playback + setActive:YES, and cancels any pending idle
-// deactivation. Idempotent and cheap — call before every user play/resume,
+// deactivation. Call before every user play/resume,
 // never at launch, so Vibe never claims audio it is not using. Clears
 // route-loss and media-reset ownership, which the interruption-ended resume
 // never does.
@@ -92,8 +92,8 @@ NS_ASSUME_NONNULL_BEGIN
 // Re-asks a release still wanted. Call at audioPlayerOutputDidBecomeIdle:.
 - (void)deactivateIfIdle;
 
-// What the audio is coming out of. Written together under one lock, so the
-// pair is always one route's answer. BEFORE the first activate the session can
+// What the audio is coming out of. Written together under one lock; each
+// getter reads separately. Before the first activate the session can
 // report no outputs at all, which reads as VibeOutputRouteKindNone — and an
 // AirPlay destination picked while the session is inactive is not reflected
 // until the next activation records it.

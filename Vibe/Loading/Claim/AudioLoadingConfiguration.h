@@ -1,0 +1,67 @@
+//
+//  AudioLoadingConfiguration.h
+//  Vibe
+//
+
+#import <Foundation/Foundation.h>
+
+#import "AudioFileOpenTimeoutMath.h"
+
+NS_ASSUME_NONNULL_BEGIN
+
+FOUNDATION_EXPORT NSString * const VibeAudioLoadingConfigurationErrorDomain;
+
+typedef NS_ENUM(NSInteger, VibeAudioLoadingConfigurationErrorCode) {
+    VibeAudioLoadingConfigurationErrorInvalidValue = 1,
+};
+
+typedef struct {
+    // Safe tuning surface.
+    NSUInteger maximumBackgroundMaterializations;
+    NSUInteger localMetadataParseConcurrency;
+    NSUInteger prefetchDepth;
+
+    // Diagnostic surface: only tests and the debug channel change these.
+    NSUInteger maximumInteractiveMaterializations;
+    NSUInteger maximumInteractivePendingMaterializations;
+    NSUInteger maximumBackgroundPendingMaterializations;
+    NSTimeInterval interactiveAdmissionGrace;
+    NSTimeInterval backgroundAdmissionGrace;
+    // How long a dataless probe may wait for one of the probe slots. On the
+    // wall clock, not the coordinator's.
+    NSTimeInterval datalessProbePendingGrace;
+    NSUInteger metadataRetryCount;
+    VibeAudioOpenTimeoutConfiguration openTimeouts;
+} VibeAudioLoadingConfigurationValues;
+
+FOUNDATION_EXPORT VibeAudioLoadingConfigurationValues
+VibeAudioLoadingProductionConfigurationValues(void);
+
+@interface AudioLoadingConfiguration : NSObject <NSCopying>
+
+@property (nonatomic, readonly) NSUInteger maximumBackgroundMaterializations;
+@property (nonatomic, readonly) NSUInteger localMetadataParseConcurrency;
+@property (nonatomic, readonly) NSUInteger prefetchDepth;
+
+@property (nonatomic, readonly) NSUInteger maximumInteractiveMaterializations;
+@property (nonatomic, readonly) NSUInteger maximumInteractivePendingMaterializations;
+@property (nonatomic, readonly) NSUInteger maximumBackgroundPendingMaterializations;
+@property (nonatomic, readonly) NSTimeInterval interactiveAdmissionGrace;
+@property (nonatomic, readonly) NSTimeInterval backgroundAdmissionGrace;
+@property (nonatomic, readonly) NSTimeInterval datalessProbePendingGrace;
+@property (nonatomic, readonly) NSUInteger metadataRetryCount;
+@property (nonatomic, readonly) VibeAudioOpenTimeoutConfiguration openTimeouts;
+@property (nonatomic, readonly) VibeAudioLoadingConfigurationValues values;
+
++ (instancetype)productionConfiguration;
+
+- (nullable instancetype)initWithValues:(VibeAudioLoadingConfigurationValues)values
+                                  error:(NSError *__autoreleasing _Nullable *_Nullable)error
+        NS_DESIGNATED_INITIALIZER;
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
+
+@end
+
+NS_ASSUME_NONNULL_END

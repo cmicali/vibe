@@ -8,7 +8,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Every audio extension Vibe plays. Foundation-only so both readers can import
-// it: NSURLUtil imports PlaylistFile, so neither could own the set.
+// it: FolderWalk imports PlaylistFile, so neither could own the set.
 //
 // Must cover every spelling CFBundleDocumentTypes admits, conformance
 // included (com.microsoft.waveform-audio is wav, wave AND bwf;
@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (class, readonly) NSSet<NSString *> *lookup;
 
-// The playable ones TagLib parses (AudioTrackMetadata.mm's openByExtension,
+// The playable ones TagLib parses (TagLibAudioFile.mm's openByExtension,
 // adts by its content). The rest — w64, caf — take their facts from
 // CoreAudio, which reads only a whole local file.
 @property (class, readonly) NSSet<NSString *> *tagParsed;

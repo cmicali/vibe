@@ -3,8 +3,9 @@
 //  Vibe
 //
 
-#import "AudioFX.h"
+#import "AudioFX+Pipeline.h"
 #import "AudioFXMath.h"
+#import "AudioVarispeed.h"
 #import "FadeMath.h"
 #import <AVFAudio/AVFAudio.h>
 #import <Accelerate/Accelerate.h>
@@ -27,10 +28,8 @@ static const float kLowKillFlatBandwidth = 2.0f;
 static const int kLowKillSweepSteps = 40;
 static const uint64_t kLowKillSweepStepMicroseconds = 2000;
 // A move of the engaged filter within this ratio is written to the unit
-// directly instead of swept: the pad's frames arrive finer than the sweep's
-// steps (about 7% a frame for a one-second full-height swipe, against 6% a
-// step), so sweeping each would restart forty timers per frame to move one
-// step. A larger jump (a flick, the toggle) still sweeps from where it sits.
+// directly instead of swept. This avoids restarting a sweep on each drag
+// frame. A larger jump still sweeps from the current frequency.
 static const float kLowKillDirectMoveRatio = 1.12f;
 // How long a parked EQ keeps rendering for that residue before it is reset
 // and skipped.
@@ -109,12 +108,6 @@ static const double kGateSlewSeconds = 0.025;
 
 #pragma mark - The chain
 
-// A stereo buffer list the render can build on its stack.
-typedef struct {
-    UInt32 mNumberBuffers;
-    AudioBuffer mBuffers[2];
-} VibeFXStereoList;
-
 // One hosted unit and the scratch pair its input callback copies from.
 typedef struct {
     AudioUnit _Nullable unit;
@@ -189,7 +182,7 @@ struct VibeFXChain {
 VIBE_REALTIME_UNCHECKED_BEGIN
 static inline OSStatus VibeFXRenderUnit(VibeFXChain *chain, VibeFXUnit *unit, const AudioTimeStamp *timestamp,
                                         UInt32 frames, float *const out[2]) CA_REALTIME_API {
-    VibeFXStereoList list = { 2, { { 1, frames * (UInt32)sizeof(float), out[0] }, { 1, frames * (UInt32)sizeof(float), out[1] } } };
+    VibeStereoBufferList list = { 2, { { 1, frames * (UInt32)sizeof(float), out[0] }, { 1, frames * (UInt32)sizeof(float), out[1] } } };
     AudioUnitRenderActionFlags flags = 0;
     atomic_fetch_add_explicit(chain->unitRenders, 1, memory_order_relaxed);
     return AudioUnitRender(unit->unit, &flags, timestamp, 0, frames, (AudioBufferList *)&list);
@@ -235,7 +228,7 @@ static inline void VibeFXPanInto(float *const lane[2], float *const out[2], UInt
     }
 }
 
-// Slewed per frame, so a target written mid-block lands smoothly.
+// Read the target once per block and slew toward it per frame.
 static inline void VibeFXGate(VibeFXStage *stage, float *const in[2], float *const out[2], UInt32 frames,
                               float slew) CA_REALTIME_API {
     float gain = stage->gain;
@@ -344,50 +337,8 @@ VIBE_REALTIME_END
 
 #pragma mark - Hosting
 
-BOOL VibeHostAudioUnit(AudioUnit *unit, OSType type, OSType subtype, const AudioStreamBasicDescription *format,
-                       UInt32 maximumFrameCount, AURenderCallbackStruct input, void (^configure)(AudioUnit)) {
-    VibeDisposeAudioUnit(unit);
-    AudioComponentDescription description = {
-        .componentType = type, .componentSubType = subtype, .componentManufacturer = kAudioUnitManufacturer_Apple,
-    };
-    AudioComponent component = AudioComponentFindNext(NULL, &description);
-    AudioUnit instance = NULL;
-    if (!component || AudioComponentInstanceNew(component, &instance) != noErr || !instance) {
-        LogError(@"AudioFX: no '%c%c%c%c' unit", (char)(subtype >> 24), (char)(subtype >> 16), (char)(subtype >> 8), (char)subtype);
-        return NO;
-    }
-    AudioStreamBasicDescription asbd = *format;
-    UInt32 frames = maximumFrameCount;
-    OSStatus status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, sizeof(asbd));
-    if (status == noErr) {
-        status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, sizeof(asbd));
-    }
-    if (status == noErr) {
-        // TRAP: a directly hosted Apple unit defaults to 1156 frames per slice
-        // and refuses the pipeline's 4096-frame slices with
-        // kAudioUnitErr_TooManyFramesToProcess.
-        status = AudioUnitSetProperty(instance, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &frames, sizeof(frames));
-    }
-    if (status == noErr) {
-        status = AudioUnitSetProperty(instance, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
-    }
-    if (status == noErr && configure) {
-        configure(instance);
-    }
-    if (status == noErr) {
-        status = AudioUnitInitialize(instance);
-    }
-    if (status != noErr) {
-        LogError(@"AudioFX: hosting '%c%c%c%c' failed (OSStatus %d)", (char)(subtype >> 24), (char)(subtype >> 16),
-                 (char)(subtype >> 8), (char)subtype, (int)status);
-        AudioComponentInstanceDispose(instance);
-        return NO;
-    }
-    *unit = instance;
-    return YES;
-}
-
-void VibeDisposeAudioUnit(AudioUnit *unit) {
+// Uninitializes and disposes `*unit` when there is one, leaving NULL.
+static void VibeDisposeAudioUnit(AudioUnit *unit) {
     if (*unit) {
         AudioUnitUninitialize(*unit);
         AudioComponentInstanceDispose(*unit);
@@ -395,7 +346,9 @@ void VibeDisposeAudioUnit(AudioUnit *unit) {
     }
 }
 
-double VibeAudioUnitSeconds(AudioUnit unit, AudioUnitPropertyID property) {
+// A unit's Float64 global property, latency or tail time, in seconds; 0 when
+// unreadable.
+static double VibeAudioUnitSeconds(AudioUnit unit, AudioUnitPropertyID property) {
     Float64 value = 0;
     UInt32 size = sizeof(value);
     if (!unit || AudioUnitGetProperty(unit, property, kAudioUnitScope_Global, 0, &value, &size) != noErr) {
@@ -435,13 +388,53 @@ static double VibeFXTailSeconds(AudioUnit unit) {
 }
 
 // Hosts one of the chain's units over `source` (NULL for the EQ, whose
-// source the render points at its buffers), the input callback copying.
+// source the render points at its buffers), the input callback copying;
+// `configure` runs before the initialize. NO, with nothing hosted, when any
+// step is refused. Player queue, output stopped.
 static BOOL VibeFXHostUnit(VibeFXUnit *unit, OSType type, OSType subtype, const AudioStreamBasicDescription *format,
                            UInt32 maxFrames, float *const _Nullable * _Nullable source, void (^ _Nullable configure)(AudioUnit)) {
+    VibeDisposeAudioUnit(&unit->unit);
     unit->source[0] = source ? source[0] : NULL;
     unit->source[1] = source ? source[1] : NULL;
     AURenderCallbackStruct input = { .inputProc = VibeFXInput, .inputProcRefCon = unit };
-    return VibeHostAudioUnit(&unit->unit, type, subtype, format, maxFrames, input, configure);
+    AudioComponentDescription description = {
+        .componentType = type, .componentSubType = subtype, .componentManufacturer = kAudioUnitManufacturer_Apple,
+    };
+    AudioComponent component = AudioComponentFindNext(NULL, &description);
+    AudioUnit instance = NULL;
+    if (!component || AudioComponentInstanceNew(component, &instance) != noErr || !instance) {
+        LogError(@"AudioFX: no '%c%c%c%c' unit", (char)(subtype >> 24), (char)(subtype >> 16), (char)(subtype >> 8), (char)subtype);
+        return NO;
+    }
+    AudioStreamBasicDescription asbd = *format;
+    UInt32 frames = maxFrames;
+    OSStatus status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &asbd, sizeof(asbd));
+    if (status == noErr) {
+        status = AudioUnitSetProperty(instance, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output, 0, &asbd, sizeof(asbd));
+    }
+    if (status == noErr) {
+        // TRAP: a directly hosted Apple unit defaults to 1156 frames per slice
+        // and refuses the pipeline's 4096-frame slices with
+        // kAudioUnitErr_TooManyFramesToProcess.
+        status = AudioUnitSetProperty(instance, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &frames, sizeof(frames));
+    }
+    if (status == noErr) {
+        status = AudioUnitSetProperty(instance, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &input, sizeof(input));
+    }
+    if (status == noErr && configure) {
+        configure(instance);
+    }
+    if (status == noErr) {
+        status = AudioUnitInitialize(instance);
+    }
+    if (status != noErr) {
+        LogError(@"AudioFX: hosting '%c%c%c%c' failed (OSStatus %d)", (char)(subtype >> 24), (char)(subtype >> 16),
+                 (char)(subtype >> 8), (char)subtype, (int)status);
+        AudioComponentInstanceDispose(instance);
+        return NO;
+    }
+    unit->unit = instance;
+    return YES;
 }
 
 // A one-band high-pass return filter, the tail and echo low-cuts.
@@ -729,8 +722,8 @@ static void VibeFXRestStage(VibeFXChain *chain, VibeFXStage *stage) {
 }
 
 // The player withdrew the chain from the render first. Every tail and sweep
-// leaves at once, nothing is written to the units until the next connect,
-// and the stages rest once a render already inside has left.
+// leaves at once. Park the EQ here and defer stage resets until the render
+// has left. Later intent writes wait for the next connect.
 - (void)disconnectOnQueue {
     if (!_connected) {
         return;

@@ -18,7 +18,6 @@ typedef NS_ENUM(NSInteger, VibeAboutSection) {
     VibeAboutSectionCount,
 };
 
-// Same three, in the mac pane's order.
 typedef NS_ENUM(NSInteger, VibeAboutLinkRow) {
     VibeAboutLinkRowWeb = 0,
     VibeAboutLinkRowSupport,
@@ -44,8 +43,7 @@ static NSString *const kValueCellIdentifier = @"value";
 // catalog is a layered stack with no flat rendition reachable by public API.
 // TRAP: [UIImage imageNamed:@"AppIcon"] does not return nil for it — it THROWS,
 // so a nil-check fallback never runs. The loose PNG CFBundleIcons names is
-// used instead: 120px, soft at 3x. Nil drops the image rather than drawing a
-// placeholder that reads as a failed load.
+// used instead. Nil omits the image.
 static UIImage *AppIconImage(void) {
     NSDictionary *icons = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleIcons"];
     NSDictionary *primary = icons[@"CFBundlePrimaryIcon"];

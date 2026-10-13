@@ -32,10 +32,10 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null
 open -a "Device Hub" 2>/dev/null || true
 
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
-# Unconditional, a live drive-ios.sh session included: install-ios.sh installs
+# Unconditional, a live drive-ios.sh session included: sim-install.sh installs
 # only when the content differs, and skipping it leaves gestures silently
 # running against the previous build.
-VIBE_IOS_APP="$APP" "$DIR/install-ios.sh" "$UDID"
+VIBE_IOS_APP="$APP" "$DIR/sim-install.sh" "$UDID"
 
 if [ "$#" -gt 0 ]; then
     DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" data)"
@@ -54,9 +54,13 @@ xcrun simctl launch "$UDID" "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 # Short per-attempt timeouts: a command written before the channel installs is
 # swept as stale, and a fresh one lands. A channel that never answers (a
 # non-debug build) falls back to a flat 2s.
+# TRAP: the poll names this device and never an inherited VIBE_APP_TMP. That
+# path is another caller's device, or this one's before the install moved it.
+# Inherited, another simulator's app answered at once, so the launch returned
+# before this app's channel was up, and its first command was swept.
 READY=""
 for _ in $(seq 1 15); do
-    if VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
+    if VIBE_SIM_UDID="$UDID" VIBE_APP_TMP="" VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
         READY=1
         break
     fi

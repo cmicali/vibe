@@ -9,14 +9,18 @@
 #import "AudioFileConverter.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
+#import "AudioTrack.h"
 #import "MainPlayerController.h"
-#import "NSURLUtil.h"
+#import "MainPlayerController+Playlist.h"
+#import "FolderWalk.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
 #import "MainMenuBuilder.h"
 #import "OpenBurstCoalescer.h"
 #import "OpenRequestCoordinator.h"
+#import "OpenLinkWindowController.h"
 #import "OpenRecentMenuController.h"
+#import "PlaylistController.h"
 #import "PlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
@@ -25,16 +29,22 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
-#import "VibeStrings.h"
+#import "LinkDropRules.h"
+#import "LinkStore.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+#if VIBE_DIRECT_DISTRIBUTION
+#import "AppDelegate+Updates.h"
+#endif
+
 #if DEBUG
-#import "DebugUtil.h"
+#import "DebugMacEntry.h"
 #import "OpenBurstCoalescer+Debug.h"
+#import "OpenLinkWindowController+Debug.h"
 #endif
 
 
-@interface AppDelegate ()
+@interface AppDelegate () <NSMenuItemValidation>
 
 @property (nonatomic, strong) AboutWindowController *aboutWindowController;
 @property (nonatomic, strong) SettingsWindowController *settingsWindowController;
@@ -52,6 +62,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenRecentMenuController *_openRecentMenuController;
     // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
     NSOpenPanel *_openPanel;
+    OpenLinkWindowController *_openLinkWindowController;
+    // One cancel per open still resolving its links, until it settles.
+    NSMutableArray<dispatch_block_t> *_linkOpenCancels;
 }
 
 - (instancetype)init {
@@ -63,6 +76,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                                sink:^(NSArray<NSURL *> *urls, BOOL append) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
+        _linkOpenCancels = [NSMutableArray array];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
@@ -71,22 +85,30 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // Before the restore, which may name a link. From here a link's
+    // placeholder is dataless, and opening it streams it.
+    [LinkStore.shared installAsRemoteBackend];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
-    [NSURLUtil setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
+    [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
     }];
-    [NSURLUtil setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
+    [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
                                      artFilenameByDirectory:artFilenameByDirectory];
     }];
-    [NSURLUtil setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
+    [FolderWalk setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
+#if VIBE_DIRECT_DISTRIBUTION
+    // Before the menu, whose Check for Updates… targets it.
+    _updaterController = [self makeUpdaterController];
+#endif
     // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
     _openRecentMenuController = [[OpenRecentMenuController alloc] initWithAppDelegate:self];
+    _openLinkWindowController = [[OpenLinkWindowController alloc] initWithAppDelegate:self];
     [MainMenuBuilder installMainMenuWithAppDelegate:self
                                    playerController:self.mainPlayerController
                            openRecentMenuController:_openRecentMenuController];
@@ -121,6 +143,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [self.mainPlayerController showWindow:self];
 
+#if VIBE_DIRECT_DISTRIBUTION
+    [_updaterController startUpdater];
+#endif
+
     [self openCommandLineArguments];
 
     // A launch-time open may need a restored grant, so the coalescer's queue
@@ -138,7 +164,17 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         } revealEmpty:^{
             [self.mainPlayerController revealEmptyStateNamingPlaylist:nil];
         }];
+        [self pruneLinks];
     }];
+}
+
+// Once per launch, after the restore, so the playlist holds what it brought
+// back. A launch-time open may still be expanding, so its rows are not kept.
+// A link it names was opened within 30 days, unless a saved playlist names an
+// older one.
+- (void)pruneLinks {
+    [LinkStore.shared pruneKeepingTracks:self.mainPlayerController.playlistController.playlist
+                              recentURLs:NSDocumentController.sharedDocumentController.recentDocumentURLs];
 }
 
 // Dash-prefixed flags are skipped. Under the sandbox only paths it already
@@ -192,6 +228,150 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     if (urls.count == 0) {
         return;
     }
+    OpenRequestToken *token = [self beginOpenRequestAppending:append fromURLs:urls];
+    if (VibeDropHasLinks(urls)) {
+        [self openLinksAmongURLs:urls appending:append token:token];
+    }
+    else {
+        [self openFiles:urls token:token];
+    }
+}
+
+- (void)openFiles:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
+    __weak AppDelegate *weakSelf = self;
+    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
+        [weakSelf openURLsWithRestoredAccess:urls token:token];
+    }];
+}
+
+// A drop holding links (Loading/Net/AGENTS.md). Each .webloc is read for
+// its link off main, then the drop opens in drop order.
+- (void)openLinksAmongURLs:(NSArray<NSURL *> *)urls appending:(BOOL)append token:(OpenRequestToken *)token {
+    [self.mainPlayerController beginLinkResolveFeedbackAppending:append];
+    [self openInOrder:^NSArray *{
+        return VibeDropOpenOrder(urls, ^NSData *(NSURL *webloc) {
+            NSFileHandle *handle = [NSFileHandle fileHandleForReadingFromURL:webloc error:NULL];
+            NSData *head = [handle readDataUpToLength:kVibeLinkWeblocMaxBytes error:NULL];
+            [handle closeAndReturnError:NULL];
+            return head;
+        });
+    } token:token completion:nil];
+}
+
+// The one road a link opens by, a drop's and Open URL's. order runs off
+// main and answers what opens: file URLs, and links as NSURLs or typed text.
+// Each link resolves in that order, one at a time. The files and the links'
+// files then open as one open, in that order. A link that fails drops out,
+// and the header shows the first failure. A cancel, or a newer replacing
+// open, opens nothing. Completion on main, before the header shows the
+// failure, with what opened and the first failure. Returns the cancel, on
+// main.
+- (dispatch_block_t)openInOrder:(NSArray *(^)(void))order
+                          token:(OpenRequestToken *)token
+                     completion:(nullable void (^)(NSArray<NSURL *> *files, NSError *_Nullable error))completion {
+    __weak AppDelegate *weakSelf = self;
+    // Held while the links resolve. A later open that finishes first must
+    // not give up on this one at the straggler deadline.
+    [OpenRequestCoordinator.sharedCoordinator holdRequest:token];
+    __block BOOL cancelled = NO;
+    __block dispatch_block_t cancelResolve = nil;
+    dispatch_block_t cancel = ^{
+        cancelled = YES;
+        // A resolve's cancel completes it at once, which clears the variable.
+        dispatch_block_t resolve = cancelResolve;
+        if (resolve) {
+            resolve();
+        }
+    };
+    [_linkOpenCancels addObject:cancel];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSArray *items = order();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSMutableArray<NSURL *> *files = [NSMutableArray array];
+            __block NSError *firstError = nil;
+            __block NSString *status = nil;
+            __block NSString *failed = nil;
+            __block void (^step)(NSUInteger) = nil;
+            step = ^(NSUInteger next) {
+                AppDelegate *strongSelf = weakSelf;
+                if (!strongSelf) {
+                    return;
+                }
+                BOOL current = !cancelled && [OpenRequestCoordinator.sharedCoordinator isRequestCurrent:token];
+                while (current && next < items.count && [items[next] isKindOfClass:NSURL.class]
+                       && [items[next] isFileURL]) {
+                    [files addObject:items[next++]];
+                }
+                if (current && next < items.count) {
+                    id item = items[next];
+                    NSString *text = [item isKindOfClass:NSURL.class] ? [item absoluteString] : item;
+                    cancelResolve = [LinkStore.shared resolveURLString:text
+                                                            completion:^(NSURL *file, NSError *error) {
+                        cancelResolve = nil;
+                        if (file) {
+                            [files addObject:file];
+                        }
+                        else {
+                            firstError = firstError ?: error;
+                            if (!status) {
+                                status = [LinkStore messageForError:error brief:YES];
+                                failed = VibeLinkNameOfText(text);
+                            }
+                        }
+                        void (^again)(NSUInteger) = step;
+                        again(next + 1);
+                    }];
+                    return;
+                }
+                [strongSelf->_linkOpenCancels removeObjectIdenticalTo:cancel];
+                OpenRequestCoordinator *coordinator = OpenRequestCoordinator.sharedCoordinator;
+                [coordinator releaseRequest:token];
+                if (![coordinator isRequestCurrent:token]) {
+                    // Superseded: nothing delivers for this open, so a
+                    // drop's shimmer ends here.
+                    [strongSelf endLinkResolveFeedbackIfIdle];
+                }
+                else if (!current || files.count == 0) {
+                    // The empty delivery. It leaves a loaded playlist as it
+                    // is. Over an empty one it ends the launch grace.
+                    [coordinator finishRequest:token rows:@[] folderCount:0];
+                }
+                else {
+                    [strongSelf openFiles:files token:token];
+                }
+                if (completion) {
+                    completion(files, firstError);
+                }
+                if (current && status) {
+                    [strongSelf.mainPlayerController showNotice:status naming:failed];
+                }
+                // Last: this block may go with it.
+                step = nil;
+            };
+            void (^first)(NSUInteger) = step;
+            first(0);
+        });
+    });
+    return cancel;
+}
+
+// After the last link drop settles. A delivery while another drop resolves
+// leaves its shimmer up.
+- (void)endLinkResolveFeedbackIfIdle {
+    if (_linkOpenCancels.count == 0) {
+        [self.mainPlayerController endLinkResolveFeedback];
+    }
+}
+
+- (BOOL)cancelLinkOpens {
+    NSArray<dispatch_block_t> *cancels = [_linkOpenCancels copy];
+    for (dispatch_block_t cancel in cancels) {
+        cancel();
+    }
+    return cancels.count > 0;
+}
+
+- (OpenRequestToken *)beginOpenRequestAppending:(BOOL)append fromURLs:(NSArray<NSURL *> *)urls {
     __weak AppDelegate *weakSelf = self;
     OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
@@ -199,8 +379,28 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
                              [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending
                                                   fromURLs:urls];
                          }];
-    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
-        [weakSelf openURLsWithRestoredAccess:urls token:token];
+    // After the supersession, so a superseded open delivers nothing. Its
+    // links stop resolving.
+    if (!append) {
+        [self cancelLinkOpens];
+    }
+    // The newer open's header must not wait for a held link error.
+    [self.mainPlayerController endNotice];
+    return token;
+}
+
+- (dispatch_block_t)openLinkString:(NSString *)string completion:(void (^)(NSURL *, NSError *))completion {
+    OpenRequestToken *token = [self beginOpenRequestAppending:NO fromURLs:@[]];
+    return [self openInOrder:^NSArray *{
+        return @[string];
+    } token:token completion:^(NSArray<NSURL *> *files, NSError *error) {
+        if (!completion) {
+            return;
+        }
+        // Superseded before its resolve began, it settles as a cancel.
+        completion(files.firstObject, files.count ? nil : error ?: [NSError errorWithDomain:VibeLinkErrorDomain
+                                                                                       code:VibeLinkErrorCancelled
+                                                                                   userInfo:nil]);
     }];
 }
 
@@ -211,9 +411,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     // Bookmark while the open's sandbox grant is live.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
     // Read on main; the walk reads no setting itself.
-    [NSURLUtil expandAndFilterList:urls
-                          sortedBy:AppSettings.sharedInstance.folderOpenSort
-                        completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
+    [FolderWalk expandAndFilterList:urls
+                           sortedBy:AppSettings.sharedInstance.folderOpenSort
+                         completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
         [OpenRequestCoordinator.sharedCoordinator finishRequest:token
                                                            rows:rows
                                                     folderCount:folderCount];
@@ -237,23 +437,24 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
             }
         }
         [self.mainPlayerController revealEmptyStateNamingPlaylist:playlist];
-        return;
     }
-    if (append) {
+    else if (append) {
         [self.mainPlayerController addTracks:rows];
     }
     else {
         [self.mainPlayerController play:rows];
     }
+    // After the play, which takes the strip for its own open. A drop
+    // superseded by this open ends here too.
+    [self endLinkResolveFeedbackIfIdle];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     return YES;
 }
 
-// A quit waits on the device (restoring its format and hog, bounded at 1.5 s)
-// and on a conversion's cancel, so Vibe leaves the screen first and finishes
-// off main.
+// A quit waits on device cleanup and a conversion's cancellation. HAL calls
+// can block, so Vibe leaves the screen before waiting off main.
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     for (NSWindow *window in NSApp.windows) {
         [window orderOut:nil];
@@ -327,6 +528,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     NSWindowLevel level = AppSettings.sharedInstance.alwaysOnTop ? NSFloatingWindowLevel : NSNormalWindowLevel;
     self.aboutWindowController.window.level = level;
     self.settingsWindowController.window.level = level;
+    _openLinkWindowController.window.level = level;
 }
 
 - (IBAction)openDocument:(id)sender {
@@ -362,9 +564,30 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     }];
 }
 
+- (IBAction)openLink:(id)sender {
+    [_openLinkWindowController showWindow:sender];
+}
+
+// ⌘W and Close's validation with no window ahead of this one to take them.
+- (IBAction)closeFile:(id)sender {
+    [_openLinkWindowController closeFile:sender];
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    return [_openLinkWindowController validateMenuItem:menuItem];
+}
+
 #if DEBUG
 - (NSUInteger)debugQueuedOpenCount {
     return [_openBurstCoalescer debugQueuedURLCount];
+}
+
+- (NSWindow *)debugOpenLinkWindow {
+    return _openLinkWindowController.window;
+}
+
+- (BOOL)debugOpenLinkResolving {
+    return [_openLinkWindowController debugResolving];
 }
 #endif
 

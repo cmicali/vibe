@@ -25,8 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 // when it is hidden or absent.
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier;
 
-// Re-resolves colors without writing a setting.
-- (void)refreshWaveformTheme;
+// The text view with keyboard focus in the key window, a field editor
+// included, or nil. ⌘C is Copy File's, which copies this text instead.
+- (nullable NSTextView *)focusedTextView;
 
 @end
 

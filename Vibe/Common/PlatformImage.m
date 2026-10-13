@@ -6,6 +6,7 @@
 #import "PlatformImage.h"
 #import <Accelerate/Accelerate.h>
 #import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
@@ -140,6 +141,34 @@ VibeImage *VibeDecodedImageWithData(NSData *data, CGFloat maxPixelSize) {
 #endif
     CGImageRelease(cgImage);
     return image;
+}
+
+NSData *VibeEncodedImageData(VibeImage *image) {
+#if TARGET_OS_OSX
+    CGImageRef cgImage = [image CGImageForProposedRect:NULL context:nil hints:nil];
+#else
+    CGImageRef cgImage = image.CGImage;
+#endif
+    if (!cgImage) {
+        return nil;
+    }
+    CGImageAlphaInfo alphaInfo = CGImageGetAlphaInfo(cgImage);
+    BOOL hasAlpha = !(alphaInfo == kCGImageAlphaNone ||
+                      alphaInfo == kCGImageAlphaNoneSkipFirst ||
+                      alphaInfo == kCGImageAlphaNoneSkipLast);
+    NSString *type = hasAlpha ? UTTypePNG.identifier : UTTypeJPEG.identifier;
+    NSMutableData *encoded = [NSMutableData data];
+    CGImageDestinationRef destination =
+        CGImageDestinationCreateWithData((__bridge CFMutableDataRef)encoded,
+                                         (__bridge CFStringRef)type, 1, NULL);
+    if (!destination) {
+        return nil;
+    }
+    NSDictionary *options = hasAlpha ? @{} : @{(id)kCGImageDestinationLossyCompressionQuality: @0.85};
+    CGImageDestinationAddImage(destination, cgImage, (__bridge CFDictionaryRef)options);
+    BOOL finalized = CGImageDestinationFinalize(destination);
+    CFRelease(destination);
+    return finalized ? encoded : nil;
 }
 
 static const size_t kDominantSampleSide = 32;

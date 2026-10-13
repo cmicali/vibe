@@ -14,9 +14,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Both targets' entitlements carry it; a mismatch makes containerURL nil.
 extern NSString *const kVibeWidgetAppGroup;
 
-// A Darwin notification loadState posts. A read IS the signal that a widget
-// exists (WidgetKit spawns the extension only to render one), and it is how a
-// widget added in the background turns the app's publishing back on.
+// Posted by loadState to enable publishing, including during gallery previews.
 extern const char *const kVibeWidgetReadNotification;
 
 @interface VibeWidgetState : NSObject
@@ -37,6 +35,10 @@ extern const char *const kVibeWidgetReadNotification;
 // Where the playhead was AT positionDate; the widget advances it itself.
 @property (nonatomic) NSTimeInterval position;
 @property (nonatomic, copy, nullable) NSDate *positionDate;
+
+// YES: both waveform images are the whole strip as played, and the widget
+// draws a line at the playhead. NO: the played image is revealed to it.
+@property (nonatomic) BOOL playheadLine;
 
 #pragma mark - Where it lives
 

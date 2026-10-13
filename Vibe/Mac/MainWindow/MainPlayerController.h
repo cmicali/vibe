@@ -12,7 +12,6 @@
 @class AudioWaveformCache;
 @class AudioFileConverter;
 @class OutputDevicesMenuController;
-@class VibeSlider;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -45,12 +44,19 @@ NS_ASSUME_NONNULL_BEGIN
 // shows until the next load or Close; nil for none. Idempotent.
 - (void)revealEmptyStateNamingPlaylist:(nullable NSString *)name;
 
-// YES when the mirror came back, parked on its last current row; NO when the
-// setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).
-- (BOOL)restoreLastPlaylist;
-- (BOOL)loadWelcomeTrack;
-// Quit-time: writes the mirror, or deletes it when off or empty.
-- (void)saveLastPlaylist;
+// A dropped link's resolve shows the waveform's loading shimmer. An append
+// over a shown track shows nothing, since that track's waveform stays. The
+// end puts back what the header shows. It leaves the strip to a track's open
+// still in flight.
+- (void)beginLinkResolveFeedbackAppending:(BOOL)append;
+- (void)endLinkResolveFeedback;
+
+// A link that failed to open. The header shows status over the link's name,
+// in the Error look, for 4 s. Then it shows what it showed before. Playback
+// and Now Playing go on under it. A newer open ends it early, and so does
+// Close.
+- (void)showNotice:(NSString *)status naming:(NSString *)name;
+- (void)endNotice;
 
 - (IBAction)closeApp:(id)sender;
 - (IBAction)minimizeWindow:(id)sender;
@@ -58,28 +64,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)playPause:(nullable id)sender;
 - (IBAction)next:(nullable id)sender;
 - (IBAction)previous:(nullable id)sender;
-// The header's volume slider: stores its position and pushes it to the player.
-- (IBAction)volumeChanged:(VibeSlider *)sender;
 
 // Plays the selected row, as a double-click does.
 - (IBAction)playSelectedTrack:(nullable id)sender;
 
-- (IBAction)closeFile:(nullable id)sender;
-
-// The playlist as M3U; the audio files are never touched.
-- (IBAction)savePlaylist:(nullable id)sender;
-
-// Removes every selected row, never the file. A removed current row hands its
-// play intent to its forward successor, or parks on the row before.
-- (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
-
-// The Transport, Window and Convert actions are declared in their category
-// headers.
-
-- (IBAction)setPitchRange:(id)sender;
-- (IBAction)toggleShuffle:(nullable id)sender;
-// Off, All, One, Off.
-- (IBAction)cycleRepeatMode:(nullable id)sender;
+// The Playlist, Transport, Window and Convert actions are declared in their
+// category headers.
 
 - (IBAction)showInFinder:(id)sender;
 - (IBAction)copyFile:(id)sender;

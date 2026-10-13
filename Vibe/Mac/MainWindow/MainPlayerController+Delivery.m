@@ -6,11 +6,10 @@
 #import "MainPlayerController+Delivery.h"
 #import "MainPlayerControllerInternal.h"
 
-#import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
-#import "MainPlayerContentView.h"
+#import "FolderArtResolver.h"
 
 @implementation MainPlayerController (Delivery)
 
@@ -24,14 +23,6 @@
     }
 }
 
-- (void)audioWaveformView:(AudioWaveformView *)waveformView didSeek:(float)percentage {
-    [self.audioPlayer seekToPosition:self.audioPlayer.duration * percentage];
-}
-
-- (void)audioWaveformViewDidResolveTheme:(AudioWaveformView *)waveformView {
-    [self.playerContentView applyVolumeColors];
-}
-
 // The cache cancels only when the next load starts, so between a slow track's
 // didBeginLoading: and its start the outgoing decode still streams; unmatched,
 // it would draw under the new track's shimmer.
@@ -43,8 +34,9 @@
         return;
     }
     // Not the source alone: a late snapshot must not repaint over the error
-    // state of the same, still-current track.
-    if ([self displayState] == TrackDisplayStateError) {
+    // state of the same, still-current track, or over a notice.
+    TrackDisplayState header = [self headerState];
+    if (header == TrackDisplayStateError || header == TrackDisplayStateNotice) {
         return;
     }
     [self.trackDisplay showWaveform:waveform];
@@ -69,6 +61,47 @@
     [self stampTracksSounding:analyzed usingBlock:^(AudioTrack *track) {
         track.detectedKey = key;
     }];
+}
+
+#pragma mark - Grants, folder art and thumbnails
+
+// Forgets no-grant answers only; a known cover rechecks access on every read.
+// A full wipe would discard the covers an open's walk just harvested, since the
+// open's own grant lands a moment later.
+- (void)grantedFoldersDidChange:(NSNotification *)notification {
+    [FolderArtResolver.sharedInstance invalidateDirectoriesSettledWithoutGrant];
+    [self.playlistController reloadAllTracks];
+    [self updateUI];
+}
+
+- (void)thumbnailDidLoad:(NSNotification *)notification {
+    AudioTrack *displayed = [self displayedTrack];
+    if (displayed.metadata == notification.object) {
+        [self updateUI];
+    }
+}
+
+// Fired for "none" as well as a cover: the header holds the previous art until
+// it hears. The resolver is serial, so consecutive folders land in different
+// turns; a short delay coalesces where a per-turn gate would not.
+static const NSTimeInterval kFolderArtRedrawDelay = 0.15;
+
+- (void)folderArtDidResolve:(NSNotification *)notification {
+    if (_folderArtRefreshScheduled) {
+        return;
+    }
+    _folderArtRefreshScheduled = YES;
+    __weak MainPlayerController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kFolderArtRedrawDelay * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        MainPlayerController *strongSelf = weakSelf;
+        if (!strongSelf) {
+            return;
+        }
+        strongSelf->_folderArtRefreshScheduled = NO;
+        [strongSelf.playlistController reloadVisibleTracks];
+        [strongSelf updateUI];
+    });
 }
 
 @end

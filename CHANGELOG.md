@@ -1,7 +1,27 @@
 # v1.16
 
+* Added Open URL… to play an audio file from a web address
+* Added playing iCloud Drive share links with Open URL
+* mac: Added dropping a web link or a .webloc file on the player to play it
+* ios: Added playing a copied link from the Files tab
+* Fixed stalled network playback to pause with "Connection lost"
+* Fixed changing shuffle, repeat, or On track end while stopped downloading the next song
+* mac: Added automatic updates and Check for Updates to the downloaded version
 * mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
-* mac: Added a volume slider show setting to theme editor
+* mac: Added volume slider visibility to the theme editor
+* mac: Changed the volume slider to appear near the pointer
+* mac: Improved the pitch fader: cleaner sound, and it glides instead of stepping
+* mac: Added Cut and Paste to the Edit menu
+* mac: Fixed the resize cursor sometimes not showing at the window's right edge
+* Changed Previous on the first song to restart it, on the Mac, in Control Center and on the Lock Screen
+* Added the vibe theme track, which loads on the first launch
+* ios: Added small waveform widgets, a large widget, and Lock Screen widgets
+* ios: Improved the widget's playhead, which now keeps up on long tracks
+* ios: Added the widget's own waveform theme, colors, and playhead line, under its own style
+* ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
+* Added the Spectrum waveform style, colored by each moment's bass, mids and highs, in RGB, Blue, Green or Custom colors
+* ios: Added album art for songs in iCloud and Dropbox that are not downloaded
+* ios: Improved Add Folder: it names iCloud Drive and opens the folder once added
 
 # v1.15
 

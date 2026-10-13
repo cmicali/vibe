@@ -5,10 +5,10 @@
 
 #import <Foundation/Foundation.h>
 #import <QuartzCore/QuartzCore.h>
+#import "WaveformTheme.h"
 
-@class AudioWaveformRenderer;
+@class WaveformRenderer;
 @class CodableAudioWaveform;
-@class WaveformTheme;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Builds an identifier returned by resolveStyleIdentifier:, including variants
 // that share a class. Resolve once, then store and construct that same choice.
-+ (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
++ (WaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark;
 
 // Localized display name, falling back to the identifier itself.
@@ -28,14 +28,24 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier;
 + (BOOL)supportsLevelsForIdentifier:(NSString *)identifier;
-// Whether the style draws AudioWaveformRenderer.centered: every style but Sonic
+// Whether the style draws WaveformRenderer.centered: every style but Sonic
 // Cirrus and the pill.
 + (BOOL)supportsCenteringForIdentifier:(NSString *)identifier;
-// AudioWaveformRenderer.readsBands, for a persisted style; NO for nil or an
+// Whether the style draws the theme's gradient (WaveformTheme.flatFill off):
+// every style but Spectrum, whose color is what it shows, and the pill.
++ (BOOL)supportsGradientForIdentifier:(NSString *)identifier;
+// WaveformRenderer.readsBands, for a persisted style; NO for nil or an
 // unregistered one.
 + (BOOL)readsBandsForIdentifier:(nullable NSString *)identifier;
+// WaveformRenderer.paletteKind, for a persisted style; the waveform
+// theme's for nil or an unregistered one.
++ (VibeWaveformPaletteKind)paletteKindForIdentifier:(nullable NSString *)identifier;
+// The three colors a theme's swatch shows for a persisted style: its
+// palette's, or the played color three times.
++ (NSArray<VibeColor *> *)swatchColorsForIdentifier:(nullable NSString *)identifier
+                                              theme:(WaveformTheme *)theme;
 // iOS, whose playhead line is a loose setting: the user's choice, and until
-// there is one the style's own default, the line for 3-Band alone. The mac's
+// there is one the style's own default, the line for the band styles. The mac's
 // is its theme's field, whatever the style.
 + (BOOL)drawsPlayheadLineForIdentifier:(nullable NSString *)identifier
                                 chosen:(nullable NSNumber *)chosen;

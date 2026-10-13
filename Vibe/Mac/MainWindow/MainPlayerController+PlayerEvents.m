@@ -10,7 +10,6 @@
 #import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "AudioPlayer+Devices.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
 #import "AppStats.h"
@@ -25,7 +24,7 @@
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
 #import "PlaybackDeliveryRules.h"
-#import "SettingsGeneralViewController.h"
+#import "SettingsAudioOutputViewController.h"
 #import "SettingsWindowController.h"
 #import "TrackDisplayController.h"
 #import "VibeStrings.h"
@@ -54,8 +53,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     }
     [self clearErrorMask];
     [self.metadataCache loadMetadataNow:track];
-    // This callback is the slow-open threshold, so a fast play never flashes
-    // the indicator, nor builds a monitor it would cancel moments later.
+    // A dataless verdict or the slow-open timer reaches this callback.
+    // Fast local opens show no loading indicator.
     [self updateUI];
     [self.trackDisplay showWaveformLoadingIndicator];
     if (_loadingOpenRequestIdentifier != openRequestIdentifier) {
@@ -99,6 +98,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self updateUI]; // ends with the Now Playing publish
 }
 
+// A hold stops Now Playing's clock. Nothing on screen shows it: the
+// waveform's loading indicator would wipe the waveform and its click-seek.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBuffering:(BOOL)buffering
+              forTrack:(AudioTrack *)track {
+    if (track != self.playlistController.currentTrack) {
+        return;
+    }
+    [self updateNowPlaying];
+}
+
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {
     // Acting on a stale start would reset the new track's shimmer and
     // waveform, start a wasted decode and prefetch, and cache the wrong
@@ -121,16 +131,16 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
     self.replayResumeTrack = nil; // the live position publishes from here
     // First, so a quick second Next finds the park. nil past the end drops
-    // it. The prefetch's registration preempts any background transfer.
-    [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+    // it. Its claim yields metadata-only dataless transfers.
+    [self.audioPlayer prefetchTrack:self.playlistController.trackEndSuccessor];
     [_artworkController trackDidStartPlaying:track];
     [self clearErrorMask];
     [self endLoadingProgress];
     [self.trackDisplay hideWaveformLoadingIndicator];
     // A cue row reopens as its sheet, which names it.
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:track.cueSheetURL ?: track.url];
-    // The playing track jumps the scan queue. Again after didBeginLoading:'s
-    // request, which skipped the parse while the file was dataless.
+    // Retry the priority request after opening. A dataless-file parse may
+    // have yielded during didBeginLoading:.
     [self.metadataCache loadMetadataNow:track];
     [self startPendingMetadataLoad];
     _currentTrackDuration = self.audioPlayer.duration;
@@ -182,13 +192,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // own didFinishPlaying:'s staleness guard.
 - (BOOL)advanceOrParkAtTrackEnd {
     [self pauseUIUpdateTimer];
-    // Read from the playlist before advanceAtTrackEnd, whose play is async:
-    // the player still reads Stopped after an ordinary advance. Under Pause nothing has
-    // spliced, since successorPrefetchTrack parked nothing; this second read
-    // of the setting is load-bearing because it decides from the playlist.
-    BOOL advances = VibePlaybackShouldAdvanceAtTrackEnd(
-            self.playlistController.trackEndSuccessor != nil, AppSettings.sharedInstance.pauseAtTrackEnd)
-            && [self.playlistController advanceAtTrackEnd];
+    // The playlist decides, On track end = Pause included. Its play is async,
+    // so the player still reads Stopped after an ordinary advance.
+    BOOL advances = [self.playlistController advanceAtTrackEnd];
     // Advancing, the cached duration must survive the Loading gap.
     if (!advances) {
         _currentTrackDuration = 0;

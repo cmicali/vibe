@@ -4,7 +4,7 @@
 //
 //  Convert to FLAC's controller half: the shared funnel, the swap into the
 //  source's rows, and the undo round trip. The engine is AudioFileConverter
-//  (Audio/Mac/Convert/).
+//  (Mac/Convert/).
 //
 
 #import "MainPlayerController.h"

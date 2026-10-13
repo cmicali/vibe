@@ -12,7 +12,7 @@
 //  called; closed, it writes silence, so a cycle during a rebuild never calls
 //  into state being changed.
 //
-//  Every method is called on the player queue, records its effect at once (the
+//  Control methods run on the player queue and record their effect at once (the
 //  properties answer the state the unit is headed for) and queues the HAL work
 //  on the unit's own serial queue in call order; only waitUntilIdle waits for
 //  that queue. A stop closes the gate before it returns and
@@ -52,7 +52,7 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 @property (nonatomic, readonly, nullable) AVAudioFormat *format;
 // Between start and stop, as requested; the device may still be starting.
 @property (nonatomic, readonly) BOOL running;
-// Moved by every start and stop, from one counter every unit shares, so it
+// Moved by each start/stop transition, from one counter every unit shares, so it
 // names one start or stop of one unit. A failure carries the one its start
 // was given, so the receiver can tell whether a later start or stop — or
 // another unit — owns the output.
@@ -67,7 +67,7 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 // Device plus stream latency and the safety offset, in seconds; on iOS the
 // session's output latency, read live, as the route's rate is before every
 // start. TRAP: on macOS a field the unit's queue fills after each bind,
-// configure and start (channelMap likewise), never a live read: a hung
+// configure and start, never a live read: a hung
 // device held the player queue 30 s per HAL read.
 @property (atomic, readonly) NSTimeInterval presentationLatency;
 // The device's IO buffer at its nominal rate, in seconds — the cycle the
@@ -114,9 +114,9 @@ typedef OSStatus (*VibeOutputRenderProc)(void * _Nullable refCon, const AudioTim
 - (void)stop;
 
 // The iOS media-services reset: the instance died with the media server, and
-// Apple's contract is to dispose it without messaging it. Stops the unit;
-// from then on no queued start, configure or stop, even one queued before
-// this, messages the instance, and the unit's end only disposes it.
+// Apple's contract is to dispose it without messaging it. Supersedes queued
+// starts and suppresses queued configure/stop calls. Discard the unit after
+// this call; do not submit another start. Dealloc only disposes the instance.
 - (void)markDead;
 
 // Returns once every call made before it has reached the HAL. For a caller

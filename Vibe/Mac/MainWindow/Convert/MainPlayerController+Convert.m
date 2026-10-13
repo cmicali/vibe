@@ -6,6 +6,7 @@
 #import "MainPlayerController+Convert.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+PlayerEvents.h"
+#import "MainPlayerController+Transport.h"
 
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -145,7 +146,7 @@
         }
         if ((NSInteger)row == successorRow) {
             // The parked handle is path-keyed and still holds the source.
-            [self.audioPlayer prefetchTrack:self.successorPrefetchTrack];
+            [self prefetchSuccessor];
         }
     }];
     if (!converted) {

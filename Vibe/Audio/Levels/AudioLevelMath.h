@@ -39,8 +39,7 @@ typedef NS_ENUM(NSUInteger, VibeAudioLevelNormalizationMode) {
 };
 
 // Bass-forward musical regions: sub/kick, bass, low mids, mids/presence and
-// treble. Below 40 Hz is rumble and DC; output above 20 kHz is inaudible and
-// never gets its own bar.
+// treble. Content below 40 Hz or above 20 kHz has no bar.
 static const double kLevelBandEdgesHz[kLevelBandCount + 1] = {
     40.0, 100.0, 250.0, 800.0, 4000.0, 20000.0,
 };
@@ -175,10 +174,9 @@ static inline NSUInteger VibeLevelBandEdgeBin(NSUInteger edge, NSUInteger fftSiz
     return bin > (double)binCount ? binCount : (NSUInteger)bin;
 }
 
-// vDSP's real FFT has a factor of two in its output. Scaling spectral energy by
-// 4/N^2 makes it independent of FFT size, whether the preceding reduction was
-// a mean or sum. A 2048-point 48 kHz window and an 8192-point 192 kHz window can
-// therefore share one AGC floor.
+// The visualizer's relative energy scale: 4/N^2 removes the FFT's squared
+// length factor. This is not calibrated signal power. A band's mean also
+// depends on its bin count.
 static inline float VibeLevelScaleFFTEnergy(float spectralEnergy, NSUInteger fftSize) CA_REALTIME_API {
     if (!isfinite(spectralEnergy) || spectralEnergy <= 0 || fftSize == 0) {
         return 0;
@@ -299,9 +297,8 @@ static inline float VibeLevelBalancedSpectrumLevel(float sharedLevel,
 
 // An automatic gain reference after observing `observed` over `dt` seconds.
 //
-// A louder band IS the new reference immediately, so a bar can never clip for
-// longer than the frame that overshot; quieter only decays, so the reference
-// tracks the passage rather than the last transient.
+// A louder observation becomes the reference immediately. A quieter one
+// decays the reference toward its floor.
 static inline float VibeLevelUpdateReference(float reference, float observed, float dt) CA_REALTIME_API {
     if (!isfinite(reference) || reference < kLevelReferenceFloor) {
         reference = kLevelReferenceFloor;

@@ -5,7 +5,8 @@
 //  The player's iOS output-recovery half — what AudioPlayer+Devices'
 //  rate-change and device-loss handling is on macOS. It lives in this
 //  directory so the mac target never compiles these entry points.
-//  AudioSessionController's delegate verdicts are the only callers.
+//  PlaybackController calls them for AudioSessionController's verdicts. It
+//  also calls recoverOutput after the remote Play command's resume.
 //
 
 #import "AudioPlayer.h"
@@ -38,7 +39,7 @@ typedef void (^VibeMediaServicesResetCompletion)(
 // runs on main with the pre-reset track and its position after that state is
 // authoritative. It is dropped when a play submitted after the reset edge
 // owns the rebuilt output instead. Like stop, rebuilding fires no delegate
-// callback.
+// transport callback.
 - (void)beginMediaServicesResetWithCompletion:
         (nullable VibeMediaServicesResetCompletion)completion;
 

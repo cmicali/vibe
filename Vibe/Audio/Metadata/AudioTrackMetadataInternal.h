@@ -13,10 +13,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioTrackMetadata (Internal)
 
-// Parsed metadata is compact by construction: its embedded thumbnail is ready
-// for caching and its original art bytes have already been released. The
-// display-art rendition for the cache write comes back through displayArtData
-// and never lands on the row.
+// Encodes the row thumbnail before publication. Original art bytes are
+// released when that succeeds. The display-art rendition comes back through
+// displayArtData for the cache write; the row never retains that rendition.
 + (AudioTrackMetadata *)metadataWithURL:(NSURL *)url
                          displayArtData:(NSData *_Nullable __autoreleasing *_Nullable)displayArtData;
 

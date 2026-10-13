@@ -4,16 +4,16 @@ Zobrazení vlny
 Vibe vykreslí každou skladbu jako celou vlnu přes okno. Kliknutím kamkoli na ni se přesunete.
 
 Rychlý
-Vibe je stavěný tak, aby byl malý a rychlý. Tagy, obaly a vlny se čtou na pozadí a ukládají do mezipaměti, takže další otevření je okamžité.
+Vibe je stavěný tak, aby byl malý a rychlý.
 
 Prostě přehraje vaše soubory
 Přetáhněte soubor nebo složku — z disku, z iCloud Drive nebo z Dropboxu — a hraje. Není co znovu sestavovat v databázi ani žádná knihovna k údržbě.
 
 Vlastní audio engine Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, přehrávané přes vlastní CoreAudio engine Vibe s vysoce kvalitní konverzí vzorkovací frekvence. Bezztrátové soubory hrají v plném rozlišení.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV a FLAC, přehrávané přes vlastní CoreAudio engine Vibe s vysoce kvalitní konverzí vzorkovací frekvence.
 
 Režim bit-perfect
-Bit-perfect a exkluzivní režim posílají zvuk do výstupního zařízení přesně tak, jak je, pro nejlepší možnou kvalitu.
+Režim bit-perfect nastaví vzorkovací frekvenci podle souboru, pokud ji zařízení podporuje. Exkluzivní režim vyhradí zařízení pro Vibe.
 
 Stavěné pro DJe
 Vibe nabízí pitch fader ve stylu gramofonu, analýzu BPM a tóniny, přesné skoky po taktech a performance FX.

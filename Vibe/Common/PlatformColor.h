@@ -24,8 +24,11 @@ VibeColor *_Nullable VibeColorFromHexString(NSString *_Nullable hex);
 // reading.
 NSString *_Nullable VibeHexStringFromColor(VibeColor *_Nullable color);
 
-// A linear sRGB blend `fraction` of the way toward `toward`, at full alpha;
-// `color` itself when either has no RGB reading.
+// The color's sRGB components; NO when it has no RGB reading.
+BOOL VibeColorGetSRGB(VibeColor *color, CGFloat *r, CGFloat *g, CGFloat *b);
+
+// Interpolates sRGB components at full alpha without gamma linearization.
+// Returns `color` when either has no RGB reading.
 VibeColor *VibeColorBlended(VibeColor *color, VibeColor *toward, CGFloat fraction);
 
 // The color at `fraction` of its own alpha, hue untouched.

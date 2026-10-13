@@ -7,7 +7,7 @@
 //  ring buffer, a gain with at most one pending ramp, an optional queued
 //  successor file that continues gaplessly at the boundary. The bus mixes
 //  every live voice into the buffers the master bus's render hands it
-//  (AudioPlayer+Pipeline.h).
+//  (AudioMasterBus.h).
 //
 //  The transport (AudioPlayer) never waits on the bus. It starts a voice,
 //  ramps it, retires it, and learns three things back through the drain it
@@ -20,7 +20,7 @@
 //
 //  Threading — three parties, one owner per fact:
 //
-//  - The PLAYER QUEUE calls every method here except snapshotOfVoice:. It
+//  - The PLAYER QUEUE calls methods unless marked otherwise. It
 //    allocates slots, submits ramps, queues successors, drains events.
 //  - The DECODE POOL owns eight serial queues; unrelated files use separate
 //    queues, and overlapping reads of a handle use one queue. Only its assigned
@@ -31,7 +31,8 @@
 //    It never signals anyone; the queue polls.
 //
 //  A slot's state moves free → armed → live → dead → free. The queue does
-//  free→armed and armed→dead; the decoder does armed→live; ONLY the audio
+//  free→armed and armed→dead; the decoder does armed→live or armed→dead;
+//  ONLY the audio
 //  thread does live→dead, when the stream ends or a retire ramp lands (a kill
 //  is a retire of zero frames, applied before any mixing). dead→free runs on
 //  the decode queue after the audio thread has completed a render past the
@@ -108,13 +109,17 @@ static inline BOOL VibePCMFormatsMatch(AVAudioFormat *a, AVAudioFormat *b) {
             && VibeChannelsMatch(a, b);
 }
 
-// A coherent read of one voice. Frame counters are relative to the voice's
+// A read of one voice's counters. They can advance during the read.
+// Frame counters are relative to the voice's
 // start: `consumed` is what the audio thread has rendered, `boundary` where
 // the successor began (UINT64_MAX until it has), `endOfStream` the stream's
 // length once known. The stamp is the audio thread's timestamp for the first
 // frame consumed after a start or resume; hostTime is valid only on hardware.
-// `waitingForBytes` is its decoder blocked at a streaming file's edge
-// (AudioFileHandle.waitingForBytes), `decoding` a decode turn queued or
+// `waitingForBytes` is its decoder blocked waiting for its file's bytes
+// (AudioFileHandle.waitingForBytes), and `bytesWritten` what that file's
+// writer has fetched (AudioFileHandle.bytesWritten). Both read the file the
+// decoder reads now: the voice's own, or the queued successor once the
+// decoder has switched into it. `decoding` is a decode turn queued or
 // running for it.
 typedef struct {
     VibeVoiceState state;
@@ -122,6 +127,7 @@ typedef struct {
     BOOL waitingForBytes;
     BOOL decoding;
     VibeVoiceEnd ended;
+    uint64_t bytesWritten;
     uint64_t consumed;
     uint64_t written;
     uint64_t boundary;
@@ -180,10 +186,11 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 
 // The voice reads no more of its file, so the file may be handed to another
 // voice. For a declick-length retire; a crossfade-length retire keeps reading.
-// A read of its file or successor waiting at a streaming file's edge ends as
-// an interruption, so its turn returns at once (AudioFileHandle's
-// interruptReads); so does a kill's, and a dead voice's at the drain that
-// reports it. The next voice's first seek of the file allows reads again.
+// A read of its file or successor that waits for bytes ends as an
+// interruption (AudioFileHandle's interruptReads), whatever writer fetches
+// them. A read already inside the OS can still block. A kill does the same. So does a dead
+// voice, at the drain that reports it. The next voice's first seek of the
+// file allows reads again.
 - (void)stopReadingForVoice:(VibeVoiceID)voice;
 
 // Ends the bus's reading for good: every voice reads no more, and
@@ -237,7 +244,8 @@ typedef struct VibeVoiceMix VibeVoiceMix;
 // killed before it had a slot included.
 - (void)killVoice:(VibeVoiceID)voice;
 
-// Any thread. Retries a torn read; a recycled or unknown id answers None. A
+// Any thread. Attempts a coherent stamp up to three times. A detected recycled
+// or unknown id answers None. A
 // voice is readable until the drain has reported it ended — read what its
 // end needs inside that handler, since the same drain recycles the slot.
 - (VibeVoiceSnapshot)snapshotOfVoice:(VibeVoiceID)voice;

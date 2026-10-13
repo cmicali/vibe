@@ -4,9 +4,14 @@
 //
 
 #import "VibeiOSSceneDelegate.h"
+#import "AudioTrack.h"
+#import "BrowserRules.h"
+#import "LinkStore.h"
+#import "LocationStore.h"
 #import "PlaybackController.h"
+#import "Playlist.h"
+#import "RecentsStore.h"
 #import "RootViewController.h"
-#import "SearchFolderStore.h"
 
 @implementation VibeiOSSceneDelegate {
     // One engine per process, so multi-scene is off.
@@ -21,9 +26,7 @@
         return;
     }
     UIWindowScene *windowScene = (UIWindowScene *)scene;
-    // The card's strip layout's floor: a 150pt art, its insets and the window
-    // controls' inset. iPadOS 26 holds a window taller than this anyway (about
-    // 486pt). nil (a no-op) on iPhone.
+    // The card's strip layout needs room for 150pt art and insets. Nil on iPhone.
     windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 200);
     _playback = [[PlaybackController alloc] init];
     RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];
@@ -36,13 +39,28 @@
     [root loadViewIfNeeded];
     [self setSceneActive:scene.activationState == UISceneActivationStateForegroundActive];
     // Opens and plays nothing, and resolves off main.
-    [SearchFolderStore.shared restorePersistedFolders];
+    [LocationStore.shared restorePersistedFolders];
     if (connectionOptions.URLContexts.count > 0) {
         [_playback handleOpenURLContexts:connectionOptions.URLContexts];
     }
     else {
         [_playback restorePersistedSession];
     }
+    // After the launch's open, so the playlist holds what it brought back.
+    __weak PlaybackController *weakPlayback = _playback;
+    [_playback performWhenLaunchOpenSettled:^{
+        [VibeiOSSceneDelegate pruneLinksKeptBy:weakPlayback];
+    }];
+}
+
+// The playlist is the session's base and its additions, as the launch
+// restored them. The prune itself runs on the store's queue.
++ (void)pruneLinksKeptBy:(PlaybackController *)playback {
+    if (!playback) {
+        return;
+    }
+    [LinkStore.shared pruneKeepingTracks:playback.playlist.tracks
+                              recentURLs:VibeRecentItemURLs(RecentsStore.shared.recentItems)];
 }
 
 // Foreground-inactive is off: views stay attached under Control Center and the

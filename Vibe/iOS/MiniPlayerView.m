@@ -6,7 +6,7 @@
 #import "MiniPlayerView.h"
 
 #import "AudioTrack.h"
-#import "BrowserViewController.h"
+#import "FileRow.h"
 #import "VibeStrings.h"
 
 // TRAP: the strip is 48pt, not negotiable. UITabAccessory frames its content
@@ -15,7 +15,6 @@
 // accessory: Liquid Glass, inline collapse and the automatic safe-area inset.
 // No playhead bar: one fits 48pt only by crowding the art and labels.
 static const CGFloat kArtSide = 38;
-// A big target with a small glyph.
 static const CGFloat kControlSide = 44;
 static const CGFloat kGlyphPointSize = 19;
 
@@ -89,7 +88,6 @@ static const CGFloat kGlyphPointSize = 19;
     // Must match _playing's initial NO: setPlaying: skips an unchanged value.
     _playPauseButton = [self controlWithSymbol:@"play.fill" action:@selector(playPauseTapped)];
     _playPauseButton.accessibilityLabel = STR_TRANSPORT_PLAY;
-    // The mac's glyph.
     _nextButton = [self controlWithSymbol:@"forward.end.fill" action:@selector(nextTapped)];
     _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
 

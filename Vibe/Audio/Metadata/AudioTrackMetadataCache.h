@@ -16,13 +16,20 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
 
+// Rows whose audio is not on the device: the disk cache alone, so a hit
+// delivers as loadMetadata:'s do and a miss reads nothing and downloads
+// nothing. Apart from the scan, so loadMetadata: and cancelScan never drop
+// it. Main thread only.
+- (void)loadCachedMetadata:(NSArray<AudioTrack *> *)tracks;
+
 // Cancels the scan and releases its loader, which holds every queued track.
 // File > Close. Main thread only.
 - (void)cancelScan;
 
 // The track the user just started, ahead of the scan: a cache hit publishes
-// at user-initiated QoS; a miss takes a MetadataPriority claim, joining a
-// same-path foreground open. A no-op once parsed, so cheap on every start.
+// at user-initiated QoS. A miss takes a MetadataPriority claim or reads a
+// remote placeholder by range. A claim can join a same-path foreground open.
+// A no-op once parsed, so cheap on every start.
 // Main thread only.
 - (void)loadMetadataNow:(AudioTrack *)track;
 

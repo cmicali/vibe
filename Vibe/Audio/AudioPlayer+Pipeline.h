@@ -14,6 +14,7 @@
 //
 
 #import "AudioPlayer.h"
+#import "AudioMasterBus.h"
 #import "AudioVoiceBus.h"
 #import <AVFAudio/AVFAudio.h>
 
@@ -21,22 +22,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The largest slice the pipeline renders at once — the bus's own span, so
-// the bus mixes every slice whole — and every hosted unit's frames per
-// slice; an output unit's larger cycle is rendered in slices.
-static const AVAudioFrameCount kVibeMasterBusMaxFrames = kVibeVoiceBusMaxRenderFrames;
-
-// The pipeline's audio-thread state, AudioPlayer+Pipeline.m's.
-typedef struct VibeMasterBus VibeMasterBus;
-OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable timestamp,
-                            UInt32 frames, AudioBufferList *data) CA_REALTIME_API;
-
 @interface AudioPlayer (Pipeline)
 
 // Creates the output — the hosted unit on the system default at that
 // device's rate on macOS; on iOS the pipeline at the route's rate, the unit
-// itself made at the first start; the debug pump under --no-audio-hw — and
-// the master bus it pulls; the init path and the iOS media-services rebuild
+// itself made at the first start; the debug pump under --no-audio-hw.
+// Configures the existing master bus. Init and the iOS media-services rebuild
 // must configure them identically.
 - (void)createOutputOnQueue;
 // Makes `unit` the output unit and routes its later failures back to the queue:
@@ -79,8 +70,9 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 
 // Follows a format change under the pipeline (the iOS route's rate, the debug
 // pump's): stops the output, adopts the format, rebuilds the bus keeping the
-// current track, and restarts a playing output. NO when refused; the player
-// is then Stopped or parked Paused, with an error sent. macOS device changes
+// current track, and restarts a playing output. NO when refused. A bus rebuild
+// failure stops playback; a restart failure parks it Paused. Both send an error.
+// A format-adoption refusal returns NO directly. macOS device changes
 // go through AudioPlayer+Devices instead.
 - (BOOL)followOutputFormatOnQueue:(AVAudioFormat *)format;
 
@@ -96,26 +88,18 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // As a timestamp: sample time only, in the pipeline's frames; no flag set
 // before the pipeline has a format.
 - (AudioTimeStamp)outputRenderTimeOnQueue;
-// The hosted varispeed, in ordinary playback on macOS: whether it exists,
-// whether the render has it in the chain (the pitch off zero), its declared
-// latency while it does and 0 otherwise, and how often it has rendered.
+// The varispeed, in ordinary playback on macOS: whether it is hosted, and
+// how late it plays the bus while the pitch is off zero, 0 otherwise. The
+// rest of its state is pipelineRenderSnapshotOnQueue's.
 - (BOOL)varispeedPresentOnQueue;
-- (BOOL)varispeedEngagedOnQueue;
 - (NSTimeInterval)varispeedLatencyOnQueue;
-- (uint64_t)varispeedRendersOnQueue;
-// Writes into the history ring: only while an engage is being prepared or
-// the unit is in the chain, never at zero pitch settled.
-- (uint64_t)varispeedHistoryWritesOnQueue;
 // Renders the pipeline turned away because another was inside; cumulative,
 // zero through every soak.
 - (uint64_t)renderRefusalsOnQueue;
 - (void)clearRenderRefusalsOnQueue;
 
-// Hosted units alive: the varispeed and the FX chain's.
-- (NSUInteger)hostedUnitCountOnQueue;
-
 // Makes the source segment what the mode wants — the bus at the output's
-// format, with a varispeed unless bit-perfect output is on — building or
+// format, with a varispeed for ordinary macOS playback — building or
 // rebuilding it with the output stopped. `rebuilt` reports whether every
 // voice died with the old segment, so the caller re-voices. NO when it
 // cannot be built.
@@ -124,8 +108,8 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 // before the rebuild kills the voice, and a killed current voice is started
 // again at it. The caller restarts the output for a playing one.
 - (BOOL)reconcileSourceSegmentOnQueue;
-// Pitch in percent onto the varispeed's rate, and whether it is in the
-// chain at all (off zero); a no-op without one.
+// Pitch in percent onto the varispeed's ratio and kernel, and whether it is
+// in the chain at all (off zero); a no-op without one.
 - (void)applyPitchOnQueue:(float)pitch;
 
 // Opens the gate and starts the output unit, then the meter. Every start and
@@ -143,18 +127,5 @@ OSStatus VibeMasterBusRender(void *context, const AudioTimeStamp * _Nullable tim
 - (void)updateDrainTimerOnQueue;
 
 @end
-
-// Gate closed, nothing hosted. Lives from the player's init to its dealloc,
-// so no queue-side reader finds it absent.
-VibeMasterBus *VibeMasterBusCreate(void);
-// The output volume's gain, 0..1, from any thread; the render ramps to it
-// across its next slice, or lands on it at the next output start. 1, the
-// default, leaves every sample untouched.
-void VibeMasterBusSetVolume(VibeMasterBus *master, float gain);
-// Whether a render is inside the pipeline right now.
-BOOL VibeMasterBusRenderInside(VibeMasterBus *master);
-// Disposes the hosted varispeed and frees the master bus; the output unit is
-// stopped and no render is inside. The player's dealloc.
-void VibeMasterBusFree(VibeMasterBus *master);
 
 NS_ASSUME_NONNULL_END

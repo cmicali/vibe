@@ -119,9 +119,8 @@
     }
 }
 
-// An unplayed pick swaps into the next slot; a played one leaves its slot in
-// the history and is replayed there. Either way every other unplayed entry
-// stays unplayed, so nothing else repeats.
+// An unplayed pick swaps into the next slot. A played pick moves from the
+// history to the current slot. Every other unplayed entry stays unplayed.
 - (void)splicePickIntoPlayOrder:(AudioTrack *)picked {
     NSUInteger position = [_playOrder indexOfObjectIdenticalTo:picked];
     if (position == NSNotFound || position == _playOrderCursor) {
@@ -159,8 +158,8 @@
     [_playOrder replaceObjectsInRange:unplayed withObjectsFromArray:merged];
 }
 
-// The seam guard: a fresh cycle never opens with the track that just ended,
-// which an independent shuffle would do one time in n.
+// With more than one row, keep the previous cycle's last track from opening
+// the new cycle. An independent shuffle would repeat it one time in n.
 - (NSArray<AudioTrack *> *)nextPlayOrder {
     if (!_nextPlayOrder) {
         NSMutableArray<AudioTrack *> *order = [self shuffledTracks:_tracks];
@@ -375,6 +374,9 @@
 }
 
 - (AudioTrack *)trackEndSuccessor {
+    if (_pauseAtTrackEnd) {
+        return nil;
+    }
     return _repeatMode == VibeRepeatModeOne ? self.currentTrack : self.nextTrack;
 }
 
@@ -419,11 +421,11 @@
 }
 
 - (BOOL)advanceAtTrackEnd {
+    if (!self.trackEndSuccessor) {
+        return NO;
+    }
     if (_repeatMode != VibeRepeatModeOne) {
         return [self next];
-    }
-    if (_tracks.count == 0) {
-        return NO;
     }
     [self moveCurrentIndexTo:_currentIndex];
     return YES;

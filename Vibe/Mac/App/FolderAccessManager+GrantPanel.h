@@ -4,7 +4,7 @@
 //
 //  The one place a grant is ASKED for: the folder picker a playlist file
 //  raises when its entries lie outside every grant. A modal run loop that
-//  blocks a background worker, split from the non-blocking store.
+//  blocks a background worker. The store itself never raises a panel.
 //
 
 #import "FolderAccessManager.h"

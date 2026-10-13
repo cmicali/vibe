@@ -63,8 +63,8 @@ static inline NSEventModifierFlags VibeShortcutModifiers(VibeShortcut shortcut) 
     return shortcut & kVibeShortcutModifierMask;
 }
 
-// Keypad Enter is Return and Forward Delete is Delete, as they always were:
-// a binding of either answers both.
+// Keypad Enter is Return and Forward Delete is Delete. A binding of either
+// answers both.
 static inline unsigned short VibeShortcutCanonicalKeyCode(unsigned short keyCode) {
     switch (keyCode) {
         case kVibeKeyCodeKeypadEnter:   return kVibeKeyCodeReturn;
@@ -125,6 +125,9 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuEditRemoveFromPlaylist, @(VibeShortcutMake(kVibeKeyCodeDelete, 0))],
             @[kVibeMenuConvertToFLAC,     @(kVibeShortcutNone)],
             @[kVibeMenuConvertDeleteOriginal, @(kVibeShortcutNone)],
+            // Last: a default added later loses its key to an override stored
+            // before it. A duplicate resolves in table order.
+            @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('u', cmd))],
         ];
     });
     return table;
@@ -197,7 +200,7 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
     NSEventModifierFlags cmd = NSEventModifierFlagCommand;
     if (modifiers == cmd) {
         switch (character) {
-            case ',': case 'h': case 'q': case 'w': case 'z': case 'c': case 'a':
+            case ',': case 'h': case 'q': case 'w': case 'z': case 'x': case 'c': case 'v': case 'a':
                 return YES;
         }
         return NO;
@@ -238,6 +241,26 @@ static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unich
         }
     }
     return nil;
+}
+
+// Reserved keys carry no equivalent. Duplicate bindings go to the first
+// command in table order, as in the key monitor.
+// layoutKeyCode maps a character default, or kVibeShortcutKeyMask for none.
+// layoutCharacter maps a physical key, or 0 for none.
+static inline VibeShortcut VibeShortcutForMenuItem(NSString *identifier, VibeShortcut shortcut,
+        unsigned short layoutKeyCode, unichar layoutCharacter, NSDictionary *_Nullable overrides) {
+    if (shortcut == kVibeShortcutNone) {
+        return kVibeShortcutNone;
+    }
+    BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
+    unsigned short keyCode = isCharacter ? layoutKeyCode : VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
+    unichar character = isCharacter ? VibeShortcutKey(shortcut) : layoutCharacter;
+    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
+    if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
+        return kVibeShortcutNone;
+    }
+    NSString *owner = VibeShortcutOwner(VibeShortcutMake(keyCode, modifiers), character, overrides, nil);
+    return owner == nil || [owner isEqualToString:identifier] ? shortcut : kVibeShortcutNone;
 }
 
 // The command a press performs, nil to pass it on. Under Command a layout's

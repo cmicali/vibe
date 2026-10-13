@@ -27,6 +27,11 @@ FOUNDATION_EXPORT const CGFloat kVibeArchivedDisplayArtDimension;
 // nil for nil or undecodable data. 10-100ms, so keep it off the main thread.
 FOUNDATION_EXPORT VibeImage *_Nullable VibeDecodedImageWithData(NSData *_Nullable data, CGFloat maxPixelSize);
 
+// PNG for alpha-bearing art, which JPEG would flatten; JPEG otherwise, far
+// smaller for photos. ImageIO sniffs either on decode. nil when the image
+// cannot be encoded.
+FOUNDATION_EXPORT NSData *_Nullable VibeEncodedImageData(VibeImage *image);
+
 // The pixel size from the container header alone; CGSizeZero for nil or
 // undecodable data.
 FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
@@ -37,10 +42,9 @@ FOUNDATION_EXPORT CGSize VibeEncodedImagePixelSize(NSData *_Nullable data);
 // when the image cannot be rasterized. Callers asking repeatedly memoize.
 FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Nullable image);
 
-// Whether the bottom `fraction` of the image reads as dark (mean relative
-// luminance under the midpoint), so a control over it can pick its color from
-// the picture. YES when the image cannot be rasterized, the safer guess for
-// light controls.
+// Whether the bottom `fraction` reads as dark. Uses mean weighted brightness
+// of gamma-encoded sRGB components, not linear-light luminance. Controls use
+// this to pick their color. YES when the image cannot be rasterized.
 FOUNDATION_EXPORT BOOL VibeImageLowerBandIsDark(VibeImage *_Nullable image, CGFloat fraction);
 
 NS_ASSUME_NONNULL_END

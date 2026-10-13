@@ -3,7 +3,7 @@
 //  Vibe
 //
 // One decode of one file, in five phases — the five methods below, in the
-// order load: calls them: open and validate, size the chunk array, run the
+// order decode: calls them: open and validate, size the chunk array, run the
 // pipelined decode, settle what "complete" means, and stretch a short file
 // across the full width. Only the third is long, and it is one thing: a
 // two-slot producer/consumer loop whose halves must not be read apart.
@@ -71,10 +71,8 @@
 
 - (CodableAudioWaveform *)load:(NSString *)filename {
     CodableAudioWaveform *result = [self decode:filename];
-    // TRAP: a loader outlives its load (its claim, and the claim's 20 s wait
-    // timer, hold it), and one that kept its handle kept the file open with
-    // it: a row replayed on a cold cache held fourteen descriptors on one
-    // file.
+    // TRAP: the claim and its wait timer can outlive the load. Release the
+    // handle here or each retained loader also retains an open descriptor.
     @synchronized (self) {
         _file = nil;
     }
@@ -110,12 +108,11 @@
             return nil;
         }
 
-        // Tempo and key detection ride the same decode pass: each analyzer
-        // consumes the buffer right after the waveform chunk does, so neither
-        // costs a second full-file read, which matters for cloud-backed files.
-        // With one off there is no analyzer, and the waveform caches with no
-        // BPM or key — a file scanned while off is not re-analyzed on
-        // re-enable until its cache entry goes. The explicit scan_bpm and
+        // Tempo and key detection share the waveform's mono buffers. Neither
+        // needs a second read of the track window.
+        // With one off there is no analyzer, and the entry is filed without
+        // that analysis (bpmAnalyzed, keyAnalyzed). A later request that runs
+        // it misses on the entry and decodes again. The explicit scan_bpm and
         // scan_key debug paths run the analyzers directly and ignore this.
         VibeWaveformAnalysis analysis = self.analysis;
         bpmAnalyzer = analysis.bpm ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
@@ -148,8 +145,7 @@
         // common case, a head whose rate holds. Chunk i starts at i·T/N, so
         // an estimate off by under a chunk moves every boundary by less than
         // one: each chunk's audio is off by less than the chunk, within what a
-        // decode ending short already tolerates. A two-hour mix was decoded
-        // twice over 528 frames.
+        // decode ending short already tolerates.
         // Otherwise the file is decoded again, from disk, on the exact length.
         NSError *error = nil;
         if (![file awaitExactLength:&error]) {
@@ -291,7 +287,7 @@
     }
     // file.length is exact for every CoreAudio format, an estimate made so at
     // the open, so no prescan is needed; a streaming MP3's own estimate is
-    // checked once its pass ends (load:). Chunk i covers frames
+    // checked once its pass ends (decode:). Chunk i covers frames
     // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always
     // fills exactly numChunks chunks at their final positions, so nothing
     // moves when the load completes. Only a file with fewer frames than chunks
@@ -328,20 +324,10 @@
     const NSUInteger numChannels = pass->numChannels;
     const NSUInteger effectiveChunks = pass->effectiveChunks;
 
-    // Read in large blocks and slice the chunks in memory. Chunk-granular
-    // reads of 5-10KB, some 8,200 per file, each cross the ExtAudioFile and
-    // AudioConverter boundary, and that per-call overhead dominates a cold
-    // scan. The output is identical, because min/max merging is associative.
-    //
-    // Two buffers, because the decode and the processing are pipelined: block
-    // N+1 decodes on this thread while block N runs through the mono mix, the
-    // analyzers and the chunker on a serial queue one block behind. The pass
-    // is decode-bound — CoreAudio's MP3 and FLAC codecs cost 3-5x everything
-    // downstream combined — so overlapping them takes the wall time down to
-    // roughly the decode alone. A
-    // slot's buffer is reused only after its semaphore signals, so the decode
-    // never writes a buffer the processor is still reading, and the serial
-    // queue preserves stream order, which the analyzers' framing depends on.
+    // Large reads amortize decoder-call overhead. Chunks are sliced in memory.
+    // Block N+1 decodes here as block N runs through the serial processing
+    // queue. Reuse waits for the slot's semaphore to protect its buffer. The
+    // serial queue preserves the stream order required by the analyzers.
     const AVAudioFrameCount kReadBlockFrames = 65536; // ~512KB stereo float32 per read
     AVAudioPCMBuffer *buffers[2];
     buffers[0] = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
@@ -380,9 +366,9 @@
             dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     __block VibeLoadPhaseNanos procNanos = {};
     // A local decode accumulates a full interval before its first snapshot.
-    // A stream publishes its first block before its next read can stall.
-    __block CFAbsoluteTime lastProgressTime = [CloudFileMaterializer availabilityForURL:file.url]
-            ? 0 : CFAbsoluteTimeGetCurrent();
+    // A file whose reads wait for bytes, a stream or a read-ahead, publishes
+    // its first block before its next read can stall.
+    __block CFAbsoluteTime lastProgressTime = file.waitsForBytes ? 0 : CFAbsoluteTimeGetCurrent();
     __block NSUInteger chunksFilled = 0;
     __block NSUInteger chunkIndex = 0;
     __block AVAudioFramePosition framesProcessed = 0;
@@ -544,7 +530,7 @@
 
 // Whether the decode covered enough of the file to cache and to analyze.
 // It also promotes an early EOF to a read error, which is why it is not a
-// pure predicate: with exact lengths, EOF lands only right at the end.
+// pure predicate. Small length discrepancies stay within the chunk tolerance.
 - (BOOL)isDecodeComplete:(struct VibeWaveformDecodePass *)pass filename:(NSString *)filename {
     if (!pass->readError && !self.isCancelled
             && pass->framesRead < pass->totalFrames

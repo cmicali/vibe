@@ -126,9 +126,8 @@ enum { kDecimalMaxFractionDigits = 3 };
     if (!isfinite(duration) || duration < 0) {
         duration = 0;
     }
-    // Keyed by the whole second, exact since both formatters truncate. The
-    // labels ask on every tick and scrub frame, and the formatter was
-    // two-thirds of the iOS player's tick.
+    // Both formatters truncate to whole seconds. Reuse the string between
+    // ticks and scrub frames within that second.
     NSNumber *second = @(floor(duration));
     NSString *cached = [_timeStrings objectForKey:second];
     if (cached) {

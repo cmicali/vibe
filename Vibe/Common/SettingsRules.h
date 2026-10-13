@@ -51,6 +51,39 @@ static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifi
     return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
 }
 
+static inline NSString *VibeNormalizedWaveformBandTheme(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE] ||
+        [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
+}
+
+// Spectrum's palettes in every chooser's order. Custom is last.
+static inline NSArray<NSString *> *VibeWaveformSpectrumPalettes(void) {
+    return @[SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE,
+             SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN, SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM];
+}
+
+static inline NSString *VibeNormalizedWaveformSpectrumPalette(NSString *_Nullable identifier) {
+    return identifier && [VibeWaveformSpectrumPalettes() containsObject:identifier]
+            ? identifier : SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB;
+}
+
+// The label every chooser of Spectrum's palette shows for each choice.
+static inline NSString *VibeWaveformSpectrumPaletteDisplayName(NSString *palette) {
+    if ([palette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE]) {
+        return STR_SETTINGS_WAVEFORM_SPECTRUM_BLUE;
+    }
+    if ([palette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN]) {
+        return STR_SETTINGS_WAVEFORM_SPECTRUM_GREEN;
+    }
+    if ([palette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM]) {
+        return STR_SETTINGS_WAVEFORM_THEME_CUSTOM;
+    }
+    return STR_SETTINGS_WAVEFORM_SPECTRUM_RGB;
+}
+
 static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
         return VibeFolderOpenSortNewestFirst;

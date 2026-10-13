@@ -202,7 +202,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     NSPasteboardItem *item = [NSPasteboardItem new];
     [item setString:_dragSessionToken forType:kPlaylistReorderPasteboardType];
     NSURL *url = [_model trackAtIndex:(NSUInteger)row].url;
-    if (url.isFileURL && ![_dragSessionFileURLs containsObject:url]) {
+    // A placeholder's row still reorders. It only carries no file out.
+    if (![_dragSessionFileURLs containsObject:url] && [TrackCommands handsOutURL:url]) {
         [_dragSessionFileURLs addObject:url];
         [item setString:url.absoluteString forType:NSPasteboardTypeFileURL];
     }
@@ -498,9 +499,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return view;
 }
 
-// Precedence loading, playing, number: during the open there is no output, so
-// the equalizer would be dots. Every state is set unconditionally, so a reused
-// cell cannot carry a previous row's.
+// Precedence loading, playing, number, including during streamed playback.
+// Set every state so a reused cell cannot carry a previous row's state.
 - (void)configureNumberCell:(NSTableCellView *)view
                         row:(NSInteger)row
                       track:(AudioTrack *)track
@@ -659,9 +659,11 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return moved;
 }
 
-- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled {
+- (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled
+        pauseAtTrackEnd:(BOOL)pauseAtTrackEnd {
     _model.repeatMode = repeatMode;
     _model.shuffleEnabled = shuffleEnabled;
+    _model.pauseAtTrackEnd = pauseAtTrackEnd;
 }
 
 - (AudioTrack *)trackEndSuccessor {

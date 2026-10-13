@@ -2,8 +2,8 @@
 //  AppSettingsInternal.h
 //  Vibe
 //
-//  The seam between AppSettings.m and Mac/AppSettings+Mac.m. Only those files
-//  and their tests import it.
+//  The seam between AppSettings.m, Mac/AppSettings+Mac.m and
+//  Mac/Theme/AppSettings+Themes.m. Only those files and their tests import it.
 //
 
 #import "AppSettings.h"
@@ -17,6 +17,14 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_DARK       @"Settings.waveformCustomUnplayedColorDark"
 #define SETTING_WAVEFORM_CUSTOM_PLAYED_LIGHT        @"Settings.waveformCustomPlayedColorLight"
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT      @"Settings.waveformCustomUnplayedColorLight"
+#define SETTING_WAVEFORM_BAND_THEME                 @"Settings.waveformBandTheme"
+#define SETTING_WAVEFORM_SPECTRUM_PALETTE           @"Settings.waveformSpectrumPalette"
+#define SETTING_WAVEFORM_CUSTOM_LOW_DARK            @"Settings.waveformCustomLowColorDark"
+#define SETTING_WAVEFORM_CUSTOM_MID_DARK            @"Settings.waveformCustomMidColorDark"
+#define SETTING_WAVEFORM_CUSTOM_HIGH_DARK           @"Settings.waveformCustomHighColorDark"
+#define SETTING_WAVEFORM_CUSTOM_LOW_LIGHT           @"Settings.waveformCustomLowColorLight"
+#define SETTING_WAVEFORM_CUSTOM_MID_LIGHT           @"Settings.waveformCustomMidColorLight"
+#define SETTING_WAVEFORM_CUSTOM_HIGH_LIGHT          @"Settings.waveformCustomHighColorLight"
 #define SETTING_WAVEFORM_PLAYHEAD_LINE              @"Settings.waveformPlayheadLine"
 #define SETTING_WAVEFORM_CENTERED                   @"Settings.waveformCentered"
 #define SETTING_WIDGET_WAVEFORM_CENTERED            @"Settings.widgetWaveformCentered"
@@ -41,6 +49,25 @@ NS_ASSUME_NONNULL_BEGIN
 
 #if TARGET_OS_OSX
 
+// The theme store's keys. The reset paths in Mac/AppSettings+Mac.m clear
+// them too.
+#define SETTING_ACTIVE_THEME                        @"Appearance.activeTheme"
+#define SETTING_USER_THEMES                         @"Appearance.userThemes"
+#define SETTING_CURRENT_THEME                       @"Appearance.currentTheme"
+
+// The display keys predate themes, and themes carried their choices through
+// 1.14 (migrateThemeDisplaySettings).
+#define SETTING_SHOW_TIME_LABELS                    @"MainWindow.showTimeLabels"
+#define SETTING_SHOW_STATUS_ICONS                   @"MainWindow.showStatusIcons"
+#define SETTING_PLAYLIST_NUMBER_COLUMN              @"Playlist.showNumberColumn"
+#define SETTING_PLAYLIST_ARTWORK_COLUMN             @"Playlist.showArtworkColumn"
+#define SETTING_PLAYLIST_DURATION_COLUMN            @"Playlist.showDurationColumn"
+#define SETTING_DOCK_ICON                           @"Appearance.dockIcon"
+#define SETTING_KEY_NOTATION                        @"Audio.keyNotation"
+#define SETTING_KEY_COLORS                          @"Appearance.keyColors"
+#define SETTING_SHOW_BPM                            @"Appearance.showBPM"
+#define SETTING_SHOW_KEY                            @"Appearance.showKey"
+
 @class AppTheme;
 
 // The macOS half's ivars, which its category cannot declare.
@@ -59,9 +86,9 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 // The seam both ways: the macOS halves of the shared entry points, implemented
-// in Mac/AppSettings+Mac.m, and what registerDefaults registers, in
-// AppSettings.m. A named category, since an extension's methods must be in the
-// primary @implementation.
+// in Mac/AppSettings+Mac.m and Mac/Theme/AppSettings+Themes.m, and what
+// registerDefaults registers, in AppSettings.m. A named category, since an
+// extension's methods must be in the primary @implementation.
 @interface AppSettings (MacInternal)
 - (void)migrateLooseAppearanceSettingsToTheme;
 - (void)migrateThemeRecordsToVersion2;
@@ -71,6 +98,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The edit funnel with an explicit time, so tests exercise coalescing without
 // sleeping.
 - (void)currentThemeDidChangeContinuous:(BOOL)continuous atTime:(NSTimeInterval)time;
+// The theme store's half of resetToDefaults.
+- (void)clearThemeHistory;
+- (void)sweepUnreferencedThemeImages;
 @end
 
 #endif  // TARGET_OS_OSX

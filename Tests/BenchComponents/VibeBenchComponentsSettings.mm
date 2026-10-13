@@ -1,13 +1,4 @@
-//
-//  VibeBenchComponentsSettings.mm
-//  VibeBenchComponents
-//
-//  The Settings window offscreen, with no player: what a drag on a theme or
-//  level control costs per tick, what a pane refresh costs (every regained
-//  key and every closed menu runs one), and what the sidebar search costs per
-//  keystroke. The window is never shown, so these measure the panes' own
-//  work, not AppKit's display.
-//
+// Settings benchmarks use an invisible window and no player.
 
 #import "VibeBenchComponents.h"
 
@@ -16,13 +7,21 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
+// perf.py builds this file against older refs too. The Themes pane's class
+// was SettingsAppearanceViewController there, a name a later class reuses, so
+// the new header is tested first.
+#if __has_include("SettingsThemesViewController.h")
+#import "SettingsThemesViewController.h"
+#else
 #import "SettingsAppearanceViewController.h"
+#define SettingsThemesViewController SettingsAppearanceViewController
+#endif
 #import "SettingsPaneViewController.h"
 #import "SettingsWindowController.h"
 
 struct VibeBenchComponentsSettingsState {
     SettingsWindowController *controller = nil;
-    SettingsAppearanceViewController *themes = nil;
+    SettingsThemesViewController *themes = nil;
     NSViewController *appearance = nil;
     NSString *themeIdentifier = nil;
 };
@@ -51,8 +50,7 @@ static NSString *VibeBenchComponentsSettingsUserTheme(void) {
     return VibeBenchComponentsSettingsUserThemes(1);
 }
 
-// Sixty ticks of the slider in `ivar`, 1/120 s apart with the main queue
-// serviced between them, then a beat for anything a tick left queued.
+// Service the main run loop between ticks to include queued UI work.
 static void VibeBenchComponentsSettingsDrag(NSViewController *pane, NSString *ivar,
                                             double from, double step) {
     NSSlider *slider = [pane valueForKey:ivar];
@@ -114,10 +112,7 @@ static void VibeBenchComponentsRegisterSettings(void) {
         }
     });
 
-    // The waveform gain slider dragged across sixty ticks at a 120 Hz mouse's
-    // pace, the main queue serviced between them as a drag's tracking loop
-    // does: the setting and the levels effect (no player here), on the
-    // Appearance pane. CPU, not wall, is the measure; the pace sets the wall.
+    // Pacing includes idle time. Compare CPU time and instructions for the drag.
     auto gain = std::make_shared<VibeBenchComponentsSettingsState>();
     VibeBenchComponentsAdd("settings", "waveform-gain-drag", "tick", [gain]() -> double {
         VibeBenchComponentsSettingsEnsureWindow(gain.get());
@@ -158,10 +153,7 @@ static void VibeBenchComponentsRegisterSettings(void) {
         }
     });
 
-    // A pane refreshed with the window on screen (parked off every display),
-    // where each refresh remeasures the pane, as regaining key or a menu
-    // closing over the window does: Playback, Files, Keyboard Shortcuts, and
-    // the theme editor, the largest page.
+    // Exercise the visible-window refresh path with an invisible offscreen window.
     for (NSString *pane in @[@"playback", @"files", @"shortcuts", @"themes/editor"]) {
         auto shown = std::make_shared<VibeBenchComponentsSettingsState>();
         std::string variant = std::string("shown-refresh-") +
@@ -187,8 +179,6 @@ static void VibeBenchComponentsRegisterSettings(void) {
         });
     }
 
-    // The window closed and opened again, parked off every display: opening
-    // settles every pane's size.
     auto reopen = std::make_shared<VibeBenchComponentsSettingsState>();
     VibeBenchComponentsAdd("settings", "reopen-window", "open", [reopen]() -> double {
         VibeBenchComponentsSettingsEnsureWindow(reopen.get());

@@ -1,0 +1,86 @@
+//
+//  DebugCommandDispatch.m
+//  Vibe
+//
+
+#import "DebugCommandDispatch.h"
+
+#if DEBUG
+
+#import "DebugWireFormat.h"
+
+NSDictionary *VibeDebugCmd(NSString *usage, NSTimeInterval clientTimeout,
+                           VibeDebugCommandHandler handler) {
+    return @{@"usage": usage, @"clientTimeout": @(clientTimeout), @"handler": [handler copy]};
+}
+
+NSDictionary *VibeTransportCmd(NSString *usage, void (^action)(id controller)) {
+    return VibeDebugCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                              id<VibeDebugPlayerSurface> surface) {
+        action(surface);
+        return VibeJSONString(surface.debugActionSummary);
+    });
+}
+
+NSString *VibeDebugVerbFromUsage(NSString *usage) {
+    NSRange space = [usage rangeOfString:@" "];
+    return space.location == NSNotFound ? usage : [usage substringToIndex:space.location];
+}
+
+NSDictionary *VibeDebugSpecForVerb(NSArray<NSDictionary *> *table, NSString *verb) {
+    for (NSDictionary *spec in table) {
+        if ([VibeDebugVerbFromUsage(spec[@"usage"]) isEqualToString:verb]) {
+            return spec;
+        }
+    }
+    return nil;
+}
+
+NSString *VibeDebugUnknownCommandReply(NSString *verb,
+                                       NSArray<NSArray<NSDictionary *> *> *tables,
+                                       NSArray<NSString *> *extraUsages) {
+    NSMutableArray<NSString *> *usages = [NSMutableArray array];
+    for (NSArray<NSDictionary *> *table in tables) {
+        for (NSDictionary *spec in table) {
+            [usages addObject:spec[@"usage"]];
+        }
+    }
+    [usages addObjectsFromArray:extraUsages ?: @[]];
+    return VibeErrorJSON(@"unknown command '%@'. Commands: %@",
+                         verb, [usages componentsJoinedByString:@", "]);
+}
+
+BOOL VibeParseOnOff(NSArray<NSString *> *tokens, BOOL *on) {
+    NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+    *on = [arg isEqualToString:@"on"];
+    return *on || [arg isEqualToString:@"off"];
+}
+
+NSString *VibeRestArgument(NSArray<NSString *> *tokens) {
+    if (tokens.count < 2) {
+        return @"";
+    }
+    return [[tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]
+            componentsJoinedByString:@" "];
+}
+
+NSString *VibePathArgument(NSArray<NSString *> *tokens) {
+    return VibeRestArgument(tokens).stringByExpandingTildeInPath;
+}
+
+NSString *VibeExistingFileArgument(NSArray<NSString *> *tokens, NSString **errorJSON) {
+    NSString *verb = tokens.firstObject;
+    if (tokens.count < 2) {
+        *errorJSON = VibeErrorJSON(@"usage: %@ <file>", verb);
+        return nil;
+    }
+    NSString *path = VibePathArgument(tokens);
+    BOOL isDirectory = NO;
+    if (![NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory] || isDirectory) {
+        *errorJSON = VibeErrorJSON(@"%@ expects an existing file: '%@'", verb, path);
+        return nil;
+    }
+    return path;
+}
+
+#endif

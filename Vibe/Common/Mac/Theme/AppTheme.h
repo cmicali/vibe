@@ -43,12 +43,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS               @"always"
 
 // The volume slider's bar: the window tint's mono (the system slider),
-// artwork and custom, plus the waveform's played color (the default). Its knob
-// takes the same ladder and default, mono the system's white pill, plus the
-// bar's own color.
+// artwork and custom, plus the waveform's played color (the default). The knob
+// adds the bar's color and uses it by default. Mono draws the system's white pill.
 #define SETTINGS_VALUE_VOLUME_WAVEFORM                      @"waveform"
 #define SETTINGS_VALUE_VOLUME_KNOB_BAR                      @"bar"
-// Top right swaps with the corner readouts on hover (MainWindow/APPEARANCE.md).
+// Top right swaps with the corner readouts on hover (MainWindow/LAYOUT.md).
 #define SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM               @"bottom"
 #define SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT            @"top_right"
 // When the volume slider shows.
@@ -169,33 +168,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // The English name from the JSON; AppSettings overlays the translation.
 + (nullable NSString *)builtInNameForIdentifier:(NSString *)identifier;
 
-#pragma mark Images
-
-// In the editor's order.
-+ (NSArray<NSString *> *)imageFieldKeys;
-
-// Never nil: the named image, or the factory record image for "", an unknown
-// name or a missing file — the placeholder's fallback. Cached for the app's
-// lifetime, safe because custom names are content hashes and bundled images
-// immutable per build. Other slots use customImageForKey:.
-+ (NSImage *)imageForReference:(nullable NSString *)reference;
-
-// YES when a valid reference names an image that is not there. The only way
-// to tell "deliberately the default" from "the chosen image is gone", since
-// imageForReference: falls back for both.
-+ (BOOL)referenceIsMissing:(nullable NSString *)reference;
-
-// Validates (JPEG or PNG, square, within pixel and byte caps), stores the
-// bytes as-is, and returns "custom:<sha1>.<ext>", or nil with the reason.
-+ (nullable NSString *)storeCustomImageData:(NSData *)data
-                                      error:(NSError *_Nullable *_Nullable)error;
-
-// Deletes every container image no record in `records` names. Files are
-// shared by content hash, so deletion is a sweep: pass every record that can
-// hold a reference.
-+ (void)removeCustomImageFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records;
-
-#pragma mark Names, migration and JSON
+#pragma mark Names and migration
 
 // A usable theme name: trimmed, length-capped, the fallback when empty, and
 // suffixed " 2", " 3", … past any name already in use.
@@ -207,16 +180,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // keyed by field name; nil when they sanitize to the defaults.
 + (nullable NSDictionary<NSString *, id> *)migratedRecordFromLegacyValues:
         (NSDictionary<NSString *, id> *)legacyValues;
-
-// A theme JSON, both ways: version, name, then one object per editor section
-// holding its fields under section-local keys. recordFromJSONData caps the
-// size, requires an object, reports the name (nil when absent) and returns
-// the sanitized flat record; an empty one is a valid theme.
-+ (nullable NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
-                                                         name:(NSString *_Nullable *_Nullable)outName
-                                                        error:(NSError **)error;
-+ (nullable NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
-                                  name:(NSString *)name;
 
 // A record stored or exported before 1.15 (JSON version 1), in today's terms:
 // its window "solid" is today's "frosted". Raw in, raw out; other keys kept.
@@ -248,6 +211,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // 3-Band's overlaps: YES (default) shades and tints them as a CDJ does; NO
 // paints each band whole over the ones below, as Engine DJ does.
 @property (nonatomic) BOOL waveformShadeOverlaps;
+// Spectrum's palette: rgb (default), blue, green, or custom, which draws the
+// Low/Mid/High wells 3-Band also reads.
+@property (nonatomic, copy) NSString *waveformSpectrumPalette;
 // YES draws the whole waveform as played under a line at the playhead; NO
 // (default) dims the unplayed side.
 @property (nonatomic) BOOL waveformPlayheadLine;
@@ -337,10 +303,57 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 - (void)setPlaylistColorEnabled:(BOOL)enabled forBase:(NSString *)base;
 - (VibeColor *)resolvedPlaylistColorForBase:(NSString *)base;
 
+@end
+
+// The file store and the image cache, in AppTheme+Images.m.
+@interface AppTheme (Images)
+
+// In the editor's order.
++ (NSArray<NSString *> *)imageFieldKeys;
+
+// Never nil: the named image, or the factory record image for "", an unknown
+// name or a missing file — the placeholder's fallback. Cached for the app's
+// lifetime for bundled images. Custom entries are bounded by the image-field
+// count. Their content hashes prevent stale hits. Other slots use customImageForKey:.
++ (NSImage *)imageForReference:(nullable NSString *)reference;
+
+// YES when a valid reference names an image that is not there. The only way
+// to tell "deliberately the default" from "the chosen image is gone", since
+// imageForReference: falls back for both.
++ (BOOL)referenceIsMissing:(nullable NSString *)reference;
+
+// Validates (JPEG or PNG, square, within pixel and byte caps), stores the
+// bytes as-is, and returns "custom:<sha1>.<ext>", or nil with the reason.
++ (nullable NSString *)storeCustomImageData:(NSData *)data
+                                      error:(NSError *_Nullable *_Nullable)error;
+
+// Deletes every container image no record in `records` names. Files are
+// shared by content hash, so deletion is a sweep: pass every record that can
+// hold a reference.
++ (void)removeCustomImageFilesUnreferencedByRecords:(NSArray<NSDictionary *> *)records;
+
 // The custom: file names across every image field.
 + (NSSet<NSString *> *)customImageFilesInRecord:(nullable NSDictionary<NSString *, id> *)record;
 
-#pragma mark Dice
+@end
+
+// In AppTheme+JSON.m.
+@interface AppTheme (JSON)
+
+// A theme JSON, both ways: version, name, then one object per editor section
+// holding its fields under section-local keys. recordFromJSONData caps the
+// size, requires an object, reports the name (nil when absent) and returns
+// the sanitized flat record; an empty one is a valid theme.
++ (nullable NSDictionary<NSString *, id> *)recordFromJSONData:(NSData *)data
+                                                         name:(NSString *_Nullable *_Nullable)outName
+                                                        error:(NSError **)error;
++ (nullable NSData *)JSONDataForRecord:(NSDictionary<NSString *, id> *)record
+                                  name:(NSString *)name;
+
+@end
+
+// In AppTheme+Dice.m.
+@interface AppTheme (Dice)
 
 // The editor's dice. Settings rolls the appearance choices and fonts, never
 // colors, the playhead line or images. The styles are passed in because their

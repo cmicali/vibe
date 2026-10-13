@@ -6,7 +6,7 @@
 #import <stdatomic.h>
 
 #import "AudioTrackMetadataCacheInternal.h"
-#import "AudioTrackMetadataLoaderInternal.h"
+#import "AudioTrackMetadataLoader.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioLoadingConfiguration.h"
 #import "PINCache.h"
@@ -14,10 +14,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
-#if DEBUG
 #import "AudioTrackMetadataCache+Debug.h"
-#import "AudioTrackMetadataLoader+Debug.h"
-#endif
 
 @interface AudioTrackMetadataCache ()
 @property (nonatomic, readonly) AudioLoadingConfiguration *loadingConfiguration;
@@ -28,7 +25,8 @@
 @end
 
 @implementation AudioTrackMetadataCache {
-    AudioTrackMetadataLoader*   _currentLoader;
+    // loadCachedMetadata:'s, never cancelled: a miss is not asked again.
+    AudioTrackMetadataLoader*   _cacheOnlyLoader;
     // Serializes construction, invalidation and disk usage at utility QoS.
     dispatch_queue_t            _cacheQueue;
     atomic_uint_fast64_t        _cacheGeneration;
@@ -127,6 +125,25 @@
     [loader load:tracks];
 }
 
+- (void)loadCachedMetadata:(NSArray<AudioTrack *> *)tracks {
+    if (!tracks.count) {
+        return;
+    }
+    if (!_cacheOnlyLoader) {
+        _cacheOnlyLoader = [[AudioTrackMetadataLoader alloc] initWithOwner:self
+                                                                   delegate:self.delegate
+                                                       loadingConfiguration:_loadingConfiguration];
+    }
+    _cacheOnlyLoader.delegate = self.delegate;
+    AudioTrackMetadataLoader *loader = _cacheOnlyLoader;
+    NSArray<AudioTrack *> *snapshot = [tracks copy];
+    // Serial behind init's construction: before the store exists a lookup
+    // misses, and a miss here is final.
+    dispatch_async(_cacheQueue, ^{
+        [loader loadFromCacheOnly:snapshot];
+    });
+}
+
 - (void)abandonQueuedTrack:(AudioTrack *)track {
     [_currentLoader abandonQueuedTrack:track];
 }
@@ -145,27 +162,6 @@
     }
     [self setNeighborhoodURLs:urls];
 }
-
-#if DEBUG
-// Debug/AudioTrackMetadataCache+Debug.h; here because the loader is this file's.
-- (NSUInteger)debugPendingBackgroundMaterializationCount {
-    return [_currentLoader debugPendingBackgroundMaterializationCount];
-}
-
-- (BOOL)debugBackgroundMaterializationHeld {
-    // Stopped and settled means no foreground claims, so this must read NO.
-    return [AudioFileMaterializationCoordinator.sharedCoordinator
-            isForegroundTransferActive];
-}
-
-- (NSDictionary *)debugPriorityLaneState {
-    return [_currentLoader debugPriorityLaneState] ?: @{};
-}
-
-- (NSDictionary *)debugScanLaneState {
-    return [_currentLoader debugScanLaneState] ?: @{};
-}
-#endif
 
 - (void)loadMetadataNow:(AudioTrack *)track {
     if (!track || track.metadata.parsedOK) {

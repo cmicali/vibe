@@ -54,10 +54,8 @@ MAX_SCENARIO_ROWS = 40
 # or ADTS sync can occur.
 UNPLAYABLE_BYTES = bytes(i & 0x7F for i in range(64 * 1024))
 
-
-# --------------------------------------------------------------------------
 # Results and context
-# --------------------------------------------------------------------------
+
 
 
 class Failed(Exception):
@@ -137,7 +135,6 @@ class Ctx:
         return self.health().get("materialization", {})
 
     def wait_for_hung_open(self, basename, describe, timeout=WAIT_TIMEOUT):
-        """Block until this basename reaches the injected uncancellable open."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             reply = self.cmd("hang_open", basename)
@@ -347,7 +344,6 @@ def replacement_retirement_error(events, old_names, snapshot_seq,
 
 
 def row_loading_projection_error(snapshot, expected_file, expected_index):
-    """Compare the registry entry with the exact playlist-row projection."""
     transfers = snapshot.get("transfers", [])
     rows = snapshot.get("loadingRows", [])
     if (len(transfers) != 1 or len(rows) != 1
@@ -404,7 +400,6 @@ def post_timeout_scan_pick(events, cancellation_seq, picked):
 
 
 def single_successful_transfer_error(events, target):
-    """Require exactly one complete provider request for one file."""
     requested = events_of(events, event="requested", file=target)
     started = events_of(events, event="started", file=target)
     completed = events_of(events, event="completed", file=target)
@@ -419,7 +414,6 @@ def single_successful_transfer_error(events, target):
 
 
 def exact_failed_transfers_error(events, target, role, expected):
-    """Require exact request/start/failure lifecycles for one provider file."""
     requested = events_of(events, event="requested", role=role, file=target)
     started = events_of(events, event="started", role=role, file=target)
     completed = events_of(events, event="completed", role=role, file=target)
@@ -439,7 +433,6 @@ def exact_failed_transfers_error(events, target, role, expected):
 
 
 def stall_deadline_error(max_fraction, elapsed_ms, seconds, silence):
-    """Prove the movement phase and both bounds of its silence deadline."""
     if max_fraction < 0.35:
         return (f"stall progress reached only {max_fraction:.3f}; the scripted "
                 "40% movement phase was not exercised")
@@ -457,7 +450,6 @@ def stall_deadline_error(max_fraction, elapsed_ms, seconds, silence):
 
 
 def baseline_deadline_error(elapsed_ms, baseline):
-    """Require a no-movement timeout to fire near its configured baseline."""
     lower_bound_ms = baseline * 1000 - 300
     upper_bound_ms = baseline * 1000 + 1500
     if elapsed_ms < lower_bound_ms:
@@ -471,19 +463,16 @@ def baseline_deadline_error(elapsed_ms, baseline):
 
 
 def playlist_belongs_to_folder(files, folder_names):
-    """A nonempty playlist whose every row resolves to the replacement folder."""
     return bool(files) and set(files).issubset(folder_names)
 
 
 def exact_playlist_error(files, expected):
-    """Reject omission, duplication, replacement and reordering alike."""
     if files != expected:
         return f"append produced {files}; expected the exact ordered rows {expected}"
     return None
 
 
 def duplicate_order_error(order):
-    """Reject a supposedly one-pass provider order that repeats a file."""
     seen = set()
     duplicates = []
     for value in order:
@@ -496,7 +485,6 @@ def duplicate_order_error(order):
 
 
 def deferred_sweep_error(scan, elapsed, lower_bound=1.5, upper_bound=3.5):
-    """Validate the stage-one oracle and the nominal 2s fallback's live bound."""
     if not scan.get("stageOneFinished") or not scan.get("pending"):
         return f"the deferred sweep never finished stage 1 with scan records: {scan}"
     if elapsed < lower_bound:
@@ -520,10 +508,8 @@ def fmt_trace(events, limit=60):
                      f"{e['role']:<9} {e['file']}{extra}")
     return "\n".join(lines) or "  (no events)"
 
-
-# --------------------------------------------------------------------------
 # Shared assertions
-# --------------------------------------------------------------------------
+
 
 
 def assert_no_foreground_contention(ctx, events):
@@ -549,7 +535,6 @@ def assert_no_foreground_contention(ctx, events):
 
 
 def wait_for_playlist_resolution(ctx, timeout=WAIT_TIMEOUT):
-    """Poll until every listed row has received a metadata result."""
     deadline = time.monotonic() + timeout
     playlist = ctx.playlist()
     while time.monotonic() < deadline:
@@ -593,7 +578,6 @@ def loading_residue(ctx):
 
 
 def wait_for_loading_settlement(ctx, timeout=WAIT_TIMEOUT):
-    """Poll boundedly for all loader/coordinator/provider/row gauges to drain."""
     deadline = time.monotonic() + timeout
     residue = {}
     while time.monotonic() < deadline:
@@ -710,7 +694,6 @@ def open_and_play(ctx, folder, index=0, wait=True):
 
 
 def park_selected_open(ctx, index):
-    """Pause one exact pending open and prove its neighborhood stays selected."""
     rows = ctx.playlist().get("files", [])
     if not 0 <= index < len(rows):
         raise Failed(f"cannot park row {index} in playlist {rows}")
@@ -760,10 +743,8 @@ def discover_playable_rows(ctx, folder, minimum):
     ctx.cmd("clear_caches", timeout=60)
     return rows
 
-
-# --------------------------------------------------------------------------
 # Scenarios
-# --------------------------------------------------------------------------
+
 #
 # Each takes a Ctx, raises Failed with a sentence, and returns a short note for
 # the report on success. The app is freshly launched and its caches cleared
@@ -771,8 +752,6 @@ def discover_playable_rows(ctx, folder, minimum):
 
 
 def s1_replacement_cancels_the_old_scan(ctx):
-    """A folder replacement stops the old folder's downloads before the new
-    folder's first open starts."""
     a, b = ctx.folders[0], ctx.folders[1]
     # Long enough that the replacement, two channel round trips away, ends A's
     # transfers rather than racing their natural completion.
@@ -888,7 +867,6 @@ def s3_successor_materializes_once(ctx):
 
 
 def s4a_rapid_next_keeps_the_hold(ctx):
-    """Rapid newer plays cancel every superseded open and keep one hold."""
     ctx.arm(seconds=6.0)
     open_and_play(ctx, ctx.folders[0], index=None, wait=True)
     live_initial = ctx.wait_for(
@@ -1179,8 +1157,6 @@ def s6_first_scan_pick_is_neighborhood_ranked(ctx):
 
 
 def s7_stand_aside_and_no_stranding(ctx):
-    """Playing the scan's current file joins that work, never duplicates it,
-    and the remaining rows still converge."""
     # Long enough for the join to be observed while the scan transfer is live.
     ctx.arm(seconds=4.0, capacity=0)
     suppress_setup_prefetch(ctx)
@@ -1311,7 +1287,6 @@ def _deadline_scenario(ctx, progress_mode, expect_timeout, seconds, watch,
 
 
 def s8a_no_progress_times_out(ctx):
-    """A provider that publishes no fraction reaches the configured baseline."""
     return _deadline_scenario(ctx, "none", expect_timeout=True,
                               seconds=20, watch=SHORT_TIMEOUT + 5)
 
@@ -1340,7 +1315,6 @@ def s8c_a_stall_after_progress_times_out(ctx):
 
 
 def s10_provider_failure_then_close_settles_clean(ctx):
-    """A provider failure settles the open; Close then drains every live gauge."""
     # A real playable file failed at the provider: an empty synthetic MP3 is
     # rejected before the open on some AVFoundation versions, proving nothing.
     folder = ctx.folders[0]
@@ -1998,9 +1972,6 @@ def s20_row_loading_tracks_live_provider_transfers(ctx):
 
 
 def s21_the_library_converges(ctx):
-    """Every row ends up with metadata. Stated in user terms, not lanes or
-    claims, so it survives a refactor and catches any silent stall.
-    """
     ctx.arm(seconds=0.2, capacity=1)
     suppress_setup_prefetch(ctx)
     folder = ctx.folders[0]
@@ -2075,11 +2046,8 @@ SCENARIOS = [
 ]
 
 
-# --------------------------------------------------------------------------
-
 
 def scenario_plan(wanted):
-    """Reject any unknown --only id rather than silently dropping it."""
     known = {ident for ident, _, _ in SCENARIOS}
     unknown = sorted((wanted or set()) - known)
     if unknown:
@@ -2122,7 +2090,6 @@ def set_pause_at_track_end(ctx, value):
 
 
 def snapshot_pause_at_track_end(channel, corpus, app, verbose):
-    """Read the user's baseline once, before any scenario can mutate it."""
     launch(corpus, app)
     ctx = Ctx(channel, corpus, verbose)
     try:
@@ -2132,7 +2099,6 @@ def snapshot_pause_at_track_end(channel, corpus, app, verbose):
 
 
 def restore_pause_at_track_end(channel, corpus, app, verbose, value):
-    """Restore through a fresh process, including after a scenario killed one."""
     try:
         launch(corpus, app)
         ctx = Ctx(channel, corpus, verbose)
@@ -2160,7 +2126,6 @@ def check_unique_basenames(corpus: Path):
 
 
 def check_corpus_shape(corpus: Path):
-    """Reject corpora outside the scenario runner's bounded trace/time shape."""
     folders = sorted(path for path in corpus.iterdir() if path.is_dir())
     if len(folders) < 2:
         sys.exit(f"{corpus} needs at least two subfolders — rebuild it with "

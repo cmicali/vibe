@@ -4,12 +4,12 @@
 
 #import "WaveformRendererRegistry.h"
 #import "AppSettings.h"
-#import "AudioWaveformRenderer.h"
-#import "DetailedAudioWaveformRenderer.h"
+#import "WaveformRenderer.h"
+#import "DetailedWaveformRenderer.h"
 #import "SonicCirrusWaveformRenderer.h"
-#import "BasicAudioWaveformRenderer.h"
+#import "BasicWaveformRenderer.h"
 #import "CupertinoWaveformRenderer.h"
-#import "OversamplingDetailedAudioWaveformRenderer.h"
+#import "OversamplingDetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
 #import "VibeStrings.h"
 
@@ -54,15 +54,16 @@ static AudioWaveform *VibePreviewWaveform(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSMutableDictionary<NSString *, Class> *registry = [NSMutableDictionary new];
-        for (Class renderer in @[BasicAudioWaveformRenderer.class,
+        for (Class renderer in @[BasicWaveformRenderer.class,
                                  CupertinoWaveformRenderer.class,
                                  CupertinoBasicWaveformRenderer.class,
                                  SonicCirrusWaveformRenderer.class,
-                                 DetailedAudioWaveformRenderer.class,
-                                 x2OversamplingDetailedAudioWaveformRenderer.class,
-                                 x4OversamplingDetailedAudioWaveformRenderer.class,
-                                 x8OversamplingDetailedAudioWaveformRenderer.class,
-                                 ThreeBandWaveformRenderer.class]) {
+                                 DetailedWaveformRenderer.class,
+                                 x2OversamplingDetailedWaveformRenderer.class,
+                                 x4OversamplingDetailedWaveformRenderer.class,
+                                 x8OversamplingDetailedWaveformRenderer.class,
+                                 ThreeBandWaveformRenderer.class,
+                                 SpectrumWaveformRenderer.class]) {
             // A nil key raises; in Release an unoverridden subclass costs one
             // style, not the registry.
             NSString *identifier = [renderer styleIdentifier];
@@ -73,7 +74,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
             }
             registry[identifier] = renderer;
         }
-        registry[kWiggleIdentifier] = DetailedAudioWaveformRenderer.class;
+        registry[kWiggleIdentifier] = DetailedWaveformRenderer.class;
         renderers = registry;
     });
     return renderers;
@@ -92,6 +93,11 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return ![identifier isEqualToString:@"sonic_cirrus"] && ![identifier isEqualToString:kCupertinoBasicIdentifier];
 }
 
++ (BOOL)supportsGradientForIdentifier:(NSString *)identifier {
+    return ![identifier isEqualToString:SpectrumWaveformRenderer.styleIdentifier] &&
+           ![identifier isEqualToString:kCupertinoBasicIdentifier];
+}
+
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier {
     return [identifier isEqualToString:kCupertinoBasicIdentifier] || [self supportsBarDensityForIdentifier:identifier];
 }
@@ -104,9 +110,24 @@ static AudioWaveform *VibePreviewWaveform(void) {
     return identifier && [[self renderersByIdentifier][identifier] readsBands];
 }
 
++ (VibeWaveformPaletteKind)paletteKindForIdentifier:(NSString *)identifier {
+    Class renderer = identifier ? [self renderersByIdentifier][identifier] : nil;
+    return renderer ? [renderer paletteKind] : VibeWaveformPaletteKindTheme;
+}
+
++ (NSArray<VibeColor *> *)swatchColorsForIdentifier:(NSString *)identifier theme:(WaveformTheme *)theme {
+    switch ([self paletteKindForIdentifier:identifier]) {
+        case VibeWaveformPaletteKindBands:
+            return [theme.bandColors subarrayWithRange:NSMakeRange(0, 3)];
+        case VibeWaveformPaletteKindSpectrum:
+            return theme.spectrumColors;
+        case VibeWaveformPaletteKindTheme:
+            return @[theme.playedColor, theme.playedColor, theme.playedColor];
+    }
+}
+
 + (BOOL)drawsPlayheadLineForIdentifier:(NSString *)identifier chosen:(NSNumber *)chosen {
-    return chosen != nil ? chosen.boolValue
-                         : [identifier isEqualToString:[ThreeBandWaveformRenderer styleIdentifier]];
+    return chosen != nil ? chosen.boolValue : [self readsBandsForIdentifier:identifier];
 }
 
 // Hosts the REAL renderer in a detached layer, so the Settings preview and the
@@ -126,7 +147,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
     CALayer *layer = [CALayer layer];
     layer.bounds = bounds;
     layer.contentsScale = scale;
-    AudioWaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
+    WaveformRenderer *renderer = [self rendererForResolvedIdentifier:identifier
             layer:layer bounds:bounds isDark:dark];
     renderer.theme = theme;
     renderer.barDensity = barDensity;
@@ -191,7 +212,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
                : NULL;
 }
 
-+ (AudioWaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
++ (WaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark {
     Class renderer = [self renderersByIdentifier][identifier];
     NSAssert(renderer, @"Resolve the waveform style before constructing its renderer");

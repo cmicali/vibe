@@ -110,7 +110,7 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
 @end
 
 @implementation AudioSessionController {
-    // Main-confined, like every other verdict path here.
+    // Main-confined transport state. Reset receipt below is not main-confined.
     //
     // Whether playback was running when the current interruption began,
     // recorded at the Began edge only: the route-loss pauses that often
@@ -418,10 +418,9 @@ static VibeOutputRouteKind VibeOutputRouteKindForRoute(
         NSUInteger reason = [note.userInfo[AVAudioSessionInterruptionReasonKey] unsignedIntegerValue];
         LogInfo(@"AudioSession: interruption began (reason %lu)", (unsigned long)reason);
         if (reason == AVAudioSessionInterruptionReasonRouteDisconnected) {
-            // TRAP: no Ended follows this one (AirPods into their case,
-            // observed on device), so it must own nothing an Ended releases:
-            // held as an interruption it kept the session until the next
-            // play. The route loss beside it owns the pause and its blocker.
+            // TRAP: a route-disconnected interruption may have no Ended.
+            // Holding interruption state would prevent idle release. The
+            // route-loss notification owns the blocker; this edge only pauses.
             [self onMain:^{
                 [self.delegate audioSessionShouldPause:self];
             }];

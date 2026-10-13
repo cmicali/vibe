@@ -16,8 +16,8 @@ static const double kVibeUITargetPxPerTick = 2.0;
 
 // The playhead moves widthPx × rate / duration device pixels per second;
 // this is the Hz that steps it kVibeUITargetPxPerTick per tick, clamped to
-// [kVibeUIUpdateHzMin, capHz]. A zero duration (loading, parked) rests at the
-// floor. The comparisons send NaN and infinity to a clamp, never to a cast
+// [kVibeUIUpdateHzMin, max(capHz, kVibeUIUpdateHzMin)]. A zero duration uses
+// the floor. Comparisons send NaN and infinity to a clamp, never to a cast
 // with undefined behavior.
 static inline NSUInteger VibeUIUpdateHzForPlayhead(double widthPx,
                                                    NSTimeInterval duration,

@@ -38,7 +38,7 @@ static const double kHarmonicWeight = 0.5;
 
 // The bass band, accumulated into a second chroma. Correlation against a
 // profile identifies the scale but not which of its notes is the tonic, which
-// is why the relative, dominant and subdominant keys — all sharing that scale
+// is why the relative, dominant and subdominant keys — sharing many scale notes
 // — dominate the remaining errors. In dance music the bassline states the
 // root, so the bass chroma is the evidence the full-range one cannot supply.
 // It supplements rather than replaces: band-limiting the whole chroma this far

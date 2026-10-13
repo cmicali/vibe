@@ -46,7 +46,6 @@ static const CGFloat kCellActionBarFillAlpha = 0.12;
 // from the drawn waveform, so portrait pulls the time row UP into the view
 // and landscape measures its time band from the same line.
 static const CGFloat kCellTimeWaveformOverlap = 12;
-static const CGFloat kArtCornerRadius = 12;
 // Apple Music's rendered glyph sizes, in far larger tap targets.
 static const CGFloat kCellGlyphPointSize = 34;
 static const CGFloat kCellSideGlyphPointSize = 23;
@@ -83,122 +82,17 @@ static const CGFloat kCellTimeGap = 12;
 // it an iPad window's art and transport row crowd the waveform. A phone's
 // fixed landscape keeps the full layout.
 static const CGFloat kCellCompactMaximumHeight = 600;
-// The portrait chain was built for the old 480pt window floor.
+// The portrait chain's floor.
 static const CGFloat kCellPortraitMinimumHeight = 480;
 static const CGFloat kCellStripAspect = 2;
 // The mac's art: carries the 138pt row, so the strip's floor.
 static const CGFloat kCellArtSideCompact = 150;
 static const CGFloat kCellArtWidthFractionCompact = 0.5;
-// The mac's: 62% of its 150pt art.
 static const CGFloat kCellArtGradientHeight = 93;
 static const CGFloat kTransportButtonSideCompact = 46;
 static const CGFloat kCellGlyphScaleCompact = 31.0 / kCellGlyphPointSize;
 static const CGFloat kCellTransportInsetCompact = 3;
 static const CGFloat kCellStripWaveformGap = 4;
-
-static void VibeConfigureTimeLabel(UILabel *label) {
-    label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
-            scaledFontForFont:[UIFont monospacedDigitSystemFontOfSize:16
-                                                               weight:UIFontWeightRegular]];
-    label.adjustsFontForContentSizeCategory = YES;
-    label.adjustsFontSizeToFitWidth = YES;
-    label.minimumScaleFactor = 0.5;
-    [label setContentCompressionResistancePriority:UILayoutPriorityRequired
-                                           forAxis:UILayoutConstraintAxisVertical];
-    label.textColor = [UIColor secondaryLabelColor];
-    label.text = STR_LABEL_TIME_UNKNOWN;
-    label.translatesAutoresizingMaskIntoConstraints = NO;
-}
-
-// TRAP: the shadow path is restated from the card's OWN layout pass. The
-// contentView's constraints size the card, so a label-band change resizes it
-// without the cell's layoutSubviews running, and a path set there leaves a
-// stale halo until a swipe recycles the cell.
-@interface TrackPageArtCardView : UIView
-@end
-
-@implementation TrackPageTimeControl {
-    UILabel *_label;
-    NSString *_text;
-    NSTextAlignment _textAlignment;
-}
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        _label = [[UILabel alloc] init];
-        VibeConfigureTimeLabel(_label);
-        [self addSubview:_label];
-        [NSLayoutConstraint activateConstraints:@[
-            [_label.leadingAnchor constraintEqualToAnchor:self.leadingAnchor],
-            [_label.trailingAnchor constraintEqualToAnchor:self.trailingAnchor],
-            [_label.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
-            [_label.topAnchor constraintGreaterThanOrEqualToAnchor:self.topAnchor],
-        ]];
-        self.isAccessibilityElement = YES;
-        self.accessibilityLabel = STR_SETTINGS_SECTION_TIME;
-        self.accessibilityTraits = UIAccessibilityTraitButton;
-        self.text = STR_LABEL_TIME_UNKNOWN;
-        __weak TrackPageTimeControl *weakSelf = self;
-        [self registerForTraitChanges:@[UITraitPreferredContentSizeCategory.class]
-                          withHandler:^(id<UITraitEnvironment> environment,
-                                        UITraitCollection *previous) {
-            [weakSelf invalidateIntrinsicContentSize];
-        }];
-    }
-    return self;
-}
-
-- (CGSize)intrinsicContentSize {
-    CGSize labelSize = _label.intrinsicContentSize;
-    return CGSizeMake(MAX(44, labelSize.width), MAX(44, labelSize.height));
-}
-
-- (NSString *)text {
-    return _text;
-}
-
-// The tick writes it three times a second, and an unchanged write would still
-// invalidate the layout.
-- (void)setText:(NSString *)text {
-    if (text == _text || [text isEqualToString:_text]) {
-        return;
-    }
-    _text = [text copy];
-    _label.text = text;
-    self.accessibilityValue = text;
-    [self invalidateIntrinsicContentSize];
-}
-
-- (NSTextAlignment)textAlignment {
-    return _textAlignment;
-}
-
-- (void)setTextAlignment:(NSTextAlignment)textAlignment {
-    _textAlignment = textAlignment;
-    _label.textAlignment = textAlignment;
-}
-
-- (void)setHighlighted:(BOOL)highlighted {
-    [super setHighlighted:highlighted];
-    _label.alpha = highlighted ? 0.55 : 1;
-}
-@end
-
-@implementation TrackPageActionBarView
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    self.layer.cornerRadius = self.bounds.size.height / 2;
-}
-@end
-
-@implementation TrackPageArtCardView
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    self.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.bounds
-                                                       cornerRadius:kArtCornerRadius].CGPath;
-}
-@end
 
 @implementation TrackPageCell {
     // Blurred ONCE into an image (UIImage+Blur), not a UIVisualEffectView,
@@ -638,7 +532,6 @@ static UIImage *TransportGradientImage(void) {
                                                  constant:kCellActionBarContentInset],
         [_routeView.trailingAnchor constraintEqualToAnchor:_actionBar.trailingAnchor
                                                   constant:-kCellActionBarContentInset],
-        // The pad's circle, at the bar's leading end.
         [_fxPadView.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
         [_fxPadView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor
                                                  constant:kCellActionBarInset],
@@ -708,7 +601,6 @@ static UIImage *TransportGradientImage(void) {
         [_artCard.topAnchor constraintEqualToAnchor:safe.topAnchor
                                            constant:kCellTopInsetLandscape],
 
-        // The info label hangs off the artist.
         [names.topAnchor constraintEqualToAnchor:_artistLabel.topAnchor],
         [names.bottomAnchor constraintEqualToAnchor:_titleLabel.bottomAnchor],
         [_artistLabel.leadingAnchor constraintEqualToAnchor:_artCard.trailingAnchor
@@ -834,7 +726,6 @@ static UIImage *TransportGradientImage(void) {
     if (layout == _activeLayout) {
         return;
     }
-    // Signposts the swap, not the test that usually declines it.
     VibeSignpostBegin(cell_constraints);
     // Off before on: the outgoing body over-constrains the incoming one.
     [NSLayoutConstraint deactivateConstraints:_activeLayout ?: @[]];
@@ -954,10 +845,8 @@ static UIImage *TransportGradientImage(void) {
     [self setNeedsLayout];
 }
 
-// On the fonts the labels draw at now; Dynamic Type rescales them. The band is
-// the worst case. The codec line alone can leave it, line and gap, when the
-// setting is off or there is no readout yet — one setting for every page, so
-// the waveform's y still agrees across the pager.
+// Reserve the largest title and artist block at the current Dynamic Type size.
+// An absent codec line releases its height. The waveform stays bottom-anchored.
 - (void)updateHeaderMetrics {
     UIFont *artistFont = _artistLabel.font;
     UIFont *infoFont = _fileInfoLabel.font;

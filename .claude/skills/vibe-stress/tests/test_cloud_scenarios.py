@@ -27,7 +27,6 @@ def event(seq, kind, role, file="track.wav"):
 
 
 def spans(events, role):
-    """transfer_spans() as (start_seq, end_seq, file)."""
     return [(start["seq"], end["seq"] if end else None, start["file"])
             for start, end in cloud.transfer_spans(events, role)]
 
@@ -930,7 +929,6 @@ class SettingsTeardownTests(unittest.TestCase):
         return mock.Mock(run=run), sent
 
     def preserved(self, channel, body, pid=4242):
-        """Run body inside user_settings_preserved; returns what it printed."""
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(stress, "app_pid", return_value=pid), \
                 mock.patch.object(stress, "launch") as launch, \

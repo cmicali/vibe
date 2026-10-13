@@ -1,18 +1,6 @@
-//
-//  WidgetPublisher.h
-//  Vibe (iOS)
-//
-//  What the home-screen widget is told, and the ONLY writer of the shared app
-//  group: NowPlayingController's shape pointed at a second process. Nothing
-//  else needs to know the widget exists.
-//
-//  Writes are gated on `widgetPlaced` (each track change is two renders, two
-//  PNG encodes and ~220 KB); the bookkeeping never is, so a widget that
-//  appears mid-track is handed the current snapshot at once.
-//
-//  Main thread only. Every file write and WidgetKit reload lands on its own
-//  serial queue.
-//
+// Main thread only. File writes and reload requests use a private serial queue.
+// Writes require widgetPlaced. The current snapshot is retained either way.
+// A placed widget playing a track requests a timeline reload every minute.
 
 #import <Foundation/Foundation.h>
 
@@ -31,14 +19,11 @@ NS_ASSUME_NONNULL_BEGIN
 // by the extension's read signal (kVibeWidgetReadNotification).
 @property (nonatomic, readonly) BOOL widgetPlaced;
 
-// Called at init and on every return to the foreground, the one moment a
-// widget can have been REMOVED.
+// Call on return to the foreground to detect removed widgets.
 - (void)refreshPlaced;
 
-// From the Now Playing publish, with its values, so the widget never disagrees
-// with the lock screen. Runs at 3 Hz and allocates nothing on a quiet tick.
-// While `startPending` the position is pinned, so the seek detector is skipped,
-// or a slow cloud open republishes identical content every couple of seconds.
+// Uses the Now Playing publish values. Quiet ticks allocate nothing.
+// startPending skips the seek test during a slow open.
 - (void)updateWithTrack:(nullable AudioTrack *)track
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration
