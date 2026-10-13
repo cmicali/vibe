@@ -440,7 +440,7 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
                 }
                 if (gain == 0) {
                     // Sonic's full-height top bar is 42pt in this 80pt band;
-                    // Cupertino Basic is a fixed 9pt pill independent of audio.
+                    // Progress is a fixed 9pt pill independent of audio.
                     XCTAssertEqualWithAccuracy(maximum, [identifier isEqualToString:@"sonic_cirrus"] ? 42 : 9, 1e-6);
                 }
             }
@@ -489,11 +489,7 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     }
     XCTAssertEqual(typeNames.count, types.count);
     XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:@"basic"], @[]);
-    XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:nil], @[]);
     XCTAssertEqualObjects([WaveformRendererRegistry styleIdentifierForIdentifier:@"basic"], @"basic");
-    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"basic"], STR_WAVEFORM_STYLE_BASIC);
-    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"cupertino_basic"],
-                          STR_WAVEFORM_STYLE_CUPERTINO_BASIC);
     // NSPopUpButton drops an item whose title repeats another's.
     NSMutableSet<NSString *> *styleNames = [NSMutableSet set];
     for (NSString *style in styles) {

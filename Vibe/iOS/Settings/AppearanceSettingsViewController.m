@@ -26,16 +26,13 @@ typedef NS_ENUM(NSInteger, VibeNowPlayingRow) {
     VibeNowPlayingRowCount,
 };
 
-// The Widget group's rows too. Under Match app it shows only Style, since
-// the widget then draws every setting of the card's. Type shows only for a
-// style that has types, so a row index maps through waveformRowAtIndex:.
+// The Widget group's rows too. Which show is waveformRowsForWidget:'s.
 typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowStyle = 0,
     VibeWaveformRowType,
     VibeWaveformRowTheme,
     VibeWaveformRowPlayheadLine,
     VibeWaveformRowCentered,
-    VibeWaveformRowCount,
 };
 
 // Not a cast of the BOOL: a row index is a screen position.
@@ -94,13 +91,23 @@ static NSString *const kValueCellIdentifier  = @"value";
     return [WaveformRendererRegistry displayNameForIdentifier:[self currentWaveformStyleForWidget:widget]];
 }
 
-- (NSArray<NSString *> *)waveformTypesForWidget:(BOOL)widget {
-    return [WaveformRendererRegistry typeIdentifiersForIdentifier:[self currentWaveformStyleForWidget:widget]];
+// Top to bottom. Under Match app the widget's group is Style alone, since
+// the widget then draws every setting of the card's. Type shows only for a
+// style that has types.
+- (NSArray<NSNumber *> *)waveformRowsForWidget:(BOOL)widget {
+    if (widget && !AppSettings.sharedInstance.widgetWaveformStyle) {
+        return @[@(VibeWaveformRowStyle)];
+    }
+    BOOL types = [WaveformRendererRegistry typeIdentifiersForIdentifier:
+            [self currentWaveformStyleForWidget:widget]].count > 0;
+    return types ? @[@(VibeWaveformRowStyle), @(VibeWaveformRowType), @(VibeWaveformRowTheme),
+                     @(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)]
+                 : @[@(VibeWaveformRowStyle), @(VibeWaveformRowTheme),
+                     @(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)];
 }
 
 - (VibeWaveformRow)waveformRowAtIndex:(NSInteger)index widget:(BOOL)widget {
-    BOOL skipsType = index >= VibeWaveformRowType && [self waveformTypesForWidget:widget].count == 0;
-    return (VibeWaveformRow)(skipsType ? index + 1 : index);
+    return (VibeWaveformRow)[self waveformRowsForWidget:widget][(NSUInteger)index].integerValue;
 }
 
 - (NSString *)timeDisplayValueText {
@@ -114,16 +121,10 @@ static NSString *const kValueCellIdentifier  = @"value";
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    switch ((VibeAppearanceSection)section) {
-        case VibeAppearanceSectionNowPlaying: return VibeNowPlayingRowCount;
-        case VibeAppearanceSectionWidget:
-            if (!AppSettings.sharedInstance.widgetWaveformStyle) {
-                return VibeWaveformRowStyle + 1;
-            }
-            return VibeWaveformRowCount - ([self waveformTypesForWidget:YES].count ? 0 : 1);
-        default:
-            return VibeWaveformRowCount - ([self waveformTypesForWidget:NO].count ? 0 : 1);
+    if (section == VibeAppearanceSectionNowPlaying) {
+        return VibeNowPlayingRowCount;
     }
+    return (NSInteger)[self waveformRowsForWidget:section == VibeAppearanceSectionWidget].count;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -140,7 +141,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     // The Waveform and Widget groups share their rows; the widget's read and
     // write the widget's copies. A switch carries its section as its tag.
     BOOL widget = indexPath.section == VibeAppearanceSectionWidget;
-    VibeWaveformRow row = [self waveformRowAtIndex:indexPath.row widget:widget];
+    VibeWaveformRow row = nowPlaying ? VibeWaveformRowStyle : [self waveformRowAtIndex:indexPath.row widget:widget];
     AppSettings *settings = AppSettings.sharedInstance;
     if (nowPlaying && indexPath.row == VibeNowPlayingRowFileInfo) {
         return [SettingsChoiceViewController switchCellInTableView:tableView title:STR_SETTINGS_FILE_INFO

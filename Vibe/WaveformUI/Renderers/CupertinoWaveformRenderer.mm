@@ -57,7 +57,7 @@ static const CGFloat kCupertinoBarWidth = 1;
 
 @end
 
-#pragma mark - Cupertino Basic
+#pragma mark - Progress
 
 // Hover growth marks the control. The column marks the seek position.
 static const CGFloat kPillHeight = 9;

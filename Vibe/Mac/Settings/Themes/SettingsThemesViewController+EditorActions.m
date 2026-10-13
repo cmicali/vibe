@@ -519,6 +519,11 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
             numberStyle:NSNumberFormatterPercentStyle];
 }
 
+- (void)waveformTypeChanged:(id)sender {
+    [self chooseFromPopUp:_waveformTypePopUp revealing:nil wells:@[] effect:VibeSettingsLiveEffectWaveformStyle
+                    write:^(AppTheme *theme, NSString *identifier) { theme.waveformStyle = identifier; }];
+}
+
 - (void)waveformThemeChanged:(id)sender {
     [self chooseFromPopUp:_waveformThemePopUp revealing:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM
                     wells:@[_customDarkRow, _customLightRow] effect:VibeSettingsLiveEffectWaveformTheme

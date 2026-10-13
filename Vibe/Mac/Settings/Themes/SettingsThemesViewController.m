@@ -249,10 +249,8 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 #pragma mark - State
 
 - (void)selectWaveformStyle:(NSString *)identifier in:(NSPopUpButton *)popUp {
-    [self selectValue:[WaveformRendererRegistry styleIdentifierForIdentifier:identifier] in:popUp];
-    if (popUp.indexOfSelectedItem < 0) {
-        [self selectValue:SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT in:popUp];
-    }
+    [self selectValue:[WaveformRendererRegistry styleIdentifierForIdentifier:
+            [WaveformRendererRegistry resolveStyleIdentifier:identifier]] in:popUp];
 }
 
 - (void)refreshFromSettings {
@@ -362,37 +360,22 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 - (NSPopUpButton *)waveformStylePopUpButton {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(waveformStyleChanged:)];
-    NSArray<NSString *> *styles = [[WaveformRendererRegistry styleIdentifiers]
-            sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-                return [[WaveformRendererRegistry displayNameForIdentifier:a]
-                        localizedStandardCompare:[WaveformRendererRegistry displayNameForIdentifier:b]];
-            }];
-    for (NSString *identifier in styles) {
+    for (NSString *identifier in [WaveformRendererRegistry styleIdentifiers]) {
         [self addItem:[WaveformRendererRegistry displayNameForIdentifier:identifier]
                 value:identifier to:popUp];
     }
     return popUp;
 }
 
+// Rechoosing Detailed keeps its type.
 - (void)waveformStyleChanged:(NSPopUpButton *)sender {
     NSString *identifier = sender.selectedItem.representedObject;
-    NSString *current = [WaveformRendererRegistry
-            resolveStyleIdentifier:AppSettings.sharedInstance.currentTheme.waveformStyle];
-    if (!identifier || [[WaveformRendererRegistry styleIdentifierForIdentifier:current] isEqualToString:identifier]) {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    if (!identifier || [[WaveformRendererRegistry styleIdentifierForIdentifier:
+            [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle]] isEqualToString:identifier]) {
         return;
     }
-    [self applyWaveformStyle:identifier];
-}
-
-- (void)waveformTypeChanged:(NSPopUpButton *)sender {
-    NSString *identifier = sender.selectedItem.representedObject;
-    if (identifier) {
-        [self applyWaveformStyle:identifier];
-    }
-}
-
-- (void)applyWaveformStyle:(NSString *)identifier {
-    AppSettings.sharedInstance.currentTheme.waveformStyle = identifier;
+    theme.waveformStyle = identifier;
     [self themeFieldDidChange:VibeSettingsLiveEffectWaveformStyle];
     [self refreshFromSettings];
 }

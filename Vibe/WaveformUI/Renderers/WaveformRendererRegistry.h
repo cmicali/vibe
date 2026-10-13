@@ -17,16 +17,14 @@ NS_ASSUME_NONNULL_BEGIN
 // All registered style identifiers. Order is unspecified.
 + (NSArray<NSString *> *)availableIdentifiers;
 
-// One identifier per style, for the style choosers. Order is unspecified. The
-// Detailed family's four identifiers are one style, Detailed, listed under
-// its default type. Its Type chooser picks among them.
+// One identifier per style, in chooser order. The Detailed family's four
+// identifiers are one style, listed under its 4x type.
 + (NSArray<NSString *> *)styleIdentifiers;
-// The styleIdentifiers entry an identifier shows under. Choosing the entry of
-// the current style keeps the current type.
+// The styleIdentifiers entry an identifier shows under.
 + (NSString *)styleIdentifierForIdentifier:(NSString *)identifier;
 // The style's types in chooser order, identifier among them. Empty for a
 // style without types.
-+ (NSArray<NSString *> *)typeIdentifiersForIdentifier:(nullable NSString *)identifier;
++ (NSArray<NSString *> *)typeIdentifiersForIdentifier:(NSString *)identifier;
 // Localized, display only.
 + (NSString *)typeDisplayNameForIdentifier:(NSString *)identifier;
 

@@ -16,8 +16,7 @@
 static NSString *const kWiggleIdentifier = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
 
-// The Detailed family in its Type chooser's order. Each type keeps its own
-// persisted identifier, so the type needs no field of its own.
+// The Detailed family in its Type chooser's order.
 static NSArray<NSString *> *DetailedTypeIdentifiers(void) {
     return @[DetailedWaveformRenderer.styleIdentifier,
              x2OversamplingDetailedWaveformRenderer.styleIdentifier,
@@ -25,7 +24,7 @@ static NSArray<NSString *> *DetailedTypeIdentifiers(void) {
              x8OversamplingDetailedWaveformRenderer.styleIdentifier];
 }
 
-// Choosing Detailed from another style lands on the app's default type.
+// Choosing Detailed from another style lands on the 4x type.
 static NSString *DetailedStyleIdentifier(void) {
     return x4OversamplingDetailedWaveformRenderer.styleIdentifier;
 }
@@ -99,10 +98,13 @@ static AudioWaveform *VibePreviewWaveform(void) {
 }
 
 + (NSArray<NSString *> *)styleIdentifiers {
-    NSMutableArray<NSString *> *styles = [[self availableIdentifiers] mutableCopy];
-    [styles removeObjectsInArray:DetailedTypeIdentifiers()];
-    [styles addObject:DetailedStyleIdentifier()];
-    return styles;
+    NSMutableSet<NSString *> *styles = [NSMutableSet set];
+    for (NSString *identifier in [self availableIdentifiers]) {
+        [styles addObject:[self styleIdentifierForIdentifier:identifier]];
+    }
+    return [styles.allObjects sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        return [[self displayNameForIdentifier:a] localizedStandardCompare:[self displayNameForIdentifier:b]];
+    }];
 }
 
 + (NSString *)styleIdentifierForIdentifier:(NSString *)identifier {
@@ -111,7 +113,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
 
 + (NSArray<NSString *> *)typeIdentifiersForIdentifier:(NSString *)identifier {
     NSArray<NSString *> *types = DetailedTypeIdentifiers();
-    return identifier && [types containsObject:identifier] ? types : @[];
+    return [types containsObject:identifier] ? types : @[];
 }
 
 // Three keys, not one format string, so each reaches the translator in
