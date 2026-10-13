@@ -1,31 +1,22 @@
 # v1.16
 
-* Added Open URL… to play an audio file from a web address
-* Added playing iCloud Drive share links with Open URL
-* mac: Added dropping a web link or a .webloc file on the player to play it
-* ios: Added playing a copied link from the Files tab
-* Fixed stalled network playback to pause with "Connection lost"
-* Fixed changing shuffle, repeat, or On track end while stopped downloading the next song
-* mac: Added automatic updates and Check for Updates to the downloaded version
-* mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
-* mac: Added volume slider visibility to the theme editor
-* mac: Changed the volume slider to appear near the pointer
-* mac: Improved the pitch fader: cleaner sound, and it glides instead of stepping
-* mac: Added Cut and Paste to the Edit menu
+* Added Open URL… to play a web link or an iCloud Drive share link
+* Added the Spectrum waveform style for RGB-style waveforms
+* Cleaned up waveform styles: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
+* Changed Previous on the first song to restart it
+* Improved network share playback: a dropped connection pauses with "Connection lost", and a slow server no longer stalls track changes
+* Added the vibe theme track, which loads on the first launch
+* mac: Added automatic updates to the non-appstore version
 * mac: Added Move to Trash (⌘⌫) to delete a song's file from the playlist, with Undo
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
-* mac: Fixed the resize cursor sometimes not showing at the window's right edge
-* Changed Previous on the first song to restart it, on the Mac, in Control Center and on the Lock Screen
-* Added the vibe theme track, which loads on the first launch
-* ios: Added small waveform widgets, a large widget, and Lock Screen widgets
-* ios: Improved the widget's playhead, which now keeps up on long tracks
-* ios: Added the widget's own waveform theme, colors, and playhead line, under its own style
-* ios: Added 3-Band waveform themes: Rekord Bin, Dengine, and Custom low, mid, and high colors
-* Added the Spectrum waveform style, colored by each moment's bass, mids and highs, in RGB, Blue, Green or Custom colors
-* Changed the Basic waveform style's name to Bars, and Cupertino Basic's to Progress
-* Changed the four Detailed waveform styles into one Detailed style with a Type setting
-* ios: Added album art for songs in iCloud and Dropbox that are not downloaded
-* ios: Improved Add Folder: it names iCloud Drive and opens the folder once added
+* mac: Added the Dark Wolf theme, contributed by JohnnyFireOne
+* mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
+* mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
+* ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
+* ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors
+* ios: Added album art for iCloud and Dropbox songs that aren't downloaded
+* ios: Added ability to play Dropbox, Google Drive, and iCloud drive share link URLs directly
+* ios: Improved the Files tab: places are grouped under Locations, and a copied link plays from it
 
 # v1.15
 
