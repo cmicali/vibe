@@ -1,5 +1,6 @@
 import ast
 import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -880,6 +881,103 @@ class ScriptLineTests(unittest.TestCase):
              self.assertRaises(stress.Failure):
             stress.ios_wait(cmd, "progress", 1, expected_index=1)
 
+    def test_ios_open_waits_for_replacement_and_start_row_before_progress(self):
+        for same_corpus in (False, True):
+            with self.subTest(same_corpus=same_corpus):
+                states = []
+                for generation, folder, row, position, pending in (
+                        (4, "/corpus" if same_corpus else "/old", 0, 11.60, False),
+                        (4, "/corpus" if same_corpus else "/old", 0, 11.88, False),
+                        (5, "/corpus", 1, 0.3, False),
+                        (5, "/corpus", 0, 0.4, True),
+                        (5, "/corpus", 0, 0.0, False),
+                        (5, "/corpus", 0, 0.2, False)):
+                    states.append({"playlist": {"structureGeneration": generation, "folder": folder, "currentIndex": row},
+                                   "currentTrack": {"url": "/corpus/a"},
+                                   "ui": {"trackStartPending": pending},
+                                   "player": {"state": "playing", "position": position}})
+                command = mock.Mock(side_effect=lambda argv: states.pop(0) if argv == ["dump_state"]
+                                    else {"stages": [{"stage": "output"}]})
+                with mock.patch.object(stress.time, "sleep"):
+                    result = stress.ios_wait(command, "progress", 1, 0, (4, "/corpus"))
+                self.assertEqual(result["player"]["position"], 0.2)
+                self.assertEqual(states, [])
+
+    def test_ios_open_and_post_open_stalls_are_bounded(self):
+        for generation, folder, row, pending in ((4, "/corpus", 0, False), (5, "/wrong", 0, False),
+                                                 (5, "/corpus", 1, False), (5, "/corpus", 0, True),
+                                                 (5, "/corpus", 0, False)):
+            clock = [0.0]
+            def command(argv):
+                if argv == ["dump_state"]:
+                    return {"playlist": {"structureGeneration": generation, "folder": folder, "currentIndex": row},
+                            "currentTrack": {"url": "/corpus/a"}, "ui": {"trackStartPending": pending},
+                            "player": {"state": "playing", "position": 10 if generation == 5 else 10 + clock[0]}}
+                return {"stages": [{"stage": "output"}]}
+            with self.subTest(generation=generation, folder=folder, row=row, pending=pending), \
+                 mock.patch.object(stress.time, "monotonic", side_effect=lambda: clock[0]), \
+                 mock.patch.object(stress.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)), \
+                 self.assertRaisesRegex(stress.Failure, "did not settle within 1s"):
+                stress.ios_wait(command, "progress", 1, 0, (4, "/corpus"))
+            self.assertEqual(clock[0], 1)
+
+    def test_ios_setup_and_cleanup_with_delayed_or_missing_open(self):
+        for settles in (True, False):
+            with self.subTest(settles=settles), tempfile.TemporaryDirectory() as root:
+                data = Path(root).resolve()
+                corpus = data / "Documents" / "corpus"
+                corpus.mkdir(parents=True)
+                (data / "Vibe").write_bytes(b"test executable")
+                settings = {"audioFXEnabled": True, "repeatMode": "all", "shuffleEnabled": True, "pauseAtTrackEnd": True}
+                state = {"settings": settings, "fx": {"stages": {}}, "ui": {"fxPadEngaged": False},
+                         "player": {"state": "playing", "noAudioHw": True, "duration": 120, "position": 11.6},
+                         "playlist": {"count": 1, "currentIndex": 0, "structureGeneration": 1, "folder": str(corpus)},
+                         "currentTrack": {"url": str(corpus / "a.wav")}}
+                before = dict(settings)
+                clock, polls = [0.0], []
+                def command(env, journal, argv, phase="run"):
+                    if argv[0] == "open":
+                        polls.append(0)
+                    if argv[0] == "dump_state":
+                        state["player"]["position"] += 0.2
+                        if polls and phase == "run":
+                            polls[0] += 1
+                            if settles and polls[0] == 3:
+                                state["playlist"].update(count=3, structureGeneration=2)
+                                state["player"]["position"] = 0
+                        return copy.deepcopy(state)
+                    if argv[0] == "dump_audio_path":
+                        return {"stages": [{"stage": "output", "idle": phase == "cleanup", "running": phase != "cleanup"}]}
+                    if argv[0] == "play_pause":
+                        state["player"]["state"] = "paused"
+                    for verb, key in (("set_repeat", "repeatMode"), ("set_shuffle", "shuffleEnabled"),
+                                      ("set_pause_at_track_end", "pauseAtTrackEnd")):
+                        if argv[0] == verb:
+                            settings[key] = argv[1] if verb == "set_repeat" else argv[1] == "on"
+                    return {"ok": True}
+                def output(argv, **kwargs):
+                    if argv[0] == "ps":
+                        return f"4242 {data}/Vibe\n"
+                    if argv[2] == "list":
+                        return json.dumps({"devices": {"test": [{"udid": "test-runner", "state": "Booted"}]}})
+                    return str(data)
+                with mock.patch.object(sys, "argv", ["stress.py", "--ios", "test-runner", "--corpus", str(corpus),
+                        "--iterations", "0", "--ios-rounds", "0", "--ios-progress-timeout", "1"]), \
+                     mock.patch.object(stress, "DEFAULT_OUTPUT_DIR", data / "evidence"), \
+                     mock.patch.object(stress, "ios_command", side_effect=command), \
+                     mock.patch.object(stress, "fresh_crash_reports", return_value=[]), \
+                     mock.patch.object(stress.subprocess, "check_output", side_effect=output), \
+                     mock.patch.object(stress.subprocess, "run", return_value=mock.Mock(stdout=str(data / "Vibe"))), \
+                     mock.patch.object(stress.time, "monotonic", side_effect=lambda: clock[0]), \
+                     mock.patch.object(stress.time, "sleep", side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(stress.main(), int(not settles))
+                result = json.loads(next((data / "evidence").glob("*/result.json")).read_text())
+                self.assertEqual(result["kind"], None if settles else "progress")
+                self.assertEqual(result["cleanupErrors"], [])
+                self.assertEqual(settings, before)
+                self.assertEqual(state["player"]["state"], "paused")
+
 
 class SettingsTeardownTests(unittest.TestCase):
     """The store a run moves is the user's real one: the sandbox container is
@@ -888,7 +986,11 @@ class SettingsTeardownTests(unittest.TestCase):
     START = {"activeTheme": "vibe", "windowAppearance": "system", "pauseAtTrackEnd": False,
              "folderArt": False, "analyzeBPM": True, "analyzeKey": False, "pitchRange": 8,
              "playlistShown": True, "pitchPanelShown": False, "themeCount": 13,
-             "crossfadeMilliseconds": 10, "windowFrame": "{{0, 336}, {1541, 400}}"}
+             "crossfadeMilliseconds": 10, "windowFrame": "{{37, 546}, {680, 150}}",
+             "windowScreen": "{{0, 0}, {3000, 2000}}",
+             "theme": {"activeTheme": "vibe", "record": {"waveformStyle": "three_band", "windowTint": "#123456"}},
+             "themeLibrary": [{"id": "vibe", "name": "Vibe", "record": {}},
+                              {"id": "custom", "name": "My theme", "record": {"waveformStyle": "three_band"}}]}
 
     def fake_app(self, settings):
         """A channel over `settings` that applies each restoring verb the way
@@ -899,14 +1001,22 @@ class SettingsTeardownTests(unittest.TestCase):
             sent.append(argv)
             verb, args = argv[0], argv[1:]
             if verb == "dump_state":
-                reported = {k: v for k, v in settings.items() if k != "windowFrame"}
-                return 0, {"settings": reported, "window": {"frame": settings["windowFrame"]}}, 1
+                reported = {k: v for k, v in settings.items() if k not in ("windowFrame", "windowScreen", "theme", "themeLibrary")}
+                return 0, {"settings": reported, "window": {"frame": settings["windowFrame"], "screenFrame": settings["windowScreen"]}}, 1
+            if verb == "dump_theme":
+                return 0, copy.deepcopy({"activeTheme": settings["activeTheme"], "theme": settings["theme"]["record"],
+                                          "library": settings["themeLibrary"]}), 1
             if verb == "remove_theme":
                 settings["themeCount"] -= 1
+                settings["themeLibrary"] = [t for t in settings["themeLibrary"] if t["id"] != args[0]]
                 if settings["activeTheme"] == args[0]:
                     settings["activeTheme"] = "vibe"
             elif verb == "set_theme":
                 settings["activeTheme"] = args[0]
+                settings["theme"] = {"activeTheme": args[0], "record": json.loads(args[1])}
+                for theme in settings["themeLibrary"]:
+                    if theme["id"] == args[0] and args[0] == "custom":
+                        theme["record"] = json.loads(args[1])
             elif verb == "set_appearance":
                 settings["windowAppearance"] = args[0]
             elif verb == "set_pause_at_track_end":
@@ -921,9 +1031,8 @@ class SettingsTeardownTests(unittest.TestCase):
                 settings["pitchRange"] = int(args[0].rsplit("_", 1)[1])
             elif verb == "toggle_pitch_panel":
                 settings["pitchPanelShown"] = not settings["pitchPanelShown"]
-            elif verb == "set_window_width":
-                width = float(args[0]) + (stress.PITCH_PANEL_WIDTH if settings["pitchPanelShown"] else 0)
-                settings["windowFrame"] = f"{{{{0, 336}}, {{{width:g}, {args[1]}}}}}"
+            elif verb == "set_window_frame":
+                settings["windowFrame"] = f"{{{{{args[0]}, {args[1]}}}, {{{args[2]}, {args[3]}}}}}"
             return 0, {"ok": True}, 1
 
         return mock.Mock(run=run), sent
@@ -936,8 +1045,8 @@ class SettingsTeardownTests(unittest.TestCase):
             try:
                 with stress.user_settings_preserved(channel, Path("corpus"), Path("app")) as imported:
                     body(imported)
-            except (KeyboardInterrupt, stress.Failure, ValueError):
-                pass
+            except (KeyboardInterrupt, stress.Failure, ValueError) as error:
+                print(error, file=err)
         return out.getvalue() + err.getvalue(), launch
 
     def move_everything(self, settings):
@@ -947,14 +1056,16 @@ class SettingsTeardownTests(unittest.TestCase):
                             playlistShown=False, pitchPanelShown=True,
                             windowFrame="{{0, 586}, {3259, 150}}")
             settings["themeCount"] += 3
-            imported.extend(["fuzz-0", "fuzz-1", "custom"])
+            settings["theme"] = {"activeTheme": "tangerine", "record": {}}
+            imported.extend(["fuzz-0", "fuzz-1", "fuzz-2"])
+            settings["themeLibrary"].extend({"id": identifier, "name": identifier, "record": {}} for identifier in imported)
         return body
 
     def test_every_exit_restores_the_store_and_removes_the_imports(self):
         exits = {"pass": None, "interrupt": KeyboardInterrupt(),
                  "failure": stress.Failure("crash", "gone"), "harness error": ValueError("bad argv")}
         for name, raised in exits.items():
-            settings = dict(self.START)
+            settings = copy.deepcopy(self.START)
             channel, sent = self.fake_app(settings)
             move = self.move_everything(settings)
 
@@ -972,19 +1083,19 @@ class SettingsTeardownTests(unittest.TestCase):
                 verbs = [argv[0] for argv in sent]
                 self.assertLess(verbs.index("remove_theme"), verbs.index("set_theme"))
                 self.assertLess(verbs.index("set_theme"), verbs.index("set_appearance"))
-                self.assertLess(verbs.index("toggle_pitch_panel"), verbs.index("set_window_width"))
+                self.assertLess(verbs.index("toggle_pitch_panel"), verbs.index("set_window_frame"))
 
     def test_an_unmoved_store_gets_no_writes(self):
         # Re-applying the active theme would clear the user's divergence over it.
-        settings = dict(self.START)
+        settings = copy.deepcopy(self.START)
         channel, sent = self.fake_app(settings)
         printed, launch = self.preserved(channel, lambda imported: None)
-        self.assertEqual({argv[0] for argv in sent}, {"dump_state", "reorder_cancel"})
+        self.assertEqual({argv[0] for argv in sent}, {"dump_state", "dump_theme", "reorder_cancel"})
         self.assertIn("restored nothing (none moved)", printed)
         launch.assert_not_called()
 
     def test_a_dead_app_is_relaunched_to_restore(self):
-        settings = dict(self.START)
+        settings = copy.deepcopy(self.START)
         channel, _ = self.fake_app(settings)
         pids = iter([4242, None])   # alive for the snapshot, gone at teardown
         with mock.patch.object(stress, "app_pid", side_effect=lambda: next(pids, 4242)):
@@ -994,10 +1105,106 @@ class SettingsTeardownTests(unittest.TestCase):
         self.assertIn("relaunched to restore", printed)
 
     def test_a_key_with_no_restorer_is_reported(self):
-        settings = dict(self.START)
+        settings = copy.deepcopy(self.START)
         channel, _ = self.fake_app(settings)
         printed, _ = self.preserved(channel, lambda imported: settings.update(crossfadeMilliseconds=0))
         self.assertIn("STILL CHANGED: crossfadeMilliseconds 10 -> 0", printed)
+
+    def test_working_record_restored_even_when_active_identifier_did_not_change(self):
+        for identifier in ("vibe", "custom"):
+            settings = copy.deepcopy(self.START)
+            settings["activeTheme"] = settings["theme"]["activeTheme"] = identifier
+            if identifier == "custom":
+                settings["themeLibrary"][1]["record"] = copy.deepcopy(settings["theme"]["record"])
+            before = copy.deepcopy(settings)
+            channel, sent = self.fake_app(settings)
+            def body(imported):
+                settings["theme"]["record"] = {"waveformStyle": "spectrum"}
+                if identifier == "custom":
+                    settings["themeLibrary"][1]["record"] = {"waveformStyle": "spectrum"}
+            self.preserved(channel, body)
+            self.assertEqual(settings, before)
+            self.assertEqual([a[0] for a in sent if not a[0].startswith("dump_")], ["reorder_cancel", "set_theme"])
+
+    def test_full_frame_includes_negative_fractional_origin_and_pitch_panel(self):
+        settings = copy.deepcopy(self.START)
+        settings.update(windowFrame="{{-1024.5, -37.25}, {776, 400}}", pitchPanelShown=True)
+        before = copy.deepcopy(settings)
+        channel, sent = self.fake_app(settings)
+        self.preserved(channel, lambda imported: settings.update(windowFrame="{{3416, 546}, {680, 150}}", pitchPanelShown=False))
+        self.assertEqual(settings, before)
+        self.assertIn(["set_window_frame", "-1024.5", "-37.25", "776", "400", self.START["windowScreen"]], sent)
+
+    def test_missing_display_accepts_only_the_reported_clamped_frame(self):
+        settings = copy.deepcopy(self.START)
+        channel, _ = self.fake_app(settings)
+        run = channel.run
+        def clamped(argv, **kwargs):
+            if argv[0] == "set_window_frame":
+                settings.update(windowFrame="{{0, 500}, {680, 150}}", windowScreen="{{0, 0}, {1000, 800}}")
+                return 0, {"ok": True, "clamped": True, "frame": settings["windowFrame"], "screenFrame": settings["windowScreen"]}, 1
+            return run(argv, **kwargs)
+        channel.run = clamped
+        printed, _ = self.preserved(channel, lambda imported: settings.update(windowScreen="{{0, 0}, {1000, 800}}"))
+        self.assertIn("original display unavailable", printed)
+        self.assertIn("store matches the start", printed)
+
+    def test_cleanup_failure_raises_after_attempting_other_restorers(self):
+        settings = copy.deepcopy(self.START)
+        channel, sent = self.fake_app(settings)
+        run = channel.run
+        channel.run = lambda argv, **kwargs: (2, {"error": "injected"}, 0) if argv[0] == "set_theme" else run(argv, **kwargs)
+        with mock.patch.object(stress, "app_pid", return_value=4242), self.assertRaisesRegex(stress.Failure, "cleanup"):
+            with stress.user_settings_preserved(channel, Path("corpus"), Path("app")) as imported:
+                self.move_everything(settings)(imported)
+        self.assertEqual(settings["windowFrame"], self.START["windowFrame"])
+        self.assertEqual(settings["themeLibrary"], self.START["themeLibrary"])
+
+    def test_missing_snapshot_refuses_to_run(self):
+        with mock.patch.object(stress, "current_settings", return_value=None), self.assertRaisesRegex(stress.Failure, "snapshot"):
+            with stress.user_settings_preserved(mock.Mock(), Path("corpus"), Path("app")):
+                self.fail("must not touch settings without a snapshot")
+
+    def test_run_and_replay_report_pass_only_after_successful_cleanup(self):
+        for replay in (False, True):
+            for run_failed in (False, True):
+                for cleanup_failed in (False, True):
+                    with self.subTest(replay=replay, run_failed=run_failed, cleanup_failed=cleanup_failed), \
+                         tempfile.TemporaryDirectory() as root:
+                        settings = copy.deepcopy(self.START)
+                        channel, _ = self.fake_app(settings)
+                        out = io.StringIO()
+                        corpus = Path(root)
+                        (corpus / "a.wav").touch()
+                        recipe = corpus / "replay.ndjson"
+                        recipe.write_text('{"argv":["next"]}\n')
+                        argv = ["stress.py", "--corpus", root, "--iterations", "1", "--batch", "1"]
+                        if replay:
+                            argv += ["--replay", str(recipe)]
+                        def ops(*args, **kwargs):
+                            settings["windowFrame"] = "{{3416, 546}, {680, 150}}"
+                            if cleanup_failed:
+                                settings["crossfadeMilliseconds"] = 0
+                            return stress.Failure("command", "injected run failure") if run_failed else None
+                        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(out), \
+                             mock.patch.object(stress, "Channel", return_value=channel), \
+                             mock.patch.object(stress, "launch"), mock.patch.object(stress, "app_pid", return_value=4242), \
+                             mock.patch.object(stress, "DEFAULT_OUTPUT_DIR", corpus), \
+                             mock.patch.object(stress, "collect_menu_ids", return_value=[]), \
+                             mock.patch.object(stress, "collect_themes", return_value=([], {})), \
+                             mock.patch.object(stress, "replay_ops", side_effect=ops), \
+                             mock.patch.object(stress, "check_liveness", return_value={}), \
+                             mock.patch.object(stress, "check_consistency", return_value=None), \
+                             mock.patch.object(stress, "capture_diagnostics", return_value=[]):
+                            if cleanup_failed:
+                                with self.assertRaisesRegex(stress.Failure, "cleanup"):
+                                    stress.main()
+                            else:
+                                self.assertEqual(stress.main(), int(run_failed))
+                        self.assertEqual(settings["windowFrame"], self.START["windowFrame"])
+                        self.assertEqual("PASSED" in out.getvalue(), not (run_failed or cleanup_failed))
+                        if not (run_failed or cleanup_failed):
+                            self.assertLess(out.getvalue().index("store matches"), out.getvalue().index("PASSED"))
 
 
 class PlayableSuffixTests(unittest.TestCase):

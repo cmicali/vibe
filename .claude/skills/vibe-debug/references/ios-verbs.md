@@ -6,6 +6,8 @@ The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` ges
 
 Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugiOSEntry.m`, `DebugiOSVerbs.m` and `DebugDropboxVerbs.m` over `Vibe/Debug/Channel/DebugChannel.m`.
 
+`dump_state.playlist.structureGeneration` advances on a replacement, including a reopen of the same folder. `playlist.folder` names the landed folder. Wait for both and the intended row before measuring playback progress after `open`.
+
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" dump_state          # {player, currentTrack, playlist, ui, fx, settings, widget: {placed}}. player.buffering is a stream's hold; player.bufferingRecord {holds, releases, stalls, heldSeconds} counts since launch, so diff it. ui carries waveformProgress, waveformOverscroll (points past an end, + past the start, - past the end), waveformScrollGeom ([offset, min, max, contentWidth]), waveformBaked, waveformLoading, openSlow, isScrubbing, parked, sceneActive, routePickerUp, playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty, pasteRowShown, pasteRowResolving and linkSheet. settings.widgetWaveformStyle null means Match app

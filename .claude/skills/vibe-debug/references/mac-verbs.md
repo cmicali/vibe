@@ -26,7 +26,7 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 "$V" --debug-cmd dump_metadata_progress # {total, parsed, attempted}: attempted counts rows a parse has landed on, parsed those with real metadata
 "$V" --debug-cmd dump_timing         # {loads: [...]}: phase timings of recent waveform decodes, newest first. clear_timing empties it
 "$V" --debug-cmd dump_last_playlist  # {exists, rows, currentIndex}: the container mirror (Application Support/<bundle id>/LastPlaylist.m3u). Written only at quit. A relaunch with the setting on restores it parked and publishes no Now Playing until the first real play
-"$V" --debug-cmd dump_theme ["id-or-name"] # {ok, activeTheme?, id?, theme}: no arg is the current working record, divergence included; with one, that theme's stored record
+"$V" --debug-cmd dump_theme ["id-or-name"] # {ok, activeTheme?, id?, theme, library?}: no arg includes the working record and ordered library (id, name, record); with one, that theme's stored record
 "$V" --debug-cmd dump_screenshot -   # PNG on stdout, JSON reply on stderr: references/screenshots-and-logs.md
 ```
 
@@ -41,6 +41,7 @@ Action replies are a compact `{ok, state, index, count, position, pitch, lowKill
 "$V" --debug-cmd set_pitch -4.5      # fader (clamps), player and time labels together
 "$V" --debug-cmd toggle_low_kill     # also low_kill_boost_on/_off, reverb_send_on/_off, delay_send_on/_off, short_delay_send_on/_off (the held W/E/R/T keys). These bypass audioFXEnabled; use key_down/key_up for the shipping gates
 "$V" --debug-cmd set_window_width 900  # {ok, frame, bodyWidth}: body width in points, pitch panel excluded. Optional height and seconds (0..10): `set_window_width 1400 650 2` resizes at 60 Hz and replies on completion. Exercises layout, not AppKit's live-resize lifecycle
+"$V" --debug-cmd set_window_frame 37 546 680 150 # {ok, frame, screenFrame, clamped}: full frame in screen coordinates, pitch panel included. Restore panel visibility first. Optional original screen frame comes from dump_state.window.screenFrame. A missing original display uses the window's screen constraints; an unchanged display preserves the exact frame.
 "$V" --debug-cmd set_loading 0.42    # {ok, fraction}; `off` → {ok, loading: "off"}; indeterminate → {ok, fraction: -1}. Draws the loading indicator with no play behind it; for a real Loading state use set_fake_cloud
 "$V" --debug-cmd set_appearance dark # {ok, windowAppearance}: light|dark|system, applied live
 "$V" --debug-cmd raise_window        # {ok, visible, displayAsleep}: orders the window front without activating. visible:false with displayAsleep:true means a sleeping display or locked screen
@@ -160,7 +161,7 @@ printf '%s\n' "$out" | jq -s -e '
 All but `set_analysis` are app-side verbs applied at once. `set_analysis` is a CLI-process prefs write that the running app's next decode reads.
 
 ```bash
-"$V" --debug-cmd set_theme technical # {ok, activeTheme}: by stable id or display name (case-insensitive); requests the ThemeApply effect
+"$V" --debug-cmd set_theme technical # {ok, activeTheme}: by stable id or display name (case-insensitive); requests the ThemeApply effect. Optional second argument is the flat working-record JSON from dump_theme. It restores built-in divergence or edits the user theme through currentThemeDidChange without adding a theme.
 "$V" --debug-cmd import_theme '{"name":"T","window":{"cornerRadius":0}}'  # {ok, imported, name, themeCount}: inline JSON (starts with "{") or a path the app can read (container tmp) to a .json or a theme ZIP. The Settings importer's path without the powerbox. The only scripted route to a font change
 "$V" --debug-cmd remove_theme "fuzz-3" # {ok, removed, activeTheme, themeCount}: a user theme (a built-in is refused). A harness that imports themes must remove them, or they persist in the user's real store
 "$V" --debug-cmd set_analysis bpm off  # {ok, analyzeBPM, analyzeKey}: <bpm|key> <on|off>; the next waveform decode reads it, no relaunch
