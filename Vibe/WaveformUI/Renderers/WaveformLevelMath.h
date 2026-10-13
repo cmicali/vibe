@@ -77,6 +77,15 @@ static inline void VibeSpectrumColor(const float *levels, const float primaries[
 // min/max shape keeps per-bar resolution.
 static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 
+// Spectrum's color window is a tent 1/256 of the track from foot to foot,
+// about two beats on a typical track, so its weight is a beat's. A bar-long
+// box alternates between the kick's and the hats' hues from pixel to pixel,
+// and the comb crawls as a resize slides the windows. A beat-long box still
+// leaks a fifth of the beat, which at narrow widths beats against the pixel
+// pitch. The tent's leakage is the square of that. Coarser than the level
+// floor, because a bar's height may show each hit while its color should not.
+static const NSUInteger kVibeWaveformSpectrumColorColumns = 256;
+
 // The energy column bar i of count draws, of MIN(count,
 // kVibeWaveformEnergyColumns): its own until the bars are finer than the
 // floor.

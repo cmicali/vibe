@@ -116,8 +116,7 @@ void AudioWaveform::getBandMeanSquares(NSUInteger index, float* meanSquares) {
 // Cells a quarter bar long, their edges exact in the chunks, and a bar-long
 // window at every cell: a bar's own, and the two either side that the reach
 // compares it with. Without reach a bar is one cell and its own window.
-void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares,
-                                      float* ownBandMeanSquares) {
+void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares) {
     // Silence where there is nothing to read: no chunks, or the bands of a
     // waveform without them.
     bool empty = chunks == nullptr || numChunks == 0 || size == 0;
@@ -125,9 +124,6 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
     if (meanSquares && empty) std::fill(meanSquares, meanSquares + size, 0.0f);
     if (bandMeanSquares && !wantsBands) {
         std::fill(bandMeanSquares, bandMeanSquares + size * kAudioWaveformBandCount, 0.0f);
-    }
-    if (ownBandMeanSquares && !wantsBands) {
-        std::fill(ownBandMeanSquares, ownBandMeanSquares + size * kAudioWaveformBandCount, 0.0f);
     }
     if (empty || !(meanSquares || wantsBands)) return;
 
@@ -206,10 +202,9 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
         vDSP_vadd(padded + 2, 1, sums, 1, sums, 1, numWindows);
         vDSP_vadd(padded + 3, 1, sums, 1, sums, 1, numWindows);
     };
-    auto fillBars = [&](NSUInteger plane, float* out, NSUInteger stride, float* ownOut) {
+    auto fillBars = [&](NSUInteger plane, float* out, NSUInteger stride) {
         if (!slides) {
             vDSP_vmul(cell[plane], 1, perFrame, 1, out, (vDSP_Stride)stride, size);
-            if (ownOut) vDSP_vmul(cell[plane], 1, perFrame, 1, ownOut, (vDSP_Stride)stride, size);
             return;
         }
         sumWindows(plane, windows);
@@ -221,21 +216,80 @@ void AudioWaveform::getBarMeanSquares(NSUInteger size, float reach, float* meanS
             float own = around[2];
             float loudest = fmaxf(fmaxf(fmaxf(around[0], around[1]), fmaxf(around[3], around[4])), own);
             out[i * stride] = own + reach * (loudest - own);
-            if (ownOut) ownOut[i * stride] = own;
         }
     };
     const float least = FLT_MIN, one = 1;
     if (slides) sumWindows(kFrames, perFrame);
     vDSP_vthr(slides ? perFrame : cell[kFrames], 1, &least, perFrame, 1, numWindows);
     vDSP_svdiv(&one, perFrame, 1, perFrame, 1, numWindows);
-    if (meanSquares) fillBars(kMix, meanSquares, 1, nullptr);
+    if (meanSquares) fillBars(kMix, meanSquares, 1);
     for (NSUInteger b = 0; wantsBands && b < kAudioWaveformBandCount; b++) {
-        fillBars(kBands + b, bandMeanSquares + b, kAudioWaveformBandCount,
-                 ownBandMeanSquares ? ownBandMeanSquares + b : nullptr);
+        fillBars(kBands + b, bandMeanSquares + b, kAudioWaveformBandCount);
+    }
+}
+
+// A tent's integral of the chunks is the second difference of their double
+// running sum: with F1 the running sum and F2 the running sum of F1, both
+// integrals in chunk units, a tent of half-base h about c integrates to
+// (F2(c + h) - 2 F2(c) + F2(c - h)) / h. So a bar costs three lookups a
+// plane whatever the tent's width. Exact, because a chunk is constant
+// inside. Past the track's ends F1 holds, so the tent is clipped as it would
+// be by silence there.
+void AudioWaveform::getBandWindowMeanSquares(NSUInteger size, NSUInteger columns, float* bandMeanSquares) {
+    if (chunks == nullptr || numChunks == 0 || size == 0 || bandSums == nullptr) {
+        std::fill(bandMeanSquares, bandMeanSquares + size * kAudioWaveformBandCount, 0.0f);
+        return;
+    }
+    // Per chunk edge, the planes' F1 then their F2: frames, then the bands.
+    enum { kFrames, kBands, kPlaneCount = kBands + kAudioWaveformBandCount, kStride = 2 * kPlaneCount };
+    if (bandRunningSums.empty()) {
+        bandRunningSums.assign((numChunks + 1) * kStride, 0.0);
+        for (NSUInteger c = 0; c < numChunks; c++) {
+            const double* at = &bandRunningSums[c * kStride];
+            double* next = &bandRunningSums[(c + 1) * kStride];
+            for (NSUInteger p = 0; p < kPlaneCount; p++) {
+                double value = p == kFrames ? chunks[c].getFrameCount()
+                        : bandSums[c * kAudioWaveformBandCount + p - kBands];
+                next[p] = at[p] + value;
+                next[kPlaneCount + p] = at[kPlaneCount + p] + at[p] + value / 2;
+            }
+        }
+    }
+    const double* sums = bandRunningSums.data();
+    // F2 at x for every plane, into out.
+    auto F2 = [&](double x, double* out) {
+        if (x <= 0) {
+            std::fill(out, out + kPlaneCount, 0.0);
+            return;
+        }
+        NSUInteger c = x >= (double)numChunks ? numChunks : (NSUInteger)x;
+        double t = x - (double)c;
+        const double* at = sums + c * kStride;
+        // Past the last edge nothing is added, so F2 continues straight.
+        const double* next = c < numChunks ? at + kStride : at;
+        for (NSUInteger p = 0; p < kPlaneCount; p++) {
+            out[p] = at[kPlaneCount + p] + at[p] * t + (next[p] - at[p]) * t * t / 2;
+        }
+    };
+    double chunksPerBar = (double)numChunks / (double)size;
+    double halfBase = fmax(chunksPerBar, columns ? (double)numChunks / (double)columns / 2 : 0);
+    for (NSUInteger i = 0; i < size; i++) {
+        double center = ((double)i + 0.5) * chunksPerBar;
+        double left[kPlaneCount], middle[kPlaneCount], right[kPlaneCount];
+        F2(center - halfBase, left);
+        F2(center, middle);
+        F2(center + halfBase, right);
+        double frames = right[kFrames] - 2 * middle[kFrames] + left[kFrames];
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            NSUInteger p = kBands + b;
+            bandMeanSquares[i * kAudioWaveformBandCount + b] =
+                    frames > 0 ? (float)((right[p] - 2 * middle[p] + left[p]) / frames) : 0;
+        }
     }
 }
 
 void AudioWaveform::setBandMeanSquares(const float* meanSquares) {
+    bandRunningSums.clear();
     if (!bandSums) {
         bandSums = static_cast<float*>(calloc(numChunks, kBandBytes));
     }
@@ -248,6 +302,7 @@ void AudioWaveform::setBandMeanSquares(const float* meanSquares) {
 }
 
 void AudioWaveform::copyChunk(NSUInteger from, NSUInteger to) {
+    bandRunningSums.clear();
     if (from >= numChunks || to >= numChunks) return;
     chunks[to] = chunks[from];
     if (bandSums) {
