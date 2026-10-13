@@ -452,6 +452,8 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
         XCTAssertNotNil([_loader load:path]);
     }
     XCTAssertTrue(_loader.isComplete);
+    // The loader's open is interruptible, so its file closes on the close queue.
+    dispatch_sync(AudioFileHandle.debugCloseQueue, ^{});
     XCTAssertEqual(DescriptorsOpenOn(path), (NSUInteger)0);
 }
 
