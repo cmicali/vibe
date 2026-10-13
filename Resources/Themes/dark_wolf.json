@@ -1,8 +1,9 @@
 {
   "version": 2,
   "name": "Dark Wolf",
-  "description": "Contributed by JohnnyFireOne (#183). A dark teal window with red and amber waveform bars.",
+  "description": "Contributed by JohnnyFireOne (#183, #187). A dark teal window with red and amber waveform bars. Its app icon is a blue waveform.",
   "window": {
+    "appIcon": "bundled:dark_wolf_icon.png",
     "appIconShape": false,
     "backgroundColorDark": "#1E1E1E",
     "mode": "single",
