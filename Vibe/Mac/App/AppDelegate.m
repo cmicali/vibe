@@ -60,9 +60,9 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     OpenBurstCoalescer *_openBurstCoalescer;
     // Owned here because menu delegates are weak.
     OpenRecentMenuController *_openRecentMenuController;
-    // Repeated ⌘O re-fronts it rather than stacking panels that each replace.
+    // Open and Add to Playlist re-front one panel rather than stacking panels.
+    // The command chosen last sets its button and whether it appends.
     NSOpenPanel *_openPanel;
-    // Open and Add to Playlist share the panel. The command chosen last wins.
     BOOL _openPanelAppends;
     OpenLinkWindowController *_openLinkWindowController;
     // One cancel per open still resolving its links, until it settles.
@@ -543,13 +543,12 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
 - (void)showOpenPanelAppending:(BOOL)append {
     _openPanelAppends = append;
-    if (_openPanel) {
-        _openPanel.prompt = append ? STR_BUTTON_ADD : STR_BUTTON_OPEN;
-        [_openPanel makeKeyAndOrderFront:nil];
+    NSOpenPanel *panel = _openPanel ?: [NSOpenPanel openPanel];
+    panel.prompt = append ? STR_BUTTON_ADD : STR_BUTTON_OPEN;
+    if (panel == _openPanel) {
+        [panel makeKeyAndOrderFront:nil];
         return;
     }
-    NSOpenPanel* panel = [NSOpenPanel openPanel];
-    panel.prompt = append ? STR_BUTTON_ADD : STR_BUTTON_OPEN;
     panel.allowsMultipleSelection = YES;
     panel.canChooseFiles = YES;
     panel.canChooseDirectories = YES;

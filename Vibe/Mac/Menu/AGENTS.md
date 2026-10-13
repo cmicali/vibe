@@ -30,7 +30,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 ## File
 
-**Open…, Add to Playlist… and Open URL… target the app delegate, which always enables them.** Add to Playlist… (`menu_add_to_playlist`, ⇧⌘O) sits after Open…. It shows the same open panel, with an Add button, and appends what it opens. Open URL… (`menu_open_link`, ⌘U) comes next and asks for a link in a window of its own (`Mac/App/AGENTS.md`). Close is nil-targeted (`MainWindow/AGENTS.md`).
+**Open…, Add to Playlist… and Open URL… target the app delegate, which always enables them.** Add to Playlist… (`menu_add_to_playlist`, ⇧⌘O) sits after Open… and shares its panel (`Mac/App/AGENTS.md`). Open URL… (`menu_open_link`, ⌘U) comes next and asks for a link in a window of its own (`Mac/App/AGENTS.md`). Close is nil-targeted (`MainWindow/AGENTS.md`).
 
 ## Edit
 
