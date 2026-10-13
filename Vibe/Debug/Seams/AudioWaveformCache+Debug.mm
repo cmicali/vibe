@@ -32,7 +32,9 @@ static std::atomic<double> sDebugDecodeSeconds{0};
 
 #pragma mark - Debug: per-file cache control
 
-- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float, NSInteger))completion {
+// The lookup-or-decode path for one file, apart from the UI's load. The
+// completion runs on main with nil on failure.
+- (void)waveformForURL:(NSURL *)url completion:(void (^)(CodableAudioWaveform *, BOOL wasCached))completion {
     AudioTrack *track = [AudioTrack withURL:url];
     // A private loader, never assigned to _currentLoader. The UI's in-flight
     // load is not cancelled, and no delegate progress or delivery fires; this
@@ -46,24 +48,70 @@ static std::atomic<double> sDebugDecodeSeconds{0};
         NSString *cacheKey = track.cacheKey;
         if (!cacheKey) {
             LogWarn(@"No cache key for %@ — cannot cache waveform", url.path);
-            run_on_main_thread({ if (completion) completion(NO, NO, 0, -1); });
+            run_on_main_thread({ completion(nil, NO); });
             return;
         }
         dispatch_sync(self->_loaderQueue, ^{
             [self load:track cacheKey:cacheKey withLoader:loader claim:nil
                     awaitPersist:YES completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
-                float bpm = waveform.bpm; // nil → 0
-                // Explicitly -1 for nil: messaging nil returns 0, which as a
-                // key would read as C major.
-                NSInteger key = waveform ? waveform.key : -1;
-                run_on_main_thread({ if (completion) completion(waveform != nil, wasCached, bpm, key); });
+                run_on_main_thread({ completion(waveform, wasCached); });
             } settled:nil];
         });
     } failureQueue:dispatch_get_main_queue()
       admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         LogWarn(@"Waveform cache admission exhausted for %@ (%ld)",
                 url.path, (long)failure);
-        if (completion) completion(NO, NO, 0, -1);
+        completion(nil, NO);
+    }];
+}
+
+- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float, NSInteger))completion {
+    [self waveformForURL:url completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
+        float bpm = waveform.bpm; // nil → 0
+        // Explicitly -1 for nil: messaging nil returns 0, which as a
+        // key would read as C major.
+        NSInteger key = waveform ? waveform.key : -1;
+        if (completion) completion(waveform != nil, wasCached, bpm, key);
+    }];
+}
+
+- (void)dumpWaveformForURL:(NSURL *)url columns:(NSUInteger)columns
+                completion:(void (^)(NSDictionary *))completion {
+    [self waveformForURL:url completion:^(CodableAudioWaveform *codable, BOOL wasCached) {
+        AudioWaveform *waveform = codable.waveform;
+        if (!waveform) {
+            completion(nil);
+            return;
+        }
+        NSUInteger chunks = waveform->getNumChunks();
+        NSUInteger count = columns ? MIN(columns, chunks) : chunks;
+        NSMutableArray *mins = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *maxes = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *meanSquares = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *frames = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *bands[kAudioWaveformBandCount];
+        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+            bands[b] = [NSMutableArray arrayWithCapacity:count];
+        }
+        std::vector<float> bandMeanSquares(count * kAudioWaveformBandCount);
+        waveform->getBarMeanSquares(count, 0, nullptr, bandMeanSquares.data());
+        for (NSUInteger i = 0; i < count; i++) {
+            AudioWaveformCacheChunk chunk = waveform->getChunkAtIndex(i, count);
+            [mins addObject:@(chunk.getMin())];
+            [maxes addObject:@(chunk.getMax())];
+            [meanSquares addObject:@(chunk.getMeanSquare())];
+            [frames addObject:@(chunk.getFrameCount())];
+            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+                [bands[b] addObject:@(bandMeanSquares[i * kAudioWaveformBandCount + b])];
+            }
+        }
+        completion(@{
+            @"path": url.path, @"wasCached": @(wasCached), @"complete": @(waveform->isComplete()),
+            @"chunks": @(chunks), @"columns": @(count), @"hasBands": @(waveform->hasBands()),
+            @"bpm": @(codable.bpm), @"key": @(codable.key),
+            @"min": mins, @"max": maxes, @"meanSquare": meanSquares, @"frames": frames,
+            @"bands": @{@"low": bands[0], @"mid": bands[1], @"high": bands[2]},
+        });
     }];
 }
 

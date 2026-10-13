@@ -204,6 +204,32 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 }];
                 return nil; // response written by the completion above
             }),
+            // The data the renderers read, for checking a picture against
+            // its source off the app. The columns default to the chunks.
+            VibeDebugCmd(@"dump_waveform [columns] <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                                            id<VibeDebugPlayerSurface> surface) {
+                // The count comes first, as file_drag_drop's point does: the
+                // path is every token after it.
+                double columns = 0;
+                if (tokens.count > 2 && VibeParseDouble(tokens[1], &columns)) {
+                    if (columns < 1) {
+                        return VibeErrorJSON(@"usage: dump_waveform [columns >= 1] <file>");
+                    }
+                    tokens = [@[tokens[0]] arrayByAddingObjectsFromArray:[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)]];
+                }
+                NSString *errorJSON = nil;
+                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
+                if (!path) {
+                    return errorJSON;
+                }
+                [surface.debugWaveformCache dumpWaveformForURL:[NSURL fileURLWithPath:path]
+                                                       columns:(NSUInteger)columns
+                                                    completion:^(NSDictionary *dump) {
+                    VibeWriteDebugResponse(commandId, dump ? VibeJSONString(dump)
+                            : VibeErrorJSON(@"waveform decode failed for '%@'", path));
+                }];
+                return nil; // response written by the completion above
+            }),
             VibeDebugCmd(@"set_waveform_decode_seconds <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                                                  id<VibeDebugPlayerSurface> surface) {
                 // A progressive load on any local file, through the real
