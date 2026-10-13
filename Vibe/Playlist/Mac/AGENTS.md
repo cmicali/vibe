@@ -44,14 +44,14 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## Wiring, the row menu and the keyboard
 
-**`setTableView:` wires the delegate, data source, double-click, drag masks and the row menu.** The row menu is Show in Finder, then Copy Name and Copy File, then Remove from Playlist. Remove uses `minus.circle`, not `trash`, because the files stay on disk. Convert to FLAC is not a row action. It acts on the *current* track from `MainPlayerController`.
+**`setTableView:` wires the delegate, data source, double-click, drag masks and the row menu.** The row menu is Show in Finder, then Copy Name and Copy File, then Remove from Playlist and Move to Trash. Remove uses `minus.circle`, not `trash`, because the files stay on disk. Convert to FLAC is not a row action. It acts on the *current* track from `MainPlayerController`.
 
 **A click inside the selection acts on the whole selection. A click outside it acts on that row alone** (`clickedTargetTracks`). The three content commands read their targets at action time. Removal is structural and captures them instead:
 
 - **`menuNeedsUpdate:` captures the target `AudioTrack`s as weak pointers.** It is not `menuWillOpen:`, because AppKit validates the items in between. The capture is not cleared on close, because the action can run after `menuDidClose:`. Every open overwrites it. Validation and the action resolve the objects through `rowsForTracks:`, so a replacement while the menu is up cannot remove strangers.
-- **The controller never removes.** The action raises `removeTracksRequestHandler` with the exact objects. Only the shell's removal funnel and its undo may call `removeTracksAtIndexes:` and `insertTracks:atIndexes:`. `moveTracksAtIndexes:toIndexes:` is for the shell's reorder undo alone. A drag lands through `acceptDrop`.
+- **The controller never removes.** Both actions raise `removeTracksRequestHandler` with the exact objects. Move to Trash sets its `trashFiles` flag. Only the shell's removal funnel and its undo may call `removeTracksAtIndexes:` and `insertTracks:atIndexes:`. `moveTracksAtIndexes:toIndexes:` is for the shell's reorder undo alone. A drag lands through `acceptDrop`.
 
-**The keyboard is AppKit's.** Arrows, shift and ⌘ selection and Select All come from `NSTableView` with `allowsMultipleSelection`. Return is `playSelectedTrack` on the **topmost** selected row (`selectedRow`, since `NSTableView.selectedRow` is the last-clicked one). Backspace and Forward Delete remove the whole selection (`selectedTracks`). None works while the playlist is collapsed. That gate belongs to `TransportKeyMonitor` (`Mac/MainWindow/Transport/AGENTS.md`) and the menu validation.
+**The keyboard is AppKit's.** Arrows, shift and ⌘ selection and Select All come from `NSTableView` with `allowsMultipleSelection`. Return is `playSelectedTrack` on the **topmost** selected row (`selectedRow`, since `NSTableView.selectedRow` is the last-clicked one). Backspace and Forward Delete remove the whole selection (`selectedTracks`). With Command they move it to the Trash. None works while the playlist is collapsed. That gate belongs to `TransportKeyMonitor` (`Mac/MainWindow/Transport/AGENTS.md`) and the menu validation.
 
 **TRAP: `PlaylistTableView`'s `validateMenuItem:` has no super to call.** None of `NSTableView`, `NSView` or `NSResponder` implements it, so calling super throws for any other nil-targeted action the table answers (`print:`, `deselectAll:`). Everything but `selectAll:` goes to `validateUserInterfaceItem:`, which `NSTableView` does implement.
 

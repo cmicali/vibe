@@ -22,7 +22,7 @@ This is why a shipping header may not carry `#if DEBUG` (root `AGENTS.md`, Vocab
 
 - **Debug-only state** becomes a debug-only object the shipping class holds: `VibeManualRenderPump`.
 - **A debug-only field a seam reads** is declared unconditionally in the class's private header (its `*Internal.h`, or its one header), marked "Debug builds only". Release never writes it. `AudioPlayerInternal.h`'s buffering counts and `AudioLevelPublisherInternal.h`'s counters are examples.
-- **A debug-only hook** ships as a plain block pointer with no conditional around it: `MainPlayerControllerInternal.h`'s `conversionUndoRedoSettledHandler`, and `AudioFileConverterInternal.h`'s `nextSourceTrashResultingURLFilter`.
+- **A debug-only hook** ships as a plain block pointer with no conditional around it: `MainPlayerControllerInternal.h`'s `undoRedoSettledHandler`, and `AudioFileConverterInternal.h`'s `nextSourceTrashResultingURLFilter`.
 
 **A test target compiles every seam its sources reach.** A seam with its own `<Class>+Debug.m` must be in the test target's sources when the target compiles the class and a file in it imports the seam's header, directly or through another seam. A selector resolves at run time, so the compiler cannot catch an omitted category implementation. `make check-layout` fails on the gap.
 

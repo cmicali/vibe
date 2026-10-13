@@ -9,11 +9,14 @@
 
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AudioFileConverter.h"
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "OpenRequestCoordinator.h"
+#import "FolderAccessRules.h"
+#import "PlaceholderFiles.h"
 #import "PlaylistController.h"
 #import "PlaylistFile.h"
 #import "PlaylistFile+Session.h"
@@ -143,18 +146,38 @@ static NSURL *VibeLastPlaylistURL(void) {
 // are decided: Playlist.removeTracksAtIndexes: touches no audio, so removing
 // the current row there alone would leave the player sounding a track the
 // playlist no longer holds, and every identity guard would read its events as
-// stale. The files are never touched.
+// stale. The funnel never touches a file.
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks {
     PlaylistController *playlist = self.playlistController;
     // Each exact object once; departed ones drop out.
     NSIndexSet *rows = [playlist rowsForTracks:tracks];
-    if (rows.count == 0) {
+    NSArray<AudioTrack *> *removed = [self removePlaylistRows:rows];
+    if (!removed) {
         return;
     }
-    // Removing every row is an unload, which closeFile: owns whole.
+    // Undo restores the exact objects to their rows and never touches
+    // transport. The generation keeps a restore off a replaced playlist.
+    // Registering after the mutation is fine: both share this turn's group.
+    NSUndoManager *undoManager = self.window.undoManager;
+    [[undoManager prepareWithInvocationTarget:self]
+            reinsertPlaylistTracks:removed
+                         atIndexes:rows
+                        generation:playlist.structureGeneration];
+    [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
+}
+
+// The funnel less its undo registration, which Remove and Move to Trash each
+// make their own. Answers the removed tracks, or nil when nothing was removed
+// or the removal closed the playlist: removing every row is an unload, which
+// closeFile: owns whole.
+- (nullable NSArray<AudioTrack *> *)removePlaylistRows:(NSIndexSet *)rows {
+    PlaylistController *playlist = self.playlistController;
+    if (rows.count == 0) {
+        return nil;
+    }
     if (rows.count == playlist.count) {
         [self closeFile:nil];
-        return;
+        return nil;
     }
 
     NSUInteger currentIndex = playlist.currentIndex;
@@ -168,17 +191,7 @@ static NSURL *VibeLastPlaylistURL(void) {
             && [self.audioPlayer getPlaybackIntent:&intent forTrack:nil]
             && !intent.paused;
 
-    // Undo restores the exact objects to their rows and never touches
-    // transport. The generation keeps a restore off a replaced playlist.
-    // Registering after the mutation is fine: both share this turn's group.
     NSArray<AudioTrack *> *removed = [playlist removeTracksAtIndexes:rows];
-    NSUndoManager *undoManager = self.window.undoManager;
-    [[undoManager prepareWithInvocationTarget:self]
-            reinsertPlaylistTracks:removed
-                         atIndexes:rows
-                        generation:playlist.structureGeneration];
-    [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
-
     // Departed rows must not spend a provider transfer; undo re-requests them.
     for (AudioTrack *track in removed) {
         [self.metadataCache abandonQueuedTrack:track];
@@ -188,7 +201,7 @@ static NSURL *VibeLastPlaylistURL(void) {
     if (!removingCurrent) {
         // The current track survived; only the successor can have moved.
         [self reconcileAfterPlaylistStructureEdit];
-        return;
+        return removed;
     }
     [self updateMetadataNeighborhood];
 
@@ -204,6 +217,7 @@ static NSURL *VibeLastPlaylistURL(void) {
         [self pauseUIUpdateTimer];
     }
     [playlist playStartPaused:startPaused];
+    return removed;
 }
 
 // The tail of every structural edit once the model is final.
@@ -223,15 +237,25 @@ static NSURL *VibeLastPlaylistURL(void) {
     NSUndoManager *undoManager = self.window.undoManager;
     [[undoManager prepareWithInvocationTarget:self] removePlaylistTracks:tracks];
     [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
-    if (generation != self.playlistController.structureGeneration) {
+    if (![self restorePlaylistTracks:tracks atIndexes:indexes generation:generation]) {
         return;
     }
-    [self.playlistController insertTracks:tracks atIndexes:indexes];
     // Re-requests the scan work abandoned at removal.
     for (AudioTrack *track in tracks) {
         [self.metadataCache loadMetadataNow:track];
     }
+}
+
+// The row half of both removal undos. NO when the playlist was replaced since.
+- (BOOL)restorePlaylistTracks:(NSArray<AudioTrack *> *)tracks
+                    atIndexes:(NSIndexSet *)indexes
+                   generation:(NSUInteger)generation {
+    if (generation != self.playlistController.structureGeneration) {
+        return NO;
+    }
+    [self.playlistController insertTracks:tracks atIndexes:indexes];
     [self reconcileAfterPlaylistStructureEdit];
+    return YES;
 }
 
 // A reorder's undo and redo. A replaced playlist, or indexes the model
@@ -244,6 +268,146 @@ static NSURL *VibeLastPlaylistURL(void) {
     }
     [self.playlistController moveTracksAtIndexes:sourceIndexes
                                        toIndexes:destinationIndexes];
+}
+
+#pragma mark - Move to Trash
+
+- (IBAction)moveSelectedPlaylistTracksToTrash:(nullable id)sender {
+    [self trashPlaylistTracks:self.playlistController.selectedTracks];
+}
+
+- (void)trashPlaylistTracks:(NSArray<AudioTrack *> *)tracks {
+    // Rows whose files are still moving would trash or restore twice.
+    if (self.isFileMoveInFlight) {
+        return;
+    }
+    // The app's own files are not the user's to trash: the bundled welcome
+    // track, and an Open URL link's copy, which its store owns.
+    NSString *bundle = NSBundle.mainBundle.bundlePath;
+    NSMutableOrderedSet<NSURL *> *urls = [NSMutableOrderedSet orderedSet];
+    for (AudioTrack *track in tracks) {
+        NSURL *url = track.url;
+        if (url.isFileURL && ![urls containsObject:url]
+                && !VibeUncanonicalPathIsUnderFolder(url.path, bundle)
+                && !VibePathIsUnderRemotePlaceholderRoot(url.path)) {
+            [urls addObject:url];
+        }
+    }
+    if (urls.count == 0) {
+        NSBeep();
+        return;
+    }
+    [self moveFilesToTrash:[urls.array copy] trashURLs:[NSMutableDictionary dictionary]];
+}
+
+// Move to Trash, and its redo. Every row of each file goes at once, found by
+// URL as the model indexes rows: all of a cue image's rows share its URL, and
+// a duplicate row must not outlive its file. The rows leave through the
+// funnel's undo-free half, so the player lets go of a removed current file
+// before it moves.
+- (void)moveFilesToTrash:(NSArray<NSURL *> *)urls
+               trashURLs:(NSMutableDictionary<NSURL *, NSURL *> *)trashURLs {
+    PlaylistController *playlist = self.playlistController;
+    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
+    for (NSURL *url in urls) {
+        [rows addIndexes:[playlist indexesOfTracksWithURL:url]];
+    }
+    NSArray<AudioTrack *> *tracks = [playlist tracksAtIndexes:rows];
+    NSUInteger currentIndex = playlist.currentIndex;
+    [self removePlaylistRows:rows];
+    // Read after the removal: a Close bumps it, and the undo must find the
+    // playlist still closed.
+    NSUInteger generation = playlist.structureGeneration;
+    NSUndoManager *undoManager = self.window.undoManager;
+    [undoManager registerUndoWithTarget:self handler:^(MainPlayerController *controller) {
+        [controller putBackFiles:urls tracks:tracks atIndexes:rows currentIndex:currentIndex
+                      generation:generation trashURLs:trashURLs];
+    }];
+    [undoManager setActionName:STR_MENU_EDIT_MOVE_TO_TRASH];
+    [self moveFiles:urls toTrash:YES trashURLs:trashURLs completion:nil];
+}
+
+// Move to Trash's undo. Rows that only left the list come back at once, so
+// every older registration's row numbers hold. A trash that emptied the
+// playlist closed it. Its rows come back as a parked load once their files
+// are back, unless something was opened since. Either way the scan work the
+// removal abandoned waits for the files.
+- (void)putBackFiles:(NSArray<NSURL *> *)urls
+              tracks:(NSArray<AudioTrack *> *)tracks
+           atIndexes:(NSIndexSet *)rows
+        currentIndex:(NSUInteger)currentIndex
+          generation:(NSUInteger)generation
+           trashURLs:(NSMutableDictionary<NSURL *, NSURL *> *)trashURLs {
+    // TRAP: register the opposite first, synchronously. NSUndoManager's stack
+    // direction is active only now, and the file moves settle later.
+    NSUndoManager *undoManager = self.window.undoManager;
+    [undoManager registerUndoWithTarget:self handler:^(MainPlayerController *controller) {
+        [controller moveFilesToTrash:urls trashURLs:trashURLs];
+    }];
+    [undoManager setActionName:STR_MENU_EDIT_MOVE_TO_TRASH];
+    PlaylistController *playlist = self.playlistController;
+    // Only a Close empties the list, and every Close bumps the generation.
+    BOOL closed = tracks.count > 0 && playlist.count == 0 && generation == playlist.structureGeneration;
+    BOOL reinserted = !closed && [self restorePlaylistTracks:tracks atIndexes:rows generation:generation];
+    [self moveFiles:urls toTrash:NO trashURLs:trashURLs completion:^{
+        if (reinserted) {
+            for (AudioTrack *track in tracks) {
+                [self.metadataCache loadMetadataNow:track];
+            }
+        } else if (closed && generation == playlist.structureGeneration) {
+            [self loadTracks:tracks selectingIndex:currentIndex startPaused:YES];
+        }
+    }];
+}
+
+// One direction of Move to Trash's file moves, through the converter's
+// coordinated trash and restore, off main. trashURLs maps each file to its
+// place in the Trash. Both directions rewrite it, so a file one direction
+// could not move is skipped by the next rather than failing twice.
+- (void)moveFiles:(NSArray<NSURL *> *)urls
+          toTrash:(BOOL)toTrash
+        trashURLs:(NSMutableDictionary<NSURL *, NSURL *> *)trashURLs
+       completion:(nullable void (^)(void))completion {
+    _trashInFlight = YES;
+    __block NSError *failure = nil;
+    dispatch_group_t group = dispatch_group_create();
+    // The completions run on main, so trashURLs needs no lock. A nil place
+    // removes the file's entry.
+    void (^settle)(NSURL *, NSURL *, NSError *) = ^(NSURL *url, NSURL *place, NSError *error) {
+        trashURLs[url] = place;
+        if (!failure) {
+            failure = error;
+        }
+        dispatch_group_leave(group);
+    };
+    for (NSURL *url in urls) {
+        NSURL *trashURL = trashURLs[url];
+        if ((trashURL != nil) == toTrash) {
+            continue; // already where this direction puts it
+        }
+        dispatch_group_enter(group);
+        if (toTrash) {
+            [self.fileConverter trashItemAtURL:url completion:^(VibeTrashOutcome outcome, NSURL *trashedURL, NSError *error) {
+                // A move with no known place in the Trash cannot be put back.
+                settle(url, outcome == VibeTrashOutcomeMovedKnownURL ? trashedURL : nil,
+                       outcome == VibeTrashOutcomeFailed ? error : nil);
+            }];
+        } else {
+            [self.fileConverter restoreTrashedItemAtURL:trashURL toURL:url completion:^(BOOL restored, NSError *error) {
+                settle(url, restored ? nil : trashURL, restored ? nil : error);
+            }];
+        }
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        self->_trashInFlight = NO;
+        if (completion) {
+            completion();
+        }
+        if (failure) {
+            [[NSAlert alertWithError:failure] beginSheetModalForWindow:self.window completionHandler:nil];
+        }
+        [self undoRedoDidSettleCommitted:failure == nil reason:failure ? @"file_move_failed" : nil];
+    });
 }
 
 #if DEBUG

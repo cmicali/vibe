@@ -121,6 +121,11 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
                                                 action:@selector(removeClickedTrackFromPlaylist:)
                                                 target:self
                                             identifier:@"remove_clicked_track_from_playlist"]];
+    [menu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_EDIT_MOVE_TO_TRASH
+                                            symbolName:@"trash"
+                                                action:@selector(moveClickedTrackToTrash:)
+                                                target:self
+                                            identifier:@"move_clicked_track_to_trash"]];
     menu.delegate = self;
     _tableView.menu = menu;
 
@@ -771,11 +776,19 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 // Asks the shell rather than mutating the model: only the shell can decide what
 // the player does when the current row goes.
 - (IBAction)removeClickedTrackFromPlaylist:(id)sender {
+    [self requestRemovalOfMenuTargetsTrashingFiles:NO];
+}
+
+- (IBAction)moveClickedTrackToTrash:(id)sender {
+    [self requestRemovalOfMenuTargetsTrashingFiles:YES];
+}
+
+- (void)requestRemovalOfMenuTargetsTrashingFiles:(BOOL)trashFiles {
     NSArray<AudioTrack *> *tracks = [self menuOpenSurvivingTracks];
     if (tracks.count == 0 || !self.removeTracksRequestHandler) {
         return;
     }
-    self.removeTracksRequestHandler(tracks);
+    self.removeTracksRequestHandler(tracks, trashFiles);
 }
 
 // Here, not menuWillOpen:, because AppKit validates the items in between.
@@ -813,7 +826,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
         NSInteger row = _tableView.clickedRow;
         return row >= 0 && row < (NSInteger)_model.count;
     }
-    if ([menuItem.identifier isEqualToString:@"remove_clicked_track_from_playlist"]) {
+    if ([menuItem.identifier isEqualToString:@"remove_clicked_track_from_playlist"] ||
+        [menuItem.identifier isEqualToString:@"move_clicked_track_to_trash"]) {
         // By identity, not row number: something at those rows is not proof.
         return [self menuOpenSurvivingTracks].count > 0;
     }
@@ -830,6 +844,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url {
     return [_model indexesOfTracksWithURL:url];
+}
+
+- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes {
+    return [_model tracksAtIndexes:indexes];
 }
 
 - (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {

@@ -56,6 +56,9 @@ NS_ASSUME_NONNULL_BEGIN
     // set again.
     BOOL                        _emptyStateSuppressed;
     BOOL                        _folderArtRefreshScheduled;
+    // While Move to Trash's file moves, or its undo's or redo's, settle
+    // (+Playlist). Part of fileMoveInFlight.
+    BOOL                        _trashInFlight;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
@@ -81,7 +84,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The debug channel is its only setter. An always-nil block pointer keeps
 // `#if DEBUG` out of this header.
-@property (copy, nullable) void (^conversionUndoRedoSettledHandler)(
+@property (copy, nullable) void (^undoRedoSettledHandler)(
         BOOL committed, NSString *_Nullable reason);
 
 // A same-track replay's resume hint (the convert swap, an MP3 decoder change),

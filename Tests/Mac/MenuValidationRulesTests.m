@@ -46,7 +46,8 @@
                    classify:VibeMenuValidationDomainFile];
 
     [self assertIdentifiers:@[kVibeMenuEditUndo, kVibeMenuEditRedo, kVibeMenuEditCopyFile,
-                              kVibeMenuEditCopyName, kVibeMenuEditRemoveFromPlaylist]
+                              kVibeMenuEditCopyName, kVibeMenuEditRemoveFromPlaylist,
+                              kVibeMenuEditMoveToTrash]
                    classify:VibeMenuValidationDomainEdit];
 
     [self assertIdentifiers:@[kVibeMenuConvertToFLAC, kVibeMenuConvertDeleteOriginal]
@@ -74,7 +75,7 @@
 // identifier's shapes.
 - (void)testUnclaimedIdentifiersAreUnknownRatherThanEnabled {
     [self assertIdentifiers:@[@"show_clicked_track_in_finder", @"menu_settings", @"menu_convert",
-                              @"remove_clicked_track_from_playlist",
+                              @"remove_clicked_track_from_playlist", @"move_clicked_track_to_trash",
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
                               kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
                               // Nobody's: a waveform-style identifier, the app
@@ -106,6 +107,7 @@
             XCTAssertEqual(visible, key && shown && row >= 0);
             XCTAssertEqual(VibeTransportMenuEnabled(kVibeMenuPlaySelected, YES, YES, visible, YES, NO), visible);
             XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, YES, YES, visible, YES, YES, NO), visible);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, YES, YES, visible, YES, YES, NO), visible);
         }
     }
 }
@@ -159,6 +161,9 @@
     }
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyName, NO, NO, NO, NO, NO, NO, YES));
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, NO, NO, NO, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, NO, NO, NO, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, YES, YES, YES, YES, YES, YES, NO),
+                   @"a trash still moving its files");
     XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditUndo, NO, NO, NO, NO, YES, YES, YES));
 }
 

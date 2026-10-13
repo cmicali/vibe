@@ -75,6 +75,21 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)copyFile:(id)sender;
 - (IBAction)copyName:(id)sender;
 
+// The window's NSUndoManager, gated on fileMoveInFlight. A conversion's round
+// trip and Move to Trash move files through the Trash; a removal or reorder
+// moves no files.
+- (IBAction)undo:(nullable id)sender;
+- (IBAction)redo:(nullable id)sender;
+
+// YES until the last file move of an undoable action settles: a conversion
+// inverse's, or Move to Trash's, its undo's or its redo's. So an async action
+// cannot be re-entered, nor undone before its files land.
+@property (nonatomic, readonly, getter=isFileMoveInFlight) BOOL fileMoveInFlight;
+
+// Fires the debug channel's one-shot undo/redo hook, once the file moves of
+// an undo or redo settle.
+- (void)undoRedoDidSettleCommitted:(BOOL)committed reason:(nullable NSString *)reason;
+
 @end
 
 NS_ASSUME_NONNULL_END

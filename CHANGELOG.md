@@ -12,6 +12,7 @@
 * mac: Changed the volume slider to appear near the pointer
 * mac: Improved the pitch fader: cleaner sound, and it glides instead of stepping
 * mac: Added Cut and Paste to the Edit menu
+* mac: Added Move to Trash (⌘⌫) to delete a song's file from the playlist, with Undo
 * mac: Fixed the resize cursor sometimes not showing at the window's right edge
 * Changed Previous on the first song to restart it, on the Mac, in Control Center and on the Lock Screen
 * Added the vibe theme track, which loads on the first launch

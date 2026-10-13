@@ -68,7 +68,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 `removePlaylistTracks:` is the one funnel. The Edit menu and the two delete keys act on the whole selection (`PlaylistController.selectedTracks`). The row context menu arrives through `removeTracksRequestHandler`. The funnel takes exact `AudioTrack`s and resolves each live row once, so a shifted object is followed and a departed one drops out.
 
-**`Playlist.removeTracksAtIndexes:` touches no audio, so the playback consequences are decided here** (root `AGENTS.md`). **The source files are never touched.** The method's comments carry each step. In short: removing every row is `closeFile:`, not an edit. The playback intent is read through `AudioPlayer.getPlaybackIntent:forTrack:` before the model changes. One model call sends one event. A surviving current track's audio is left alone. A removed current row is replaced through the play funnel, so its old settlement dies on `submittedPlayIsCurrent:`. Nothing synthesizes a delegate callback or treats a removal as a track end.
+**`Playlist.removeTracksAtIndexes:` touches no audio, so the playback consequences are decided here** (root `AGENTS.md`). **The funnel never touches a file.** Its undo-free half, `removePlaylistRows:`, is shared with Move to Trash. The method's comments carry each step. In short: removing every row is `closeFile:`, not an edit. The playback intent is read through `AudioPlayer.getPlaybackIntent:forTrack:` before the model changes. One model call sends one event. A surviving current track's audio is left alone. A removed current row is replaced through the play funnel, so its old settlement dies on `submittedPlayIsCurrent:`. Nothing synthesizes a delegate callback or treats a removal as a track end.
 
 **A removal is undoable as the list edit it is.** The funnel registers `reinsertPlaylistTracks:atIndexes:generation:` under the item's action name. Undo restores the exact objects to their rows, selected and revealed. It asks for their metadata again through `loadMetadataNow:`, since the removal abandoned their scan work. It never replays a removed current row.
 
@@ -76,6 +76,17 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 - `levelsOfUndo` is capped, so dead registrations cannot hold tracks without bound.
 - A whole-playlist removal routes to `closeFile:` before registering, so Close stays un-undoable.
 - **Every re-park of the successor goes through `prefetchSuccessor`, which does nothing while the player is Stopped.** That covers a removal, a restore, an append (`reconcileAfterPlaylistStructureEdit`), a Pause, repeat or shuffle change (`applyEndOfTrackAction`) and a conversion. A Stopped player advances nothing. So a stopped or errored player must not open or download a successor.
+
+## Move to Trash
+
+Edit > Move to Trash (⌘⌫) and the row menu's item move each target row's file to the Trash. Every row of each file goes, found by URL, on the first trash and on every redo. So one cue row takes all of its image's rows, and a duplicate row goes with its file. A cue sheet beside the image stays. The bundled welcome track and an Open URL link's file are not trashable, because the app owns them.
+
+**The rows go at once and the files follow.** The rows leave through `removePlaylistRows:`, so the player lets go of a removed current file before it moves. The files move on the converter's dispose queue (`AudioFileConverter.trashItemAtURL:completion:`), coordinated and off main. A file that fails to move raises an alert naming it. Its row is already gone, and Undo brings it back.
+
+**Move to Trash is undoable, with its own registration.** Undo puts the rows back at once through `restorePlaylistTracks:`, the row half it shares with Remove's undo. Then it restores each file from its Trash location. Redo removes the rows and trashes the files again. Each direction registers the opposite at once, while `NSUndoManager`'s stack direction is still active. The two directions share one dictionary from each file to its place in the Trash. Each direction rewrites it, so a file one direction could not move is skipped by the next. The scan work the removal abandoned is asked for once the files are back.
+
+- **`fileMoveInFlight` holds Undo, Redo and Move to Trash until the files settle.** It covers a conversion's inverse too. An undo of an older edit must not run while its rows are restored and its files are not.
+- **A trash that empties the playlist closes it**, as Remove does. Its undo waits for the files, then reloads the rows parked on the old current row. It does nothing to the rows when something was opened since. The files come back either way.
 
 ## Reordering playlist rows
 
@@ -98,7 +109,7 @@ The drag is `Playlist/Mac/AGENTS.md`'s. **`playlistOrderDidChangeHandler` is a r
 
 ## The window
 
-Undo and Redo forward from the window to its controller, so menu routing through the responder chain keeps the conversion-in-flight guard.
+Undo and Redo forward from the window to its controller, so menu routing through the responder chain keeps the file-move gate (`fileMoveInFlight`).
 
 **The height has a second floor, which is a band.** A playlist pane under `kPlaylistPaneMinHeight` is a sliver, so no height between `kMainWindowSmallHeight` and `kMainWindowMinLargeHeight` is a resting height. `restingHeightForDraggedHeight:` sends a drag to the nearer end, and `loadSettings` clamps a restored frame out of the band. The rule reaches drags through `windowWillResize:toSize:`, **gated on `inLiveResize`**, so the app's own animated resizes are not snapped mid-flight. All three programmatic resizes use one fixed `animationResizeTime:` (`kWindowResizeAnimationDuration`) rather than AppKit's distance-scaled default.
 

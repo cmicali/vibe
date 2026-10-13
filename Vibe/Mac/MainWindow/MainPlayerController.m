@@ -210,8 +210,12 @@
         [weakControllerForPlaylist updateMetadataNeighborhood];
     };
 
-    self.playlistController.removeTracksRequestHandler = ^(NSArray<AudioTrack *> *tracks) {
-        [weakControllerForPlaylist removePlaylistTracks:tracks];
+    self.playlistController.removeTracksRequestHandler = ^(NSArray<AudioTrack *> *tracks, BOOL trashFiles) {
+        if (trashFiles) {
+            [weakControllerForPlaylist trashPlaylistTracks:tracks];
+        } else {
+            [weakControllerForPlaylist removePlaylistTracks:tracks];
+        }
     };
 
     // A move keeps the current track's identity and audio, so it never enters
@@ -753,6 +757,37 @@ static const NSTimeInterval kNoticeSeconds = 4;
 
 - (void)mainWindowFileDraggingEnded:(MainWindow *)mainWindow {
     [self.playerContentView.playlistDropZoneView fileDragEnded];
+}
+
+#pragma mark - Undo and redo
+
+// The window's manager is the player's one undo stack.
+- (IBAction)undo:(id)sender {
+    NSUndoManager *manager = self.window.undoManager;
+    if (!self.isFileMoveInFlight && manager.canUndo) {
+        [manager undo];
+    }
+}
+
+- (IBAction)redo:(id)sender {
+    NSUndoManager *manager = self.window.undoManager;
+    if (!self.isFileMoveInFlight && manager.canRedo) {
+        [manager redo];
+    }
+}
+
+- (BOOL)isFileMoveInFlight {
+    return self.fileConverter.isUndoRedoInFlight || _trashInFlight;
+}
+
+- (void)undoRedoDidSettleCommitted:(BOOL)committed reason:(nullable NSString *)reason {
+    // Always nil in a shipping build. One shot, cleared before it runs: a
+    // timed-out debug command's handler must not fire on a later undo.
+    void (^handler)(BOOL, NSString *_Nullable) = self.undoRedoSettledHandler;
+    self.undoRedoSettledHandler = nil;
+    if (handler) {
+        handler(committed, reason);
+    }
 }
 
 #pragma mark - Actions
