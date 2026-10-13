@@ -11,7 +11,11 @@
 //  share one class and one lifetime rule: the last reference disposes the
 //  codec (or closes dr_flac or dr_wav), closes the parser and closes the
 //  descriptor, in that order. A FAILED open leaks nothing, which is why no
-//  preflight precedes it.
+//  preflight precedes it. For an open with an `interrupted` block, the last
+//  step runs later, on a serial queue of the handle's own. That step closes
+//  the descriptor, or the parser opened by URL that holds one. A close can
+//  wait on a network share's server. The owners of such handles let them go
+//  on threads main waits on.
 //
 //  Reading facts are immutable after init, but for the length of a streaming
 //  MP3 with no VBR header: estimated from its head's frames

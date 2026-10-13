@@ -6,6 +6,9 @@
 #import "AudioFileHandleInternal.h"
 #import "CloudFileMaterializer.h"
 #import "NetworkReadAhead.h"
+#if DEBUG
+#import "AudioFileHandle+Debug.h"
+#endif
 
 #import <AudioToolbox/AudioToolbox.h>
 
@@ -24,6 +27,28 @@ static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 static const OSStatus kVibeReadInterrupted = 'intr';
 
 BOOL (^const VibeNeverWaitsForAStream)(void) = ^BOOL { return YES; };
+
+// TRAP: a close can wait on a network share's server. The player, the voice
+// bus, the open coordinator and the waveform loader each let a handle go
+// where main waits: under a lock main takes, or on a queue main syncs onto.
+// So an interruptible open's file closes here, never on the thread that let
+// it go. Serial: a close stuck on a dead server holds the later ones, not a
+// thread each.
+static dispatch_queue_t VibeHandleCloseQueue(void) {
+    static dispatch_queue_t queue;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        queue = dispatch_queue_create("com.vibe.audiofile.close",
+                                      dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+    });
+    return queue;
+}
+
+#if DEBUG
+dispatch_queue_t VibeHandleDebugCloseQueue(void) {
+    return VibeHandleCloseQueue();
+}
+#endif
 
 // An ID3v2 tag's whole length from the file's first 10 bytes: the syncsafe
 // size in bytes 6-9 excludes the header and a footer. 0 for no tag.
@@ -52,6 +77,8 @@ uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     BOOL _openedUnderApple;  // the choice when it opened
     uint8_t *_readAheadEnd; // the flags cell a read-ahead shares with its thread
     BOOL _holdsStream; // one of _availability's readers (holdStream)
+    BOOL _interruptible; // opened with an `interrupted` block: dealloc closes the file on VibeHandleCloseQueue
+    BOOL _parserOwnsFile; // opened by URL (the QuickTime road), so it holds a descriptor of its own
     _Atomic bool _readsInterrupted;
     _Atomic bool _waitingForBytes;
     BOOL (^_openInterrupted)(void); // the open's caller's, while it runs
@@ -409,6 +436,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     _url = url;
     _descriptor = -1;
     _openInterrupted = interrupted;
+    _interruptible = interrupted != nil;
     NSString *name = url.lastPathComponent;
     if (!url.isFileURL) {
         return [self failWithError:error status:kAudioFileUnsupportedFileTypeError
@@ -489,6 +517,7 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
             _descriptor = -1;
         }
         status = AudioFileOpenURL((__bridge CFURLRef)url, kAudioFileReadPermission, hint, &_parser);
+        _parserOwnsFile = YES;
     }
     if (status != noErr) {
 #if VIBE_VERBOSE_LOGGING
@@ -692,7 +721,8 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 
 // A read-ahead's availability first, with a real error. That ends its
 // thread once its read returns. Then the decoder before the parser, the
-// parser before the descriptor its callbacks read.
+// parser before the descriptor its callbacks read. A parser opened by URL
+// reads through a descriptor of its own, so it closes with the file.
 - (void)dealloc {
     if (_readAheadEnd) {
         VibeNetworkReadAheadHandleGone(_availability, _url, _readAheadEnd);
@@ -706,10 +736,25 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     free(_mpegRead);
     free(_mpegPCM);
     [self closeStreamDecoder];
-    [self closeParser];
-    if (_descriptor >= 0) {
-        close(_descriptor);
-        _descriptor = -1;
+    AudioFileID parser = _parserOwnsFile ? _parser : NULL;
+    if (!parser) {
+        [self closeParser];
+    }
+    int descriptor = _descriptor;
+    if (parser || descriptor >= 0) {
+        dispatch_block_t closeFile = ^{
+            if (parser) {
+                AudioFileClose(parser);
+            }
+            if (descriptor >= 0) {
+                close(descriptor);
+            }
+        };
+        if (_interruptible) {
+            dispatch_async(VibeHandleCloseQueue(), closeFile);
+        } else {
+            closeFile();
+        }
     }
     if (_holdsStream) {
         [_availability removeReader];

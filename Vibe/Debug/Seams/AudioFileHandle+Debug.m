@@ -29,6 +29,10 @@
     return VibeNetworkReadAheadDebugOrphaned();
 }
 
++ (dispatch_queue_t)debugCloseQueue {
+    return VibeHandleDebugCloseQueue();
+}
+
 @end
 
 #endif

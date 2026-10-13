@@ -5,7 +5,8 @@
 //  The read-ahead's test seam (NetworkReadAhead): which files read ahead, and
 //  what each of its reads does. Both are process-wide. A test sets them for
 //  its own URLs and clears them in tearDown. The category forwards to
-//  NetworkReadAhead.m's functions below.
+//  NetworkReadAhead.m's functions below. It also opens the queue a released
+//  handle's file closes on.
 //
 
 #if DEBUG
@@ -37,7 +38,15 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, nonatomic, readonly) NSInteger debugLiveReadAheads;
 @property (class, nonatomic, readonly) NSInteger debugOrphanedReadAheads;
 
+// The serial queue an interruptible handle's file closes on after its
+// release. A test suspends it to see a release leave the file open, or syncs
+// on it to wait for every close already handed on.
+@property (class, nonatomic, readonly) dispatch_queue_t debugCloseQueue;
+
 @end
+
+// AudioFileHandle.m's side of the seam.
+dispatch_queue_t VibeHandleDebugCloseQueue(void);
 
 // NetworkReadAhead.m's side of the seam. The category forwards to these.
 void VibeNetworkReadAheadDebugSetMountRule(NSNumber *_Nullable (^_Nullable rule)(NSURL *url));
