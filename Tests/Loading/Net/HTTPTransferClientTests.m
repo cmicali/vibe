@@ -751,6 +751,12 @@ typedef struct {
     XCTAssertNil(error);
     XCTAssertEqualObjects(read, [file subdataWithRange:NSMakeRange(1024 * 1024, 4096)]);
     XCTAssertEqualObjects(metadata[@"size"], @(file.length));
+    // Read completion can precede stopLoading's cancellation publication.
+    XCTNSPredicateExpectation *stopped = [[XCTNSPredicateExpectation alloc]
+            initWithPredicate:[NSPredicate predicateWithBlock:^BOOL(HTTPStub *stub, NSDictionary *bindings) {
+                return stub.stoppedAnswers == 1;
+            }] object:_stub];
+    [self waitForExpectations:@[stopped] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(_stub.stoppedAnswers, 1u, @"cancelled before the body ended");
 }
 
