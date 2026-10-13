@@ -757,6 +757,37 @@ static NSUInteger VibeSubpathCount(CGPathRef path) {
                   [self threeBandLayerHeightsForBands:loud]);
 }
 
+- (void)testBandNormalizationStaysCurrentAcrossResizeAndTrackChanges {
+    AudioWaveform quiet = VibeThreeBandTestWaveform({0.001f, 0.0001f, 0.00001f});
+    AudioWaveform loud = VibeThreeBandTestWaveform({0.1f, 0.01f, 0.001f});
+    AudioWaveform partial(true);
+    for (NSString *style in @[@"three_band", @"spectrum"]) {
+        WaveformRenderer *reused = [self rendererForStyle:style];
+        reused.normalizesLevels = YES;
+        for (AudioWaveform *waveform : {&quiet, &loud, &partial, &quiet}) {
+            for (CGFloat width : {3000.0, 300.0, 1024.0, 2500.0}) {
+                CGRect bounds = CGRectMake(0, 0, width, 80);
+                reused.parentLayer.bounds = bounds;
+                [reused updateWaveform:bounds progress:0.4 waveform:waveform];
+                WaveformRenderer *fresh = [self rendererForStyle:style];
+                fresh.normalizesLevels = YES;
+                fresh.parentLayer.bounds = bounds;
+                XCTAssertEqualObjects([reused envelopeSamplesForWaveform:waveform],
+                                      [fresh envelopeSamplesForWaveform:waveform], @"%@ width %g", style, width);
+                XCTAssertEqual([reused normalizationGainForWaveform:waveform],
+                               [fresh normalizationGainForWaveform:waveform]);
+            }
+            reused.normalizesLevels = NO;
+            XCTAssertEqual([reused normalizationGainForWaveform:waveform], 1);
+            reused.normalizesLevels = YES;
+        }
+        [reused updateWaveform:reused.parentLayer.bounds progress:0 waveform:nullptr];
+        [reused updateWaveform:reused.parentLayer.bounds progress:0 waveform:&loud];
+        XCTAssertEqualWithAccuracy([reused normalizationGainForWaveform:&loud],
+                                  kVibeWaveformFullScaleRMS / sqrtf(0.1f), 1e-6);
+    }
+}
+
 // The bars' levels, low to high, as 3-Band draws them across this width.
 - (std::vector<float>)threeBandLevelsForWaveform:(AudioWaveform *)waveform width:(CGFloat)width {
     WaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
