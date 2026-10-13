@@ -7,6 +7,28 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta5</title>
+<pubDate>Tue, 13 Oct 2026 21:37:25 +0000</pubDate>
+<sparkle:version>312</sparkle:version>
+<sparkle:shortVersionString>1.16-beta5</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* New: the Spectrum waveform style colors each bar by its mix of bass, mids, and highs
+* New: the RGB theme, which uses the Spectrum style
+* New: Add to Playlist… (⇧⌘O) in the File menu
+* New: Move to Trash (⌘⌫) deletes a song's file from the playlist, with Undo
+* New: Open URL… plays iCloud Drive share links
+* New: the Dark Wolf theme changes the app icon
+* Changed: Basic is now Bars, and Cupertino Basic is now Progress
+* Changed: the four Detailed styles are now one style with a Type setting
+* Changed: Previous on the first song restarts it
+* Improved: a slow network share no longer stalls track changes
+* Fixed: the resize cursor sometimes vanishing at the window's right edge
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta5/Vibe-macOS-universal-1.16-beta5.zip" length="10126467" type="application/octet-stream" sparkle:edSignature="iHFCs93pMg3LGVjySLCIgFHRsJAM5P5kv/BJ0ZyV/I6frAfzz5pfS2tvk7FsMWsF8PJ5bnqPi4vafKi52otWBw=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta4</title>
 <pubDate>Sat, 10 Oct 2026 01:21:17 +0000</pubDate>
 <sparkle:version>311</sparkle:version>
