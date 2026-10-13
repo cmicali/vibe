@@ -174,14 +174,27 @@ static const CGFloat kInlineTitleInset = 10;
     NSArray<SettingsRowView *> *_searchHits;
     BOOL _searchMarksPending;
     __weak SettingsRowView *_revealedSearchRow;
+    // The file drag the pasteboard was last asked about, and its answer.
+    NSInteger _dropSequence;
+    BOOL _dropReadable;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
         _playerController = playerController;
+        _dropSequence = NSNotFound;
     }
     return self;
+}
+
+- (BOOL)pasteboardOfDrag:(id<NSDraggingInfo>)info
+    canReadURLsWithOptions:(NSDictionary<NSPasteboardReadingOptionKey, id> *)options {
+    if (info.draggingSequenceNumber != _dropSequence) {
+        _dropSequence = info.draggingSequenceNumber;
+        _dropReadable = [info.draggingPasteboard canReadObjectForClasses:@[NSURL.class] options:options];
+    }
+    return _dropReadable;
 }
 
 - (void)loadPaneWithSections:(NSArray<__kindof NSView *> *)sections {
