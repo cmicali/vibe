@@ -6,7 +6,7 @@
 
 **Keys are remappable and matched by physical key.** The defaults are Space, B, N, P and Tab. A, S and D skip forward, and Z, X and C skip back. The playlist has Return and Delete. Q, W, E, R and T are the dual-mode effect keys, with R the 1/8-note delay and T the 1/16. The monitor matches a keyDown's key code and exact ⌘⌥⌃⇧ set against `ShortcutRules.h` over `AppSettings.shortcutOverrides`, read per keypress. So the A/S/D row skips under AZERTY and Greek alike.
 
-**The character defaults (⌘O, ⌘U, ⌘S, ⇧⌘C, ⌥⌘S, ⌘R) match by the character typed.** Under Command the layout's ⌘-layer letter (`characters`) is tried first, so Dvorak – QWERTY ⌘ and Greek agree with the menu bar. The unmodified letter is tried next, since Option bends the typed letter (⌥⌘S types ß). `VibeShortcutCommandForPress` is that whole match, reserved shortcuts included.
+**The character defaults (⌘O, ⇧⌘O, ⌘U, ⌘S, ⇧⌘C, ⌥⌘S, ⌘R) match by the character typed.** Under Command the layout's ⌘-layer letter (`characters`) is tried first, so Dvorak – QWERTY ⌘ and Greek agree with the menu bar. The unmodified letter is tried next, since Option bends the typed letter (⌥⌘S types ß). `VibeShortcutCommandForPress` is that whole match, reserved shortcuts included.
 
 **Some keys are never bindings** (`VibeShortcutIsReserved`). The fixed system shortcuts pass on even when a key-code binding lands on one after a layout switch, so ⌘Q wins. So do the arrows, Escape and every keypad key but Enter, which a menu cannot draw apart from the main keyboard's.
 

@@ -16,6 +16,8 @@
 @property (nonatomic, readonly) SettingsWindowController *settingsWindowController;
 
 - (IBAction)openDocument:(id)sender;
+// File > Add to Playlist…: Open's panel, appending what it opens.
+- (IBAction)addToPlaylist:(id)sender;
 // File > Open URL…: asks for a link in a small window of its own.
 - (IBAction)openLink:(id)sender;
 - (IBAction)showAboutWindow:(id)sender;

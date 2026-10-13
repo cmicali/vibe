@@ -6,12 +6,12 @@ The application object and the app-wide services it owns. The test for this dire
 
 ## Opening files is a funnel, not an event
 
-Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a Finder double-click, ⌘O, Open Recent, Open URL, a drop on the window, argv. The OS delivers opens in two broken shapes, so two tested pieces handle them.
+Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a Finder double-click, ⌘O, Add to Playlist, Open Recent, Open URL, a drop on the window, argv. The OS delivers opens in two broken shapes, so two tested pieces handle them.
 
 - **`OpenBurstCoalescer`.** Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays at once, so a double-clicked file never waits. Later batches inside a **0.3-second quiet period** append instead of replacing.
 - **`OpenRequestCoordinator`.** Expansion (the folder walk, the CUE and M3U reads) runs concurrently, so results finish out of order. One instance serves the whole app, the window's drops included. It buffers appends within the surviving burst. A newer replacing open supersedes every unfinished older result. An expansion that never finishes, such as one on a mount that stopped answering, holds a later finished batch at most **ten seconds** before it is abandoned. Otherwise one wedged batch would swallow every later batch in its burst. **A held request is never abandoned** (`holdRequest:`, `releaseRequest:`). Every open with links to resolve is held. Each link probe has its own deadline. The release gives the head a full ten seconds for its expansion.
 
-⌘O, Open Recent and window drops enter through `openDeliberateURLs:appending:`. A deliberate open ends a Launch Services burst in progress rather than joining it. A drop is the one deliberate open that carries its own append decision.
+⌘O, Add to Playlist, Open Recent and window drops enter through `openDeliberateURLs:appending:`. A deliberate open ends a Launch Services burst in progress rather than joining it. Add to Playlist and a drop are the deliberate opens that can append. **⌘O and Add to Playlist share one open panel.** Choosing either command with the panel open brings it forward. The command chosen last sets its button and whether it appends.
 
 **Close invalidates the open coordinator before it unloads the playlist**, so a pending walk or a buffered append cannot reopen files the user closed. A replacing open uses the same invalidation.
 
