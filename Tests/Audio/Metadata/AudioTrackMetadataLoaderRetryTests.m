@@ -748,8 +748,8 @@
         return [coordinator stateSnapshotForTesting].requestsAdmissionExhausted == 1;
     } description:@"loader request was not admission exhausted"];
     [self waitForCondition:^BOOL{
-        return retries.count > 0;
-    } description:@"admission retry was not captured"];
+        return retries.count == 1;
+    } description:@"admission-exhausted record scheduled no retry"];
     NSDictionary *delayedState = [loader debugScanLaneState];
     XCTAssertEqualObjects(delayedState[@"pending"], (@[]));
     XCTAssertEqualObjects(delayedState[@"delayed"], (@[@"delayed.wav"]));
@@ -761,7 +761,8 @@
 
     // The retry's edge, fired after the cancel.
     XCTAssertEqual(retries.count, 1u);
-    retries.firstObject();
+    dispatch_block_t retry = retries.firstObject;
+    if (retry) retry();
     XCTAssertEqual(controller.startedURLs.count, 1u,
             @"cancelled delayed record retried after its eligibility edge");
     XCTAssertEqual([coordinator stateSnapshotForTesting].requestsAdmissionExhausted, 1u);
@@ -827,10 +828,10 @@
         return [coordinator stateSnapshotForTesting].requestsAdmissionExhausted == 1;
     } description:@"loader request was not admission exhausted"];
     [self waitForCondition:^BOOL{
-        return retries.count > 0;
-    } description:@"admission retry was not captured"];
-    XCTAssertEqualObjects([loader debugScanLaneState][@"delayed"],
-            (@[target.url.lastPathComponent]));
+        return retries.count == 1;
+    } description:@"admission-exhausted record scheduled no retry"];
+    XCTAssertTrue([[loader debugScanLaneState][@"delayed"]
+            containsObject:target.url.lastPathComponent]);
 
     controller.allStartsExpectation =
             [self expectationWithDescription:@"delayed retry started"];
@@ -840,7 +841,8 @@
     } description:@"cancelled pending claim retained its capacity"];
     // The retry's edge, fired once the capacity it needs is free.
     XCTAssertEqual(retries.count, 1u);
-    retries.firstObject();
+    dispatch_block_t retry = retries.firstObject;
+    if (retry) retry();
     controller.blocksUntilCancelled = NO;
     [controller completeFirstReady];
     [self waitForExpectations:@[runningCompleted] timeout:VIBE_TEST_HANG_TIMEOUT];

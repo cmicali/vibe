@@ -71,7 +71,7 @@ AppKit resizes a `contentViewController` window to its fitting size after every 
 **Appearance** is `SettingsAppearanceViewController`. **It holds what the window shows, which is app-wide and never a theme field** (`AppTheme.h`), so a theme switch cannot hide a readout or a column.
 
 - Window: Window appearance (`windowAppearanceStyle`, `WindowAppearance`), Show window controls (`TrafficLights`) and Dock icon (`AppIcon`). **A single-mode theme pins the window dark** (`AppTheme.requiredWindowAppearance`), so the popup disables and its caption names the theme.
-- Waveform: Normalize and Gain (`waveformNormalize`, `waveformGainDB`, `WaveformLevels`). These are common settings, not theme fields. A style without levels (Cupertino Basic) disables both and says why under the description. The Themes pane's previews are keyed by the levels, so they redraw when it next appears.
+- Waveform: Normalize and Gain (`waveformNormalize`, `waveformGainDB`, `WaveformLevels`). These are common settings, not theme fields. A style without levels (Progress) disables both and says why under the description. The Themes pane's previews are keyed by the levels, so they redraw when it next appears.
 - Track information: the time labels and Total/Remaining, status icons, file info, BPM, key, key notation and Camelot colors. One action (`trackInfoChanged:`) writes only its sender's setting and requests `TrackDisplay`. Show file info governs the whole BPM and key line, so it disables BPM and key. Show key disables notation and colors. Total/Remaining follows Show time labels. A click on the time label writes the same Total/Remaining setting.
 - Playlist: the number, artwork and duration columns, requesting `PlaylistAppearance`.
 

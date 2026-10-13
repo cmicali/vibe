@@ -96,7 +96,7 @@ The audio path already uses Accelerate and SIMD for mixing, resampling, metering
 
 Broader SIMD rewrites of waveform energy windows did not improve the measured work. A whole-target `-O3` build also showed no convincing general gain. Those experiments were discarded. The retained changes consolidate the normalization scan and remove the common strip's intermediate color pass.
 
-Validation passed 2,192 unit tests and 172 audio pipeline tests after the rebase. The macOS and iOS Release analyzers were clean. The iOS Debug build passed. CI exposed a race in the metadata retry tests. They now wait for the captured retry callback before firing it. Both affected tests failed in a repeated run before the fix. Both passed 100 repetitions after it.
+Validation passed 2,194 unit tests after merging `main`. The audio pipeline suite passed 172 tests. The macOS and iOS Release analyzers were clean. The iOS Debug build passed. CI exposed a race in the metadata retry tests. The fix from #249 waits for the captured retry callback before firing it. Both affected tests failed in a repeated run before the fix. Both passed 100 repetitions after it.
 
 Live macOS checks covered resizing, normalization, gain, track changes and both appearances. All four consistency checks passed. iOS performance was not measured on a device.
 

@@ -51,7 +51,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)waitForDelay:(NSTimeInterval)delay;
 // Keeps the loader's admission retries instead of scheduling them, so a test
 // fires the edge where its order matters. Appended on main, where the tests
-// read them.
+// read them. TRAP: a record joins the delayed set before its retry is
+// scheduled. Wait for the retry in this list, never for the set.
 - (NSMutableArray<dispatch_block_t> *)captureRetriesOf:(AudioTrackMetadataLoader *)loader;
 @end
 

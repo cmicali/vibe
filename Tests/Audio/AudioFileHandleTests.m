@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #import "AudioFileHandle.h"
+#import "AudioFileHandle+Debug.h"
 #import "AudioFixtures.h"
 #import "NSURL+Emptiness.h"
 
@@ -78,6 +79,22 @@ static int VibeOpenDescriptorCount(void) {
     int count = 0, max = getdtablesize();
     for (int fd = 0; fd < max; fd++) {
         if (fcntl(fd, F_GETFD) != -1) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// The process's descriptors open on this file.
+static int VibeDescriptorsOpenOn(NSURL *url) {
+    char resolved[PATH_MAX];
+    if (!realpath(url.fileSystemRepresentation, resolved)) {
+        return 0;
+    }
+    int count = 0, max = getdtablesize();
+    for (int fd = 0; fd < max; fd++) {
+        char open[PATH_MAX];
+        if (fcntl(fd, F_GETPATH, open) == 0 && strcmp(open, resolved) == 0) {
             count++;
         }
     }
@@ -327,6 +344,22 @@ static int VibeOpenDescriptorCount(void) {
         }
     }
     XCTAssertEqual(VibeOpenDescriptorCount(), baseline);
+}
+
+// A close can wait on a share's server, and the player lets handles go where
+// main waits. An interruptible open's release leaves the close to its queue.
+- (void)testAnInterruptibleOpenClosesItsFileOnTheCloseQueue {
+    NSURL *url = [self writePCMNamed:@"deferred.wav" frames:1024 channels:2 rate:44100];
+    dispatch_queue_t closes = AudioFileHandle.debugCloseQueue;
+    dispatch_suspend(closes);
+    @autoreleasepool {
+        XCTAssertNotNil([[AudioFileHandle alloc] initForReading:url interleaved:NO
+                                                    interrupted:^BOOL { return NO; } error:NULL]);
+    }
+    XCTAssertEqual(VibeDescriptorsOpenOn(url), 1, @"released, and still open");
+    dispatch_resume(closes);
+    dispatch_sync(closes, ^{});
+    XCTAssertEqual(VibeDescriptorsOpenOn(url), 0);
 }
 
 - (void)testAHandleOutlivesTheScopeThatOpenedIt {

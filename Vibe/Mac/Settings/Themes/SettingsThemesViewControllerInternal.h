@@ -68,6 +68,8 @@ static NSString *const kChoiceStandard = @"standard";
     NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
     NSMapTable<VibeSwitch *, void (^)(AppTheme *, BOOL)> *_themeSwitchWrites;
     NSPopUpButton *_waveformPopUp;
+    NSPopUpButton *_waveformTypePopUp;
+    SettingsRowView *_waveformTypeRow;
     NSSlider *_waveformBarDensitySlider;
     NSTextField *_waveformBarDensityValue;
     NSSlider *_waveformBarWidthSlider;
@@ -106,7 +108,7 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)themeFieldDidChange:(VibeSettingsLiveEffect)effect continuous:(BOOL)continuous;
 
 // One style popup per page, twins sharing an action. selectWaveformStyle:in:
-// shows the default style for an unknown identifier, the view's own fallback.
+// shows an identifier under its style's entry, resolved as the views resolve it.
 - (NSPopUpButton *)waveformStylePopUpButton;
 - (NSImageView *)waveformPreviewView;
 - (void)selectWaveformStyle:(NSString *)identifier in:(NSPopUpButton *)popUp;
@@ -148,6 +150,7 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)volumeLocationChanged:(id)sender;
 - (void)volumeVisibilityChanged:(id)sender;
 - (void)waveformBarSizingChanged:(NSSlider *)sender;
+- (void)waveformTypeChanged:(id)sender;
 - (void)waveformThemeChanged:(id)sender;
 - (void)spectrumPaletteChanged:(id)sender;
 - (void)playlistColorModeChanged:(NSPopUpButton *)sender;
