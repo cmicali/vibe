@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "name": "RGB",
+  "description": "The Spectrum waveform's RGB bands over a frosted window. The window is near black in dark mode and light gray in light mode.",
+  "window": {
+    "backgroundColorDark": "#000000F2",
+    "backgroundColorLight": "#D7D7D7F2",
+    "backgroundStyle": "frosted",
+    "tint": "mono"
+  },
+  "waveform": {
+    "style": "spectrum"
+  }
+}

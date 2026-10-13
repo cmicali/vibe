@@ -773,7 +773,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
                           (@[@"vibe", @"cupertino", @"dark_wolf", @"dengine", @"field", @"glassy", @"rekord_bin",
-                              @"snake", @"sonic_cirrus", @"tangerine", @"technical"]));
+                              @"rgb", @"snake", @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 
 - (void)testVibeBuiltInIsTheEmptyRecord {
