@@ -16,6 +16,19 @@
 static NSString *const kWiggleIdentifier = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
 
+// The Detailed family in its Type chooser's order.
+static NSArray<NSString *> *DetailedTypeIdentifiers(void) {
+    return @[DetailedWaveformRenderer.styleIdentifier,
+             x2OversamplingDetailedWaveformRenderer.styleIdentifier,
+             x4OversamplingDetailedWaveformRenderer.styleIdentifier,
+             x8OversamplingDetailedWaveformRenderer.styleIdentifier];
+}
+
+// Choosing Detailed from another style lands on the 4x type.
+static NSString *DetailedStyleIdentifier(void) {
+    return x4OversamplingDetailedWaveformRenderer.styleIdentifier;
+}
+
 // Fine transients, so the Detailed family's sampling differences survive a
 // thumbnail. The bands keep a mix's measured balance — lows near the whole,
 // mids ~12 dB and highs ~17 dB under — each drifting on its own, so 3-Band's
@@ -82,6 +95,36 @@ static AudioWaveform *VibePreviewWaveform(void) {
 
 + (NSArray<NSString *> *)availableIdentifiers {
     return [self renderersByIdentifier].allKeys;
+}
+
++ (NSArray<NSString *> *)styleIdentifiers {
+    NSMutableSet<NSString *> *styles = [NSMutableSet set];
+    for (NSString *identifier in [self availableIdentifiers]) {
+        [styles addObject:[self styleIdentifierForIdentifier:identifier]];
+    }
+    return [styles.allObjects sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
+        return [[self displayNameForIdentifier:a] localizedStandardCompare:[self displayNameForIdentifier:b]];
+    }];
+}
+
++ (NSString *)styleIdentifierForIdentifier:(NSString *)identifier {
+    return [DetailedTypeIdentifiers() containsObject:identifier] ? DetailedStyleIdentifier() : identifier;
+}
+
++ (NSArray<NSString *> *)typeIdentifiersForIdentifier:(NSString *)identifier {
+    NSArray<NSString *> *types = DetailedTypeIdentifiers();
+    return [types containsObject:identifier] ? types : @[];
+}
+
+// Three keys, not one format string, so each reaches the translator in
+// context. Detailed's type is the style's own name.
++ (NSString *)typeDisplayNameForIdentifier:(NSString *)identifier {
+    NSDictionary<NSString *, NSString *> *names = @{
+        x2OversamplingDetailedWaveformRenderer.styleIdentifier: STR_WAVEFORM_TYPE_OVERSAMPLED_X2,
+        x4OversamplingDetailedWaveformRenderer.styleIdentifier: STR_WAVEFORM_TYPE_OVERSAMPLED_X4,
+        x8OversamplingDetailedWaveformRenderer.styleIdentifier: STR_WAVEFORM_TYPE_OVERSAMPLED_X8,
+    };
+    return names[identifier] ?: [self displayNameForIdentifier:identifier];
 }
 
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier {

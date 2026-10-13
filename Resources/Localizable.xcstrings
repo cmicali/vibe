@@ -71798,7 +71798,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.waveform_bar_density": {
-      "comment": "Theme editor: slider controlling the number of waveform bars or Wiggle loops. 100% is the style's original density; higher values draw more bars. Disabled for Detailed styles and the flat Cupertino Basic pill.",
+      "comment": "Theme editor: slider controlling the number of waveform bars or Wiggle loops. 100% is the style's original density; higher values draw more bars. Disabled for the Detailed style and the flat Progress pill.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -71984,7 +71984,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.waveform_bar_width": {
-      "comment": "Theme editor: slider controlling waveform bar thickness, Wiggle stroke thickness, or Cupertino Basic pill height. 100% is the style's original thickness. Disabled for Detailed styles.",
+      "comment": "Theme editor: slider controlling waveform bar thickness, Wiggle stroke thickness, or Progress pill height. 100% is the style's original thickness. Disabled for the Detailed style.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -79418,6 +79418,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "橙色"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.waveform_type": {
+      "comment": "Settings, the macOS theme editor's Player group and the iOS Appearance screen's Waveform group: row choosing a variant of the selected waveform style. Shown only for the Detailed style, whose choices are Detailed and Oversampled 2x, 4x and 8x.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тип"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typ"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typ"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τύπος"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tyyppi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vrsta"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Típus"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jenis"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイプ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "유형"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typ"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tip"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тип"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typ"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typ"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ประเภท"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tür"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тип"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loại"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "类型"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "類型"
           }
         }
       },
@@ -112532,186 +112718,186 @@
       "extractionState": "manual"
     },
     "waveform.style.basic": {
-      "comment": "Waveform style name: the simplest bar rendering.",
+      "comment": "Waveform style name: evenly spaced solid bars, one per slice of the track. Translate as the plain word for bars, as in a bar chart.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Основна"
+            "value": "Стълбчета"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Základní"
+            "value": "Sloupce"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enkel"
+            "value": "Søjler"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Einfach"
+            "value": "Balken"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Βασική"
+            "value": "Ράβδοι"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Basic"
+            "value": "Bars"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Básico"
+            "value": "Barras"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yksinkertainen"
+            "value": "Palkit"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Simple"
+            "value": "Barres"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Osnovni"
+            "value": "Stupci"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Egyszerű"
+            "value": "Oszlopok"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dasar"
+            "value": "Batang"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Base"
+            "value": "Barre"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "シンプル"
+            "value": "バー"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "기본"
+            "value": "막대"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enkel"
+            "value": "Søyler"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eenvoudig"
+            "value": "Balken"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prosty"
+            "value": "Słupki"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Básico"
+            "value": "Barras"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Básico"
+            "value": "Barras"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Simplu"
+            "value": "Bare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Простая"
+            "value": "Столбцы"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Základný"
+            "value": "Stĺpce"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enkel"
+            "value": "Staplar"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "พื้นฐาน"
+            "value": "แท่ง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Basit"
+            "value": "Çubuklar"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Проста"
+            "value": "Стовпці"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cơ bản"
+            "value": "Thanh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "基本"
+            "value": "条形"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "基本"
+            "value": "長條"
           }
         }
       },
@@ -112904,193 +113090,193 @@
       "extractionState": "manual"
     },
     "waveform.style.cupertino_basic": {
-      "comment": "Waveform style name: a rounded progress pill in the Apple Music style, the plainer of the two Cupertino styles. Transliterate the city's name; render 'Basic' the way the 'Basic' style's name is rendered, so the two read as a pair.",
+      "comment": "Waveform style name: a plain rounded progress bar in the Apple Music style, with no waveform drawn. Translate as the word for progress, as in a progress bar.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Купертино (основна)"
+            "value": "Напредък"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (základní)"
+            "value": "Průběh"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (enkel)"
+            "value": "Forløb"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (einfach)"
+            "value": "Fortschritt"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Κουπερτίνο (βασική)"
+            "value": "Πρόοδος"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino Basic"
+            "value": "Progress"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino básico"
+            "value": "Progreso"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (yksinkertainen)"
+            "value": "Edistyminen"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino simple"
+            "value": "Progression"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (osnovni)"
+            "value": "Napredak"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (egyszerű)"
+            "value": "Folyamatjelző"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (dasar)"
+            "value": "Kemajuan"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino base"
+            "value": "Avanzamento"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "クパチーノ（シンプル）"
+            "value": "進行状況"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "쿠퍼티노 (기본)"
+            "value": "진행률"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (enkel)"
+            "value": "Fremdrift"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (eenvoudig)"
+            "value": "Voortgang"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (prosty)"
+            "value": "Postęp"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino básico"
+            "value": "Progresso"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino básico"
+            "value": "Progresso"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino simplu"
+            "value": "Progres"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Купертино (простая)"
+            "value": "Прогресс"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (základný)"
+            "value": "Priebeh"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (enkel)"
+            "value": "Förlopp"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "คูเปอร์ติโน (พื้นฐาน)"
+            "value": "ความคืบหน้า"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (basit)"
+            "value": "İlerleme"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Купертіно (проста)"
+            "value": "Прогрес"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cupertino (cơ bản)"
+            "value": "Tiến trình"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "库比蒂诺（基本）"
+            "value": "进度"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "庫比蒂諾（基本）"
+            "value": "進度"
           }
         }
       },
       "extractionState": "manual"
     },
     "waveform.style.detailed": {
-      "comment": "Waveform style name: a higher-resolution bar rendering.",
+      "comment": "Waveform style name: a higher-resolution bar rendering. Also the first choice of the style's Type setting, the plain rendering without oversampling.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -113270,564 +113456,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "精細"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "waveform.style.oversampling_x2": {
-      "comment": "Waveform style name: detailed rendering at 2x oversampling. Keep the 'x2'.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детайлна, овърсемплинг x2"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailní, oversampling x2"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljeret, oversampling x2"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailliert, Oversampling x2"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Λεπτομερής, υπερδειγματοληψία x2"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oversampling Detailed x2"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detallado, sobremuestreo x2"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yksityiskohtainen, ylinäytteistys x2"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Détaillé, suréchantillonnage x2"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljni, oversampling x2"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Részletes, túlmintavételezés x2"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detail, Oversampling x2"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dettagliato, sovracampionamento x2"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "詳細（オーバーサンプリング x2）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "상세 (오버샘플링 x2)"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljert, oversampling x2"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gedetailleerd, oversampling x2"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Szczegółowy, oversampling x2"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detalhado, Oversampling x2"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detalhado, Oversampling x2"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaliat, oversampling x2"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детальная, оверсемплинг x2"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailný, oversampling x2"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljerad, översampling x2"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ละเอียด (โอเวอร์แซมปลิง x2)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ayrıntılı, Oversampling x2"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детальна, оверсемплінг x2"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chi tiết, oversampling x2"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "精细（过采样 x2）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "精細（超取樣 x2）"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "waveform.style.oversampling_x4": {
-      "comment": "Waveform style name: detailed rendering at 4x oversampling. Keep the 'x4'.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детайлна, овърсемплинг x4"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailní, oversampling x4"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljeret, oversampling x4"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailliert, Oversampling x4"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Λεπτομερής, υπερδειγματοληψία x4"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oversampling Detailed x4"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detallado, sobremuestreo x4"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yksityiskohtainen, ylinäytteistys x4"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Détaillé, suréchantillonnage x4"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljni, oversampling x4"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Részletes, túlmintavételezés x4"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detail, Oversampling x4"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dettagliato, sovracampionamento x4"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "詳細（オーバーサンプリング x4）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "상세 (오버샘플링 x4)"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljert, oversampling x4"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gedetailleerd, oversampling x4"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Szczegółowy, oversampling x4"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detalhado, Oversampling x4"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detalhado, Oversampling x4"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaliat, oversampling x4"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детальная, оверсемплинг x4"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailný, oversampling x4"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljerad, översampling x4"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ละเอียด (โอเวอร์แซมปลิง x4)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ayrıntılı, Oversampling x4"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детальна, оверсемплінг x4"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chi tiết, oversampling x4"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "精细（过采样 x4）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "精細（超取樣 x4）"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "waveform.style.oversampling_x8": {
-      "comment": "Waveform style name: detailed rendering at 8x oversampling. Keep the 'x8'.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детайлна, овърсемплинг x8"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailní, oversampling x8"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljeret, oversampling x8"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailliert, Oversampling x8"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Λεπτομερής, υπερδειγματοληψία x8"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oversampling Detailed x8"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detallado, sobremuestreo x8"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yksityiskohtainen, ylinäytteistys x8"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Détaillé, suréchantillonnage x8"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljni, oversampling x8"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Részletes, túlmintavételezés x8"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detail, Oversampling x8"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dettagliato, sovracampionamento x8"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "詳細（オーバーサンプリング x8）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "상세 (오버샘플링 x8)"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljert, oversampling x8"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gedetailleerd, oversampling x8"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Szczegółowy, oversampling x8"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detalhado, Oversampling x8"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detalhado, Oversampling x8"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaliat, oversampling x8"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детальная, оверсемплинг x8"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detailný, oversampling x8"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detaljerad, översampling x8"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ละเอียด (โอเวอร์แซมปลิง x8)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ayrıntılı, Oversampling x8"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Детальна, оверсемплінг x8"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chi tiết, oversampling x8"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "精细（过采样 x8）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "精細（超取樣 x8）"
           }
         }
       },
@@ -114572,6 +114200,564 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wiggle"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "waveform.type.oversampled_x2": {
+      "comment": "Settings, the Detailed waveform style's Type choice: draws twice as many bars as Detailed, so they overlap finer than a pixel. Keep the '2x'.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Овърсемплинг 2x"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Υπερδειγματοληψία 2x"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampled 2x"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobremuestreo 2x"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ylinäytteistys 2x"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suréchantillonnage 2x"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Túlmintavételezés 2x"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sovracampionamento 2x"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オーバーサンプリング 2x"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오버샘플링 2x"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оверсемплинг 2x"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Översampling 2x"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โอเวอร์แซมปลิง 2x"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оверсемплінг 2x"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 2x"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "过采样 2x"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超取樣 2x"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "waveform.type.oversampled_x4": {
+      "comment": "Settings, the Detailed waveform style's Type choice: draws four times as many bars as Detailed, so they overlap finer than a pixel. Keep the '4x'.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Овърсемплинг 4x"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Υπερδειγματοληψία 4x"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampled 4x"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobremuestreo 4x"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ylinäytteistys 4x"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suréchantillonnage 4x"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Túlmintavételezés 4x"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sovracampionamento 4x"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オーバーサンプリング 4x"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오버샘플링 4x"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оверсемплинг 4x"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Översampling 4x"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โอเวอร์แซมปลิง 4x"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оверсемплінг 4x"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 4x"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "过采样 4x"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超取樣 4x"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "waveform.type.oversampled_x8": {
+      "comment": "Settings, the Detailed waveform style's Type choice: draws eight times as many bars as Detailed, so they overlap finer than a pixel. Keep the '8x'.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Овърсемплинг 8x"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Υπερδειγματοληψία 8x"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampled 8x"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobremuestreo 8x"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ylinäytteistys 8x"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suréchantillonnage 8x"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Túlmintavételezés 8x"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sovracampionamento 8x"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オーバーサンプリング 8x"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "오버샘플링 8x"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оверсемплинг 8x"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Översampling 8x"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โอเวอร์แซมปลิง 8x"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оверсемплінг 8x"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oversampling 8x"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "过采样 8x"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "超取樣 8x"
           }
         }
       },

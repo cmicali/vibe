@@ -17,6 +17,17 @@ NS_ASSUME_NONNULL_BEGIN
 // All registered style identifiers. Order is unspecified.
 + (NSArray<NSString *> *)availableIdentifiers;
 
+// One identifier per style, in chooser order. The Detailed family's four
+// identifiers are one style, listed under its 4x type.
++ (NSArray<NSString *> *)styleIdentifiers;
+// The styleIdentifiers entry an identifier shows under.
++ (NSString *)styleIdentifierForIdentifier:(NSString *)identifier;
+// The style's types in chooser order, identifier among them. Empty for a
+// style without types.
++ (NSArray<NSString *> *)typeIdentifiersForIdentifier:(NSString *)identifier;
+// Localized, display only.
++ (NSString *)typeDisplayNameForIdentifier:(NSString *)identifier;
+
 // Builds an identifier returned by resolveStyleIdentifier:, including variants
 // that share a class. Resolve once, then store and construct that same choice.
 + (WaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
