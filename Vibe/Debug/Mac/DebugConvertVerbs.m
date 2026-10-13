@@ -50,8 +50,8 @@ static NSString *VibeRunUndoRedoCommand(NSString *commandId, MainPlayerControlle
     else {
         [controller undo:nil];
     }
-    // The hook clears itself as it fires. Still installed with no conversion
-    // in flight means this undo was not a conversion's: reply now.
+    // The hook clears itself as it fires. Still installed with no file move
+    // in flight means this undo moved no file: reply now.
     if (controller.undoRedoSettledHandler
             && !controller.isFileMoveInFlight) {
         controller.undoRedoSettledHandler = nil;

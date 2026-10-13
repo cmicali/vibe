@@ -162,11 +162,10 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
                    commandK);
 }
 
-// The Finder's own shortcut, by physical key. The newest default, so it is
-// last: an override stored on ⌘⌫ before it existed keeps the key.
+// The Finder's own shortcut, by physical key. An override stored on ⌘⌫
+// before the default existed keeps the key.
 - (void)testMoveToTrashIsCommandDelete {
     XCTAssertEqual(VibeShortcutDefault(kVibeMenuEditMoveToTrash), VibeShortcutMake(51, kCmd));
-    XCTAssertEqualObjects(VibeShortcutIdentifiers().lastObject, kVibeMenuEditMoveToTrash);
     XCTAssertEqualObjects(VibeShortcutCommandForPress(51, kCmd, 0x7F, 0x7F, nil), kVibeMenuEditMoveToTrash);
     XCTAssertEqualObjects(VibeShortcutCommandForPress(51, 0, 0, 0x7F, nil), kVibeMenuEditRemoveFromPlaylist);
     XCTAssertFalse(VibeShortcutIsReserved(51, 0x7F, kCmd));

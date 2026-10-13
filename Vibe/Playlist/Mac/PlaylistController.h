@@ -52,13 +52,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger structureGeneration;
 
 // A row-menu removal of exact objects; the shell removes them and owns the
-// transport consequences. With trashFiles, the shell first moves their files
-// to the Trash.
+// transport consequences. With trashFiles, it is Move to Trash: every row of
+// each object's file goes, and the files follow to the Trash.
 @property (nonatomic, copy, nullable) void (^removeTracksRequestHandler)(NSArray<AudioTrack *> *tracks, BOOL trashFiles);
 
 - (NSArray<AudioTrack *> *)playlist;
-// The rows that exist, in row order.
-- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes;
 
 // nil when out of range. No copy: for one-off main-thread reads; hold
 // playlist across async work.

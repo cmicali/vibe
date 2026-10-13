@@ -846,10 +846,6 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model indexesOfTracksWithURL:url];
 }
 
-- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes {
-    return [_model tracksAtIndexes:indexes];
-}
-
 - (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
     return [_model stampTracksSounding:track usingBlock:stamp];
 }

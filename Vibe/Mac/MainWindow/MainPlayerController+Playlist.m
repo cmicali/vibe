@@ -142,17 +142,14 @@ static NSURL *VibeLastPlaylistURL(void) {
     [self removePlaylistTracks:tracks];
 }
 
-// The one removal funnel, and the only place a removal's playback consequences
-// are decided: Playlist.removeTracksAtIndexes: touches no audio, so removing
-// the current row there alone would leave the player sounding a track the
-// playlist no longer holds, and every identity guard would read its events as
-// stale. The funnel never touches a file.
+// Remove from Playlist: the funnel plus Remove's undo.
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks {
     PlaylistController *playlist = self.playlistController;
     // Each exact object once; departed ones drop out.
     NSIndexSet *rows = [playlist rowsForTracks:tracks];
     NSArray<AudioTrack *> *removed = [self removePlaylistRows:rows];
-    if (!removed) {
+    // An emptied list was a Close, which stays un-undoable.
+    if (removed.count == 0 || playlist.count == 0) {
         return;
     }
     // Undo restores the exact objects to their rows and never touches
@@ -166,18 +163,22 @@ static NSURL *VibeLastPlaylistURL(void) {
     [undoManager setActionName:STR_MENU_EDIT_REMOVE_FROM_PLAYLIST];
 }
 
-// The funnel less its undo registration, which Remove and Move to Trash each
-// make their own. Answers the removed tracks, or nil when nothing was removed
-// or the removal closed the playlist: removing every row is an unload, which
-// closeFile: owns whole.
-- (nullable NSArray<AudioTrack *> *)removePlaylistRows:(NSIndexSet *)rows {
+// The one removal funnel, and the only place a removal's playback consequences
+// are decided: Playlist.removeTracksAtIndexes: touches no audio, so removing
+// the current row there alone would leave the player sounding a track the
+// playlist no longer holds, and every identity guard would read its events as
+// stale. It touches no file and registers no undo; each caller registers its
+// own. Answers the removed tracks in row order.
+- (NSArray<AudioTrack *> *)removePlaylistRows:(NSIndexSet *)rows {
     PlaylistController *playlist = self.playlistController;
     if (rows.count == 0) {
-        return nil;
+        return @[];
     }
+    // Removing every row is an unload, which closeFile: owns whole.
     if (rows.count == playlist.count) {
+        NSArray<AudioTrack *> *all = playlist.playlist;
         [self closeFile:nil];
-        return nil;
+        return all;
     }
 
     NSUInteger currentIndex = playlist.currentIndex;
@@ -287,8 +288,7 @@ static NSURL *VibeLastPlaylistURL(void) {
     NSMutableOrderedSet<NSURL *> *urls = [NSMutableOrderedSet orderedSet];
     for (AudioTrack *track in tracks) {
         NSURL *url = track.url;
-        if (url.isFileURL && ![urls containsObject:url]
-                && !VibeUncanonicalPathIsUnderFolder(url.path, bundle)
+        if (url.isFileURL && !VibeUncanonicalPathIsUnderFolder(url.path, bundle)
                 && !VibePathIsUnderRemotePlaceholderRoot(url.path)) {
             [urls addObject:url];
         }
@@ -306,15 +306,14 @@ static NSURL *VibeLastPlaylistURL(void) {
 // funnel's undo-free half, so the player lets go of a removed current file
 // before it moves.
 - (void)moveFilesToTrash:(NSArray<NSURL *> *)urls
-               trashURLs:(NSMutableDictionary<NSURL *, NSURL *> *)trashURLs {
+               trashURLs:(NSMutableDictionary<NSURL *, id> *)trashURLs {
     PlaylistController *playlist = self.playlistController;
     NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
     for (NSURL *url in urls) {
         [rows addIndexes:[playlist indexesOfTracksWithURL:url]];
     }
-    NSArray<AudioTrack *> *tracks = [playlist tracksAtIndexes:rows];
     NSUInteger currentIndex = playlist.currentIndex;
-    [self removePlaylistRows:rows];
+    NSArray<AudioTrack *> *tracks = [self removePlaylistRows:rows];
     // Read after the removal: a Close bumps it, and the undo must find the
     // playlist still closed.
     NSUInteger generation = playlist.structureGeneration;
@@ -337,7 +336,7 @@ static NSURL *VibeLastPlaylistURL(void) {
            atIndexes:(NSIndexSet *)rows
         currentIndex:(NSUInteger)currentIndex
           generation:(NSUInteger)generation
-           trashURLs:(NSMutableDictionary<NSURL *, NSURL *> *)trashURLs {
+           trashURLs:(NSMutableDictionary<NSURL *, id> *)trashURLs {
     // TRAP: register the opposite first, synchronously. NSUndoManager's stack
     // direction is active only now, and the file moves settle later.
     NSUndoManager *undoManager = self.window.undoManager;
@@ -362,37 +361,40 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 // One direction of Move to Trash's file moves, through the converter's
 // coordinated trash and restore, off main. trashURLs maps each file to its
-// place in the Trash. Both directions rewrite it, so a file one direction
-// could not move is skipped by the next rather than failing twice.
+// place in the Trash, or to NSNull when the Trash moved it without saying
+// where (VibeTrashOutcomeMovedUnknownURL). Both directions rewrite it, so a
+// file one direction could not move is skipped by the next rather than
+// failing twice.
 - (void)moveFiles:(NSArray<NSURL *> *)urls
           toTrash:(BOOL)toTrash
-        trashURLs:(NSMutableDictionary<NSURL *, NSURL *> *)trashURLs
+        trashURLs:(NSMutableDictionary<NSURL *, id> *)trashURLs
        completion:(nullable void (^)(void))completion {
     _trashInFlight = YES;
     __block NSError *failure = nil;
     dispatch_group_t group = dispatch_group_create();
     // The completions run on main, so trashURLs needs no lock. A nil place
     // removes the file's entry.
-    void (^settle)(NSURL *, NSURL *, NSError *) = ^(NSURL *url, NSURL *place, NSError *error) {
+    void (^settle)(NSURL *, id, NSError *) = ^(NSURL *url, id place, NSError *error) {
         trashURLs[url] = place;
-        if (!failure) {
-            failure = error;
-        }
+        failure = failure ?: error;
         dispatch_group_leave(group);
     };
     for (NSURL *url in urls) {
-        NSURL *trashURL = trashURLs[url];
-        if ((trashURL != nil) == toTrash) {
-            continue; // already where this direction puts it
+        id place = trashURLs[url];
+        // TRAP: a file moved to an unknown place is never touched again. Its
+        // path is no proof of where it is: redo would trash a stranger there.
+        if (place == NSNull.null || (place != nil) == toTrash) {
+            continue;
         }
         dispatch_group_enter(group);
         if (toTrash) {
             [self.fileConverter trashItemAtURL:url completion:^(VibeTrashOutcome outcome, NSURL *trashedURL, NSError *error) {
-                // A move with no known place in the Trash cannot be put back.
-                settle(url, outcome == VibeTrashOutcomeMovedKnownURL ? trashedURL : nil,
+                id moved = outcome == VibeTrashOutcomeMovedUnknownURL ? NSNull.null : nil;
+                settle(url, outcome == VibeTrashOutcomeMovedKnownURL ? trashedURL : moved,
                        outcome == VibeTrashOutcomeFailed ? error : nil);
             }];
         } else {
+            NSURL *trashURL = place;
             [self.fileConverter restoreTrashedItemAtURL:trashURL toURL:url completion:^(BOOL restored, NSError *error) {
                 settle(url, restored ? nil : trashURL, restored ? nil : error);
             }];

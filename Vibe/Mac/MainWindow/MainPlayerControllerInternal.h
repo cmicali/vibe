@@ -86,6 +86,12 @@ NS_ASSUME_NONNULL_BEGIN
 // `#if DEBUG` out of this header.
 @property (copy, nullable) void (^undoRedoSettledHandler)(
         BOOL committed, NSString *_Nullable reason);
+// Fires undoRedoSettledHandler once an undo's or redo's file moves settle.
+- (void)undoRedoDidSettleCommitted:(BOOL)committed reason:(nullable NSString *)reason;
+
+// YES until an undoable action's file moves settle, so the action cannot be
+// re-entered nor undone before its files land.
+@property (nonatomic, readonly, getter=isFileMoveInFlight) BOOL fileMoveInFlight;
 
 // A same-track replay's resume hint (the convert swap, an MP3 decoder change),
 // so Now Playing in its Loading gap shows the resume position rather than 0.

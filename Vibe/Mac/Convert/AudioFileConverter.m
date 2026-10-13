@@ -93,8 +93,9 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
         // Utility QoS: the encode must never outrank the player queue.
         _queue = dispatch_queue_create("com.vibe.flacconvert",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+        // User-initiated: the user waits on every move here before Undo works.
         _disposeQueue = dispatch_queue_create("com.vibe.flacconvert.dispose",
-                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
+                dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
         _statQueue = dispatch_queue_create("com.vibe.flacconvert.stat",
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     }

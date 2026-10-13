@@ -117,8 +117,8 @@ typedef NS_ENUM(NSInteger, VibeConvertErrorCode) {
                                                 NSURL *_Nullable trashedURL,
                                                 NSError *_Nullable error))completion;
 
-// The undo/redo file primitives for Undo Convert to FLAC. The trash is also
-// the playlist's Move to Trash (MainPlayerController+Playlist). Main thread; the
+// The undo/redo file primitives for Undo Convert to FLAC, and for the
+// playlist's Move to Trash (MainPlayerController+Playlist). Main thread; the
 // moves run on a serial queue — unbounded on a cloud or network folder — and
 // the completions on main. Both are coordinated writes: a FLAC only the
 // related-item rung could place is writable only through the presenter's file
