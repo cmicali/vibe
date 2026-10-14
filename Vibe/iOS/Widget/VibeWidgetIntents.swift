@@ -84,6 +84,23 @@ struct VibeSeekIntent: AudioPlaybackIntent {
     }
 }
 
+// A foreground intent, so the system opens the app and performs it there.
+// A launch lands on the Playlist tab with the card down. So a tap that
+// launches the app needs nothing when no scene has connected yet.
+struct VibeShowPlaylistIntent: AppIntent {
+    static var title: LocalizedStringResource =
+        LocalizedStringResource("widget.intent.show_playlist", defaultValue: "Show Playlist")
+    static var supportedModes: IntentModes = .foreground
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        #if VIBE_APP
+        VibeiOSSceneDelegate.showPlaylist()
+        #endif
+        return .result()
+    }
+}
+
 #if VIBE_APP
 // Hops to the main actor: PlaybackController is main-thread-only.
 enum VibeWidgetTransport {

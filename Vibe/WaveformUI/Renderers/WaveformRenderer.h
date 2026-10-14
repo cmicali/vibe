@@ -105,6 +105,38 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
     }
 }
 
+// Places the lit hover column, or hides it for CGRectNull. Over the played
+// side the lit column hides and a hole in played shows the unplayed side
+// (Mac/AGENTS.md). column is in the superlayer's coordinates, which played
+// shares. Callers disable actions.
+static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect column) {
+    BOOL hovering = !CGRectIsNull(column);
+    BOOL overPlayed = hovering && CGRectGetMidX(column) < played.bounds.size.width;
+    if (hovering) {
+        lit.frame = column;
+    }
+    lit.hidden = !hovering || overPlayed;
+    if (!overPlayed) {
+        played.mask = nil;
+        return;
+    }
+    CAShapeLayer *hole = (CAShapeLayer *)played.mask;
+    if (!hole) {
+        hole = [CAShapeLayer layer];
+        hole.fillRule = kCAFillRuleEvenOdd;
+        hole.contentsScale = played.contentsScale;
+        played.mask = hole;
+    }
+    // The superlayer's whole area, so the hole still covers played as it grows.
+    CGRect area = {CGPointZero, played.superlayer.bounds.size};
+    hole.frame = area;
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRect(path, NULL, area);
+    CGPathAddRect(path, NULL, column);
+    hole.path = path;
+    CGPathRelease(path);
+}
+
 @class WaveformMorphEngine;
 
 @interface WaveformRenderer : NSObject {

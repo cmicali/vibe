@@ -302,7 +302,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
     // The cursor is reset without its setter, so nothing else announces it.
     [self notifyCurrentIndexDidChange];
-    // reloadData keeps selection by row index, which would land on an
+    // reloadData can keep the selection by row index, which would land on an
     // unrelated row of the new playlist.
     [self.tableView deselectAll:nil];
     [self.tableView reloadData];
@@ -885,8 +885,12 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }
 }
 
+// TRAP: on macOS 27, reloadData clears a view-based table's selection. It
+// posts no selection change, so the selection is put back by hand.
 - (void)reloadAllTracks {
+    NSIndexSet *selection = [self selectedRows];
     [self.tableView reloadData];
+    [self.tableView selectRowIndexes:selection byExtendingSelection:NO];
 }
 
 - (void)reloadVisibleTracks {

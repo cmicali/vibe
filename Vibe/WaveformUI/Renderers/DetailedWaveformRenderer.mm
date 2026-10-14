@@ -299,20 +299,10 @@ static const CGFloat kDetailedBarPitch = 0.5;
         return;
     }
     CGRect b = self.parentLayer.bounds;
-    if (x < 0 || b.size.width <= 0) {
-        [CATransaction begin];
-        [CATransaction setDisableActions:YES];
-        _hoverColumn.hidden = YES;
-        [CATransaction commit];
-        return;
-    }
-    CGRect column = [self hoverColumnRectForX:x bounds:b
-                                        scale:VibeBackingScaleForLayer(self.parentLayer)];
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _hoverColumn.bounds = CGRectMake(0, 0, column.size.width, column.size.height);
-    _hoverColumn.position = column.origin;
-    _hoverColumn.hidden = NO;
+    VibePlaceHoverColumn(_hoverColumn, _playedClip, x < 0 || b.size.width <= 0 ? CGRectNull
+            : [self hoverColumnRectForX:x bounds:b scale:VibeBackingScaleForLayer(self.parentLayer)]);
     [CATransaction commit];
 }
 
@@ -338,6 +328,10 @@ static const CGFloat kDetailedBarPitch = 0.5;
     _playedClip.bounds = CGRectMake(0, 0, [self playedClipWidthForProgress:progress width:b.size.width],
                                     b.size.height);
     _playedClip.position = CGPointZero;
+    // The playhead can cross a still cursor.
+    if (self.hoverHighlightX >= 0) {
+        [self setHoverHighlightX:self.hoverHighlightX];
+    }
 }
 
 - (CGFloat)playedClipWidthForProgress:(CGFloat)progress width:(CGFloat)width {
@@ -357,7 +351,6 @@ static const CGFloat kDetailedBarPitch = 0.5;
     _playedGradient.frame = localBounds;
     [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
-    [self setHoverHighlightX:self.hoverHighlightX];
 
     // The oversampling styles draw more bars than device pixels on purpose:
     // the sub-pixel overlap IS their look. Do not clamp to the pixel count.
