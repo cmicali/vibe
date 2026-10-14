@@ -4,6 +4,7 @@
 //
 
 #import "AudioFileHandleInternal.h"
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
 #import "NetworkReadAhead.h"
 #if DEBUG
@@ -421,10 +422,17 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return _availability ? _availability.progressBytes : (uint64_t)MAX(0, _size);
 }
 
+// A read-ahead has no transfer to hold. A play's reads about 30 s ahead
+// instead. The waveform loader never sends this, and its read-ahead keeps
+// the floor.
 - (void)holdStream {
     if (_availability.partURL && !_holdsStream) {
         _holdsStream = YES;
         [_availability addReader]; // removed by dealloc
+    } else if (_availability && !_availability.partURL) {
+        double rate = _processingFormat.sampleRate;
+        double seconds = rate > 0 ? (double)self.length / rate : 0;
+        _availability.readAheadSpan = VibeReadAheadSpanBytes((uint64_t)MAX(0, _size), seconds);
     }
 }
 

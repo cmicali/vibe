@@ -1028,6 +1028,30 @@ static void TakeNews(CloudFileAvailability *availability) {
                                   wanted:&wanted length:&length readerPosition:&position]);
 }
 
+// A play's handle raises its read-ahead's span after the thread has fetched
+// up to the old one. Only a rise is news. A transfer ignores the span.
+- (void)testRaisingTheSpanWakesTheWritersWaitForWork {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    [availability noteSize:100];
+    availability.readAheadSpan = 8;
+    TakeNews(availability);
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    availability.readAheadSpan = 8;
+    availability.readAheadSpan = 4;
+    [self assertStillWaiting:woken];
+    XCTAssertEqual(availability.readAheadSpan, 4u);
+    availability.readAheadSpan = 16;
+    [self awaitReturn:woken];
+    XCTAssertTrue(open);
+    XCTAssertEqual(availability.readAheadSpan, 16u);
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    transfer.readAheadSpan = 16;
+    XCTAssertEqual(transfer.readAheadSpan, 0u);
+}
+
 // Either writer's wait, once blocked, sees an interrupt set after it blocked
 // when wakeWaiters wakes it. Nothing asserts it stays blocked until the wake.
 // NSCondition may wake early, and an early look at the flag is harmless.

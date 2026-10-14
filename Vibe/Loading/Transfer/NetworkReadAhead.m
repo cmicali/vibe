@@ -16,11 +16,11 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 
-// The read-ahead (VibeReadAheadRun) fetches 256 KB blocks up to 8 MB ahead of
-// the reader. It keeps one block behind the reader's. An MP3 seek's preroll
-// and dr_flac's bisection read back over it.
+// The read-ahead (VibeReadAheadRun) fetches 256 KB blocks up to its
+// availability's span ahead of the reader. That is 8 MB until a play's handle
+// sizes it (VibeReadAheadSpanBytes). It keeps one block behind the reader's.
+// An MP3 seek's preroll and dr_flac's bisection read back over it.
 enum { kVibeReadAheadBlock = 256 * 1024 };
-static const uint64_t kVibeReadAheadSpan = 8 * 1024 * 1024;
 // A failed read is tried again this long after, until the handle goes.
 static const NSTimeInterval kVibeReadAheadRetrySeconds = 1;
 // Read-ahead threads whose handle is gone while they are still inside a read,
@@ -210,6 +210,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
         }
         until = NSDate.distantFuture;
         uint64_t end = availability.size;
+        uint64_t span = availability.readAheadSpan;
         uint64_t wantedEnd = MIN(wantedOffset + wantedLength, end);
         uint64_t start = 0, stop = 0;
         uint64_t held = wantedLength > 0 ? [availability heldEndAt:wantedOffset] : end;
@@ -220,7 +221,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             stop = MIN((wantedEnd + kVibeReadAheadBlock - 1) / kVibeReadAheadBlock * kVibeReadAheadBlock, end);
         } else if (!availability.readAheadPaused) {
             start = [availability heldEndAt:position / kVibeReadAheadBlock * kVibeReadAheadBlock];
-            stop = start < position + kVibeReadAheadSpan ? MIN((start / kVibeReadAheadBlock + 1) * kVibeReadAheadBlock, end) : 0;
+            stop = start < position + span ? MIN((start / kVibeReadAheadBlock + 1) * kVibeReadAheadBlock, end) : 0;
         }
         if (stop <= start) {
             continue;
@@ -238,7 +239,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             [availability installBlock:bytes atOffset:start];
             uint64_t behind = position / kVibeReadAheadBlock * kVibeReadAheadBlock;
             behind = behind >= kVibeReadAheadBlock ? behind - kVibeReadAheadBlock : 0;
-            [availability dropBlocksOutsideRangeAt:behind length:position + kVibeReadAheadSpan - behind];
+            [availability dropBlocksOutsideRangeAt:behind length:position + span - behind];
         }
         until = NSDate.distantPast;
         // TRAP: a network mount can read 0 bytes short of the size while it
@@ -300,6 +301,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
 
 CloudFileAvailability *VibeNetworkReadAheadStart(NSURL *url, NSString *mount, uint8_t **end) {
     CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    availability.readAheadSpan = kVibeReadAheadFloorBytes;
     uint8_t *flags = calloc(1, sizeof(*flags));
     NSThread *thread = [[NSThread alloc] initWithBlock:^{
         VibeReadAheadRun(availability, url, mount, flags);

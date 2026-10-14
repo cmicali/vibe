@@ -195,7 +195,8 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 // its transfer's readers until dealloc, which keeps the transfer from being
 // abandoned. The coordinator sends it to every handle it serves; the waveform
 // loader's never is, so a waveform rides the play's stream and never holds it.
-// A whole file and a read-ahead ignore it.
+// A read-ahead fetches about 30 s of the file ahead instead
+// (VibeReadAheadSpanBytes). A whole file ignores it.
 - (void)holdStream;
 
 // Writing only: appends the buffer's frameLength frames, whose format must be

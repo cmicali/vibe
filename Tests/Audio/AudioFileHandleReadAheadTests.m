@@ -467,6 +467,25 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     XCTAssertEqual([script readsAt:2 * block], 2u, @"a block far behind was dropped and read again");
 }
 
+// The coordinator sends holdStream to a play's handle, and its read-ahead
+// then fetches about 30 s ahead. A 192 kHz WAV's 8 MB floor lasts 10.9 s. Its
+// 16 s fit inside the raised span. The waveform's handle is never sent it,
+// and stops at the floor.
+- (void)testHoldStreamRaisesTheSpanToAboutThirtySeconds {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = kReadAheadBlock;
+    const uint32_t frames = 192000 * 16;
+    NSURL *source = VibeWriteWAV([self sourceNamed:@"hires.wav"], VibeNoiseSamples(frames, 2), 192000, 2, 16, frames * 4);
+    AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
+    XCTAssertNotNil(handle);
+    // The floor ahead of a reader at the head ends in block 31.
+    XCTAssertTrue([self eventually:^BOOL { return [script readsAt:31 * block] == 1; }]);
+    XCTAssertEqual([script readsAt:32 * block], 0u, @"never past the floor");
+    [handle holdStream];
+    XCTAssertTrue([self eventually:^BOOL { return [script readsAt:40 * block] == 1; }], @"past the floor");
+    XCTAssertEqual([script readsAt:32 * block], 1u);
+}
+
 - (void)testAHandleGoneDuringTheRetryPauseEndsItsThreadWithoutARetry {
     VibeReadAheadScript *script = [self readAhead];
     [script fail:EIO from:kReadAheadBlock always:NO];
