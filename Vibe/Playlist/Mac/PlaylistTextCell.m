@@ -6,9 +6,13 @@
 #import "PlaylistTextCell.h"
 
 
+NSAttributedStringKey const PlaylistTitleRunAttributeName = @"VibePlaylistTitleRun";
+
 @implementation PlaylistTextCell {
-    // As the controller set it, before rowTextColor.
+    // As the controller set it, before the row colors.
     NSAttributedString *_contentString;
+    NSColor *_rowTitleColor;
+    NSColor *_rowArtistColor;
 }
 
 - (instancetype)initTextCell:(NSString *)string {
@@ -44,23 +48,31 @@
     [super setAttributedStringValue:[self drawnString]];
 }
 
-- (void)setRowTextColor:(NSColor *)rowTextColor {
-    if (rowTextColor == _rowTextColor) {
+- (void)setRowTitleColor:(NSColor *)titleColor artistColor:(NSColor *)artistColor {
+    if (titleColor == _rowTitleColor && artistColor == _rowArtistColor) {
         return;
     }
-    _rowTextColor = rowTextColor;
+    _rowTitleColor = titleColor;
+    _rowArtistColor = artistColor;
     if (_contentString) {
         [super setAttributedStringValue:[self drawnString]];
     }
 }
 
 - (NSAttributedString *)drawnString {
-    if (!_rowTextColor || _contentString.length == 0) {
+    if ((!_rowTitleColor && !_rowArtistColor) || _contentString.length == 0) {
         return _contentString;
     }
     NSMutableAttributedString *drawn = [_contentString mutableCopy];
-    [drawn addAttribute:NSForegroundColorAttributeName value:_rowTextColor
-                  range:NSMakeRange(0, drawn.length)];
+    [_contentString enumerateAttribute:PlaylistTitleRunAttributeName
+                               inRange:NSMakeRange(0, drawn.length)
+                               options:0
+                            usingBlock:^(id title, NSRange range, BOOL *stop) {
+        NSColor *color = title ? self->_rowTitleColor : self->_rowArtistColor;
+        if (color) {
+            [drawn addAttribute:NSForegroundColorAttributeName value:color range:range];
+        }
+    }];
     return drawn;
 }
 

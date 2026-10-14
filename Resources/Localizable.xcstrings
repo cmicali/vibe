@@ -67147,187 +67147,373 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.playing_row_text": {
-      "comment": "Theme editor, Playlist group: row beside the choice of text color for the playing track's row. Automatic keeps each column's own color. Custom shows color wells.",
+    "settings.appearance.theme.playing_row_artist": {
+      "comment": "Theme editor, Playlist group: row beside the choice of color for the artist, number and duration in the playing track's row. Automatic keeps each column's own color. Custom shows color wells.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Текст на възпроизвеждания ред"
+            "value": "Изпълнител на възпроизвеждания ред"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text přehrávaného řádku"
+            "value": "Interpret přehrávaného řádku"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst i rækken under afspilning"
+            "value": "Kunstner i rækken under afspilning"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text der laufenden Zeile"
+            "value": "Interpret der laufenden Zeile"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Κείμενο σειράς σε αναπαραγωγή"
+            "value": "Καλλιτέχνης σειράς σε αναπαραγωγή"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing row text"
+            "value": "Playing row artist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto de la fila en reproducción"
+            "value": "Artista de la fila en reproducción"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soivan rivin teksti"
+            "value": "Soivan rivin esittäjä"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texte de la rangée en cours de lecture"
+            "value": "Artiste de la rangée en cours de lecture"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst retka koji se reproducira"
+            "value": "Izvođač retka koji se reproducira"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Éppen játszott sor szövege"
+            "value": "Éppen játszott sor előadója"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teks baris yang diputar"
+            "value": "Artis baris yang diputar"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Testo della riga in riproduzione"
+            "value": "Artista della riga in riproduzione"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "再生中の行のテキスト"
+            "value": "再生中の行のアーティスト"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "재생 중인 행 텍스트"
+            "value": "재생 중인 행 아티스트"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst i raden som spilles av"
+            "value": "Artist i raden som spilles av"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst van spelende rij"
+            "value": "Artiest van spelende rij"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst odtwarzanego wiersza"
+            "value": "Wykonawca odtwarzanego wiersza"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto da linha em reprodução"
+            "value": "Artista da linha em reprodução"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto da linha em reprodução"
+            "value": "Artista da linha em reprodução"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Textul rândului în redare"
+            "value": "Artistul rândului în redare"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Текст воспроизводимой строки"
+            "value": "Исполнитель воспроизводимой строки"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text prehrávaného riadku"
+            "value": "Interpret prehrávaného riadku"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text för raden som spelas upp"
+            "value": "Artist för raden som spelas upp"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ข้อความแถวที่กำลังเล่น"
+            "value": "ศิลปินในแถวที่กำลังเล่น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çalınan satırın metni"
+            "value": "Çalınan satırın sanatçısı"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Текст відтворюваного рядка"
+            "value": "Виконавець відтворюваного рядка"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chữ hàng đang phát"
+            "value": "Nghệ sĩ hàng đang phát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "播放中行的文字"
+            "value": "播放中行的艺人"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "播放中列的文字"
+            "value": "播放中列的藝人"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.playing_row_title": {
+      "comment": "Theme editor, Playlist group: row beside the choice of color for the song title in the playing track's row. Automatic keeps the title column's own color. Custom shows color wells.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заглавие на възпроизвеждания ред"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Název přehrávaného řádku"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel i rækken under afspilning"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel der laufenden Zeile"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τίτλος σειράς σε αναπαραγωγή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing row title"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título de la fila en reproducción"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soivan rivin otsikko"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titre de la rangée en cours de lecture"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naslov retka koji se reproducira"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Éppen játszott sor címe"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Judul baris yang diputar"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titolo della riga in riproduzione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生中の行のタイトル"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생 중인 행 제목"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tittel i raden som spilles av"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel van spelende rij"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tytuł odtwarzanego wiersza"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título da linha em reprodução"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título da linha em reprodução"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titlul rândului în redare"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название воспроизводимой строки"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Názov prehrávaného riadku"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel för raden som spelas upp"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ชื่อเพลงในแถวที่กำลังเล่น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalınan satırın başlığı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Назва відтворюваного рядка"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiêu đề hàng đang phát"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放中行的标题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放中列的標題"
           }
         }
       },
@@ -69565,187 +69751,373 @@
       },
       "extractionState": "manual"
     },
-    "settings.appearance.theme.selected_row_text": {
-      "comment": "Theme editor, Playlist group: row beside the choice of text color for selected rows. Automatic keeps each column's own color. Custom shows color wells.",
+    "settings.appearance.theme.selected_row_artist": {
+      "comment": "Theme editor, Playlist group: row beside the choice of color for the artist, number and duration in selected rows. Automatic keeps each column's own color. Custom shows color wells.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Текст на избрания ред"
+            "value": "Изпълнител на избрания ред"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text vybraného řádku"
+            "value": "Interpret vybraného řádku"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst i valgt række"
+            "value": "Kunstner i valgt række"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text der ausgewählten Zeile"
+            "value": "Interpret der ausgewählten Zeile"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Κείμενο επιλεγμένης σειράς"
+            "value": "Καλλιτέχνης επιλεγμένης σειράς"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selected row text"
+            "value": "Selected row artist"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto de la fila seleccionada"
+            "value": "Artista de la fila seleccionada"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Valitun rivin teksti"
+            "value": "Valitun rivin esittäjä"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texte de la rangée sélectionnée"
+            "value": "Artiste de la rangée sélectionnée"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst odabranog retka"
+            "value": "Izvođač odabranog retka"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kijelölt sor szövege"
+            "value": "Kijelölt sor előadója"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Teks baris yang dipilih"
+            "value": "Artis baris yang dipilih"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Testo della riga selezionata"
+            "value": "Artista della riga selezionata"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "選択した行のテキスト"
+            "value": "選択した行のアーティスト"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "선택된 행 텍스트"
+            "value": "선택된 행 아티스트"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst i markert rad"
+            "value": "Artist i markert rad"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst van geselecteerde rij"
+            "value": "Artiest van geselecteerde rij"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tekst zaznaczonego wiersza"
+            "value": "Wykonawca zaznaczonego wiersza"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto da linha selecionada"
+            "value": "Artista da linha selecionada"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto da linha selecionada"
+            "value": "Artista da linha selecionada"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Textul rândului selectat"
+            "value": "Artistul rândului selectat"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Текст выбранной строки"
+            "value": "Исполнитель выбранной строки"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text vybraného riadku"
+            "value": "Interpret vybraného riadku"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text för markerad rad"
+            "value": "Artist för markerad rad"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ข้อความแถวที่เลือก"
+            "value": "ศิลปินในแถวที่เลือก"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Seçili satırın metni"
+            "value": "Seçili satırın sanatçısı"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Текст вибраного рядка"
+            "value": "Виконавець вибраного рядка"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chữ hàng đã chọn"
+            "value": "Nghệ sĩ hàng đã chọn"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "选中行的文字"
+            "value": "选中行的艺人"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "選取列的文字"
+            "value": "選取列的藝人"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.theme.selected_row_title": {
+      "comment": "Theme editor, Playlist group: row beside the choice of color for the song title in selected rows. Automatic keeps the title column's own color. Custom shows color wells.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заглавие на избрания ред"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Název vybraného řádku"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel i valgt række"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel der ausgewählten Zeile"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τίτλος επιλεγμένης σειράς"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected row title"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título de la fila seleccionada"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valitun rivin otsikko"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titre de la rangée sélectionnée"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naslov odabranog retka"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kijelölt sor címe"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Judul baris yang dipilih"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titolo della riga selezionata"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択した行のタイトル"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "선택된 행 제목"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tittel i markert rad"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel van geselecteerde rij"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tytuł zaznaczonego wiersza"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título da linha selecionada"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título da linha selecionada"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titlul rândului selectat"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Название выбранной строки"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Názov vybraného riadku"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel för markerad rad"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ชื่อเพลงในแถวที่เลือก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçili satırın başlığı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Назва вибраного рядка"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiêu đề hàng đã chọn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选中行的标题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選取列的標題"
           }
         }
       },
