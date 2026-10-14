@@ -39,20 +39,6 @@ jobs:
           $XB -derivedDataPath build/ReproDD build-for-testing -quiet
           cp -R build/ReproDD build/LoadDD
 
-      - name: Forced reproduction, and how the summary reports two failures
-        if: ${{ !cancelled() }}
-        run: |
-          set +e
-          $XB -derivedDataPath build/ReproDD test-without-building -only-testing:$FORCED \
-              -parallel-testing-enabled NO -collect-test-diagnostics never \
-              -resultBundlePath build/forced.xcresult 2>&1 | grep -E "DIAG|error|Test Case|failed|passed" | cut -c1-2000
-          echo "--- summary testFailures (what make test-summary prints)"
-          xcrun xcresulttool get test-results summary --path build/forced.xcresult --format json | jq '.testFailures'
-          echo "--- every failure message recorded in the test"
-          xcrun xcresulttool get test-results tests --path build/forced.xcresult --format json \
-              | jq '[.. | objects | select(.nodeType? == "Failure Message") | .name]'
-          true
-
       - name: Natural reproduction under load
         if: ${{ !cancelled() }}
         run: |
@@ -65,7 +51,7 @@ jobs:
           sleep 30
           start=$(date +%s)
           perl -e 'alarm shift; exec @ARGV' 3000 $XB -derivedDataPath build/ReproDD test-without-building -only-testing:$ONE \
-              -test-iterations 30000 -run-tests-until-failure -parallel-testing-enabled NO -collect-test-diagnostics never \
+              -test-iterations 5000 -parallel-testing-enabled NO -collect-test-diagnostics never \
               -resultBundlePath build/natural.xcresult > build/natural.log 2>&1
           status=$?
           rm -f build/load-running
@@ -73,9 +59,9 @@ jobs:
           echo "passed iterations: $(grep -c "testFilesInUseFollowsTheDecodersHandoff\]' passed" build/natural.log)"
           echo "failed iterations: $(grep -c "testFilesInUseFollowsTheDecodersHandoff\]' failed" build/natural.log)"
           echo "--- DIAG lines (reopen path seen, or a miss)"
-          grep -E "DIAG" build/natural.log | cut -c1-2000 | head -200
+          grep -E "^DIAG" build/natural.log | cut -c1-600 | head -60
           echo "--- errors"
-          grep -E "error:" build/natural.log | cut -c1-2000 | head -20
+          grep -c "error:" build/natural.log
           echo "--- tail"
           tail -30 build/natural.log | cut -c1-600
           [ -d build/natural.xcresult ] && xcrun xcresulttool get test-results tests --path build/natural.xcresult --format json \
@@ -83,25 +69,3 @@ jobs:
           wait
           true
 
-      - name: ThreadSanitizer under load
-        if: ${{ !cancelled() }}
-        run: |
-          set +e
-          $XB -derivedDataPath build/TSanDD -enableThreadSanitizer YES -enableCodeCoverage NO build-for-testing -quiet
-          touch build/load-running
-          ( while [ -f build/load-running ]; do rm -rf build/load2.xcresult
-              $XB -derivedDataPath build/LoadDD test-without-building -collect-test-diagnostics never \
-                  -resultBundlePath build/load2.xcresult -quiet >/dev/null 2>&1; done ) &
-          sleep 30
-          perl -e 'alarm shift; exec @ARGV' 1800 $XB -derivedDataPath build/TSanDD test-without-building -only-testing:$ONE \
-              -enableThreadSanitizer YES -enableCodeCoverage NO \
-              -test-iterations 1000 -run-tests-until-failure -parallel-testing-enabled NO -collect-test-diagnostics never \
-              -resultBundlePath build/tsan.xcresult > build/tsan.log 2>&1
-          echo "status=$?"
-          rm -f build/load-running
-          echo "passed iterations: $(grep -c "' passed" build/tsan.log)"
-          echo "failed iterations: $(grep -c "' failed" build/tsan.log)"
-          grep -E "DIAG|ThreadSanitizer|WARNING|error:" build/tsan.log | cut -c1-2000 | head -100
-          tail -20 build/tsan.log | cut -c1-600
-          wait
-          true
