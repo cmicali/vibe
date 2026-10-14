@@ -76,6 +76,7 @@ static NSString *DebugUpdateFeed(void) {
         @{@"key": @"os", @"value": [NSString stringWithFormat:@"%ld.%ld", (long)os.majorVersion, (long)os.minorVersion]},
         @{@"key": @"arch", @"value": arch},
         @{@"key": @"channel", @"value": AppSettings.sharedInstance.receiveBetaUpdates ? @"beta" : @"stable"},
+        @{@"key": @"lang", @"value": NSBundle.mainBundle.preferredLocalizations.firstObject ?: @""},
     ];
 }
 

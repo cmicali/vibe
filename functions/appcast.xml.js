@@ -28,6 +28,9 @@ function countCheck({ request, env }) {
     const url = new URL(request.url);
     // Anyone can send any query, so each value is capped.
     const param = (name) => (url.searchParams.get(name) ?? "").slice(0, 32);
+    // A build without the lang parameter is counted by the first language
+    // its request asks for, such as "de-CH" from "de-CH,de;q=0.9".
+    const acceptLanguage = (request.headers.get("Accept-Language") ?? "").split(/[,;]/)[0].trim();
     dataset.writeDataPoint({
         blobs: [
             url.pathname === "/appcast-arm64.xml" ? "arm64" : "universal",
@@ -36,6 +39,7 @@ function countCheck({ request, env }) {
             param("arch"),
             param("channel"),
             request.cf?.country ?? "",
+            param("lang") || acceptLanguage.slice(0, 32),
         ],
     });
 }

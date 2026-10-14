@@ -193,6 +193,7 @@ identifier.
 | `blob4` | `arm64` or `x86_64`, the running slice | `arch` |
 | `blob5` | `beta` or `stable` | `channel` |
 | `blob6` | the two-letter country | Cloudflare's `request.cf.country` |
+| `blob7` | the language Vibe runs in, such as `de` or `pt-BR` | `lang`, else the first `Accept-Language` tag |
 
 **A failed count must never fail the feed.** Every installed copy reads it.
 So the Function catches its own errors and always serves the file. With no
@@ -244,7 +245,8 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/an
 
 Count with `SUM(_sample_interval)`, never `COUNT()`. Analytics Engine may
 sample, and each row then stands for several checks. Group by `blob3`,
-`blob4`, `blob5` or `blob6` for macOS, architecture, channel or country. Group
+`blob4`, `blob5`, `blob6` or `blob7` for macOS, architecture, channel, country
+or language. Group
 by `toStartOfInterval(timestamp, INTERVAL '1' DAY)` for a daily trend.
 
 **A day's checks are close to the copies that ran that day.** Sparkle checks
