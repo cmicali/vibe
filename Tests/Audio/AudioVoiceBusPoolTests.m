@@ -411,10 +411,17 @@
     [self makeBusAtRate:kRate channels:2 inlineDecoding:NO];
     AudioFileHandle *first = [self open:[self writePCM:[self noiseFrames:2000 channels:2 seed:103] rate:kRate channels:2 name:@"handoff-first.wav"]];
     AudioFileHandle *next = [self open:[self writePCM:[self noiseFrames:96000 channels:2 seed:104] rate:kRate channels:2 name:@"handoff-next.wav"]];
+    // The decoder is held until the successor is named. Its first turn then
+    // continues into the successor, and the voice goes live on the
+    // successor's frames. A successor named after that turn ends the stream
+    // takes the reopen instead. A render that outruns the decode queue then
+    // ends the voice at its first file.
+    [_bus debugHoldDecoder:YES];
     VibeVoiceID voice = [self startFile:first gain:1 ramp:[self unity] paused:NO];
     XCTAssertTrue([_bus queueSuccessor:next startFrame:0 endFrame:0 forVoice:voice]);
+    [_bus debugHoldDecoder:NO];
     AudioVoiceBus *bus = _bus;
-    NSUInteger polls = 0, missing = 0;
+    NSUInteger polls = 0, missing = 0, firstMissing = 0;
     // Bounded by time, not renders: the decoder is a real queue, and a render
     // that outruns it underruns and consumes nothing.
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
@@ -425,14 +432,20 @@
         __block NSSet<AudioFileHandle *> *files;
         dispatch_sync(_queue, ^{ files = bus.filesInUse; });
         polls++;
-        if (![files containsObject:next]) missing++;
+        if (![files containsObject:next]) {
+            missing++;
+            firstMissing = firstMissing ?: polls;
+        }
         VibeVoiceSnapshot snapshot = [_bus snapshotOfVoice:voice];
         if (snapshot.boundary != UINT64_MAX && snapshot.consumed > snapshot.boundary + 8192) break;
         if (snapshot.consumed == consumed) usleep(100);
         consumed = snapshot.consumed;
     }
-    XCTAssertEqual(missing, 0u, @"%lu of %lu snapshots lacked the successor while the decoder could be inside it",
-                   (unsigned long)missing, (unsigned long)polls);
+    VibeVoiceSnapshot last = [self hasEnded:voice] ? [self endedSnapshot:voice] : [_bus snapshotOfVoice:voice];
+    XCTAssertEqual(missing, 0u, @"%lu of %lu snapshots lacked the successor while the decoder could be inside it. "
+                   @"The first was poll %lu. The voice: state %d, end reason %d, consumed %llu, boundary %llu.",
+                   (unsigned long)missing, (unsigned long)polls, (unsigned long)firstMissing,
+                   (int)last.state, (int)last.ended, last.consumed, last.boundary);
     XCTAssertNotEqual([_bus snapshotOfVoice:voice].boundary, UINT64_MAX, @"the handoff never happened");
     dispatch_semaphore_t stopped = dispatch_semaphore_create(0);
     [_bus stopReadingThen:^{ dispatch_semaphore_signal(stopped); }];
