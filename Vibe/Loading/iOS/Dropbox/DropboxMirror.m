@@ -387,19 +387,21 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         completion(nil, VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"no Dropbox account"));
         return;
     }
-    [self refreshFolder:path link:nil base:account account:account
+    [self refreshFolder:path link:nil top:@"" base:account account:account
              completion:^(NSURL *directory, NSArray<NSString *> *folders, NSError *error) {
         completion(directory, error);
     }];
 }
 
 // Lists one folder, the account's or, with link, one of that shared link's,
-// and makes its directory under base match. folders are the paths of the
+// and makes its directory under base match. base is the directory of the
+// path top, and path lies at or below top. folders are the paths of the
 // folders it holds, as the next listings name them. account is the account
 // base belongs to, which must still be linked when the listing lands.
 // Completion on main.
 - (void)refreshFolder:(NSString *)path
                  link:(nullable NSString *)link
+                  top:(NSString *)top
                  base:(NSURL *)base
               account:(NSURL *)account
            completion:(void (^)(NSURL *_Nullable directory, NSArray<NSString *> *_Nullable folders,
@@ -430,7 +432,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
                 finish(nil, VibeDropboxMakeError(VibeDropboxErrorNotLinked, @"Dropbox account changed"));
                 return;
             }
-            NSURL *directory = [self directoryForDropboxPath:path account:base];
+            NSURL *directory = [self directoryForDropboxPath:[path substringFromIndex:top.length] account:base];
             BOOL discarded = NO;
             NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory path:path link:link
                                                              withEntries:entries discarded:&discarded];
@@ -501,8 +503,21 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             completion(folderURL, error);
         });
     };
-    NSString *address = link.absoluteString;
-    [self.client callEndpoint:@"sharing/get_shared_link_metadata" arguments:@{@"url": address}
+    // The API names a share by its own link. A link to a folder inside the
+    // share is that folder's path below the share's link.
+    NSMutableDictionary<NSString *, NSString *> *token = [VibeDropboxFolderLinkToken(link) mutableCopy];
+    if (!token) {
+        completion(nil, VibeDropboxMakeError(VibeDropboxErrorAPI, @"not a Dropbox folder link"));
+        return;
+    }
+    NSString *below = token[@"subPath"].length > 0 ? [@"/" stringByAppendingString:token[@"subPath"]] : @"";
+    token[@"subPath"] = @"";
+    NSString *address = VibeDropboxFolderLinkURL(token).absoluteString ?: @"";
+    NSMutableDictionary *arguments = [NSMutableDictionary dictionaryWithObject:address forKey:@"url"];
+    if (below.length > 0) {
+        arguments[@"path"] = below;
+    }
+    [self.client callEndpoint:@"sharing/get_shared_link_metadata" arguments:arguments
                    completion:^(NSDictionary *result, NSError *error) {
         if (error) {
             finish(nil, error);
@@ -537,8 +552,8 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
                 }
             }
             NSURL *base = [holder URLByAppendingPathComponent:name isDirectory:YES];
-            [self refreshLinkFolders:[NSMutableArray arrayWithObject:@""] link:address base:base account:account
-                          completion:^(NSError *listError) {
+            [self refreshLinkFolders:[NSMutableArray arrayWithObject:below] link:address top:below base:base
+                             account:account completion:^(NSError *listError) {
                 LogInfo(@"Dropbox: %@ a shared folder through the account", listError ? @"could not list" : @"listed");
                 finish(listError ? nil : base, listError);
             }];
@@ -550,6 +565,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 // listing finds after it, until none is left. Any failure ends it.
 - (void)refreshLinkFolders:(NSMutableArray<NSString *> *)paths
                       link:(NSString *)link
+                       top:(NSString *)top
                       base:(NSURL *)base
                    account:(NSURL *)account
                 completion:(void (^)(NSError *_Nullable error))completion {
@@ -559,14 +575,14 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
     }
     NSString *path = paths.firstObject;
     [paths removeObjectAtIndex:0];
-    [self refreshFolder:path link:link base:base account:account
+    [self refreshFolder:path link:link top:top base:base account:account
              completion:^(NSURL *directory, NSArray<NSString *> *folders, NSError *error) {
         if (error) {
             completion(error);
             return;
         }
         [paths addObjectsFromArray:folders];
-        [self refreshLinkFolders:paths link:link base:base account:account completion:completion];
+        [self refreshLinkFolders:paths link:link top:top base:base account:account completion:completion];
     }];
 }
 

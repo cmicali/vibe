@@ -249,7 +249,8 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
                                           @"name": @{@"display_name": kFakeAccountName}});
     }
     if ([endpoint isEqualToString:@"/2/sharing/get_shared_link_metadata"]) {
-        VibeFakeDropboxItem *folder = VibeFakeDropboxLookup(items, VibeFakeDropboxLinkedPath(json[@"url"], @"") ?: @"/");
+        VibeFakeDropboxItem *folder = VibeFakeDropboxLookup(items, VibeFakeDropboxLinkedPath(json[@"url"], json[@"path"])
+                                                                   ?: @"/");
         if (!folder.folder || folder.path.length == 0) {
             return VibeFakeDropboxJSON(409, @{@"error_summary": @"shared_link_not_found/"});
         }

@@ -413,7 +413,12 @@ static NSDictionary *LinkFileEntry(NSString *name, long long size) {
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         NSString *path = request.URL.path;
         if ([path isEqualToString:@"/2/sharing/get_shared_link_metadata"]) {
-            return DropboxStubJSON(200, @{@".tag": @"folder", @"name": @"Mix Tape", @"url": kSharedLink});
+            if (![json[@"url"] isEqual:kSharedLink]) {
+                return DropboxStubJSON(409, @{@"error_summary": @"shared_link_not_found/"});
+            }
+            NSString *below = [json[@"path"] isKindOfClass:NSString.class] ? json[@"path"] : nil;
+            return DropboxStubJSON(200, @{@".tag": @"folder", @"name": below.lastPathComponent ?: @"Mix Tape",
+                                          @"url": kSharedLink});
         }
         if ([path isEqualToString:@"/2/files/list_folder"] && [json[@"shared_link"][@"url"] isEqual:kSharedLink]) {
             NSArray *entries = listings[json[@"path"]];
@@ -437,10 +442,10 @@ static NSDictionary *LinkFileEntry(NSString *name, long long size) {
     }];
 }
 
-- (NSURL *)openSharedLink {
+- (NSURL *)openSharedLink:(NSString *)link {
     XCTestExpectation *done = [self expectationWithDescription:@"link"];
     __block NSURL *folder = nil;
-    [_mirror openSharedFolderLink:[NSURL URLWithString:kSharedLink] completion:^(NSURL *folderURL, NSError *error) {
+    [_mirror openSharedFolderLink:[NSURL URLWithString:link] completion:^(NSURL *folderURL, NSError *error) {
         XCTAssertTrue(NSThread.isMainThread);
         XCTAssertNil(error);
         folder = folderURL;
@@ -456,7 +461,7 @@ static NSDictionary *LinkFileEntry(NSString *name, long long size) {
         @"": @[LinkFileEntry(@"A.flac", 4000), @{@".tag": @"folder", @"name": @"Live"}, LinkFileEntry(@"cover.jpg", 10)],
         @"/Live": @[LinkFileEntry(@"Encore.flac", (long long)encore.length)],
     } contents:@{@"/Live/Encore.flac": encore}];
-    NSURL *folder = [self openSharedLink];
+    NSURL *folder = [self openSharedLink:kSharedLink];
 
     XCTAssertEqualObjects(folder.lastPathComponent, @"Mix Tape");
     XCTAssertEqualObjects(VibeComparablePath(folder.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.path),
@@ -478,6 +483,19 @@ static NSDictionary *LinkFileEntry(NSString *name, long long size) {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:song], encore);
     XCTAssertEqual(StatOf(song).st_mtimespec.tv_sec, kStampSeconds);
     XCTAssertEqual([self measuredDownloads], (long long)encore.length, @"the budget counts the links' downloads");
+}
+
+// The API names a share by its own link. A link to a folder inside it is
+// that folder's path below the share's link.
+- (void)testALinkToASubfolderListsItBelowTheSharesLink {
+    NSData *encore = [@"encore bytes" dataUsingEncoding:NSUTF8StringEncoding];
+    [self answerSharedLinkListings:@{@"/Live": @[LinkFileEntry(@"Encore.flac", (long long)encore.length)]}
+                          contents:@{@"/Live/Encore.flac": encore}];
+    NSURL *folder = [self openSharedLink:@"https://www.dropbox.com/scl/fo/key1/hash1/Live?rlkey=rk"];
+    XCTAssertEqualObjects(folder.lastPathComponent, @"Live");
+    NSURL *song = [folder URLByAppendingPathComponent:@"Encore.flac"];
+    XCTAssertEqualObjects([_mirror remoteTargetForURL:song error:NULL],
+                          (@{@"url": kSharedLink, @"path": @"/Live/Encore.flac"}));
 }
 
 // Every grant from before sharing.read gets this answer at a link's first
@@ -507,7 +525,7 @@ static NSDictionary *LinkFileEntry(NSString *name, long long size) {
 - (void)testAnotherAccountTakesTheSharedLinksWithTheFirst {
     [self answerSharedLinkListings:@{@"": @[LinkFileEntry(@"A.flac", 4000)]} contents:@{}];
     NSURL *links = _mirror.linksURL;
-    XCTAssertNotNil([self openSharedLink]);
+    XCTAssertNotNil([self openSharedLink:kSharedLink]);
     XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:links.path]);
     [_client adoptRefreshToken:@"R2" accountID:@"dbid:second"];
     [self spinMainQueue];
