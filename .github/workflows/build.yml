@@ -4,7 +4,8 @@ name: CI
 # AudioVoiceBusPoolTests.testFilesInUseFollowsTheDecodersHandoff.
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [diag/files-in-use-handoff]
 
 permissions:
   contents: read
