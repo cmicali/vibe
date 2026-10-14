@@ -3,9 +3,9 @@
 //  Vibe (iOS)
 //
 //  The decisions every account source shares that need no network and no
-//  disk: the PKCE pieces, the token form, the revoked grant, how a name is
-//  matched against what is on disk, which names are mirrored, and the
-//  download budgets. Header-only and Foundation-only so the macOS suite tests
+//  disk: the PKCE pieces, the query and form encoding, the JSON body, the
+//  revoked grant, the timestamps, the index key, which names are mirrored,
+//  and the download budgets. Header-only and Foundation-only so the macOS suite tests
 //  it. Each service's own rules are its own file (DropboxRules.h,
 //  GoogleDriveRules.h).
 //
@@ -68,16 +68,34 @@ static inline NSString *_Nullable VibeAccountAuthorizationCode(NSURL *callback,
     return code;
 }
 
-// application/x-www-form-urlencoded, as a token endpoint takes it.
-static inline NSData *VibeAccountFormBody(NSDictionary<NSString *, NSString *> *fields) {
-    NSMutableCharacterSet *allowed = [NSMutableCharacterSet alphanumericCharacterSet];
-    [allowed addCharactersInString:@"-._~"];
+// The fields as a query string, keys sorted, each value percent-encoded
+// ('+' and '&' included).
+// TRAP: the unreserved set is ASCII alone. alphanumericCharacterSet holds
+// every script's letters, and a search for "Beyoncé" would leave its "é"
+// raw in percentEncodedQuery, which refuses it.
+static inline NSString *VibeAccountQueryString(NSDictionary<NSString *, NSString *> *fields) {
+    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:
+            @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"];
     NSMutableArray<NSString *> *pairs = [NSMutableArray arrayWithCapacity:fields.count];
     for (NSString *key in [fields.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
         NSString *value = [fields[key] stringByAddingPercentEncodingWithAllowedCharacters:allowed];
         [pairs addObject:[NSString stringWithFormat:@"%@=%@", key, value]];
     }
-    return [[pairs componentsJoinedByString:@"&"] dataUsingEncoding:NSUTF8StringEncoding];
+    return [pairs componentsJoinedByString:@"&"];
+}
+
+// application/x-www-form-urlencoded, as a token endpoint takes it.
+static inline NSData *VibeAccountFormBody(NSDictionary<NSString *, NSString *> *fields) {
+    return [VibeAccountQueryString(fields) dataUsingEncoding:NSUTF8StringEncoding];
+}
+
+// An answer's JSON object, nil for an empty body or anything but an object.
+static inline NSDictionary *_Nullable VibeAccountJSONObject(NSData *_Nullable data) {
+    if (data.length == 0) {
+        return nil;
+    }
+    id object = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+    return [object isKindOfClass:NSDictionary.class] ? object : nil;
 }
 
 // The OAuth error a refresh gets once the grant is revoked (RFC 6749 5.2).
@@ -85,6 +103,30 @@ static inline NSData *VibeAccountFormBody(NSDictionary<NSString *, NSString *> *
 // every download.
 static inline BOOL VibeAccountIsRevokedGrant(NSInteger status, NSDictionary *_Nullable body) {
     return status == 400 && [body[@"error"] isEqual:@"invalid_grant"];
+}
+
+// RFC 3339 in UTC to the second, with or without a fraction
+// ("2015-05-12T15:50:38Z", "2024-01-02T03:04:05.678Z"); -1 for anything
+// else. strptime, not a date formatter: called per entry, per thread.
+static inline time_t VibeAccountParseTimestamp(NSString *_Nullable text) {
+    if (![text isKindOfClass:NSString.class]) {
+        return -1;
+    }
+    struct tm parts = {0};
+    const char *end = strptime(text.UTF8String, "%Y-%m-%dT%H:%M:%S", &parts);
+    if (!end) {
+        return -1;
+    }
+    if (*end == '.') {
+        end++;
+        while (*end >= '0' && *end <= '9') {
+            end++;
+        }
+    }
+    if (end[0] != 'Z' || end[1] != '\0') {
+        return -1;
+    }
+    return timegm(&parts);
 }
 
 #pragma mark - Names
@@ -106,11 +148,6 @@ static inline NSDictionary<NSString *, NSString *> *VibeAccountNameIndex(NSArray
         index[VibeAccountIndexKey(name)] = name;
     }
     return index;
-}
-
-// The spelling already on disk of a name, else the name itself.
-static inline NSString *VibeAccountLocalName(NSString *name, NSDictionary<NSString *, NSString *> *nameIndex) {
-    return nameIndex[VibeAccountIndexKey(name)] ?: name;
 }
 
 // Which entries a mirror keeps: playable audio, and the playlist files the

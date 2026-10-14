@@ -10,14 +10,6 @@
 NSString *const VibeDropboxKeychainService = @"com.commonwealthrecordings.Vibe.dropbox";
 NSString *const VibeDropboxAppKeyInfoKey = @"VibeDropboxAppKey";
 
-static NSDictionary *_Nullable VibeDropboxJSONObject(NSData *_Nullable data) {
-    if (data.length == 0) {
-        return nil;
-    }
-    id object = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
-    return [object isKindOfClass:NSDictionary.class] ? object : nil;
-}
-
 @implementation DropboxClient
 
 - (instancetype)initWithAppKey:(NSString *)appKey
@@ -28,10 +20,10 @@ static NSDictionary *_Nullable VibeDropboxJSONObject(NSData *_Nullable data) {
 
 #pragma mark - Requests
 
+// Every Dropbox call is a POST.
 - (NSMutableURLRequest *)requestForURL:(NSURL *)url token:(NSString *)token {
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    NSMutableURLRequest *request = [self authorizedRequestWithURL:url accessToken:token];
     request.HTTPMethod = @"POST";
-    [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
     return request;
 }
 
@@ -128,11 +120,8 @@ static NSDictionary *_Nullable VibeDropboxJSONObject(NSData *_Nullable data) {
 }
 
 // files/download by the target path or id.
-- (void)makeRequestForTarget:(id)target
-                 accessToken:(NSString *)accessToken
-                       state:(NSMutableDictionary<NSString *, id> *)state
-                  completion:(void (^)(NSMutableURLRequest *, NSError *))completion {
-    completion([self downloadRequestForPath:target token:accessToken], nil);
+- (NSMutableURLRequest *)transferRequestForTarget:(id)target accessToken:(NSString *)accessToken {
+    return [self downloadRequestForPath:target token:accessToken];
 }
 
 // A download naming no file: refused at once, and what it buys is the
@@ -149,7 +138,7 @@ static NSDictionary *_Nullable VibeDropboxJSONObject(NSData *_Nullable data) {
 // The metadata a content response carries in its Dropbox-API-Result header.
 - (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response
                                state:(NSMutableDictionary<NSString *, id> *)state {
-    return VibeDropboxJSONObject([[response valueForHTTPHeaderField:@"Dropbox-API-Result"]
+    return VibeAccountJSONObject([[response valueForHTTPHeaderField:@"Dropbox-API-Result"]
                                   dataUsingEncoding:NSUTF8StringEncoding]);
 }
 

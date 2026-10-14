@@ -19,13 +19,11 @@ static NSString *const kStateLookup = @"lookup";
 // start together, and a tag parse reads about three ranges in a second. A
 // resend never reuses one.
 static const NSTimeInterval kLookupReuseSeconds = 5;
-// Past this many kept lookups, the stale ones go.
-static const NSUInteger kLookupsKept = 256;
 
 @implementation GoogleDriveClient {
     os_unfair_lock _lookupLock;
-    // Each file's last lookup, by id, with "lookedUp": the system's uptime
-    // when it was sent. Under the lock.
+    // Each file's lookup while it is young, by id, with "lookedUp": the
+    // system's uptime when it was sent. Under the lock.
     NSMutableDictionary<NSString *, NSDictionary *> *_lookups;
     // The lookup claim: each file's waiters while its lookup is in flight.
     // Under the lock.
@@ -46,18 +44,12 @@ static const NSUInteger kLookupsKept = 256;
 
 #pragma mark - Calls
 
-- (NSMutableURLRequest *)requestForURL:(NSURL *)url token:(NSString *)token {
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    [request setValue:[@"Bearer " stringByAppendingString:token] forHTTPHeaderField:@"Authorization"];
-    return request;
-}
-
 - (void)getPath:(NSString *)path
           query:(NSDictionary<NSString *, NSString *> *)query
      completion:(void (^)(NSDictionary *, NSError *))completion {
     NSURL *url = VibeGoogleDriveURL(path, query);
     [self sendAuthorizedRequest:^NSMutableURLRequest *(NSString *accessToken) {
-        return [self requestForURL:url token:accessToken];
+        return [self authorizedRequestWithURL:url accessToken:accessToken];
     } completion:completion];
 }
 
@@ -95,16 +87,12 @@ static const NSUInteger kLookupsKept = 256;
         os_unfair_lock_lock(&self->_lookupLock);
         NSArray *settled = self->_lookupWaiters[fileID];
         [self->_lookupWaiters removeObjectForKey:fileID];
-        if (file) {
-            if (self->_lookups.count >= kLookupsKept) {
-                for (NSString *key in self->_lookups.allKeys) {
-                    if (now - [self->_lookups[key][@"lookedUp"] doubleValue] >= kLookupReuseSeconds) {
-                        [self->_lookups removeObjectForKey:key];
-                    }
-                }
+        for (NSString *key in self->_lookups.allKeys) {
+            if (now - [self->_lookups[key][@"lookedUp"] doubleValue] >= kLookupReuseSeconds) {
+                [self->_lookups removeObjectForKey:key];
             }
-            self->_lookups[fileID] = file;
         }
+        self->_lookups[fileID] = file;
         os_unfair_lock_unlock(&self->_lookupLock);
         for (void (^waiter)(NSDictionary *, NSError *) in settled) {
             waiter(file, error);
@@ -136,16 +124,10 @@ static const NSUInteger kLookupsKept = 256;
     }];
 }
 
-// TRAP: identity encoding. With none named the session asks for gzip, and a
-// range's offsets would stop matching the file's bytes.
-- (void)makeRequestForTarget:(id)target
-                 accessToken:(NSString *)accessToken
-                       state:(NSMutableDictionary<NSString *, id> *)state
-                  completion:(void (^)(NSMutableURLRequest *, NSError *))completion {
-    NSURL *url = VibeGoogleDriveURL([@"files/" stringByAppendingString:target], @{@"alt": @"media"});
-    NSMutableURLRequest *request = [self requestForURL:url token:accessToken];
-    [request setValue:@"identity" forHTTPHeaderField:@"Accept-Encoding"];
-    completion(request, nil);
+- (NSMutableURLRequest *)transferRequestForTarget:(id)target accessToken:(NSString *)accessToken {
+    return [self authorizedRequestWithURL:VibeGoogleDriveURL([@"files/" stringByAppendingString:target],
+                                                             @{@"alt": @"media"})
+                              accessToken:accessToken];
 }
 
 - (NSDictionary *)metadataOfResponse:(NSHTTPURLResponse *)response
@@ -154,6 +136,11 @@ static const NSUInteger kLookupsKept = 256;
     NSDictionary *lookup = state[kStateLookup];
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
     int64_t size = [super sizeOfMetadata:headers];
+    // A whole file sent with no length is the size the lookup named. The
+    // base still fails a body of any other length.
+    if (size < 0 && response.statusCode == 200) {
+        size = VibeGoogleDriveSizeOf(lookup);
+    }
     if (size >= 0) {
         metadata[@"size"] = @(size);
     }
@@ -190,8 +177,8 @@ static const NSUInteger kLookupsKept = 256;
 
 // The user's permissionId: stable, opaque, and no email address on disk.
 - (NSMutableURLRequest *)identityRequestWithAccessToken:(NSString *)accessToken {
-    return [self requestForURL:VibeGoogleDriveURL(@"about", @{@"fields": @"user(displayName,emailAddress,permissionId)"})
-                         token:accessToken];
+    return [self authorizedRequestWithURL:VibeGoogleDriveURL(@"about", @{@"fields": @"user(displayName,emailAddress,permissionId)"})
+                              accessToken:accessToken];
 }
 
 - (NSString *)accountIDOfIdentity:(NSDictionary *)identity {
@@ -234,8 +221,8 @@ static const NSUInteger kLookupsKept = 256;
 // One small call on each session: a session's connections are its own, and
 // the download and its tail ride different sessions.
 - (void)warmUpConnectionsWithAccessToken:(NSString *)accessToken {
-    NSMutableURLRequest *request = [self requestForURL:VibeGoogleDriveURL(@"files/root", @{@"fields": @"id"})
-                                                 token:accessToken];
+    NSMutableURLRequest *request = [self authorizedRequestWithURL:VibeGoogleDriveURL(@"files/root", @{@"fields": @"id"})
+                                                      accessToken:accessToken];
     [[self.downloadSession dataTaskWithRequest:request] resume];
     [[self.callSession dataTaskWithRequest:request] resume];
 }

@@ -35,8 +35,9 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
 
 @implementation GoogleDriveMirror {
     os_unfair_lock _foldersLock;
-    // What search hits' folders were looked up as, by id: {"name",
-    // "parent"}. Under the lock, and dropped with the account.
+    // What folders were listed or looked up as, by id: {"name", "parent"},
+    // for search hits' ancestry. Under the lock, and dropped with the
+    // account.
     NSMutableDictionary<NSString *, NSDictionary *> *_folders;
     // My Drive's own id, which a folder's parents name. Under the lock.
     NSString *_rootFolderID;
@@ -138,33 +139,39 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
     return [record isKindOfClass:NSDictionary.class] && [record[@"id"] isKindOfClass:NSString.class] ? record : nil;
 }
 
-// The name `identifier` holds in a directory: its index's record, else a
-// folder whose own index names it. Nil when neither. Reads only, any thread.
-- (NSString *)localNameOfID:(NSString *)identifier inDirectory:(NSURL *)directory {
-    NSArray<NSString *> *existing = [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory.path
-                                                                                       error:NULL] ?: @[];
+static NSArray<NSString *> *VibeNamesInDirectory(NSURL *directory) {
+    return [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
+}
+
+// The name each id holds in a directory, whose names are `existing`: its
+// index's records with a name on disk, then the folders a search hit made
+// here, which only their own index names. Reads only, any thread.
+- (NSDictionary<NSString *, NSString *> *)localNamesInDirectory:(NSURL *)directory
+                                                         existing:(NSArray<NSString *> *)existing {
     NSDictionary<NSString *, NSString *> *names = VibeAccountNameIndex(existing);
-    NSDictionary *files = [self indexOfDirectory:directory][@"files"];
-    if ([files isKindOfClass:NSDictionary.class]) {
-        for (NSString *key in files) {
-            NSDictionary *record = files[key];
-            if ([record isKindOfClass:NSDictionary.class] && [record[@"id"] isEqual:identifier] && names[key]) {
-                return names[key];
-            }
+    NSDictionary *records = [self indexOfDirectory:directory][@"files"];
+    records = [records isKindOfClass:NSDictionary.class] ? records : @{};
+    NSMutableDictionary<NSString *, NSString *> *byID = [NSMutableDictionary dictionary];
+    for (NSString *key in records) {
+        NSDictionary *record = records[key];
+        NSString *identifier = [record isKindOfClass:NSDictionary.class] ? record[@"id"] : nil;
+        if ([identifier isKindOfClass:NSString.class] && names[key]) {
+            byID[identifier] = names[key];
         }
     }
     for (NSString *name in existing) {
-        if ([name hasPrefix:@"."]) {
+        if ([name hasPrefix:@"."] || records[VibeAccountIndexKey(name)]) {
             continue;
         }
         NSURL *child = [directory URLByAppendingPathComponent:name isDirectory:YES];
         struct stat st;
-        if (lstat(child.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)
-                && [[self indexOfDirectory:child][@"id"] isEqual:identifier]) {
-            return name;
+        NSString *identifier = lstat(child.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)
+                ? [self indexOfDirectory:child][@"id"] : nil;
+        if ([identifier isKindOfClass:NSString.class] && !byID[identifier]) {
+            byID[identifier] = name;
         }
     }
-    return nil;
+    return byID;
 }
 
 // What files/get?alt=media is asked for: the id the folder's listing
@@ -274,7 +281,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
                                                     attributes:nil error:NULL];
             [self ensureDirectoryAtURL:directory];
             BOOL discarded = NO;
-            NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory folderID:folderID
+            NSDictionary<NSURL *, id> *sidecars = [self reconcileDirectory:directory folderID:folderID
                                                              withEntries:entries discarded:&discarded];
             [self finishListingOfDirectory:directory sidecars:sidecars discarded:discarded completion:completion];
         });
@@ -284,62 +291,36 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
 // The disk queue. Answers the playlist files to fetch: they are read while
 // the folder opens, so they come down with the listing; tracks wait for
 // their open. *discarded is set when downloaded bytes went.
-- (NSArray<NSDictionary *> *)reconcileDirectory:(NSURL *)directory
-                                       folderID:(NSString *)folderID
-                                    withEntries:(NSArray<NSDictionary *> *)entries
-                                      discarded:(BOOL *)discarded {
+- (NSDictionary<NSURL *, id> *)reconcileDirectory:(NSURL *)directory
+                                         folderID:(NSString *)folderID
+                                      withEntries:(NSArray<NSDictionary *> *)entries
+                                        discarded:(BOOL *)discarded {
     NSFileManager *files = NSFileManager.defaultManager;
     NSArray<NSString *> *existing = [files contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
-    NSDictionary<NSString *, NSString *> *existingNames = VibeAccountNameIndex(existing);
-    NSDictionary *records = [self indexOfDirectory:directory][@"files"];
-    records = [records isKindOfClass:NSDictionary.class] ? records : @{};
 
     // What each id held here: its slot, and the version recorded for it.
-    NSMutableDictionary<NSString *, NSString *> *previous = [NSMutableDictionary dictionary];
+    NSDictionary<NSString *, NSString *> *previous = [self localNamesInDirectory:directory existing:existing];
     NSMutableDictionary<NSString *, NSString *> *versions = [NSMutableDictionary dictionary];
-    for (NSString *key in records) {
-        NSDictionary *record = records[key];
-        NSString *identifier = [record isKindOfClass:NSDictionary.class] ? record[@"id"] : nil;
-        NSString *name = existingNames[key];
-        if (![identifier isKindOfClass:NSString.class] || !name) {
-            continue;
-        }
-        previous[identifier] = name;
-        NSString *version = record[@"version"];
-        if ([version isKindOfClass:NSString.class]) {
-            versions[identifier] = version;
-        }
-    }
-    // A folder a search hit made here before any listing knows its own id.
-    for (NSString *name in existing) {
-        if ([name hasPrefix:@"."] || records[VibeAccountIndexKey(name)]) {
-            continue;
-        }
-        NSURL *child = [directory URLByAppendingPathComponent:name isDirectory:YES];
-        struct stat st;
-        NSString *identifier = lstat(child.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)
-                ? [self indexOfDirectory:child][@"id"] : nil;
-        if ([identifier isKindOfClass:NSString.class] && !previous[identifier]) {
-            previous[identifier] = name;
+    NSDictionary *records = [self indexOfDirectory:directory][@"files"];
+    for (NSDictionary *record in [records isKindOfClass:NSDictionary.class] ? records.allValues : @[]) {
+        if ([record isKindOfClass:NSDictionary.class] && [record[@"id"] isKindOfClass:NSString.class]
+                && [record[@"version"] isKindOfClass:NSString.class]) {
+            versions[record[@"id"]] = record[@"version"];
         }
     }
 
     NSSet<NSString *> *playable = PlayableExtensions.lookup;
     NSMutableArray<NSDictionary *> *mirrored = [NSMutableArray array];
-    NSMutableArray<NSDictionary *> *named = [NSMutableArray array];
     for (NSDictionary *entry in entries) {
-        if (!VibeGoogleDriveEntryIsMirrored(entry, playable)) {
-            continue;
+        if (VibeGoogleDriveEntryIsMirrored(entry, playable)) {
+            [mirrored addObject:entry];
         }
-        BOOL folder = VibeGoogleDriveIsFolder(entry);
-        [mirrored addObject:entry];
-        [named addObject:@{@"id": entry[@"id"], @"name": entry[@"name"], @"folder": @(folder)}];
     }
-    NSDictionary<NSString *, NSString *> *slots = VibeGoogleDriveSlots(named, previous);
+    NSDictionary<NSString *, NSString *> *slots = VibeGoogleDriveSlots(mirrored, previous);
 
     NSMutableDictionary<NSString *, NSDictionary *> *written = [NSMutableDictionary dictionary];
     NSMutableSet<NSString *> *kept = [NSMutableSet set];
-    NSMutableArray<NSDictionary *> *sidecars = [NSMutableArray array];
+    NSMutableDictionary<NSURL *, id> *sidecars = [NSMutableDictionary dictionary];
     NSUInteger placeholders = 0;
     for (NSDictionary *entry in mirrored) {
         NSString *identifier = entry[@"id"];
@@ -359,6 +340,10 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
                 *discarded = YES;
             }
             [self ensureDirectoryAtURL:child];
+            NSString *parent = VibeGoogleDriveParentOf(entry);
+            os_unfair_lock_lock(&_foldersLock);
+            _folders[identifier] = parent ? @{@"name": entry[@"name"], @"parent": parent} : @{@"name": entry[@"name"]};
+            os_unfair_lock_unlock(&_foldersLock);
             NSMutableDictionary *childIndex = [[self indexOfDirectory:child] mutableCopy]
                     ?: [NSMutableDictionary dictionary];
             childIndex[@"id"] = identifier;
@@ -383,7 +368,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             written[key] = record;
             continue;
         }
-        time_t stamp = VibeGoogleDriveStamp(VibeGoogleDriveParseTimestamp(entry[@"modifiedTime"]), present,
+        time_t stamp = VibeGoogleDriveStamp(VibeAccountParseTimestamp(entry[@"modifiedTime"]), present,
                                             present ? st.st_mtimespec.tv_sec : 0);
         if ([PlaylistFile isPlaylistExtension:local.pathExtension.lowercaseString]) {
             // The new version is recorded once its bytes land
@@ -391,7 +376,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             // tried again by the next listing.
             record[@"version"] = had;
             written[key] = record;
-            [sidecars addObject:@{VibeAccountSidecarTargetKey: identifier, VibeAccountSidecarURLKey: url}];
+            sidecars[url] = identifier;
             continue;
         }
         record[@"version"] = version;
@@ -457,15 +442,20 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             [parents addObject:parent];
         }
     }
-    for (NSString *parent in parents) {
-        dispatch_group_enter(group);
-        [self ancestryOfFolderID:parent depth:0 completion:^(NSArray<NSDictionary *> *chain) {
-            [chainsLock lock];
-            chains[parent] = chain ?: NSNull.null;
-            [chainsLock unlock];
-            dispatch_group_leave(group);
-        }];
-    }
+    // The root's id first, once, which every chain ends on.
+    dispatch_group_enter(group);
+    [self rootFolderIDWithCompletion:^(NSString *rootID) {
+        for (NSString *parent in rootID ? parents : [NSSet set]) {
+            dispatch_group_enter(group);
+            [self ancestryOfFolderID:parent depth:0 completion:^(NSArray<NSDictionary *> *chain) {
+                [chainsLock lock];
+                chains[parent] = chain ?: NSNull.null;
+                [chainsLock unlock];
+                dispatch_group_leave(group);
+            }];
+        }
+        dispatch_group_leave(group);
+    }];
     dispatch_group_notify(group, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSMutableArray<NSDictionary *> *placed = [NSMutableArray arrayWithCapacity:hits.count];
         for (NSDictionary *hit in hits) {
@@ -568,10 +558,9 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
     NSURL *directory = account;
     for (NSDictionary *link in chain) {
         NSString *identifier = link[@"id"];
-        NSString *name = [self localNameOfID:identifier inDirectory:directory];
+        NSArray<NSString *> *existing = VibeNamesInDirectory(directory);
+        NSString *name = [self localNamesInDirectory:directory existing:existing][identifier];
         if (!name) {
-            NSArray<NSString *> *existing = [NSFileManager.defaultManager
-                    contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
             NSDictionary<NSString *, NSString *> *names = VibeAccountNameIndex(existing);
             NSString *base = VibeGoogleDriveLocalBaseName(link[@"name"], YES);
             NSUInteger copy = 1;
@@ -625,7 +614,8 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
                 }
                 // Read on the disk queue, which writes the folder's names.
                 dispatch_async(self.diskQueue, ^{
-                    NSString *local = [self localNameOfID:identifier inDirectory:folderURL];
+                    NSString *local = [self localNamesInDirectory:folderURL
+                                                         existing:VibeNamesInDirectory(folderURL)][identifier];
                     NSURL *url = local ? [folderURL URLByAppendingPathComponent:local isDirectory:NO] : nil;
                     dispatch_async(dispatch_get_main_queue(), ^{
                         completion(url, url ? nil : VibeAccountMakeError(VibeAccountErrorAPI, @"not on Google Drive"));
@@ -634,11 +624,6 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             }];
         });
     });
-}
-
-- (NSString *)nameOfEntry:(NSDictionary *)entry {
-    NSString *name = entry[@"name"];
-    return [name isKindOfClass:NSString.class] ? name : @"";
 }
 
 - (BOOL)entryIsFolder:(NSDictionary *)entry {
@@ -662,11 +647,21 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
 }
 
 // Each file's place through its folders' indexes, made by nothing: a folder
-// no listing made reads as not downloaded.
+// no listing made reads as not downloaded. Each directory is read once, since
+// hits share folders.
 - (void)downloadedIdentitiesOfEntries:(NSArray<NSDictionary *> *)entries
                            completion:(void (^)(NSSet<NSString *> *))completion {
     NSURL *account = self.accountURL;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSMutableDictionary<NSString *, NSDictionary<NSString *, NSString *> *> *namesByPath = [NSMutableDictionary dictionary];
+        NSDictionary<NSString *, NSString *> *(^namesIn)(NSURL *) = ^(NSURL *directory) {
+            NSDictionary<NSString *, NSString *> *names = namesByPath[directory.path];
+            if (!names) {
+                names = [self localNamesInDirectory:directory existing:VibeNamesInDirectory(directory)];
+                namesByPath[directory.path] = names;
+            }
+            return names;
+        };
         NSMutableSet<NSString *> *downloaded = [NSMutableSet set];
         for (NSDictionary *entry in entries) {
             NSString *identifier = entry[@"id"];
@@ -677,14 +672,13 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             }
             NSURL *directory = account;
             for (NSDictionary *link in ancestry) {
-                NSString *name = [link isKindOfClass:NSDictionary.class]
-                        ? [self localNameOfID:link[@"id"] inDirectory:directory] : nil;
+                NSString *name = [link isKindOfClass:NSDictionary.class] ? namesIn(directory)[link[@"id"]] : nil;
                 directory = name ? [directory URLByAppendingPathComponent:name isDirectory:YES] : nil;
                 if (!directory) {
                     break;
                 }
             }
-            NSString *local = directory ? [self localNameOfID:identifier inDirectory:directory] : nil;
+            NSString *local = directory ? namesIn(directory)[identifier] : nil;
             NSURL *url = local ? [directory URLByAppendingPathComponent:local isDirectory:NO] : nil;
             if (url && [NSFileManager.defaultManager fileExistsAtPath:url.path]
                     && ![PlaceholderFiles isRemotePlaceholderFile:url]) {
@@ -726,7 +720,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
         if (![record isKindOfClass:NSDictionary.class] || [record[@"version"] isEqual:version]) {
             return;
         }
-        stamp = VibeGoogleDriveStamp(VibeGoogleDriveParseTimestamp(metadata[@"modifiedTime"]), held >= 0, held);
+        stamp = VibeGoogleDriveStamp(VibeAccountParseTimestamp(metadata[@"modifiedTime"]), held >= 0, held);
         NSMutableDictionary *updated = [record mutableCopy];
         updated[@"version"] = version;
         records[key] = updated;
@@ -734,10 +728,6 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
         [self writeIndex:index ofDirectory:directory];
     });
     return stamp;
-}
-
-- (NSString *)logName {
-    return @"Google Drive";
 }
 
 @end

@@ -160,11 +160,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
         completion(nil, [self errorWithCode:VibeHTTPErrorRefusedURL description:@"not a URL"]);
         return;
     }
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:target];
-    // TRAP: with no Accept-Encoding, NSURLSession asks for gzip and inflates
-    // it, so a range's offsets stop matching the file's bytes.
-    [request setValue:@"identity" forHTTPHeaderField:@"Accept-Encoding"];
-    completion(request, nil);
+    completion([NSMutableURLRequest requestWithURL:target], nil);
 }
 
 - (void)handleFailureStatus:(NSInteger)status
@@ -393,6 +389,10 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
                            error:[self errorWithCode:VibeHTTPErrorRefusedURL description:@"the address is not allowed"]];
             return;
         }
+        // TRAP: with no Accept-Encoding, NSURLSession asks for gzip and
+        // inflates it, so a range's offsets stop matching the file's bytes.
+        // Set here, after every subclass's hook, so none can leave it out.
+        [request setValue:@"identity" forHTTPHeaderField:@"Accept-Encoding"];
         completion(request);
     }];
 }

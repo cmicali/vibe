@@ -43,10 +43,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Nothing outside the mirror is read.
 - (nullable NSString *)dropboxPathForURL:(NSURL *)url;
 
-// The same from the URL's spelling alone, with no index read. A folder whose
-// local name gained a collision suffix answers that local spelling.
-- (nullable NSString *)derivedDropboxPathForURL:(NSURL *)url;
-
 // Lists the Dropbox folder and makes its directory here match
 // (refreshDirectoryAtURL:, by path). Network results complete on main with
 // the folder's local URL. An unlinked account fails inline.

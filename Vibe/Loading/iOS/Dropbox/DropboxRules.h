@@ -140,20 +140,6 @@ static inline NSString *_Nullable VibeDropboxRevOf(NSDictionary *_Nullable metad
     return [rev isKindOfClass:NSString.class] ? rev : nil;
 }
 
-// Dropbox's timestamps are UTC to the second ("2015-05-12T15:50:38Z"); -1 for
-// anything else. strptime, not a date formatter: called per entry, per thread.
-static inline time_t VibeDropboxParseTimestamp(NSString *_Nullable text) {
-    if (![text isKindOfClass:NSString.class]) {
-        return -1;
-    }
-    struct tm parts = {0};
-    const char *end = strptime(text.UTF8String, "%Y-%m-%dT%H:%M:%SZ", &parts);
-    if (!end || *end != '\0') {
-        return -1;
-    }
-    return timegm(&parts);
-}
-
 // files/search_v2's answer as entries (the shape list_folder gives), kept
 // only for folders and mirrored files other than CUE sheets.
 static inline NSArray<NSDictionary *> *VibeDropboxSearchEntries(NSDictionary *_Nullable result,
@@ -193,7 +179,7 @@ static inline NSString *VibeDropboxParentPath(NSString *path) {
 // Dropbox paths are case-insensitive and only the LAST component of a
 // path_display is guaranteed its real case, so a component is matched
 // against what is already on disk before a new one is made
-// (VibeAccountLocalName): two spellings of one Dropbox folder must land in
+// (VibeDropboxLocalName): two spellings of one Dropbox folder must land in
 // one local directory.
 static inline NSArray<NSString *> *VibeDropboxPathComponents(NSString *path) {
     NSMutableArray<NSString *> *components = [NSMutableArray array];
@@ -203,6 +189,11 @@ static inline NSArray<NSString *> *VibeDropboxPathComponents(NSString *path) {
         }
     }
     return components;
+}
+
+// The spelling already on disk of a name, else the name itself.
+static inline NSString *VibeDropboxLocalName(NSString *name, NSDictionary<NSString *, NSString *> *nameIndex) {
+    return nameIndex[VibeAccountIndexKey(name)] ?: name;
 }
 
 #pragma mark - Placeholders

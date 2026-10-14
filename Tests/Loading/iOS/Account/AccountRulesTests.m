@@ -37,6 +37,7 @@
     NSData *body = VibeAccountFormBody(@{@"redirect_uri": @"db-k://2/token", @"a": @"x y"});
     NSString *text = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
     XCTAssertEqualObjects(text, @"a=x%20y&redirect_uri=db-k%3A%2F%2F2%2Ftoken");
+    XCTAssertEqualObjects(VibeAccountQueryString(@{@"q": @"é+&"}), @"q=%C3%A9%2B%26");
 }
 
 - (void)testOnlyARevokedGrantUnlinks {
@@ -58,12 +59,13 @@
     XCTAssertFalse(VibeAccountNameIsMirrored(@"notes", playable));
 }
 
-- (void)testAComponentLandsOnTheExistingSpelling {
-    XCTAssertEqualObjects(VibeAccountLocalName(@"music", VibeAccountNameIndex(@[@"Podcasts", @"Music"])), @"Music");
-    XCTAssertEqualObjects(VibeAccountLocalName(@"CAFÉ", VibeAccountNameIndex(@[@"café"])), @"café");
-    // A decomposed name read back from disk still finds the composed one.
-    XCTAssertEqualObjects(VibeAccountLocalName(@"Cafe\u0301", VibeAccountNameIndex(@[@"Café"])), @"Café");
-    XCTAssertEqualObjects(VibeAccountLocalName(@"New", VibeAccountNameIndex(@[@"Music"])), @"New");
+- (void)testTimestampsParseAsUTCSecondsWithOrWithoutAFraction {
+    XCTAssertEqual(VibeAccountParseTimestamp(@"2015-05-12T15:50:38Z"), (time_t)1431445838);
+    XCTAssertEqual(VibeAccountParseTimestamp(@"2015-05-12T15:50:38.123Z"), (time_t)1431445838);
+    XCTAssertEqual(VibeAccountParseTimestamp(@"2015-05-12 15:50:38"), (time_t)-1);
+    XCTAssertEqual(VibeAccountParseTimestamp(@"2015-05-12T15:50:38.123+01:00"), (time_t)-1);
+    XCTAssertEqual(VibeAccountParseTimestamp(@"2015-05-12T15:50:38Zjunk"), (time_t)-1);
+    XCTAssertEqual(VibeAccountParseTimestamp(nil), (time_t)-1);
 }
 
 - (void)testASavedDownloadBudgetIsOneOfTheChoices {

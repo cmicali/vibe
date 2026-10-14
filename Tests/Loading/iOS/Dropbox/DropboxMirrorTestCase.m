@@ -71,9 +71,7 @@ BOOL VibeIsClosedRange(NSURLRequest *request) {
     _listings = [NSMutableDictionary dictionary];
     _contents = [NSMutableDictionary dictionary];
 
-    os_unfair_lock_lock(&sStubLock);
-    sStubRequests = [NSMutableArray array];
-    os_unfair_lock_unlock(&sStubLock);
+    DropboxStubClearRequests();
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         return [self defaultResponseFor:request json:json];
     }];
@@ -114,25 +112,15 @@ BOOL VibeIsClosedRange(NSURLRequest *request) {
 }
 
 - (void)installHandler:(DropboxStubHandler)handler {
-    os_unfair_lock_lock(&sStubLock);
-    sStubHandler = [handler copy];
-    os_unfair_lock_unlock(&sStubLock);
+    DropboxStubInstall(handler);
 }
 
 - (void)clearRequests {
-    os_unfair_lock_lock(&sStubLock);
-    [sStubRequests removeAllObjects];
-    os_unfair_lock_unlock(&sStubLock);
+    DropboxStubClearRequests();
 }
 
 - (NSArray<NSURLRequest *> *)requestsToPath:(NSString *)path {
-    os_unfair_lock_lock(&sStubLock);
-    NSArray<NSURLRequest *> *requests = [sStubRequests copy];
-    os_unfair_lock_unlock(&sStubLock);
-    return [requests filteredArrayUsingPredicate:
-            [NSPredicate predicateWithBlock:^BOOL(NSURLRequest *request, NSDictionary *bindings) {
-        return [request.URL.path isEqualToString:path];
-    }]];
+    return DropboxStubRequestsToPath(path);
 }
 
 - (DropboxStubResponse)defaultResponseFor:(NSURLRequest *)request json:(NSDictionary *)json {

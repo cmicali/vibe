@@ -30,6 +30,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark Calls a subclass makes
 
+// A GET of url as the account.
+- (NSMutableURLRequest *)authorizedRequestWithURL:(NSURL *)url accessToken:(NSString *)accessToken;
 // An authorized call through the ladder. makeRequest builds each attempt's
 // request with that attempt's access token. The result is the answer's JSON
 // object, empty for an answer that holds none.
@@ -77,11 +79,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The one line a failure leaves in the log and the error.
 - (NSString *)errorSummaryForStatus:(NSInteger)status body:(nullable NSDictionary *)body;
 // One transfer attempt's request, sent with accessToken. The base adds the
-// Range. Exactly one of request and error.
-- (void)makeRequestForTarget:(id)target
-                 accessToken:(NSString *)accessToken
-                       state:(NSMutableDictionary<NSString *, id> *)state
-                  completion:(void (^)(NSMutableURLRequest *_Nullable request, NSError *_Nullable error))completion;
+// Range.
+- (NSMutableURLRequest *)transferRequestForTarget:(id)target accessToken:(NSString *)accessToken;
 // The warm-up's own requests, once the access token is fresh.
 - (void)warmUpConnectionsWithAccessToken:(NSString *)accessToken;
 

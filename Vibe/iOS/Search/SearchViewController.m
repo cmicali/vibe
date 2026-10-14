@@ -476,27 +476,23 @@ static const NSInteger kVibeSearchScopeAll = -1;
 - (void)rebuildPlaylistPaths {
     NSArray<AudioTrack *> *tracks = _playlist.tracks;
     NSMutableSet<NSString *> *paths = [NSMutableSet setWithCapacity:tracks.count];
-    NSMutableArray<NSMutableSet<NSString *> *> *identities = [NSMutableArray array];
-    for (NSUInteger i = 0; i < _accountSearches.count; i++) {
-        [identities addObject:[NSMutableSet set]];
-    }
     for (AudioTrack *track in tracks) {
         NSString *path = track.url.path;
         if (path) {
             [paths addObject:path];
         }
-        [_accountSearches enumerateObjectsUsingBlock:^(AccountSearch *search, NSUInteger index, BOOL *stop) {
-            NSString *identity = [search.mirror identityOfURL:track.url];
-            if (identity) {
-                [identities[index] addObject:identity];
-                *stop = YES;   // a file lies in one mirror at most
-            }
-        }];
     }
     _playlistPaths = paths;
-    [_accountSearches enumerateObjectsUsingBlock:^(AccountSearch *search, NSUInteger index, BOOL *stop) {
-        search.playlistIdentities = identities[index];
-    }];
+    for (AccountSearch *search in _accountSearches) {
+        NSMutableSet<NSString *> *identities = [NSMutableSet set];
+        for (AudioTrack *track in tracks) {
+            NSString *identity = [search.mirror identityOfURL:track.url];
+            if (identity) {
+                [identities addObject:identity];
+            }
+        }
+        search.playlistIdentities = identities;
+    }
 }
 
 #pragma mark - Table view

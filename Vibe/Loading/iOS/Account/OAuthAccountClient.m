@@ -19,14 +19,6 @@ static const NSTimeInterval kAccessTokenMargin = 60;
 // A Keychain still locked is asked again no sooner than this.
 static const NSTimeInterval kAccountLoadRetryInterval = 5;
 
-static NSDictionary *_Nullable VibeJSONObject(NSData *_Nullable data) {
-    if (data.length == 0) {
-        return nil;
-    }
-    id object = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
-    return [object isKindOfClass:NSDictionary.class] ? object : nil;
-}
-
 static NSData *VibeRandomBytes(size_t count) {
     NSMutableData *data = [NSMutableData dataWithLength:count];
     if (SecRandomCopyBytes(kSecRandomDefault, count, data.mutableBytes) != errSecSuccess) {
@@ -163,7 +155,7 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
     query[(__bridge id)kSecMatchLimit] = (__bridge id)kSecMatchLimitOne;
     CFTypeRef result = NULL;
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
-    NSDictionary *account = status == errSecSuccess ? VibeJSONObject((__bridge_transfer NSData *)result) : nil;
+    NSDictionary *account = status == errSecSuccess ? VibeAccountJSONObject((__bridge_transfer NSData *)result) : nil;
     NSString *refresh = account[@"refresh_token"];
     BOOL found = [refresh isKindOfClass:NSString.class] && refresh.length > 0;
     os_unfair_lock_lock(&_lock);
@@ -393,10 +385,10 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
                          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class]
                 ? ((NSHTTPURLResponse *)response).statusCode : 0;
-        NSDictionary *identity = status == 200 ? VibeJSONObject(data) : nil;
+        NSDictionary *identity = status == 200 ? VibeAccountJSONObject(data) : nil;
         if (!identity) {
             LogWarn(@"%@: could not read the account: %@", self.logName,
-                    error.localizedDescription ?: [self errorSummaryForStatus:status body:VibeJSONObject(data)]);
+                    error.localizedDescription ?: [self errorSummaryForStatus:status body:VibeAccountJSONObject(data)]);
             completion(nil, nil);
             return;
         }
@@ -467,7 +459,7 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
                          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class]
                 ? ((NSHTTPURLResponse *)response).statusCode : 0;
-        completion(VibeJSONObject(data), status, error);
+        completion(VibeAccountJSONObject(data), status, error);
     }] resume];
 }
 
@@ -571,7 +563,7 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
                     attempt:(NSInteger)attempt
                      resend:(void (^)(NSInteger attempt))resend
                        fail:(void (^)(NSError *error))fail {
-    NSDictionary *body = VibeJSONObject(data);
+    NSDictionary *body = VibeAccountJSONObject(data);
     if ([self isExpiredAccessTokenStatus:status body:body] && ![state[kStateRefreshed] boolValue]) {
         [self discardAccessToken:state[kStateToken]];
         state[kStateRefreshed] = @YES;
@@ -601,6 +593,12 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 #pragma mark - Calls
 
+- (NSMutableURLRequest *)authorizedRequestWithURL:(NSURL *)url accessToken:(NSString *)accessToken {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    [request setValue:[@"Bearer " stringByAppendingString:accessToken] forHTTPHeaderField:@"Authorization"];
+    return request;
+}
+
 - (void)sendAuthorizedRequest:(NSMutableURLRequest *(^)(NSString *))makeRequest
                    completion:(void (^)(NSDictionary *, NSError *))completion {
     [self sendAuthorizedRequest:makeRequest state:[NSMutableDictionary dictionary] attempt:1 completion:completion];
@@ -625,7 +623,7 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
             }
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
             if (http.statusCode == 200) {
-                completion(VibeJSONObject(data) ?: @{}, nil);
+                completion(VibeAccountJSONObject(data) ?: @{}, nil);
                 return;
             }
             [self handleFailureStatus:http.statusCode data:data
@@ -677,7 +675,7 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
         }
         state[kStateToken] = token;
         state[kStateAccountGeneration] = @(generation);
-        [self makeRequestForTarget:target accessToken:token state:state completion:completion];
+        completion([self transferRequestForTarget:target accessToken:token], nil);
     }];
 }
 
@@ -753,14 +751,9 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
     return [NSString stringWithFormat:@"HTTP %ld", (long)status];
 }
 
-// A GET of the target, an NSURL, as the account.
-- (void)makeRequestForTarget:(id)target
-                 accessToken:(NSString *)accessToken
-                       state:(NSMutableDictionary<NSString *, id> *)state
-                  completion:(void (^)(NSMutableURLRequest *, NSError *))completion {
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:target];
-    [request setValue:[@"Bearer " stringByAppendingString:accessToken] forHTTPHeaderField:@"Authorization"];
-    completion(request, nil);
+- (NSMutableURLRequest *)transferRequestForTarget:(id)target accessToken:(NSString *)accessToken {
+    NSAssert(NO, @"every subclass names its download");
+    return [self authorizedRequestWithURL:[self tokenURL] accessToken:accessToken];
 }
 
 - (void)warmUpConnectionsWithAccessToken:(NSString *)accessToken {

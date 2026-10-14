@@ -7,7 +7,6 @@
 
 #import "VibeFakeGoogleDrive.h"
 
-#import <CommonCrypto/CommonDigest.h>
 #import <os/lock.h>
 #import <sys/stat.h>
 
@@ -52,13 +51,7 @@ static NSArray<NSString *> *VibeFakeGoogleDriveFaultKinds(void) {
 }
 
 static NSString *VibeFakeGoogleDriveHex(NSString *text, NSUInteger length) {
-    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
-    unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
-    NSMutableString *hex = [NSMutableString stringWithCapacity:sizeof digest * 2];
-    for (size_t i = 0; i < sizeof digest; i++) {
-        [hex appendFormat:@"%02x", digest[i]];
-    }
+    NSString *hex = [text dataUsingEncoding:NSUTF8StringEncoding].sha1Hex;
     return [hex substringToIndex:MIN(length, hex.length)];
 }
 
@@ -404,7 +397,7 @@ static BOOL VibeFakeGoogleDriveNameMatches(NSString *name, NSString *text) {
 
 + (void)installWithDirectory:(NSURL *)directory
              transferSeconds:(NSTimeInterval)transferSeconds
-                      client:(GoogleDriveClient *)client {
+                      client:(OAuthAccountClient *)client {
     NSDictionary<NSString *, VibeFakeGoogleDriveItem *> *items = VibeFakeGoogleDriveIndex(directory.URLByStandardizingPath);
     os_unfair_lock_lock(&sLock);
     // TRAP: never rebuild the sessions under transfers in flight. The client
@@ -429,7 +422,7 @@ static BOOL VibeFakeGoogleDriveNameMatches(NSString *name, NSString *text) {
     [client adoptRefreshToken:@"fake-refresh" accountID:kFakePermissionID];
 }
 
-+ (void)uninstallFromClient:(GoogleDriveClient *)client {
++ (void)uninstallFromClient:(OAuthAccountClient *)client {
     if (![self isInstalled]) {
         return;
     }

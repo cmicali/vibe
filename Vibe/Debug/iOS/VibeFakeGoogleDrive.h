@@ -18,7 +18,7 @@
 
 #import <Foundation/Foundation.h>
 
-@class GoogleDriveClient;
+@class OAuthAccountClient;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -38,10 +38,10 @@ NS_ASSUME_NONNULL_BEGIN
 // a closed range (a tag read or the tail window) answers at once.
 + (void)installWithDirectory:(NSURL *)directory
              transferSeconds:(NSTimeInterval)transferSeconds
-                      client:(GoogleDriveClient *)client;
+                      client:(OAuthAccountClient *)client;
 
 // Signs the fake account out and puts the client back on the network.
-+ (void)uninstallFromClient:(GoogleDriveClient *)client;
++ (void)uninstallFromClient:(OAuthAccountClient *)client;
 
 + (BOOL)isInstalled;
 

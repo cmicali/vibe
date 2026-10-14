@@ -65,11 +65,12 @@
     XCTAssertLessThan(VibeHTTPRetryDelay(500, nil), 0);
 }
 
-- (void)testTimestampsParseAsUTCSeconds {
-    XCTAssertEqual(VibeDropboxParseTimestamp(@"2015-05-12T15:50:38Z"), (time_t)1431445838);
-    XCTAssertEqual(VibeDropboxParseTimestamp(@"2015-05-12 15:50:38"), (time_t)-1);
-    XCTAssertEqual(VibeDropboxParseTimestamp(@"2015-05-12T15:50:38Zjunk"), (time_t)-1);
-    XCTAssertEqual(VibeDropboxParseTimestamp(nil), (time_t)-1);
+- (void)testAComponentLandsOnTheExistingSpelling {
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"music", VibeAccountNameIndex(@[@"Podcasts", @"Music"])), @"Music");
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"CAFÉ", VibeAccountNameIndex(@[@"café"])), @"café");
+    // A decomposed name read back from disk still finds the composed one.
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"Cafe\u0301", VibeAccountNameIndex(@[@"Café"])), @"Café");
+    XCTAssertEqualObjects(VibeDropboxLocalName(@"New", VibeAccountNameIndex(@[@"Music"])), @"New");
 }
 
 - (void)testEntryKinds {

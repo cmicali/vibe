@@ -23,7 +23,7 @@ On iOS, `OAuthAccountClient` subclasses the client, and `AccountMirror` subclass
 
 **The defaults are plain HTTP.** A target is an `NSURL`, fetched with a `GET`. A 206 gives the size through Content-Range. A 200 uses Content-Length when Content-Encoding is absent or `identity`. The version is a strong ETag, else Last-Modified. A weak ETag (`W/` or `w/`) counts as absent, since it promises equivalent bytes, not the same ones. `VibeHTTPVersionFromHeaders` is the one weak-ETag rule. A subclass changes any of this through the hooks in `HTTPTransferClientInternal.h`. Each hook gets the transfer's own `state` dictionary, which lives across its attempts and which the base never reads. `OAuthAccountClient` keeps its access token and the refresh flag there. `GoogleDriveClient` keeps the lookup its attempt was sent with.
 
-**TRAP: every default request asks for `Accept-Encoding: identity`.** With no such header, `NSURLSession` asks for gzip and inflates the answer. A range's offsets then stop matching the file's bytes.
+**TRAP: every transfer request asks for `Accept-Encoding: identity`.** With no such header, `NSURLSession` asks for gzip and inflates the answer. A range's offsets then stop matching the file's bytes. The base sets the header after the request hook (`requestForTransfer:`), so no subclass can leave it out.
 
 **Two sessions.** Downloads and probes stream on a delegate session of their own. Ranged reads and a subclass's calls run on the other, so a tag read never queues behind a download's disk writes. The client is the delegate of both. A subclass's call is answered whole by its own handler.
 

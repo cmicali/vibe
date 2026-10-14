@@ -15,7 +15,7 @@
 
 #import <Foundation/Foundation.h>
 
-@class DropboxClient;
+@class OAuthAccountClient;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -35,10 +35,10 @@ NS_ASSUME_NONNULL_BEGIN
 // the tail window — answers at once. Every answer carries Dropbox-API-Result.
 + (void)installWithDirectory:(NSURL *)directory
              transferSeconds:(NSTimeInterval)transferSeconds
-                      client:(DropboxClient *)client;
+                      client:(OAuthAccountClient *)client;
 
 // Signs the fake account out and puts the client back on the network.
-+ (void)uninstallFromClient:(DropboxClient *)client;
++ (void)uninstallFromClient:(OAuthAccountClient *)client;
 
 + (BOOL)isInstalled;
 

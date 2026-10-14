@@ -42,7 +42,7 @@ static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kAccountCellIdentifier = @"account";
 static NSString *const kValueCellIdentifier = @"value";
 
-// A linked account's rows (accountRowsForMirror:).
+// A linked account's rows (accountRowsInSection:).
 typedef NS_ENUM(NSInteger, VibeAccountRow) {
     VibeAccountRowAccount = 0,
     VibeAccountRowRemoveDownloads,
@@ -53,7 +53,7 @@ typedef NS_ENUM(NSInteger, VibeAccountRow) {
 @implementation FilesSettingsViewController {
     NSArray<AccountMirror *> *_mirrors;
     // What each account's downloads take, by its mirror's place in
-    // _mirrors; -1 until measured.
+    // _mirrors, which is its section; -1 until measured.
     NSMutableArray<NSNumber *> *_downloadBytes;
 }
 
@@ -161,7 +161,7 @@ typedef NS_ENUM(NSInteger, VibeAccountRow) {
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     AccountMirror *mirror = [self mirrorInSection:section];
     if (mirror) {
-        return (NSInteger)[self accountRowsForMirror:mirror].count;
+        return (NSInteger)[self accountRowsInSection:section].count;
     }
     return [self fixedSection:section] == VibeFilesSectionPaste ? 1 : VibeFolderSortRowCount;
 }
@@ -169,19 +169,18 @@ typedef NS_ENUM(NSInteger, VibeAccountRow) {
 // An account's rows, top to bottom: Connect alone while unlinked; linked,
 // the account, Remove Downloads while there is something to remove, Maximum
 // Size, and Disconnect.
-- (NSArray<NSNumber *> *)accountRowsForMirror:(AccountMirror *)mirror {
-    if (!mirror.client.isLinked) {
+- (NSArray<NSNumber *> *)accountRowsInSection:(NSInteger)section {
+    if (![self mirrorInSection:section].client.isLinked) {
         return @[@(VibeAccountRowAccount)];
     }
-    NSUInteger index = [_mirrors indexOfObjectIdenticalTo:mirror];
-    return _downloadBytes[index].longLongValue > 0
+    return _downloadBytes[(NSUInteger)section].longLongValue > 0
             ? @[@(VibeAccountRowAccount), @(VibeAccountRowRemoveDownloads), @(VibeAccountRowMaximumSize),
                 @(VibeAccountRowDisconnect)]
             : @[@(VibeAccountRowAccount), @(VibeAccountRowMaximumSize), @(VibeAccountRowDisconnect)];
 }
 
-- (VibeAccountRow)accountRowAtIndexPath:(NSIndexPath *)indexPath mirror:(AccountMirror *)mirror {
-    return (VibeAccountRow)[self accountRowsForMirror:mirror][(NSUInteger)indexPath.row].integerValue;
+- (VibeAccountRow)accountRowAtIndexPath:(NSIndexPath *)indexPath {
+    return (VibeAccountRow)[self accountRowsInSection:indexPath.section][(NSUInteger)indexPath.row].integerValue;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -238,7 +237,7 @@ typedef NS_ENUM(NSInteger, VibeAccountRow) {
                                    indexPath:(NSIndexPath *)indexPath
                                       mirror:(AccountMirror *)mirror {
     OAuthAccountClient *client = mirror.client;
-    VibeAccountRow row = [self accountRowAtIndexPath:indexPath mirror:mirror];
+    VibeAccountRow row = [self accountRowAtIndexPath:indexPath];
     BOOL accountRow = client.isLinked && row == VibeAccountRowAccount;
     if (client.isLinked && row == VibeAccountRowMaximumSize) {
         return [self maximumSizeCellForTableView:tableView mirror:mirror];
@@ -261,10 +260,9 @@ typedef NS_ENUM(NSInteger, VibeAccountRow) {
     }
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
     if (client.isLinked && row == VibeAccountRowRemoveDownloads) {
-        NSUInteger index = [_mirrors indexOfObjectIdenticalTo:mirror];
         content.text = STR_SETTINGS_ACCOUNT_REMOVE_DOWNLOADS;
         content.textProperties.color = UIColor.tintColor;
-        content.secondaryText = [NSByteCountFormatter stringFromByteCount:_downloadBytes[index].longLongValue
+        content.secondaryText = [NSByteCountFormatter stringFromByteCount:_downloadBytes[(NSUInteger)indexPath.section].longLongValue
                                                                countStyle:NSByteCountFormatterCountStyleFile];
     }
     else if (client.isLinked) {
@@ -367,7 +365,7 @@ typedef NS_ENUM(NSInteger, VibeAccountRow) {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     AccountMirror *mirror = [self mirrorInSection:indexPath.section];
     if (mirror) {
-        VibeAccountRow row = [self accountRowAtIndexPath:indexPath mirror:mirror];
+        VibeAccountRow row = [self accountRowAtIndexPath:indexPath];
         if (!mirror.client.isLinked) {
             [self connectMirror:mirror];
         }

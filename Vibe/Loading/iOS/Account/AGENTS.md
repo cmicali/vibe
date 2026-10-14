@@ -6,7 +6,7 @@ This directory holds what every cloud account shares. Each service subclasses th
 | --- | --- |
 | `OAuthAccountClient` | The account: PKCE sign-in in `ASWebAuthenticationSession`, the refresh token in the Keychain, the access token in memory, and one failure ladder. It subclasses `HTTPTransferClient` (`Loading/Net/AGENTS.md`), which runs the streamed download and the ranged read. A service's client names its endpoints and reads its answers through the hooks in `OAuthAccountClientInternal.h`. |
 | `AccountMirror` | The account as local files, in the part every service shares. That is the account's directory, the pruning of other accounts, the playlist files' download claim, the sweep of what left the service, and the downloads notification. It is also the one face the shell calls. It subclasses `RemotePlaceholderStore` (`Loading/Net/AGENTS.md`). A service's mirror lists, names and searches through `AccountMirrorInternal.h`. |
-| `AccountRules.h` | The shared decisions with no network or disk: PKCE, the form body, the revoked grant, the index key, the case-insensitive name match, which names are mirrored, and the download budgets. Tested (`AccountRulesTests`). |
+| `AccountRules.h` | The shared decisions with no network or disk: PKCE, the query and form encoding, the JSON body, the revoked grant, the timestamps, the index key, which names are mirrored, and the download budgets. Tested (`AccountRulesTests`). |
 
 Both classes compile into the macOS `VibeTests`, with each service's pair. The client also uses AuthenticationServices for sign-in and Security for the Keychain.
 

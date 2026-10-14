@@ -11,6 +11,7 @@
 #import "GoogleDriveMirror.h"
 #import "GoogleDriveRules.h"
 #import "OAuthAccountClientInternal.h"
+#import "VibeFakeHTTPProtocol.h"
 
 static NSString *const kDriveStamp = @"2020-01-02T03:04:05.000Z";
 static const time_t kDriveStampSeconds = 1577934245;
@@ -40,26 +41,15 @@ static NSDictionary<NSString *, NSString *> *DriveQuery(NSURLRequest *request) {
     return query;
 }
 
-// files.get?alt=media as Drive answers it: the whole file, or 206 from a
-// Range's first byte; 416 for a range that starts at or past the file's end.
+// files.get?alt=media as Drive answers it, by the debug fake's Range rule:
+// with its length, whole or from a Range's first byte.
 static DropboxStubResponse DriveMedia(NSURLRequest *request, NSData *bytes) {
-    NSDictionary *headers = @{@"Content-Type": @"application/octet-stream"};
-    NSString *range = [request valueForHTTPHeaderField:@"Range"];
-    if (!range) {
-        return (DropboxStubResponse){200, headers, bytes, NO};
-    }
-    unsigned long long first = 0, last = ULLONG_MAX;
-    sscanf(range.UTF8String, "bytes=%llu-%llu", &first, &last);
-    if (first >= bytes.length) {
-        return (DropboxStubResponse){416, @{@"Content-Range": [NSString stringWithFormat:@"bytes */%lu",
-                                                               (unsigned long)bytes.length]}, nil, NO};
-    }
-    last = MIN(last, (unsigned long long)bytes.length - 1);
-    NSMutableDictionary *ranged = [headers mutableCopy];
-    ranged[@"Content-Range"] = [NSString stringWithFormat:@"bytes %llu-%llu/%lu", first, last,
-                                (unsigned long)bytes.length];
-    return (DropboxStubResponse){206, ranged,
-                                 [bytes subdataWithRange:NSMakeRange((NSUInteger)first, (NSUInteger)(last - first + 1))], NO};
+    NSMutableDictionary<NSString *, NSString *> *headers = [@{@"Content-Type": @"application/octet-stream"} mutableCopy];
+    uint64_t first = 0, length = 0;
+    NSInteger status = VibeFakeHTTPRangeStatus([request valueForHTTPHeaderField:@"Range"], bytes.length,
+                                               headers, &first, &length);
+    return (DropboxStubResponse){status, headers,
+                                 [bytes subdataWithRange:NSMakeRange((NSUInteger)first, (NSUInteger)length)], NO};
 }
 
 @interface GoogleDriveMirrorTests : XCTestCase
@@ -89,9 +79,7 @@ static DropboxStubResponse DriveMedia(NSURLRequest *request, NSData *bytes) {
     _items = [NSMutableDictionary dictionary];
     _contents = [NSMutableDictionary dictionary];
 
-    os_unfair_lock_lock(&sStubLock);
-    sStubRequests = [NSMutableArray array];
-    os_unfair_lock_unlock(&sStubLock);
+    DropboxStubClearRequests();
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         return [self defaultResponseFor:request];
     }];
@@ -125,19 +113,11 @@ static DropboxStubResponse DriveMedia(NSURLRequest *request, NSData *bytes) {
 }
 
 - (void)installHandler:(DropboxStubHandler)handler {
-    os_unfair_lock_lock(&sStubLock);
-    sStubHandler = [handler copy];
-    os_unfair_lock_unlock(&sStubLock);
+    DropboxStubInstall(handler);
 }
 
 - (NSArray<NSURLRequest *> *)requestsToPath:(NSString *)path {
-    os_unfair_lock_lock(&sStubLock);
-    NSArray<NSURLRequest *> *requests = [sStubRequests copy];
-    os_unfair_lock_unlock(&sStubLock);
-    return [requests filteredArrayUsingPredicate:
-            [NSPredicate predicateWithBlock:^BOOL(NSURLRequest *request, NSDictionary *bindings) {
-        return [request.URL.path isEqualToString:path];
-    }]];
+    return DropboxStubRequestsToPath(path);
 }
 
 // The lookups and media requests of one file, apart.

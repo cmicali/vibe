@@ -13,6 +13,28 @@ DropboxStubResponse DropboxStubJSON(NSInteger status, id object) {
             [NSJSONSerialization dataWithJSONObject:object options:0 error:NULL], NO};
 }
 
+void DropboxStubInstall(DropboxStubHandler handler) {
+    os_unfair_lock_lock(&sStubLock);
+    sStubHandler = [handler copy];
+    os_unfair_lock_unlock(&sStubLock);
+}
+
+void DropboxStubClearRequests(void) {
+    os_unfair_lock_lock(&sStubLock);
+    sStubRequests = [NSMutableArray array];
+    os_unfair_lock_unlock(&sStubLock);
+}
+
+NSArray<NSURLRequest *> *DropboxStubRequestsToPath(NSString *path) {
+    os_unfair_lock_lock(&sStubLock);
+    NSArray<NSURLRequest *> *requests = [sStubRequests copy];
+    os_unfair_lock_unlock(&sStubLock);
+    return [requests filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSURLRequest *request, NSDictionary *bindings) {
+        return [request.URL.path isEqualToString:path];
+    }]];
+}
+
 // The loading thread's run loop may next turn in either mode.
 static NSArray<NSString *> *DropboxStubModes(void) {
     NSMutableArray<NSString *> *modes = [NSMutableArray arrayWithObject:NSDefaultRunLoopMode];

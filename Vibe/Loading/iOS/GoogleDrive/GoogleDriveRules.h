@@ -27,6 +27,7 @@
 #import <Foundation/Foundation.h>
 
 #import "AccountRules.h"
+#import "HTTPTransferRules.h"
 #import "PlaylistFile.h"
 
 #include <time.h>
@@ -83,21 +84,10 @@ static inline NSURL *VibeGoogleDriveAuthorizeURL(NSString *clientID,
 
 #pragma mark - Wire
 
-// An API address with its query, each value percent-encoded as a query
-// takes it ('+' and '&' included).
-// TRAP: the unreserved set is ASCII alone. alphanumericCharacterSet holds
-// every script's letters, and a search for "Beyoncé" would leave its "é"
-// raw in percentEncodedQuery, which refuses it.
+// An API address with its query (VibeAccountQueryString).
 static inline NSURL *VibeGoogleDriveURL(NSString *path, NSDictionary<NSString *, NSString *> *query) {
     NSURLComponents *components = [NSURLComponents componentsWithString:[VIBE_GOOGLE_DRIVE_API_BASE stringByAppendingString:path]];
-    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:
-            @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"];
-    NSMutableArray<NSString *> *pairs = [NSMutableArray arrayWithCapacity:query.count];
-    for (NSString *key in [query.allKeys sortedArrayUsingSelector:@selector(compare:)]) {
-        [pairs addObject:[NSString stringWithFormat:@"%@=%@", key,
-                          [query[key] stringByAddingPercentEncodingWithAllowedCharacters:allowed]]];
-    }
-    components.percentEncodedQuery = pairs.count > 0 ? [pairs componentsJoinedByString:@"&"] : nil;
+    components.percentEncodedQuery = query.count > 0 ? VibeAccountQueryString(query) : nil;
     return components.URL;
 }
 
@@ -170,13 +160,10 @@ static inline BOOL VibeGoogleDriveIsFolder(NSDictionary *entry) {
 // string.
 static inline int64_t VibeGoogleDriveSizeOf(NSDictionary *_Nullable metadata) {
     id size = metadata[@"size"];
-    long long value = -1;
     if ([size isKindOfClass:NSString.class]) {
-        value = ((NSString *)size).longLongValue;
+        return VibeHTTPParseLength(size);
     }
-    else if ([size isKindOfClass:NSNumber.class]) {
-        value = ((NSNumber *)size).longLongValue;
-    }
+    long long value = [size isKindOfClass:NSNumber.class] ? ((NSNumber *)size).longLongValue : -1;
     return value >= 0 ? value : -1;
 }
 
@@ -189,30 +176,6 @@ static inline NSString *_Nullable VibeGoogleDriveVersionOf(NSDictionary *_Nullab
     }
     NSString *revision = metadata[@"headRevisionId"];
     return [revision isKindOfClass:NSString.class] && revision.length > 0 ? revision : nil;
-}
-
-// RFC 3339 in UTC, as the API writes it ("2024-01-02T03:04:05.678Z"), to the
-// second; -1 for anything else. strptime, not a date formatter: called per
-// entry, per thread.
-static inline time_t VibeGoogleDriveParseTimestamp(NSString *_Nullable text) {
-    if (![text isKindOfClass:NSString.class]) {
-        return -1;
-    }
-    struct tm parts = {0};
-    const char *end = strptime(text.UTF8String, "%Y-%m-%dT%H:%M:%S", &parts);
-    if (!end) {
-        return -1;
-    }
-    if (*end == '.') {
-        end++;
-        while (*end >= '0' && *end <= '9') {
-            end++;
-        }
-    }
-    if (end[0] != 'Z' || end[1] != '\0') {
-        return -1;
-    }
-    return timegm(&parts);
 }
 
 // Which entries the mirror keeps: folders, and the files whose name
@@ -331,7 +294,7 @@ static inline NSString *VibeGoogleDriveCopyBase(NSString *slot, BOOL folder) {
 // else the first copy free. Names are compared by VibeAccountIndexKey, so
 // two names one volume would merge never share a slot. New entries take
 // their slots in id order, so the same listing names them the same way
-// twice. Each entry is {"id", "name", "folder"}.
+// twice. Each entry is a Drive entry, as listed.
 static inline NSDictionary<NSString *, NSString *> *VibeGoogleDriveSlots(NSArray<NSDictionary *> *entries,
                                                                          NSDictionary<NSString *, NSString *> *previous) {
     NSMutableDictionary<NSString *, NSString *> *slots = [NSMutableDictionary dictionaryWithCapacity:entries.count];
@@ -339,7 +302,7 @@ static inline NSDictionary<NSString *, NSString *> *VibeGoogleDriveSlots(NSArray
     NSMutableArray<NSDictionary *> *fresh = [NSMutableArray array];
     for (NSDictionary *entry in entries) {
         NSString *identifier = entry[@"id"];
-        BOOL folder = [entry[@"folder"] boolValue];
+        BOOL folder = VibeGoogleDriveIsFolder(entry);
         NSString *base = VibeGoogleDriveLocalBaseName(entry[@"name"], folder);
         NSString *had = previous[identifier];
         NSString *key = had ? VibeAccountIndexKey(had) : nil;
@@ -362,7 +325,7 @@ static inline NSDictionary<NSString *, NSString *> *VibeGoogleDriveSlots(NSArray
         if (slots[identifier]) {
             continue;   // the same id twice in one listing
         }
-        BOOL folder = [entry[@"folder"] boolValue];
+        BOOL folder = VibeGoogleDriveIsFolder(entry);
         NSString *base = VibeGoogleDriveLocalBaseName(entry[@"name"], folder);
         for (NSUInteger copy = 1;; copy++) {
             NSString *candidate = VibeGoogleDriveCopyName(base, copy, folder);

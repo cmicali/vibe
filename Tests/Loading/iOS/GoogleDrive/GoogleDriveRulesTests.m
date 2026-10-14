@@ -38,17 +38,18 @@
     NSURL *url = VibeGoogleDriveURL(@"files", @{@"q": @"'a+b' in parents", @"fields": @"files(id,name)"});
     XCTAssertEqualObjects(url.host, @"www.googleapis.com");
     XCTAssertEqualObjects(url.path, @"/drive/v3/files");
-    XCTAssertEqualObjects(url.percentEncodedQuery, @"fields=files%28id%2Cname%29&q=%27a%2Bb%27%20in%20parents");
     NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+    XCTAssertEqualObjects(components.percentEncodedQuery, @"fields=files%28id%2Cname%29&q=%27a%2Bb%27%20in%20parents");
     XCTAssertEqualObjects(components.queryItems.lastObject.value, @"'a+b' in parents");
 }
 
-// GoogleDriveRules.h's TRAP: every other script's letters are encoded too.
+// VibeAccountQueryString's TRAP: every other script's letters are encoded
+// too.
 - (void)testANonASCIIQueryIsEncoded {
     NSURL *url = VibeGoogleDriveURL(@"files", @{@"q": VibeGoogleDriveSearchQuery(@"Beyoncé 日本")});
     XCTAssertNotNil(url);
-    XCTAssertTrue([url.percentEncodedQuery canBeConvertedToEncoding:NSASCIIStringEncoding]);
     NSURLComponents *components = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
+    XCTAssertTrue([components.percentEncodedQuery canBeConvertedToEncoding:NSASCIIStringEncoding]);
     XCTAssertEqualObjects(components.queryItems.firstObject.value, @"name contains 'Beyoncé 日本' and trashed = false");
 }
 
@@ -87,6 +88,7 @@
     XCTAssertEqual(VibeGoogleDriveSizeOf(@{@"size": @"1234567890123"}), 1234567890123LL);
     XCTAssertEqual(VibeGoogleDriveSizeOf(@{@"size": @42}), 42);
     XCTAssertEqual(VibeGoogleDriveSizeOf(@{@"size": @"0"}), 0);
+    XCTAssertEqual(VibeGoogleDriveSizeOf(@{@"size": @"12abc"}), -1);
     XCTAssertEqual(VibeGoogleDriveSizeOf(@{}), -1);
     XCTAssertEqual(VibeGoogleDriveSizeOf(nil), -1);
 }
@@ -96,14 +98,6 @@
     XCTAssertEqualObjects(VibeGoogleDriveVersionOf(@{@"headRevisionId": @"r1"}), @"r1");
     XCTAssertNil(VibeGoogleDriveVersionOf(@{@"md5Checksum": @""}));
     XCTAssertNil(VibeGoogleDriveVersionOf(nil));
-}
-
-- (void)testTimestampsParseWithOrWithoutFractions {
-    XCTAssertEqual(VibeGoogleDriveParseTimestamp(@"2015-05-12T15:50:38.123Z"), (time_t)1431445838);
-    XCTAssertEqual(VibeGoogleDriveParseTimestamp(@"2015-05-12T15:50:38Z"), (time_t)1431445838);
-    XCTAssertEqual(VibeGoogleDriveParseTimestamp(@"2015-05-12T15:50:38.123+01:00"), (time_t)-1);
-    XCTAssertEqual(VibeGoogleDriveParseTimestamp(@"2015-05-12T15:50:38.123Zjunk"), (time_t)-1);
-    XCTAssertEqual(VibeGoogleDriveParseTimestamp(nil), (time_t)-1);
 }
 
 - (void)testFoldersAndMirroredFilesAreKept {
@@ -159,9 +153,9 @@
 // Two files of one name: the first in id order takes the name, the second its
 // copy, and a listing in another order keeps both where they were.
 - (void)testSlotsAreStableAcrossListingOrder {
-    NSArray *entries = @[@{@"id": @"b", @"name": @"Song.mp3", @"folder": @NO},
-                         @{@"id": @"a", @"name": @"Song.mp3", @"folder": @NO},
-                         @{@"id": @"c", @"name": @"song.MP3", @"folder": @NO}];
+    NSArray *entries = @[@{@"id": @"b", @"name": @"Song.mp3"},
+                         @{@"id": @"a", @"name": @"Song.mp3"},
+                         @{@"id": @"c", @"name": @"song.MP3"}];
     NSDictionary *first = VibeGoogleDriveSlots(entries, @{});
     XCTAssertEqualObjects(first[@"a"], @"Song.mp3");
     XCTAssertEqualObjects(first[@"b"], @"Song (2).mp3");
@@ -175,16 +169,16 @@
 
 - (void)testARenamedEntryTakesANewSlot {
     NSDictionary *previous = @{@"a": @"Old.mp3"};
-    NSDictionary *slots = VibeGoogleDriveSlots(@[@{@"id": @"a", @"name": @"New.mp3", @"folder": @NO}], previous);
+    NSDictionary *slots = VibeGoogleDriveSlots(@[@{@"id": @"a", @"name": @"New.mp3"}], previous);
     XCTAssertEqualObjects(slots[@"a"], @"New.mp3");
     // A file literally named like a copy keeps that name.
-    slots = VibeGoogleDriveSlots(@[@{@"id": @"x", @"name": @"Song (2).mp3", @"folder": @NO}], @{@"x": @"Song (2).mp3"});
+    slots = VibeGoogleDriveSlots(@[@{@"id": @"x", @"name": @"Song (2).mp3"}], @{@"x": @"Song (2).mp3"});
     XCTAssertEqualObjects(slots[@"x"], @"Song (2).mp3");
 }
 
 - (void)testAFolderAndAFileOfOneNameShareNoSlot {
-    NSDictionary *slots = VibeGoogleDriveSlots(@[@{@"id": @"d", @"name": @"Live", @"folder": @YES},
-                                                 @{@"id": @"f", @"name": @"Live", @"folder": @NO}], @{});
+    NSDictionary *slots = VibeGoogleDriveSlots(@[@{@"id": @"d", @"name": @"Live", @"mimeType": VIBE_GOOGLE_DRIVE_FOLDER_TYPE},
+                                                 @{@"id": @"f", @"name": @"Live"}], @{});
     XCTAssertEqualObjects(slots[@"d"], @"Live");
     XCTAssertEqualObjects(slots[@"f"], @"Live (2)");
 }

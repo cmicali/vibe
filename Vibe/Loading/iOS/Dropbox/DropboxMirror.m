@@ -77,8 +77,10 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 
 #pragma mark - Paths
 
-// The path below the account, derived from local names and composed again
-// (see VibeAccountIndexKey); nil outside the account's mirror.
+// The path below the account from the URL's spelling alone, with no index
+// read, composed again (see VibeAccountIndexKey); nil outside the account's
+// mirror. A folder whose local name gained a collision suffix answers that
+// local spelling.
 - (NSString *)derivedDropboxPathForURL:(NSURL *)url {
     NSURL *account = self.accountURL;
     if (!account || !url.isFileURL) {
@@ -131,7 +133,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
     for (NSString *component in VibeDropboxPathComponents(path)) {
         NSArray<NSString *> *existing = [files contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
         directory = [directory URLByAppendingPathComponent:
-                VibeAccountLocalName(component, VibeAccountNameIndex(existing)) isDirectory:YES];
+                VibeDropboxLocalName(component, VibeAccountNameIndex(existing)) isDirectory:YES];
         [self ensureDirectoryAtURL:directory];
     }
     return directory;
@@ -141,17 +143,17 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 // they come down with the listing; tracks wait for their open. *discarded is
 // set when downloaded bytes went: a changed file back to a placeholder, or a
 // departed file or folder deleted.
-- (NSArray<NSDictionary *> *)reconcileDirectory:(NSURL *)directory
-                                           path:(NSString *)folderPath
-                                    withEntries:(NSArray<NSDictionary *> *)entries
-                                      discarded:(BOOL *)discarded {
+- (NSDictionary<NSURL *, id> *)reconcileDirectory:(NSURL *)directory
+                                             path:(NSString *)folderPath
+                                      withEntries:(NSArray<NSDictionary *> *)entries
+                                        discarded:(BOOL *)discarded {
     NSFileManager *files = NSFileManager.defaultManager;
     NSMutableDictionary<NSString *, NSString *> *identifiers = [NSMutableDictionary dictionary];
     NSArray<NSString *> *existing = [files contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
     NSDictionary<NSString *, NSString *> *existingNames = VibeAccountNameIndex(existing);
     NSSet<NSString *> *playable = PlayableExtensions.lookup;
     NSMutableSet<NSString *> *kept = [NSMutableSet set];
-    NSMutableArray<NSDictionary *> *sidecars = [NSMutableArray array];
+    NSMutableDictionary<NSURL *, id> *sidecars = [NSMutableDictionary dictionary];
     NSUInteger placeholders = 0;
 
     for (NSDictionary *entry in entries) {
@@ -165,7 +167,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             identifier = entry[@"path_lower"];
         }
         if (kind == VibeDropboxEntryKindFolder) {
-            NSString *local = VibeAccountLocalName(name, existingNames);
+            NSString *local = VibeDropboxLocalName(name, existingNames);
             [kept addObject:local];
             NSURL *child = [directory URLByAppendingPathComponent:local isDirectory:YES];
             [self ensureDirectoryAtURL:child];
@@ -181,14 +183,14 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         if (kind != VibeDropboxEntryKindFile || !VibeAccountNameIsMirrored(name, playable)) {
             continue;
         }
-        NSString *local = VibeAccountLocalName(name, existingNames);
+        NSString *local = VibeDropboxLocalName(name, existingNames);
         [kept addObject:local];
         if ([identifier isKindOfClass:NSString.class]) {
             identifiers[VibeAccountIndexKey(local)] = identifier;
         }
         NSURL *url = [directory URLByAppendingPathComponent:local isDirectory:NO];
         long long size = [entry[@"size"] longLongValue];
-        time_t modified = VibeDropboxParseTimestamp(entry[@"server_modified"]);
+        time_t modified = VibeAccountParseTimestamp(entry[@"server_modified"]);
         struct stat st;
         BOOL present = lstat(url.fileSystemRepresentation, &st) == 0 && S_ISREG(st.st_mode);
         if (present && VibeDropboxLocalMatchesEntry(st.st_size, st.st_mtimespec.tv_sec, size, modified)) {
@@ -196,7 +198,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         }
         if ([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]) {
             if ([identifier isKindOfClass:NSString.class]) {
-                [sidecars addObject:@{VibeAccountSidecarTargetKey: identifier, VibeAccountSidecarURLKey: url}];
+                sidecars[url] = identifier;
             }
             continue;
         }
@@ -288,7 +290,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             }
             NSURL *directory = [self directoryForDropboxPath:path account:account];
             BOOL discarded = NO;
-            NSArray<NSDictionary *> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries
+            NSDictionary<NSURL *, id> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries
                                                                discarded:&discarded];
             [self finishListingOfDirectory:directory sidecars:sidecars discarded:discarded completion:completion];
         });
@@ -342,18 +344,13 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         dispatch_async(self.diskQueue, ^{
             NSArray<NSString *> *existing = [NSFileManager.defaultManager
                     contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
-            NSURL *url = [folderURL URLByAppendingPathComponent:VibeAccountLocalName(name, VibeAccountNameIndex(existing))
+            NSURL *url = [folderURL URLByAppendingPathComponent:VibeDropboxLocalName(name, VibeAccountNameIndex(existing))
                                                     isDirectory:NO];
             dispatch_async(dispatch_get_main_queue(), ^{
                 completion(url, nil);
             });
         });
     }];
-}
-
-- (NSString *)nameOfEntry:(NSDictionary *)entry {
-    NSString *name = entry[@"name"];
-    return [name isKindOfClass:NSString.class] ? name : @"";
 }
 
 - (BOOL)entryIsFolder:(NSDictionary *)entry {
@@ -411,11 +408,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 // Downloaded bytes take the version's mtime, so the next listing sees them
 // as current.
 - (time_t)modificationTimeOfMetadata:(NSDictionary *)metadata forURL:(NSURL *)url {
-    return VibeDropboxParseTimestamp(metadata[@"server_modified"]);
-}
-
-- (NSString *)logName {
-    return @"Dropbox";
+    return VibeAccountParseTimestamp(metadata[@"server_modified"]);
 }
 
 @end

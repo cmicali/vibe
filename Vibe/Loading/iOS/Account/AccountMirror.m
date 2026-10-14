@@ -16,8 +16,6 @@
 
 NSNotificationName const VibeAccountDownloadsDidChangeNotification = @"VibeAccountDownloadsDidChangeNotification";
 NSString *const VibeAccountDownloadsBytesKey = @"bytes";
-NSString *const VibeAccountSidecarTargetKey = @"target";
-NSString *const VibeAccountSidecarURLKey = @"url";
 
 // A part file this old belongs to a download that died with the process.
 static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
@@ -77,16 +75,15 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 
 #pragma mark - The account
 
-- (NSString *)directoryNameOfAccountID:(NSString *)accountID {
-    return [accountID stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
-}
-
+// "/", the one character a file name cannot keep, becomes "_".
 - (NSURL *)accountURL {
     NSString *accountID = self.client.accountID;
     if (accountID.length == 0) {
         return nil;
     }
-    return [self.rootURL URLByAppendingPathComponent:[self directoryNameOfAccountID:accountID] isDirectory:YES];
+    return [self.rootURL URLByAppendingPathComponent:[accountID stringByReplacingOccurrencesOfString:@"/"
+                                                                                           withString:@"_"]
+                                         isDirectory:YES];
 }
 
 - (BOOL)isMirroredURL:(NSURL *)url {
@@ -181,7 +178,7 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 }
 
 - (void)finishListingOfDirectory:(NSURL *)directory
-                        sidecars:(NSArray<NSDictionary *> *)sidecars
+                        sidecars:(NSDictionary<NSURL *, id> *)sidecars
                        discarded:(BOOL)discarded
                       completion:(void (^)(NSURL *, NSError *))completion {
     if (discarded) {
@@ -201,12 +198,11 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
     // half-written bytes into place, where the folder's open reads them. A
     // listing that finds the sheet claimed waits on that download instead.
     dispatch_group_t fetched = dispatch_group_create();
-    for (NSDictionary *sidecar in sidecars) {
+    for (NSURL *url in sidecars) {
         dispatch_group_enter(fetched);
         dispatch_block_t leave = ^{
             dispatch_group_leave(fetched);
         };
-        NSURL *url = sidecar[VibeAccountSidecarURLKey];
         NSString *key = url.path;
         NSMutableArray<dispatch_block_t> *waiters = _sidecarWaiters[key];
         if (waiters) {
@@ -214,7 +210,7 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
             continue;
         }
         _sidecarWaiters[key] = [NSMutableArray arrayWithObject:leave];
-        [self downloadTarget:sidecar[VibeAccountSidecarTargetKey] installingAtURL:url progress:nil
+        [self downloadTarget:sidecars[url] installingAtURL:url progress:nil
                   completion:^(NSError *fetchError) {
             if (fetchError) {
                 LogWarn(@"%@: could not fetch %@: %@", self.logName, url.lastPathComponent,
@@ -238,6 +234,10 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 
 - (NSURL *)budgetRootURL {
     return self.accountURL;
+}
+
+- (NSString *)logName {
+    return self.serviceName;
 }
 
 // Any thread; posted on main. Every reader of a row's downloaded state hears
@@ -281,7 +281,8 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
 }
 
 - (NSString *)nameOfEntry:(NSDictionary *)entry {
-    return @"";
+    NSString *name = entry[@"name"];
+    return [name isKindOfClass:NSString.class] ? name : @"";
 }
 
 - (BOOL)entryIsFolder:(NSDictionary *)entry {

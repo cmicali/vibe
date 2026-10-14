@@ -86,11 +86,10 @@ static NSURL *VibeParseFakeDirectory(NSArray<NSString *> *tokens, double *second
 }
 
 // An account's state and the playlist's tracks in its mirror: each track's
-// remote name, whether it is a placeholder, and the transfer writing it now,
-// as the handle reads it. windowBytes is the tail window held, readers the
-// handles open on the part file.
-static NSDictionary *VibeAccountDump(AccountMirror *mirror, BOOL fake, RootViewController *controller,
-                                     NSString *(^remoteNameOfURL)(NSURL *url)) {
+// identity on the service, whether it is a placeholder, and the transfer
+// writing it now, as the handle reads it. windowBytes is the tail window
+// held, readers the handles open on the part file.
+static NSDictionary *VibeAccountDump(AccountMirror *mirror, BOOL fake, RootViewController *controller) {
     NSMutableDictionary *reply = [NSMutableDictionary dictionary];
     reply[@"linked"] = @(mirror.client.isLinked);
     reply[@"fake"] = @(fake);
@@ -102,7 +101,7 @@ static NSDictionary *VibeAccountDump(AccountMirror *mirror, BOOL fake, RootViewC
         if ([mirror containsURL:track.url]) {
             CloudFileAvailability *stream = [mirror availabilityForURL:track.url];
             [playlistInMirror addObject:@{
-                @"remote": remoteNameOfURL(track.url) ?: NSNull.null,
+                @"remote": [mirror identityOfURL:track.url] ?: NSNull.null,
                 @"placeholder": @([PlaceholderFiles isRemotePlaceholderFile:track.url]),
                 @"stream": stream ? @{@"size": @(stream.size), @"writtenBytes": @(stream.writtenBytes),
                                       @"windowBytes": @(stream.windowLength),
@@ -114,140 +113,84 @@ static NSDictionary *VibeAccountDump(AccountMirror *mirror, BOOL fake, RootViewC
     return reply;
 }
 
+// One account's verbs: dump_<slug> reads the account, set_fake_<slug> makes
+// a directory on disk the account over the client's own HTTP boundary (no
+// sign-in, no network; the app reads the fixture, so the simulator's host
+// paths work), dump_fake_<slug> reads the fake, and fake_<slug>_fault scripts
+// one streaming road with file= scoping it to a basename. The real sign-in
+// is the service's web sheet, which only a human fills.
+static NSArray<NSDictionary *> *VibeAccountVerbs(NSString *slug, AccountMirror *mirror, Class fake, NSString *kinds) {
+    NSString *setUsage = [NSString stringWithFormat:@"set_fake_%@ <directory>|off [<transfer-seconds>]", slug];
+    NSString *faultArguments = @"[file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]";
+    return @[
+        VibeDebugCmd([NSString stringWithFormat:@"dump_%@", slug], 0,
+                     ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            return VibeJSONString(VibeAccountDump(mirror, [fake isInstalled], controller));
+        }),
+        VibeDebugCmd(setUsage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            if (tokens.count < 2) {
+                return VibeErrorJSON(@"usage: %@", setUsage);
+            }
+            if ([tokens[1] isEqualToString:@"off"]) {
+                [fake uninstallFromClient:mirror.client];
+                return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
+            }
+            double seconds = 0;
+            NSString *error = nil;
+            NSURL *directory = VibeParseFakeDirectory(tokens, &seconds, &error);
+            if (!directory) {
+                return error;
+            }
+            [fake installWithDirectory:directory transferSeconds:seconds client:mirror.client];
+            return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": directory.path,
+                                    @"transferSeconds": @(seconds)});
+        }),
+        VibeDebugCmd([NSString stringWithFormat:@"dump_fake_%@", slug], 0,
+                     ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            NSMutableDictionary *reply = [[fake statistics] mutableCopy];
+            reply[@"fake"] = @([fake isInstalled]);
+            return VibeJSONString(reply);
+        }),
+        VibeDebugCmd([NSString stringWithFormat:@"fake_%@_fault <%@> %@", slug, kinds, faultArguments], 0,
+                     ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            if (tokens.count < 2) {
+                return VibeErrorJSON(@"usage: fake_%@_fault <%@> %@", slug, kinds, faultArguments);
+            }
+            NSString *kind = tokens[1];
+            if ([kind isEqualToString:@"clear"]) {
+                [fake clearFaults];
+            }
+            else if ([kind isEqualToString:@"resume"] && [fake respondsToSelector:@selector(resumeStalls)]) {
+                [fake resumeStalls];
+            }
+            else {
+                NSString *error = nil;
+                NSDictionary *arguments = VibeParseFaultArguments(tokens, kind, &error);
+                if (!arguments) {
+                    return error;
+                }
+                if (![fake addFaultOfKind:kind file:arguments[@"file"]
+                                    after:[arguments[@"after"] unsignedLongLongValue]
+                                  seconds:[arguments[@"seconds"] doubleValue]
+                                     rate:[arguments[@"rate"] unsignedLongLongValue]]) {
+                    return VibeErrorJSON(@"unknown fault: %@", kind);
+                }
+            }
+            return VibeJSONString(@{@"ok": @YES, @"faults": [fake statistics][@"faults"]});
+        }),
+    ];
+}
+
 NSArray<NSDictionary *> *VibeDebugAccountVerbs(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        table = @[
-            // The Dropbox account and its mirror. The sign-in is Dropbox's own
-            // web sheet, which neither the channel nor the driver can fill;
-            // a human signs in, and this reads the result.
-            VibeDebugCmd(@"dump_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                DropboxMirror *mirror = DropboxMirror.shared;
-                return VibeJSONString(VibeAccountDump(mirror, VibeFakeDropbox.isInstalled, controller, ^NSString *(NSURL *url) {
-                    return [mirror dropboxPathForURL:url];
-                }));
-            }),
-            // A directory on disk answers as the account over the client's own
-            // HTTP boundary (VibeFakeDropbox.h): no sign-in, no network. The
-            // fixture is read by the app, so the simulator's host paths work.
-            VibeDebugCmd(@"set_fake_dropbox <directory>|off [<transfer-seconds>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: set_fake_dropbox <directory>|off [<transfer-seconds>]");
-                }
-                DropboxClient *client = DropboxMirror.shared.client;
-                if ([tokens[1] isEqualToString:@"off"]) {
-                    [VibeFakeDropbox uninstallFromClient:client];
-                    return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
-                }
-                double seconds = 0;
-                NSString *error = nil;
-                NSURL *directory = VibeParseFakeDirectory(tokens, &seconds, &error);
-                if (!directory) {
-                    return error;
-                }
-                [VibeFakeDropbox installWithDirectory:directory transferSeconds:seconds client:client];
-                return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": directory.path,
-                                        @"transferSeconds": @(seconds)});
-            }),
-            VibeDebugCmd(@"dump_fake_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                NSMutableDictionary *reply = [VibeFakeDropbox.statistics mutableCopy];
-                reply[@"fake"] = @(VibeFakeDropbox.isInstalled);
-                return VibeJSONString(reply);
-            }),
-            // One streaming road each (VibeFakeDropbox.h); file= scopes it to
-            // a basename. Byte counts take K and M.
-            VibeDebugCmd(@"fake_dropbox_fault <stall|drop|rev-change|throttle|expired-token|tail-fail|slow-tail|slow-tags|rate|latency|resume|clear> "
-                         @"[file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: fake_dropbox_fault <kind|resume|clear> [file=<basename>] "
-                                         @"[after=<bytes>] [seconds=<s>] [rate=<bytes/s>]");
-                }
-                NSString *kind = tokens[1];
-                if ([kind isEqualToString:@"clear"]) {
-                    [VibeFakeDropbox clearFaults];
-                }
-                else if ([kind isEqualToString:@"resume"]) {
-                    [VibeFakeDropbox resumeStalls];
-                }
-                else {
-                    NSString *error = nil;
-                    NSDictionary *arguments = VibeParseFaultArguments(tokens, kind, &error);
-                    if (!arguments) {
-                        return error;
-                    }
-                    if (![VibeFakeDropbox addFaultOfKind:kind file:arguments[@"file"]
-                                                   after:[arguments[@"after"] unsignedLongLongValue]
-                                                 seconds:[arguments[@"seconds"] doubleValue]
-                                                    rate:[arguments[@"rate"] unsignedLongLongValue]]) {
-                        return VibeErrorJSON(@"unknown fault: %@", kind);
-                    }
-                }
-                return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeDropbox.statistics[@"faults"]});
-            }),
-            // The Google Drive account and its mirror. Its sign-in is Google's
-            // web sheet, which only a human fills.
-            VibeDebugCmd(@"dump_google_drive", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                GoogleDriveMirror *mirror = GoogleDriveMirror.shared;
-                return VibeJSONString(VibeAccountDump(mirror, VibeFakeGoogleDrive.isInstalled, controller, ^NSString *(NSURL *url) {
-                    return [mirror identityOfURL:url];
-                }));
-            }),
-            // A directory on disk answers as My Drive (VibeFakeGoogleDrive.h).
-            VibeDebugCmd(@"set_fake_google_drive <directory>|off [<transfer-seconds>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: set_fake_google_drive <directory>|off [<transfer-seconds>]");
-                }
-                GoogleDriveClient *client = GoogleDriveMirror.shared.client;
-                if ([tokens[1] isEqualToString:@"off"]) {
-                    [VibeFakeGoogleDrive uninstallFromClient:client];
-                    return VibeJSONString(@{@"ok": @YES, @"fake": @NO});
-                }
-                double seconds = 0;
-                NSString *error = nil;
-                NSURL *directory = VibeParseFakeDirectory(tokens, &seconds, &error);
-                if (!directory) {
-                    return error;
-                }
-                [VibeFakeGoogleDrive installWithDirectory:directory transferSeconds:seconds client:client];
-                return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": directory.path,
-                                        @"transferSeconds": @(seconds)});
-            }),
-            VibeDebugCmd(@"dump_fake_google_drive", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                NSMutableDictionary *reply = [VibeFakeGoogleDrive.statistics mutableCopy];
-                reply[@"fake"] = @(VibeFakeGoogleDrive.isInstalled);
-                return VibeJSONString(reply);
-            }),
-            VibeDebugCmd(@"fake_google_drive_fault <stall|drop|version-change|throttle|expired-token|rate|latency|clear> "
-                         @"[file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: fake_google_drive_fault <kind|clear> [file=<basename>] "
-                                         @"[after=<bytes>] [seconds=<s>] [rate=<bytes/s>]");
-                }
-                NSString *kind = tokens[1];
-                if ([kind isEqualToString:@"clear"]) {
-                    [VibeFakeGoogleDrive clearFaults];
-                }
-                else {
-                    NSString *error = nil;
-                    NSDictionary *arguments = VibeParseFaultArguments(tokens, kind, &error);
-                    if (!arguments) {
-                        return error;
-                    }
-                    if (![VibeFakeGoogleDrive addFaultOfKind:kind file:arguments[@"file"]
-                                                       after:[arguments[@"after"] unsignedLongLongValue]
-                                                     seconds:[arguments[@"seconds"] doubleValue]
-                                                        rate:[arguments[@"rate"] unsignedLongLongValue]]) {
-                        return VibeErrorJSON(@"unknown fault: %@", kind);
-                    }
-                }
-                return VibeJSONString(@{@"ok": @YES, @"faults": VibeFakeGoogleDrive.statistics[@"faults"]});
-            }),
-        ];
+        // Each fake's kinds are in its header.
+        table = [VibeAccountVerbs(@"dropbox", DropboxMirror.shared, VibeFakeDropbox.class,
+                                  @"stall|drop|rev-change|throttle|expired-token|tail-fail|slow-tail|slow-tags|rate|latency|resume|clear")
+                 arrayByAddingObjectsFromArray:
+                 VibeAccountVerbs(@"google_drive", GoogleDriveMirror.shared, VibeFakeGoogleDrive.class,
+                                  @"stall|drop|version-change|throttle|expired-token|rate|latency|clear")];
     });
     return table;
 }

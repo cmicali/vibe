@@ -11,11 +11,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// A playlist file a listing fetches: the target the client downloads, and
-// the URL it is installed at.
-extern NSString *const VibeAccountSidecarTargetKey;
-extern NSString *const VibeAccountSidecarURLKey;
-
 @interface AccountMirror ()
 
 // The disk queue. A directory at url, made when missing; a file in the way
@@ -31,19 +26,13 @@ extern NSString *const VibeAccountSidecarURLKey;
                     kept:(NSSet<NSString *> *)kept;
 
 // The disk queue, last in a listing: reports the downloads' new total when
-// bytes were discarded, downloads the playlist files (each a dictionary of
-// the sidecar keys above) side by side off the disk queue, then completes on
-// main with the directory.
+// bytes were discarded, downloads the playlist files (the target the client
+// downloads, by the URL it is installed at) side by side off the disk queue,
+// then completes on main with the directory.
 - (void)finishListingOfDirectory:(NSURL *)directory
-                        sidecars:(NSArray<NSDictionary *> *)sidecars
+                        sidecars:(NSDictionary<NSURL *, id> *)sidecars
                        discarded:(BOOL)discarded
                       completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
-
-#pragma mark Hooks
-
-// The account directory's name for an account id. The default swaps "/" for
-// "_", the one character a file name cannot keep.
-- (NSString *)directoryNameOfAccountID:(NSString *)accountID;
 
 @end
 
