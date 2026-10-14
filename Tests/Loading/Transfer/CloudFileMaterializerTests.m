@@ -9,6 +9,7 @@
 #import <XCTest/XCTest.h>
 #include <stdatomic.h>
 
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
 #import "CloudFileMaterializer+Debug.h"
 #import "PlaceholderFiles+Debug.h"
@@ -1026,6 +1027,33 @@ static void TakeNews(CloudFileAvailability *availability) {
     CloudFileAvailability *idle = [[CloudFileAvailability alloc] initWithoutPartFile];
     XCTAssertTrue([idle waitForWorkUntil:[NSDate dateWithTimeIntervalSinceNow:0.05]
                                   wanted:&wanted length:&length readerPosition:&position]);
+}
+
+// A play's handle raises its read-ahead's span after the thread has fetched
+// up to the old one. Only a rise is news. The span starts at the floor. A
+// transfer ignores the setter.
+- (void)testRaisingTheSpanWakesTheWritersWaitForWork {
+    CloudFileAvailability *availability = [[CloudFileAvailability alloc] initWithoutPartFile];
+    XCTAssertEqual(availability.readAheadSpan, kVibeReadAheadFloorBytes);
+    [availability noteSize:100];
+    availability.readAheadSpan = 8;
+    TakeNews(availability);
+    BOOL open = NO;
+    uint64_t wanted = 0, length = 0, position = 0;
+    dispatch_semaphore_t woken = [self waitForWork:availability open:&open wanted:&wanted length:&length position:&position];
+    availability.readAheadSpan = 8;
+    availability.readAheadSpan = 4;
+    [self assertStillWaiting:woken];
+    XCTAssertEqual(availability.readAheadSpan, 4u);
+    availability.readAheadSpan = 16;
+    [self awaitReturn:woken];
+    XCTAssertTrue(open);
+    XCTAssertEqual(availability.readAheadSpan, 16u);
+
+    CloudFileAvailability *transfer = [[CloudFileAvailability alloc] initWithPartURL:[NSURL fileURLWithPath:@"/p"] size:100];
+    uint64_t span = transfer.readAheadSpan;
+    transfer.readAheadSpan = span + 16;
+    XCTAssertEqual(transfer.readAheadSpan, span);
 }
 
 // Either writer's wait, once blocked, sees an interrupt set after it blocked

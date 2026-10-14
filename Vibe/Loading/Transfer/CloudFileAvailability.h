@@ -115,11 +115,12 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 
 // The writer's wait for work, for a writer with no part file. A transfer
 // never calls it. It returns at once on news since its last call: a wait
-// began to block, the reader entered another block, or readAheadPaused was
-// cleared. Otherwise it returns at the deadline. It reports the range a
-// blocked wait wants, length 0 when none is blocked, and the reader's
-// position, the offset of the most recent wait. These are reported on every
-// return. A writer that has just installed a block reads them afresh.
+// began to block, the reader entered another block, readAheadPaused was
+// cleared, or readAheadSpan grew. Otherwise it returns at the deadline. It
+// reports the range a blocked wait wants, length 0 when none is blocked, and
+// the reader's position, the offset of the most recent wait. These are
+// reported on every return. A writer that has just installed a block reads
+// them afresh.
 // NO once finished, at once.
 - (BOOL)waitForWorkUntil:(NSDate *)deadline
                   wanted:(uint64_t *)offset
@@ -131,6 +132,10 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // a range a wait wants. Clearing it wakes the writer's wait for work. A
 // transfer ignores it.
 @property (nonatomic) BOOL readAheadPaused;
+// How far past the reader's position the writer fetches, in bytes. It starts
+// at kVibeReadAheadFloorBytes, and a play's handle may raise it. A rise wakes
+// the writer's wait for work. A transfer ignores it.
+@property (nonatomic) uint64_t readAheadSpan;
 
 // A holder: a reader, an AudioFileHandle open on the part file, counted from
 // its open to its dealloc, or an open about to become one, so whoever runs the

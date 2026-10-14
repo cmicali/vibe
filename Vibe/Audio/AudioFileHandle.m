@@ -4,6 +4,7 @@
 //
 
 #import "AudioFileHandleInternal.h"
+#import "AudioFileOpenRules.h"
 #import "CloudFileMaterializer.h"
 #import "NetworkReadAhead.h"
 #if DEBUG
@@ -160,7 +161,7 @@ BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
             }
             atomic_store(waiting, true);
             return NO;
-        } deadline:slices ? [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadOpenPollSeconds] : nil error:&error];
+        } deadline:slices ? [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadPollSeconds] : nil error:&error];
     } while (slices && wait == CloudFileAvailabilityInterrupted && !atomic_load(interrupted) && !openInterrupted());
     atomic_store(waiting, false);
     if (wait == CloudFileAvailabilityReady) {
@@ -425,6 +426,10 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     if (_availability.partURL && !_holdsStream) {
         _holdsStream = YES;
         [_availability addReader]; // removed by dealloc
+    } else if (_availability && _readAheadEnd) {
+        double rate = _processingFormat.sampleRate;
+        double seconds = rate > 0 ? (double)self.length / rate : 0;
+        VibeNetworkReadAheadSizePlay(_availability, _readAheadEnd, VibeReadAheadSpanBytes((uint64_t)MAX(0, _size), seconds));
     }
 }
 

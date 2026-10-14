@@ -18,9 +18,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// How often a read-ahead's open asks its `interrupted` block again. Its
-// canceller wakes only a transfer (availabilityForURL:), never a read-ahead.
-static const NSTimeInterval kVibeReadAheadOpenPollSeconds = 0.25;
+// How often a read-ahead's waits ask again: an open's `interrupted` block,
+// the wait for room among the orphans, and a play held back by an earlier
+// one. No wake reaches a read-ahead from another: the open's canceller wakes
+// only a transfer (availabilityForURL:).
+static const NSTimeInterval kVibeReadAheadPollSeconds = 0.25;
 
 // Whether `url` reads ahead: the kernel's mount table says its mount is a
 // network one. *mount names that mount, for the log.
@@ -34,6 +36,12 @@ BOOL VibeNetworkReadAheadAwaitRoom(NSString *name, BOOL (^interrupted)(void));
 // thread that fills it. *end is the flags cell the handle shares with the
 // thread, for VibeNetworkReadAheadHandleGone.
 CloudFileAvailability *VibeNetworkReadAheadStart(NSURL *url, NSString *mount, uint8_t *_Nullable *_Nonnull end);
+
+// A play's handle sizes its read-ahead: sets its span, and makes it a play
+// read-ahead, after every one sized before it. It then fetches ahead of its
+// reader only while each earlier one is idle. A range a wait wants is always
+// fetched. Again for the same read-ahead, it only sets the span.
+void VibeNetworkReadAheadSizePlay(CloudFileAvailability *availability, uint8_t *end, uint64_t span);
 
 // Finishes a read-ahead's availability with a "closed" error. That ends its
 // thread once its current read returns.

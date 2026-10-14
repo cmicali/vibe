@@ -4,6 +4,7 @@
 //
 
 #import "CloudFileAvailability.h"
+#import "AudioFileOpenRules.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -40,6 +41,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
     uint64_t _signalledBlockOffset;
     BOOL _writerSignalled;
     BOOL _readAheadPaused;
+    uint64_t _readAheadSpan;
 }
 
 - (instancetype)initWithoutPartFile {
@@ -50,6 +52,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
         _blocks = [NSMutableArray array];
         _blockOffsets = [NSMutableArray array];
         _signalledBlockOffset = UINT64_MAX;
+        _readAheadSpan = kVibeReadAheadFloorBytes;
     }
     return self;
 }
@@ -425,6 +428,25 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
         [self signalWriter];
     }
     _readAheadPaused = readAheadPaused;
+    [_condition unlock];
+}
+
+- (uint64_t)readAheadSpan {
+    [_condition lock];
+    uint64_t span = _readAheadSpan;
+    [_condition unlock];
+    return span;
+}
+
+- (void)setReadAheadSpan:(uint64_t)readAheadSpan {
+    if (_partURL) {
+        return;
+    }
+    [_condition lock];
+    if (readAheadSpan > _readAheadSpan) {
+        [self signalWriter];
+    }
+    _readAheadSpan = readAheadSpan;
     [_condition unlock];
 }
 

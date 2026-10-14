@@ -16,11 +16,11 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 
-// The read-ahead (VibeReadAheadRun) fetches 256 KB blocks up to 8 MB ahead of
-// the reader. It keeps one block behind the reader's. An MP3 seek's preroll
-// and dr_flac's bisection read back over it.
+// The read-ahead (VibeReadAheadRun) fetches 256 KB blocks up to its
+// availability's span ahead of the reader. That is 8 MB until a play's handle
+// sizes it (VibeReadAheadSpanBytes). It keeps one block behind the reader's.
+// An MP3 seek's preroll and dr_flac's bisection read back over it.
 enum { kVibeReadAheadBlock = 256 * 1024 };
-static const uint64_t kVibeReadAheadSpan = 8 * 1024 * 1024;
 // A failed read is tried again this long after, until the handle goes.
 static const NSTimeInterval kVibeReadAheadRetrySeconds = 1;
 // Read-ahead threads whose handle is gone while they are still inside a read,
@@ -31,10 +31,17 @@ static const NSInteger kVibeReadAheadOrphanLimit = 8;
 // TRAP: both edges of a read-ahead's end run under this lock: its handle's
 // dealloc and its thread's exit. A thread still running at the dealloc is an
 // orphan until it exits, and no other thread ever is. The two share one
-// flags cell. The second edge frees it.
+// flags cell. The second edge frees it. The cell also holds the busy bit. It
+// is no edge, and the edge test masks it out. TRAP: nothing holds this lock
+// across an availability call or a syscall. A handle's dealloc takes it where
+// the player waits.
 static os_unfair_lock sReadAheadLock = OS_UNFAIR_LOCK_INIT;
 static NSInteger sOrphanedReadAheads;
-enum { kVibeReadAheadHandleGone = 1, kVibeReadAheadThreadGone = 2 };
+enum { kVibeReadAheadHandleGone = 1, kVibeReadAheadThreadGone = 2, kVibeReadAheadBusy = 4 };
+// The flags cells of the play read-aheads, in the order their handles sized
+// them. Under sReadAheadLock. A cell leaves at its thread's exit, before it
+// can be freed.
+static NSPointerArray *sPlayReadAheads;
 
 #if DEBUG
 // TRAP: set on a test's thread, read on opens and read-ahead threads. An
@@ -98,22 +105,38 @@ BOOL VibeNetworkReadAheadAwaitRoom(NSString *name, BOOL (^interrupted)(void)) {
             LogWarn(@"Read-ahead: %@ waits: %ld reads of closed files are stuck", name, (long)kVibeReadAheadOrphanLimit);
             logged = YES;
         }
-        [NSThread sleepForTimeInterval:kVibeReadAheadOpenPollSeconds];
+        [NSThread sleepForTimeInterval:kVibeReadAheadPollSeconds];
     }
     return YES;
 }
 
+// Under sReadAheadLock: where the cell stands among the play read-aheads.
+// NSNotFound when it is not one.
+static NSUInteger VibePlayReadAheadIndex(uint8_t *flags) {
+    for (NSUInteger i = 0; i < sPlayReadAheads.count; i++) {
+        if ([sPlayReadAheads pointerAtIndex:i] == flags) {
+            return i;
+        }
+    }
+    return NSNotFound;
+}
+
 // One edge of a read-ahead's end: the handle's dealloc, or the thread's exit
 // after its last syscall. When the handle's edge comes first, the thread is
-// an orphan until its own edge.
+// an orphan until its own edge. The thread's edge takes the cell out of the
+// play read-aheads.
 static void VibeReadAheadEnd(uint8_t *flags, uint8_t edge) {
     os_unfair_lock_lock(&sReadAheadLock);
-    BOOL second = *flags != 0;
+    BOOL second = (*flags & (kVibeReadAheadHandleGone | kVibeReadAheadThreadGone)) != 0;
     *flags |= edge;
     if (edge == kVibeReadAheadHandleGone && !second) {
         sOrphanedReadAheads++;
     } else if (edge == kVibeReadAheadThreadGone && second) {
         sOrphanedReadAheads--;
+    }
+    NSUInteger index = edge == kVibeReadAheadThreadGone ? VibePlayReadAheadIndex(flags) : NSNotFound;
+    if (index != NSNotFound) {
+        [sPlayReadAheads removePointerAtIndex:index];
     }
     os_unfair_lock_unlock(&sReadAheadLock);
     if (second) {
@@ -124,6 +147,23 @@ static void VibeReadAheadEnd(uint8_t *flags, uint8_t edge) {
         atomic_fetch_sub(&sDebugLiveReadAheads, 1);
     }
 #endif
+}
+
+// Whether this pass's block waits for an earlier play. A range a wait wants
+// never does. A block ahead does while a play read-ahead sized before this
+// one is busy and its handle lives. The busy bit keeps the answer: set while
+// the pass fetches a block.
+static BOOL VibeReadAheadHeldBack(uint8_t *flags, BOOL wanted, BOOL fetches) {
+    os_unfair_lock_lock(&sReadAheadLock);
+    BOOL heldBack = NO;
+    NSUInteger index = fetches && !wanted ? VibePlayReadAheadIndex(flags) : NSNotFound;
+    for (NSUInteger i = 0; index != NSNotFound && i < index && !heldBack; i++) {
+        uint8_t earlier = *(uint8_t *)[sPlayReadAheads pointerAtIndex:i];
+        heldBack = (earlier & (kVibeReadAheadBusy | kVibeReadAheadHandleGone)) == kVibeReadAheadBusy;
+    }
+    *flags = (uint8_t)(fetches && !heldBack ? *flags | kVibeReadAheadBusy : *flags & ~kVibeReadAheadBusy);
+    os_unfair_lock_unlock(&sReadAheadLock);
+    return heldBack;
 }
 
 // What ends a read-ahead's availability when its handle lets it go.
@@ -173,12 +213,12 @@ static ssize_t VibeReadAheadPread(int descriptor, NSURL *url, uint8_t *buffer, u
 // The read-ahead's thread: the one thread that enters the kernel for its
 // file. It fetches a range a blocked wait wants first, rounded out to whole
 // blocks, else the next block after the reader's up to the span ahead, unless
-// paused. It installs each in the availability and drops what lies outside
-// the reader's span. A failed read is tried again after a pause, reopened,
-// until the availability finishes. A reopened file that changed fails the
-// availability. A read that finds nothing short of the size is the end only
-// when the file is now that short. TRAP: it retains the availability only,
-// never its handle.
+// paused or held back (VibeReadAheadHeldBack). It installs each in the
+// availability and drops what lies outside the reader's span. A failed read
+// is tried again after a pause, reopened, until the availability finishes. A
+// reopened file that changed fails the availability. A read that finds
+// nothing short of the size is the end only when the file is now that short.
+// TRAP: it retains the availability only, never its handle.
 // The handle's dealloc can then finish the availability and end it. TRAP:
 // nothing here holds the availability's lock across open, pread or close.
 // The player queue takes that lock through interruptReads and wakeWaiters.
@@ -210,6 +250,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
         }
         until = NSDate.distantFuture;
         uint64_t end = availability.size;
+        uint64_t span = availability.readAheadSpan;
         uint64_t wantedEnd = MIN(wantedOffset + wantedLength, end);
         uint64_t start = 0, stop = 0;
         uint64_t held = wantedLength > 0 ? [availability heldEndAt:wantedOffset] : end;
@@ -220,7 +261,11 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             stop = MIN((wantedEnd + kVibeReadAheadBlock - 1) / kVibeReadAheadBlock * kVibeReadAheadBlock, end);
         } else if (!availability.readAheadPaused) {
             start = [availability heldEndAt:position / kVibeReadAheadBlock * kVibeReadAheadBlock];
-            stop = start < position + kVibeReadAheadSpan ? MIN((start / kVibeReadAheadBlock + 1) * kVibeReadAheadBlock, end) : 0;
+            stop = start < position + span ? MIN((start / kVibeReadAheadBlock + 1) * kVibeReadAheadBlock, end) : 0;
+        }
+        if (VibeReadAheadHeldBack(flags, held < wantedEnd, stop > start)) {
+            until = [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadPollSeconds];
+            continue;
         }
         if (stop <= start) {
             continue;
@@ -238,7 +283,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             [availability installBlock:bytes atOffset:start];
             uint64_t behind = position / kVibeReadAheadBlock * kVibeReadAheadBlock;
             behind = behind >= kVibeReadAheadBlock ? behind - kVibeReadAheadBlock : 0;
-            [availability dropBlocksOutsideRangeAt:behind length:position + kVibeReadAheadSpan - behind];
+            [availability dropBlocksOutsideRangeAt:behind length:position + span - behind];
         }
         until = NSDate.distantPast;
         // TRAP: a network mount can read 0 bytes short of the size while it
@@ -314,6 +359,21 @@ CloudFileAvailability *VibeNetworkReadAheadStart(NSURL *url, NSString *mount, ui
 #endif
     [thread start];
     return availability;
+}
+
+// Listed before the span rises, so the rise's wake finds it in its place. A
+// thread already gone would never take its cell out.
+void VibeNetworkReadAheadSizePlay(CloudFileAvailability *availability, uint8_t *end, uint64_t span) {
+    os_unfair_lock_lock(&sReadAheadLock);
+    if (!(*end & kVibeReadAheadThreadGone) && VibePlayReadAheadIndex(end) == NSNotFound) {
+        if (!sPlayReadAheads) {
+            sPlayReadAheads = [NSPointerArray pointerArrayWithOptions:NSPointerFunctionsOpaqueMemory
+                                                                      | NSPointerFunctionsOpaquePersonality];
+        }
+        [sPlayReadAheads addPointer:end];
+    }
+    os_unfair_lock_unlock(&sReadAheadLock);
+    availability.readAheadSpan = span;
 }
 
 void VibeNetworkReadAheadClose(CloudFileAvailability *availability, NSURL *url) {

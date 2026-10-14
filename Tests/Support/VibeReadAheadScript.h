@@ -32,6 +32,9 @@ static const uint64_t kReadAheadBlock = 256 * 1024;
 @property (nonatomic, readonly) dispatch_semaphore_t failed;
 @property (atomic) useconds_t throttle;
 - (void)stallFrom:(uint64_t)offset;
+// Stalls only the reads of the file named `name`. Nil is every file's, as
+// stallFrom: is.
+- (void)stallReadsOf:(nullable NSString *)name from:(uint64_t)offset;
 // Lets one stalled read through. The rest stay stalled.
 - (void)releaseOneStall;
 // Releases every stalled read and every held failure.
