@@ -18,7 +18,9 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 **TRAP: every column's attributes must carry a truncating paragraph style.** Cell content is an attributed string, and its paragraph style beats the cell's `lineBreakMode`. The default wraps a long title into a clipped second line, and `PlaylistTextCell`'s own truncation is not enough.
 
-**Cell attributes are cached until the `PlaylistAppearance` effect invalidates them** (`+invalidateCellAttributes`, then `reloadData`). `ensureCellAttributes` reads the theme's per-column colors (`resolvedPlaylistColorForBase:`, `Common/Mac/Theme/AGENTS.md`) and the playlist font.
+**Cell attributes are cached until the `PlaylistAppearance` effect invalidates them** (`+invalidateCellAttributes`, then `reloadAllTracks`).
+
+**TRAP: on macOS 27, `reloadData` clears a view-based table's selection and posts no change.** `reloadAllTracks` is the whole-list reload, and it puts the selection back. The `PlaylistAppearance` effect, the folder-art setting and a grant change all use it. A new whole-list reload must use it too. `ensureCellAttributes` reads the theme's per-column colors (`resolvedPlaylistColorForBase:`, `Common/Mac/Theme/AGENTS.md`) and the playlist font.
 
 **An evicted thumbnail shows the placeholder, and the cell callback never decodes.** Recovery posts the exact metadata object. `thumbnailDidLoad:` then reloads the art column of only the visible rows holding that object.
 
@@ -59,7 +61,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## Replacement, append and play
 
-**`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadData`, which would otherwise keep a stale selection by row index. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
+**`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadData`. `reloadData` can keep the selection by row index, which would land on an unrelated row. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
 
 **Row starts go through `playStartPaused:`.** `playWillStartHandler` fires after submission for parked and ordinary starts. The shell's `replayTrack:intent:` submits directly to `AudioPlayer` to preserve position (`Mac/MainWindow/AGENTS.md`).
 

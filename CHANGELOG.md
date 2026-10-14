@@ -15,6 +15,7 @@
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
 * mac: Fixed the waveform's hover line getting lost over the played part
+* mac: Fixed theme changes clearing the playlist selection on macOS 27
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
 * ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors
 * ios: Added album art for iCloud and Dropbox songs that aren't downloaded
