@@ -1,11 +1,7 @@
-* New: the Spectrum waveform style colors each bar by its mix of bass, mids, and highs
-* New: the RGB theme, which uses the Spectrum style
-* New: Add to Playlist… (⇧⌘O) in the File menu
-* New: Move to Trash (⌘⌫) deletes a song's file from the playlist, with Undo
-* New: Open URL… plays iCloud Drive share links
-* New: the Dark Wolf theme changes the app icon
-* Changed: Basic is now Bars, and Cupertino Basic is now Progress
-* Changed: the four Detailed styles are now one style with a Type setting
-* Changed: Previous on the first song restarts it
-* Improved: a slow network share no longer stalls track changes
-* Fixed: the resize cursor sometimes vanishing at the window's right edge
+* New: Buffering… shows while a song waits for a slow network share or download
+* New: theme colors for the text of the playing row and selected rows
+* Changed: Vibe checks for updates once a day instead of once a week
+* Changed: update checks count active installs, with no identifier and no IP address
+* Improved: hi-res songs play more smoothly from a slow network share
+* Fixed: the waveform's hover line getting lost over the played part
+* Fixed: theme changes clearing the playlist selection on macOS 27
