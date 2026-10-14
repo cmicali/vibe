@@ -132,12 +132,18 @@ static NSDictionary *titleAttributes;
 static NSDictionary *artistAttributes;
 // nil while the row's switch is off. Cached so a row view's repeated push
 // compares by pointer.
-static NSColor *playingRowTextColor;
-static NSColor *selectedRowTextColor;
+static NSColor *playingRowTitleColor;
+static NSColor *playingRowArtistColor;
+static NSColor *selectedRowTitleColor;
+static NSColor *selectedRowArtistColor;
 // Not dispatch_once: they carry the theme's fonts and colors, so the
 // PlaylistAppearance effect invalidates them.
 static BOOL cellAttributesBuilt;
 static NSImage *defaultArtImage;
+
+static NSColor *RowTextColor(AppTheme *theme, NSString *base) {
+    return [theme playlistColorEnabledForBase:base] ? [theme resolvedPlaylistColorForBase:base] : nil;
+}
 
 static void ensureCellAttributes(void) {
     if (!cellAttributesBuilt) {
@@ -173,6 +179,7 @@ static void ensureCellAttributes(void) {
                 NSParagraphStyleAttributeName: right,
         };
         titleAttributes = @{
+                PlaylistTitleRunAttributeName: @YES,
                 NSForegroundColorAttributeName: titleColor,
                 NSKernAttributeName: @(-0.3),
                 NSFontAttributeName: [Fonts playlistFont],
@@ -184,10 +191,10 @@ static void ensureCellAttributes(void) {
                 NSFontAttributeName: [Fonts playlistFont],
                 NSParagraphStyleAttributeName: left,
         };
-        playingRowTextColor = [theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowText]
-                ? [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistPlayingRowText] : nil;
-        selectedRowTextColor = [theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowText]
-                ? [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistSelectedRowText] : nil;
+        playingRowTitleColor = RowTextColor(theme, kVibeThemeColorPlaylistPlayingRowTitle);
+        playingRowArtistColor = RowTextColor(theme, kVibeThemeColorPlaylistPlayingRowArtist);
+        selectedRowTitleColor = RowTextColor(theme, kVibeThemeColorPlaylistSelectedRowTitle);
+        selectedRowArtistColor = RowTextColor(theme, kVibeThemeColorPlaylistSelectedRowArtist);
     }
 }
 
@@ -366,14 +373,17 @@ static NSTextField *makeCellTextField(NSRect frame) {
                                            attributes:lengthColumnAttributes];
 }
 
-// A selected row takes the selected color, nil included, as it takes the
+// A selected row takes the selected colors, nil included, as it takes the
 // selected fill. A selected playing row never draws the playing color.
-+ (NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing {
++ (NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing title:(BOOL)title {
     ensureCellAttributes();
     if (selected) {
-        return selectedRowTextColor;
+        return title ? selectedRowTitleColor : selectedRowArtistColor;
     }
-    return playing ? playingRowTextColor : nil;
+    if (playing) {
+        return title ? playingRowTitleColor : playingRowArtistColor;
+    }
+    return nil;
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {

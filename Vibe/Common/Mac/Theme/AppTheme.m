@@ -97,8 +97,10 @@ NSString *const kVibeThemeColorPlaylistNumber = @"playlistNumberColor";
 NSString *const kVibeThemeColorPlaylistTitle = @"playlistTitleColor";
 NSString *const kVibeThemeColorPlaylistArtist = @"playlistArtistColor";
 NSString *const kVibeThemeColorPlaylistDuration = @"playlistDurationColor";
-NSString *const kVibeThemeColorPlaylistPlayingRowText = @"playlistPlayingRowTextColor";
-NSString *const kVibeThemeColorPlaylistSelectedRowText = @"playlistSelectedRowTextColor";
+NSString *const kVibeThemeColorPlaylistPlayingRowTitle = @"playlistPlayingRowTitleColor";
+NSString *const kVibeThemeColorPlaylistPlayingRowArtist = @"playlistPlayingRowArtistColor";
+NSString *const kVibeThemeColorPlaylistSelectedRowTitle = @"playlistSelectedRowTitleColor";
+NSString *const kVibeThemeColorPlaylistSelectedRowArtist = @"playlistSelectedRowArtistColor";
 
 // The switch's key beside a switched pair: playlistNumberColorEnabled in
 // the record, numberColorEnabled in the JSON.
@@ -403,11 +405,15 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor", kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistDuration, playlist, @"durationColor", kVibeThemeColorArtist);
         AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
-        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowText, playlist, @"playingRowTextColor",
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowTitle, playlist, @"playingRowTitleColor",
                              kVibeThemeColorTitle);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowArtist, playlist, @"playingRowArtistColor",
+                             kVibeThemeColorArtist);
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
-        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowText, playlist, @"selectedRowTextColor",
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowTitle, playlist, @"selectedRowTitleColor",
                              kVibeThemeColorTitle);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowArtist, playlist, @"selectedRowArtistColor",
+                             kVibeThemeColorArtist);
         specs = [rows copy];
     });
     return specs;

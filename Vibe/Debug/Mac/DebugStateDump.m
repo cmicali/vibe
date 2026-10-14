@@ -263,10 +263,14 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"playlistTitleColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]),
             @"playlistArtistColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistArtist]),
             @"playlistDurationColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistDuration]),
-            @"playlistPlayingRowTextColorEnabled":
-                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowText]),
-            @"playlistSelectedRowTextColorEnabled":
-                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowText]),
+            @"playlistPlayingRowTitleColorEnabled":
+                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowTitle]),
+            @"playlistPlayingRowArtistColorEnabled":
+                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowArtist]),
+            @"playlistSelectedRowTitleColorEnabled":
+                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowTitle]),
+            @"playlistSelectedRowArtistColorEnabled":
+                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowArtist]),
             @"playlistButtonGlyph": theme.playlistButtonGlyph,
             @"playButtonGlyph": theme.playButtonGlyph,
             @"pauseButtonGlyph": theme.pauseButtonGlyph,

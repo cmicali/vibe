@@ -46,9 +46,9 @@ extern NSString *const kPlaylistColumnLength;
 // with the row's state: PlaylistRowView recolors a playing or selected row.
 + (NSAttributedString *)titleCellStringForTrack:(AudioTrack *)track;
 + (NSAttributedString *)durationCellString:(NSString *)duration;
-// The one color every text column of a row draws in, or nil for the
-// columns' own colors.
-+ (nullable NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing;
+// A row's title or artist color. The artist color also draws the number and
+// duration. Nil means the columns' own colors.
++ (nullable NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing title:(BOOL)title;
 // The thumbnail, or the theme's placeholder sleeve.
 + (NSImage *)artworkCellImage:(nullable NSImage *)thumbnail;
 
