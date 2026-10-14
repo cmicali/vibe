@@ -480,6 +480,30 @@ static NSDictionary *LinkFileEntry(NSString *name, long long size) {
     XCTAssertEqual([self measuredDownloads], (long long)encore.length, @"the budget counts the links' downloads");
 }
 
+// Every grant from before sharing.read gets this answer at a link's first
+// call. Unlinked, it would sign the user out and prune their downloads.
+- (void)testAMissingScopeFailsTheLinkAndKeepsTheAccount {
+    _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"Song.flac", 1000, kStamp)];
+    NSURL *music = [self refresh:@"/Music"];
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        if ([request.URL.path isEqualToString:@"/2/sharing/get_shared_link_metadata"]) {
+            return DropboxStubJSON(401, @{@"error_summary": @"missing_scope/",
+                                          @"error": @{@".tag": @"missing_scope", @"required_scope": @"sharing.read"}});
+        }
+        return [self defaultResponseFor:request json:json];
+    }];
+    XCTestExpectation *done = [self expectationWithDescription:@"link"];
+    [_mirror openSharedFolderLink:[NSURL URLWithString:kSharedLink] completion:^(NSURL *folderURL, NSError *error) {
+        XCTAssertNil(folderURL);
+        XCTAssertEqual(error.code, VibeDropboxErrorAPI);
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self spinMainQueue];
+    XCTAssertTrue(_client.isLinked);
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:[music URLByAppendingPathComponent:@"Song.flac"].path]);
+}
+
 - (void)testAnotherAccountTakesTheSharedLinksWithTheFirst {
     [self answerSharedLinkListings:@{@"": @[LinkFileEntry(@"A.flac", 4000)]} contents:@{}];
     NSURL *links = _mirror.linksURL;

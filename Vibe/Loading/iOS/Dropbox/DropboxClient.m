@@ -462,9 +462,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 }
 
 // One ladder for every call Dropbox refused, the calls' and the transfers':
-// an expired access token refreshes once and resends, any other 401 unlinks,
-// a throttle waits and resends, and the rest fail with Dropbox's own words.
-// Exactly one of resend and fail runs.
+// an expired access token refreshes once and resends, a missing scope fails
+// the call, any other 401 unlinks, a throttle waits and resends, and the rest
+// fail with Dropbox's own words. Exactly one of resend and fail runs.
 - (void)handleFailureStatus:(NSInteger)status
                        data:(NSData *)data
                  retryAfter:(NSString *)retryAfter
@@ -486,6 +486,14 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
         summary = [NSString stringWithFormat:@"%@: %@", summary,
                    text.length > 300 ? [text substringToIndex:300] : text];
+    }
+    // TRAP: a missing scope is a 401 too. Unlinked, a grant from before a
+    // scope the app added would sign the user out and prune every download
+    // at its first call that needs the scope.
+    if (VibeDropboxIsMissingScope(status, body)) {
+        LogWarn(@"Dropbox: the grant lacks a scope: %@", summary);
+        fail(VibeDropboxMakeError(VibeDropboxErrorAPI, summary));
+        return;
     }
     if (status == 401) {
         [self unlinkAccountGeneration:[state[kStateAccountGeneration] unsignedLongLongValue] reason:summary];

@@ -100,8 +100,8 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
 // request is (resendAfterStatus:). Past those, a network failure passes
 // through as itself: a download keeps its part, and a probe fails as
 // unreachable. Any status but 200 fails as the server's. `what` names the
-// call in the log. A call cancelled before a send completes with
-// VibeHTTPErrorCancelled.
+// call in the log. A call cancelled before a send, or before its answer is
+// read, completes with VibeHTTPErrorCancelled.
 - (void)sendCall:(NSURLRequest *)request
             what:(NSString *)what
          attempt:(NSInteger)attempt
@@ -122,6 +122,10 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
     };
     [[self.callSession dataTaskWithRequest:request
                          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (cancelled && cancelled()) {
+            completion(nil, nil, [self errorWithCode:VibeHTTPErrorCancelled description:@"cancelled"]);
+            return;
+        }
         if (error && VibeHTTPIsConnectionError(error) && attempt <= kCallNetworkRetries) {
             LogInfo(@"Links: %@ failed (%@); sending it again", what, error.localizedDescription);
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
@@ -261,7 +265,8 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
         }
         [visited addObject:token[@"subPath"]];
     }
-    [self pageOfDropboxFolder:token voucher:nil entries:[NSMutableArray array] call:call cancelled:cancelled
+    [self pageOfDropboxFolder:token voucher:nil vouchers:[NSMutableSet set] entries:[NSMutableArray array]
+                         call:call cancelled:cancelled
                    completion:^(NSString *name, NSArray<NSDictionary *> *entries, NSError *error) {
         if (error) {
             completion(nil, nil, error);
@@ -276,9 +281,11 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
 }
 
 // The folder's entries from the page `voucher` names, nil for the first, to
-// its last page. name is the first page that states one.
+// its last page. name is the first page that states one. vouchers holds
+// those already sent, so a listing that names one again ends.
 - (void)pageOfDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
                     voucher:(nullable NSString *)voucher
+                   vouchers:(NSMutableSet<NSString *> *)vouchers
                     entries:(NSMutableArray<NSDictionary *> *)entries
                        call:(NSDictionary *)call
                   cancelled:(BOOL (^)(void))cancelled
@@ -310,9 +317,10 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
             return;
         }
         [entries addObjectsFromArray:page];
-        // A voucher that names its own page again ends the listing.
-        if (next && ![next isEqualToString:voucher]) {
-            [self pageOfDropboxFolder:token voucher:next entries:entries call:call cancelled:cancelled
+        if (next && ![vouchers containsObject:next]) {
+            [vouchers addObject:next];
+            [self pageOfDropboxFolder:token voucher:next vouchers:vouchers entries:entries call:call
+                            cancelled:cancelled
                            completion:^(NSString *laterName, NSArray<NSDictionary *> *all, NSError *laterError) {
                 completion(name ?: laterName, all, laterError);
             }];
