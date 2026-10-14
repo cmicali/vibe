@@ -60,6 +60,25 @@ static NSString *DebugUpdateFeed(void) {
     return AppSettings.sharedInstance.receiveBetaUpdates ? [NSSet setWithObject:@"beta"] : [NSSet set];
 }
 
+// Appended to the feed URL at every check, for the site's update-check counts
+// (functions/appcast.xml.js). The app version is already in Sparkle's
+// User-Agent. Nothing here identifies the Mac, and the privacy policy lists
+// every key.
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)feedParametersForUpdater:(SPUUpdater *)updater
+                                                         sendingSystemProfile:(BOOL)sendingProfile {
+    NSOperatingSystemVersion os = NSProcessInfo.processInfo.operatingSystemVersion;
+#if defined(__arm64__)
+    NSString *arch = @"arm64";
+#else
+    NSString *arch = @"x86_64";
+#endif
+    return @[
+        @{@"key": @"os", @"value": [NSString stringWithFormat:@"%ld.%ld", (long)os.majorVersion, (long)os.minorVersion]},
+        @{@"key": @"arch", @"value": arch},
+        @{@"key": @"channel", @"value": AppSettings.sharedInstance.receiveBetaUpdates ? @"beta" : @"stable"},
+    ];
+}
+
 @end
 
 #endif

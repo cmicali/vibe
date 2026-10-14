@@ -2,7 +2,8 @@
 
 The Vibe marketing page: static HTML, one stylesheet, and images. There is no
 build step and nothing to install. Copy the folder to any static host and it
-works.
+works. On Cloudflare, two Pages Functions in the repo root's `functions/` also
+count update checks (Update checks, below).
 
 ```
 index.html              the page
@@ -128,7 +129,7 @@ It works on Cloudflare only, like `/support`. GitHub Pages ignores
 `make github-release` repoints the page, publishes the release and then runs
 `deploy-web.sh` itself (the `vibe-release` skill). Run `make deploy-web` by hand
 only to retry, or to publish a page change between releases. It refuses when
-`Assets/Web` differs from `origin/main`, so push the change first.
+`Assets/Web` or `functions/` differs from `origin/main`. Push the change first.
 `make deploy-web ARGS="--dry-run"` checks the download link and lists the files
 without uploading, and needs no credentials.
 
@@ -168,6 +169,98 @@ Deployment runs the stamp script with `--check` and refuses stale references.
 
 Cloudflare cache rules and the old-domain redirect are configured outside this
 repo. Check the zone configuration when changing them.
+
+## Update checks
+
+The Mac direct download checks `appcast.xml` (or `appcast-arm64.xml`) once a
+day by default. On Cloudflare each check runs a Pages Function,
+`functions/appcast.xml.js`. It writes one Workers Analytics Engine row and
+then serves the static feed unchanged. GitHub Pages runs no Functions.
+Sparkle reads the feed only from vibeplayer.app.
+
+The Function counts only Sparkle's requests. It knows them by Sparkle's
+User-Agent, `Vibe/<version> Sparkle/<version>`. The User-Agent also names the
+version of a build that sends no parameters. The app adds the other columns as
+query parameters (`feedParametersForUpdater:` in
+`Vibe/Mac/App/AppDelegate+Updates.m`). It writes no IP address and no
+identifier.
+
+| Column | Value | Source |
+| --- | --- | --- |
+| `blob1` | `universal` or `arm64`, the feed | the path |
+| `blob2` | the app version, such as `1.16-beta5` | the User-Agent |
+| `blob3` | the macOS version, such as `15.4` | `os` |
+| `blob4` | `arm64` or `x86_64`, the running slice | `arch` |
+| `blob5` | `beta` or `stable` | `channel` |
+| `blob6` | the two-letter country | Cloudflare's `request.cf.country` |
+
+**A failed count must never fail the feed.** Every installed copy reads it.
+So the Function catches its own errors and always serves the file. With no
+binding it records nothing. A preview deployment is unbound and counts
+nothing.
+
+**The privacy policy lists every column.** Adding one means changing
+`privacy/index.html` in the same commit.
+
+### One-time setup
+
+This is done in the Cloudflare dashboard, and only once.
+
+1. Workers & Pages → `vibe` → Settings → Bindings → Add → Analytics Engine.
+   Set the variable name to `UPDATE_CHECKS` and the dataset to
+   `vibe_update_checks`, for Production only. Cloudflare creates the dataset
+   on the first write.
+2. Under the project's Functions settings, set the failure mode for the
+   daily request limit to fail open. Then a request over the Workers Free
+   limit still gets the static feed, uncounted.
+3. Deploy again (`make deploy-web`). A binding applies only to deployments
+   made after it was added.
+4. Send one test check, and look for it in a minute or two (Reading the
+   counts, below):
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -A 'Vibe/0-test Sparkle/2.10.0' \
+       'https://vibeplayer.app/appcast.xml?os=0.0&arch=test&channel=test'
+   ```
+
+   Filter it out of later queries with `WHERE blob2 != '0-test'`.
+
+### Reading the counts
+
+Queries go to the Analytics Engine SQL API. They need a second token with
+exactly one permission, **Account | Account Analytics | Read**. Keep it apart
+from the deploy token. Add it to `.release-env` as
+`CLOUDFLARE_ANALYTICS_TOKEN`, beside `CLOUDFLARE_ACCOUNT_ID`.
+
+```bash
+source .release-env
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/analytics_engine/sql" \
+    -H "Authorization: Bearer $CLOUDFLARE_ANALYTICS_TOKEN" \
+    --data "SELECT blob2 AS version, SUM(_sample_interval) AS checks
+            FROM vibe_update_checks
+            WHERE timestamp > NOW() - INTERVAL '1' DAY
+            GROUP BY version ORDER BY checks DESC"
+```
+
+Count with `SUM(_sample_interval)`, never `COUNT()`. Analytics Engine may
+sample, and each row then stands for several checks. Group by `blob3`,
+`blob4`, `blob5` or `blob6` for macOS, architecture, channel or country. Group
+by `toStartOfInterval(timestamp, INTERVAL '1' DAY)` for a daily trend.
+
+**A day's checks are close to the copies that ran that day.** Sparkle checks
+at most once per interval, and the default interval is a day. Copies set to
+Weekly, Monthly or Never check less often. They are undercounted. Check for
+Updates… is counted too. Cloudflare sets how long it keeps the rows (the
+Analytics Engine limits page).
+
+Update downloads come from GitHub, not from this site. GitHub counts each
+release asset's downloads. The `.zip` assets are the ones Sparkle downloads.
+A person can also download them from the release page:
+
+```bash
+gh api repos/cmicali/vibe/releases --paginate \
+    --jq '.[] | .tag_name as $t | .assets[] | select(.name | endswith(".zip")) | "\($t)  \(.name)  \(.download_count)"'
+```
 
 ## App Store Connect
 

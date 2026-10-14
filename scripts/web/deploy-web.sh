@@ -11,21 +11,26 @@
 #   --wrangler-login     authenticate with this machine's `wrangler login`
 #                        instead of CLOUDFLARE_API_TOKEN
 #
-# The site is static: this uploads the directory as it stands. GitHub Pages is
-# the other copy, published by .github/workflows/pages.yml on a push to main.
+# This uploads the directory as it stands, plus the Pages Functions in
+# functions/ that count update checks (Assets/Web/README.md, Update checks).
+# GitHub Pages is the other copy, published by .github/workflows/pages.yml on a
+# push to main. It serves the same files with no Functions.
 #
 # LOCAL ONLY, and it refuses to run in CI. The Cloudflare token lives in the
 # gitignored .release-env rather than in CI secrets, where any workflow change
 # could read it; GitHub Pages is the copy CI publishes because it needs none.
 #
-# Before uploading it checks that Assets/Web matches origin/main, that the
-# asset stamps are current, that the page's .dmg link resolves, and that the
-# /download rules in _redirects name the same file.
+# Before uploading it checks that Assets/Web and functions/ match origin/main,
+# that the asset stamps are current, that the page's .dmg link resolves, and
+# that the /download rules in _redirects name the same file.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
 DIR="Assets/Web"
+# TRAP: wrangler compiles ./functions from the working directory, which the cd
+# above makes the repo root. Run from anywhere else, it deploys no Functions.
+FUNCTIONS="functions"
 PAGE="$DIR/index.html"
 DRY_RUN=""
 CHECK_LINK=1
@@ -74,17 +79,17 @@ if [[ "$CHECK_BRANCH" == 1 ]]; then
     git fetch -q origin main 2>/dev/null || \
         echo "warning: could not reach origin — comparing against a possibly stale origin/main" >&2
 
-    if [[ -n "$(git status --porcelain -- "$DIR")" ]]; then
-        echo "error: $DIR has uncommitted or untracked changes:" >&2
-        git status --short -- "$DIR" >&2
+    if [[ -n "$(git status --porcelain -- "$DIR" "$FUNCTIONS")" ]]; then
+        echo "error: $DIR or $FUNCTIONS has uncommitted or untracked changes:" >&2
+        git status --short -- "$DIR" "$FUNCTIONS" >&2
         echo >&2
         echo "  Commit and push them, or pass --skip-branch-check to deploy anyway." >&2
         exit 1
     fi
 
-    if ! git diff --quiet origin/main -- "$DIR"; then
-        echo "error: $DIR differs from origin/main:" >&2
-        git diff --stat origin/main -- "$DIR" >&2
+    if ! git diff --quiet origin/main -- "$DIR" "$FUNCTIONS"; then
+        echo "error: $DIR or $FUNCTIONS differs from origin/main:" >&2
+        git diff --stat origin/main -- "$DIR" "$FUNCTIONS" >&2
         echo >&2
         echo "  You are on '$(git branch --show-current || echo 'a detached HEAD')'. Cloudflare would get" >&2
         echo "  content GitHub Pages will not, and the two copies would disagree." >&2
@@ -151,6 +156,8 @@ fi
 if [[ -n "$DRY_RUN" ]]; then
     echo "🔊 dry run — would upload $(find "$DIR" -type f | wc -l | tr -d ' ') files ($(du -sh "$DIR" | cut -f1)) to Pages project '$PROJECT':"
     find "$DIR" -type f | sed 's|^|     |' | sort
+    echo "🔊 and compile these Functions:"
+    find "$FUNCTIONS" -type f | sed 's|^|     |' | sort
     exit 0
 fi
 
