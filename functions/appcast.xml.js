@@ -40,6 +40,11 @@ function countCheck({ request, env }) {
             param("channel"),
             request.cf?.country ?? "",
             param("lang") || acceptLanguage.slice(0, 32),
+            // "1" on the copy's first check in the UTC day, ISO week, or
+            // month. Empty from a build that sends no flags.
+            param("d"),
+            param("w"),
+            param("m"),
         ],
     });
 }

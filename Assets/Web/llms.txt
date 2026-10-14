@@ -30,10 +30,12 @@ Apache 2.0, and available on the App Store. macOS also has a direct download.
   the user types into Open URL…, on iPhone and iPad to reach Dropbox if
   connected, and in the Mac version downloaded from vibeplayer.app to check
   for and download updates. Each update check names the app version, the
-  macOS version, the architecture, the beta setting and the app's language.
-  The site counts these without recording anything that identifies the
-  user. Vibe has no account and no servers beyond the website. On the Mac the
-  outgoing network entitlement is used only for those requests.
+  macOS version, the architecture, the beta setting, and the app's language.
+  It also says whether it is that copy's first check of the day, the week, or
+  the month. The site counts these without recording anything that
+  identifies the user. Vibe has no account and no servers beyond the
+  website. On the Mac the outgoing network entitlement is used only for
+  those requests.
   Cloud files are fetched by the provider's own system extension, not by Vibe.
 
 ## Links

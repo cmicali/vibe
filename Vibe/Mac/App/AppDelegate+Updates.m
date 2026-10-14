@@ -60,6 +60,27 @@ static NSString *DebugUpdateFeed(void) {
     return AppSettings.sharedInstance.receiveBetaUpdates ? [NSSet setWithObject:@"beta"] : [NSSet set];
 }
 
+// The feed parameters for this check's UTC day, ISO week, and month, in the
+// order UpdateCheckPeriods returns them.
+static NSString *const kUpdateCheckPeriodKeys[] = {@"d", @"w", @"m"};
+static NSString *const kReportedUpdateCheckPeriodsKey = @"VibeReportedUpdateCheckPeriods";
+// The periods the check in flight reports. Its feed's load saves them. Sparkle
+// calls its delegate on main, and the app runs one updater.
+static NSArray<NSString *> *sPendingUpdateCheckPeriods;
+
+static NSArray<NSString *> *UpdateCheckPeriods(NSDate *date) {
+    NSCalendar *calendar = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierISO8601];
+    calendar.timeZone = [NSTimeZone timeZoneForSecondsFromGMT:0];
+    NSDateComponents *c = [calendar components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay |
+                                               NSCalendarUnitYearForWeekOfYear | NSCalendarUnitWeekOfYear
+                                      fromDate:date];
+    return @[
+        [NSString stringWithFormat:@"%04ld-%02ld-%02ld", (long)c.year, (long)c.month, (long)c.day],
+        [NSString stringWithFormat:@"%04ld-W%02ld", (long)c.yearForWeekOfYear, (long)c.weekOfYear],
+        [NSString stringWithFormat:@"%04ld-%02ld", (long)c.year, (long)c.month],
+    ];
+}
+
 // Appended to the feed URL at every check, for the site's update-check counts
 // (functions/appcast.xml.js). The app version is already in Sparkle's
 // User-Agent. Nothing here identifies the Mac, and the privacy policy lists
@@ -72,12 +93,33 @@ static NSString *DebugUpdateFeed(void) {
 #else
     NSString *arch = @"x86_64";
 #endif
-    return @[
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *parameters = [@[
         @{@"key": @"os", @"value": [NSString stringWithFormat:@"%ld.%ld", (long)os.majorVersion, (long)os.minorVersion]},
         @{@"key": @"arch", @"value": arch},
         @{@"key": @"channel", @"value": AppSettings.sharedInstance.receiveBetaUpdates ? @"beta" : @"stable"},
         @{@"key": @"lang", @"value": NSBundle.mainBundle.preferredLocalizations.firstObject ?: @""},
-    ];
+    ] mutableCopy];
+    // A period's flag goes with this copy's first check in it. The site counts
+    // active copies from the flags, so no check needs an identifier.
+    NSArray<NSString *> *periods = UpdateCheckPeriods(NSDate.date);
+    NSArray *reported = [NSUserDefaults.standardUserDefaults arrayForKey:kReportedUpdateCheckPeriodsKey];
+    for (NSUInteger i = 0; i < periods.count; i++) {
+        if (i >= reported.count || ![reported[i] isEqual:periods[i]]) {
+            [parameters addObject:@{@"key": kUpdateCheckPeriodKeys[i], @"value": @"1"}];
+        }
+    }
+    sPendingUpdateCheckPeriods = periods;
+    return parameters;
+}
+
+// Only a loaded feed uses up its periods. A check that fails offline flags
+// them again on the next one.
+- (void)updater:(SPUUpdater *)updater didFinishLoadingAppcast:(SUAppcast *)appcast {
+    if (sPendingUpdateCheckPeriods) {
+        [NSUserDefaults.standardUserDefaults setObject:sPendingUpdateCheckPeriods
+                                                forKey:kReportedUpdateCheckPeriodsKey];
+        sPendingUpdateCheckPeriods = nil;
+    }
 }
 
 @end

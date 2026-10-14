@@ -196,6 +196,14 @@ identifier.
 | `blob5` | `beta` or `stable` | `channel` |
 | `blob6` | the two-letter country | Cloudflare's `request.cf.country` |
 | `blob7` | the language Vibe runs in, such as `de` or `pt-BR` | `lang`, else the first `Accept-Language` tag |
+| `blob8` | `1` on the copy's first check in the UTC day, else empty | `d` |
+| `blob9` | `1` on the copy's first check in the ISO week, else empty | `w` |
+| `blob10` | `1` on the copy's first check in the UTC month, else empty | `m` |
+
+**The three flags count active copies without an identifier.** The app
+remembers the day, ISO week, and month of the last check whose feed loaded. A
+check in a new period sets that period's flag. A check that fails offline
+saves nothing, so the next check flags the same periods.
 
 **A failed count must never fail the feed.** Every installed copy reads it.
 So the Function catches its own errors and always serves the file. With no
@@ -265,11 +273,8 @@ runs in, such as `de`. An older build gives its first Accept-Language tag,
 such as `de-DE`. One language can then show as two rows until those builds
 update.
 
-**A day's checks are close to the copies that ran that day.** Sparkle checks
-at most once per interval, and the default interval is a day. Copies set to
-Weekly, Monthly or Never check less often. They are undercounted. Check for
-Updates… is counted too. Cloudflare sets how long it keeps the rows (the
-Analytics Engine limits page).
+Check for Updates… is counted too. Cloudflare sets how long it keeps the rows
+(the Analytics Engine limits page).
 
 Update downloads come from GitHub, not from this site. GitHub counts each
 release asset's downloads. The `.zip` assets are the ones Sparkle downloads.
@@ -279,6 +284,54 @@ A person can also download them from the release page:
 gh api repos/cmicali/vibe/releases --paginate \
     --jq '.[] | .tag_name as $t | .assets[] | select(.name | endswith(".zip")) | "\($t)  \(.name)  \(.download_count)"'
 ```
+
+### Active installs
+
+Each flag counts a copy once per period. Send these queries with the `curl`
+command in Reading the counts. Monthly is the headline number:
+
+```sql
+SELECT formatDateTime(timestamp, '%Y-%m') AS month, SUM(_sample_interval) AS installs
+FROM vibe_update_checks
+WHERE blob10 = '1'
+GROUP BY month ORDER BY month
+```
+
+Weekly groups by the ISO week, such as `2026-W42`, the same week the app uses:
+
+```sql
+SELECT formatDateTime(timestamp, '%G-W%V') AS week, SUM(_sample_interval) AS installs
+FROM vibe_update_checks
+WHERE blob9 = '1'
+GROUP BY week ORDER BY week
+```
+
+Daily:
+
+```sql
+SELECT formatDateTime(timestamp, '%Y-%m-%d') AS day, SUM(_sample_interval) AS installs
+FROM vibe_update_checks
+WHERE blob8 = '1'
+GROUP BY day ORDER BY day
+```
+
+The timestamps are UTC, like the app's periods. `toStartOfWeek` starts weeks
+on Sunday, so it does not match the app's weeks.
+
+The three numbers have limits.
+
+- **Monthly is the reliable count.** It misses copies set to Never. A copy
+  set to Monthly checks every 30 days, so it can skip a calendar month.
+- **Weekly counts a copy set to Monthly only in the week it checks.**
+- **Daily is a lower bound.** Sparkle's daily interval is 24 hours since the
+  last check, not a calendar day. A copy used only in the hours before its
+  next check is not counted that day. A copy set to Weekly or Monthly is
+  counted only on the days it checks.
+- **A period's number is final only after the period ends.**
+- **Older builds send no flags.** They check weekly by default. Their checks
+  over the last 7 days approximate the old copies active that week. Use the
+  version query with `INTERVAL '7' DAY` and read the versions without flags.
+  An old copy set to Daily counts once per check.
 
 ## App Store Connect
 

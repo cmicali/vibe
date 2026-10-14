@@ -67,7 +67,7 @@ Restoration runs three utility workers plus one user-initiated lane for a grant 
 - **Check for Updates…** targets the controller, which validates it.
 - `allowedChannelsForUpdater:` adds the feed's `beta` channel while `AppSettings.receiveBetaUpdates` is on. Sparkle asks at every check, so the setting needs no live effect.
 - Settings > General's **Check for updates** sets `updateCheckInterval`. Never turns automatic checks off. The other choices set the interval. Sparkle stores the choice over the Info.plist defaults.
-- `feedParametersForUpdater:` appends the macOS version, the running architecture, the update channel and the app's language to the feed URL at every check. Sparkle's User-Agent already names the app version. The site counts the checks (`Assets/Web/README.md`, Update checks). The privacy policy names every key. A new key needs a policy change in the same commit.
+- `feedParametersForUpdater:` appends the macOS version, the running architecture, the update channel, and the app's language to the feed URL at every check. Sparkle's User-Agent already names the app version. It adds `d=1`, `w=1`, or `m=1` on the copy's first check in a UTC day, ISO week, or month. It compares each period with the one saved in user defaults. `updater:didFinishLoadingAppcast:` saves all three, so a check that fails offline uses up no period. The site counts the checks (`Assets/Web/README.md`, Update checks). The privacy policy names every key. A new key needs a policy change in the same commit.
 
 **A Debug build starts no updater** unless launched with `--update-feed <url>`, which `feedURLStringForUpdater:` then answers. So the debug channel, stress runs and screenshots never raise an update dialog. Without it the menu item is disabled.
 
