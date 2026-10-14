@@ -47,6 +47,7 @@ enum VibeSmallLayout {
 
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let entry: VibeEntry
     var smallLayout = VibeSmallLayout.artworkTile
 
@@ -83,7 +84,7 @@ struct VibeWidgetView: View {
             switch family {
             case .accessoryCircular: AccessoryWidgetBackground()
             case .accessoryRectangular, .accessoryInline: Color.clear
-            case .systemSmall where smallLayout == .fullBleed: fullBleedBackground
+            case .systemSmall where smallLayout == .fullBleed: Color.black
             default: background
             }
         }
@@ -173,38 +174,34 @@ struct VibeWidgetView: View {
         .padding(kSmallPadding)
     }
 
-    // The art and gradient are the container background, so the system clips
-    // them to the tile and drops them in the tinted modes.
-    private var fullBleedBackground: some View {
-        ZStack {
-            Color.black
-            artworkFill(glyphSize: kMacArtSide * 0.32)
-            LinearGradient(gradient: kMacTransportGradient, startPoint: .bottom, endPoint: .top)
-        }
-    }
-
+    // The art is content, not the container background, so a tinted Home
+    // Screen keeps it. The gradient is full color only, because a tint would
+    // draw it as a light wash under the buttons.
     // Like the mac, the buttons show without a track, and play and next are
-    // disabled. Playlist opens the app on the Playlist tab.
+    // dimmed. Playlist opens the app on the Playlist tab.
     private var fullBleed: some View {
         GeometryReader { geometry in
-            let scale = min(geometry.size.width, geometry.size.height) / kMacArtSide
-            let side = kMacTransportButtonSize * scale
+            let side = min(geometry.size.width, geometry.size.height)
+            let scale = side / kMacArtSide
+            let diameter = kMacTransportButtonSize * scale
             let glyphScale = kMacTransportSymbolSize / kMacTransportButtonSize
             let opacity = state != nil ? kMacTransportRestingOpacity : kMacTransportDisabledOpacity
-            HStack(spacing: (kMacTransportSpacing - kMacTransportButtonSize) * scale) {
-                glyphButton(VibeShowPlaylistIntent(), systemName: "list.bullet", diameter: side,
-                            glyphScale: glyphScale, opacity: kMacTransportRestingOpacity)
-                Group {
-                    glyphButton(VibePlayPauseIntent(), systemName: playGlyph, diameter: side,
-                                glyphScale: glyphScale, opacity: opacity)
-                    glyphButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: side,
-                                glyphScale: glyphScale, opacity: opacity)
+            ZStack(alignment: .bottomLeading) {
+                artworkFill(glyphSize: side * 0.32)
+                if renderingMode == .fullColor {
+                    LinearGradient(gradient: kMacTransportGradient, startPoint: .bottom, endPoint: .top)
                 }
-                .disabled(state == nil)
+                HStack(spacing: (kMacTransportSpacing - kMacTransportButtonSize) * scale) {
+                    glyphButton(VibeShowPlaylistIntent(), systemName: "list.bullet", diameter: diameter,
+                                glyphScale: glyphScale, opacity: kMacTransportRestingOpacity)
+                    glyphButton(VibePlayPauseIntent(), systemName: playGlyph, diameter: diameter,
+                                glyphScale: glyphScale, opacity: opacity, enabled: state != nil)
+                    glyphButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: diameter,
+                                glyphScale: glyphScale, opacity: opacity, enabled: state != nil)
+                }
+                .padding(.leading, kMacTransportX * scale)
+                .padding(.bottom, kMacTransportBottom * scale)
             }
-            .padding(.leading, kMacTransportX * scale)
-            .padding(.bottom, kMacTransportBottom * scale)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
     }
 
@@ -251,6 +248,7 @@ struct VibeWidgetView: View {
                         .font(.system(size: 20))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text(VibePlayPauseIntent.title))
             } else {
                 Image(systemName: "waveform")
             }
@@ -324,11 +322,16 @@ struct VibeWidgetView: View {
 
     // Fills the offered size and crops the art to it. Drawn as an overlay, a
     // tall image cannot grow the view past what it was offered.
+    // TRAP: without a widget rendering mode, a tinted Home Screen draws the
+    // art as a solid shape in the tint.
     private func artworkFill(glyphSize: CGFloat) -> some View {
         Color.white.opacity(0.08)
             .overlay {
                 if let artwork = entry.artwork {
-                    Image(uiImage: artwork).resizable().scaledToFill()
+                    Image(uiImage: artwork)
+                        .resizable()
+                        .widgetAccentedRenderingMode(.accentedDesaturated)
+                        .scaledToFill()
                 } else {
                     Image(systemName: "waveform")
                         .font(.system(size: glyphSize))
@@ -350,18 +353,32 @@ struct VibeWidgetView: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(VibePlayPauseIntent.title))
     }
 
+    // VoiceOver reads the intent's title. Without it, it reads the symbol's
+    // name, and forward.end.fill is "Go To Start". A disabled glyph is not a
+    // button, so a tap opens the app like the rest of the widget.
+    // TRAP: .disabled would dim a plain button a second time, below `opacity`.
+    // TRAP: a widget ignores accessibilityHidden, so a disabled glyph keeps
+    // the title too.
+    @ViewBuilder
     private func glyphButton(_ intent: some AppIntent, systemName: String, diameter: CGFloat,
-                             glyphScale: CGFloat = 0.46, opacity: Double = 0.85) -> some View {
-        Button(intent: intent) {
-            Image(systemName: systemName)
-                .font(.system(size: diameter * glyphScale))
-                .foregroundStyle(.white.opacity(opacity))
-                .frame(width: diameter, height: diameter)
-                .contentShape(Rectangle())
+                             glyphScale: CGFloat = 0.46, opacity: Double = 0.85,
+                             enabled: Bool = true) -> some View {
+        let glyph = Image(systemName: systemName)
+            .font(.system(size: diameter * glyphScale))
+            .foregroundStyle(.white.opacity(opacity))
+            .frame(width: diameter, height: diameter)
+        if enabled {
+            Button(intent: intent) {
+                glyph.contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(type(of: intent).title))
+        } else {
+            glyph.accessibilityLabel(Text(type(of: intent).title))
         }
-        .buttonStyle(.plain)
     }
 
     // Reveal the played image without baking the envelope for each entry.
