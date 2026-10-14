@@ -39,6 +39,8 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 
 **The playlist's four text columns are pairs behind switches** (`kVibeThemeColorPlaylistNumber`/`Title`/`Artist`/`Duration`, `playlistColorEnabledForBase:`, JSON `playlist.numberColorEnabled` beside the pair). `resolvedPlaylistColorForBase:` is a column's one answer: the label pair it always drew while off — title over the title pair, the other three over the artist pair — and its own pair while on, an unset side inheriting that same label pair; `displayColorForBase:dark:` shows the inheritance, so the wells never disagree with the table. A pair set while its switch is off is held, not drawn, so toggling round-trips a pick. **A resolved color is captured at call time**: an appearance flip re-resolves by itself, but a theme change must rebuild whatever holds one — the `TrackDisplay`/`PlaylistAppearance` effects' invalidations.
 
+**The playing and selected rows' text are two more switched pairs** (`kVibeThemeColorPlaylistPlayingRowText` and `SelectedRowText`, JSON `playlist.playingRowTextColor` and `selectedRowTextColor`). Both inherit the title pair. Off means no row color at all, so a caller checks the switch before it resolves the pair. On, every text column of that row draws the pair. How the row applies it is `Playlist/Mac/AGENTS.md`'s.
+
 ## The corner radius
 
 **Two fields, one accessor.** `windowCornerRadius` is what the slider holds; `customCornerRadius` (default off) says whether the window draws it; `resolvedWindowCornerRadius`, the only accessor consumers read, answers the slider under custom and `kVibeThemeCornerRadiusDefault` (16pt — the window is borderless and draws its own shape, so macOS 26's radius is a constant of ours) otherwise.

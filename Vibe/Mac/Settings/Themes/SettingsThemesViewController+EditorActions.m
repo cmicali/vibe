@@ -562,7 +562,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 - (void)playlistColorModeChanged:(NSPopUpButton *)sender {
     NSString *base = sender.identifier;
     [self chooseFromPopUp:sender revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM wells:@[_playlistColorPairs[base]]
-                   effect:VibeSettingsLiveEffectPlaylistAppearance
+                   effect:VibeThemePlaylistColorEditEffect(base)
                     write:^(AppTheme *theme, NSString *identifier) {
         [theme setPlaylistColorEnabled:[identifier isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM] forBase:base];
     }];

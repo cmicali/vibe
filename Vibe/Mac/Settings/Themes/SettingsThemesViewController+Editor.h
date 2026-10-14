@@ -32,4 +32,14 @@ static inline VibeSettingsLiveEffect VibeThemeImageEditEffect(NSString *key) {
     return VibeSettingsLiveEffectTransportButtons;
 }
 
+// A row's text is pushed by its row view, as its fill is drawn. A column's
+// color is in the cell strings, which rebuild.
+static inline VibeSettingsLiveEffect VibeThemePlaylistColorEditEffect(NSString *base) {
+    if ([base isEqualToString:kVibeThemeColorPlaylistPlayingRowText]
+            || [base isEqualToString:kVibeThemeColorPlaylistSelectedRowText]) {
+        return VibeSettingsLiveEffectPlaylistRowColors;
+    }
+    return VibeSettingsLiveEffectPlaylistAppearance;
+}
+
 NS_ASSUME_NONNULL_END

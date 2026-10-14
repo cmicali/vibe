@@ -11,6 +11,7 @@
 * mac: Added automatic updates to the non-appstore version
 * mac: Added the RGB theme
 * mac: Added the Dark Wolf theme and its app icon, contributed by JohnnyFireOne
+* mac: Added theme colors for the text of the playing row and selected rows
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
