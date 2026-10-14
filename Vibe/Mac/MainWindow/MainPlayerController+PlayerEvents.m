@@ -98,15 +98,30 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self updateUI]; // ends with the Now Playing publish
 }
 
-// A hold stops Now Playing's clock. Nothing on screen shows it: the
-// waveform's loading indicator would wipe the waveform and its click-seek.
+// A hold stops Now Playing's clock at once. Once it outlasts
+// kVibeBufferingNoticeDelaySeconds, Buffering… stands in for the file info
+// line. A shorter hold never flashes it. The waveform's loading indicator is
+// not used: it would wipe the waveform and its click-seek.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
     if (track != self.playlistController.currentTrack) {
         return;
     }
-    [self updateNowPlaying];
+    NSUInteger generation = ++_bufferingNoticeGeneration;
+    _bufferingNoticeShown = NO;
+    if (buffering) {
+        __weak MainPlayerController *weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kVibeBufferingNoticeDelaySeconds * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            MainPlayerController *strongSelf = weakSelf;
+            if (strongSelf && strongSelf->_bufferingNoticeGeneration == generation && strongSelf.audioPlayer.isBuffering) {
+                strongSelf->_bufferingNoticeShown = YES;
+                [strongSelf updateUI];
+            }
+        });
+    }
+    [self updateUI]; // ends with the Now Playing publish
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {

@@ -19,6 +19,10 @@ static inline BOOL VibePlaybackPreviousIsAvailable(BOOL hasPreviousTrack, BOOL h
     return hasPreviousTrack || (hasCurrentTrack && !playerIsStopped);
 }
 
+// A buffering hold shows Buffering… once it has lasted this long. A shorter
+// hold never flashes it. Both shells wait the same.
+static const NSTimeInterval kVibeBufferingNoticeDelaySeconds = 0.5;
+
 // An empty seek's settlement is meaningful only while still stopped. A real
 // row is matched by identity, so another occurrence of its URL cannot own it.
 static inline BOOL VibePlaybackSeekSettlementIsCurrent(

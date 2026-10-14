@@ -122,6 +122,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) AudioTrack *displayedTrack;
 // Shown on the artist line until the next track event.
 @property (nonatomic, readonly, nullable) NSString *errorText;
+// Buffering… stands in for the card's codec line: the play still holds, and
+// the hold outlasted kVibeBufferingNoticeDelaySeconds. The player's flag is
+// read too, since a newer play drops the old hold's end.
+@property (nonatomic, readonly) BOOL bufferingNoticeShown;
 
 #pragma mark - The player, non-blocking reads
 

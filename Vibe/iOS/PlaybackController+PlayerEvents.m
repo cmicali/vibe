@@ -53,16 +53,35 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // A stream holding for its download stops Now Playing's clock
-// (publishNowPlaying) and leaves the card's waveform scrubbable. Its end
-// still asks again for a waveform the open skipped.
+// (publishNowPlaying) and leaves the card's waveform scrubbable. Once the hold
+// outlasts kVibeBufferingNoticeDelaySeconds, Buffering… stands in for the
+// card's codec line. A shorter hold never flashes it. Its end still asks
+// again for a waveform the open skipped.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    if (!buffering) {
+    NSUInteger generation = ++_bufferingNoticeGeneration;
+    BOOL wasShown = _bufferingNoticeShown;
+    _bufferingNoticeShown = NO;
+    if (buffering) {
+        __weak PlaybackController *weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kVibeBufferingNoticeDelaySeconds * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            PlaybackController *strongSelf = weakSelf;
+            if (strongSelf && strongSelf->_bufferingNoticeGeneration == generation && strongSelf->_player.isBuffering) {
+                strongSelf->_bufferingNoticeShown = YES;
+                [strongSelf notifyDidRenderCurrentTrack];
+            }
+        });
+    }
+    else {
         [self notifyDidFinishLoading];
+    }
+    if (wasShown) {
+        [self notifyDidRenderCurrentTrack];
     }
     [self notifyDidChangePlayState];
     [self publishNowPlaying];

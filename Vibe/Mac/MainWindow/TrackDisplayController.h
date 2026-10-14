@@ -43,9 +43,9 @@ typedef struct {
 // Error, nil otherwise. duration is file time; the labels divide it by rate.
 // status goes on the artist line: in Error the track's play error, where nil
 // reads as the generic playback error, and in Notice the notice. In Track, a
-// parked track's play error stands in for the file info line. title is what
-// Empty and Notice name: an opened playlist that listed nothing playable, or
-// a link that failed to open.
+// status stands in for the file info line: a parked track's play error, or
+// Buffering… during a hold. title is what Empty and Notice name: an opened
+// playlist that listed nothing playable, or a link that failed to open.
 // While Notice is drawn, the track's strip stays off the header: the waveform
 // prep, the loading indicator, and the playhead drop their writes until
 // another state is rendered. The caller then loads the waveform again, and

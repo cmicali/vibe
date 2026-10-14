@@ -52,6 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
     // Header, waveform and metadata loaded; no file open, nothing playing.
     BOOL                    _parked;
     NSString                *_errorText;
+    // Set once a hold outlasts kVibeBufferingNoticeDelaySeconds. The
+    // generation pairs each delay with its own hold.
+    BOOL                    _bufferingNoticeShown;
+    NSUInteger              _bufferingNoticeGeneration;
 
     // The slow open the card shows loading, from didBeginLoading: to its
     // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).
