@@ -37,7 +37,7 @@ Tests drive both classes over a stubbed `NSURLProtocol` and a temp root (`Dropbo
 
 ## Shared folder links
 
-**A Dropbox folder link opened while signed in is listed through the account.** The road is `AccountMirror`'s (`../Account/AGENTS.md`). This class is its Dropbox half. `sharing/get_shared_link_metadata` names the folder (`lookUpSharedFolderLink:completion:`). `files/list_folder` with `shared_link` lists it one level per call. A file downloads through `sharing/get_shared_link_file` by `{url, path}`, with the failure ladder, resume and version pin of a download by id.
+**A Dropbox folder link opened while signed in is listed through the account.** The road is `AccountMirror`'s (`../Account/AGENTS.md`). This class is its Dropbox half. `sharing/get_shared_link_metadata` names the folder (`lookUpSharedFolderLink:completion:`). The API names a share by its own link. A link to a folder inside the share is sent as the share's link and that folder's path below it. `files/list_folder` with `shared_link` lists it one level per call. A file downloads through `sharing/get_shared_link_file` by `{url, path}`, with the failure ladder, resume and version pin of a download by id.
 
 **A link's directory index adds `link`.** Its `path`, and each file's entry, are paths below the link as the listing spelled them. A listing through a link names no path of its own. An id in it is the owner's, which the listener cannot fetch by. `refreshDirectoryAtURL:completion:` lists a directory under `linksURL` by the link and path its index records. `dropboxPathForURL:` answers nil there.
 

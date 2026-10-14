@@ -303,6 +303,11 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         completion(nil, VibeAccountMakeError(VibeAccountErrorNotLinked, @"not in the Dropbox mirror"));
         return;
     }
+    [self refreshDropboxFolder:path completion:completion];
+}
+
+- (void)refreshDropboxFolder:(NSString *)path
+                  completion:(void (^)(NSURL *, NSError *))completion {
     [self refreshDropboxFolder:path link:nil directory:nil completion:completion];
 }
 
@@ -380,12 +385,11 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         return;
     }
     if (VibeDropboxEntryKindOf(entry) == VibeDropboxEntryKindFolder) {
-        [self refreshDropboxFolder:path link:nil directory:nil completion:completion];
+        [self refreshDropboxFolder:path completion:completion];
         return;
     }
     NSString *name = [entry[@"name"] isKindOfClass:NSString.class] ? entry[@"name"] : path.lastPathComponent;
-    [self refreshDropboxFolder:VibeDropboxParentPath(path) link:nil directory:nil
-                    completion:^(NSURL *folderURL, NSError *error) {
+    [self refreshDropboxFolder:VibeDropboxParentPath(path) completion:^(NSURL *folderURL, NSError *error) {
         if (!folderURL) {
             completion(nil, error);
             return;
@@ -459,10 +463,23 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
     return VibeDropboxFolderLinkToken(link) != nil;
 }
 
+// The API names a share by its own link. A link to a folder inside the share
+// is that folder's path below the share's link.
 - (void)lookUpSharedFolderLink:(NSURL *)link
                     completion:(void (^)(NSString *, NSDictionary *, NSError *))completion {
-    NSString *address = link.absoluteString;
-    [self.client callEndpoint:@"sharing/get_shared_link_metadata" arguments:@{@"url": address}
+    NSMutableDictionary<NSString *, NSString *> *token = [VibeDropboxFolderLinkToken(link) mutableCopy];
+    if (!token) {
+        completion(nil, nil, VibeAccountMakeError(VibeAccountErrorAPI, @"not a Dropbox folder link"));
+        return;
+    }
+    NSString *below = token[@"subPath"].length > 0 ? [@"/" stringByAppendingString:token[@"subPath"]] : @"";
+    token[@"subPath"] = @"";
+    NSString *address = VibeDropboxFolderLinkURL(token).absoluteString ?: @"";
+    NSMutableDictionary *arguments = [NSMutableDictionary dictionaryWithObject:address forKey:@"url"];
+    if (below.length > 0) {
+        arguments[@"path"] = below;
+    }
+    [self.client callEndpoint:@"sharing/get_shared_link_metadata" arguments:arguments
                    completion:^(NSDictionary *result, NSError *error) {
         if (error) {
             completion(nil, nil, error);
@@ -473,7 +490,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             return;
         }
         NSString *name = [result[@"name"] isKindOfClass:NSString.class] ? result[@"name"] : nil;
-        completion(name, @{@"link": address, @"path": @""}, nil);
+        completion(name, @{@"link": address, @"path": below}, nil);
     }];
 }
 

@@ -298,9 +298,16 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
             [self writeIndex:top ofDirectory:base];
             [self refreshSharedLinkDirectories:[NSMutableArray arrayWithObject:base] account:account
                                     completion:^(NSError *listError) {
+                // A folder the account lists as empty may be one it cannot
+                // see into. Open URL then falls back to LinkStore, which
+                // reports a truly empty folder itself.
+                NSError *failure = listError;
+                if (!failure && [self holdsNothingVisible:base]) {
+                    failure = VibeAccountMakeError(VibeAccountErrorAPI, @"the shared folder listed empty");
+                }
                 LogInfo(@"%@: %@ a shared folder through the account", self.logName,
-                        listError ? @"could not list" : @"listed");
-                finish(listError ? nil : base, listError);
+                        failure ? @"could not list" : @"listed");
+                finish(failure ? nil : base, failure);
             }];
         });
     }];
@@ -337,6 +344,15 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
             [self refreshSharedLinkDirectories:directories account:account completion:completion];
         });
     }];
+}
+
+- (BOOL)holdsNothingVisible:(NSURL *)directory {
+    for (NSString *name in [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory.path error:NULL]) {
+        if (![name hasPrefix:@"."]) {
+            return NO;
+        }
+    }
+    return YES;
 }
 
 - (void)lookUpSharedFolderLink:(NSURL *)link completion:(void (^)(NSString *, NSDictionary *, NSError *))completion {

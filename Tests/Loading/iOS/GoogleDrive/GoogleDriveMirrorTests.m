@@ -493,6 +493,18 @@ static DropboxStubResponse DriveMedia(NSURLRequest *request, NSData *bytes) {
                           @"true", @"a link can name a folder in a shared drive");
 }
 
+// Drive may list a folder reached only by its link as empty. The open then
+// fails, and Open URL tries the app's key.
+- (void)testASharedFolderThatListsEmptyFails {
+    _items[@"S2"] = @{@"id": @"S2", @"name": @"Hidden", @"mimeType": kVibeGoogleDriveFolderType};
+    _children[@"S2"] = @[];
+    NSURL *folder = nil;
+    NSError *error = [self openSharedLink:@"https://drive.google.com/drive/folders/S2" folder:&folder];
+    XCTAssertNil(folder);
+    XCTAssertEqual(error.code, VibeAccountErrorAPI);
+    XCTAssertTrue(_client.isLinked);
+}
+
 - (void)testOnlyAFolderLinkWithNoResourceKeyIsTheAccounts {
     XCTAssertTrue([_mirror opensSharedFolderLink:[NSURL URLWithString:@"https://drive.google.com/drive/folders/S1"]]);
     XCTAssertFalse([_mirror opensSharedFolderLink:

@@ -41,7 +41,7 @@ Tests drive both classes over `DropboxStubProtocol` and a temp root (`GoogleDriv
 
 ## Shared folder links
 
-**A Drive folder link opened while signed in is listed through the account.** The road is `AccountMirror`'s (`../Account/AGENTS.md`). This class is its Drive half. `lookUpSharedFolderLink:completion:` asks `files/<id>` for the folder's name and type, and the folder's directory index starts as `{"id": <folder id>}`. From there a link's folders list and download by id, as My Drive's do. Every listing, lookup and media request sends `supportsAllDrives`, and a listing also sends `includeItemsFromAllDrives`. A link can name a folder in a shared drive. Drive hides such a folder from a request without them.
+**A Drive folder link opened while signed in is listed through the account.** The road is `AccountMirror`'s (`../Account/AGENTS.md`). This class is its Drive half. `lookUpSharedFolderLink:completion:` asks `files/<id>` for the folder's name and type. The name becomes a local name as a listed folder's does (`VibeGoogleDriveLocalBaseName`). The folder's directory index starts as `{"id": <folder id>}`. From there a link's folders list and download by id, as My Drive's do. Every listing, lookup and media request sends `supportsAllDrives`, and a listing also sends `includeItemsFromAllDrives`. A link can name a folder in a shared drive. Drive hides such a folder from a request without them.
 
 **A link with a `resourcekey` is not the account's** (`opensSharedFolderLink:`). Drive wants the key on each request about the folder and every file in it. The mirror sends none. Open URL opens such a link with no account, through the app's API key (`Loading/Net/AGENTS.md`).
 

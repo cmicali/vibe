@@ -424,7 +424,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             return;
         }
         NSString *name = [result[@"name"] isKindOfClass:NSString.class] ? result[@"name"] : nil;
-        completion(name, @{@"id": folderID}, nil);
+        completion(name ? VibeGoogleDriveLocalBaseName(name, YES) : nil, @{@"id": folderID}, nil);
     }];
 }
 
