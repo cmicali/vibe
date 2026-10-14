@@ -331,6 +331,14 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     configureLabelShadow(_fileMetadataTextField, YES);
     [self addSubview:_fileMetadataTextField];
 
+    // Framed by layoutCodecSpinner, once the fonts are applied.
+    _codecSpinner = [[NSProgressIndicator alloc] init];
+    _codecSpinner.style = NSProgressIndicatorStyleSpinning;
+    _codecSpinner.controlSize = NSControlSizeSmall;
+    _codecSpinner.displayedWhenStopped = NO;
+    _codecSpinner.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    [self addSubview:_codecSpinner];
+
     _bpmTextField = [NSTextField labelWithFrame:
             NSMakeRect(kCodecLabelX, kBPMLabelY, kCodecLabelWidth, kSmallLabelHeight)];
     _bpmTextField.alignment = NSTextAlignmentRight;
@@ -364,7 +372,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _bpmTextField.font = [Fonts infoFontBold:NO];
     [_volumeControlView applyThemedLabelFonts];
     [self layoutVolumeControl];
-    // A font change moves the codec line's measure too.
+    // A font change moves the codec line's measure and baseline too.
+    [self layoutCodecSpinner];
     [self layoutArtistLineClearOfCodecLine];
 }
 

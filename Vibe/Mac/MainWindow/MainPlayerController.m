@@ -454,13 +454,17 @@
     TrackDisplayState header = [self headerStateForState:state];
     NSString *errorStatus = track && track == _erroredTrack ? _errorStatus : nil;
     NSString *bufferingStatus = self.bufferingNoticeShown ? STR_LABEL_BUFFERING : nil;
+    NSString *status = _noticeStatus ?: errorStatus ?: bufferingStatus;
     // renderState rewrites the codec line, so tempo/key and FX follow it.
     [self.trackDisplay renderState:header
                              track:(header == TrackDisplayStateError ? track : displayTrack)
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
-                            status:(_noticeStatus ?: errorStatus ?: bufferingStatus)
+                            status:status
                              title:(_noticeStatus ? _noticeTitle : _unplayablePlaylistName)];
+    // Only Track draws a status on the codec line.
+    [self.playerContentView setCodecSpinnerShown:(header == TrackDisplayStateTrack
+                                                  && bufferingStatus && status == bufferingStatus)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
     [_artworkController updateForTrack:displayTrack];

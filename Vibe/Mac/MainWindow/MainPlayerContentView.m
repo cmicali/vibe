@@ -117,6 +117,37 @@ static BOOL VolumeAlwaysShown(AppTheme *theme) {
     [self capArtistLineAtCodecText];
 }
 
+- (void)setCodecSpinnerShown:(BOOL)shown {
+    if (shown == _codecSpinnerShown) {
+        return;
+    }
+    _codecSpinnerShown = shown;
+    [self layoutCodecSpinner];
+    [self capArtistLineAtCodecText];
+    if (shown) {
+        [_codecSpinner startAnimation:nil];
+    }
+    else {
+        [_codecSpinner stopAnimation:nil];
+    }
+}
+
+// The spinner ends at the column's ink edge, centered on the codec text's cap
+// height. While it shows, the codec field narrows so its text ends a gap
+// before it. The BPM field keeps the column's full width, so it is the edge.
+- (void)layoutCodecSpinner {
+    NSFont *font = _fileMetadataTextField.font;
+    CGFloat side = round(font.pointSize);
+    NSRect column = _bpmTextField.frame;
+    NSRect field = _fileMetadataTextField.frame;
+    field.origin.x = NSMinX(column);
+    field.size.width = NSWidth(column) - (_codecSpinnerShown ? side + kCodecSpinnerGap : 0);
+    _fileMetadataTextField.frame = field;
+    CGFloat baseline = NSMaxY(field) - _fileMetadataTextField.firstBaselineOffsetFromTop;
+    _codecSpinner.frame = NSMakeRect(NSMaxX(column) - kLabelInkInset - side,
+                                     round(baseline + font.capHeight / 2 - side / 2), side, side);
+}
+
 // In the corner the line clears whichever of the codec text and the volume
 // control reaches further left, so it never moves as the two swap on hover.
 - (void)capArtistLineAtCodecText {
@@ -238,6 +269,7 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
         FadeTarget(self->_nextButton, animated).alphaValue = transport;
         FadeTarget(self->_volumeControlView, animated).alphaValue = volume;
         FadeTarget(self->_fileMetadataTextField, animated).alphaValue = readouts;
+        FadeTarget(self->_codecSpinner, animated).alphaValue = readouts;
         FadeTarget(self->_bpmTextField, animated).alphaValue = readouts;
         FadeTarget(self->_dropHintTextField, animated).alphaValue = hint;
         FadeTarget(self->_albumArtGradientView, animated).alphaValue = gradient;
