@@ -53,9 +53,11 @@ NS_ASSUME_NONNULL_BEGIN
     BOOL                    _parked;
     NSString                *_errorText;
     // Set once a hold outlasts kVibeBufferingNoticeDelaySeconds. The
-    // generation pairs each delay with its own hold.
+    // generation pairs each delay with its own hold. The uptime is when a
+    // shown notice last ended.
     BOOL                    _bufferingNoticeShown;
     NSUInteger              _bufferingNoticeGeneration;
+    NSTimeInterval          _bufferingNoticeEndedUptime;
 
     // The slow open the card shows loading, from didBeginLoading: to its
     // settlement; its progress is CloudTransferRegistry's (+PlayerEvents).

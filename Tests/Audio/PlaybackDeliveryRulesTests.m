@@ -34,6 +34,17 @@
     }
 }
 
+// A seek during a shown hold starts the next hold within the delay. Its
+// notice comes back at once. A hold after no notice, or long after one,
+// waits.
+- (void)testBufferingNoticeShowsAtOnceOnlyRightAfterAShownOneEnded {
+    XCTAssertFalse(VibeBufferingNoticeShowsAtOnce(1000, 0), @"no notice ended yet");
+    XCTAssertTrue(VibeBufferingNoticeShowsAtOnce(1000.05, 1000));
+    XCTAssertTrue(VibeBufferingNoticeShowsAtOnce(1000 + kVibeBufferingNoticeDelaySeconds - 0.01, 1000));
+    XCTAssertFalse(VibeBufferingNoticeShowsAtOnce(1000 + kVibeBufferingNoticeDelaySeconds, 1000));
+    XCTAssertFalse(VibeBufferingNoticeShowsAtOnce(1060, 1000));
+}
+
 - (void)testPlaybackSettlementAndFallbackCanConsumeMetadataOnlyOnce {
     // Settlement and the fallback timer share this gate; whichever arrives
     // first consumes it.

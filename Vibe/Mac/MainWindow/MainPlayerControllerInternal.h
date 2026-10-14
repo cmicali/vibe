@@ -57,9 +57,11 @@ NS_ASSUME_NONNULL_BEGIN
     BOOL                        _emptyStateSuppressed;
     BOOL                        _folderArtRefreshScheduled;
     // Set once a hold outlasts kVibeBufferingNoticeDelaySeconds. The
-    // generation pairs each delay with its own hold.
+    // generation pairs each delay with its own hold. The uptime is when a
+    // shown notice last ended.
     BOOL                        _bufferingNoticeShown;
     NSUInteger                  _bufferingNoticeGeneration;
+    NSTimeInterval              _bufferingNoticeEndedUptime;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;

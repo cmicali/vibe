@@ -100,8 +100,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 
 // A hold stops Now Playing's clock at once. Once it outlasts
 // kVibeBufferingNoticeDelaySeconds, Buffering… stands in for the file info
-// line. A shorter hold never flashes it. The waveform's loading indicator is
-// not used: it would wipe the waveform and its click-seek.
+// line. A shorter hold never flashes it. A hold right after a shown one
+// shows it at once (VibeBufferingNoticeShowsAtOnce). The waveform's loading
+// indicator is not used: it would wipe the waveform and its click-seek.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
@@ -109,8 +110,12 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     NSUInteger generation = ++_bufferingNoticeGeneration;
-    _bufferingNoticeShown = NO;
-    if (buffering) {
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    if (_bufferingNoticeShown && !buffering) {
+        _bufferingNoticeEndedUptime = now;
+    }
+    _bufferingNoticeShown = buffering && VibeBufferingNoticeShowsAtOnce(now, _bufferingNoticeEndedUptime);
+    if (buffering && !_bufferingNoticeShown) {
         __weak MainPlayerController *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kVibeBufferingNoticeDelaySeconds * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{

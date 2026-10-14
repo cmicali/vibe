@@ -10604,7 +10604,7 @@
       "extractionState": "manual"
     },
     "label.buffering": {
-      "comment": "Shown in place of the format line (codec, sample rate) on the Mac player window and the iOS now-playing screen while a playing song waits for data from a network share or a download. It goes away when playback continues. Keep it short: it shares a line with status icons. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "Shown while a playing song waits for data from a network share or a download, with a spinning activity indicator after it. On the Mac player window and the iOS now-playing screen it replaces the format line (codec, sample rate). On iOS, when that line is turned off, it replaces the artist name. It goes away when playback continues. Keep it short: it shares a line with status icons. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {

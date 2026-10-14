@@ -21,7 +21,6 @@
 #import "WaveformScrubberView.h"
 #import "PlaceholderFiles.h"
 #import "UIImage+DominantColor.h"
-#import "VibeStrings.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
 // and lands on the placeholder; two gives a whole extra commit of lead.
@@ -339,17 +338,15 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
     NSString *errorText = _playback.errorText;
     BOOL showError = current && errorText != nil;
     BOOL showsInfo = AppSettings.sharedInstance.showFileInfo;
-    // A hold's status shows with file info off too, as the mac's does.
-    NSString *fileInfo = current && _playback.bufferingNoticeShown ? STR_LABEL_BUFFERING
-            : showsInfo ? track.metadata.fileInfoLine : nil;
     // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:fileInfo
+                    fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
                    tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
+                   buffering:(current && !showError && _playback.bufferingNoticeShown)
                          art:[self artworkForPageAtIndex:index]];
     [self applyPlayOrderToCell:cell atIndex:index];
     [cell setOutputRouteKind:_playback.outputRouteKind
