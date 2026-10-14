@@ -867,7 +867,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
                                                 action:VibeVoiceActionPause] forVoice:_voice];
         }
         else if (live) {
-            // A re-voice kept Buffering… up for this voice, which plays.
+            // Buffering… ends at the first drain that finds the voice playing,
+            // after a release or a re-voice.
             [self setBufferingNoticeOnQueue:NO];
         }
         return;
@@ -890,7 +891,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
         _debugBufferingReleases++;
         os_unfair_lock_unlock(&_stateLock);
 #endif
-        [self setBufferingNoticeOnQueue:NO];
         [self setBufferingOnQueue:NO outcome:@"released"];
         return;
     }
@@ -904,7 +904,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 // Published under _stateLock beside the tuple, with the output-liveness fold
 // (a held voice is not output), one log line per episode at its end, and the
-// delegate's edge for the current play. Buffering… is left as it is.
+// delegate's edge for the current play.
 - (void)setBufferingOnQueue:(BOOL)buffering outcome:(NSString *)outcome {
     if (_buffering == buffering) {
         return;
@@ -941,9 +941,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 // Buffering…, published under _stateLock, with its edge for the current play.
-// A hold's drain raises it once the hold has lasted kWaitIndicatorDelaySeconds.
-// Its release, a stall, and leaving Playing or the file end it. A re-voice
-// keeps it, so a seek during a hold keeps it up until the new voice plays.
 - (void)setBufferingNoticeOnQueue:(BOOL)shown {
     if (_bufferingNoticeShown == shown) {
         return;
@@ -1202,9 +1199,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // discards successor frames already in the ring) and a rebuild's restore.
 // TRAP: the old voice retires, its reads stopped, before the new one starts:
 // both read one AudioFileHandle, and an old turn after the new voice
-// positions the cursor starts its next chunk 4096 frames late. A hold ends
-// with the old voice, but Buffering… stays up until the new voice plays or
-// holds, so a seek during a hold keeps it.
+// positions the cursor starts its next chunk 4096 frames late.
 - (void)revoiceOnQueueAtPosition:(NSTimeInterval)position {
     AudioFileHandle *file = _file;
     [self republishEstimatedWindowOnQueue]; // a seek past the estimate the reads have passed lands
@@ -1476,8 +1471,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self refreshOutputAudioActiveOnQueue];
 }
 
-// Clears the voice and its successor; the caller retires the voice. The next
-// publication decides Buffering… (publishState:…).
+// Clears the voice and its successor; the caller retires the voice. It leaves
+// Buffering… alone. A re-voice keeps it (publishState:…).
 - (VibeVoiceID)unpublishVoiceOnQueue {
     [self setBufferingOnQueue:NO outcome:@"its voice retired"];
     os_unfair_lock_lock(&_stateLock);

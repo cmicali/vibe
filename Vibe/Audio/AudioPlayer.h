@@ -182,9 +182,8 @@ NS_ASSUME_NONNULL_BEGIN
 // file's bytes: a download or a network share's read-ahead that fell behind.
 // Never on a file read directly.
 @property (readonly, getter=isBuffering) BOOL buffering;
-// The shells show Buffering…: a hold has lasted half a second. A seek during
-// it keeps it up until the new voice plays or holds. A shorter hold never
-// raises it.
+// The shells show Buffering…: a hold has lasted kWaitIndicatorDelaySeconds.
+// A seek during it keeps it up until the new voice plays.
 @property (readonly) BOOL bufferingNoticeShown;
 
 // Exactly one is true. During Loading, whether the open will land playing or

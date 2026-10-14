@@ -200,16 +200,19 @@
         }
     }
     [self streamTo:44 + 57600 * 6];
-    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }]);
-    XCTAssertFalse(_player.bufferingNoticeShown, @"the release ends it");
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.bufferingNoticeShown; }], @"the release ends it");
+    XCTAssertFalse(_player.isBuffering);
 
     XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
     XCTAssertTrue([self finishStream:VibeStreamCompleted]);
-    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.isBuffering; }]);
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return !self->_player.isBuffering && !self->_player.bufferingNoticeShown;
+    }]);
     NSTimeInterval held = [_player.debugBufferingRecord[@"heldSeconds"] doubleValue];
-    [self settleUntil:^BOOL { return [self count:@"buffered"] == 3; }];
+    [self settleUntil:^BOOL {
+        return [self count:@"buffered"] == 3 && [self count:@"noticeEnded"] == [self count:@"notice"];
+    }];
     XCTAssertTrue([self count:@"notice"] == 2 || held >= kWaitIndicatorDelaySeconds, @"a %.3f s hold raised it", held);
-    XCTAssertEqual([self count:@"noticeEnded"], [self count:@"notice"]);
     XCTAssertNil(_playError);
 }
 
