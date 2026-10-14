@@ -166,15 +166,9 @@ static const CGFloat kSeekBandHeight = 28;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     CGFloat x = self.hoverHighlightX;
-    if (x < 0 || _bounds.size.width <= 0) {
-        _hoverColumn.hidden = YES;
-    } else {
-        _hoverColumn.frame = VibeSnappedColumnRect(x - CGRectGetMinX(_bounds),
-                                                   kHoverColumnWidth, _bounds.size.width,
-                                                   _track.bounds.size.height,
-                                                   VibeBackingScaleForLayer(self.parentLayer));
-        _hoverColumn.hidden = NO;
-    }
+    VibePlaceHoverColumn(_hoverColumn, _fill, x < 0 || _bounds.size.width <= 0 ? CGRectNull
+            : VibeSnappedColumnRect(x - CGRectGetMinX(_bounds), kHoverColumnWidth, _bounds.size.width,
+                                    _track.bounds.size.height, VibeBackingScaleForLayer(self.parentLayer)));
     [CATransaction commit];
 }
 
@@ -217,9 +211,10 @@ static const CGFloat kSeekBandHeight = 28;
 
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform *)waveform {
     _progress = MAX(0.0, MIN(1.0, progress));
+    // layoutPill re-places the column too. The playhead can cross a still cursor.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    _fill.frame = CGRectMake(0, 0, _progress * _bounds.size.width, _track.bounds.size.height);
+    [self layoutPill];
     [CATransaction commit];
 }
 
