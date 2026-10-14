@@ -47,7 +47,10 @@ NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying);
                        rootURL:(NSURL *)rootURL NS_DESIGNATED_INITIALIZER;
 
 // The typed link as a file to open: its placeholder, or its download when
-// that is still current. Any thread. The probe and the disk work run off
+// that is still current. A Dropbox or Google Drive folder link opens as its
+// playlist: an M3U naming a placeholder per audio file, in the listing's
+// order, each in its own directory under the link's (VibeLinkFolderURL).
+// Any thread. The probe and the disk work run off
 // main. Completion on main, exactly once, with exactly one of file and
 // error. A refused address fails before any request. A probe past its
 // deadline (VibeLinkProbeTimeout) fails as unreachable or as the local

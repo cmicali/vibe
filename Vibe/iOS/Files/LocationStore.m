@@ -178,9 +178,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Spelling and stored names only, never the disk: asking a provider's folder
 // for its name is IPC that can block main.
 + (NSString *)displayNameForFolderURL:(NSURL *)url {
-    // An account's mirror directory is named for its account id.
+    // An account's mirror directory is named for its account id. A shared
+    // link's folder sits in a directory named for the link's hash.
+    NSString *parent = VibeComparablePath(url.URLByDeletingLastPathComponent.path);
     for (AccountMirror *mirror in AccountMirror.mirrors) {
-        if ([mirror isAccountRootURL:url]) {
+        NSString *links = VibeComparablePath(mirror.linksURL.path);
+        if ([mirror isAccountRootURL:url] || (links && [parent isEqualToString:links])) {
             return mirror.serviceName;
         }
     }

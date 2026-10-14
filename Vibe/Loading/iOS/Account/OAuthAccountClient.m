@@ -578,6 +578,14 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
         summary = [NSString stringWithFormat:@"%@: %@", summary,
                    text.length > 300 ? [text substringToIndex:300] : text];
     }
+    // TRAP: a missing scope can be a 401 too (Dropbox's). Unlinked, a grant
+    // from before a scope the app added would sign the user out and prune
+    // every download at its first call that needs the scope.
+    if ([self isMissingScopeStatus:status body:body]) {
+        LogWarn(@"%@: the grant lacks a scope: %@", self.logName, summary);
+        fail(VibeAccountMakeError(VibeAccountErrorAPI, summary));
+        return;
+    }
     if (status == 401) {
         [self unlinkAccountGeneration:[state[kStateAccountGeneration] unsignedLongLongValue] reason:summary];
         fail(VibeAccountMakeError(VibeAccountErrorNotLinked, summary));
@@ -744,6 +752,10 @@ typedef void (^VibeAccountTokenWaiter)(NSString *_Nullable token, uint64_t accou
 }
 
 - (BOOL)isThrottleStatus:(NSInteger)status body:(NSDictionary *)body {
+    return NO;
+}
+
+- (BOOL)isMissingScopeStatus:(NSInteger)status body:(NSDictionary *)body {
     return NO;
 }
 

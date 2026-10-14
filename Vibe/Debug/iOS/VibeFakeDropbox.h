@@ -33,6 +33,9 @@ NS_ASSUME_NONNULL_BEGIN
 // at once), or at a `rate` fault's bytes per second; a resend from a Range
 // is paced the same way from its offset, and a closed range — a tag read or
 // the tail window — answers at once. Every answer carries Dropbox-API-Result.
+// A shared folder link, https://www.dropbox.com/scl/fo/<name>/<any>, is the
+// account's top-level folder <name>: its metadata, its listing below it, and
+// its files by their path below it.
 + (void)installWithDirectory:(NSURL *)directory
              transferSeconds:(NSTimeInterval)transferSeconds
                       client:(OAuthAccountClient *)client;

@@ -57,6 +57,16 @@
     XCTAssertTrue(VibeDropboxIsExpiredAccessToken(401, @{@"error_summary": @"expired_access_token/"}));
 }
 
+- (void)testAMissingScopeIsNamedApart {
+    NSDictionary *missing = @{@"error_summary": @"missing_scope/..",
+                              @"error": @{@".tag": @"missing_scope", @"required_scope": @"sharing.read"}};
+    XCTAssertTrue(VibeDropboxIsMissingScope(401, missing));
+    XCTAssertTrue(VibeDropboxIsMissingScope(401, @{@"error_summary": @"missing_scope/"}));
+    XCTAssertFalse(VibeDropboxIsMissingScope(400, missing));
+    XCTAssertFalse(VibeDropboxIsMissingScope(401, @{@"error": @{@".tag": @"invalid_access_token"}}));
+    XCTAssertFalse(VibeDropboxIsExpiredAccessToken(401, missing));
+}
+
 - (void)testThrottlingIsRetriedAfterACappedDelay {
     XCTAssertEqual(VibeHTTPRetryDelay(429, @"3"), 3.0);
     XCTAssertEqual(VibeHTTPRetryDelay(429, nil), 1.0);

@@ -11,6 +11,7 @@
 #import "FilePaths.h"
 #import "FileSearchRules.h"
 #import "GoogleDriveMirror.h"
+#import "LinkRules.h"
 #import "PlaceholderFiles.h"
 #import "PlaylistFile.h"
 
@@ -86,12 +87,27 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
                                          isDirectory:YES];
 }
 
+// Beside the account's directory, not in it: a listing of the account's root
+// deletes every name the service does not hold there.
+- (NSURL *)linksURL {
+    NSString *account = self.accountURL.lastPathComponent;
+    return account ? [self.rootURL URLByAppendingPathComponent:[account stringByAppendingString:@" links"]
+                                                   isDirectory:YES]
+                   : nil;
+}
+
 - (BOOL)isMirroredURL:(NSURL *)url {
     NSURL *account = self.accountURL;
     if (!account || !url.isFileURL) {
         return NO;
     }
-    return VibeSearchRootCoversPath(VibeComparablePath(account.path), VibeComparablePath(url.path));
+    return VibeSearchRootCoversPath(VibeComparablePath(account.path), VibeComparablePath(url.path))
+        || [self isSharedLinkURL:url];
+}
+
+- (BOOL)isSharedLinkURL:(NSURL *)url {
+    NSURL *links = self.linksURL;
+    return links && url.isFileURL && VibeSearchRootCoversPath(VibeComparablePath(links.path), VibeComparablePath(url.path));
 }
 
 - (BOOL)isAccountRootURL:(NSURL *)url {
@@ -100,16 +116,17 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
             && [VibeComparablePath(account.path) isEqualToString:VibeComparablePath(url.path)];
 }
 
-// A signed-out or replaced account's files go: they are a cache of an
-// account the app no longer reaches, and its downloads are disk the user
-// cannot see or free otherwise.
+// A signed-out or replaced account's files go, its links' too: they are a
+// cache of an account the app no longer reaches, and its downloads are disk
+// the user cannot see or free otherwise.
 - (void)pruneOtherAccounts:(NSNotification *)notification {
     NSString *keep = self.accountURL.lastPathComponent;
+    NSString *keepLinks = self.linksURL.lastPathComponent;
     NSURL *root = self.rootURL;
     dispatch_async(self.diskQueue, ^{
         NSFileManager *files = NSFileManager.defaultManager;
         for (NSString *name in [files contentsOfDirectoryAtPath:root.path error:NULL]) {
-            if (![name isEqualToString:keep]) {
+            if (![name isEqualToString:keep] && ![name isEqualToString:keepLinks]) {
                 [files removeItemAtURL:[root URLByAppendingPathComponent:name] error:NULL];
             }
         }
@@ -230,10 +247,108 @@ static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
     });
 }
 
+#pragma mark - Shared folder links
+
+- (BOOL)opensSharedFolderLink:(NSURL *)link {
+    return NO;
+}
+
+- (void)openSharedFolderLink:(NSURL *)link completion:(void (^)(NSURL *, NSError *))completion {
+    NSURL *account = self.accountURL;
+    NSURL *links = self.linksURL;
+    if (!account || !links || ![self opensSharedFolderLink:link]) {
+        completion(nil, VibeAccountMakeError(VibeAccountErrorNotLinked, @"no account for the link"));
+        return;
+    }
+    void (^finish)(NSURL *, NSError *) = ^(NSURL *folderURL, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(folderURL, error);
+        });
+    };
+    [self lookUpSharedFolderLink:link completion:^(NSString *name, NSDictionary *index, NSError *error) {
+        if (!index) {
+            finish(nil, error);
+            return;
+        }
+        NSString *folderName = name.length > 0 && ![name containsString:@"/"] && ![name hasPrefix:@"."]
+                ? name : self.serviceName;
+        dispatch_async(self.diskQueue, ^{
+            // Signed out, or another account, since the lookup: its links'
+            // tree is pruned, or is the wrong one.
+            if (![self.accountURL isEqual:account]) {
+                finish(nil, VibeAccountMakeError(VibeAccountErrorNotLinked, @"the account changed"));
+                return;
+            }
+            // A name the folder had before goes with what it held.
+            NSURL *holder = [links URLByAppendingPathComponent:VibeLinkDirectoryName(link) isDirectory:YES];
+            [self prepareRoot];
+            [self ensureDirectoryAtURL:links];
+            [self ensureDirectoryAtURL:holder];
+            NSFileManager *files = NSFileManager.defaultManager;
+            for (NSString *entry in [files contentsOfDirectoryAtPath:holder.path error:NULL]) {
+                if (![entry isEqualToString:folderName]) {
+                    [files removeItemAtURL:[holder URLByAppendingPathComponent:entry] error:NULL];
+                    [self forgetCachedIndexes];
+                }
+            }
+            NSURL *base = [holder URLByAppendingPathComponent:folderName isDirectory:YES];
+            [self ensureDirectoryAtURL:base];
+            NSMutableDictionary *top = [[self indexOfDirectory:base] mutableCopy] ?: [NSMutableDictionary dictionary];
+            [top addEntriesFromDictionary:index];
+            [self writeIndex:top ofDirectory:base];
+            [self refreshSharedLinkDirectories:[NSMutableArray arrayWithObject:base] account:account
+                                    completion:^(NSError *listError) {
+                LogInfo(@"%@: %@ a shared folder through the account", self.logName,
+                        listError ? @"could not list" : @"listed");
+                finish(listError ? nil : base, listError);
+            }];
+        });
+    }];
+}
+
+// Each directory in turn, and the directories each listing leaves below it,
+// until none is left: a shared folder whole, which no later browse lists.
+// Any failure ends it.
+- (void)refreshSharedLinkDirectories:(NSMutableArray<NSURL *> *)directories
+                             account:(NSURL *)account
+                          completion:(void (^)(NSError *_Nullable error))completion {
+    if (directories.count == 0) {
+        completion(nil);
+        return;
+    }
+    NSURL *directory = directories.firstObject;
+    [directories removeObjectAtIndex:0];
+    [self refreshDirectoryAtURL:directory completion:^(NSURL *folderURL, NSError *error) {
+        if (!folderURL || ![self.accountURL isEqual:account]) {
+            completion(error ?: VibeAccountMakeError(VibeAccountErrorNotLinked, @"the account changed"));
+            return;
+        }
+        dispatch_async(self.diskQueue, ^{
+            NSArray<NSURL *> *entries = [NSFileManager.defaultManager contentsOfDirectoryAtURL:folderURL
+                                                                    includingPropertiesForKeys:nil
+                                                                                       options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                                         error:NULL];
+            for (NSURL *entry in entries) {
+                struct stat st;
+                if (lstat(entry.fileSystemRepresentation, &st) == 0 && S_ISDIR(st.st_mode)) {
+                    [directories addObject:entry];
+                }
+            }
+            [self refreshSharedLinkDirectories:directories account:account completion:completion];
+        });
+    }];
+}
+
+- (void)lookUpSharedFolderLink:(NSURL *)link completion:(void (^)(NSString *, NSDictionary *, NSError *))completion {
+    completion(nil, nil, VibeAccountMakeError(VibeAccountErrorAPI, @"no shared links"));
+}
+
 #pragma mark - The store's hooks
 
+// The account's tree and its links' tree, which are all the root holds while
+// linked: an account change prunes every other directory.
 - (NSURL *)budgetRootURL {
-    return self.accountURL;
+    return self.accountURL ? self.rootURL : nil;
 }
 
 - (NSString *)logName {
