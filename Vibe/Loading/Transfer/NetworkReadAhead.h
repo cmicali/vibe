@@ -35,6 +35,12 @@ BOOL VibeNetworkReadAheadAwaitRoom(NSString *name, BOOL (^interrupted)(void));
 // thread, for VibeNetworkReadAheadHandleGone.
 CloudFileAvailability *VibeNetworkReadAheadStart(NSURL *url, NSString *mount, uint8_t *_Nullable *_Nonnull end);
 
+// A play's handle sizes its read-ahead: sets its span, and makes it a play
+// read-ahead, after every one sized before it. It then fetches ahead of its
+// reader only while each earlier one is idle. A range a wait wants is always
+// fetched. Again for the same read-ahead, it only sets the span.
+void VibeNetworkReadAheadSizePlay(CloudFileAvailability *availability, uint8_t *end, uint64_t span);
+
 // Finishes a read-ahead's availability with a "closed" error. That ends its
 // thread once its current read returns.
 void VibeNetworkReadAheadClose(CloudFileAvailability *_Nullable availability, NSURL *url);

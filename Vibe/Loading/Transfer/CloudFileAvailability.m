@@ -4,6 +4,7 @@
 //
 
 #import "CloudFileAvailability.h"
+#import "AudioFileOpenRules.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -51,6 +52,7 @@ static NSData *VibeContiguousCopy(NSData *bytes) {
         _blocks = [NSMutableArray array];
         _blockOffsets = [NSMutableArray array];
         _signalledBlockOffset = UINT64_MAX;
+        _readAheadSpan = kVibeReadAheadFloorBytes;
     }
     return self;
 }

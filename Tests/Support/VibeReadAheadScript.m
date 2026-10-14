@@ -8,6 +8,7 @@
     // Each read as "<name>@<offset>".
     NSCountedSet<NSString *> *_reads;
     uint64_t _stallFrom, _failFrom, _cutAt;
+    NSString *_stallName; // nil: every file
     NSUInteger _stallPasses;
     int _failCode;
     BOOL _failAlways;
@@ -49,10 +50,20 @@
 }
 
 - (void)stallFrom:(uint64_t)offset {
+    [self stallReadsOf:nil from:offset];
+}
+
+- (void)stallReadsOf:(NSString *)name from:(uint64_t)offset {
     [_condition lock];
+    _stallName = [name copy];
     _stallFrom = offset;
     [_condition broadcast];
     [_condition unlock];
+}
+
+// Under the lock.
+- (BOOL)stalls:(NSString *)name at:(uint64_t)offset {
+    return offset >= _stallFrom && (!_stallName || [name isEqualToString:_stallName]);
 }
 
 - (void)releaseOneStall {
@@ -65,6 +76,7 @@
 - (void)releaseStalls {
     [_condition lock];
     _stallFrom = UINT64_MAX;
+    _stallName = nil;
     _holdFailures = NO;
     [_condition broadcast];
     [_condition unlock];
@@ -131,12 +143,12 @@
     }
     [_condition lock];
     [_reads addObject:[NSString stringWithFormat:@"%@@%llu", name, offset]];
-    if (offset >= _stallFrom) {
+    if ([self stalls:name at:offset]) {
         dispatch_semaphore_signal(_stalled);
-        while (offset >= _stallFrom && _stallPasses == 0) {
+        while ([self stalls:name at:offset] && _stallPasses == 0) {
             [_condition wait];
         }
-        if (offset >= _stallFrom) {
+        if ([self stalls:name at:offset]) {
             _stallPasses--;
         }
     }

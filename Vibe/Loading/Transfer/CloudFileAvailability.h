@@ -132,9 +132,9 @@ typedef NS_ENUM(NSInteger, CloudFileAvailabilityWait) {
 // a range a wait wants. Clearing it wakes the writer's wait for work. A
 // transfer ignores it.
 @property (nonatomic) BOOL readAheadPaused;
-// How far past the reader's position the writer fetches, in bytes. Its
-// writer sets it before it starts, and a play's handle may raise it. A rise
-// wakes the writer's wait for work. A transfer ignores it.
+// How far past the reader's position the writer fetches, in bytes. It starts
+// at kVibeReadAheadFloorBytes, and a play's handle may raise it. A rise wakes
+// the writer's wait for work. A transfer ignores it.
 @property (nonatomic) uint64_t readAheadSpan;
 
 // A holder: a reader, an AudioFileHandle open on the part file, counted from

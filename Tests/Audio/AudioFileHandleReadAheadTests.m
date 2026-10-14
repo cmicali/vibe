@@ -24,6 +24,23 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
     return VibeWriteWAV([self sourceNamed:name], VibeNoiseSamples(frames, 2), 44100, 2, 16, frames * 4);
 }
 
+// 16 s at 192 kHz, 12.3 MB in blocks 0 to 46. The 8 MB floor ahead of a
+// reader at the head ends in block 31. A play's span holds the whole file.
+- (NSURL *)hiresWAVNamed:(NSString *)name {
+    const uint32_t frames = 192000 * 16;
+    return VibeWriteWAV([self sourceNamed:name], VibeNoiseSamples(frames, 2), 192000, 2, 16, frames * 4);
+}
+
+// A handle on a network copy, its read-ahead fetched to the floor.
+- (AudioFileHandle *)openAtTheFloor:(NSURL *)source {
+    AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
+    XCTAssertNotNil(handle);
+    NSString *name = source.lastPathComponent;
+    XCTAssertTrue([self eventually:^BOOL { return [self->_script readsOf:name at:31 * kReadAheadBlock] == 1; }], @"%@", name);
+    XCTAssertEqual([_script readsOf:name at:32 * kReadAheadBlock], 0u, @"%@: never past the floor", name);
+    return handle;
+}
+
 // Every fixture, its reads throttled so they wait at the read-ahead's edge,
 // decodes as its direct open does, to the read that finds the end, with the
 // same decoder and the same length, and its handle holds no descriptor of
@@ -474,16 +491,115 @@ static AudioFileHandle *VibeOpenInterruptibly(NSURL *url, NSError **error) {
 - (void)testHoldStreamRaisesTheSpanToAboutThirtySeconds {
     VibeReadAheadScript *script = [self readAhead];
     const uint64_t block = kReadAheadBlock;
-    const uint32_t frames = 192000 * 16;
-    NSURL *source = VibeWriteWAV([self sourceNamed:@"hires.wav"], VibeNoiseSamples(frames, 2), 192000, 2, 16, frames * 4);
-    AudioFileHandle *handle = VibeOpenInterruptibly([self networkCopyOf:source], NULL);
-    XCTAssertNotNil(handle);
-    // The floor ahead of a reader at the head ends in block 31.
-    XCTAssertTrue([self eventually:^BOOL { return [script readsAt:31 * block] == 1; }]);
-    XCTAssertEqual([script readsAt:32 * block], 0u, @"never past the floor");
+    AudioFileHandle *handle = [self openAtTheFloor:[self hiresWAVNamed:@"hires.wav"]];
     [handle holdStream];
     XCTAssertTrue([self eventually:^BOOL { return [script readsAt:40 * block] == 1; }], @"past the floor");
     XCTAssertEqual([script readsAt:32 * block], 1u);
+}
+
+// The playing track's read-ahead goes first. The next track's, sized after
+// it, fetches nothing ahead while the first still has blocks to fetch. Here
+// the first stalls past its floor. Once the first holds its whole span, the
+// second fetches ahead too.
+- (void)testAPlaysReadAheadWaitsUntilTheEarlierPlayHasItsSpan {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = kReadAheadBlock;
+    [script stallReadsOf:@"first.wav" from:32 * block];
+    AudioFileHandle *first = [self openAtTheFloor:[self hiresWAVNamed:@"first.wav"]];
+    [first holdStream];
+    XCTAssertTrue([self await:script.stalled], @"the first fetches past its floor");
+    // Opened while the first is busy. It is no play yet, and fetches its floor.
+    AudioFileHandle *second = [self openAtTheFloor:[self hiresWAVNamed:@"second.wav"]];
+    [second holdStream];
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+    XCTAssertEqual([script readsOf:@"second.wav" at:32 * block], 0u, @"held back while the first fetches");
+    [script releaseStalls];
+    XCTAssertTrue([self eventually:^BOOL { return [script readsOf:@"second.wav" at:40 * block] == 1; }]);
+    XCTAssertEqual([script readsOf:@"first.wav" at:46 * block], 1u, @"the first fetched its last block first");
+}
+
+// An earlier play whose handle is gone holds nothing back, even while its
+// thread is still inside a read.
+- (void)testAPlaysReadAheadGoesOnceTheEarlierPlaysHandleIsGone {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = kReadAheadBlock;
+    [script stallReadsOf:@"first.wav" from:32 * block];
+    AudioFileHandle *second = nil;
+    @autoreleasepool {
+        AudioFileHandle *first = [self openAtTheFloor:[self hiresWAVNamed:@"first.wav"]];
+        [first holdStream];
+        XCTAssertTrue([self await:script.stalled]);
+        second = [self openAtTheFloor:[self hiresWAVNamed:@"second.wav"]];
+        [second holdStream];
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+        XCTAssertEqual([script readsOf:@"second.wav" at:32 * block], 0u, @"held back while the first fetches");
+    }
+    XCTAssertEqual(AudioFileHandle.debugOrphanedReadAheads, 1, @"the first's thread is still in its read");
+    XCTAssertTrue([self eventually:^BOOL { return [script readsOf:@"second.wav" at:40 * block] == 1; }]);
+}
+
+// A held-back play's read-ahead still fetches at once the range a wait
+// wants, so an open or a decoder read never waits for the earlier play.
+// Nothing past that range is fetched ahead.
+- (void)testAHeldBackPlaysWaitIsServedAtOnce {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = kReadAheadBlock;
+    [script stallReadsOf:@"first.wav" from:32 * block];
+    AudioFileHandle *first = [self openAtTheFloor:[self hiresWAVNamed:@"first.wav"]];
+    [first holdStream];
+    XCTAssertTrue([self await:script.stalled]);
+    NSURL *source = [self hiresWAVNamed:@"second.wav"];
+    AudioFileHandle *second = [self openAtTheFloor:source];
+    [second holdStream];
+    AVAudioFramePosition frame = (AVAudioFramePosition)(40 * block - 44) / 4 + 100;
+    __block NSData *pcm = nil;
+    __block NSError *error = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        pcm = [second seekToFrame:frame error:&readError] ? VibeDecode(second, 4096, 4096, &readError) : nil;
+        error = readError;
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertTrue([self await:done], @"the read never waits for the first");
+    [self assertPCM:pcm equals:[self referenceOf:source from:frame frames:4096] context:@"held back"];
+    XCTAssertEqual([script readsOf:@"second.wav" at:40 * block], 1u);
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+    XCTAssertEqual([script readsOf:@"second.wav" at:41 * block], 0u, @"nothing ahead of the read");
+}
+
+// The waveform loader never sends holdStream, so its read-ahead is no play.
+// It fetches its floor while a play's is busy, and a busy one holds no play
+// back.
+- (void)testTheWaveformsReadAheadNeitherWaitsForAPlayNorHoldsOneBack {
+    VibeReadAheadScript *script = [self readAhead];
+    const uint64_t block = kReadAheadBlock;
+    [script stallReadsOf:@"play.wav" from:32 * block];
+    AudioFileHandle *play = [self openAtTheFloor:[self hiresWAVNamed:@"play.wav"]];
+    [play holdStream];
+    XCTAssertTrue([self await:script.stalled]);
+    NSURL *source = [self hiresWAVNamed:@"waveform.wav"];
+    AudioFileHandle *waveform = [self openAtTheFloor:source];
+
+    // The play fetches to its end and is idle. The waveform's read then
+    // stalls far ahead, and its read-ahead is busy.
+    [script stallReadsOf:@"waveform.wav" from:40 * block];
+    XCTAssertTrue([self eventually:^BOOL { return [script readsOf:@"play.wav" at:46 * block] == 1; }]);
+    AVAudioFramePosition frame = (AVAudioFramePosition)(40 * block - 44) / 4 + 100;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *readError = nil;
+        if ([waveform seekToFrame:frame error:&readError]) {
+            VibeDecode(waveform, 4096, 4096, &readError);
+        }
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertTrue([self await:script.stalled], @"the waveform's read stalls");
+    AudioFileHandle *later = [self openAtTheFloor:[self hiresWAVNamed:@"later.wav"]];
+    [later holdStream];
+    XCTAssertTrue([self eventually:^BOOL { return [script readsOf:@"later.wav" at:40 * block] == 1; }]);
+    [script releaseStalls];
+    XCTAssertTrue([self await:done]);
 }
 
 - (void)testAHandleGoneDuringTheRetryPauseEndsItsThreadWithoutARetry {
