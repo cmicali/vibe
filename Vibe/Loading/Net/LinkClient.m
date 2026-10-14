@@ -8,9 +8,18 @@
 #include <os/lock.h>
 
 #import "DropboxLinkRules.h"
+#import "GoogleDriveLinkRules.h"
 #import "HTTPTransferClientInternal.h"
 #import "ICloudLinkRules.h"
 #import "LinkStore.h"
+
+// One page of a folder's entries (DropboxLinkRules.h, GoogleDriveLinkRules.h):
+// the entries, the next page's cursor, nil after the last, and the folder's
+// name when the page states one. folder is the host's own description of it.
+typedef void (^VibeLinkFolderPage)(id folder, NSString *_Nullable cursor,
+                                   void (^completion)(NSArray<NSDictionary *> *_Nullable entries,
+                                                      NSString *_Nullable next, NSString *_Nullable name,
+                                                      NSError *_Nullable error));
 
 // A transfer's state: the lookup its attempt was sent with, and whether a
 // refused address was looked up again. A transfer does that once.
@@ -191,11 +200,11 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
     }];
 }
 
-#pragma mark - Dropbox folders
+#pragma mark - Folders
 
-- (dispatch_block_t)listDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
-                              timeout:(NSTimeInterval)timeout
-                           completion:(void (^)(NSString *, NSArray<NSDictionary *> *, NSError *))completion {
+- (dispatch_block_t)listFolderLink:(NSURL *)link
+                           timeout:(NSTimeInterval)timeout
+                        completion:(void (^)(NSString *, NSArray<NSDictionary *> *, NSError *))completion {
     NSMutableDictionary *flow = [NSMutableDictionary dictionary];
     BOOL (^cancelled)(void) = ^BOOL {
         @synchronized (flow) {
@@ -207,10 +216,137 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
             flow[@"stopped"] = @YES;
         }
     };
+    void (^walk)(id, VibeLinkFolderPage, NSString *) = ^(id root, VibeLinkFolderPage page, NSString *rootName) {
+        [self filesOfFolder:root page:page visited:[NSMutableSet set]
+                 completion:^(NSString *name, NSArray<NSDictionary *> *files, NSError *error) {
+            if (files) {
+                LogInfo(@"Links: listed a folder of %lu files on %@", (unsigned long)files.count, link.host);
+            }
+            completion(rootName ?: name, files, error);
+        }];
+    };
+    NSDictionary<NSString *, NSString *> *dropbox = VibeDropboxFolderLinkToken(link);
+    NSDictionary<NSString *, NSString *> *drive = VibeGoogleDriveFolderLink(link);
+    if (dropbox) {
+        [self openDropboxFolder:dropbox timeout:timeout cancelled:cancelled
+                     completion:^(VibeLinkFolderPage page, NSError *error) {
+            if (error) {
+                completion(nil, nil, error);
+                return;
+            }
+            walk(dropbox, page, nil);
+        }];
+    }
+    else if (drive) {
+        [self openGoogleDriveFolder:drive timeout:timeout cancelled:cancelled
+                         completion:^(VibeLinkFolderPage page, NSString *name, NSError *error) {
+            if (error) {
+                completion(nil, nil, error);
+                return;
+            }
+            walk(drive, page, name);
+        }];
+    }
+    else {
+        completion(nil, nil, VibeLinkMakeError(VibeLinkErrorInvalid, nil));
+    }
+    return cancel;
+}
+
+// One folder's files: its pages in order, then each entry in turn, with a
+// folder's own files in its place. A folder listed once already lists
+// nothing, so a listing that names a folder above it cannot loop.
+- (void)filesOfFolder:(id)folder
+                 page:(VibeLinkFolderPage)page
+              visited:(NSMutableSet *)visited
+           completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable files,
+                                NSError *_Nullable error))completion {
+    @synchronized (visited) {
+        if ([visited containsObject:folder]) {
+            completion(nil, @[], nil);
+            return;
+        }
+        [visited addObject:folder];
+    }
+    [self pagesOfFolder:folder cursor:nil cursors:[NSMutableSet set] entries:[NSMutableArray array] page:page
+             completion:^(NSString *name, NSArray<NSDictionary *> *entries, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        NSMutableArray<NSDictionary *> *files = [NSMutableArray array];
+        [self appendFilesOfEntries:entries from:0 into:files page:page visited:visited
+                        completion:^(NSError *entriesError) {
+            completion(name, entriesError ? nil : files, entriesError);
+        }];
+    }];
+}
+
+// The folder's entries from the page `cursor` names, nil for the first, to
+// its last page. name is the first page that states one. cursors holds those
+// already sent, so a listing that names one again ends.
+- (void)pagesOfFolder:(id)folder
+               cursor:(nullable NSString *)cursor
+              cursors:(NSMutableSet<NSString *> *)cursors
+              entries:(NSMutableArray<NSDictionary *> *)entries
+                 page:(VibeLinkFolderPage)page
+           completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable entries,
+                                NSError *_Nullable error))completion {
+    page(folder, cursor, ^(NSArray<NSDictionary *> *listed, NSString *next, NSString *name, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        [entries addObjectsFromArray:listed];
+        if (next && ![cursors containsObject:next]) {
+            [cursors addObject:next];
+            [self pagesOfFolder:folder cursor:next cursors:cursors entries:entries page:page
+                     completion:^(NSString *laterName, NSArray<NSDictionary *> *all, NSError *laterError) {
+                completion(name ?: laterName, all, laterError);
+            }];
+            return;
+        }
+        completion(name, entries, nil);
+    });
+}
+
+// The files from entries[index] on, appended in order. A folder's files are
+// listed when it is reached.
+- (void)appendFilesOfEntries:(NSArray<NSDictionary *> *)entries
+                        from:(NSUInteger)index
+                        into:(NSMutableArray<NSDictionary *> *)files
+                        page:(VibeLinkFolderPage)page
+                     visited:(NSMutableSet *)visited
+                  completion:(void (^)(NSError *_Nullable error))completion {
+    while (index < entries.count && !entries[index][@"folder"]) {
+        [files addObject:entries[index++]];
+    }
+    if (index == entries.count) {
+        completion(nil);
+        return;
+    }
+    [self filesOfFolder:entries[index][@"folder"] page:page visited:visited
+             completion:^(NSString *name, NSArray<NSDictionary *> *folderFiles, NSError *error) {
+        if (error) {
+            completion(error);
+            return;
+        }
+        [files addObjectsFromArray:folderFiles];
+        [self appendFilesOfEntries:entries from:index + 1 into:files page:page visited:visited
+                        completion:completion];
+    }];
+}
+
+// A Dropbox folder's page: the share page for its t cookie, then a page of
+// the listing per call, sent as the share page sends it.
+- (void)openDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
+                  timeout:(NSTimeInterval)timeout
+                cancelled:(BOOL (^)(void))cancelled
+               completion:(void (^)(VibeLinkFolderPage _Nullable page, NSError *_Nullable error))completion {
     NSURL *pageURL = VibeDropboxFolderLinkURL(token);
     if (!pageURL) {
-        completion(nil, nil, VibeLinkMakeError(VibeLinkErrorInvalid, nil));
-        return cancel;
+        completion(nil, VibeLinkMakeError(VibeLinkErrorInvalid, nil));
+        return;
     }
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:pageURL];
     request.HTTPShouldHandleCookies = NO;
@@ -218,7 +354,7 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
     [self sendCall:request what:@"the Dropbox folder page" attempt:1 cancelled:cancelled
         completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
         if (error) {
-            completion(nil, nil, error);
+            completion(nil, error);
             return;
         }
         NSArray<NSHTTPCookie *> *cookies =
@@ -232,129 +368,112 @@ static const NSTimeInterval kCallNetworkRetryDelay = 1;
         }
         if (t.length == 0) {
             LogWarn(@"Links: the Dropbox folder page set no t cookie");
-            completion(nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
+            completion(nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
             return;
         }
-        NSDictionary *call = @{@"cookie": [NSHTTPCookie requestHeaderFieldsWithCookies:cookies][@"Cookie"] ?: @"",
-                               @"t": t, @"timeout": @(timeout)};
-        [self filesOfDropboxFolder:token call:call visited:[NSMutableSet set] cancelled:cancelled
-                        completion:^(NSString *name, NSArray<NSDictionary *> *files, NSError *listError) {
-            if (files) {
-                LogInfo(@"Links: listed a Dropbox folder of %lu files", (unsigned long)files.count);
-            }
-            completion(name, files, listError);
-        }];
+        NSString *cookie = [NSHTTPCookie requestHeaderFieldsWithCookies:cookies][@"Cookie"] ?: @"";
+        completion(^(id folder, NSString *voucher, void (^done)(NSArray<NSDictionary *> *, NSString *, NSString *,
+                                                                NSError *)) {
+            NSMutableURLRequest *listing = [NSMutableURLRequest requestWithURL:
+                    [NSURL URLWithString:kVibeDropboxFolderListingURL]];
+            listing.HTTPMethod = @"POST";
+            listing.HTTPShouldHandleCookies = NO;
+            listing.timeoutInterval = timeout;
+            listing.HTTPBody = VibeDropboxFolderListingBody(folder, t, voucher);
+            [listing setValue:@"application/x-www-form-urlencoded; charset=UTF-8" forHTTPHeaderField:@"Content-Type"];
+            [listing setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+            [listing setValue:@"XMLHttpRequest" forHTTPHeaderField:@"X-Requested-With"];
+            [listing setValue:@"https://www.dropbox.com" forHTTPHeaderField:@"Origin"];
+            [listing setValue:cookie forHTTPHeaderField:@"Cookie"];
+            [self sendCall:listing what:@"the Dropbox folder listing" attempt:1 cancelled:cancelled
+                completion:^(NSData *answerData, NSHTTPURLResponse *answer, NSError *listError) {
+                if (listError) {
+                    done(nil, nil, nil, listError);
+                    return;
+                }
+                id json = answerData.length > 0 ? [NSJSONSerialization JSONObjectWithData:answerData options:0 error:NULL]
+                                                : nil;
+                NSString *next = nil;
+                NSString *name = nil;
+                NSArray<NSDictionary *> *entries = VibeDropboxFolderListingEntries(json, folder, &next, &name);
+                if (!entries) {
+                    LogWarn(@"Links: the Dropbox folder listing answered no entries");
+                    done(nil, nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
+                    return;
+                }
+                done(entries, next, name, nil);
+            }];
+        }, nil);
     }];
-    return cancel;
 }
 
-// One folder's files: its pages in order, then each entry in turn, with a
-// folder's own files in its place. call is {cookie, t, timeout}. A folder
-// listed once already lists nothing, so a listing that names a folder above
-// it cannot loop.
-- (void)filesOfDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
-                        call:(NSDictionary *)call
-                     visited:(NSMutableSet<NSString *> *)visited
-                   cancelled:(BOOL (^)(void))cancelled
-                  completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable files,
-                                       NSError *_Nullable error))completion {
-    @synchronized (visited) {
-        if ([visited containsObject:token[@"subPath"]]) {
-            completion(nil, @[], nil);
-            return;
-        }
-        [visited addObject:token[@"subPath"]];
+// A Google Drive folder's page: files.get names the folder and says it is
+// one, then files.list answers a page per call. Every request carries the
+// app's key, the bundle id a restricted key is checked against, and the
+// folder's resource key when it has one.
+- (void)openGoogleDriveFolder:(NSDictionary<NSString *, NSString *> *)folder
+                      timeout:(NSTimeInterval)timeout
+                    cancelled:(BOOL (^)(void))cancelled
+                   completion:(void (^)(VibeLinkFolderPage _Nullable page, NSString *_Nullable name,
+                                        NSError *_Nullable error))completion {
+    NSString *key = self.googleDriveAPIKey;
+    if (key.length == 0) {
+        LogWarn(@"Links: no Google Drive API key, so a Drive folder cannot be listed");
+        completion(nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
+        return;
     }
-    [self pageOfDropboxFolder:token voucher:nil vouchers:[NSMutableSet set] entries:[NSMutableArray array]
-                         call:call cancelled:cancelled
-                   completion:^(NSString *name, NSArray<NSDictionary *> *entries, NSError *error) {
-        if (error) {
-            completion(nil, nil, error);
-            return;
-        }
-        NSMutableArray<NSDictionary *> *files = [NSMutableArray array];
-        [self appendFilesOfEntries:entries from:0 into:files call:call visited:visited cancelled:cancelled
-                        completion:^(NSError *entriesError) {
-            completion(name, entriesError ? nil : files, entriesError);
-        }];
-    }];
-}
-
-// The folder's entries from the page `voucher` names, nil for the first, to
-// its last page. name is the first page that states one. vouchers holds
-// those already sent, so a listing that names one again ends.
-- (void)pageOfDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
-                    voucher:(nullable NSString *)voucher
-                   vouchers:(NSMutableSet<NSString *> *)vouchers
-                    entries:(NSMutableArray<NSDictionary *> *)entries
-                       call:(NSDictionary *)call
-                  cancelled:(BOOL (^)(void))cancelled
-                 completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable entries,
-                                      NSError *_Nullable error))completion {
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:kVibeDropboxFolderListingURL]];
-    request.HTTPMethod = @"POST";
-    request.HTTPShouldHandleCookies = NO;
-    request.timeoutInterval = [call[@"timeout"] doubleValue];
-    request.HTTPBody = VibeDropboxFolderListingBody(token, call[@"t"], voucher);
-    [request setValue:@"application/x-www-form-urlencoded; charset=UTF-8" forHTTPHeaderField:@"Content-Type"];
-    [request setValue:@"application/json" forHTTPHeaderField:@"Accept"];
-    [request setValue:@"XMLHttpRequest" forHTTPHeaderField:@"X-Requested-With"];
-    [request setValue:@"https://www.dropbox.com" forHTTPHeaderField:@"Origin"];
-    [request setValue:call[@"cookie"] forHTTPHeaderField:@"Cookie"];
-    [self sendCall:request what:@"the Dropbox folder listing" attempt:1 cancelled:cancelled
+    NSMutableURLRequest *(^request)(NSURL *, NSDictionary *) = ^NSMutableURLRequest *(NSURL *url, NSDictionary *about) {
+        NSMutableURLRequest *made = [NSMutableURLRequest requestWithURL:url];
+        made.HTTPShouldHandleCookies = NO;
+        made.timeoutInterval = timeout;
+        [made setValue:NSBundle.mainBundle.bundleIdentifier forHTTPHeaderField:@"X-Ios-Bundle-Identifier"];
+        [made setValue:VibeGoogleDriveResourceKeysHeader(about) forHTTPHeaderField:@"X-Goog-Drive-Resource-Keys"];
+        return made;
+    };
+    NSURL *metadataURL = VibeGoogleDriveFolderMetadataURL(folder[@"id"], key);
+    if (!metadataURL) {
+        completion(nil, nil, VibeLinkMakeError(VibeLinkErrorInvalid, nil));
+        return;
+    }
+    [self sendCall:request(metadataURL, folder) what:@"the Google Drive folder" attempt:1 cancelled:cancelled
         completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
         if (error) {
             completion(nil, nil, error);
             return;
         }
-        id answer = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
-        NSString *next = nil;
-        NSString *name = nil;
-        NSArray<NSDictionary *> *page = VibeDropboxFolderListingEntries(answer, token, &next, &name);
-        if (!page) {
-            LogWarn(@"Links: the Dropbox folder listing answered no entries");
+        id json = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
+        NSDictionary *about = [json isKindOfClass:NSDictionary.class] ? json : nil;
+        NSString *name = [about[@"name"] isKindOfClass:NSString.class] ? about[@"name"] : nil;
+        if (![about[@"mimeType"] isEqual:kVibeGoogleDriveFolderType]) {
+            LogWarn(@"Links: the Google Drive link is not a folder (%@)", about[@"mimeType"]);
             completion(nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
             return;
         }
-        [entries addObjectsFromArray:page];
-        if (next && ![vouchers containsObject:next]) {
-            [vouchers addObject:next];
-            [self pageOfDropboxFolder:token voucher:next vouchers:vouchers entries:entries call:call
-                            cancelled:cancelled
-                           completion:^(NSString *laterName, NSArray<NSDictionary *> *all, NSError *laterError) {
-                completion(name ?: laterName, all, laterError);
+        completion(^(id listed, NSString *pageToken, void (^done)(NSArray<NSDictionary *> *, NSString *, NSString *,
+                                                                  NSError *)) {
+            NSURL *listURL = VibeGoogleDriveFolderListURL(listed[@"id"], key, pageToken);
+            if (!listURL) {
+                done(nil, nil, nil, VibeLinkMakeError(VibeLinkErrorInvalid, nil));
+                return;
+            }
+            [self sendCall:request(listURL, listed) what:@"the Google Drive folder listing" attempt:1
+                 cancelled:cancelled completion:^(NSData *answerData, NSHTTPURLResponse *answer, NSError *listError) {
+                if (listError) {
+                    done(nil, nil, nil, listError);
+                    return;
+                }
+                id page = answerData.length > 0 ? [NSJSONSerialization JSONObjectWithData:answerData options:0 error:NULL]
+                                                : nil;
+                NSString *next = nil;
+                NSArray<NSDictionary *> *entries = VibeGoogleDriveFolderListingEntries(page, &next);
+                if (!entries) {
+                    LogWarn(@"Links: the Google Drive folder listing answered no files");
+                    done(nil, nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
+                    return;
+                }
+                done(entries, next, nil, nil);
             }];
-            return;
-        }
-        completion(name, entries, nil);
-    }];
-}
-
-// The files from entries[index] on, appended in order. A folder's files are
-// listed when it is reached.
-- (void)appendFilesOfEntries:(NSArray<NSDictionary *> *)entries
-                        from:(NSUInteger)index
-                        into:(NSMutableArray<NSDictionary *> *)files
-                        call:(NSDictionary *)call
-                     visited:(NSMutableSet<NSString *> *)visited
-                   cancelled:(BOOL (^)(void))cancelled
-                  completion:(void (^)(NSError *_Nullable error))completion {
-    while (index < entries.count && ![entries[index][@"folder"] boolValue]) {
-        [files addObject:entries[index++]];
-    }
-    if (index == entries.count) {
-        completion(nil);
-        return;
-    }
-    [self filesOfDropboxFolder:entries[index][@"token"] call:call visited:visited cancelled:cancelled
-                    completion:^(NSString *name, NSArray<NSDictionary *> *folderFiles, NSError *error) {
-        if (error) {
-            completion(error);
-            return;
-        }
-        [files addObjectsFromArray:folderFiles];
-        [self appendFilesOfEntries:entries from:index + 1 into:files call:call visited:visited cancelled:cancelled
-                        completion:completion];
+        }, name, nil);
     }];
 }
 

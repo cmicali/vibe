@@ -22,6 +22,8 @@ NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link
 // directory, because a placeholder's attributes are as unreadable as its
 // bytes.
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.link";
+// The Info.plist key of the Google Drive API key (LinkClient).
+static NSString *const kGoogleDriveAPIKeyInfoKey = @"VibeGoogleDriveAPIKey";
 // Enough for every signature VibeLinkAudioExtension knows.
 static const uint64_t kProbeBytes = 16;
 
@@ -92,6 +94,8 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
         configuration.URLCache = nil;
         configuration.requestCachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
         LinkClient *client = [[LinkClient alloc] initWithConfiguration:configuration];
+        id key = [NSBundle.mainBundle objectForInfoDictionaryKey:kGoogleDriveAPIKeyInfoKey];
+        client.googleDriveAPIKey = [key isKindOfClass:NSString.class] && [key length] > 0 ? key : nil;
         NSURL *support = [NSFileManager.defaultManager URLForDirectory:NSApplicationSupportDirectory
                                                               inDomain:NSUserDomainMask
                                                      appropriateForURL:nil
@@ -313,8 +317,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
             settle(nil, cancelled);
         };
     }
-    NSDictionary<NSString *, NSString *> *folder = VibeDropboxFolderLinkToken(typed);
-    NSURL *folderLink = folder ? VibeDropboxFolderLinkURL(folder) : nil;
+    NSURL *folderLink = VibeLinkFolderURL(typed);
     NSURL *link = folderLink ?: VibeLinkDirectDownloadURL(typed);
     NSTimeInterval timeout = VibeLinkProbeTimeout(link.host) * self.probeTimeoutScale;
     // The disk queue's: the first of the answer, the deadline, and the cancel
@@ -324,9 +327,9 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     if (folderLink) {
         // No deadline of the probe's kind: a large folder takes many
         // requests. Each has the probe's length as its idle timeout.
-        stop = [(LinkClient *)self.client listDropboxFolder:folder timeout:timeout
-                                                 completion:^(NSString *name, NSArray<NSDictionary *> *files,
-                                                              NSError *error) {
+        stop = [(LinkClient *)self.client listFolderLink:folderLink timeout:timeout
+                                              completion:^(NSString *name, NSArray<NSDictionary *> *files,
+                                                           NSError *error) {
             dispatch_async(self.diskQueue, ^{
                 if (answered) {
                     return;
@@ -498,8 +501,9 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 
 #pragma mark - Folders
 
-// The disk queue. A folder's listing as its link's directory: a directory per
-// audio file under it, and the playlist naming them in the listing's order.
+// The disk queue. A folder's listing (LinkClient listFolderLink:…) as its
+// link's directory: a directory per audio file under it, and the playlist
+// naming them in the listing's order.
 // The playlist is the directory's one file, so pruning and the offline open
 // treat the folder as one link.
 - (nullable NSURL *)settleFolderLink:(NSURL *)link
@@ -580,7 +584,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 // The same ones keep the file, placeholder or download. Without a ts the
 // record's mtime stays while the size does. The record has no version, so a
 // download and a tag read check it by its size alone. A range is assumed, as
-// Dropbox's content host answers one (DropboxLinkRules.h).
+// Dropbox's and Google Drive's download hosts answer one.
 - (nullable NSURL *)placeFolderFile:(NSDictionary *)entry
                         inDirectory:(NSURL *)directory
                           extension:(NSString *)extension

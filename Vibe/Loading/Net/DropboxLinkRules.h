@@ -175,9 +175,9 @@ static inline NSData *VibeDropboxFolderListingBody(NSDictionary<NSString *, NSSt
 }
 
 // A page of a folder's listing as entries, in the page's order. A file is
-// {name, size, url}, and a folder {name, folder: YES, token}. A file's url
-// is VibeDropboxFolderFileURL's. A folder's token is its href's, with the
-// listed folder's rlkey when the href has none. modified, the entry's ts in Unix
+// {name, size, url}, and a folder {name, folder}. A file's url is
+// VibeDropboxFolderFileURL's. A folder's folder is its href's token, with
+// the listed folder's rlkey when the href has none. modified, the entry's ts in Unix
 // seconds, is added when the page states it. An entry missing any of these,
 // or naming another host or another share, is left out. *voucher is the
 // next page's, nil after the last page. *name is the listed folder's own
@@ -202,7 +202,7 @@ static inline NSArray<NSDictionary *> *_Nullable VibeDropboxFolderListingEntries
             NSMutableDictionary<NSString *, NSString *> *folder = [VibeDropboxFolderLinkToken(url) mutableCopy];
             if (![folder[@"linkKey"] isEqualToString:token[@"linkKey"]] || folder[@"subPath"].length == 0) continue;
             if (!folder[@"rlkey"] && token[@"rlkey"]) folder[@"rlkey"] = token[@"rlkey"];
-            [entries addObject:@{@"name": filename, @"folder": @YES, @"token": folder}];
+            [entries addObject:@{@"name": filename, @"folder": folder}];
             continue;
         }
         id bytes = entry[@"bytes"];

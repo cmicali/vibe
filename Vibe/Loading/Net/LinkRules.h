@@ -167,6 +167,16 @@ static inline NSURL *VibeLinkDirectDownloadURL(NSURL *url) {
     return VibeDropboxLinkDownloadURL(url) ?: VibeGoogleDriveLinkDownloadURL(url) ?: url;
 }
 
+// A share link to a folder as the link Vibe keeps for it: Dropbox's
+// (VibeDropboxFolderLinkURL) or Google Drive's (VibeGoogleDriveFolderLinkURL).
+// nil for any other URL. A folder is listed, never probed.
+static inline NSURL *_Nullable VibeLinkFolderURL(NSURL *_Nullable url) {
+    NSDictionary<NSString *, NSString *> *dropbox = VibeDropboxFolderLinkToken(url);
+    if (dropbox) return VibeDropboxFolderLinkURL(dropbox);
+    NSDictionary<NSString *, NSString *> *drive = VibeGoogleDriveFolderLink(url);
+    return drive ? VibeGoogleDriveFolderLinkURL(drive) : nil;
+}
+
 #pragma mark - Audio check
 
 // The file type the first bytes name, with the extensions that share it. nil
