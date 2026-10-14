@@ -757,9 +757,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
         [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
             return [self defaultResponseFor:request json:json];
         }];
-        os_unfair_lock_lock(&sStubLock);
-        [sStubRequests removeAllObjects];
-        os_unfair_lock_unlock(&sStubLock);
+        [self clearRequests];
     }
 }
 
@@ -781,9 +779,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
         uint64_t listed = each == StaleListing ? bytes.length - 10 : bytes.length;
         NSString *name = [NSString stringWithFormat:@"case%ld.flac", (long)each];
         _chunkGate = dispatch_semaphore_create(0);
-        os_unfair_lock_lock(&sStubLock);
-        [sStubRequests removeAllObjects];
-        os_unfair_lock_unlock(&sStubLock);
+        [self clearRequests];
         NSURL *track = [self streamingTrack:bytes name:name chunk:chunk];
         if (each == StaleListing) {
             _listings[@"/music"] = @[VibeFileEntry(@"/Music", name, (long long)listed, kStamp)];

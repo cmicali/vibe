@@ -16,6 +16,8 @@
 #import <Foundation/Foundation.h>
 #import <CommonCrypto/CommonDigest.h>
 
+#include <time.h>
+
 #import "PlaylistFile.h"
 #import "SettingsRules.h"
 

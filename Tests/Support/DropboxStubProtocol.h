@@ -2,10 +2,11 @@
 //  DropboxStubProtocol.h
 //
 //  The account tests' HTTP boundary (Dropbox's and Google Drive's), an
-//  NSURLProtocol in the session's configuration. Every request goes to one handler the test installs, and
-//  the handler's answer can hang, wait on a gate, go out in held chunks or
-//  end in a dropped connection. The handler and the request log are
-//  process-wide, so one test at a time installs a handler.
+//  NSURLProtocol in the session's configuration. Every request goes to one
+//  handler the test installs, and the handler's answer can hang, wait on a
+//  gate, go out in held chunks or end in a dropped connection. The handler
+//  and the request log are process-wide, so one test at a time installs a
+//  handler.
 //
 
 #import <Foundation/Foundation.h>

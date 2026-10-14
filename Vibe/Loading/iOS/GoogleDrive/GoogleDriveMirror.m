@@ -139,10 +139,6 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
     return [record isKindOfClass:NSDictionary.class] && [record[@"id"] isKindOfClass:NSString.class] ? record : nil;
 }
 
-static NSArray<NSString *> *VibeNamesInDirectory(NSURL *directory) {
-    return [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
-}
-
 // The name each id holds in a directory, whose names are `existing`: its
 // index's records with a name on disk, then the folders a search hit made
 // here, which only their own index names. Reads only, any thread.
@@ -558,7 +554,8 @@ static NSArray<NSString *> *VibeNamesInDirectory(NSURL *directory) {
     NSURL *directory = account;
     for (NSDictionary *link in chain) {
         NSString *identifier = link[@"id"];
-        NSArray<NSString *> *existing = VibeNamesInDirectory(directory);
+        NSArray<NSString *> *existing = [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory.path
+                                                                                           error:NULL] ?: @[];
         NSString *name = [self localNamesInDirectory:directory existing:existing][identifier];
         if (!name) {
             NSDictionary<NSString *, NSString *> *names = VibeAccountNameIndex(existing);
@@ -614,8 +611,9 @@ static NSArray<NSString *> *VibeNamesInDirectory(NSURL *directory) {
                 }
                 // Read on the disk queue, which writes the folder's names.
                 dispatch_async(self.diskQueue, ^{
-                    NSString *local = [self localNamesInDirectory:folderURL
-                                                         existing:VibeNamesInDirectory(folderURL)][identifier];
+                    NSArray<NSString *> *existing = [NSFileManager.defaultManager
+                            contentsOfDirectoryAtPath:folderURL.path error:NULL] ?: @[];
+                    NSString *local = [self localNamesInDirectory:folderURL existing:existing][identifier];
                     NSURL *url = local ? [folderURL URLByAppendingPathComponent:local isDirectory:NO] : nil;
                     dispatch_async(dispatch_get_main_queue(), ^{
                         completion(url, url ? nil : VibeAccountMakeError(VibeAccountErrorAPI, @"not on Google Drive"));
@@ -657,7 +655,9 @@ static NSArray<NSString *> *VibeNamesInDirectory(NSURL *directory) {
         NSDictionary<NSString *, NSString *> *(^namesIn)(NSURL *) = ^(NSURL *directory) {
             NSDictionary<NSString *, NSString *> *names = namesByPath[directory.path];
             if (!names) {
-                names = [self localNamesInDirectory:directory existing:VibeNamesInDirectory(directory)];
+                NSArray<NSString *> *existing = [NSFileManager.defaultManager
+                        contentsOfDirectoryAtPath:directory.path error:NULL] ?: @[];
+                names = [self localNamesInDirectory:directory existing:existing];
                 namesByPath[directory.path] = names;
             }
             return names;
