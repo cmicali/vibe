@@ -182,6 +182,10 @@ NS_ASSUME_NONNULL_BEGIN
 // file's bytes: a download or a network share's read-ahead that fell behind.
 // Never on a file read directly.
 @property (readonly, getter=isBuffering) BOOL buffering;
+// The shells show Buffering…: a hold has lasted half a second. A seek during
+// it keeps it up until the new voice plays or holds. A shorter hold never
+// raises it.
+@property (readonly) BOOL bufferingNoticeShown;
 
 // Exactly one is true. During Loading, whether the open will land playing or
 // parked. A pause reports paused the moment it is requested.
@@ -267,6 +271,13 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track;
+
+// Main thread, when bufferingNoticeShown changes for the current play. It is
+// not a hold edge. It rises during a hold, and after a seek it can fall with
+// no hold edge.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBufferingNotice:(BOOL)shown
+                    forTrack:(AudioTrack *)track;
 
 // Main thread, once, when the current play's duration settles: a streaming
 // MP3 opened on an estimated length (AudioFileHandle.lengthIsEstimated) has

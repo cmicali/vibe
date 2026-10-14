@@ -179,7 +179,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"convertSweep": @(controller.trackDisplay.convertSweepFraction),
             @"waveformLoading": @(controller.trackDisplay.waveformLoadingIndicatorShown),
             @"notice": controller.noticeStatus ?: @"",
-            @"bufferingShown": @(controller.bufferingNoticeShown),
+            @"bufferingShown": @(controller.audioPlayer.bufferingNoticeShown),
             @"canUndo": @(window.undoManager.canUndo),
             @"canRedo": @(window.undoManager.canRedo),
             @"uiUpdateHz": @(controller.debugUIUpdateHz),

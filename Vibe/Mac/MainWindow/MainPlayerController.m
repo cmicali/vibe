@@ -459,7 +459,7 @@
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
                             status:(_noticeStatus ?: errorStatus)
-                         buffering:self.bufferingNoticeShown
+                         buffering:self.audioPlayer.bufferingNoticeShown
                              title:(_noticeStatus ? _noticeTitle : _unplayablePlaylistName)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];
@@ -696,10 +696,6 @@ static const NSTimeInterval kNoticeSeconds = 4;
         return;
     }
     [self.metadataCache loadMetadata:self.playlistController.playlist];
-}
-
-- (BOOL)bufferingNoticeShown {
-    return _bufferingNoticeShown && self.audioPlayer.isBuffering;
 }
 
 - (void)setErrorMaskForTrack:(AudioTrack *)track status:(NSString *)status {

@@ -34,28 +34,6 @@
     }
 }
 
-// A first hold waits. A seek during a shown hold ends it and starts the next
-// within the delay, which shows at once. A hold after the delay waits again.
-// Only a shown notice's end counts.
-- (void)testBufferingNoticeEdgesArmTheDelayExceptRightAfterAShownNotice {
-    BOOL shown = NO;
-    NSTimeInterval endedAt = 0;
-    XCTAssertTrue(VibeBufferingNoticeNoteEdge(YES, 1000, &shown, &endedAt), @"a first hold waits");
-    XCTAssertFalse(shown);
-    shown = YES; // the delay came due
-    XCTAssertFalse(VibeBufferingNoticeNoteEdge(NO, 1001, &shown, &endedAt), @"a seek ends the hold");
-    XCTAssertFalse(shown);
-    XCTAssertEqual(endedAt, 1001);
-    XCTAssertFalse(VibeBufferingNoticeNoteEdge(YES, 1001.05, &shown, &endedAt), @"the next hold shows at once");
-    XCTAssertTrue(shown);
-    XCTAssertFalse(VibeBufferingNoticeNoteEdge(NO, 1002, &shown, &endedAt));
-    XCTAssertTrue(VibeBufferingNoticeNoteEdge(YES, 1002 + kVibeBufferingNoticeDelaySeconds, &shown, &endedAt),
-                  @"a hold after the delay waits again");
-    XCTAssertFalse(shown);
-    XCTAssertFalse(VibeBufferingNoticeNoteEdge(NO, 1010, &shown, &endedAt));
-    XCTAssertEqual(endedAt, 1002, @"a hold that never showed ends nothing");
-}
-
 - (void)testPlaybackSettlementAndFallbackCanConsumeMetadataOnlyOnce {
     // Settlement and the fallback timer share this gate; whichever arrives
     // first consumes it.

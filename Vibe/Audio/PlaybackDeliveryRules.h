@@ -19,24 +19,6 @@ static inline BOOL VibePlaybackPreviousIsAvailable(BOOL hasPreviousTrack, BOOL h
     return hasPreviousTrack || (hasCurrentTrack && !playerIsStopped);
 }
 
-// A buffering hold shows Buffering… once it has lasted this long. A shorter
-// hold never flashes it. Both shells wait the same.
-static const NSTimeInterval kVibeBufferingNoticeDelaySeconds = 0.5;
-
-// A buffering edge, the same in both shells. It sets whether Buffering…
-// shows now, and returns YES when the caller arms the delay. A seek during a
-// hold ends one hold and starts the next. A notice that ended within the
-// delay comes back at once, so the line does not drop out. *endedAt is when a
-// shown notice last ended, in system uptime.
-static inline BOOL VibeBufferingNoticeNoteEdge(BOOL buffering, NSTimeInterval now,
-                                               BOOL *shown, NSTimeInterval *endedAt) {
-    if (*shown && !buffering) {
-        *endedAt = now;
-    }
-    *shown = buffering && now - *endedAt < kVibeBufferingNoticeDelaySeconds;
-    return buffering && !*shown;
-}
-
 // An empty seek's settlement is meaningful only while still stopped. A real
 // row is matched by identity, so another occurrence of its URL cannot own it.
 static inline BOOL VibePlaybackSeekSettlementIsCurrent(

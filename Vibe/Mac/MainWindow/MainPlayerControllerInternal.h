@@ -56,11 +56,6 @@ NS_ASSUME_NONNULL_BEGIN
     // set again.
     BOOL                        _emptyStateSuppressed;
     BOOL                        _folderArtRefreshScheduled;
-    // VibeBufferingNoticeNoteEdge's state. The generation pairs each delay
-    // with its own hold.
-    BOOL                        _bufferingNoticeShown;
-    NSUInteger                  _bufferingNoticeGeneration;
-    NSTimeInterval              _bufferingNoticeEndedUptime;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
@@ -125,9 +120,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (TrackDisplayState)headerState;
 // The held notice's status, nil for none.
 @property (nonatomic, readonly, copy, nullable) NSString *noticeStatus;
-// Buffering… stands in for the file info line. The player's flag is read
-// too, since a newer play drops the old hold's end.
-@property (nonatomic, readonly) BOOL bufferingNoticeShown;
 
 #pragma mark - Settings live effects
 

@@ -53,37 +53,28 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // A stream holding for its download stops Now Playing's clock
-// (publishNowPlaying) and leaves the card's waveform scrubbable. Buffering…
-// waits (VibeBufferingNoticeNoteEdge). Its end still asks again for a
-// waveform the open skipped.
+// (publishNowPlaying) and leaves the card's waveform scrubbable. Its end
+// still asks again for a waveform the open skipped.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
-    NSUInteger generation = ++_bufferingNoticeGeneration;
-    BOOL wasShown = _bufferingNoticeShown;
-    if (VibeBufferingNoticeNoteEdge(buffering, NSProcessInfo.processInfo.systemUptime,
-                                    &_bufferingNoticeShown, &_bufferingNoticeEndedUptime)) {
-        __weak PlaybackController *weakSelf = self;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kVibeBufferingNoticeDelaySeconds * NSEC_PER_SEC)),
-                       dispatch_get_main_queue(), ^{
-            PlaybackController *strongSelf = weakSelf;
-            if (strongSelf && strongSelf->_bufferingNoticeGeneration == generation && strongSelf->_player.isBuffering) {
-                strongSelf->_bufferingNoticeShown = YES;
-                [strongSelf notifyDidRenderCurrentTrack];
-            }
-        });
-    }
     if (!buffering) {
         [self notifyDidFinishLoading];
     }
-    if (wasShown != _bufferingNoticeShown) {
-        [self notifyDidRenderCurrentTrack];
-    }
     [self notifyDidChangePlayState];
     [self publishNowPlaying];
+}
+
+// The card shows Buffering… (bufferingNoticeShown).
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBufferingNotice:(BOOL)shown
+                    forTrack:(AudioTrack *)track {
+    if ([_playlist isCurrentTrack:track]) {
+        [self notifyDidRenderCurrentTrack];
+    }
 }
 
 // A stream opened on an estimated length counted it: the card's total and

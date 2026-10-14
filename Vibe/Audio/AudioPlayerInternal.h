@@ -69,6 +69,12 @@ typedef NS_ENUM(NSInteger, VibePlayerState) {
 static const uint64_t kDrainIntervalNanos = 10 * NSEC_PER_MSEC;
 static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 
+// A wait shows its indicator once it has lasted this long: the loading
+// indicator for an open, and Buffering… for a hold. A shorter wait never
+// flashes one. A provider's dataless verdict shows the loading indicator at
+// once. Remote streams keep this delay.
+static const NSTimeInterval kWaitIndicatorDelaySeconds = 0.5;
+
 @interface AudioPlayer () {
     dispatch_queue_t        _queue;
     os_unfair_lock          _stateLock;
@@ -86,6 +92,7 @@ static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
     BOOL                    _gaplessArmedForUI;
     BOOL                    _outputAudioActive;
     BOOL                    _buffering;         // the current voice held for its stream's bytes (updateBufferingOnQueue)
+    BOOL                    _bufferingNoticeShown; // Buffering… is due (setBufferingNoticeOnQueue:)
     // The stall's park: Paused with no voice and no file, the window and rate
     // kept, which resume replays and a seek holds for it. Set only by
     // publishPausedWithoutVoiceOnQueueAtSeconds:, cleared by every other
