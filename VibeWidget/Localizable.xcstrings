@@ -933,7 +933,6 @@
     },
     "widget.intent.show_playlist": {
       "comment": "Title of the widget action that opens Vibe on its Playlist tab, the list of tracks queued to play. A command. Vibe is the app name.",
-      "extractionState": "manual",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -1115,7 +1114,8 @@
             "value": "顯示播放列表"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "widget.name.now_playing": {
       "comment": "iOS widget gallery: the name every Vibe widget shares, Home Screen and Lock Screen alike. Each shows the track that is playing. Use the system's term for the track that is playing now.",
