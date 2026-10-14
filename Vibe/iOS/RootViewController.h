@@ -32,7 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The widget's playlist button. The card goes down and the Playlist tab shows
 // its list, not Settings. It replaces Search too, because the user asked for
-// the playlist.
+// the playlist. It does nothing while a sheet or alert is up.
 - (void)showPlaylist;
 
 @end

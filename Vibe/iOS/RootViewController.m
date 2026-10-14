@@ -708,7 +708,13 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
+// A sheet or alert keeps the screen as the user left it. Closing it would
+// drop what they started. A tab switch under it would leave it over the
+// wrong tab.
 - (void)showPlaylist {
+    if (self.vibeTopmostPresenter != self) {
+        return;
+    }
     [self minimizePlayerAnimated:NO];
     [self setSelectedTabIdentifier:kTabPlaylist];
     [_playlistScreen.navigationController popToRootViewControllerAnimated:NO];
