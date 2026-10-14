@@ -161,7 +161,7 @@ BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
             }
             atomic_store(waiting, true);
             return NO;
-        } deadline:slices ? [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadOpenPollSeconds] : nil error:&error];
+        } deadline:slices ? [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadPollSeconds] : nil error:&error];
     } while (slices && wait == CloudFileAvailabilityInterrupted && !atomic_load(interrupted) && !openInterrupted());
     atomic_store(waiting, false);
     if (wait == CloudFileAvailabilityReady) {
@@ -422,9 +422,6 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return _availability ? _availability.progressBytes : (uint64_t)MAX(0, _size);
 }
 
-// A read-ahead has no transfer to hold. A play's reads about 30 s ahead
-// instead, after the plays sized before it. The waveform loader never sends
-// this. Its read-ahead keeps the floor and never waits for a play's.
 - (void)holdStream {
     if (_availability.partURL && !_holdsStream) {
         _holdsStream = YES;

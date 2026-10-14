@@ -27,9 +27,6 @@ static const NSTimeInterval kVibeReadAheadRetrySeconds = 1;
 // a dead mount's or a slow one's. At this many, a new read-ahead open waits
 // for one to exit before it makes a thread.
 static const NSInteger kVibeReadAheadOrphanLimit = 8;
-// How often a play's read-ahead held back by an earlier one asks again. No
-// wake crosses from one availability to another.
-static const NSTimeInterval kVibeReadAheadHeldBackPollSeconds = 0.25;
 
 // TRAP: both edges of a read-ahead's end run under this lock: its handle's
 // dealloc and its thread's exit. A thread still running at the dealloc is an
@@ -108,7 +105,7 @@ BOOL VibeNetworkReadAheadAwaitRoom(NSString *name, BOOL (^interrupted)(void)) {
             LogWarn(@"Read-ahead: %@ waits: %ld reads of closed files are stuck", name, (long)kVibeReadAheadOrphanLimit);
             logged = YES;
         }
-        [NSThread sleepForTimeInterval:kVibeReadAheadOpenPollSeconds];
+        [NSThread sleepForTimeInterval:kVibeReadAheadPollSeconds];
     }
     return YES;
 }
@@ -267,7 +264,7 @@ static void VibeReadAheadRun(CloudFileAvailability *availability, NSURL *url, NS
             stop = start < position + span ? MIN((start / kVibeReadAheadBlock + 1) * kVibeReadAheadBlock, end) : 0;
         }
         if (VibeReadAheadHeldBack(flags, held < wantedEnd, stop > start)) {
-            until = [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadHeldBackPollSeconds];
+            until = [NSDate dateWithTimeIntervalSinceNow:kVibeReadAheadPollSeconds];
             continue;
         }
         if (stop <= start) {

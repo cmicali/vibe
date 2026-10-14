@@ -18,9 +18,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// How often a read-ahead's open asks its `interrupted` block again. Its
-// canceller wakes only a transfer (availabilityForURL:), never a read-ahead.
-static const NSTimeInterval kVibeReadAheadOpenPollSeconds = 0.25;
+// How often a read-ahead's waits ask again: an open's `interrupted` block,
+// the wait for room among the orphans, and a play held back by an earlier
+// one. No wake reaches a read-ahead from another: the open's canceller wakes
+// only a transfer (availabilityForURL:).
+static const NSTimeInterval kVibeReadAheadPollSeconds = 0.25;
 
 // Whether `url` reads ahead: the kernel's mount table says its mount is a
 // network one. *mount names that mount, for the log.
