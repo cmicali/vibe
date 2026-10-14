@@ -83,6 +83,7 @@ static inline NSURL *_Nullable VibeGoogleDriveLinkDownloadURL(NSURL *url) {
 
 #pragma mark - Folder links
 
+// A Drive folder's mimeType. The account's rules read it too.
 static NSString *const kVibeGoogleDriveFolderType = @"application/vnd.google-apps.folder";
 
 // A Google Drive folder link: {id, resourceKey}, the resource key left out

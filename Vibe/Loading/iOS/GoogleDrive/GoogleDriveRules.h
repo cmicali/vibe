@@ -27,6 +27,7 @@
 #import <Foundation/Foundation.h>
 
 #import "AccountRules.h"
+#import "GoogleDriveLinkRules.h"
 #import "HTTPTransferRules.h"
 #import "PlaylistFile.h"
 
@@ -41,7 +42,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Read-only, the whole account: a file browser cannot work from picked
 // files alone (docs/future/ios-google-drive.md has the scope's review).
 #define VIBE_GOOGLE_DRIVE_SCOPE       @"https://www.googleapis.com/auth/drive.readonly"
-#define VIBE_GOOGLE_DRIVE_FOLDER_TYPE @"application/vnd.google-apps.folder"
 // What a listing and a search ask of each file, and nothing more.
 #define VIBE_GOOGLE_DRIVE_FILE_FIELDS @"id,name,mimeType,size,modifiedTime,md5Checksum,headRevisionId,parents"
 // What the lookup before each download or ranged read asks.
@@ -153,7 +153,7 @@ static inline BOOL VibeGoogleDriveIsThrottle(NSInteger status, NSDictionary *_Nu
 #pragma mark - Entries
 
 static inline BOOL VibeGoogleDriveIsFolder(NSDictionary *entry) {
-    return [entry[@"mimeType"] isEqual:VIBE_GOOGLE_DRIVE_FOLDER_TYPE];
+    return [entry[@"mimeType"] isEqual:kVibeGoogleDriveFolderType];
 }
 
 // A file's size, -1 when it names none. The API writes an int64 as a JSON

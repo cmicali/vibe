@@ -41,7 +41,7 @@ Both classes compile into the macOS `VibeTests`, with each service's pair. The c
 
 ## Shared folder links
 
-**A folder link opened while signed in to its service is listed through the account** (`openSharedFolderLink:completion:`). Open URL's resolve on iOS chooses this road (`PlaybackController+ReplacePrompt`'s `resolveLinkString:completion:`). It asks each linked mirror `opensSharedFolderLink:`. Only Dropbox's says yes so far. Any failure falls back to `LinkStore`'s road with no account (`Loading/Net/AGENTS.md`).
+**A Dropbox or Google Drive folder link opened while signed in to that service is listed through the account** (`openSharedFolderLink:completion:`). Open URL's resolve on iOS chooses this road (`PlaybackController+ReplacePrompt`'s `resolveLinkString:completion:`). It asks each linked mirror `opensSharedFolderLink:`. Any failure falls back to `LinkStore`'s road with no account (`Loading/Net/AGENTS.md`).
 
 **The service's half is one hook and its listing.** `lookUpSharedFolderLink:completion:` names the folder and answers the index its top directory starts from. `refreshDirectoryAtURL:completion:` then lists each directory from what its index records. The open lists every folder below the link, one directory at a time. Any failure fails the open. A file downloads through the account, with the failure ladder, resume and version pin of any download.
 

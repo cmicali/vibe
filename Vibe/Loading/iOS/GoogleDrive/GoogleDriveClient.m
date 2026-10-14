@@ -80,7 +80,7 @@ static const NSTimeInterval kLookupReuseSeconds = 5;
         return;
     }
     [self getPath:[@"files/" stringByAppendingString:fileID]
-            query:@{@"fields": VIBE_GOOGLE_DRIVE_LOOKUP_FIELDS}
+            query:@{@"fields": VIBE_GOOGLE_DRIVE_LOOKUP_FIELDS, @"supportsAllDrives": @"true"}
        completion:^(NSDictionary *result, NSError *error) {
         NSMutableDictionary *file = [result mutableCopy];
         file[@"lookedUp"] = @(now);
@@ -126,7 +126,7 @@ static const NSTimeInterval kLookupReuseSeconds = 5;
 
 - (NSMutableURLRequest *)transferRequestForTarget:(id)target accessToken:(NSString *)accessToken {
     return [self authorizedRequestWithURL:VibeGoogleDriveURL([@"files/" stringByAppendingString:target],
-                                                             @{@"alt": @"media"})
+                                                             @{@"alt": @"media", @"supportsAllDrives": @"true"})
                               accessToken:accessToken];
 }
 

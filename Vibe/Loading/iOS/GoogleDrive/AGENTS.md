@@ -5,7 +5,7 @@ Google Drive access uses the Drive v3 REST API over `NSURLSession`, with no SDK.
 | File | Owns |
 | --- | --- |
 | `GoogleDriveClient` | Drive's endpoints and answers: the authorize and token addresses, the GET call (`getPath:query:completion:`), the media request, the lookup before each media request, the identity call and the revoke. It subclasses `OAuthAccountClient`. |
-| `GoogleDriveMirror` | My Drive as local files: listing by folder id, the local slots, search with its ancestry, and the stamp that keeps the cache key honest. It subclasses `AccountMirror`. |
+| `GoogleDriveMirror` | My Drive as local files: listing by folder id, the local slots, search with its ancestry, the stamp that keeps the cache key honest, and the Drive half of a shared folder link. It subclasses `AccountMirror`. |
 | `GoogleDriveRules.h` | The Drive decisions with no network or disk: the addresses and queries, the error reading, entry reading, local names and slots, and the stamp. Tested (`GoogleDriveRulesTests`). |
 
 Tests drive both classes over `DropboxStubProtocol` and a temp root (`GoogleDriveMirrorTests`, which uses `DropboxMirrorTestCase.h`'s helpers).
@@ -28,7 +28,7 @@ Tests drive both classes over `DropboxStubProtocol` and a temp root (`GoogleDriv
 
 ## The mirror
 
-`Library/Application Support/Google Drive/<permissionId>/`. Its budget is saved under `VibeiOSGoogleDriveDownloadBudget`. Only My Drive is mirrored. Shared drives, Shared with Me and shortcuts are not. **A file is mirrored only when it states a size** (`VibeGoogleDriveEntryIsMirrored`). A shortcut and a Google Docs file state none, and their media download is refused.
+`Library/Application Support/Google Drive/<permissionId>/`. Its budget is saved under `VibeiOSGoogleDriveDownloadBudget`. Only My Drive is mirrored, with the shared folder links the user opens (below). Shared drives, Shared with Me and shortcuts are not. **A file is mirrored only when it states a size** (`VibeGoogleDriveEntryIsMirrored`). A shortcut and a Google Docs file state none, and their media download is refused.
 
 - **A Drive item is its id, never its name.** Names repeat within a folder, and a name can hold `/`. Every request names an id. Each directory's index (the store's xattr) is `{"id": <folder id>, "files": {<index key>: {"id", "version"}}}`. A folder's record has no version. A download goes by the id its folder's listing recorded (`remoteTargetForURL:error:`). A relisting goes by the directory's recorded id.
 - **A local name is a slot** (`VibeGoogleDriveSlots`). A file keeps its slot while the slot still fits its Drive name. So a listing's order never moves a copy suffix to another file, and a duplicate name takes `Song (2).mp3`. New entries take their slots in id order, so one listing names them the same way twice. `/` and NUL become `-`, leading dots go, and a name is cut to `kVibeGoogleDriveNameMaxBytes` with its extension kept (`VibeGoogleDriveLocalBaseName`). **The suffix shows in the browser and in a row's title when the file has no title tag.**
@@ -38,5 +38,11 @@ Tests drive both classes over `DropboxStubProtocol` and a temp root (`GoogleDriv
 - **A listing is reconciled only whole.** Every page is fetched, past a short or empty page, until no `nextPageToken`. An `incompleteSearch` answer fails the listing, and nothing is deleted.
 
 **Search is Drive's `name contains`, which matches the start of each word in a name.** It asks one page of 100 and keeps at most 50 folders and playable files, never a CUE sheet. Each hit's folders are then looked up to My Drive's root, at most 32 deep. My Drive's own id is asked once. A folder a listing or an earlier lookup already named is not asked again. A hit whose folders never reach My Drive is left out. Opening a hit makes its folders by id, then lists the folder holding it (`localURLForEntry:completion:`). Search's identity for a file is its id, so the playlist's files are left out of the results.
+
+## Shared folder links
+
+**A Drive folder link opened while signed in is listed through the account.** The road is `AccountMirror`'s (`../Account/AGENTS.md`). This class is its Drive half. `lookUpSharedFolderLink:completion:` asks `files/<id>` for the folder's name and type, and the folder's directory index starts as `{"id": <folder id>}`. From there a link's folders list and download by id, as My Drive's do. Every listing, lookup and media request sends `supportsAllDrives`, and a listing also sends `includeItemsFromAllDrives`. A link can name a folder in a shared drive. Drive hides such a folder from a request without them.
+
+**A link with a `resourcekey` is not the account's** (`opensSharedFolderLink:`). Drive wants the key on each request about the folder and every file in it. The mirror sends none. Open URL opens such a link with no account, through the app's API key (`Loading/Net/AGENTS.md`).
 
 **The simulator needs no account.** `set_fake_google_drive <directory>` (`Vibe/Debug/iOS/VibeFakeGoogleDrive`) puts that directory under the client as My Drive, over the same HTTP boundary the tests stub. Each item's id is made from its path. `fake_google_drive_fault` scripts a stall, a drop, a version change, a throttle, an expired token, a slow rate and latency. `dump_google_drive` reads the account and which playlist tracks are placeholders. The real sign-in is Google's web sheet, which only a human fills.

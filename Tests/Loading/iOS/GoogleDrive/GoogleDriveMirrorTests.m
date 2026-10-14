@@ -7,6 +7,7 @@
 //
 
 #import "DropboxMirrorTestCase.h"
+#import "FilePaths.h"
 #import "GoogleDriveClient.h"
 #import "GoogleDriveMirror.h"
 #import "GoogleDriveRules.h"
@@ -24,7 +25,7 @@ static NSDictionary *DriveFile(NSString *identifier, NSString *name, NSString *p
 }
 
 static NSDictionary *DriveFolder(NSString *identifier, NSString *name, NSString *parent) {
-    return @{@"id": identifier, @"name": name, @"mimeType": VIBE_GOOGLE_DRIVE_FOLDER_TYPE, @"parents": @[parent]};
+    return @{@"id": identifier, @"name": name, @"mimeType": kVibeGoogleDriveFolderType, @"parents": @[parent]};
 }
 
 static struct stat DriveStat(NSURL *url) {
@@ -399,7 +400,7 @@ static DropboxStubResponse DriveMedia(NSURLRequest *request, NSData *bytes) {
 - (void)testSearchPlacesItsHitsAndLeavesOutWhatIsNotInMyDrive {
     _items[@"F2"] = DriveFolder(@"F2", @"Album", @"F1");
     _items[@"F1"] = DriveFolder(@"F1", @"Music", kRootFolderID);
-    _items[@"X"] = @{@"id": @"X", @"name": @"Shared", @"mimeType": VIBE_GOOGLE_DRIVE_FOLDER_TYPE};
+    _items[@"X"] = @{@"id": @"X", @"name": @"Shared", @"mimeType": kVibeGoogleDriveFolderType};
     NSDictionary *hit = DriveFile(@"S1", @"hit.flac", @"F2", 5, @"m1");
     [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
         if ([request.URL.path isEqualToString:@"/drive/v3/files"]
@@ -448,6 +449,62 @@ static DropboxStubResponse DriveMedia(NSURLRequest *request, NSData *bytes) {
     [self refreshURL:_mirror.accountURL];
     [self refreshURL:[_mirror.accountURL URLByAppendingPathComponent:@"Music" isDirectory:YES]];
     XCTAssertEqual(DriveStat(local).st_size, 5);
+}
+
+#pragma mark Shared folder links
+
+- (NSError *)openSharedLink:(NSString *)link folder:(NSURL **)folder {
+    XCTestExpectation *done = [self expectationWithDescription:link];
+    __block NSURL *opened = nil;
+    __block NSError *failure = nil;
+    [_mirror openSharedFolderLink:[NSURL URLWithString:link] completion:^(NSURL *folderURL, NSError *error) {
+        XCTAssertTrue(NSThread.isMainThread);
+        opened = folderURL;
+        failure = error;
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    if (folder) *folder = opened;
+    return failure;
+}
+
+- (void)testASharedFolderLinkIsListedBesideTheAccountAndFetchedByID {
+    NSData *encore = [@"encore bytes" dataUsingEncoding:NSUTF8StringEncoding];
+    _items[@"S1"] = @{@"id": @"S1", @"name": @"Mix Tape", @"mimeType": kVibeGoogleDriveFolderType};
+    _children[@"S1"] = @[DriveFile(@"A1", @"a.flac", @"S1", 4000, @"m1"), DriveFolder(@"L1", @"Live", @"S1")];
+    _children[@"L1"] = @[DriveFile(@"E1", @"Encore.flac", @"L1", (long long)encore.length, @"m2")];
+    _contents[@"E1"] = encore;
+    NSURL *folder = nil;
+    XCTAssertNil([self openSharedLink:@"https://drive.google.com/drive/folders/S1" folder:&folder]);
+
+    XCTAssertEqualObjects(folder.lastPathComponent, @"Mix Tape");
+    XCTAssertEqualObjects(VibeComparablePath(folder.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.path),
+                          VibeComparablePath(_mirror.linksURL.path));
+    XCTAssertEqualObjects([_mirror folderIDForURL:folder], @"S1");
+    NSURL *live = [folder URLByAppendingPathComponent:@"Live" isDirectory:YES];
+    NSURL *song = [live URLByAppendingPathComponent:@"Encore.flac"];
+    XCTAssertTrue([_mirror hasListedDirectory:live], @"every folder below the link");
+    XCTAssertEqual(DriveStat([folder URLByAppendingPathComponent:@"a.flac"]).st_size, 4000);
+    XCTAssertEqual(DriveStat(song).st_mode & 0777, 0, @"a placeholder");
+    XCTAssertEqualObjects([_mirror remoteTargetForURL:song error:NULL], @"E1");
+    XCTAssertNil([self fetch:song]);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:song], encore);
+    XCTAssertEqualObjects(DriveQuery([self requestsToPath:@"/drive/v3/files"].firstObject)[@"includeItemsFromAllDrives"],
+                          @"true", @"a link can name a folder in a shared drive");
+}
+
+- (void)testOnlyAFolderLinkWithNoResourceKeyIsTheAccounts {
+    XCTAssertTrue([_mirror opensSharedFolderLink:[NSURL URLWithString:@"https://drive.google.com/drive/folders/S1"]]);
+    XCTAssertFalse([_mirror opensSharedFolderLink:
+            [NSURL URLWithString:@"https://drive.google.com/drive/folders/S1?resourcekey=0-k"]]);
+    XCTAssertFalse([_mirror opensSharedFolderLink:[NSURL URLWithString:@"https://www.dropbox.com/scl/fo/k/h?rlkey=r"]]);
+
+    _items[@"F9"] = DriveFile(@"F9", @"a.flac", @"root", 5, @"m");
+    NSURL *folder = nil;
+    NSError *error = [self openSharedLink:@"https://drive.google.com/drive/folders/F9" folder:&folder];
+    XCTAssertNil(folder);
+    XCTAssertEqual(error.code, VibeAccountErrorAPI, @"a file is not a folder");
+    XCTAssertTrue(_client.isLinked);
 }
 
 #pragma mark The account

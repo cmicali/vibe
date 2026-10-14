@@ -100,7 +100,7 @@ static NSDictionary *VibeFakeGoogleDriveEntry(VibeFakeGoogleDriveItem *item) {
         @"kind": @"drive#file",
         @"id": item.identifier,
         @"name": root ? @"My Drive" : item.url.lastPathComponent,
-        @"mimeType": item.folder ? VIBE_GOOGLE_DRIVE_FOLDER_TYPE : @"application/octet-stream",
+        @"mimeType": item.folder ? kVibeGoogleDriveFolderType : @"application/octet-stream",
     }];
     if (item.parent) {
         entry[@"parents"] = @[item.parent];
