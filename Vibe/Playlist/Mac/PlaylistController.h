@@ -165,8 +165,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadTrackAtIndex:(NSUInteger)index;
 - (void)reloadTrack:(AudioTrack *)track;
 
-// For a whole-list change (the folder-artwork setting). Selection and scroll
-// survive.
+// For a whole-list change (the folder-artwork setting, the playlist's theme).
+// Selection and scroll survive.
 - (void)reloadAllTracks;
 
 // On-screen rows only, for a *repeated* whole-list change: a bulk open would

@@ -11,10 +11,14 @@
 * mac: Added automatic updates to the non-appstore version
 * mac: Added the RGB theme
 * mac: Added the Dark Wolf theme and its app icon, contributed by JohnnyFireOne
+* mac: Added theme colors for the text of the playing row and selected rows
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
+* mac: Fixed the waveform's hover line getting lost over the played part
+* mac: Fixed theme changes clearing the playlist selection on macOS 27
 * ios: Added Google Drive integration with audio streaming
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
+* ios: Added a full-bleed artwork widget with the mac's playlist, play, and next buttons
 * ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors
 * ios: Added album art for iCloud and Dropbox songs that aren't downloaded
 * ios: Added ability to play Dropbox, Google Drive, and iCloud drive share link URLs directly

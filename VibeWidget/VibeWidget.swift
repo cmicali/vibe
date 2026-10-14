@@ -38,6 +38,11 @@ struct VibeProvider: TimelineProvider {
     // Reuse the Metal context across timelines in this memory-limited process.
     private static let blurContext = CIContext()
 
+    // The full-bleed tile draws no playhead, waveform, or blurred background.
+    // So it takes one entry and only the art. Every publish reloads every
+    // kind, which keeps its play glyph current.
+    var artworkOnly = false
+
     func placeholder(in context: Context) -> VibeEntry { .empty }
 
     func getSnapshot(in context: Context, completion: @escaping (VibeEntry) -> Void) {
@@ -47,7 +52,7 @@ struct VibeProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<VibeEntry>) -> Void) {
         let now = Date()
         let first = loadEntry(at: now, family: context.family)
-        guard let state = first.state, state.hasTrack, state.playing, state.duration > 0 else {
+        guard !artworkOnly, let state = first.state, state.hasTrack, state.playing, state.duration > 0 else {
             // Hold until the app publishes again.
             completion(Timeline(entries: [first], policy: .never))
             return
@@ -71,6 +76,10 @@ struct VibeProvider: TimelineProvider {
 
     private func loadEntry(at date: Date, family: WidgetFamily) -> VibeEntry {
         guard let state = VibeWidgetState.load() else { return .empty }
+        if artworkOnly {
+            return VibeEntry(date: date, state: state, artwork: image(state.artworkURL),
+                             blurredArtwork: nil, played: nil, unplayed: nil)
+        }
         // The Lock Screen draws in the system's tint: no artwork, no
         // background, and only the played image, as a shape.
         let lockScreen = [.accessoryCircular, .accessoryRectangular, .accessoryInline].contains(family)
@@ -111,27 +120,28 @@ struct VibeProvider: TimelineProvider {
 struct VibeWidgetBundle: WidgetBundle {
     var body: some Widget {
         VibeNowPlayingWidget(kind: "VibeNowPlayingWaveformPlay", families: [.systemSmall],
-                             waveformTile: true, playButton: true)
+                             smallLayout: .waveformPlay)
         VibeNowPlayingWidget()
         VibeNowPlayingWidget(kind: "VibeNowPlayingLarge", families: [.systemLarge])
         VibeNowPlayingWidget(kind: "VibeNowPlayingWaveform", families: [.systemSmall],
-                             waveformTile: true)
+                             smallLayout: .waveform)
+        VibeNowPlayingWidget(kind: "VibeNowPlayingArtwork", families: [.systemSmall],
+                             smallLayout: .fullBleed)
     }
 }
 
-// One type, four kinds. They share a name and a description, but the gallery
+// One type, five kinds. They share a name and a description, but the gallery
 // offers each kind as its own page, so every small layout can sit on one Home
 // Screen. The app's reload is reloadAllTimelines, so it reaches every kind.
 struct VibeNowPlayingWidget: Widget {
     var kind = "VibeNowPlaying"
     var families: [WidgetFamily] = [.systemSmall, .systemMedium,
                                     .accessoryCircular, .accessoryRectangular, .accessoryInline]
-    var waveformTile = false
-    var playButton = false
+    var smallLayout = VibeSmallLayout.artworkTile
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: VibeProvider()) { entry in
-            VibeWidgetView(entry: entry, waveformTile: waveformTile, playButton: playButton)
+        StaticConfiguration(kind: kind, provider: VibeProvider(artworkOnly: smallLayout == .fullBleed)) { entry in
+            VibeWidgetView(entry: entry, smallLayout: smallLayout)
         }
         // Literals for the same reason the intents' titles are (VibeWidgetIntents.swift's
         // TRAP). Each MUST match its STR_WIDGET_* entry, which is what puts the key in the catalog.

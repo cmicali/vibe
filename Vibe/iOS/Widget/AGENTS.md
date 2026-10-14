@@ -40,9 +40,11 @@ A waveform is baked only for the published track, so a page swiped past cannot o
 
 ## The buttons
 
-The intents are `AudioPlaybackIntent`s. The system performs them in the app's process, launching it in the background if needed. A plain `AppIntent` would run in the extension, where it can do nothing.
+The transport and seek intents are `AudioPlaybackIntent`s. The system performs them in the app's process, launching it in the background if needed. A plain `AppIntent` would run in the extension, where it can do nothing.
 
-- **TRAP: the bodies are behind `VIBE_APP`**, because the extension cannot link an app class. They are no-ops there. If a button does nothing, first check that its intent is still an `AudioPlaybackIntent`.
+The playlist button's intent, `VibeShowPlaylistIntent`, is a plain `AppIntent` whose `supportedModes` is `.foreground`. The system opens the app and performs it there. It lowers the card and shows the Playlist tab's list (`RootViewController.showPlaylist`), even over Search. A launch already lands there. So with no connected scene it does nothing. It also does nothing while a sheet or alert is up, so the app only comes forward.
+
+- **TRAP: the bodies are behind `VIBE_APP`**, because the extension cannot link an app class. They are no-ops there. If a transport button does nothing, first check that its intent is still an `AudioPlaybackIntent`. If the playlist button only opens the app, check that its intent is still `.foreground`.
 - **TRAP: a tap can be the app's launch.** `VibeWidgetTransport.perform` continues in the foreground when no scene has connected. It then always waits for the launch restore to settle (`performWhenLaunchOpenSettled`). A local restore usually wins that race, so skipping the wait seems to work. A cloud folder loses it, and the tap lands on an empty playlist.
 - **TRAP: intent titles are literals**, because the metadata processor reads them statically. Each key and English default must match its `STR_WIDGET_INTENT_*` entry in `VibeStrings.h`.
 - The seek intent maps a zone to the zone's centre. It drops a tap whose `trackKey` is not the displayed track's.

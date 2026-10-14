@@ -7,6 +7,8 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "NSView+DarkMode.h"
+#import "PlaylistTableView.h"
+#import "PlaylistTextCell.h"
 
 @implementation PlaylistRowView
 
@@ -25,6 +27,32 @@
     if (_playingRow != playingRow) {
         _playingRow = playingRow;
         self.needsDisplay = YES;
+        [self applyTextColor];
+    }
+}
+
+- (void)setSelected:(BOOL)selected {
+    [super setSelected:selected];
+    [self applyTextColor];
+}
+
+// A cell arrives with whatever its last row pushed, so a reused one must be
+// told this row's color.
+- (void)didAddSubview:(NSView *)subview {
+    [super didAddSubview:subview];
+    [self applyTextColor];
+}
+
+- (void)applyTextColor {
+    NSColor *color = [PlaylistTableView textColorForRowSelected:self.selected playing:_playingRow];
+    for (NSView *subview in self.subviews) {
+        if (![subview isKindOfClass:NSTableCellView.class]) {
+            continue;
+        }
+        NSCell *cell = ((NSTableCellView *)subview).textField.cell;
+        if ([cell isKindOfClass:PlaylistTextCell.class]) {
+            ((PlaylistTextCell *)cell).rowTextColor = color;
+        }
     }
 }
 

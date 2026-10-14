@@ -272,6 +272,63 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     XCTAssertTrue(pill.hidden);
 }
 
+// A lit column barely differs from Mono's played side. Over it, the column is
+// a hole that shows the unplayed side.
+- (void)testHoverOverThePlayedSideShowsTheUnplayedSide {
+    AudioWaveformCacheChunk chunk;
+    chunk.set(-0.5f, 0.5f, 0.25f, 1);
+    AudioWaveform waveform(1, &chunk);
+    for (NSString *style in @[@"detailed", @"basic", @"cupertino", @"wiggle_centered", @"cupertino_basic"]) {
+        WaveformRenderer *renderer = [self rendererForStyle:style];
+        CALayer *host = renderer.parentLayer;
+        [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+        NSArray<CALayer *> *layers = host.sublayers.firstObject.sublayers;
+        CALayer *played = [style isEqualToString:@"cupertino_basic"] ? layers.firstObject : layers[1];
+        CALayer *lit = layers.lastObject;
+
+        [renderer setHoverHighlightX:100];
+        XCTAssertTrue(lit.hidden, @"%@", style);
+        CAShapeLayer *hole = (CAShapeLayer *)played.mask;
+        XCTAssertNotNil(hole, @"%@", style);
+        CGPoint inside = CGPointMake(CGRectGetMidX(lit.frame), CGRectGetMidY(lit.frame));
+        XCTAssertFalse(CGPathContainsPoint(hole.path, NULL, inside, true), @"%@", style);
+        XCTAssertTrue(CGPathContainsPoint(hole.path, NULL, CGPointMake(10, inside.y), true), @"%@", style);
+
+        [renderer setHoverHighlightX:400];
+        XCTAssertFalse(lit.hidden, @"%@", style);
+        XCTAssertNil(played.mask, @"%@", style);
+
+        // The playhead crosses the still cursor.
+        [renderer updateProgress:0.9 waveform:&waveform];
+        XCTAssertTrue(lit.hidden, @"%@", style);
+        XCTAssertNotNil(played.mask, @"%@", style);
+
+        [renderer setHoverHighlightX:-1];
+        XCTAssertNil(played.mask, @"%@", style);
+    }
+}
+
+- (void)testSonicCirrusHoverOverThePlayedSideTakesTheUnplayedColor {
+    AudioWaveformCacheChunk chunk;
+    chunk.set(-0.5f, 0.5f, 0.25f, 1);
+    AudioWaveform waveform(1, &chunk);
+    WaveformRenderer *renderer = [self rendererForStyle:@"sonic_cirrus"];
+    CALayer *host = renderer.parentLayer;
+    [renderer updateWaveform:host.bounds progress:0.5 waveform:&waveform];
+    NSArray<CALayer *> *bars = host.sublayers;
+    XCTAssertEqual(bars.count, 256u);
+    CGColorRef hover = renderer.theme.hoverColor.CGColor;
+    CGColorRef unplayed = renderer.theme.unplayedColor.CGColor;
+
+    // Bar 25 is played and bar 100 is not. Each bar's top is layer 2i.
+    [renderer setHoverHighlightX:100];
+    XCTAssertTrue(CGColorEqualToColor(bars[50].backgroundColor, unplayed));
+    [renderer setHoverHighlightX:400];
+    XCTAssertTrue(CGColorEqualToColor(bars[200].backgroundColor, hover));
+    [renderer updateProgress:0.9 waveform:&waveform];
+    XCTAssertTrue(CGColorEqualToColor(bars[200].backgroundColor, unplayed));
+}
+
 - (void)testBarWidthRebuildsLiveGeometryWithoutChangingCount {
     AudioWaveformCacheChunk chunk;
     chunk.set(-0.5f, 0.5f, 0.25f, 1);

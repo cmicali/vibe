@@ -9,6 +9,7 @@
 #import "AudioTrack.h"
 #import "Fonts.h"
 #import "PlaylistCoverImageView.h"
+#import "PlaylistRowView.h"
 #import "PlaylistTextCell.h"
 #import "EqualizerIndicatorView.h"
 #import "LoadingIndicatorMath.h"
@@ -129,6 +130,10 @@ static NSDictionary *numColumnAttributes;
 static NSDictionary *lengthColumnAttributes;
 static NSDictionary *titleAttributes;
 static NSDictionary *artistAttributes;
+// nil while the row's switch is off. Cached so a row view's repeated push
+// compares by pointer.
+static NSColor *playingRowTextColor;
+static NSColor *selectedRowTextColor;
 // Not dispatch_once: they carry the theme's fonts and colors, so the
 // PlaylistAppearance effect invalidates them.
 static BOOL cellAttributesBuilt;
@@ -179,11 +184,26 @@ static void ensureCellAttributes(void) {
                 NSFontAttributeName: [Fonts playlistFont],
                 NSParagraphStyleAttributeName: left,
         };
+        playingRowTextColor = [theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowText]
+                ? [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistPlayingRowText] : nil;
+        selectedRowTextColor = [theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowText]
+                ? [theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistSelectedRowText] : nil;
     }
 }
 
 + (void)invalidateCellAttributes {
     cellAttributesBuilt = NO;
+}
+
+// The row text colors are cached with the attributes, so they rebuild too.
+- (void)refreshRowColors {
+    cellAttributesBuilt = NO;
+    [self enumerateAvailableRowViewsUsingBlock:^(NSTableRowView *rowView, NSInteger row) {
+        rowView.needsDisplay = YES;
+        if ([rowView isKindOfClass:PlaylistRowView.class]) {
+            [(PlaylistRowView *)rowView applyTextColor];
+        }
+    }];
 }
 
 static NSTextField *makeCellTextField(NSRect frame) {
@@ -344,6 +364,16 @@ static NSTextField *makeCellTextField(NSRect frame) {
     ensureCellAttributes();
     return [[NSAttributedString alloc] initWithString:duration
                                            attributes:lengthColumnAttributes];
+}
+
+// A selected row takes the selected color, nil included, as it takes the
+// selected fill. A selected playing row never draws the playing color.
++ (NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing {
+    ensureCellAttributes();
+    if (selected) {
+        return selectedRowTextColor;
+    }
+    return playing ? playingRowTextColor : nil;
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {

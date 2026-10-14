@@ -6,7 +6,7 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 ## Kinds and families
 
-`VibeWidget.swift` declares four kinds of one widget type. The gallery shows each kind as its own page, so every small layout can sit on one Home Screen. The app's reload reaches all of them.
+`VibeWidget.swift` declares five kinds of one widget type. The gallery shows each kind as its own page, so every small layout can sit on one Home Screen. The app's reload reaches all of them.
 
 | Kind | Families |
 | --- | --- |
@@ -14,10 +14,11 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 | `VibeNowPlayingLarge` | large |
 | `VibeNowPlayingWaveform` | small, the waveform tile |
 | `VibeNowPlayingWaveformPlay` | small, the waveform tile with a play/pause disc |
+| `VibeNowPlayingArtwork` | small, the full-bleed tile |
 
 **TRAP: a placed widget belongs to its kind.** The original kind keeps its small and medium because both shipped. Moving a size to another kind breaks every copy of it on someone's Home Screen.
 
-`VibeWidgetView.swift` holds every layout. Small shows artwork, play/pause and text. Medium adds a waveform and next button. Large adds the previous button. The two small waveform tiles omit artwork. One includes play/pause. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape. With `playheadLine` set, the view draws the line itself over a strip that is wholly played.
+`VibeWidgetView.swift` holds every layout. Small shows artwork, play/pause and text. Medium adds a waveform and next button. Large adds the previous button. The two small waveform tiles omit artwork. One includes play/pause. The full-bleed tile copies the mac's artwork and transport row. The art fills the tile under the mac's darkening gradient. The playlist, play/pause and next buttons sit in its lower left, scaled from the mac's 150 pt art. As on the mac, the buttons show without a track, and play and next are dimmed. Without a track those two are glyphs, not buttons, so a tap on them opens the app. The art is content, not the container background, so a tinted Home Screen keeps it. The gradient draws only in full color, because a tint would draw it as a light wash. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape. With `playheadLine` set, the view draws the line itself over a strip that is wholly played.
 
 **TRAP: the artwork tile leaves its trailing edge unpadded.** The text supplies its own trailing padding. This centers the play disc between the artwork and tile edge.
 
@@ -25,9 +26,13 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 **TRAP: both Lock Screen waveform halves use the played image.** The unplayed image can have too little alpha for a tinted shape.
 
+**TRAP: the art needs a widget rendering mode** (`widgetAccentedRenderingMode`). Without one, a tinted Home Screen draws the art as a solid shape in the tint.
+
+**TRAP: `.disabled` dims a plain button a second time.** The full-bleed tile's disabled glyphs then fall below the mac's disabled white.
+
 ## The timeline
 
-A widget is not a live view. WidgetKit renders each entry ahead of time. A paused or empty state has one entry with policy `.never`. A playing state has entries every 5 s through 115 s, or until the remaining duration is shorter. Longer tracks then get up to 8 coarse entries through the end.
+A widget is not a live view. WidgetKit renders each entry ahead of time. A paused or empty state has one entry with policy `.never`. A playing state has entries every 5 s through 115 s, or until the remaining duration is shorter. Longer tracks then get up to 8 coarse entries through the end. The full-bleed tile always has one entry, because nothing on it moves (`VibeProvider.artworkOnly`). It also skips the blur and both waveform images. Every publish reloads every kind, which keeps its play glyph current.
 
 **The app requests a new timeline every minute during playback** (`Vibe/iOS/Widget/AGENTS.md`). WidgetKit controls delivery. **TRAP: keep coarse entries through the track’s end.** Without them, a delayed reload leaves the playhead frozen after the last dense entry. `.atEnd` also requests a reload on WidgetKit’s schedule.
 
@@ -35,6 +40,6 @@ The extension has a hard memory cap. So the artwork and both waveform images are
 
 ## Buttons and strings
 
-The transport buttons and the waveform's seek zones are the intents in `Vibe/iOS/Widget/VibeWidgetIntents.swift`. They run in the app, not here. There are 16 seek zones. **TRAP: each zone is a button archived with every entry**, so more zones cost render time per entry. The Lock Screen strip has no seek zones.
+The transport buttons and the waveform's seek zones are the intents in `Vibe/iOS/Widget/VibeWidgetIntents.swift`. They run in the app, not here. VoiceOver reads each transport button's intent title, which the catalog already translates. Without one it reads the symbol's name, and `forward.end.fill` reads as "Go To Start". **TRAP: a widget ignores `accessibilityHidden`**, so the full-bleed tile's dimmed glyphs carry the titles too. There are 16 seek zones. **TRAP: each zone is a button archived with every entry**, so more zones cost render time per entry. The Lock Screen strip has no seek zones.
 
 **TRAP: strings resolve against the extension's own bundle.** `Localizable.xcstrings` here is the `widget.*` subset of the app's catalog, derived by `make strings`. Never edit it by hand. Every key the widget reads must start with `widget.`, which `extract-strings.sh` enforces. The display name and description are literals for the same reason the intent titles are, and each must match its `STR_WIDGET_*` entry.

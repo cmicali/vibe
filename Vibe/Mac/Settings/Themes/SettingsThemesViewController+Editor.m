@@ -606,6 +606,17 @@ static const CGFloat kImageBadgeInset = 1.5;
     ]];
 }
 
+// Automatic or Custom, with the pair's wells beside the choice.
+- (SettingsRowView *)switchedPlaylistColorRowForBase:(NSString *)base title:(NSString *)title {
+    NSPopUpButton *popUp = [self standardOrCustomPopUpWithAction:@selector(playlistColorModeChanged:)
+                                                       standard:STR_SETTINGS_THEME_AUTOMATIC];
+    popUp.identifier = base;
+    NSStackView *pair = [self darkLightPairForBase:base effect:VibeThemePlaylistColorEditEffect(base)];
+    _playlistColorPopUps[base] = popUp;
+    _playlistColorPairs[base] = pair;
+    return [SettingsRowView rowWithTitle:title controls:@[pair, popUp]];
+}
+
 - (SettingsSectionView *)buildPlaylistSection {
     _playlistBackgroundPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                    action:@selector(playlistBackgroundStyleChanged:)];
@@ -613,8 +624,8 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_playlistBackgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_playlistBackgroundPopUp];
 
-    // The background is one layer color and the row fills are read per draw,
-    // so their drags take lighter effects than PlaylistAppearance.
+    // The background is one layer color and the row colors skip the cell
+    // rebuild, so their drags take lighter effects than PlaylistAppearance.
     _playlistBackgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
             control:[self darkLightPairForBase:kVibeThemeColorPlaylistBackground
                                         effect:VibeSettingsLiveEffectPlaylistBackground]];
@@ -631,28 +642,6 @@ static const CGFloat kImageBadgeInset = 1.5;
 
     _playlistColorPopUps = [NSMutableDictionary dictionary];
     _playlistColorPairs = [NSMutableDictionary dictionary];
-    NSMutableArray<SettingsRowView *> *playlistColorRows = [NSMutableArray array];
-    NSArray<NSArray *> *playlistColumns = @[
-        @[kVibeThemeColorPlaylistNumber, STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR],
-        @[kVibeThemeColorPlaylistTitle, STR_SETTINGS_THEME_COLOR_TITLE],
-        @[kVibeThemeColorPlaylistArtist, STR_SETTINGS_THEME_COLOR_ARTIST],
-        @[kVibeThemeColorPlaylistDuration, STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
-    ];
-    for (NSArray *column in playlistColumns) {
-        NSString *base = column[0];
-        NSPopUpButton *popUp = [self standardOrCustomPopUpWithAction:@selector(playlistColorModeChanged:)
-                                                           standard:STR_SETTINGS_THEME_AUTOMATIC];
-        popUp.identifier = base;
-        NSStackView *pair = [self darkLightPairForBase:base effect:VibeSettingsLiveEffectPlaylistAppearance];
-        _playlistColorPopUps[base] = popUp;
-        _playlistColorPairs[base] = pair;
-        [playlistColorRows addObject:[SettingsRowView rowWithTitle:column[1] controls:@[pair, popUp]]];
-    }
-
-    NSStackView *playingRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistPlayingRow
-                                                        effect:VibeSettingsLiveEffectPlaylistRowFills];
-    NSStackView *selectedRowColors = [self darkLightPairForBase:kVibeThemeColorPlaylistSelectedRow
-                                                         effect:VibeSettingsLiveEffectPlaylistRowFills];
 
     NSTextField *playlistFontValue = nil;
     NSStackView *playlistFontCluster = [self fontClusterForSlot:VibeFontSlotPlaylist valueLabel:&playlistFontValue];
@@ -663,7 +652,7 @@ static const CGFloat kImageBadgeInset = 1.5;
     _playlistFontValue = playlistFontValue;
     _playlistDurationFontValue = playlistDurationFontValue;
 
-    NSMutableArray<SettingsRowView *> *playlistRows = [NSMutableArray arrayWithArray:@[
+    return [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL
                 control:_playlistBackgroundPopUp],
         _playlistBackgroundColorsRow,
@@ -674,11 +663,24 @@ static const CGFloat kImageBadgeInset = 1.5;
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
                 control:playlistDurationFontCluster],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistNumber
+                                        title:STR_SETTINGS_THEME_PLAYLIST_NUMBER_COLOR],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistTitle title:STR_SETTINGS_THEME_COLOR_TITLE],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistArtist title:STR_SETTINGS_THEME_COLOR_ARTIST],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistDuration
+                                        title:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
+        // Each row fill, then the text drawn over it.
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
+                control:[self darkLightPairForBase:kVibeThemeColorPlaylistPlayingRow
+                                            effect:VibeSettingsLiveEffectPlaylistRowColors]],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistPlayingRowText
+                                        title:STR_SETTINGS_THEME_PLAYING_ROW_TEXT],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
+                control:[self darkLightPairForBase:kVibeThemeColorPlaylistSelectedRow
+                                            effect:VibeSettingsLiveEffectPlaylistRowColors]],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistSelectedRowText
+                                        title:STR_SETTINGS_THEME_SELECTED_ROW_TEXT],
     ]];
-    [playlistRows addObjectsFromArray:playlistColorRows];
-    [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW control:playingRowColors]];
-    [playlistRows addObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW control:selectedRowColors]];
-    return [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:playlistRows];
 }
 
 @end

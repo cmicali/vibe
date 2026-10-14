@@ -44,7 +44,8 @@
     XCTAssertEqual([theme fontSizeForSlot:VibeFontSlotPlaylistDuration], 12);
     XCTAssertEqualObjects(theme.mode, @"dual");
     for (NSString *base in @[kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
-                             kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration]) {
+                             kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration,
+                             kVibeThemeColorPlaylistPlayingRowText, kVibeThemeColorPlaylistSelectedRowText]) {
         XCTAssertFalse([theme playlistColorEnabledForBase:base], @"%@", base);
     }
     XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotTitle], @"");
@@ -369,7 +370,9 @@
                                    kVibeThemeColorPlaylistSelectedRow, kVibeThemeColorPlaylistButton,
                                    kVibeThemeColorPlayButton, kVibeThemeColorNextButton,
                                    kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
-                                   kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration];
+                                   kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration,
+                                   kVibeThemeColorPlaylistPlayingRowText,
+                                   kVibeThemeColorPlaylistSelectedRowText];
     for (NSString *base in bases) {
         XCTAssertNotNil([theme displayColorForBase:base dark:YES], @"%@", base);
         XCTAssertNotNil([theme displayColorForBase:base dark:NO], @"%@", base);
@@ -428,6 +431,30 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
                                                   name:NULL error:NULL], record);
 }
 
+// A row's text pair inherits the title pair, and travels beside the row's
+// fill under the playlist section.
+- (void)testPlaylistRowTextColorsInheritTheTitlePair {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    [theme setColor:VibeColorFromHexString(@"#FF0000") forBase:kVibeThemeColorTitle dark:YES];
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistPlayingRowText
+                                                                       dark:YES]), @"#FF0000");
+    [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistSelectedRowText];
+    [theme setColor:VibeColorFromHexString(@"#00FF00") forBase:kVibeThemeColorPlaylistSelectedRowText dark:NO];
+    XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistSelectedRowText],
+                                          NSAppearanceNameAqua), @"#00FF00");
+    XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistSelectedRowText],
+                                          NSAppearanceNameDarkAqua), @"#FF0000");
+
+    NSDictionary *record = @{@"playlistSelectedRowTextColorEnabled": @YES,
+                             @"playlistSelectedRowTextColorLight": @"#00FF00"};
+    NSDictionary *json = [NSJSONSerialization JSONObjectWithData:
+            [AppTheme JSONDataForRecord:record name:@"Rows"] options:0 error:NULL];
+    XCTAssertEqualObjects(json[@"playlist"], (@{@"selectedRowTextColorEnabled": @YES,
+                                                @"selectedRowTextColorLight": @"#00FF00"}));
+    XCTAssertEqualObjects([AppTheme recordFromJSONData:[AppTheme JSONDataForRecord:record name:@"Rows"]
+                                                  name:NULL error:NULL], record);
+}
+
 #pragma mark Dice
 
 - (void)testRandomizableFontFacesAreInstalled {
@@ -482,10 +509,13 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     [theme setFontFace:@"Georgia" size:23 forSlot:VibeFontSlotTitle];
     [theme setColor:VibeColorFromHexString(@"#101010F0") forBase:kVibeThemeColorPlaylistBackground dark:YES];
     theme.waveformSpectrumPalette = @"custom";
+    [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistPlayingRowText];
     for (int roll = 0; roll < 40; roll++) {
         [theme randomizeColors];
         // Custom draws the band wells the roll cleared.
         XCTAssertEqualObjects(theme.waveformSpectrumPalette, @"rgb");
+        // No scheme paints a row's text, so a leftover switch goes off.
+        XCTAssertFalse([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowText]);
         XCTAssertEqualObjects(theme.waveformStyle, @"detailed");
         XCTAssertEqual(theme.windowCornerRadius, 8);
         XCTAssertEqualObjects(theme.playlistButtonGlyph, @"list.dash");

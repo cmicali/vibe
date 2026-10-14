@@ -38,9 +38,11 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // redraw, and the background under the rows re-resolves (glass lift or
     // solid cover — the tint wash above it rides WindowTint).
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
-    // Row fills only: PlaylistRowView reads its fill per draw, so a live drag
-    // skips the cell rebuild.
-    VibeSettingsLiveEffectPlaylistRowFills = 1UL << 17,
+    // The row fills and the playing and selected rows' text. PlaylistRowView
+    // reads its fill per draw and pushes its text color, so a live drag skips
+    // the cell rebuild. The rebuild also clears the table's selection, which
+    // would hide the selected row being previewed.
+    VibeSettingsLiveEffectPlaylistRowColors = 1UL << 17,
     // The background under the rows only, a layer color the cells never read.
     VibeSettingsLiveEffectPlaylistBackground = 1UL << 18,
     // Normalize and gain: the renderer refills its morph target, so the bars
