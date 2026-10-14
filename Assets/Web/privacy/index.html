@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy Policy — Vibe</title>
-<meta name="description" content="Vibe collects nothing. No account of its own, no analytics, and no servers. It goes online for links you open, Dropbox if connected, and updates to the direct Mac download.">
+<meta name="description" content="Vibe collects no personal information and has no account of its own. It goes online for links you open, Dropbox if connected, and updates to the direct Mac download, which counts its update checks without identifying you.">
 <link rel="canonical" href="https://vibeplayer.app/privacy/">
 <link rel="icon" href="../img/icon-32.png?v=b5a0480490" sizes="32x32">
 <link rel="icon" href="../img/icon-64.png?v=2a2e6cd0a6" sizes="64x64">
 <link rel="apple-touch-icon" href="../img/icon-256.png?v=26cc86a113">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Privacy Policy — Vibe">
-<meta property="og:description" content="Vibe collects nothing. No account of its own, no analytics, and no servers. It goes online for links you open, Dropbox if connected, and updates to the direct Mac download.">
+<meta property="og:description" content="Vibe collects no personal information and has no account of its own. It goes online for links you open, Dropbox if connected, and updates to the direct Mac download, which counts its update checks without identifying you.">
 <meta property="og:url" content="https://vibeplayer.app/privacy/">
 <meta property="og:image" content="https://vibeplayer.app/img/player.png">
 <meta property="og:site_name" content="Vibe">
@@ -25,11 +25,21 @@
   <p class="back"><a href="../">&larr; Vibe</a></p>
 
   <h1>Privacy Policy</h1>
-  <p class="lede">Vibe collects nothing. It has no account of its own, no analytics, and no servers. Your music, and everything Vibe works out about it, stays on your device. Vibe goes online for three things only: an address you open with Open URL&hellip;, Dropbox on iPhone and iPad if you choose to connect it, and update checks in the Mac version downloaded from this site.</p>
-  <p class="updated">Last updated 12 October 2026</p>
+  <p class="lede">Vibe collects no personal information. It has no account of its own and no servers beyond this website. Your music, and everything Vibe works out about it, stays on your device. Vibe goes online for three things only: an address you open with Open URL&hellip;, Dropbox on iPhone and iPad if you choose to connect it, and update checks in the Mac version downloaded from this site. This site counts those update checks, without anything that identifies you.</p>
+  <p class="updated">Last updated 14 October 2026</p>
 
   <h2>What Vibe collects</h2>
-  <p>Nothing. Vibe does not collect, sell, or share personal information, and nothing it handles is ever sent to me. There is no Vibe account, no user profile, no usage tracking, no crash reporting, and no advertising.</p>
+  <p>Vibe does not collect, sell, or share personal information. There is no Vibe account, no user profile, no usage tracking, no crash reporting, and no advertising.</p>
+  <p>One thing is counted. The Mac version downloaded from this site sends a few facts with each update check:</p>
+  <ul>
+    <li>Which download you installed: the one for every Mac, or the one for Apple silicon only.</li>
+    <li>The version of Vibe.</li>
+    <li>The version of macOS, such as 15.4.</li>
+    <li>Whether Vibe is running on Apple silicon or Intel.</li>
+    <li>Whether beta updates are on.</li>
+    <li>The language Vibe is shown in, such as German.</li>
+  </ul>
+  <p>This site records those facts with the country the check came from. An older version of Vibe does not send its language. For one of those, this site records the first language in the request&rsquo;s standard Accept-Language header instead. It does not record your IP address or anything else that identifies you or your Mac. The records are kept in Cloudflare&rsquo;s analytics service, which hosts this site. They show me how many copies of each version are in use, and which Macs and macOS versions to keep supporting. The version from the App Store sends none of this.</p>
 
   <h2>What stays on your device</h2>
   <p>To do its job, Vibe reads and stores things locally, inside its own sandboxed container:</p>
@@ -46,7 +56,7 @@
   <p>Vibe fetches a web address only when you ask it to. Open URL&hellip; is in the File menu on the Mac, and in the Files tab on iPhone and iPad. A share link may need additional requests to resolve the audio file. The download can follow redirects. The request goes straight from your device to that server. The server sees the request as it would see any download. Vibe adds nothing that identifies you.</p>
   <p>An address must use https, unless the server is on your local network, such as a computer at home. The first time Vibe reaches a device on your local network, the system may ask you to allow it.</p>
   <p>On the Mac, Vibe runs in Apple&rsquo;s App Sandbox. It carries the outgoing network entitlement. The version from the App Store uses it only to fetch the addresses you open.</p>
-  <p>The Mac version downloaded from this site also checks for updates. It reads a small file from vibeplayer.app about once a week, and whenever you choose Check for Updates. You can change how often, or turn the automatic check off, in Settings &gt; General. When you install an update, it downloads the new version from GitHub. Vibe does not enable Sparkle&rsquo;s optional system-profile reporting. Like any web request, it shows your IP address to the server that answers it.</p>
+  <p>The Mac version downloaded from this site also checks for updates. It reads a small file from vibeplayer.app about once a day, and whenever you choose Check for Updates. That request carries the facts listed under What Vibe collects. You can change how often, or turn the automatic check off, in Settings &gt; General. When you install an update, it downloads the new version from GitHub. Vibe does not turn on Sparkle&rsquo;s optional system profile, which would send more detail about your Mac. Like any web request, it shows your IP address to the server that answers it.</p>
   <p>On iPhone and iPad, Vibe also goes online to reach Dropbox, but only after you connect a Dropbox account. Otherwise, the only links that leave the app are ones you click or tap yourself. The GitHub links in the About window open in your browser.</p>
 
   <h2>Dropbox on iPhone and iPad</h2>
@@ -64,7 +74,7 @@
   <p>If you installed Vibe from the App Store, Apple handled the download and any purchase. Apple gives me aggregate, anonymous sales figures, and crash reports from users who chose to share diagnostics with developers. None of that identifies you to me. Apple&rsquo;s privacy policy governs it.</p>
 
   <h2>Children</h2>
-  <p>Vibe collects no information from anyone, children included.</p>
+  <p>Vibe collects no personal information from anyone, children included.</p>
 
   <h2>Changes to this policy</h2>
   <p>If this policy changes, the new version is posted on this page and the date above changes with it. Vibe&rsquo;s source code is public, so any change to what the app actually does is visible in the commit history.</p>
