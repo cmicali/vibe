@@ -1,7 +1,1 @@
-* New: Buffering… shows while a song waits for a slow network share or download
-* New: theme colors for the text of the playing row and selected rows
-* Changed: Vibe checks for updates once a day instead of once a week
-* Changed: update checks count active installs, with no identifier and no IP address
-* Improved: hi-res songs play more smoothly from a slow network share
-* Fixed: the waveform's hover line getting lost over the played part
-* Fixed: theme changes clearing the playlist selection on macOS 27
+* New: separate theme colors for the title and the artist of the playing row and selected rows
