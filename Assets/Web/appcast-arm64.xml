@@ -7,6 +7,24 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta6</title>
+<pubDate>Wed, 14 Oct 2026 21:02:46 +0000</pubDate>
+<sparkle:version>313</sparkle:version>
+<sparkle:shortVersionString>1.16-beta6</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* New: Buffering… shows while a song waits for a slow network share or download
+* New: theme colors for the text of the playing row and selected rows
+* Changed: Vibe checks for updates once a day instead of once a week
+* Changed: update checks count active installs, with no identifier and no IP address
+* Improved: hi-res songs play more smoothly from a slow network share
+* Fixed: the waveform's hover line getting lost over the played part
+* Fixed: theme changes clearing the playlist selection on macOS 27
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta6/Vibe-macOS-arm64-1.16-beta6.zip" length="8775031" type="application/octet-stream" sparkle:edSignature="HDauQ7kWDrpSRyQjci4r1rTf5NdcWlmwonlR8XCrtTLhejWiwZK55Xnrsx98G3jvXFPtDHghPZjh+Dqn9abWBQ=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta5</title>
 <pubDate>Tue, 13 Oct 2026 21:37:25 +0000</pubDate>
 <sparkle:version>312</sparkle:version>
