@@ -7,6 +7,7 @@
 
 #include <os/lock.h>
 
+#import "DropboxLinkRules.h"
 #import "HTTPTransferClientInternal.h"
 #import "ICloudLinkRules.h"
 #import "LinkStore.h"
@@ -15,11 +16,11 @@
 // refused address was looked up again. A transfer does that once.
 static NSString *const kStateLookup = @"lookup";
 static NSString *const kStateRefreshed = @"refreshed";
-// A lookup that lost its connection is sent again this many times, this far
+// A call that lost its connection is sent again this many times, this far
 // apart, as a download's dropped connection is (HTTPTransferClient). A
-// download waiting on it would otherwise fail on one blip.
-static const NSInteger kLookupNetworkRetries = 2;
-static const NSTimeInterval kLookupNetworkRetryDelay = 1;
+// download waiting on a lookup would otherwise fail on one blip.
+static const NSInteger kCallNetworkRetries = 2;
+static const NSTimeInterval kCallNetworkRetryDelay = 1;
 
 @implementation LinkClient {
     os_unfair_lock _lookupLock;
@@ -79,7 +80,7 @@ static const NSTimeInterval kLookupNetworkRetryDelay = 1;
     if (!owner) {
         return;
     }
-    [self sendLookupOfShortGUID:shortGUID attempt:1 completion:^(NSDictionary *file, NSError *error) {
+    [self sendLookupOfShortGUID:shortGUID completion:^(NSDictionary *file, NSError *error) {
         os_unfair_lock_lock(&self->_lookupLock);
         NSArray *settled = self->_lookupWaiters[shortGUID];
         [self->_lookupWaiters removeObjectForKey:shortGUID];
@@ -93,43 +94,46 @@ static const NSTimeInterval kLookupNetworkRetryDelay = 1;
     }];
 }
 
-// A lost connection is sent again, twice at most. A throttle waits and is
-// sent again, as a request's does (resendAfterStatus:). Past those, a
-// network failure passes through as itself: a download keeps its part, and
-// a probe fails as unreachable. A status fails as the server's. Any answer
-// that is not one file shared with anyone fails with its link error.
-- (void)sendLookupOfShortGUID:(NSString *)shortGUID
-                      attempt:(NSInteger)attempt
-                   completion:(void (^)(NSDictionary *_Nullable file, NSError *_Nullable error))completion {
-    NSURL *url = [NSURL URLWithString:kVibeICloudLinkLookupURL];
-    BOOL (^allows)(NSURL *, NSURL *) = self.allowsURL;
-    if (allows && !allows(nil, url)) {
-        completion(nil, [self errorWithCode:VibeHTTPErrorRefusedURL description:@"the address is not allowed"]);
+// One call on the call session, answered whole: the iCloud lookup and a
+// Dropbox folder's listing. allowsURL is asked first. A lost connection is
+// sent again, twice at most. A throttle waits and is sent again, as a
+// request is (resendAfterStatus:). Past those, a network failure passes
+// through as itself: a download keeps its part, and a probe fails as
+// unreachable. Any status but 200 fails as the server's. `what` names the
+// call in the log. A call cancelled before a send completes with
+// VibeHTTPErrorCancelled.
+- (void)sendCall:(NSURLRequest *)request
+            what:(NSString *)what
+         attempt:(NSInteger)attempt
+       cancelled:(nullable BOOL (^)(void))cancelled
+      completion:(void (^)(NSData *_Nullable data, NSHTTPURLResponse *_Nullable response,
+                           NSError *_Nullable error))completion {
+    if (cancelled && cancelled()) {
+        completion(nil, nil, [self errorWithCode:VibeHTTPErrorCancelled description:@"cancelled"]);
         return;
     }
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
-    request.HTTPMethod = @"POST";
-    [request setValue:@"text/plain" forHTTPHeaderField:@"Content-Type"];
-    [request setValue:@"https://www.icloud.com" forHTTPHeaderField:@"Origin"];
-    request.HTTPBody = VibeICloudLinkLookupBody(shortGUID);
-    NSTimeInterval sent = NSProcessInfo.processInfo.systemUptime;
+    BOOL (^allows)(NSURL *, NSURL *) = self.allowsURL;
+    if (allows && !allows(nil, request.URL)) {
+        completion(nil, nil, [self errorWithCode:VibeHTTPErrorRefusedURL description:@"the address is not allowed"]);
+        return;
+    }
     void (^again)(NSInteger) = ^(NSInteger nextAttempt) {
-        [self sendLookupOfShortGUID:shortGUID attempt:nextAttempt completion:completion];
+        [self sendCall:request what:what attempt:nextAttempt cancelled:cancelled completion:completion];
     };
     [[self.callSession dataTaskWithRequest:request
                          completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (error && VibeHTTPIsConnectionError(error) && attempt <= kLookupNetworkRetries) {
-            LogInfo(@"Links: the iCloud lookup failed (%@); sending it again", error.localizedDescription);
+        if (error && VibeHTTPIsConnectionError(error) && attempt <= kCallNetworkRetries) {
+            LogInfo(@"Links: %@ failed (%@); sending it again", what, error.localizedDescription);
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                         (int64_t)(kLookupNetworkRetryDelay * self.retryDelayScale * NSEC_PER_SEC)),
+                                         (int64_t)(kCallNetworkRetryDelay * self.retryDelayScale * NSEC_PER_SEC)),
                            dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
                 again(attempt + 1);
             });
             return;
         }
         if (error) {
-            LogInfo(@"Links: the iCloud lookup failed: %@", error.localizedDescription);
-            completion(nil, error);
+            LogInfo(@"Links: %@ failed: %@", what, error.localizedDescription);
+            completion(nil, nil, error);
             return;
         }
         NSHTTPURLResponse *http = [response isKindOfClass:NSHTTPURLResponse.class]
@@ -137,15 +141,35 @@ static const NSTimeInterval kLookupNetworkRetryDelay = 1;
         NSInteger status = http.statusCode;
         if (status != 200 && [self resendAfterStatus:status retryAfter:[http valueForHTTPHeaderField:@"Retry-After"]
                                              attempt:attempt resend:again]) {
-            LogInfo(@"Links: the iCloud lookup answered HTTP %ld; sending it again", (long)status);
+            LogInfo(@"Links: %@ answered HTTP %ld; sending it again", what, (long)status);
             return;
         }
         if (status != 200) {
             NSString *summary = [NSString stringWithFormat:@"HTTP %ld", (long)status];
-            LogWarn(@"Links: the iCloud lookup answered %@", summary);
-            completion(nil, [NSError errorWithDomain:VibeHTTPErrorDomain code:VibeHTTPErrorStatus
-                                            userInfo:@{NSLocalizedDescriptionKey: summary,
-                                                       VibeHTTPErrorStatusCodeKey: @(status)}]);
+            LogWarn(@"Links: %@ answered %@", what, summary);
+            completion(nil, http, [NSError errorWithDomain:VibeHTTPErrorDomain code:VibeHTTPErrorStatus
+                                                  userInfo:@{NSLocalizedDescriptionKey: summary,
+                                                             VibeHTTPErrorStatusCodeKey: @(status)}]);
+            return;
+        }
+        completion(data, http, nil);
+    }] resume];
+}
+
+// Any answer that is not one file shared with anyone fails with its link
+// error. The call's failures are sendCall:'s.
+- (void)sendLookupOfShortGUID:(NSString *)shortGUID
+                   completion:(void (^)(NSDictionary *_Nullable file, NSError *_Nullable error))completion {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:kVibeICloudLinkLookupURL]];
+    request.HTTPMethod = @"POST";
+    [request setValue:@"text/plain" forHTTPHeaderField:@"Content-Type"];
+    [request setValue:@"https://www.icloud.com" forHTTPHeaderField:@"Origin"];
+    request.HTTPBody = VibeICloudLinkLookupBody(shortGUID);
+    NSTimeInterval sent = NSProcessInfo.processInfo.systemUptime;
+    [self sendCall:request what:@"the iCloud lookup" attempt:1 cancelled:nil
+        completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
+        if (error) {
+            completion(nil, error);
             return;
         }
         id answer = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
@@ -160,8 +184,173 @@ static const NSTimeInterval kLookupNetworkRetryDelay = 1;
         looked[@"lookedUp"] = @(sent);
         LogInfo(@"Links: looked up an iCloud file of %@ bytes", file[@"size"]);
         completion(looked, nil);
-    }] resume];
+    }];
 }
+
+#pragma mark - Dropbox folders
+
+- (dispatch_block_t)listDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
+                              timeout:(NSTimeInterval)timeout
+                           completion:(void (^)(NSString *, NSArray<NSDictionary *> *, NSError *))completion {
+    NSMutableDictionary *flow = [NSMutableDictionary dictionary];
+    BOOL (^cancelled)(void) = ^BOOL {
+        @synchronized (flow) {
+            return flow[@"stopped"] != nil;
+        }
+    };
+    dispatch_block_t cancel = ^{
+        @synchronized (flow) {
+            flow[@"stopped"] = @YES;
+        }
+    };
+    NSURL *pageURL = VibeDropboxFolderLinkURL(token);
+    if (!pageURL) {
+        completion(nil, nil, VibeLinkMakeError(VibeLinkErrorInvalid, nil));
+        return cancel;
+    }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:pageURL];
+    request.HTTPShouldHandleCookies = NO;
+    request.timeoutInterval = timeout;
+    [self sendCall:request what:@"the Dropbox folder page" attempt:1 cancelled:cancelled
+        completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        NSArray<NSHTTPCookie *> *cookies =
+                [NSHTTPCookie cookiesWithResponseHeaderFields:(NSDictionary<NSString *, NSString *> *)response.allHeaderFields
+                                                       forURL:response.URL ?: pageURL];
+        NSString *t = nil;
+        for (NSHTTPCookie *cookie in cookies) {
+            if ([cookie.name isEqualToString:@"t"]) {
+                t = cookie.value;
+            }
+        }
+        if (t.length == 0) {
+            LogWarn(@"Links: the Dropbox folder page set no t cookie");
+            completion(nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
+            return;
+        }
+        NSDictionary *call = @{@"cookie": [NSHTTPCookie requestHeaderFieldsWithCookies:cookies][@"Cookie"] ?: @"",
+                               @"t": t, @"timeout": @(timeout)};
+        [self filesOfDropboxFolder:token call:call visited:[NSMutableSet set] cancelled:cancelled
+                        completion:^(NSString *name, NSArray<NSDictionary *> *files, NSError *listError) {
+            if (files) {
+                LogInfo(@"Links: listed a Dropbox folder of %lu files", (unsigned long)files.count);
+            }
+            completion(name, files, listError);
+        }];
+    }];
+    return cancel;
+}
+
+// One folder's files: its pages in order, then each entry in turn, with a
+// folder's own files in its place. call is {cookie, t, timeout}. A folder
+// listed once already lists nothing, so a listing that names a folder above
+// it cannot loop.
+- (void)filesOfDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
+                        call:(NSDictionary *)call
+                     visited:(NSMutableSet<NSString *> *)visited
+                   cancelled:(BOOL (^)(void))cancelled
+                  completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable files,
+                                       NSError *_Nullable error))completion {
+    @synchronized (visited) {
+        if ([visited containsObject:token[@"subPath"]]) {
+            completion(nil, @[], nil);
+            return;
+        }
+        [visited addObject:token[@"subPath"]];
+    }
+    [self pageOfDropboxFolder:token voucher:nil entries:[NSMutableArray array] call:call cancelled:cancelled
+                   completion:^(NSString *name, NSArray<NSDictionary *> *entries, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        NSMutableArray<NSDictionary *> *files = [NSMutableArray array];
+        [self appendFilesOfEntries:entries from:0 into:files call:call visited:visited cancelled:cancelled
+                        completion:^(NSError *entriesError) {
+            completion(name, entriesError ? nil : files, entriesError);
+        }];
+    }];
+}
+
+// The folder's entries from the page `voucher` names, nil for the first, to
+// its last page. name is the first page that states one.
+- (void)pageOfDropboxFolder:(NSDictionary<NSString *, NSString *> *)token
+                    voucher:(nullable NSString *)voucher
+                    entries:(NSMutableArray<NSDictionary *> *)entries
+                       call:(NSDictionary *)call
+                  cancelled:(BOOL (^)(void))cancelled
+                 completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable entries,
+                                      NSError *_Nullable error))completion {
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:kVibeDropboxFolderListingURL]];
+    request.HTTPMethod = @"POST";
+    request.HTTPShouldHandleCookies = NO;
+    request.timeoutInterval = [call[@"timeout"] doubleValue];
+    request.HTTPBody = VibeDropboxFolderListingBody(token, call[@"t"], voucher);
+    [request setValue:@"application/x-www-form-urlencoded; charset=UTF-8" forHTTPHeaderField:@"Content-Type"];
+    [request setValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [request setValue:@"XMLHttpRequest" forHTTPHeaderField:@"X-Requested-With"];
+    [request setValue:@"https://www.dropbox.com" forHTTPHeaderField:@"Origin"];
+    [request setValue:call[@"cookie"] forHTTPHeaderField:@"Cookie"];
+    [self sendCall:request what:@"the Dropbox folder listing" attempt:1 cancelled:cancelled
+        completion:^(NSData *data, NSHTTPURLResponse *response, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        id answer = data.length > 0 ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
+        NSString *next = nil;
+        NSString *name = nil;
+        NSArray<NSDictionary *> *page = VibeDropboxFolderListingEntries(answer, token, &next, &name);
+        if (!page) {
+            LogWarn(@"Links: the Dropbox folder listing answered no entries");
+            completion(nil, nil, VibeLinkMakeError(VibeLinkErrorNotAudio, nil));
+            return;
+        }
+        [entries addObjectsFromArray:page];
+        // A voucher that names its own page again ends the listing.
+        if (next && ![next isEqualToString:voucher]) {
+            [self pageOfDropboxFolder:token voucher:next entries:entries call:call cancelled:cancelled
+                           completion:^(NSString *laterName, NSArray<NSDictionary *> *all, NSError *laterError) {
+                completion(name ?: laterName, all, laterError);
+            }];
+            return;
+        }
+        completion(name, entries, nil);
+    }];
+}
+
+// The files from entries[index] on, appended in order. A folder's files are
+// listed when it is reached.
+- (void)appendFilesOfEntries:(NSArray<NSDictionary *> *)entries
+                        from:(NSUInteger)index
+                        into:(NSMutableArray<NSDictionary *> *)files
+                        call:(NSDictionary *)call
+                     visited:(NSMutableSet<NSString *> *)visited
+                   cancelled:(BOOL (^)(void))cancelled
+                  completion:(void (^)(NSError *_Nullable error))completion {
+    while (index < entries.count && ![entries[index][@"folder"] boolValue]) {
+        [files addObject:entries[index++]];
+    }
+    if (index == entries.count) {
+        completion(nil);
+        return;
+    }
+    [self filesOfDropboxFolder:entries[index][@"token"] call:call visited:visited cancelled:cancelled
+                    completion:^(NSString *name, NSArray<NSDictionary *> *folderFiles, NSError *error) {
+        if (error) {
+            completion(error);
+            return;
+        }
+        [files addObjectsFromArray:folderFiles];
+        [self appendFilesOfEntries:entries from:index + 1 into:files call:call visited:visited cancelled:cancelled
+                        completion:completion];
+    }];
+}
+
+#pragma mark - Requests
 
 // An iCloud share's request is its file's signed address, looked up first.
 // The base adds the Range. A transfer waiting on the lookup is settled at

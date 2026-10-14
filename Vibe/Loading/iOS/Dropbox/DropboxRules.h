@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define VIBE_DROPBOX_CONTENT_BASE @"https://content.dropboxapi.com/2/"
 #define VIBE_DROPBOX_TOKEN_URL    @"https://api.dropboxapi.com/oauth2/token"
 #define VIBE_DROPBOX_AUTHORIZE    @"https://www.dropbox.com/oauth2/authorize"
-#define VIBE_DROPBOX_SCOPES       @"account_info.read files.metadata.read files.content.read"
+#define VIBE_DROPBOX_SCOPES       @"account_info.read files.metadata.read files.content.read sharing.read"
 
 #pragma mark - OAuth
 

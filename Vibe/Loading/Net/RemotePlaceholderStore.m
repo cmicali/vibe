@@ -161,6 +161,7 @@ static NSError *VibePOSIXError(void) {
 }
 
 - (dispatch_block_t)readTarget:(id)target
+                         ofURL:(NSURL *)url
                         offset:(uint64_t)offset
                         length:(uint64_t)length
                     completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
@@ -416,7 +417,8 @@ static NSError *VibePOSIXError(void) {
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block NSData *bytes = nil;
     __block NSError *failure = nil;
-    dispatch_block_t cancel = [self readTarget:target offset:offset + held.length length:length - held.length
+    dispatch_block_t cancel = [self readTarget:target ofURL:url offset:offset + held.length
+                                        length:length - held.length
                                     completion:^(NSData *data, NSDictionary *metadata, NSError *readError) {
         bytes = data;
         failure = readError;
@@ -448,12 +450,13 @@ static NSError *VibePOSIXError(void) {
 // version they are of, or nil and nil on a failure. A failure is not the
 // transfer's: the window stays absent, and reads there wait for the download.
 - (dispatch_block_t)readTailOfTarget:(id)target
+                               ofURL:(NSURL *)url
                                 size:(uint64_t)size
                               window:(uint64_t)window
-                                name:(NSString *)name
                               landed:(void (^)(NSData *_Nullable bytes, NSString *_Nullable version))landed {
     NSError *cancelled = [_client errorWithCode:VibeHTTPErrorCancelled description:@"cancelled"];
-    return [self readTarget:target offset:size - window length:window
+    NSString *name = url.lastPathComponent;
+    return [self readTarget:target ofURL:url offset:size - window length:window
                  completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         if (data.length == window) {
             landed(data, [self.client versionOfMetadata:metadata]);
@@ -546,7 +549,7 @@ static NSError *VibePOSIXError(void) {
     [_fetching addObject:key];
     [_streamsCondition unlock];
     dispatch_block_t cancelTail = window == 0 ? nil
-            : [self readTailOfTarget:target size:listed window:window name:name
+            : [self readTailOfTarget:target ofURL:url size:listed window:window
                               landed:^(NSData *bytes, NSString *version) {
         [self->_streamsCondition lock];
         BOOL settle = headKnown;

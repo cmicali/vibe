@@ -187,14 +187,18 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [coveringRootPaths addObject:VibeComparablePath(folder.path) ?: @""];
     }
     // The app's own trees need no grant, so a file picked in one always
-    // reaches its folder: Documents, and the Dropbox mirror.
+    // reaches its folder: Documents, the Dropbox mirror, and its shared links.
     NSString *documents = VibeComparablePath(LocationStore.containerDocumentsURL.path);
     NSString *dropbox = VibeComparablePath(DropboxMirror.shared.accountURL.path);
+    NSString *dropboxLinks = VibeComparablePath(DropboxMirror.shared.linksURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
     }
     if (dropbox) {
         [coveringRootPaths addObject:dropbox];
+    }
+    if (dropboxLinks) {
+        [coveringRootPaths addObject:dropboxLinks];
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
     NSMutableArray<LocationGrant *> *grants = [NSMutableArray array];

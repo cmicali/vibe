@@ -178,8 +178,12 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Spelling and stored names only, never the disk: asking a provider's folder
 // for its name is IPC that can block main.
 + (NSString *)displayNameForFolderURL:(NSURL *)url {
-    // The account's mirror directory is named for its Dropbox account id.
-    if ([[DropboxMirror.shared derivedDropboxPathForURL:url] isEqualToString:@""]) {
+    // The account's mirror directory is named for its Dropbox account id. A
+    // shared link's folder sits in a directory named for the link's hash.
+    DropboxMirror *mirror = DropboxMirror.shared;
+    NSString *links = VibeComparablePath(mirror.linksURL.path);
+    if ([[mirror derivedDropboxPathForURL:url] isEqualToString:@""]
+            || (links && [VibeComparablePath(url.URLByDeletingLastPathComponent.path) isEqualToString:links])) {
         return VibeNotLocalized(@"Dropbox");
     }
     static NSString *documentsPath;

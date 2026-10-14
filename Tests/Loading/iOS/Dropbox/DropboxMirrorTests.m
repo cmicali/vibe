@@ -1,5 +1,15 @@
 
 #import "DropboxMirrorTestCase.h"
+#import "FilePaths.h"
+
+static NSString *const kSharedLink = @"https://www.dropbox.com/scl/fo/key1/hash1?rlkey=rk";
+
+// A file of a shared link's listing: no path, and an id of the owner's that
+// the listener cannot fetch by.
+static NSDictionary *LinkFileEntry(NSString *name, long long size) {
+    return @{@".tag": @"file", @"name": name, @"size": @(size), @"server_modified": kStamp, @"rev": kRev,
+             @"id": @"id:owners"};
+}
 
 @interface DropboxMirrorTests : DropboxMirrorTestCase
 @end
@@ -392,6 +402,94 @@
     }];
     [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertFalse(_client.isLinked);
+}
+
+#pragma mark Shared folder links
+
+// The account's answers for kSharedLink: its metadata, its listings by path
+// below it, and its files by that path.
+- (void)answerSharedLinkListings:(NSDictionary<NSString *, NSArray *> *)listings
+                        contents:(NSDictionary<NSString *, NSData *> *)contents {
+    [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
+        NSString *path = request.URL.path;
+        if ([path isEqualToString:@"/2/sharing/get_shared_link_metadata"]) {
+            return DropboxStubJSON(200, @{@".tag": @"folder", @"name": @"Mix Tape", @"url": kSharedLink});
+        }
+        if ([path isEqualToString:@"/2/files/list_folder"] && [json[@"shared_link"][@"url"] isEqual:kSharedLink]) {
+            NSArray *entries = listings[json[@"path"]];
+            if (!entries) {
+                return DropboxStubJSON(409, @{@"error_summary": @"path/not_found/"});
+            }
+            return DropboxStubJSON(200, @{@"entries": entries, @"cursor": @"c", @"has_more": @NO});
+        }
+        if ([path isEqualToString:@"/2/sharing/get_shared_link_file"]) {
+            NSString *argument = [request valueForHTTPHeaderField:@"Dropbox-API-Arg"];
+            NSDictionary *arg = [NSJSONSerialization JSONObjectWithData:[argument dataUsingEncoding:NSUTF8StringEncoding]
+                                                                options:0 error:NULL];
+            NSData *bytes = [arg[@"url"] isEqual:kSharedLink] ? contents[arg[@"path"]] : nil;
+            if (!bytes) {
+                return DropboxStubJSON(409, @{@"error_summary": @"shared_link_not_found/"});
+            }
+            return VibeDownloadAnswer(request, bytes, @{@".tag": @"file", @"server_modified": kStamp,
+                                                        @"size": @(bytes.length), @"rev": kRev});
+        }
+        return [self defaultResponseFor:request json:json];
+    }];
+}
+
+- (NSURL *)openSharedLink {
+    XCTestExpectation *done = [self expectationWithDescription:@"link"];
+    __block NSURL *folder = nil;
+    [_mirror openSharedFolderLink:[NSURL URLWithString:kSharedLink] completion:^(NSURL *folderURL, NSError *error) {
+        XCTAssertTrue(NSThread.isMainThread);
+        XCTAssertNil(error);
+        folder = folderURL;
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    return folder;
+}
+
+- (void)testASharedFolderLinkIsListedBesideTheAccountAndFetchedByItsPath {
+    NSData *encore = [@"encore bytes" dataUsingEncoding:NSUTF8StringEncoding];
+    [self answerSharedLinkListings:@{
+        @"": @[LinkFileEntry(@"A.flac", 4000), @{@".tag": @"folder", @"name": @"Live"}, LinkFileEntry(@"cover.jpg", 10)],
+        @"/Live": @[LinkFileEntry(@"Encore.flac", (long long)encore.length)],
+    } contents:@{@"/Live/Encore.flac": encore}];
+    NSURL *folder = [self openSharedLink];
+
+    XCTAssertEqualObjects(folder.lastPathComponent, @"Mix Tape");
+    XCTAssertEqualObjects(VibeComparablePath(folder.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.path),
+                          VibeComparablePath(_mirror.linksURL.path));
+    XCTAssertNil([_mirror dropboxPathForURL:folder], @"not a folder of the account");
+    NSURL *live = [folder URLByAppendingPathComponent:@"Live" isDirectory:YES];
+    NSURL *song = [live URLByAppendingPathComponent:@"Encore.flac"];
+    XCTAssertTrue([_mirror hasListedDirectory:folder]);
+    XCTAssertTrue([_mirror hasListedDirectory:live], @"every folder below the link");
+    XCTAssertEqual(StatOf([folder URLByAppendingPathComponent:@"A.flac"]).st_size, 4000);
+    XCTAssertEqual(StatOf(song).st_mode & 0777, 0);
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[folder URLByAppendingPathComponent:@"cover.jpg"].path]);
+    XCTAssertEqualObjects([_mirror remoteTargetForURL:song error:NULL],
+                          (@{@"url": kSharedLink, @"path": @"/Live/Encore.flac"}), @"its path below the link, never an id");
+
+    NSError *error = nil;
+    XCTAssertTrue([_mirror fetchPlaceholderAtURL:song onReadable:nil onCancel:^(dispatch_block_t cancel) {
+    } error:&error], @"%@", error);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:song], encore);
+    XCTAssertEqual(StatOf(song).st_mtimespec.tv_sec, kStampSeconds);
+    XCTAssertEqual([self measuredDownloads], (long long)encore.length, @"the budget counts the links' downloads");
+}
+
+- (void)testAnotherAccountTakesTheSharedLinksWithTheFirst {
+    [self answerSharedLinkListings:@{@"": @[LinkFileEntry(@"A.flac", 4000)]} contents:@{}];
+    NSURL *links = _mirror.linksURL;
+    XCTAssertNotNil([self openSharedLink]);
+    XCTAssertTrue([NSFileManager.defaultManager fileExistsAtPath:links.path]);
+    [_client adoptRefreshToken:@"R2" accountID:@"dbid:second"];
+    [self spinMainQueue];
+    dispatch_sync(_mirror.diskQueue, ^{
+    });
+    XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:links.path]);
 }
 
 @end

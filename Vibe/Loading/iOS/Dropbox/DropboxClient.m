@@ -448,10 +448,16 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     return request;
 }
 
-- (NSMutableURLRequest *)downloadRequestForPath:(NSString *)path token:(NSString *)token {
-    NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:@"files/download"]];
+// A Dropbox path or id goes to files/download. A shared link's file,
+// {url, path}, goes to sharing/get_shared_link_file, its path below the link.
+- (NSMutableURLRequest *)downloadRequestForTarget:(id)target token:(NSString *)token {
+    BOOL linked = [target isKindOfClass:NSDictionary.class];
+    NSString *endpoint = linked ? @"sharing/get_shared_link_file" : @"files/download";
+    NSURL *url = [NSURL URLWithString:[VIBE_DROPBOX_CONTENT_BASE stringByAppendingString:endpoint]];
     NSMutableURLRequest *request = [self requestForURL:url token:token];
-    [request setValue:VibeDropboxAPIArgHeader(@{@"path": path}) forHTTPHeaderField:@"Dropbox-API-Arg"];
+    NSDictionary *argument = linked ? @{@"url": target[@"url"] ?: @"", @"path": target[@"path"] ?: @""}
+                                    : @{@"path": target};
+    [request setValue:VibeDropboxAPIArgHeader(argument) forHTTPHeaderField:@"Dropbox-API-Arg"];
     return request;
 }
 
@@ -660,7 +666,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         // A download naming no file: refused at once, and what it buys is the
         // connection to the content host, one per session, since a session's
         // connections are its own (the download on one, its tail on the other).
-        NSMutableURLRequest *request = [self downloadRequestForPath:@"" token:token];
+        NSMutableURLRequest *request = [self downloadRequestForTarget:@"" token:token];
         [[self.downloadSession dataTaskWithRequest:request] resume];
         [[self.callSession dataTaskWithRequest:request] resume];
     }];
@@ -668,8 +674,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 
 #pragma mark - Transfers
 
-// files/download by the target path, as the account. A transfer waiting on
-// the refresh is settled at once by its cancel (HTTPTransferClient).
+// The target's download (downloadRequestForTarget:), as the account. A
+// transfer waiting on the refresh is settled at once by its cancel
+// (HTTPTransferClient).
 - (void)makeRequestForTarget:(id)target
                        state:(NSMutableDictionary<NSString *, id> *)state
                   completion:(void (^)(NSMutableURLRequest *, NSError *))completion {
@@ -680,7 +687,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
         }
         state[kStateToken] = token;
         state[kStateAccountGeneration] = @(generation);
-        completion([self downloadRequestForPath:target token:token], nil);
+        completion([self downloadRequestForTarget:target token:token], nil);
     }];
 }
 
@@ -712,8 +719,12 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     return @"Dropbox";
 }
 
-// A Dropbox path or id names a file in the account, not a link.
+// A Dropbox path or id names a file in the account. A shared link's file is
+// named by its path below the link, never by the link, which reads it.
 - (NSString *)descriptionOfTarget:(id)target {
+    if ([target isKindOfClass:NSDictionary.class]) {
+        return [NSString stringWithFormat:@"a shared link's %@", target[@"path"]];
+    }
     return [target description];
 }
 
