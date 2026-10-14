@@ -12,6 +12,7 @@
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
+#import "PlaylistFile.h"
 #import "RemotePlaceholderStoreInternal.h"
 #import "VibeStrings.h"
 
@@ -232,11 +233,12 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 // A tag read of a file the record no longer describes would parse another
 // file's tags as this one's.
 - (dispatch_block_t)readTarget:(id)target
+                         ofURL:(NSURL *)url
                         offset:(uint64_t)offset
                         length:(uint64_t)length
                     completion:(void (^)(NSData *, NSDictionary *, NSError *))completion {
-    NSURL *directory = [self directoryOfLink:target];
-    return [super readTarget:target offset:offset length:length
+    NSURL *directory = url.URLByDeletingLastPathComponent;
+    return [super readTarget:target ofURL:url offset:offset length:length
                   completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         NSDictionary *record = [self recordOfDirectory:directory];
         if (data && record && ![self record:record matchesMetadata:metadata]) {
@@ -311,45 +313,69 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
             settle(nil, cancelled);
         };
     }
-    NSURL *link = VibeLinkDirectDownloadURL(typed);
-    NSTimeInterval probed = NSDate.date.timeIntervalSince1970;
+    NSDictionary<NSString *, NSString *> *folder = VibeDropboxFolderLinkToken(typed);
+    NSURL *folderLink = folder ? VibeDropboxFolderLinkURL(folder) : nil;
+    NSURL *link = folderLink ?: VibeLinkDirectDownloadURL(typed);
+    NSTimeInterval timeout = VibeLinkProbeTimeout(link.host) * self.probeTimeoutScale;
     // The disk queue's: the first of the answer, the deadline, and the cancel
     // wins. The others do nothing.
     __block BOOL answered = NO;
-    dispatch_block_t cancelProbe = [self.client probeTarget:link length:kProbeBytes
-                                                 completion:^(NSDictionary *metadata, NSHTTPURLResponse *response,
-                                                              NSData *head, NSError *error) {
-        dispatch_async(self.diskQueue, ^{
+    dispatch_block_t stop = nil;
+    if (folderLink) {
+        // No deadline of the probe's kind: a large folder takes many
+        // requests. Each has the probe's length as its idle timeout.
+        stop = [(LinkClient *)self.client listDropboxFolder:folder timeout:timeout
+                                                 completion:^(NSString *name, NSArray<NSDictionary *> *files,
+                                                              NSError *error) {
+            dispatch_async(self.diskQueue, ^{
+                if (answered) {
+                    return;
+                }
+                answered = YES;
+                NSError *failure = nil;
+                NSURL *file = error ? [self downloadOfLink:link afterProbeError:error failure:&failure]
+                                    : [self settleFolderLink:link name:name files:files error:&failure];
+                finish(file, file ? nil : failure);
+            });
+        }];
+    }
+    else {
+        NSTimeInterval probed = NSDate.date.timeIntervalSince1970;
+        stop = [self.client probeTarget:link length:kProbeBytes
+                             completion:^(NSDictionary *metadata, NSHTTPURLResponse *response,
+                                          NSData *head, NSError *error) {
+            dispatch_async(self.diskQueue, ^{
+                if (answered) {
+                    return;
+                }
+                answered = YES;
+                NSError *failure = nil;
+                NSURL *file = error ? [self downloadOfLink:link afterProbeError:error failure:&failure]
+                                    : [self settleLink:link metadata:metadata response:response head:head
+                                              probedAt:probed error:&failure];
+                finish(file, file ? nil : failure);
+            });
+        }];
+        dispatch_block_t cancelProbe = stop;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC)), self.diskQueue, ^{
             if (answered) {
                 return;
             }
             answered = YES;
+            cancelProbe();
+            LogInfo(@"Links: %@ sent nothing within %.0f s", link.host, timeout);
+            // The host's network failure, as a connection's own timeout would be.
+            NSError *timedOut = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil];
             NSError *failure = nil;
-            NSURL *file = error ? [self downloadOfLink:link afterProbeError:error failure:&failure]
-                                : [self settleLink:link metadata:metadata response:response head:head
-                                          probedAt:probed error:&failure];
+            NSURL *file = [self downloadOfLink:link afterProbeError:timedOut failure:&failure];
             finish(file, file ? nil : failure);
         });
-    }];
-    NSTimeInterval timeout = VibeLinkProbeTimeout(link.host) * self.probeTimeoutScale;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC)), self.diskQueue, ^{
-        if (answered) {
-            return;
-        }
-        answered = YES;
-        cancelProbe();
-        LogInfo(@"Links: %@ sent nothing within %.0f s", link.host, timeout);
-        // The host's network failure, as a connection's own timeout would be.
-        NSError *timedOut = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil];
-        NSError *failure = nil;
-        NSURL *file = [self downloadOfLink:link afterProbeError:timedOut failure:&failure];
-        finish(file, file ? nil : failure);
-    });
+    }
     return ^{
         if (settled) {
             return;
         }
-        cancelProbe();
+        stop();
         dispatch_async(self.diskQueue, ^{
             answered = YES;
         });
@@ -358,7 +384,8 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     };
 }
 
-// The disk queue. A link that cannot be reached still opens its download.
+// The disk queue. A link that cannot be reached still opens its download. A
+// folder link opens its playlist, which names its downloads.
 - (nullable NSURL *)downloadOfLink:(NSURL *)link afterProbeError:(NSError *)error failure:(NSError **)failure {
     NSError *linkError = VibeLinkErrorOfProbe(error, link.host);
     if (failure) *failure = linkError;
@@ -426,31 +453,161 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     }
     time_t modified = VibeLinkModificationTime(metadata, probed);
     NSDictionary *fresh = [self recordOfLink:link metadata:metadata ranges:ranges modified:modified opened:probed];
-    // TRAP: a file being fetched now keeps its placeholder, from the fetch's
-    // start, before its first response. The fetch's install renames the bytes
-    // it downloaded over whatever stands at the URL, and its readers hold the
-    // part file. A new name would leave that install a second file. Only the
-    // record changes, and the install's mtime hook sets it back to what was
-    // downloaded.
+    NSURL *file = [self placeFileNamed:VibeLinkFileName(link, disposition, extension, playable) inDirectory:directory
+                              existing:existing record:fresh error:error];
+    if (file) {
+        LogInfo(@"Links: %@ %@ as %@, %lld bytes, %@", link.host, existing ? @"changed" : @"opened",
+                file.lastPathComponent, size, ranges ? @"by range" : @"whole only");
+    }
+    return file;
+}
+
+// The disk queue. The record's file in its directory: a fresh placeholder
+// named `name`, of the record's size and mtime. The file the directory held
+// goes, with its part, unless it has that name.
+// TRAP: a file being fetched now keeps its placeholder, from the fetch's
+// start, before its first response. The fetch's install renames the bytes it
+// downloaded over whatever stands at the URL, and its readers hold the part
+// file. A new name would leave that install a second file. Only the record
+// changes, and the install's mtime hook sets it back to what was downloaded.
+- (nullable NSURL *)placeFileNamed:(NSString *)name
+                       inDirectory:(NSURL *)directory
+                          existing:(nullable NSURL *)existing
+                            record:(NSDictionary *)record
+                             error:(NSError **)error {
     if (existing && [self isFetchingURL:existing]) {
-        LogInfo(@"Links: %@ changed while it is fetched; updating its record only", link.host);
-        [self writeIndex:fresh ofDirectory:directory];
+        LogInfo(@"Links: %@ changed while it is fetched; updating its record only", record[@"host"]);
+        [self writeIndex:record ofDirectory:directory];
         return existing;
     }
-    NSURL *file = [directory URLByAppendingPathComponent:VibeLinkFileName(link, disposition, extension, playable) isDirectory:NO];
-    if (existing && ![existing.lastPathComponent isEqualToString:file.lastPathComponent]) {
+    NSURL *file = [directory URLByAppendingPathComponent:name isDirectory:NO];
+    if (existing && ![existing.lastPathComponent isEqualToString:name]) {
         [NSFileManager.defaultManager removeItemAtURL:existing error:NULL];
         [NSFileManager.defaultManager removeItemAtURL:[PlaceholderFiles remotePlaceholderPartURL:existing] error:NULL];
     }
-    if (![LinkStore writePlaceholderAtURL:file size:size modified:modified]) {
-        if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
-        LogWarn(@"Links: could not write the placeholder for %@: %s", link.host, strerror(errno));
+    if (![LinkStore writePlaceholderAtURL:file size:[record[@"size"] longLongValue]
+                                 modified:(time_t)[record[@"modified"] longLongValue]]) {
+        int failure = errno;
+        if (error) *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:failure userInfo:nil];
+        LogWarn(@"Links: could not write the placeholder for %@: %s", record[@"host"], strerror(failure));
         return nil;
     }
-    [self writeIndex:fresh ofDirectory:directory];
-    LogInfo(@"Links: %@ %@ as %@, %lld bytes, %@", existing ? @"changed; replaced" : @"opened", link.host,
-            file.lastPathComponent, size, ranges ? @"by range" : @"whole only");
+    [self writeIndex:record ofDirectory:directory];
     return file;
+}
+
+#pragma mark - Folders
+
+// The disk queue. A folder's listing as its link's directory: a directory per
+// audio file under it, and the playlist naming them in the listing's order.
+// The playlist is the directory's one file, so pruning and the offline open
+// treat the folder as one link.
+- (nullable NSURL *)settleFolderLink:(NSURL *)link
+                                name:(nullable NSString *)name
+                               files:(NSArray<NSDictionary *> *)files
+                               error:(NSError **)error {
+    NSSet<NSString *> *playable = PlayableExtensions.lookup;
+    NSMutableArray<NSDictionary *> *audio = [NSMutableArray array];
+    for (NSDictionary *entry in files) {
+        if ([playable containsObject:[entry[@"name"] pathExtension].lowercaseString]) {
+            [audio addObject:entry];
+        }
+    }
+    if (audio.count == 0) {
+        if (error) *error = VibeLinkMakeError(VibeLinkErrorNotAudio, nil);
+        LogInfo(@"Links: %@ lists no audio among %lu files", link.host, (unsigned long)files.count);
+        return nil;
+    }
+    NSFileManager *manager = NSFileManager.defaultManager;
+    NSURL *directory = [self directoryOfLink:link];
+    [self prepareRoot];
+    if (![manager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil error:error]) {
+        return nil;
+    }
+    NSTimeInterval opened = NSDate.date.timeIntervalSince1970;
+    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray array];
+    NSMutableSet<NSString *> *kept = [NSMutableSet set];
+    for (NSDictionary *entry in audio) {
+        NSString *fileDirectoryName = VibeLinkDirectoryName(entry[@"url"]);
+        if ([kept containsObject:fileDirectoryName]) {
+            continue;
+        }
+        NSURL *file = [self placeFolderFile:entry
+                                inDirectory:[directory URLByAppendingPathComponent:fileDirectoryName isDirectory:YES]
+                                  extension:[entry[@"name"] pathExtension].lowercaseString opened:opened error:error];
+        if (!file) {
+            return nil;
+        }
+        [kept addObject:fileDirectoryName];
+        [tracks addObject:[[AudioTrack alloc] initWithURL:file]];
+    }
+    // A file that left the folder goes, with its download, unless a fetch of
+    // it runs now.
+    BOOL removed = NO;
+    for (NSURL *entry in [manager contentsOfDirectoryAtURL:directory includingPropertiesForKeys:nil
+                                                   options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL]) {
+        struct stat st;
+        if (lstat(entry.fileSystemRepresentation, &st) != 0 || !S_ISDIR(st.st_mode)
+                || [kept containsObject:entry.lastPathComponent]) {
+            continue;
+        }
+        NSURL *gone = [self fileInDirectory:entry];
+        if (!(gone && [self isFetchingURL:gone])) {
+            [manager removeItemAtURL:entry error:NULL];
+            removed = YES;
+        }
+    }
+    if (removed) {
+        [self forgetCachedIndexes];
+    }
+    NSString *playlistName = VibeLinkCleanedFileName(name.length > 0 ? name : @"Dropbox", @"m3u8", playable);
+    NSURL *playlist = [directory URLByAppendingPathComponent:playlistName isDirectory:NO];
+    NSURL *renamed = [self fileInDirectory:directory];
+    if (renamed && ![renamed.lastPathComponent isEqualToString:playlistName]) {
+        [manager removeItemAtURL:renamed error:NULL];
+    }
+    if (![PlaylistFile writeM3UForTracks:tracks relativeToDirectory:directory toURL:playlist error:error]) {
+        LogWarn(@"Links: could not write the playlist for %@", link.host);
+        return nil;
+    }
+    [self writeIndex:[self recordOfLink:link metadata:@{} ranges:NO modified:0 opened:opened] ofDirectory:directory];
+    LogInfo(@"Links: %@ opened a folder of %lu files as %@", link.host, (unsigned long)tracks.count, playlistName);
+    return playlist;
+}
+
+// The disk queue. One listed file in its own directory under its folder's.
+// The listing's size, and its ts when it states one, are the file's version.
+// The same ones keep the file, placeholder or download. Without a ts the
+// record's mtime stays while the size does. The record has no version, so a
+// download and a tag read check it by its size alone. A range is assumed, as
+// Dropbox's content host answers one (DropboxLinkRules.h).
+- (nullable NSURL *)placeFolderFile:(NSDictionary *)entry
+                        inDirectory:(NSURL *)directory
+                          extension:(NSString *)extension
+                             opened:(NSTimeInterval)opened
+                              error:(NSError **)error {
+    if (![NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES attributes:nil
+                                                      error:error]) {
+        return nil;
+    }
+    long long size = [entry[@"size"] longLongValue];
+    NSNumber *listed = entry[@"modified"];
+    NSDictionary *record = [self recordOfDirectory:directory];
+    NSURL *existing = record ? [self fileInDirectory:directory] : nil;
+    BOOL sameSize = record && [record[@"size"] longLongValue] == size;
+    time_t modified = listed ? (time_t)listed.longLongValue
+                             : sameSize ? (time_t)[record[@"modified"] longLongValue] : (time_t)opened;
+    struct stat st;
+    if (sameSize && [record[@"modified"] longLongValue] == modified && existing
+            && lstat(existing.fileSystemRepresentation, &st) == 0 && st.st_size == size
+            && st.st_mtimespec.tv_sec == modified) {
+        [self touchRecord:record ofDirectory:directory ranges:nil];
+        return existing;
+    }
+    NSDictionary *fresh = [self recordOfLink:entry[@"url"] metadata:@{@"size": @(size)} ranges:YES modified:modified
+                                      opened:opened];
+    return [self placeFileNamed:VibeLinkCleanedFileName(entry[@"name"], extension, PlayableExtensions.lookup)
+                    inDirectory:directory existing:existing record:fresh error:error];
 }
 
 #pragma mark - Messages

@@ -12,6 +12,7 @@
 
 #import "AudioFileOpenRules.h"
 #import "DropboxClientInternal.h"
+#import "DropboxLinkRules.h"
 #import "DropboxRules.h"
 #import "NSURL+Hash.h"
 #import "VibeFakeHTTPProtocol.h"
@@ -147,6 +148,17 @@ static VibeFakeDropboxItem *VibeFakeDropboxLookup(NSDictionary<NSString *, VibeF
     return items[path.lowercaseString];
 }
 
+// A shared folder link's path below it as the account's path: the link's key
+// names the account's top-level folder of that name. Nil for no folder link.
+static NSString *VibeFakeDropboxLinkedPath(id link, id path) {
+    NSDictionary<NSString *, NSString *> *token = [link isKindOfClass:NSString.class]
+            ? VibeDropboxFolderLinkToken([NSURL URLWithString:link]) : nil;
+    if (!token) {
+        return nil;
+    }
+    return [NSString stringWithFormat:@"/%@%@", token[@"linkKey"], [path isKindOfClass:NSString.class] ? path : @""];
+}
+
 // The first fault of `kind` for the file of that basename. Under sLock.
 static NSMutableDictionary *VibeFakeDropboxFault(NSString *kind, NSString *name) {
     for (NSMutableDictionary *fault in sFaults) {
@@ -210,7 +222,7 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     sStatistics[endpoint] = @(sStatistics[endpoint].unsignedIntegerValue + 1);
     os_unfair_lock_unlock(&sLock);
 
-    if ([endpoint isEqualToString:@"/2/files/download"]) {
+    if ([endpoint isEqualToString:@"/2/files/download"] || [endpoint isEqualToString:@"/2/sharing/get_shared_link_file"]) {
         [self serveDownloadFrom:items];
         return;
     }
@@ -236,8 +248,20 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
         return VibeFakeDropboxJSON(200, @{@"account_id": kFakeAccountID,
                                           @"name": @{@"display_name": kFakeAccountName}});
     }
+    if ([endpoint isEqualToString:@"/2/sharing/get_shared_link_metadata"]) {
+        VibeFakeDropboxItem *folder = VibeFakeDropboxLookup(items, VibeFakeDropboxLinkedPath(json[@"url"], json[@"path"])
+                                                                   ?: @"/");
+        if (!folder.folder || folder.path.length == 0) {
+            return VibeFakeDropboxJSON(409, @{@"error_summary": @"shared_link_not_found/"});
+        }
+        return VibeFakeDropboxJSON(200, @{@".tag": @"folder", @"name": folder.url.lastPathComponent, @"url": json[@"url"]});
+    }
     if ([endpoint isEqualToString:@"/2/files/list_folder"]) {
         NSString *path = [json[@"path"] isKindOfClass:NSString.class] ? json[@"path"] : @"";
+        if (json[@"shared_link"]) {
+            id link = [json[@"shared_link"] isKindOfClass:NSDictionary.class] ? json[@"shared_link"][@"url"] : nil;
+            path = VibeFakeDropboxLinkedPath(link, path) ?: @"/";
+        }
         VibeFakeDropboxItem *folder = VibeFakeDropboxLookup(items, path);
         if (!folder.folder) {
             return VibeFakeDropboxNotFound();
@@ -286,6 +310,9 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
                                               options:0 error:NULL]
             : nil;
     NSString *path = [arg[@"path"] isKindOfClass:NSString.class] ? arg[@"path"] : @"";
+    if ([self.request.URL.path isEqualToString:@"/2/sharing/get_shared_link_file"]) {
+        path = VibeFakeDropboxLinkedPath(arg[@"url"], path) ?: @"/";
+    }
     NSString *range = [self.request valueForHTTPHeaderField:@"Range"];
     unsigned long long first = 0, last = ULLONG_MAX;
     if (range) {

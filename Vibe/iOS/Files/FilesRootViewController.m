@@ -283,7 +283,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     else {
         PlaybackController *playback = _playback;
         uint64_t token = [playback addRequestToken];
-        _cancelLinkResolve = [LinkStore.shared resolveURLString:text completion:^(NSURL *file, NSError *error) {
+        _cancelLinkResolve = [playback resolveLinkString:text completion:^(NSURL *file, NSError *error) {
             if (file) {
                 [playback addURLs:@[file] token:token];
             }

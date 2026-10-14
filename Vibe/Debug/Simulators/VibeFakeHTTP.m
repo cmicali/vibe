@@ -11,6 +11,7 @@
 #import <os/lock.h>
 #import <sys/stat.h>
 
+#import "DropboxLinkRules.h"
 #import "HTTPTransferClientInternal.h"
 #import "ICloudLinkRules.h"
 
@@ -53,11 +54,20 @@ static BOOL VibeFakeHTTPIsLookupHost(NSString *host) {
     return [host.lowercaseString isEqualToString:[NSURL URLWithString:kVibeICloudLinkLookupURL].host];
 }
 
+static BOOL VibeFakeHTTPIsDropboxHost(NSString *host) {
+    NSString *name = host.lowercaseString;
+    return [name isEqualToString:@"www.dropbox.com"] || [name isEqualToString:@"dropbox.com"];
+}
+
 static BOOL VibeFakeHTTPServesHost(NSString *host) {
     NSString *name = host.lowercaseString;
     return [name isEqualToString:@"fake.vibe.test"] || [name isEqualToString:@"fake.local"]
-        || VibeFakeHTTPIsLookupHost(name) || [name isEqualToString:kVibeFakeHTTPSignedHost];
+        || VibeFakeHTTPIsLookupHost(name) || [name isEqualToString:kVibeFakeHTTPSignedHost]
+        || VibeFakeHTTPIsDropboxHost(name);
 }
+
+// The share page's cookie. A listing sent with another t is refused.
+static NSString *const kVibeFakeHTTPDropboxT = @"fake";
 
 static double VibeFakeHTTPNow(void) {
     return round((CFAbsoluteTimeGetCurrent() - sInstallTime) * 1000) / 1000;
@@ -194,6 +204,63 @@ static NSData *VibeFakeHTTPLookup(NSString *root, NSString *shortGUID, NSMutable
     return [NSJSONSerialization dataWithJSONObject:@{@"results": @[result]} options:0 error:NULL];
 }
 
+// A form body's fields, percent-decoded.
+static NSDictionary<NSString *, NSString *> *VibeFakeHTTPFormOfRequest(NSURLRequest *request) {
+    NSData *body = VibeFakeHTTPBodyOfRequest(request);
+    NSString *text = body ? [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] : nil;
+    NSMutableDictionary<NSString *, NSString *> *form = [NSMutableDictionary dictionary];
+    for (NSString *pair in [text componentsSeparatedByString:@"&"]) {
+        NSRange equals = [pair rangeOfString:@"="];
+        if (equals.location != NSNotFound) {
+            NSString *value = [pair substringFromIndex:NSMaxRange(equals)].stringByRemovingPercentEncoding;
+            form[[pair substringToIndex:equals.location]] = value ?: @"";
+        }
+    }
+    return form;
+}
+
+// A Dropbox folder link's listing in the shape its share page gets: the
+// entries of the root's directory named by link_key, below it by sub_path,
+// on one page. Each href is that entry's address under the link. Nil for a
+// folder that is not there, or a listing sent without the page's t. Under
+// sLock.
+static NSData *VibeFakeHTTPDropboxListing(NSString *root, NSDictionary<NSString *, NSString *> *form) {
+    NSString *key = form[@"link_key"] ?: @"";
+    NSString *sub = form[@"sub_path"] ?: @"";
+    NSString *folder = [[root stringByAppendingPathComponent:key] stringByAppendingPathComponent:sub]
+            .stringByStandardizingPath;
+    BOOL isDirectory = NO;
+    if (key.length == 0 || ![form[@"t"] isEqualToString:kVibeFakeHTTPDropboxT]
+            || ![folder hasPrefix:[root stringByAppendingString:@"/"]]
+            || ![NSFileManager.defaultManager fileExistsAtPath:folder isDirectory:&isDirectory] || !isDirectory) {
+        return nil;
+    }
+    NSMutableArray *entries = [NSMutableArray array];
+    NSArray<NSString *> *names = [[NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:NULL]
+                                  sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    for (NSString *name in names) {
+        struct stat info;
+        if ([name hasPrefix:@"."] || stat([folder stringByAppendingPathComponent:name].fileSystemRepresentation, &info) != 0) {
+            continue;
+        }
+        NSURLComponents *href = [NSURLComponents componentsWithString:@"https://www.dropbox.com"];
+        NSString *below = sub.length > 0 ? [NSString stringWithFormat:@"%@/%@", sub, name] : name;
+        href.path = [NSString stringWithFormat:@"/scl/fo/%@/%@/%@", key, form[@"secure_hash"] ?: @"fake", below];
+        href.queryItems = @[[NSURLQueryItem queryItemWithName:@"rlkey" value:form[@"rlkey"] ?: @"fake"],
+                            [NSURLQueryItem queryItemWithName:@"dl" value:@"0"]];
+        if (S_ISDIR(info.st_mode)) {
+            [entries addObject:@{@"filename": name, @"href": href.URL.absoluteString, @"is_dir": @YES}];
+        }
+        else {
+            [entries addObject:@{@"filename": name, @"href": href.URL.absoluteString, @"is_dir": @NO,
+                                 @"bytes": @(info.st_size), @"ts": @(info.st_mtimespec.tv_sec)}];
+        }
+    }
+    return [NSJSONSerialization dataWithJSONObject:@{@"entries": entries, @"has_more_entries": @NO,
+                                                     @"folder": @{@"filename": folder.lastPathComponent}}
+                                           options:0 error:NULL];
+}
+
 // A request's line, as its body proceeds. A cancel marks only a line still
 // running. Under sLock.
 static void VibeFakeHTTPNote(NSMutableDictionary *entry, NSString *outcome, uint64_t delivered) {
@@ -225,6 +292,11 @@ typedef struct {
     NSString *range;
     BOOL lookup;
     BOOL signedAddress;
+    // A Dropbox folder link's listing, and its form. Any other address on
+    // Dropbox's host is a file below a link, or a link's page.
+    BOOL dropboxListing;
+    BOOL dropbox;
+    NSDictionary<NSString *, NSString *> *form;
     NSString *shortGUID;
     NSString *servedPath;
     BOOL expired;
@@ -290,8 +362,19 @@ typedef struct {
             }
         }
     }
+    // A link names the root's directory of its key. A path below the link
+    // is below that directory.
+    BOOL dropbox = VibeFakeHTTPIsDropboxHost(url.host);
+    BOOL dropboxListing = dropbox && [servedPath isEqualToString:[NSURL URLWithString:kVibeDropboxFolderListingURL].path];
+    if (dropbox && !dropboxListing) {
+        NSDictionary<NSString *, NSString *> *token = VibeDropboxFolderLinkToken(url);
+        servedPath = token ? [NSString stringWithFormat:@"/%@/%@", token[@"linkKey"], token[@"subPath"]] : @"";
+    }
     exchange->lookup = lookup;
     exchange->signedAddress = signedAddress;
+    exchange->dropbox = dropbox;
+    exchange->dropboxListing = dropboxListing;
+    exchange->form = dropboxListing ? VibeFakeHTTPFormOfRequest(request) : nil;
     exchange->shortGUID = shortGUID;
     exchange->servedPath = servedPath;
     exchange->expired = expired;
@@ -324,8 +407,8 @@ typedef struct {
             ? [path substringFromIndex:root.length] : nil;
     NSString *name = path.lastPathComponent;
     struct stat info;
-    BOOL found = !exchange->lookup && relativePath && stat(path.fileSystemRepresentation, &info) == 0
-        && S_ISREG(info.st_mode);
+    BOOL found = !exchange->lookup && !exchange->dropboxListing && relativePath
+        && stat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode);
     VibeFakeHTTPVersion version = found ? VibeFakeHTTPVersionOf(relativePath, &info) : (VibeFakeHTTPVersion){0};
     exchange->root = root;
     exchange->path = path;
@@ -350,10 +433,25 @@ typedef struct {
     NSInteger refusal = 0;
     NSDictionary<NSString *, NSString *> *refusalHeaders = @{@"Content-Type": @"text/plain"};
     NSData *refusalBody = nil;
+    BOOL isDirectory = NO;
     if (exchange->lookup) {
         refusal = 200;
         refusalHeaders = @{@"Content-Type": @"application/json; charset=UTF-8"};
         refusalBody = VibeFakeHTTPLookup(exchange->root, exchange->shortGUID, entry);
+    }
+    else if (exchange->dropboxListing) {
+        refusalBody = VibeFakeHTTPDropboxListing(exchange->root, exchange->form);
+        refusal = refusalBody ? 200 : 404;
+        refusalHeaders = @{@"Content-Type": refusalBody ? @"application/json" : @"text/plain"};
+        refusalBody = refusalBody ?: [@"Not Found" dataUsingEncoding:NSUTF8StringEncoding];
+    }
+    else if (exchange->dropbox && !exchange->found && exchange->relativePath
+             && [NSFileManager.defaultManager fileExistsAtPath:exchange->path isDirectory:&isDirectory] && isDirectory) {
+        refusal = 200;
+        refusalHeaders = @{@"Content-Type": @"text/html; charset=utf-8",
+                           @"Set-Cookie": [NSString stringWithFormat:@"t=%@; Path=/; Secure", kVibeFakeHTTPDropboxT]};
+        refusalBody = [@"<!doctype html><html><head><title>Dropbox</title></head><body></body></html>"
+                       dataUsingEncoding:NSUTF8StringEncoding];
     }
     else if ((fault = VibeFakeHTTPFault(@"status", name))) {
         refusal = [fault[@"status"] integerValue];

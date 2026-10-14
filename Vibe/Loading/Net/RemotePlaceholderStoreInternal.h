@@ -73,9 +73,10 @@ NS_ASSUME_NONNULL_BEGIN
 // error for a file the store cannot fetch. The default has none: every
 // subclass overrides it.
 - (nullable id)remoteTargetForURL:(NSURL *)url error:(NSError *__autoreleasing _Nullable *_Nullable)error;
-// The client's ranged read of a target. The default calls the client's
-// readTarget:….
+// The client's ranged read of a target, the one remoteTargetForURL:error:
+// gave for url. The default calls the client's readTarget:….
 - (dispatch_block_t)readTarget:(id)target
+                         ofURL:(NSURL *)url
                         offset:(uint64_t)offset
                         length:(uint64_t)length
                     completion:(void (^)(NSData *_Nullable data, NSDictionary *_Nullable metadata,

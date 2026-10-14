@@ -25,7 +25,16 @@ NS_ASSUME_NONNULL_BEGIN
                             inFolder:(BOOL)inFolder
                                token:(uint64_t)token;
 
-// Open URL: the typed link resolved (LinkStore), then its file opened alone
+// Open URL's resolve, which both its roads take. A Dropbox folder link goes
+// through the linked account (DropboxMirror openSharedFolderLink:…) and
+// answers its folder. With no account, or when the account cannot open it,
+// LinkStore resolves it with no account, as it does every other link.
+// Completion on main, exactly once, with exactly one of file and error. The
+// returned block cancels on main, as LinkStore's does.
+- (dispatch_block_t)resolveLinkString:(NSString *)string
+                           completion:(void (^)(NSURL *_Nullable file, NSError *_Nullable error))completion;
+
+// Open URL: the typed link resolved (resolveLinkString:…), then its file opened alone
 // through confirmReplacing…, which asks when the playlist was built by hand.
 // It asks over what is on top of anchor's window when the link settles. The
 // sheet, the add sheet, or the card may have come or gone by then. The

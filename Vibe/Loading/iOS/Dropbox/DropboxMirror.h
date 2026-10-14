@@ -56,6 +56,11 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 // The linked account's Dropbox root, nil while unlinked.
 @property (nonatomic, readonly, nullable) NSURL *accountURL;
 
+// Beside accountURL: the shared folder links the account opened, one
+// directory per link holding the folder under its own name. Nil while
+// unlinked.
+@property (nonatomic, readonly, nullable) NSURL *linksURL;
+
 // The Dropbox path ("" for the root, else "/Music/Album") a mirror URL stands
 // for; nil outside the linked account's mirror. A folder below the root may
 // read its listing's index, an xattr in the app's container, once per folder.
@@ -76,6 +81,14 @@ extern NSString *const VibeDropboxDownloadBudgetKey;
 // account fails inline. A directory already here
 // is relisted by its dropboxPathForURL:.
 - (void)refreshDropboxFolder:(NSString *)path
+                  completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
+
+// A Dropbox folder link, listed through the account into linksURL: the
+// folder and every folder below it, as the account's folders are listed.
+// Its files download through the link (sharing/get_shared_link_file), by
+// their path below it. Completion on main with the folder's local URL. An
+// unlinked account fails inline.
+- (void)openSharedFolderLink:(NSURL *)link
                   completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
 
 // files/search_v2 over the whole account: folders and playable files, as
