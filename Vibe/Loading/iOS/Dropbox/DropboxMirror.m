@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 
 #import "AccountMirrorInternal.h"
+#import "DropboxLinkRules.h"
 #import "DropboxRules.h"
 #import "FileSearchRules.h"
 #import "FilePaths.h"
@@ -22,8 +23,9 @@ static NSString *const kDownloadBudgetKey = @"VibeiOSDropboxDownloadBudget";
 // Search uses the first page only.
 static const NSInteger kSearchResultLimit = 50;
 // On every mirror directory: {"path": its Dropbox path, "files": {index key:
-// Dropbox id}}. On the directory, not the files, because a placeholder's
-// attributes are as unreadable as its bytes.
+// Dropbox id}}. Under linksURL, "link" is the shared link, "path" is below it,
+// and each file's entry is its path below the link. On the directory, not the
+// files, because a placeholder's attributes are as unreadable as its bytes.
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropbox";
 
 @implementation DropboxMirror
@@ -105,9 +107,21 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 }
 
 // What files/download is asked for: the Dropbox id the folder's listing
-// recorded, which no spelling or later rename can miss; nil outside the
-// account's mirror.
+// recorded, which no spelling or later rename can miss. Under linksURL it is
+// {url, path}: the link, and the file's path below it as the listing spelled
+// it. Nil outside the linked account's trees.
 - (id)remoteTargetForURL:(NSURL *)url error:(NSError **)error {
+    if ([self isSharedLinkURL:url]) {
+        NSDictionary *index = [self indexOfDirectory:url.URLByDeletingLastPathComponent];
+        NSDictionary *files = index[@"files"];
+        NSString *path = [files isKindOfClass:NSDictionary.class] ? files[VibeAccountIndexKey(url.lastPathComponent)] : nil;
+        NSString *link = index[@"link"];
+        if (![link isKindOfClass:NSString.class] || ![path isKindOfClass:NSString.class]) {
+            if (error) *error = VibeAccountMakeError(VibeAccountErrorAPI, @"not listed from its shared link");
+            return nil;
+        }
+        return @{@"url": link, @"path": path};
+    }
     NSString *derived = [self derivedDropboxPathForURL:url];
     if (derived.length == 0) {
         if (error) *error = VibeAccountMakeError(VibeAccountErrorNotLinked, @"not in the Dropbox mirror");
@@ -142,9 +156,12 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 // Answers the playlist files to fetch: they are read while the folder opens, so
 // they come down with the listing; tracks wait for their open. *discarded is
 // set when downloaded bytes went: a changed file back to a placeholder, or a
-// departed file or folder deleted.
+// departed file or folder deleted. With link, the folder is that shared
+// link's. Its entries name no path, and each one's is the folder's and its
+// name as Dropbox spells it.
 - (NSDictionary<NSURL *, id> *)reconcileDirectory:(NSURL *)directory
                                              path:(NSString *)folderPath
+                                             link:(nullable NSString *)link
                                       withEntries:(NSArray<NSDictionary *> *)entries
                                         discarded:(BOOL *)discarded {
     NSFileManager *files = NSFileManager.defaultManager;
@@ -166,16 +183,20 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         if (![identifier isKindOfClass:NSString.class]) {
             identifier = entry[@"path_lower"];
         }
+        if (link) {
+            identifier = [folderPath stringByAppendingFormat:@"/%@", name];
+        }
         if (kind == VibeDropboxEntryKindFolder) {
             NSString *local = VibeDropboxLocalName(name, existingNames);
             [kept addObject:local];
             NSURL *child = [directory URLByAppendingPathComponent:local isDirectory:YES];
             [self ensureDirectoryAtURL:child];
-            NSString *childPath = entry[@"path_lower"];
+            NSString *childPath = link ? identifier : entry[@"path_lower"];
             if ([childPath isKindOfClass:NSString.class]) {
                 NSMutableDictionary *index = [[self indexOfDirectory:child] mutableCopy]
                         ?: [NSMutableDictionary dictionary];
                 index[@"path"] = childPath;
+                index[@"link"] = link;
                 [self writeIndex:index ofDirectory:child];
             }
             continue;
@@ -198,7 +219,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         }
         if ([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]) {
             if ([identifier isKindOfClass:NSString.class]) {
-                sidecars[url] = identifier;
+                sidecars[url] = link ? @{@"url": link, @"path": identifier} : identifier;
             }
             continue;
         }
@@ -211,7 +232,9 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         }
     }
 
-    [self writeIndex:@{@"path": folderPath, @"files": identifiers} ofDirectory:directory];
+    NSMutableDictionary *index = [@{@"path": folderPath, @"files": identifiers} mutableCopy];
+    index[@"link"] = link;
+    [self writeIndex:index ofDirectory:directory];
     if ([self removeDepartedIn:directory existing:existing kept:kept]) {
         *discarded = YES;
     }
@@ -223,15 +246,21 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 
 #pragma mark - Listing
 
+// With link, path is below that shared link, which lists one level at a
+// time.
 - (void)listFolder:(NSString *)path
+              link:(nullable NSString *)link
             cursor:(NSString *)cursor
            entries:(NSMutableArray<NSDictionary *> *)entries
         completion:(void (^)(NSArray<NSDictionary *> *entries, NSError *error))completion {
     NSString *endpoint = cursor ? @"files/list_folder/continue" : @"files/list_folder";
-    NSDictionary *arguments = cursor
-            ? @{@"cursor": cursor}
-            : @{@"path": path, @"recursive": @NO, @"include_deleted": @NO,
-                @"include_non_downloadable_files": @NO, @"limit": @(kListPageLimit)};
+    NSMutableDictionary *arguments = cursor
+            ? [@{@"cursor": cursor} mutableCopy]
+            : [@{@"path": path, @"recursive": @NO, @"include_deleted": @NO,
+                 @"include_non_downloadable_files": @NO, @"limit": @(kListPageLimit)} mutableCopy];
+    if (link && !cursor) {
+        arguments[@"shared_link"] = @{@"url": link};
+    }
     [self.client callEndpoint:endpoint arguments:arguments
                completion:^(NSDictionary *result, NSError *error) {
         if (error) {
@@ -248,14 +277,27 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         }
         NSString *next = result[@"cursor"];
         if ([result[@"has_more"] boolValue] && [next isKindOfClass:NSString.class]) {
-            [self listFolder:path cursor:next entries:entries completion:completion];
+            [self listFolder:path link:link cursor:next entries:entries completion:completion];
             return;
         }
         completion(entries, nil);
     }];
 }
 
+// A shared link's directory lists by the link and path its index records,
+// into itself.
 - (void)refreshDirectoryAtURL:(NSURL *)url completion:(void (^)(NSURL *, NSError *))completion {
+    if ([self isSharedLinkURL:url]) {
+        NSDictionary *index = [self indexOfDirectory:url];
+        NSString *link = index[@"link"];
+        NSString *path = index[@"path"];
+        if (![link isKindOfClass:NSString.class] || ![path isKindOfClass:NSString.class]) {
+            completion(nil, VibeAccountMakeError(VibeAccountErrorAPI, @"not listed from its shared link"));
+            return;
+        }
+        [self refreshDropboxFolder:path link:link directory:url completion:completion];
+        return;
+    }
     NSString *path = [self dropboxPathForURL:url];
     if (!path) {
         completion(nil, VibeAccountMakeError(VibeAccountErrorNotLinked, @"not in the Dropbox mirror"));
@@ -265,6 +307,15 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 }
 
 - (void)refreshDropboxFolder:(NSString *)path
+                  completion:(void (^)(NSURL *, NSError *))completion {
+    [self refreshDropboxFolder:path link:nil directory:nil completion:completion];
+}
+
+// Lists one folder, the account's or, with link, one of that shared link's.
+// An account folder's directory is found from its path, a link's is given.
+- (void)refreshDropboxFolder:(NSString *)path
+                        link:(nullable NSString *)link
+                   directory:(nullable NSURL *)given
                   completion:(void (^)(NSURL *, NSError *))completion {
     NSURL *account = self.accountURL;
     if (!account) {
@@ -276,7 +327,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             completion(directory, error);
         });
     };
-    [self listFolder:path cursor:nil entries:[NSMutableArray array]
+    [self listFolder:path link:link cursor:nil entries:[NSMutableArray array]
           completion:^(NSArray<NSDictionary *> *entries, NSError *error) {
         if (error) {
             finish(nil, error);
@@ -288,10 +339,13 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
                 finish(nil, VibeAccountMakeError(VibeAccountErrorNotLinked, @"Dropbox account changed"));
                 return;
             }
-            NSURL *directory = [self directoryForDropboxPath:path account:account];
+            NSURL *directory = given ?: [self directoryForDropboxPath:path account:account];
+            if (given) {
+                [self ensureDirectoryAtURL:given];
+            }
             BOOL discarded = NO;
-            NSDictionary<NSURL *, id> *sidecars = [self reconcileDirectory:directory path:path withEntries:entries
-                                                               discarded:&discarded];
+            NSDictionary<NSURL *, id> *sidecars = [self reconcileDirectory:directory path:path link:link
+                                                              withEntries:entries discarded:&discarded];
             [self finishListingOfDirectory:directory sidecars:sidecars discarded:discarded completion:completion];
         });
     }];
@@ -401,6 +455,43 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             completion(downloaded);
         });
     });
+}
+
+#pragma mark - Shared folder links
+
+- (BOOL)opensSharedFolderLink:(NSURL *)link {
+    return VibeDropboxFolderLinkToken(link) != nil;
+}
+
+// The API names a share by its own link. A link to a folder inside the share
+// is that folder's path below the share's link.
+- (void)lookUpSharedFolderLink:(NSURL *)link
+                    completion:(void (^)(NSString *, NSDictionary *, NSError *))completion {
+    NSMutableDictionary<NSString *, NSString *> *token = [VibeDropboxFolderLinkToken(link) mutableCopy];
+    if (!token) {
+        completion(nil, nil, VibeAccountMakeError(VibeAccountErrorAPI, @"not a Dropbox folder link"));
+        return;
+    }
+    NSString *below = token[@"subPath"].length > 0 ? [@"/" stringByAppendingString:token[@"subPath"]] : @"";
+    token[@"subPath"] = @"";
+    NSString *address = VibeDropboxFolderLinkURL(token).absoluteString ?: @"";
+    NSMutableDictionary *arguments = [NSMutableDictionary dictionaryWithObject:address forKey:@"url"];
+    if (below.length > 0) {
+        arguments[@"path"] = below;
+    }
+    [self.client callEndpoint:@"sharing/get_shared_link_metadata" arguments:arguments
+                   completion:^(NSDictionary *result, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        if (VibeDropboxEntryKindOf(result) != VibeDropboxEntryKindFolder) {
+            completion(nil, nil, VibeAccountMakeError(VibeAccountErrorAPI, @"the shared link is not a folder"));
+            return;
+        }
+        NSString *name = [result[@"name"] isKindOfClass:NSString.class] ? result[@"name"] : nil;
+        completion(name, @{@"link": address, @"path": below}, nil);
+    }];
 }
 
 #pragma mark - The store's hooks

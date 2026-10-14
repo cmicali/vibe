@@ -167,6 +167,16 @@ static inline NSURL *VibeLinkDirectDownloadURL(NSURL *url) {
     return VibeDropboxLinkDownloadURL(url) ?: VibeGoogleDriveLinkDownloadURL(url) ?: url;
 }
 
+// A share link to a folder as the link Vibe keeps for it: Dropbox's
+// (VibeDropboxFolderLinkURL) or Google Drive's (VibeGoogleDriveFolderLinkURL).
+// nil for any other URL. A folder is listed, never probed.
+static inline NSURL *_Nullable VibeLinkFolderURL(NSURL *_Nullable url) {
+    NSDictionary<NSString *, NSString *> *dropbox = VibeDropboxFolderLinkToken(url);
+    if (dropbox) return VibeDropboxFolderLinkURL(dropbox);
+    NSDictionary<NSString *, NSString *> *drive = VibeGoogleDriveFolderLink(url);
+    return drive ? VibeGoogleDriveFolderLinkURL(drive) : nil;
+}
+
 #pragma mark - Audio check
 
 // The file type the first bytes name, with the extensions that share it. nil
@@ -328,24 +338,13 @@ static inline NSString *VibeLinkNameOfText(NSString *text) {
     return name;
 }
 
-// The link's file name, cleaned, with extension forced on. It is the URL's
-// last path component, percent-decoded, when that carries a playable
-// extension. Otherwise the Content-Disposition file name wins when there is
-// one. A download address's path can end in "download" and name nothing.
-// A playable extension the name already carries is replaced. Cleaning swaps
-// '/' and ':' for '-' and drops C0 and C1 control characters, the bidi
-// embeddings, overrides, and isolates, and leading dots. An override would
-// show "mp3.exe" as "exe.3pm". The whole name is cut to 200 UTF-8 bytes on a character boundary.
-// "Link.<extension>" when nothing survives.
-static inline NSString *VibeLinkFileName(NSURL *url,
-                                         NSString *_Nullable contentDisposition,
-                                         NSString *extension,
-                                         NSSet<NSString *> *playable) {
-    NSString *name = VibeLinkLastPathName(url);
-    NSString *disposition = VibeLinkFilenameOfContentDisposition(contentDisposition);
-    if (disposition != nil && ![playable containsObject:name.pathExtension.lowercaseString]) {
-        name = disposition;
-    }
+// A name from a server as a file name, with extension forced on. A playable
+// extension the name already carries is replaced. Cleaning swaps '/' and ':'
+// for '-' and drops C0 and C1 control characters, the bidi embeddings,
+// overrides, and isolates, and leading dots. An override would show
+// "mp3.exe" as "exe.3pm". The whole name is cut to 200 UTF-8 bytes on a
+// character boundary. "Link.<extension>" when nothing survives.
+static inline NSString *VibeLinkCleanedFileName(NSString *name, NSString *extension, NSSet<NSString *> *playable) {
     // Cc and the bidi controls only. NSCharacterSet.controlCharacterSet also
     // holds the rest of Cf, and that takes the joiner out of an emoji
     // sequence or a Persian word.
@@ -385,6 +384,22 @@ static inline NSString *VibeLinkFileName(NSURL *url,
     }
     if (name.length == 0) name = @"Link";
     return [name stringByAppendingString:suffix];
+}
+
+// The link's file name, cleaned (VibeLinkCleanedFileName). It is the URL's
+// last path component, percent-decoded, when that carries a playable
+// extension. Otherwise the Content-Disposition file name wins when there is
+// one. A download address's path can end in "download" and name nothing.
+static inline NSString *VibeLinkFileName(NSURL *url,
+                                         NSString *_Nullable contentDisposition,
+                                         NSString *extension,
+                                         NSSet<NSString *> *playable) {
+    NSString *name = VibeLinkLastPathName(url);
+    NSString *disposition = VibeLinkFilenameOfContentDisposition(contentDisposition);
+    if (disposition != nil && ![playable containsObject:name.pathExtension.lowercaseString]) {
+        name = disposition;
+    }
+    return VibeLinkCleanedFileName(name, extension, playable);
 }
 
 // The URL a link is known by: the scheme and host lowercased, the fragment

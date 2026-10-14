@@ -58,9 +58,16 @@ extern NSString *const VibeAccountDownloadsBytesKey;
 
 // The linked account's directory under the root, nil while unlinked.
 @property (nonatomic, readonly, nullable) NSURL *accountURL;
-// Whether url lies in the linked account's directory, that directory
-// included. From the spelling alone.
+// Beside accountURL: the shared folder links the account opened. Each link
+// has a directory named by its URL's hash, which holds the folder under its
+// own name. Nil while unlinked.
+@property (nonatomic, readonly, nullable) NSURL *linksURL;
+// Whether url lies in the linked account's directory or in linksURL, either
+// directory included. From the spelling alone.
 - (BOOL)isMirroredURL:(NSURL *)url;
+// Whether url lies in linksURL, that directory included. From the spelling
+// alone.
+- (BOOL)isSharedLinkURL:(NSURL *)url;
 // Whether url is the linked account's directory itself.
 - (BOOL)isAccountRootURL:(NSURL *)url;
 
@@ -75,6 +82,16 @@ extern NSString *const VibeAccountDownloadsBytesKey;
 // inline.
 - (void)refreshDirectoryAtURL:(NSURL *)url
                    completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
+
+// Whether a folder link (VibeLinkFolderURL) is this service's.
+- (BOOL)opensSharedFolderLink:(NSURL *)link;
+
+// A folder link of this service, listed through the account into linksURL:
+// the folder and every folder below it. Its files download through the
+// account. Completion on main with the folder's local URL. An unlinked
+// account, or another service's link, fails inline.
+- (void)openSharedFolderLink:(NSURL *)link
+                  completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
 
 // The service's search over the whole account: folders and playable files,
 // as entries. Completion on main.

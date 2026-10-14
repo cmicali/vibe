@@ -193,6 +193,9 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
                         VIBE_GOOGLE_DRIVE_FILE_FIELDS];
     query[@"pageSize"] = [NSString stringWithFormat:@"%lu", (unsigned long)kListPageSize];
     query[@"spaces"] = @"drive";
+    // A shared folder link can name a folder in a shared drive.
+    query[@"supportsAllDrives"] = @"true";
+    query[@"includeItemsFromAllDrives"] = @"true";
     query[@"pageToken"] = pageToken;
     [self.client getPath:@"files" query:query completion:^(NSDictionary *result, NSError *error) {
         if (error) {
@@ -394,6 +397,35 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             directory.lastPathComponent, (unsigned long)entries.count,
             (unsigned long)placeholders, (unsigned long)sidecars.count);
     return sidecars;
+}
+
+#pragma mark - Shared folder links
+
+// A link with a resource key opens without the account (LinkStore). Drive
+// wants the key on each request about the folder and every file in it, and
+// the mirror sends none.
+- (BOOL)opensSharedFolderLink:(NSURL *)link {
+    NSDictionary<NSString *, NSString *> *folder = VibeGoogleDriveFolderLink(link);
+    return folder && !folder[@"resourceKey"];
+}
+
+- (void)lookUpSharedFolderLink:(NSURL *)link
+                    completion:(void (^)(NSString *, NSDictionary *, NSError *))completion {
+    NSString *folderID = VibeGoogleDriveFolderLink(link)[@"id"];
+    [self.client getPath:[@"files/" stringByAppendingString:folderID]
+                   query:@{@"fields": @"id,name,mimeType", @"supportsAllDrives": @"true"}
+              completion:^(NSDictionary *result, NSError *error) {
+        if (error) {
+            completion(nil, nil, error);
+            return;
+        }
+        if (!VibeGoogleDriveIsFolder(result)) {
+            completion(nil, nil, VibeAccountMakeError(VibeAccountErrorAPI, @"the shared link is not a folder"));
+            return;
+        }
+        NSString *name = [result[@"name"] isKindOfClass:NSString.class] ? result[@"name"] : nil;
+        completion(name ? VibeGoogleDriveLocalBaseName(name, YES) : nil, @{@"id": folderID}, nil);
+    }];
 }
 
 #pragma mark - Search

@@ -42,8 +42,9 @@ extern NSString *const VibeDropboxAppKeyInfoKey;
           completion:(void (^)(NSDictionary *_Nullable result, NSError *_Nullable error))completion;
 
 // The download and the ranged read are HTTPTransferClient's downloadTarget:…
-// and readTarget:…, with a Dropbox path or id as the target. Their metadata
-// is the response's Dropbox-API-Result, nil when it carries none.
+// and readTarget:…, with a Dropbox path or id as the target, or a shared
+// link's file as {url, path}. Their metadata is the response's
+// Dropbox-API-Result, nil when it carries none.
 
 @end
 

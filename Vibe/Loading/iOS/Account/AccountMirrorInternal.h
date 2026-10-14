@@ -34,6 +34,16 @@ NS_ASSUME_NONNULL_BEGIN
                        discarded:(BOOL)discarded
                       completion:(void (^)(NSURL *_Nullable folderURL, NSError *_Nullable error))completion;
 
+#pragma mark Hooks
+
+// The service's half of openSharedFolderLink:…: the folder's name, and the
+// index its top directory starts from, which names the folder for
+// refreshDirectoryAtURL:…. A link that is not a folder fails. Completion on
+// any queue.
+- (void)lookUpSharedFolderLink:(NSURL *)link
+                    completion:(void (^)(NSString *_Nullable name, NSDictionary *_Nullable index,
+                                         NSError *_Nullable error))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -11,8 +11,11 @@
 #import <os/lock.h>
 #import <sys/stat.h>
 
+#import "DropboxLinkRules.h"
+#import "GoogleDriveLinkRules.h"
 #import "HTTPTransferClientInternal.h"
 #import "ICloudLinkRules.h"
+#import "LinkClient.h"
 
 static const NSUInteger kLogLimit = 200;
 
@@ -53,11 +56,30 @@ static BOOL VibeFakeHTTPIsLookupHost(NSString *host) {
     return [host.lowercaseString isEqualToString:[NSURL URLWithString:kVibeICloudLinkLookupURL].host];
 }
 
+static BOOL VibeFakeHTTPIsDropboxHost(NSString *host) {
+    NSString *name = host.lowercaseString;
+    return [name isEqualToString:@"www.dropbox.com"] || [name isEqualToString:@"dropbox.com"];
+}
+
+static BOOL VibeFakeHTTPIsDriveAPIHost(NSString *host) {
+    return [host.lowercaseString isEqualToString:@"www.googleapis.com"];
+}
+
+static BOOL VibeFakeHTTPIsDriveDownloadHost(NSString *host) {
+    return [host.lowercaseString isEqualToString:@"drive.usercontent.google.com"];
+}
+
 static BOOL VibeFakeHTTPServesHost(NSString *host) {
     NSString *name = host.lowercaseString;
     return [name isEqualToString:@"fake.vibe.test"] || [name isEqualToString:@"fake.local"]
-        || VibeFakeHTTPIsLookupHost(name) || [name isEqualToString:kVibeFakeHTTPSignedHost];
+        || VibeFakeHTTPIsLookupHost(name) || [name isEqualToString:kVibeFakeHTTPSignedHost]
+        || VibeFakeHTTPIsDropboxHost(name) || VibeFakeHTTPIsDriveAPIHost(name) || VibeFakeHTTPIsDriveDownloadHost(name);
 }
+
+// The share page's cookie. A listing sent with another t is refused.
+static NSString *const kVibeFakeHTTPDropboxT = @"fake";
+// The Drive API key the install gives a client that has none.
+static NSString *const kVibeFakeHTTPDriveKey = @"fake-drive-key";
 
 static double VibeFakeHTTPNow(void) {
     return round((CFAbsoluteTimeGetCurrent() - sInstallTime) * 1000) / 1000;
@@ -194,6 +216,162 @@ static NSData *VibeFakeHTTPLookup(NSString *root, NSString *shortGUID, NSMutable
     return [NSJSONSerialization dataWithJSONObject:@{@"results": @[result]} options:0 error:NULL];
 }
 
+// A form body's fields, percent-decoded.
+static NSDictionary<NSString *, NSString *> *VibeFakeHTTPFormOfRequest(NSURLRequest *request) {
+    NSData *body = VibeFakeHTTPBodyOfRequest(request);
+    NSString *text = body ? [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] : nil;
+    NSMutableDictionary<NSString *, NSString *> *form = [NSMutableDictionary dictionary];
+    for (NSString *pair in [text componentsSeparatedByString:@"&"]) {
+        NSRange equals = [pair rangeOfString:@"="];
+        if (equals.location != NSNotFound) {
+            NSString *value = [pair substringFromIndex:NSMaxRange(equals)].stringByRemovingPercentEncoding;
+            form[[pair substringToIndex:equals.location]] = value ?: @"";
+        }
+    }
+    return form;
+}
+
+// A Dropbox folder link's listing in the shape its share page gets: the
+// entries of the root's directory named by link_key, below it by sub_path,
+// on one page. Each href is that entry's address under the link. Nil for a
+// folder that is not there, or a listing sent without the page's t. Under
+// sLock.
+static NSData *VibeFakeHTTPDropboxListing(NSString *root, NSDictionary<NSString *, NSString *> *form) {
+    NSString *key = form[@"link_key"] ?: @"";
+    NSString *sub = form[@"sub_path"] ?: @"";
+    NSString *folder = [[root stringByAppendingPathComponent:key] stringByAppendingPathComponent:sub]
+            .stringByStandardizingPath;
+    BOOL isDirectory = NO;
+    if (key.length == 0 || ![form[@"t"] isEqualToString:kVibeFakeHTTPDropboxT]
+            || ![folder hasPrefix:[root stringByAppendingString:@"/"]]
+            || ![NSFileManager.defaultManager fileExistsAtPath:folder isDirectory:&isDirectory] || !isDirectory) {
+        return nil;
+    }
+    NSMutableArray *entries = [NSMutableArray array];
+    NSArray<NSString *> *names = [[NSFileManager.defaultManager contentsOfDirectoryAtPath:folder error:NULL]
+                                  sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    for (NSString *name in names) {
+        struct stat info;
+        if ([name hasPrefix:@"."] || stat([folder stringByAppendingPathComponent:name].fileSystemRepresentation, &info) != 0) {
+            continue;
+        }
+        NSURLComponents *href = [NSURLComponents componentsWithString:@"https://www.dropbox.com"];
+        NSString *below = sub.length > 0 ? [NSString stringWithFormat:@"%@/%@", sub, name] : name;
+        href.path = [NSString stringWithFormat:@"/scl/fo/%@/%@/%@", key, form[@"secure_hash"] ?: @"fake", below];
+        href.queryItems = @[[NSURLQueryItem queryItemWithName:@"rlkey" value:form[@"rlkey"] ?: @"fake"],
+                            [NSURLQueryItem queryItemWithName:@"dl" value:@"0"]];
+        if (S_ISDIR(info.st_mode)) {
+            [entries addObject:@{@"filename": name, @"href": href.URL.absoluteString, @"is_dir": @YES}];
+        }
+        else {
+            [entries addObject:@{@"filename": name, @"href": href.URL.absoluteString, @"is_dir": @NO,
+                                 @"bytes": @(info.st_size), @"ts": @(info.st_mtimespec.tv_sec)}];
+        }
+    }
+    return [NSJSONSerialization dataWithJSONObject:@{@"entries": entries, @"has_more_entries": @NO,
+                                                     @"folder": @{@"filename": folder.lastPathComponent}}
+                                           options:0 error:NULL];
+}
+
+// A Drive id for the entry at `relative` below the root: its path in
+// base64url, which has only the characters an id has.
+static NSString *VibeFakeHTTPDriveID(NSString *relative) {
+    NSString *base64 = [[relative dataUsingEncoding:NSUTF8StringEncoding] base64EncodedStringWithOptions:0];
+    base64 = [base64 stringByReplacingOccurrencesOfString:@"+" withString:@"-"];
+    base64 = [base64 stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+    return [base64 stringByReplacingOccurrencesOfString:@"=" withString:@""];
+}
+
+// The path below the root a Drive id names: a directory at the root by its
+// own name, which is how a folder link names one, else VibeFakeHTTPDriveID's
+// path. Nil for neither.
+static NSString *VibeFakeHTTPDrivePath(NSString *root, NSString *driveID) {
+    BOOL isDirectory = NO;
+    if (driveID.length > 0 && ![driveID containsString:@"/"]
+            && [NSFileManager.defaultManager fileExistsAtPath:[root stringByAppendingPathComponent:driveID]
+                                                  isDirectory:&isDirectory] && isDirectory) {
+        return driveID;
+    }
+    NSString *base64 = [[driveID stringByReplacingOccurrencesOfString:@"-" withString:@"+"]
+                        stringByReplacingOccurrencesOfString:@"_" withString:@"/"];
+    while (base64.length % 4 != 0) {
+        base64 = [base64 stringByAppendingString:@"="];
+    }
+    NSData *data = [[NSData alloc] initWithBase64EncodedString:base64 options:0];
+    NSString *path = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+    return path.length > 0 && ![path hasPrefix:@"/"] && ![path containsString:@".."] ? path : nil;
+}
+
+// The Drive API's answer about one entry, as files.get or files.list gives it.
+static NSDictionary *VibeFakeHTTPDriveFile(NSString *root, NSString *relative, NSString *driveID) {
+    struct stat info;
+    NSString *path = [root stringByAppendingPathComponent:relative];
+    if (stat(path.fileSystemRepresentation, &info) != 0) {
+        return nil;
+    }
+    if (S_ISDIR(info.st_mode)) {
+        return @{@"id": driveID, @"name": path.lastPathComponent, @"mimeType": kVibeGoogleDriveFolderType};
+    }
+    NSString *modified = [NSISO8601DateFormatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:info.st_mtimespec.tv_sec]
+                                                       timeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]
+                                                  formatOptions:NSISO8601DateFormatWithInternetDateTime];
+    return @{@"id": driveID, @"name": path.lastPathComponent, @"mimeType": VibeFakeHTTPContentType(path.pathExtension),
+             @"size": @(info.st_size).stringValue, @"modifiedTime": modified};
+}
+
+// The Drive API: files.get of the entry an id names, or files.list of the
+// folder its q names, every child on one page, folders first. An answer
+// needs a key. Sets the status. Under sLock.
+static NSData *VibeFakeHTTPDriveAnswer(NSString *root, NSURL *url, NSInteger *status) {
+    NSMutableDictionary<NSString *, NSString *> *items = [NSMutableDictionary dictionary];
+    for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems) {
+        items[item.name] = item.value ?: @"";
+    }
+    NSDictionary *missing = @{@"error": @{@"code": @404, @"message": @"File not found."}};
+    if (items[@"key"].length == 0) {
+        *status = 403;
+        return [NSJSONSerialization dataWithJSONObject:@{@"error": @{@"code": @403, @"message": @"No API key."}}
+                                               options:0 error:NULL];
+    }
+    NSString *base = @"/drive/v3/files";
+    if ([url.path hasPrefix:[base stringByAppendingString:@"/"]]) {
+        NSString *driveID = url.lastPathComponent;
+        NSString *relative = VibeFakeHTTPDrivePath(root, driveID);
+        NSDictionary *file = relative ? VibeFakeHTTPDriveFile(root, relative, driveID) : nil;
+        *status = file ? 200 : 404;
+        return [NSJSONSerialization dataWithJSONObject:file ?: missing options:0 error:NULL];
+    }
+    NSString *query = items[@"q"] ?: @"";
+    NSRange open = [query rangeOfString:@"'"];
+    NSRange close = open.location == NSNotFound ? open
+            : [query rangeOfString:@"'" options:0 range:NSMakeRange(NSMaxRange(open), query.length - NSMaxRange(open))];
+    NSString *parent = close.location == NSNotFound ? nil
+            : [query substringWithRange:NSMakeRange(NSMaxRange(open), close.location - NSMaxRange(open))];
+    NSString *relative = parent ? VibeFakeHTTPDrivePath(root, parent) : nil;
+    BOOL isDirectory = NO;
+    if (!relative || ![NSFileManager.defaultManager fileExistsAtPath:[root stringByAppendingPathComponent:relative]
+                                                         isDirectory:&isDirectory] || !isDirectory) {
+        *status = 404;
+        return [NSJSONSerialization dataWithJSONObject:missing options:0 error:NULL];
+    }
+    NSMutableArray *folders = [NSMutableArray array];
+    NSMutableArray *files = [NSMutableArray array];
+    NSArray<NSString *> *names = [[NSFileManager.defaultManager
+            contentsOfDirectoryAtPath:[root stringByAppendingPathComponent:relative] error:NULL]
+            sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    for (NSString *name in names) {
+        NSString *child = [relative stringByAppendingPathComponent:name];
+        NSDictionary *file = [name hasPrefix:@"."] ? nil : VibeFakeHTTPDriveFile(root, child, VibeFakeHTTPDriveID(child));
+        if (file) {
+            NSMutableArray *kind = [file[@"mimeType"] isEqual:kVibeGoogleDriveFolderType] ? folders : files;
+            [kind addObject:file];
+        }
+    }
+    *status = 200;
+    return [NSJSONSerialization dataWithJSONObject:@{@"files": [folders arrayByAddingObjectsFromArray:files]}
+                                           options:0 error:NULL];
+}
+
 // A request's line, as its body proceeds. A cancel marks only a line still
 // running. Under sLock.
 static void VibeFakeHTTPNote(NSMutableDictionary *entry, NSString *outcome, uint64_t delivered) {
@@ -225,6 +403,13 @@ typedef struct {
     NSString *range;
     BOOL lookup;
     BOOL signedAddress;
+    // A Dropbox folder link's listing, and its form. Any other address on
+    // Dropbox's host is a file below a link, or a link's page.
+    BOOL dropboxListing;
+    BOOL dropbox;
+    NSDictionary<NSString *, NSString *> *form;
+    // A Drive API request. A Drive download is a file below the root.
+    BOOL driveAPI;
     NSString *shortGUID;
     NSString *servedPath;
     BOOL expired;
@@ -290,8 +475,35 @@ typedef struct {
             }
         }
     }
+    // A link names the root's directory of its key. A path below the link
+    // is below that directory.
+    BOOL dropbox = VibeFakeHTTPIsDropboxHost(url.host);
+    BOOL dropboxListing = dropbox && [servedPath isEqualToString:[NSURL URLWithString:kVibeDropboxFolderListingURL].path];
+    if (dropbox && !dropboxListing) {
+        NSDictionary<NSString *, NSString *> *token = VibeDropboxFolderLinkToken(url);
+        servedPath = token ? [NSString stringWithFormat:@"/%@/%@", token[@"linkKey"], token[@"subPath"]] : @"";
+    }
+    BOOL driveAPI = VibeFakeHTTPIsDriveAPIHost(url.host);
+    if (VibeFakeHTTPIsDriveDownloadHost(url.host)) {
+        NSString *driveID = nil;
+        for (NSURLQueryItem *item in [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO].queryItems) {
+            if ([item.name isEqualToString:@"id"]) {
+                driveID = item.value;
+            }
+        }
+        NSString *root = nil;
+        os_unfair_lock_lock(&sLock);
+        root = sRootPath;
+        os_unfair_lock_unlock(&sLock);
+        NSString *relative = root ? VibeFakeHTTPDrivePath(root, driveID) : nil;
+        servedPath = relative ? [@"/" stringByAppendingString:relative] : @"";
+    }
+    exchange->driveAPI = driveAPI;
     exchange->lookup = lookup;
     exchange->signedAddress = signedAddress;
+    exchange->dropbox = dropbox;
+    exchange->dropboxListing = dropboxListing;
+    exchange->form = dropboxListing ? VibeFakeHTTPFormOfRequest(request) : nil;
     exchange->shortGUID = shortGUID;
     exchange->servedPath = servedPath;
     exchange->expired = expired;
@@ -324,8 +536,8 @@ typedef struct {
             ? [path substringFromIndex:root.length] : nil;
     NSString *name = path.lastPathComponent;
     struct stat info;
-    BOOL found = !exchange->lookup && relativePath && stat(path.fileSystemRepresentation, &info) == 0
-        && S_ISREG(info.st_mode);
+    BOOL found = !exchange->lookup && !exchange->dropboxListing && !exchange->driveAPI && relativePath
+        && stat(path.fileSystemRepresentation, &info) == 0 && S_ISREG(info.st_mode);
     VibeFakeHTTPVersion version = found ? VibeFakeHTTPVersionOf(relativePath, &info) : (VibeFakeHTTPVersion){0};
     exchange->root = root;
     exchange->path = path;
@@ -350,10 +562,29 @@ typedef struct {
     NSInteger refusal = 0;
     NSDictionary<NSString *, NSString *> *refusalHeaders = @{@"Content-Type": @"text/plain"};
     NSData *refusalBody = nil;
+    BOOL isDirectory = NO;
     if (exchange->lookup) {
         refusal = 200;
         refusalHeaders = @{@"Content-Type": @"application/json; charset=UTF-8"};
         refusalBody = VibeFakeHTTPLookup(exchange->root, exchange->shortGUID, entry);
+    }
+    else if (exchange->driveAPI) {
+        refusalBody = VibeFakeHTTPDriveAnswer(exchange->root, exchange->url, &refusal);
+        refusalHeaders = @{@"Content-Type": @"application/json; charset=UTF-8"};
+    }
+    else if (exchange->dropboxListing) {
+        refusalBody = VibeFakeHTTPDropboxListing(exchange->root, exchange->form);
+        refusal = refusalBody ? 200 : 404;
+        refusalHeaders = @{@"Content-Type": refusalBody ? @"application/json" : @"text/plain"};
+        refusalBody = refusalBody ?: [@"Not Found" dataUsingEncoding:NSUTF8StringEncoding];
+    }
+    else if (exchange->dropbox && !exchange->found && exchange->relativePath
+             && [NSFileManager.defaultManager fileExistsAtPath:exchange->path isDirectory:&isDirectory] && isDirectory) {
+        refusal = 200;
+        refusalHeaders = @{@"Content-Type": @"text/html; charset=utf-8",
+                           @"Set-Cookie": [NSString stringWithFormat:@"t=%@; Path=/; Secure", kVibeFakeHTTPDropboxT]};
+        refusalBody = [@"<!doctype html><html><head><title>Dropbox</title></head><body></body></html>"
+                       dataUsingEncoding:NSUTF8StringEncoding];
     }
     else if ((fault = VibeFakeHTTPFault(@"status", name))) {
         refusal = [fault[@"status"] integerValue];
@@ -551,6 +782,12 @@ typedef struct {
     if (!installed) {
         [client useSessionConfiguration:[self sessionConfiguration]];
     }
+    // The fake answers any key, and a build with no key of its own still
+    // lists a Drive folder from it.
+    LinkClient *links = [client isKindOfClass:LinkClient.class] ? (LinkClient *)client : nil;
+    if (links && links.googleDriveAPIKey.length == 0) {
+        links.googleDriveAPIKey = kVibeFakeHTTPDriveKey;
+    }
 }
 
 + (NSURLSessionConfiguration *)sessionConfiguration {
@@ -570,6 +807,10 @@ typedef struct {
     os_unfair_lock_unlock(&sLock);
     if (installed) {
         [client useSessionConfiguration:nil];
+    }
+    LinkClient *links = [client isKindOfClass:LinkClient.class] ? (LinkClient *)client : nil;
+    if ([links.googleDriveAPIKey isEqualToString:kVibeFakeHTTPDriveKey]) {
+        links.googleDriveAPIKey = nil;
     }
 }
 

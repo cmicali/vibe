@@ -11,10 +11,12 @@
 
 #include <sys/stat.h>
 
+#import "AudioTrack.h"
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
 #import "LinkStore.h"
 #import "PlaceholderFiles.h"
+#import "PlaylistFile.h"
 #import "RemotePlaceholderStoreInternal.h"
 #import "VibeFakeHTTP.h"
 
@@ -420,6 +422,50 @@ typedef struct {
     } error:&error], @"%@", error);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file],
                           [NSData dataWithContentsOfURL:[_served URLByAppendingPathComponent:@"tone.flac"]]);
+}
+
+- (void)testADropboxFolderLinkOpensFromTheFake {
+    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+    NSError *error = nil;
+    NSURL *playlist = [self resolve:store link:@"https://www.dropbox.com/scl/fo/album/fakehash?rlkey=k&dl=0"
+                              error:&error];
+    XCTAssertNotNil(playlist, @"%@", error);
+    XCTAssertEqualObjects(playlist.lastPathComponent, @"album.m3u8");
+    NSArray<NSDictionary *> *log = self.log;
+    XCTAssertEqual(log.count, 2u, @"the page and one listing, and no file");
+    XCTAssertEqualObjects(log[1][@"path"], @"/list_shared_link_folder_entries");
+    XCTAssertEqualObjects(log[1][@"status"], @200);
+    NSArray *rows = [PlaylistFile rowsForPlaylistAtURL:playlist];
+    XCTAssertEqual(rows.count, 1u);
+    NSURL *file = [rows.firstObject url];
+    XCTAssertEqualObjects(file.lastPathComponent, @"song.mp3");
+    struct stat st = {0};
+    lstat(file.fileSystemRepresentation, &st);
+    XCTAssertTrue(VibeFileModeIsRemotePlaceholder(st.st_mode));
+    XCTAssertEqual(st.st_mtimespec.tv_sec, _songModified, @"the listing's ts");
+
+    XCTAssertTrue([store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
+    } error:&error], @"%@", error);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], _song);
+}
+
+- (void)testAGoogleDriveFolderLinkOpensFromTheFake {
+    _client.googleDriveAPIKey = @"fake-key";
+    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+    NSError *error = nil;
+    NSURL *playlist = [self resolve:store link:@"https://drive.google.com/drive/folders/album?usp=sharing" error:&error];
+    XCTAssertNotNil(playlist, @"%@", error);
+    XCTAssertEqualObjects(playlist.lastPathComponent, @"album.m3u8");
+    NSArray<NSDictionary *> *log = self.log;
+    XCTAssertEqual(log.count, 2u, @"files.get and one files.list, and no file");
+    XCTAssertEqualObjects(log[0][@"host"], @"www.googleapis.com");
+    NSArray *rows = [PlaylistFile rowsForPlaylistAtURL:playlist];
+    XCTAssertEqual(rows.count, 1u);
+    NSURL *file = [rows.firstObject url];
+    XCTAssertEqualObjects(file.lastPathComponent, @"song.mp3");
+    XCTAssertTrue([store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
+    } error:&error], @"%@", error);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], _song);
 }
 
 - (void)testAnExpiredAddressIsLookedUpAgain {

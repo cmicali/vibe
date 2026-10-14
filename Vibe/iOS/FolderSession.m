@@ -187,15 +187,19 @@ static const NSTimeInterval kAccountListingTimeout = 20;
         [coveringRootPaths addObject:VibeComparablePath(folder.path) ?: @""];
     }
     // The app's own trees need no grant, so a file picked in one always
-    // reaches its folder: Documents, and each account's mirror.
+    // reaches its folder: Documents, and each account's mirror and links.
     NSString *documents = VibeComparablePath(LocationStore.containerDocumentsURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
     }
     for (AccountMirror *mirror in AccountMirror.mirrors) {
         NSString *account = VibeComparablePath(mirror.accountURL.path);
+        NSString *links = VibeComparablePath(mirror.linksURL.path);
         if (account) {
             [coveringRootPaths addObject:account];
+        }
+        if (links) {
+            [coveringRootPaths addObject:links];
         }
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];

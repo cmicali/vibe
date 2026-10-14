@@ -25,7 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define VIBE_DROPBOX_CONTENT_BASE @"https://content.dropboxapi.com/2/"
 #define VIBE_DROPBOX_TOKEN_URL    @"https://api.dropboxapi.com/oauth2/token"
 #define VIBE_DROPBOX_AUTHORIZE    @"https://www.dropbox.com/oauth2/authorize"
-#define VIBE_DROPBOX_SCOPES       @"account_info.read files.metadata.read files.content.read"
+#define VIBE_DROPBOX_SCOPES       @"account_info.read files.metadata.read files.content.read sharing.read"
 
 #pragma mark - OAuth
 
@@ -89,17 +89,29 @@ static inline NSString *_Nullable VibeDropboxAPIArgHeader(NSDictionary *argument
     return ascii;
 }
 
-// A 401 whose body says the access token aged out: refresh and retry once.
-// Any other 401 means the grant itself is gone.
-static inline BOOL VibeDropboxIsExpiredAccessToken(NSInteger status, NSDictionary *_Nullable body) {
+// Whether a 401's body names this AuthError tag, as its .tag or at the start
+// of its summary.
+static inline BOOL VibeDropboxIsAuthError(NSInteger status, NSDictionary *_Nullable body, NSString *tag) {
     if (status != 401) {
         return NO;
     }
     id error = body[@"error"];
-    NSString *tag = [error isKindOfClass:NSDictionary.class] ? error[@".tag"] : nil;
+    NSString *named = [error isKindOfClass:NSDictionary.class] ? error[@".tag"] : nil;
     NSString *summary = body[@"error_summary"];
-    return [tag isEqualToString:@"expired_access_token"]
-            || ([summary isKindOfClass:NSString.class] && [summary hasPrefix:@"expired_access_token"]);
+    return [named isEqualToString:tag] || ([summary isKindOfClass:NSString.class] && [summary hasPrefix:tag]);
+}
+
+// A 401 whose body says the access token aged out: refresh and retry once.
+// Any other 401 means the grant itself is gone, but for a missing scope.
+static inline BOOL VibeDropboxIsExpiredAccessToken(NSInteger status, NSDictionary *_Nullable body) {
+    return VibeDropboxIsAuthError(status, body, @"expired_access_token");
+}
+
+// A 401 for a call the grant has no scope for. The grant is still good for
+// every other call. A sign-in from before a scope the app added lacks it,
+// such as sharing.read.
+static inline BOOL VibeDropboxIsMissingScope(NSInteger status, NSDictionary *_Nullable body) {
+    return VibeDropboxIsAuthError(status, body, @"missing_scope");
 }
 
 // The one line an API failure leaves in the log and the error.

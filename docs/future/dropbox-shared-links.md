@@ -1,6 +1,6 @@
 # Future: Dropbox shared folder links on iOS
 
-**Status: Not built.** A single-file Dropbox link already plays with no account, through Open URL (`Loading/Net/AGENTS.md`, `DropboxLinkRules.h`). This plan is folder links through a signed-in account.
+**Status: Partly built.** Open URL opens a Dropbox folder link as a playlist on both platforms. On iOS with an account linked, it goes through the three calls below, as Phase 1's links in the mirror (`Loading/iOS/Dropbox/AGENTS.md`). With no account, and on the mac, it lists the folder as its share page does (`Loading/Net/AGENTS.md`). That listing is undocumented, and the account's road falls back to it. Not built: the Shared with You group and its rows, the `open_dropbox_link` verb (`open_url` covers it), Phase 2 and Phase 3. Phase 0's probes against a real link are still owed.
 
 Someone sends a Dropbox folder link in Messages. The person receiving it browses and plays the folder in Vibe, where it is. No "copy to my Dropbox" and no Dropbox app.
 
@@ -101,8 +101,6 @@ Phase 1 adds a source beside the account and consolidates nothing. Phase 2's tar
 
 ## Not doing
 
-- **Folder links with no account.** Only a zip of the whole folder is reachable.
-- **Scraping a folder link's web page** to browse it without the API.
 - **Opening Vibe from the share extension** through the responder chain.
 - **The Mac app.** Dropbox there is the File Provider.
 

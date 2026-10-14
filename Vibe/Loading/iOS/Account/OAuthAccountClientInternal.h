@@ -71,8 +71,11 @@ NS_ASSUME_NONNULL_BEGIN
 // accessToken is a fresh one, nil when the account held none.
 - (void)revokeRefreshToken:(NSString *)refreshToken accessToken:(nullable NSString *)accessToken;
 // A refused call whose access token only aged out: the ladder refreshes it
-// once and resends. Any other 401 unlinks.
+// once and resends. Any other 401 unlinks, but for a missing scope.
 - (BOOL)isExpiredAccessTokenStatus:(NSInteger)status body:(nullable NSDictionary *)body;
+// A refused call the grant has no scope for, which leaves it good for every
+// other call: the ladder fails the call and never unlinks. The default is NO.
+- (BOOL)isMissingScopeStatus:(NSInteger)status body:(nullable NSDictionary *)body;
 // A refused call the service will take later: waited for and resent as a 429
 // is. The default is NO.
 - (BOOL)isThrottleStatus:(NSInteger)status body:(nullable NSDictionary *)body;

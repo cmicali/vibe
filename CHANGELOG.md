@@ -1,6 +1,7 @@
 # v1.16
 
 * Added Open URL… to play a web link or an iCloud Drive share link
+* Added Dropbox and Google Drive shared folder links to Open URL…, which open as a playlist
 * Added the Spectrum waveform style for RGB-style waveforms
 * Cleaned up waveform styles: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
 * Changed Previous on the first song to restart it
