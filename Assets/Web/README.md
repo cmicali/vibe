@@ -138,8 +138,9 @@ without uploading, and needs no credentials.
 `deploy-web` reads `CLOUDFLARE_API_TOKEN` from the gitignored `.release-env` at
 the repo root, the same file the App Store Connect keys live in. The token needs
 exactly one permission: **Account | Cloudflare Pages | Edit**.
-`CLOUDFLARE_ACCOUNT_ID` is optional. Wrangler resolves a single-account token by
-itself, and the id is needed only for a token that can reach several accounts.
+`CLOUDFLARE_ACCOUNT_ID` is optional for deploying. Wrangler resolves a
+single-account token by itself. Deploying needs the id only for a token that
+can reach several accounts. Reading the update-check counts always needs it.
 `CLOUDFLARE_PAGES_PROJECT` overrides the project name, which defaults to `vibe`.
 `ARGS="--wrangler-login"` uses this machine's `wrangler login` instead of the
 token.
@@ -168,7 +169,8 @@ A changed asset gets a new URL. Unchanged assets keep their cached copies.
 Deployment runs the stamp script with `--check` and refuses stale references.
 
 Cloudflare cache rules and the old-domain redirect are configured outside this
-repo. Check the zone configuration when changing them.
+repo. Check the zone configuration when changing them. No cache rule may cover
+the update feeds (Update checks, below).
 
 ## Update checks
 
@@ -200,6 +202,14 @@ So the Function catches its own errors and always serves the file. With no
 binding it records nothing. A preview deployment is unbound and counts
 nothing.
 
+**TRAP: no cache rule may cover `/appcast.xml` or `/appcast-arm64.xml`.**
+Cloudflare serves a cached response before the Function runs. A cached check
+goes uncounted. Both feeds should answer `cf-cache-status: DYNAMIC`:
+
+```bash
+curl -sI https://vibeplayer.app/appcast.xml | grep -i cf-cache-status
+```
+
 **The privacy policy lists every column.** Adding one means changing
 `privacy/index.html` in the same commit.
 
@@ -211,9 +221,9 @@ This is done in the Cloudflare dashboard, and only once.
    Set the variable name to `UPDATE_CHECKS` and the dataset to
    `vibe_update_checks`, for Production only. Cloudflare creates the dataset
    on the first write.
-2. Under the project's Functions settings, set the failure mode for the
-   daily request limit to fail open. Then a request over the Workers Free
-   limit still gets the static feed, uncounted.
+2. Under the project's Functions settings, confirm that the failure mode for
+   the daily request limit is fail open. It is Cloudflare's default. Then a
+   request over the Workers Free limit still gets the static feed, uncounted.
 3. Deploy again (`make deploy-web`). A binding applies only to deployments
    made after it was added.
 4. Send one test check, and look for it in a minute or two (Reading the
@@ -231,7 +241,8 @@ This is done in the Cloudflare dashboard, and only once.
 Queries go to the Analytics Engine SQL API. They need a second token with
 exactly one permission, **Account | Account Analytics | Read**. Keep it apart
 from the deploy token. Add it to `.release-env` as
-`CLOUDFLARE_ANALYTICS_TOKEN`, beside `CLOUDFLARE_ACCOUNT_ID`.
+`CLOUDFLARE_ANALYTICS_TOKEN`. The query URL also needs `CLOUDFLARE_ACCOUNT_ID`.
+Set it even though deploying can work without it.
 
 ```bash
 source .release-env
@@ -245,9 +256,14 @@ curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/an
 
 Count with `SUM(_sample_interval)`, never `COUNT()`. Analytics Engine may
 sample, and each row then stands for several checks. Group by `blob3`,
-`blob4`, `blob5`, `blob6` or `blob7` for macOS, architecture, channel, country
-or language. Group
-by `toStartOfInterval(timestamp, INTERVAL '1' DAY)` for a daily trend.
+`blob4`, `blob5`, `blob6`, or `blob7` for macOS, architecture, channel,
+country, or language. Group by `toStartOfInterval(timestamp, INTERVAL '1' DAY)`
+for a daily trend.
+
+`blob7` has two forms. A build that sends `lang` gives the localization Vibe
+runs in, such as `de`. An older build gives its first Accept-Language tag,
+such as `de-DE`. One language can then show as two rows until those builds
+update.
 
 **A day's checks are close to the copies that ran that day.** Sparkle checks
 at most once per interval, and the default interval is a day. Copies set to
