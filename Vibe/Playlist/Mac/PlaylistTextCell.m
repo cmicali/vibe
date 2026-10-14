@@ -7,7 +7,8 @@
 
 
 @implementation PlaylistTextCell {
-
+    // As the controller set it, before rowTextColor.
+    NSAttributedString *_contentString;
 }
 
 - (instancetype)initTextCell:(NSString *)string {
@@ -36,6 +37,31 @@
     self.editable = NO;
     self.usesSingleLineMode = YES;
     self.lineBreakMode = NSLineBreakByTruncatingTail;
+}
+
+- (void)setAttributedStringValue:(NSAttributedString *)value {
+    _contentString = [value copy];
+    [super setAttributedStringValue:[self drawnString]];
+}
+
+- (void)setRowTextColor:(NSColor *)rowTextColor {
+    if (rowTextColor == _rowTextColor) {
+        return;
+    }
+    _rowTextColor = rowTextColor;
+    if (_contentString) {
+        [super setAttributedStringValue:[self drawnString]];
+    }
+}
+
+- (NSAttributedString *)drawnString {
+    if (!_rowTextColor || _contentString.length == 0) {
+        return _contentString;
+    }
+    NSMutableAttributedString *drawn = [_contentString mutableCopy];
+    [drawn addAttribute:NSForegroundColorAttributeName value:_rowTextColor
+                  range:NSMakeRange(0, drawn.length)];
+    return drawn;
 }
 
 // Unconditional because the cell is never editable: a shrunken drawing rect

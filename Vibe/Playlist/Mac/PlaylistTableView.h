@@ -27,6 +27,10 @@ extern NSString *const kPlaylistColumnLength;
 // The PlaylistAppearance effect's hook; the caller reloads the table.
 + (void)invalidateCellAttributes;
 
+// The PlaylistRowColors effect's hook: the visible rows redraw their fills
+// and push their text colors again, with no reload.
+- (void)refreshRowColors;
+
 // Applies the three optional columns (number, artwork, duration) from AppSettings.
 - (void)applyColumnVisibility;
 
@@ -39,9 +43,12 @@ extern NSString *const kPlaylistColumnLength;
 
 + (NSAttributedString *)numberCellString:(NSUInteger)number;
 // The title plus a dimmed artist, or the single-line fallback. Never varies
-// with the playing state: the equalizer and the row wash are the marking.
+// with the row's state: PlaylistRowView recolors a playing or selected row.
 + (NSAttributedString *)titleCellStringForTrack:(AudioTrack *)track;
 + (NSAttributedString *)durationCellString:(NSString *)duration;
+// The one color every text column of a row draws in, or nil for the
+// columns' own colors.
++ (nullable NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing;
 // The thumbnail, or the theme's placeholder sleeve.
 + (NSImage *)artworkCellImage:(nullable NSImage *)thumbnail;
 

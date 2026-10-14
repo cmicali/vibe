@@ -299,7 +299,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         return isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
     }
     // Move toward the contrast pole by the available brightness delta.
-    // Full alpha keeps the hover visible over a translucent played color.
+    // Full alpha keeps the hover visible over a translucent unplayed color and
+    // over the bands.
     CGFloat pole = isDark ? 1 : 0;
     CGFloat luminance = VibeLuminance(r, g, b);
     CGFloat headroom = fabs(pole - luminance);
