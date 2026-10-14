@@ -20,6 +20,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Nil when the app launched with no scene; an intent then opens the app.
 + (nullable PlaybackController *)connectedPlayback;
 
+// The widget's playlist button. Without a scene it does nothing.
++ (void)showPlaylist;
+
 @end
 
 NS_ASSUME_NONNULL_END

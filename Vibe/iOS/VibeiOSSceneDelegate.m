@@ -91,16 +91,27 @@
 
 // A scene can be connected before building its controller, and an intent can
 // find the app launched with no scene at all.
-+ (PlaybackController *)connectedPlayback {
++ (nullable VibeiOSSceneDelegate *)connectedDelegate {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if ([scene.delegate isKindOfClass:VibeiOSSceneDelegate.class]) {
-            PlaybackController *playback = ((VibeiOSSceneDelegate *)scene.delegate).playback;
-            if (playback) {
-                return playback;
+            VibeiOSSceneDelegate *delegate = (VibeiOSSceneDelegate *)scene.delegate;
+            if (delegate.playback) {
+                return delegate;
             }
         }
     }
     return nil;
+}
+
++ (PlaybackController *)connectedPlayback {
+    return [self connectedDelegate].playback;
+}
+
++ (void)showPlaylist {
+    VibeiOSSceneDelegate *delegate = [self connectedDelegate];
+    if (delegate) {
+        [delegate->_root showPlaylist];
+    }
 }
 
 @end
