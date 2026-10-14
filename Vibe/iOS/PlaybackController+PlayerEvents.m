@@ -68,6 +68,15 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self publishNowPlaying];
 }
 
+// The card shows Buffering… (bufferingNoticeShown).
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBufferingNotice:(BOOL)shown
+                    forTrack:(AudioTrack *)track {
+    if ([_playlist isCurrentTrack:track]) {
+        [self notifyDidRenderCurrentTrack];
+    }
+}
+
 // A stream opened on an estimated length counted it: the card's total and
 // the lock screen's take the player's duration, which the tick, stopped while
 // paused or backgrounded, would not otherwise republish.

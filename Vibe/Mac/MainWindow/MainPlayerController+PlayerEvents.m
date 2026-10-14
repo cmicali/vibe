@@ -98,8 +98,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     [self updateUI]; // ends with the Now Playing publish
 }
 
-// A hold stops Now Playing's clock. Nothing on screen shows it: the
-// waveform's loading indicator would wipe the waveform and its click-seek.
+// A hold stops Now Playing's clock at once.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
               forTrack:(AudioTrack *)track {
@@ -107,6 +106,17 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     [self updateNowPlaying];
+}
+
+// Buffering… stands in for the file info line. The waveform's loading
+// indicator is not used: it would wipe the waveform and its click-seek.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer
+    didChangeBufferingNotice:(BOOL)shown
+                    forTrack:(AudioTrack *)track {
+    if (track != self.playlistController.currentTrack) {
+        return;
+    }
+    [self updateUI];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track  {

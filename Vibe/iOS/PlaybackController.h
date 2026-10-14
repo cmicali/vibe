@@ -134,6 +134,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL audioOutputActive;
 
 @property (nonatomic, readonly) BOOL isPlaying;
+// The card shows Buffering…, from playbackDidRenderCurrentTrack:.
+@property (nonatomic, readonly) BOOL bufferingNoticeShown;
 @property (nonatomic, readonly) NSTimeInterval position;
 @property (nonatomic, readonly) NSTimeInterval duration;
 

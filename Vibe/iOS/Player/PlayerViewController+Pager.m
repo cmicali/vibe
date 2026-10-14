@@ -334,8 +334,9 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     AudioTrack *track = [_playlist trackAtIndex:index];
+    BOOL current = index == _playlist.currentIndex;
     NSString *errorText = _playback.errorText;
-    BOOL showError = index == _playlist.currentIndex && errorText != nil;
+    BOOL showError = current && errorText != nil;
     BOOL showsInfo = AppSettings.sharedInstance.showFileInfo;
     // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
@@ -345,6 +346,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
                                         : [UIColor secondaryLabelColor])
                     fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
                    tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
+                   buffering:(current && !showError && _playback.bufferingNoticeShown)
                          art:[self artworkForPageAtIndex:index]];
     [self applyPlayOrderToCell:cell atIndex:index];
     [cell setOutputRouteKind:_playback.outputRouteKind

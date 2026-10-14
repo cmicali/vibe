@@ -459,6 +459,7 @@
                           duration:self.audioPlayer.duration
                               rate:self.playbackRate
                             status:(_noticeStatus ?: errorStatus)
+                         buffering:self.audioPlayer.bufferingNoticeShown
                              title:(_noticeStatus ? _noticeTitle : _unplayablePlaylistName)];
     [self effectiveTempoDidChange];
     [self updateFXIndicators];

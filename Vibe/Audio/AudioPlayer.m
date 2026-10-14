@@ -28,9 +28,6 @@
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 
-// Fallback delay for the loading indicator. A provider's dataless verdict
-// shows it at once. Remote streams keep this delay.
-static const NSTimeInterval kSlowOpenIndicatorDelaySeconds = 0.5;
 // An open taking this long is logged, apart from the indicator's UI delay.
 static const NSTimeInterval kSlowOpenLogThresholdSeconds = 0.25;
 // Default pitch fader range in percent: ±8%, matching a stock SL-1200.
@@ -431,7 +428,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_deadlineTimeouts.noProgressSeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf fileOpenDeadlineDueForRequest:openId];
     });
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kSlowOpenIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kWaitIndicatorDelaySeconds * NSEC_PER_SEC)), _queue, ^{
         [weakSelf markOpenSlowOnQueueForRequest:openId];
     });
 }
@@ -869,6 +866,11 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
             [_voiceBus setRamp:[self rampOnQueueToGain:0 milliseconds:live ? kFadeDurationMilliseconds : 0
                                                 action:VibeVoiceActionPause] forVoice:_voice];
         }
+        else if (live) {
+            // Buffering… ends at the first drain that finds the voice playing,
+            // after a release or a re-voice.
+            [self setBufferingNoticeOnQueue:NO];
+        }
         return;
     }
     // What the writer of the file the decoder reads has fetched. A successor
@@ -894,6 +896,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
     if (VibeAudioOpenDeadlineRemaining(now, _deadlineArmedUptime, _deadlineMovedUptime, _deadlineTimeouts) <= 0) {
         [self stallOnQueue];
+    }
+    else if (now - _deadlineArmedUptime >= kWaitIndicatorDelaySeconds) {
+        [self setBufferingNoticeOnQueue:YES];
     }
 }
 
@@ -935,6 +940,26 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }];
 }
 
+// Buffering…, published under _stateLock, with its edge for the current play.
+- (void)setBufferingNoticeOnQueue:(BOOL)shown {
+    if (_bufferingNoticeShown == shown) {
+        return;
+    }
+    os_unfair_lock_lock(&_stateLock);
+    _bufferingNoticeShown = shown;
+    os_unfair_lock_unlock(&_stateLock);
+    AudioTrack *track = self.currentTrack;
+    if (!track) {
+        return;
+    }
+    [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didChangeBufferingNotice" block:^{
+        id<AudioPlayerDelegate> delegate = self.delegate;
+        if ([delegate respondsToSelector:@selector(audioPlayer:didChangeBufferingNotice:forTrack:)]) {
+            [delegate audioPlayer:self didChangeBufferingNotice:shown forTrack:track];
+        }
+    }];
+}
+
 // No bytes for the deadline's span: paused where it stopped. The voice and
 // its file are let go. A transfer's claim then loses its last reader and is
 // cancelled. A read-ahead's thread ends with its handle. resumeOnQueue
@@ -950,6 +975,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _debugBufferingStalls++;
     os_unfair_lock_unlock(&_stateLock);
 #endif
+    [self setBufferingNoticeOnQueue:NO];
     [self setBufferingOnQueue:NO outcome:@"stalled, no progress"];
     VibeVoiceID voice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
@@ -1416,11 +1442,15 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 #pragma mark - The published tuple
 
-// One acquisition, so a getter never sees a torn tuple.
+// One acquisition, so a getter never sees a torn tuple. A new voice for the
+// same file is a re-voice, and Buffering… stays up for it.
 - (void)publishState:(VibePlayerState)state voice:(VibeVoiceID)voice file:(AudioFileHandle *)file
               window:(NSRange)window startSeconds:(NSTimeInterval)startSeconds baseFrames:(uint64_t)baseFrames {
     if (state != VibePlayerStatePlaying || voice != _voice) {
         [self setBufferingOnQueue:NO outcome:state == VibePlayerStatePaused ? @"paused" : @"its voice replaced"];
+    }
+    if (state != VibePlayerStatePlaying || file != _file) {
+        [self setBufferingNoticeOnQueue:NO];
     }
     VibePlaybackRequest *request = state == VibePlayerStateLoading ? _pendingRequest.currentRequest : nil;
     double fileSampleRate = file.processingFormat.sampleRate;
@@ -1441,7 +1471,8 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     [self refreshOutputAudioActiveOnQueue];
 }
 
-// Clears the voice and its successor; the caller retires the voice.
+// Clears the voice and its successor; the caller retires the voice. It leaves
+// Buffering… alone. A re-voice keeps it (publishState:…).
 - (VibeVoiceID)unpublishVoiceOnQueue {
     [self setBufferingOnQueue:NO outcome:@"its voice retired"];
     os_unfair_lock_lock(&_stateLock);
@@ -1454,6 +1485,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 
 // State and voice in one acquisition, so they never disagree.
 - (VibeVoiceID)unpublishVoiceOnQueueEnteringTerminalState:(VibePlayerState)state {
+    [self setBufferingNoticeOnQueue:NO];
     [self setBufferingOnQueue:NO outcome:@"its voice retired"];
     os_unfair_lock_lock(&_stateLock);
     _state = state;

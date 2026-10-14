@@ -55,6 +55,8 @@ static const CGFloat kBPMLabelY = 307;
 // reserves the codec column's worst case, re-capped against the real text in
 // layoutArtistLineClearOfCodecLine.
 static const CGFloat kCodecColumnGutter = 12;
+// Between the codec text and Buffering…'s spinner after it.
+static const CGFloat kCodecSpinnerGap = 5;
 static const CGFloat kArtistY = 293;
 static const CGFloat kArtistWidth = kCodecLabelX - kCodecColumnGutter - kHeaderTextX;
 static const CGFloat kArtistHeight = 48;
@@ -130,6 +132,9 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
     BOOL _transportHasArtwork;
     // Measured at the text edge, reused on every geometry pass.
     CGFloat _codecTextWidth;
+    // Buffering…'s spinner, at the codec line's right end.
+    NSProgressIndicator *_codecSpinner;
+    BOOL _codecSpinnerShown;
     // The header's readonly properties synthesize onto these. They are
     // declared here so the category can assign them.
     SymbolButton *_playButton;
@@ -153,6 +158,7 @@ static const CGFloat kLabelShadowOpacityDark = 0.9;
 - (void)setControlsShown:(BOOL)shown animated:(BOOL)animated;
 - (void)layoutVolumeControl;
 - (void)positionVolumeControl;
+- (void)layoutCodecSpinner;
 
 @end
 

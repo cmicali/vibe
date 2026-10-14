@@ -69,6 +69,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Truncates the artist line clear of the codec line's text. The view re-caps
 // on resize itself; TrackDisplayController calls this on every text change.
 - (void)layoutArtistLineClearOfCodecLine;
+// A spinner at the codec line's right end, while Buffering… is the line.
+// TrackDisplayController's renderState is the one caller.
+- (void)setCodecSpinnerShown:(BOOL)shown;
 
 @end
 

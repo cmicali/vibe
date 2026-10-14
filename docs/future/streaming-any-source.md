@@ -11,7 +11,6 @@
 - **Read-ahead on local external volumes.** Unmeasured.
 - **Skipping the dataless `stat` probe on network mounts.** On a dead mount the probe and the read-ahead thread's `open` still take the SMB timeout, whose duration the app cannot bound.
 - **The main thread's `noteNewRecentDocumentURL:` at each track start** (`performPerTrackRefreshForStartedTrack:`). AppKit stats the file there. A server that stops answering can block main in that call.
-- **The mac draws no buffering on screen.** It publishes rate 0 to Now Playing during a hold. The waveform's loading indicator would wipe the waveform and its click-seek, so it is not used for this.
 
 ## Needs a device
 

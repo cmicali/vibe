@@ -204,8 +204,10 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
            duration:(NSTimeInterval)duration
                rate:(double)rate
              status:(NSString *)status
+          buffering:(BOOL)buffering
               title:(NSString *)title {
     _state = state;
+    BOOL bufferingLine = state == TrackDisplayStateTrack && !status && buffering;
     BOOL showTime = AppSettings.sharedInstance.showTimeLabels;
     self.currentTimeTextField.hidden = !showTime;
     self.totalTimeTextField.hidden = !showTime;
@@ -233,6 +235,9 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         }
         if (state == TrackDisplayStateTrack && status) {
             [self setFileMetadataText:status];
+        }
+        else if (bufferingLine) {
+            [self setFileMetadataText:STR_LABEL_BUFFERING];
         }
         else {
             [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo ? track.metadata.fileInfoLine : @"")];
@@ -262,6 +267,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
         [self renderEmptyWithStatus:status title:title];
         break;
     }
+    [_contentView setCodecSpinnerShown:bufferingLine];
 }
 
 // The empty look. A status goes on the artist line, over what failed: a

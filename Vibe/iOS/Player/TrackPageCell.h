@@ -73,12 +73,15 @@ NS_ASSUME_NONNULL_BEGIN
 // compact layouts hide them too.
 - (void)setShuffleRepeatShown:(BOOL)shown;
 
+// buffering: Buffering… and its spinner take the codec line while that line
+// has text, else the artist line. Either way the card's layout holds still.
 - (void)configureWithTitle:(NSString *)title
                 titleColor:(UIColor *)titleColor
                     artist:(NSString *)artist
                artistColor:(UIColor *)artistColor
                   fileInfo:(nullable NSString *)fileInfo
                  tempoInfo:(nullable NSString *)tempoInfo
+                 buffering:(BOOL)buffering
                        art:(nullable UIImage *)art;
 
 @end

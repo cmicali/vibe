@@ -61,6 +61,13 @@
     return buffering;
 }
 
+- (BOOL)bufferingNoticeShown {
+    os_unfair_lock_lock(&_stateLock);
+    BOOL shown = _bufferingNoticeShown;
+    os_unfair_lock_unlock(&_stateLock);
+    return shown;
+}
+
 // A stall's park keeps the rate and window with no file.
 - (NSTimeInterval)duration {
     os_unfair_lock_lock(&_stateLock);

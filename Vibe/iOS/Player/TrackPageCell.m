@@ -26,6 +26,8 @@ static const CGFloat kCellTopBandHeight = 36;
 static const CGFloat kCellArtWidthFraction = 0.645;
 static const CGFloat kCellArtBandFill = 0.94;
 static const CGFloat kCellLabelGap = 6;
+// Between Buffering… and its spinner.
+static const CGFloat kCellSpinnerGap = 5;
 static const CGFloat kCellLabelBandPadding = 10;
 static const CGFloat kCellWaveformTransportGap = 28;
 
@@ -94,6 +96,25 @@ static const CGFloat kCellGlyphScaleCompact = 31.0 / kCellGlyphPointSize;
 static const CGFloat kCellTransportInsetCompact = 3;
 static const CGFloat kCellStripWaveformGap = 4;
 
+// Buffering…'s spinner is as tall as its line's point size, as on the mac.
+static CGFloat SpinnerSide(UIFont *font) {
+    return round(font.pointSize);
+}
+
+// Clear room at the end of Buffering… for the spinner laid over it. One point
+// tall, so the line keeps its height.
+static NSAttributedString *SpinnerRoom(UIFont *font) {
+    static UIImage *clear;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        clear = [[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(1, 1)]
+                imageWithActions:^(UIGraphicsImageRendererContext *context) {}];
+    });
+    NSTextAttachment *room = [NSTextAttachment textAttachmentWithImage:clear];
+    room.bounds = CGRectMake(0, 0, kCellSpinnerGap + SpinnerSide(font), 1);
+    return [NSAttributedString attributedStringWithAttachment:room];
+}
+
 @implementation TrackPageCell {
     // Blurred ONCE into an image (UIImage+Blur), not a UIVisualEffectView,
     // whose live filter re-blurs every frame of a swipe.
@@ -124,6 +145,12 @@ static const CGFloat kCellStripWaveformGap = 4;
     // Joined on one line in portrait, stacked in landscape as on the mac.
     NSString           *_fileInfo;
     NSString           *_tempoInfo;
+    // Kept so Buffering… can stand in for it and give it back.
+    NSString           *_artist;
+    // Buffering… and its spinner (applyBufferingSpinner).
+    BOOL               _buffering;
+    UIActivityIndicatorView *_bufferingSpinner;
+    NSArray<NSLayoutConstraint *> *_bufferingSpinnerPlacement;
 
     // The route capsule's leading edge when the FX pad is shown: a gap past
     // the pad's circle, required, outranking the full-width leading edge the
@@ -233,6 +260,13 @@ static const CGFloat kCellStripWaveformGap = 4;
                                                         forAxis:UILayoutConstraintAxisVertical];
         _fileInfoLabel.translatesAutoresizingMaskIntoConstraints = NO;
         [content addSubview:_fileInfoLabel];
+
+        _bufferingSpinner = [[UIActivityIndicatorView alloc]
+                initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+        _bufferingSpinner.color = [UIColor secondaryLabelColor];
+        _bufferingSpinner.hidesWhenStopped = YES;
+        _bufferingSpinner.translatesAutoresizingMaskIntoConstraints = NO;
+        [content addSubview:_bufferingSpinner];
 
         _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
         _waveformView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -755,7 +789,9 @@ static UIImage *TransportGradientImage(void) {
             scaledFontForFont:[UIFont systemFontOfSize:kCellArtistPointSize * fontScale]];
     _titleLabel.numberOfLines = landscape ? 1 : 2;
     _fileInfoLabel.numberOfLines = landscape ? 2 : 1;
+    [self applyArtistText];
     [self applyFileInfoText];
+    [self applyBufferingSpinner];
     VibeSignpostEnd(cell_constraints);
 }
 
@@ -971,14 +1007,21 @@ static UIImage *TransportGradientImage(void) {
 // A mode that is on while the layout hides its flank leads the line as a
 // glyph, so the card never hides a mode that is on (compact layouts, a row
 // too narrow for the flanks).
+//
+// While buffering, Buffering… is the codec text, and its first line ends in
+// the spinner's room. Portrait's joined line drops the tempo, so the spinner
+// ends the line.
 - (void)applyFileInfoText {
-    BOOL stacked = _landscapeActive && _fileInfo.length > 0 && _tempoInfo.length > 0;
+    BOOL buffering = _buffering && [self bufferingTakesFileInfoLine];
+    NSString *fileInfo = buffering ? STR_LABEL_BUFFERING : _fileInfo;
+    NSString *tempoInfo = buffering && !_landscapeActive ? nil : _tempoInfo;
+    BOOL stacked = _landscapeActive && fileInfo.length > 0 && tempoInfo.length > 0;
     NSString *line = stacked
-            ? [NSString stringWithFormat:@"%@\n%@", _fileInfo, _tempoInfo]
-            : [[Formatters sharedInstance] infoLineFromFields:@[_fileInfo ?: @"", _tempoInfo ?: @""]];
+            ? [NSString stringWithFormat:@"%@\n%@", fileInfo, tempoInfo]
+            : [[Formatters sharedInstance] infoLineFromFields:@[fileInfo ?: @"", tempoInfo ?: @""]];
     BOOL shuffleGlyph = _shuffleButton.hidden && _flankShuffleEnabled;
     BOOL repeatGlyph = _shuffleButton.hidden && _flankRepeatMode != VibeRepeatModeOff;
-    if (!shuffleGlyph && !repeatGlyph) {
+    if (!shuffleGlyph && !repeatGlyph && !buffering) {
         _fileInfoLabel.text = line;
         _fileInfoLabel.accessibilityLabel = nil;
     }
@@ -1004,7 +1047,11 @@ static UIImage *TransportGradientImage(void) {
         if (repeatGlyph) {
             lead(VibeRepeatModeSymbolName(_flankRepeatMode), VibeRepeatModeTitle(_flankRepeatMode));
         }
-        [text appendAttributedString:[[NSAttributedString alloc] initWithString:line]];
+        NSMutableAttributedString *body = [[NSMutableAttributedString alloc] initWithString:line];
+        if (buffering) {
+            [body insertAttributedString:SpinnerRoom(_fileInfoLabel.font) atIndex:fileInfo.length];
+        }
+        [text appendAttributedString:body];
         _fileInfoLabel.attributedText = text;
         [spoken addObject:line];
         _fileInfoLabel.accessibilityLabel = [spoken componentsJoinedByString:@", "];
@@ -1017,20 +1064,69 @@ static UIImage *TransportGradientImage(void) {
     }
 }
 
+// Buffering… takes the codec line only while that line has text. Shown on a
+// hidden line, it would grow the label band and move the card.
+- (BOOL)bufferingTakesFileInfoLine {
+    return _fileInfo.length > 0 || _tempoInfo.length > 0;
+}
+
+// Otherwise it stands in for the artist, whose line the band always keeps.
+- (void)applyArtistText {
+    if (_buffering && ![self bufferingTakesFileInfoLine]) {
+        NSMutableAttributedString *text = [[NSMutableAttributedString alloc] initWithString:STR_LABEL_BUFFERING
+                attributes:@{NSFontAttributeName: _artistLabel.font, NSForegroundColorAttributeName: _artistLabel.textColor}];
+        [text appendAttributedString:SpinnerRoom(_artistLabel.font)];
+        _artistLabel.attributedText = text;
+        _artistLabel.accessibilityLabel = STR_LABEL_BUFFERING;
+    }
+    else {
+        _artistLabel.text = _artist;
+        _artistLabel.accessibilityLabel = nil;
+    }
+}
+
+// The spinner lies over the room its line's text ends in, centered on the
+// line's first cap height. Constraints, not frames: a label can move without
+// the cell's own layout pass (the art card's trap).
+- (void)applyBufferingSpinner {
+    [NSLayoutConstraint deactivateConstraints:_bufferingSpinnerPlacement ?: @[]];
+    _bufferingSpinnerPlacement = nil;
+    if (!_buffering) {
+        [_bufferingSpinner stopAnimating];
+        return;
+    }
+    UILabel *line = [self bufferingTakesFileInfoLine] ? _fileInfoLabel : _artistLabel;
+    CGFloat side = SpinnerSide(line.font);
+    // It draws at its style's fixed size, so it is scaled to the line.
+    CGFloat scale = side / _bufferingSpinner.intrinsicContentSize.width;
+    _bufferingSpinner.transform = CGAffineTransformMakeScale(scale, scale);
+    _bufferingSpinnerPlacement = @[
+        [_bufferingSpinner.centerXAnchor constraintEqualToAnchor:line.trailingAnchor constant:-side / 2],
+        [_bufferingSpinner.centerYAnchor constraintEqualToAnchor:line.firstBaselineAnchor
+                                                         constant:-line.font.capHeight / 2],
+    ];
+    [NSLayoutConstraint activateConstraints:_bufferingSpinnerPlacement];
+    [_bufferingSpinner startAnimating];
+}
+
 - (void)configureWithTitle:(NSString *)title
                 titleColor:(UIColor *)titleColor
                     artist:(NSString *)artist
                artistColor:(UIColor *)artistColor
                   fileInfo:(nullable NSString *)fileInfo
                  tempoInfo:(nullable NSString *)tempoInfo
+                 buffering:(BOOL)buffering
                        art:(UIImage *)art {
     _titleLabel.text = title;
     _titleLabel.textColor = titleColor;
-    _artistLabel.text = artist;
-    _artistLabel.textColor = artistColor;
+    _artist = [artist copy];
     _fileInfo = [fileInfo copy];
     _tempoInfo = [tempoInfo copy];
+    _buffering = buffering;
+    _artistLabel.textColor = artistColor;
+    [self applyArtistText];
     [self applyFileInfoText];
+    [self applyBufferingSpinner];
     _artCardView.image = art;
     // album_art's color rides the art install, so it cannot belong to another
     // track however the delivery raced.
