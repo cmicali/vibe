@@ -325,8 +325,8 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     __block BOOL answered = NO;
     dispatch_block_t stop = nil;
     if (folderLink) {
-        // Each request has its own deadline. The listing has none, since a
-        // large folder takes many requests.
+        // No deadline of the probe's kind: a large folder takes many
+        // requests. Each has the probe's length as its idle timeout.
         stop = [(LinkClient *)self.client listFolderLink:folderLink timeout:timeout
                                               completion:^(NSString *name, NSArray<NSDictionary *> *files,
                                                            NSError *error) {

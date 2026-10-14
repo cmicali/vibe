@@ -27,13 +27,15 @@ NS_ASSUME_NONNULL_BEGIN
 // then the entries a page at a time. A Google Drive folder is listed through
 // the Drive API with googleDriveAPIKey (GoogleDriveLinkRules.h). Each file is
 // {name, size, url, modified?}, in the listing's order, with a folder's files
-// in its place. name is the folder's own, nil when no answer states one.
-// timeout bounds each request. Any failure fails the whole listing, so a
-// dropped connection never reads as files that left. An answer that is not a
-// listing fails with VibeLinkErrorNotAudio. Completion on any thread, exactly
-// once, with exactly one of files and error. The returned block cancels, on
-// any thread. No request starts after it, and the completion then fails with
-// VibeHTTPErrorCancelled.
+// in its place. name is the folder's own, nil when no answer states one. Any
+// failure fails the whole listing, so a dropped connection never reads as
+// files that left. An answer that is not a listing fails with
+// VibeLinkErrorNotAudio. Completion on any thread, exactly once, with exactly
+// one of files and error. The returned block cancels, on any thread. No
+// request starts after it, the answer to one in flight is not read, and the
+// completion fails with VibeHTTPErrorCancelled. timeout is each request's idle
+// timeout, and a request that timed out or lost its connection is sent again
+// twice.
 - (dispatch_block_t)listFolderLink:(NSURL *)link
                            timeout:(NSTimeInterval)timeout
                         completion:(void (^)(NSString *_Nullable name, NSArray<NSDictionary *> *_Nullable files,
