@@ -22,12 +22,14 @@ Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears bo
 
 ## Hover and click
 
-While the cursor is over a loaded waveform, the column under it is lit to full brightness. Nothing is drawn on top, and there is no tooltip. The view only passes the cursor's x to `setHoverHighlightX:`, where a negative value clears it. **Each renderer family lights it its own way:**
+While the cursor is over a loaded waveform, the waveform marks the column under it. Nothing is drawn on top, and there is no tooltip. The view only passes the cursor's x to `setHoverHighlightX:`, where a negative value clears it. **Each renderer family marks it its own way:**
 
 - **Detailed** adds a flat full-alpha column inside `_waveformContainer`, so the shared bar mask clips it to the envelope. It is a couple of points wide, since one bar is sub-point at 1,024 bars or more.
 - **Wiggle** uses the same masked column, spanning a whole loop.
 - **Sonic Cirrus** has discrete bars with gaps, so it snaps to a bar index and recolors that bar's two layers. A fixed-width column could land in a gap.
 - **Progress** grows the pill while hovered, and a hairline column inside it tracks the x.
+
+**Over the unplayed side the column is lit in the theme's `hoverColor`. Over the played side it shows the unplayed side.** A lit column barely differs from Mono's translucent played color. It does not differ at all from Album Art's opaque one. Detailed, Bars, Cupertino, Wiggle and Progress hide the lit column there and cut a hole in the played layer (`VibeSetPlayedHoverHole`). Sonic Cirrus paints the bar in its unplayed colors. Under a playhead line the whole waveform is played. There the column always shows the unplayed side. `updateProgress:` re-places the column, because the playhead can cross a still cursor. 3-Band and Spectrum light the column on both sides. Their played side is the bands, not the theme's played color.
 
 **Sonic Cirrus must restore the bar's resting color when the hover moves off, and re-apply the highlight after `updateProgress:` repaints a range covering it.** Otherwise the playhead crossing the hovered bar, or a full repaint after `updateColors:`, erases it. Renderers keep the x so a resize can re-place the highlight.
 

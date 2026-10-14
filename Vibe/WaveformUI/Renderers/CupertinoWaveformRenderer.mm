@@ -166,15 +166,15 @@ static const CGFloat kSeekBandHeight = 28;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     CGFloat x = self.hoverHighlightX;
-    if (x < 0 || _bounds.size.width <= 0) {
-        _hoverColumn.hidden = YES;
-    } else {
-        _hoverColumn.frame = VibeSnappedColumnRect(x - CGRectGetMinX(_bounds),
-                                                   kHoverColumnWidth, _bounds.size.width,
-                                                   _track.bounds.size.height,
-                                                   VibeBackingScaleForLayer(self.parentLayer));
-        _hoverColumn.hidden = NO;
+    CGRect column = x < 0 || _bounds.size.width <= 0 ? CGRectNull
+            : VibeSnappedColumnRect(x - CGRectGetMinX(_bounds), kHoverColumnWidth, _bounds.size.width,
+                                    _track.bounds.size.height, VibeBackingScaleForLayer(self.parentLayer));
+    BOOL overPlayed = !CGRectIsNull(column) && CGRectGetMidX(column) < _fill.bounds.size.width;
+    if (!CGRectIsNull(column)) {
+        _hoverColumn.frame = column;
     }
+    _hoverColumn.hidden = CGRectIsNull(column) || overPlayed;
+    VibeSetPlayedHoverHole(_fill, _track.bounds, overPlayed ? column : CGRectNull);
     [CATransaction commit];
 }
 
@@ -220,6 +220,10 @@ static const CGFloat kSeekBandHeight = 28;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _fill.frame = CGRectMake(0, 0, _progress * _bounds.size.width, _track.bounds.size.height);
+    // The playhead can cross a still cursor.
+    if (self.hoverHighlightX >= 0) {
+        [self layoutHoverColumn];
+    }
     [CATransaction commit];
 }
 

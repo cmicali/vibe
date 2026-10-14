@@ -105,6 +105,32 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
     }
 }
 
+// Over the played side, the hover column is a hole in the played layer. The
+// unplayed side shows through it. A lit column barely differs from a
+// translucent played color, such as Mono's. It does not differ at all from an
+// opaque one, such as Album Art's. bounds covers every frame the played layer
+// can take, in its own coordinates. CGRectNull closes the hole. Callers
+// disable actions.
+static inline void VibeSetPlayedHoverHole(CALayer *played, CGRect bounds, CGRect column) {
+    if (CGRectIsNull(column)) {
+        played.mask = nil;
+        return;
+    }
+    CAShapeLayer *hole = (CAShapeLayer *)played.mask;
+    if (!hole) {
+        hole = [CAShapeLayer layer];
+        hole.fillRule = kCAFillRuleEvenOdd;
+        hole.contentsScale = played.contentsScale;
+        played.mask = hole;
+    }
+    hole.frame = bounds;
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathAddRect(path, NULL, CGRectMake(0, 0, bounds.size.width, bounds.size.height));
+    CGPathAddRect(path, NULL, CGRectOffset(column, -bounds.origin.x, -bounds.origin.y));
+    hole.path = path;
+    CGPathRelease(path);
+}
+
 @class WaveformMorphEngine;
 
 @interface WaveformRenderer : NSObject {

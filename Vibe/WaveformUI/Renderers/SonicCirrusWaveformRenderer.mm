@@ -104,6 +104,14 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     return played ? _playedColorBottom : _unPlayedColorBottom;
 }
 
+// Lit over the unplayed side. Over the played side the bar takes the unplayed
+// side's colors, as the other styles' columns do (VibeSetPlayedHoverHole).
+- (void)paintHoverBar:(NSInteger)index {
+    BOOL played = (_lastProgressBoundary >= 0 && index < _lastProgressBoundary);
+    [self setLayerColor:played ? _unPlayedColorTop : _hoverColor atIndex:(NSUInteger)(index * 2)];
+    [self setLayerColor:played ? _unPlayedColorBottom : _hoverColor atIndex:(NSUInteger)(index * 2 + 1)];
+}
+
 - (void)setHoverHighlightX:(CGFloat)x {
     [super setHoverHighlightX:x];
     CGFloat width = self.parentLayer.bounds.size.width;
@@ -124,8 +132,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         [self setLayerColor:[self restingColorForBar:previous top:NO] atIndex:(NSUInteger)(previous * 2 + 1)];
     }
     if (index >= 0) {
-        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(index * 2)];
-        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(index * 2 + 1)];
+        [self paintHoverBar:index];
     }
     [CATransaction commit];
 }
@@ -221,8 +228,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // The playhead crossing the hovered bar, or a full repaint after
     // updateColors:, has just painted over the highlight. Restore it.
     if (_hoverBarIndex >= start && _hoverBarIndex < end) {
-        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(_hoverBarIndex * 2)];
-        [self setLayerColor:_hoverColor atIndex:(NSUInteger)(_hoverBarIndex * 2 + 1)];
+        [self paintHoverBar:_hoverBarIndex];
     }
 }
 
