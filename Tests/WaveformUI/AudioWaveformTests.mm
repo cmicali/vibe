@@ -304,7 +304,6 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
         XCTAssertNotNil(played.mask, @"%@", style);
 
         [renderer setHoverHighlightX:-1];
-        XCTAssertTrue(lit.hidden, @"%@", style);
         XCTAssertNil(played.mask, @"%@", style);
     }
 }

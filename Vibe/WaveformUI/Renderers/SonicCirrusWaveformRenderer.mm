@@ -95,21 +95,25 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     _hoverColor = self.theme.hoverColor;
 }
 
-// Ignoring any hover.
-- (VibeColor *)restingColorForBar:(NSInteger)index top:(BOOL)top {
+// The hovered bar is lit over the unplayed side. Over the played side it takes
+// the unplayed colors.
+- (VibeColor *)colorForBar:(NSInteger)index top:(BOOL)top {
     BOOL played = (_lastProgressBoundary >= 0 && index < _lastProgressBoundary);
+    if (index == _hoverBarIndex) {
+        if (!played) {
+            return _hoverColor;
+        }
+        played = NO;
+    }
     if (top) {
         return played ? _playedColorTop : _unPlayedColorTop;
     }
     return played ? _playedColorBottom : _unPlayedColorBottom;
 }
 
-// Lit over the unplayed side. Over the played side the bar takes the unplayed
-// side's colors, as the other styles' columns do (VibeSetPlayedHoverHole).
-- (void)paintHoverBar:(NSInteger)index {
-    BOOL played = (_lastProgressBoundary >= 0 && index < _lastProgressBoundary);
-    [self setLayerColor:played ? _unPlayedColorTop : _hoverColor atIndex:(NSUInteger)(index * 2)];
-    [self setLayerColor:played ? _unPlayedColorBottom : _hoverColor atIndex:(NSUInteger)(index * 2 + 1)];
+- (void)paintBar:(NSInteger)index {
+    [self setLayerColor:[self colorForBar:index top:YES] atIndex:(NSUInteger)(index * 2)];
+    [self setLayerColor:[self colorForBar:index top:NO] atIndex:(NSUInteger)(index * 2 + 1)];
 }
 
 - (void)setHoverHighlightX:(CGFloat)x {
@@ -128,11 +132,10 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     if (previous >= 0) {
-        [self setLayerColor:[self restingColorForBar:previous top:YES] atIndex:(NSUInteger)(previous * 2)];
-        [self setLayerColor:[self restingColorForBar:previous top:NO] atIndex:(NSUInteger)(previous * 2 + 1)];
+        [self paintBar:previous];
     }
     if (index >= 0) {
-        [self paintHoverBar:index];
+        [self paintBar:index];
     }
     [CATransaction commit];
 }
@@ -169,8 +172,7 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // from the kept x right after this.
     _hoverBarIndex = -1;
     for (NSUInteger i = 0; i < count; i++) {
-        [self setLayerColor:[self restingColorForBar:(NSInteger)i top:YES] atIndex:i * 2];
-        [self setLayerColor:[self restingColorForBar:(NSInteger)i top:NO] atIndex:i * 2 + 1];
+        [self paintBar:(NSInteger)i];
     }
     [CATransaction commit];
     VibeSignpostEnd(waveform_layers);
@@ -217,18 +219,9 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         end = MAX(oldBoundary, newBoundary);
     }
 
-    for (NSInteger i = start; i < end; i++) {
-        BOOL played = (i < newBoundary);
-        VibeColor *colorTop = played ? _playedColorTop : _unPlayedColorTop;
-        VibeColor *colorBottom = played ? _playedColorBottom : _unPlayedColorBottom;
-        [self setLayerColor:colorTop atIndex:(NSUInteger)(i * 2)];
-        [self setLayerColor:colorBottom atIndex:(NSUInteger)(i * 2 + 1)];
-    }
     _lastProgressBoundary = newBoundary;
-    // The playhead crossing the hovered bar, or a full repaint after
-    // updateColors:, has just painted over the highlight. Restore it.
-    if (_hoverBarIndex >= start && _hoverBarIndex < end) {
-        [self paintHoverBar:_hoverBarIndex];
+    for (NSInteger i = start; i < end; i++) {
+        [self paintBar:i];
     }
 }
 

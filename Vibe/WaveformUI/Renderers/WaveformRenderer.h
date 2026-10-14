@@ -105,14 +105,18 @@ static inline void VibeApplyContentsScale(CALayer * _Nullable layer, CGFloat sca
     }
 }
 
-// Over the played side, the hover column is a hole in the played layer. The
-// unplayed side shows through it. A lit column barely differs from a
-// translucent played color, such as Mono's. It does not differ at all from an
-// opaque one, such as Album Art's. bounds covers every frame the played layer
-// can take, in its own coordinates. CGRectNull closes the hole. Callers
-// disable actions.
-static inline void VibeSetPlayedHoverHole(CALayer *played, CGRect bounds, CGRect column) {
-    if (CGRectIsNull(column)) {
+// Places the lit hover column, or hides it for CGRectNull. Over the played
+// side the lit column hides and a hole in played shows the unplayed side
+// (Mac/AGENTS.md). column is in the superlayer's coordinates, which played
+// shares. Callers disable actions.
+static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect column) {
+    BOOL hovering = !CGRectIsNull(column);
+    BOOL overPlayed = hovering && CGRectGetMidX(column) < played.bounds.size.width;
+    if (hovering) {
+        lit.frame = column;
+    }
+    lit.hidden = !hovering || overPlayed;
+    if (!overPlayed) {
         played.mask = nil;
         return;
     }
@@ -123,10 +127,12 @@ static inline void VibeSetPlayedHoverHole(CALayer *played, CGRect bounds, CGRect
         hole.contentsScale = played.contentsScale;
         played.mask = hole;
     }
-    hole.frame = bounds;
+    // The superlayer's whole area, so the hole still covers played as it grows.
+    CGRect area = {CGPointZero, played.superlayer.bounds.size};
+    hole.frame = area;
     CGMutablePathRef path = CGPathCreateMutable();
-    CGPathAddRect(path, NULL, CGRectMake(0, 0, bounds.size.width, bounds.size.height));
-    CGPathAddRect(path, NULL, CGRectOffset(column, -bounds.origin.x, -bounds.origin.y));
+    CGPathAddRect(path, NULL, area);
+    CGPathAddRect(path, NULL, column);
     hole.path = path;
     CGPathRelease(path);
 }

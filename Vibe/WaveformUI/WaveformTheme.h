@@ -33,9 +33,7 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
 @property (readonly) VibeColor *unplayedColor;
 
 // The played color at full alpha, moved toward the contrast pole by up to
-// 0.25 in weighted RGB brightness. Colors at the pole have no headroom. It
-// lights the hover over the unplayed side. Over the played side, the theme
-// styles show the unplayed side instead (VibeSetPlayedHoverHole).
+// 0.25 in weighted RGB brightness. Colors at the pole have no headroom.
 @property (readonly) VibeColor *hoverColor;
 
 // identifier is a SETTINGS_VALUE_WAVEFORM_THEME_* value; an unknown one
