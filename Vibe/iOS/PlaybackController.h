@@ -122,9 +122,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) AudioTrack *displayedTrack;
 // Shown on the artist line until the next track event.
 @property (nonatomic, readonly, nullable) NSString *errorText;
-// The card shows Buffering…. The player's flag is read too, since a newer
-// play drops the old hold's end.
-@property (nonatomic, readonly) BOOL bufferingNoticeShown;
 
 #pragma mark - The player, non-blocking reads
 
@@ -137,6 +134,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL audioOutputActive;
 
 @property (nonatomic, readonly) BOOL isPlaying;
+// The card shows Buffering…, from playbackDidRenderCurrentTrack:.
+@property (nonatomic, readonly) BOOL bufferingNoticeShown;
 @property (nonatomic, readonly) NSTimeInterval position;
 @property (nonatomic, readonly) NSTimeInterval duration;
 

@@ -625,6 +625,7 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     XCTAssertEqual(_playError.code, VibeAudioErrorConnectionLost, @"%@", _playError);
     XCTAssertTrue(_player.isPaused);
     XCTAssertFalse(_player.isBuffering);
+    XCTAssertFalse(_player.bufferingNoticeShown, @"a stall ends Buffering…");
     XCTAssertEqual(_player.position, held, @"paused where it stopped");
     XCTAssertEqual([self count:@"finish"], 0u);
     [self settleUntil:^BOOL { return [self count:@"pause"] == pauses + 1; }];
@@ -671,6 +672,9 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
 - (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
 - (void)audioPlayer:(AudioPlayer *)p didChangeBuffering:(BOOL)buffering forTrack:(AudioTrack *)t {
     [self record:buffering ? @"buffering" : @"buffered" track:t];
+}
+- (void)audioPlayer:(AudioPlayer *)p didChangeBufferingNotice:(BOOL)shown forTrack:(AudioTrack *)t {
+    [self record:shown ? @"notice" : @"noticeEnded" track:t];
 }
 - (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
 - (void)audioPlayer:(AudioPlayer *)p didSettleDurationOfTrack:(AudioTrack *)t {

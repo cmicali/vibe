@@ -346,7 +346,7 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 - (BOOL)bufferingNoticeShown {
-    return _bufferingNoticeShown && _player.isBuffering;
+    return _player.bufferingNoticeShown;
 }
 
 - (BOOL)isPlaying {

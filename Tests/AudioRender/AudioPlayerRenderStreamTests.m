@@ -184,6 +184,63 @@
     XCTAssertTrue([self finishStream:VibeStreamCompleted]);
 }
 
+// Buffering… rises only once a hold has lasted the delay, on the player's
+// clock. A pause ends it, and so does the hold's release. A hold that ends
+// sooner never raises it.
+- (void)testBufferingNoticeWaitsOutTheDelayAndEndsWithItsHold {
+    [self playStreamOf:@"noise-48000-24-2.wav" seconds:0.6];
+    for (int pass = 0; pass < 2; pass++) {
+        XCTAssertTrue([self renderUntil:^BOOL { return self->_player.bufferingNoticeShown; }], @"pass %d", pass);
+        XCTAssertTrue(_player.isBuffering);
+        XCTAssertGreaterThanOrEqual([_player.debugBufferingRecord[@"heldSeconds"] doubleValue], kWaitIndicatorDelaySeconds);
+        if (pass == 0) {
+            [_player pause];
+            XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.bufferingNoticeShown; }], @"the pause ends it");
+            [_player resume];
+        }
+    }
+    [self streamTo:44 + 57600 * 6];
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.bufferingNoticeShown; }], @"the release ends it");
+    XCTAssertFalse(_player.isBuffering);
+
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    XCTAssertTrue([self finishStream:VibeStreamCompleted]);
+    XCTAssertTrue([self renderUntil:^BOOL {
+        return !self->_player.isBuffering && !self->_player.bufferingNoticeShown;
+    }]);
+    NSTimeInterval held = [_player.debugBufferingRecord[@"heldSeconds"] doubleValue];
+    [self settleUntil:^BOOL {
+        return [self count:@"buffered"] == 3 && [self count:@"noticeEnded"] == [self count:@"notice"];
+    }];
+    XCTAssertTrue([self count:@"notice"] == 2 || held >= kWaitIndicatorDelaySeconds, @"a %.3f s hold raised it", held);
+    XCTAssertNil(_playError);
+}
+
+// A seek during a shown hold keeps Buffering… up. The hold ends with the old
+// voice, and the new voice holds at once. A seek back into what has arrived
+// ends it once the new voice plays.
+- (void)testASeekDuringAShownHoldKeepsTheNoticeUpUntilTheNewVoicePlays {
+    [self playStreamOf:@"noise-48000-24-2.wav" seconds:0.6];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.bufferingNoticeShown; }]);
+    for (NSNumber *target in @[@1.4, @1.6]) {
+        NSUInteger seeks = [self count:@"seek"], holds = [self count:@"buffering"];
+        [_player seekToPosition:target.doubleValue];
+        [self settleUntil:^BOOL { return [self count:@"seek"] == seeks + 1; }];
+        XCTAssertTrue(_player.bufferingNoticeShown, @"the seek to %@ s", target);
+        XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"buffering"] == holds + 1; }], @"the new voice holds");
+        XCTAssertTrue(_player.bufferingNoticeShown);
+    }
+    XCTAssertEqual([self count:@"noticeEnded"], 0u);
+    [self streamTo:44 + 48000 * 6];
+    [_player seekToPosition:0.2];
+    XCTAssertTrue([self renderUntil:^BOOL { return !self->_player.bufferingNoticeShown; }], @"the new voice plays");
+    XCTAssertFalse(_player.isBuffering);
+    [self settleUntil:^BOOL { return [self count:@"noticeEnded"] == 1; }];
+    XCTAssertEqual([self count:@"notice"], 1u);
+    XCTAssertNil(_playError);
+    XCTAssertTrue([self finishStream:VibeStreamCompleted]);
+}
+
 // A stop, then a skip, each while a decode waits at its download's edge: no
 // hang, the waiting read interrupted, the handle let go, and the coordinator
 // cancels the transfer nobody reads. The stop's voice is resampled, so its
