@@ -110,8 +110,11 @@
     NSSet *playable = [NSSet setWithArray:@[@"flac"]];
     XCTAssertTrue(VibeGoogleDriveEntryIsMirrored((@{@"id": @"f", @"name": @"Live",
                                                    @"mimeType": VIBE_GOOGLE_DRIVE_FOLDER_TYPE}), playable));
-    XCTAssertTrue(VibeGoogleDriveEntryIsMirrored((@{@"id": @"a", @"name": @"a.flac"}), playable));
-    XCTAssertTrue(VibeGoogleDriveEntryIsMirrored((@{@"id": @"c", @"name": @"a.cue"}), playable));
+    XCTAssertTrue(VibeGoogleDriveEntryIsMirrored((@{@"id": @"a", @"name": @"a.flac", @"size": @"5"}), playable));
+    XCTAssertTrue(VibeGoogleDriveEntryIsMirrored((@{@"id": @"c", @"name": @"a.cue", @"size": @"5"}), playable));
+    XCTAssertFalse(VibeGoogleDriveEntryIsMirrored((@{@"id": @"s", @"name": @"b.flac",
+                                                    @"mimeType": @"application/vnd.google-apps.shortcut"}), playable),
+                   @"a shortcut has no bytes of its own");
     XCTAssertFalse(VibeGoogleDriveEntryIsMirrored((@{@"id": @"d", @"name": @"Notes",
                                                     @"mimeType": @"application/vnd.google-apps.document"}), playable));
     XCTAssertFalse(VibeGoogleDriveEntryIsMirrored((@{@"name": @"noid.flac"}), playable));
@@ -120,11 +123,12 @@
 - (void)testSearchKeepsFoldersAndPlayableFilesUpToTheLimit {
     NSSet *playable = [NSSet setWithArray:@[@"flac"]];
     NSDictionary *result = @{@"files": @[
-        @{@"id": @"1", @"name": @"a.flac"},
-        @{@"id": @"2", @"name": @"a.cue"},
-        @{@"id": @"3", @"name": @"cover.jpg"},
+        @{@"id": @"1", @"name": @"a.flac", @"size": @"5"},
+        @{@"id": @"2", @"name": @"a.cue", @"size": @"5"},
+        @{@"id": @"3", @"name": @"cover.jpg", @"size": @"5"},
         @{@"id": @"4", @"name": @"m", @"mimeType": VIBE_GOOGLE_DRIVE_FOLDER_TYPE},
-        @{@"id": @"5", @"name": @"b.flac"},
+        @{@"id": @"6", @"name": @"c.flac", @"mimeType": @"application/vnd.google-apps.shortcut"},
+        @{@"id": @"5", @"name": @"b.flac", @"size": @"5"},
     ]};
     XCTAssertEqualObjects([VibeGoogleDriveSearchEntries(result, playable, 10) valueForKey:@"id"], (@[@"1", @"4", @"5"]));
     XCTAssertEqualObjects([VibeGoogleDriveSearchEntries(result, playable, 2) valueForKey:@"id"], (@[@"1", @"4"]));

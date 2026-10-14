@@ -332,9 +332,6 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.googl
             continue;
         }
         BOOL folder = VibeGoogleDriveIsFolder(entry);
-        if (!folder && VibeGoogleDriveSizeOf(entry) < 0) {
-            continue;   // no bytes to download
-        }
         [mirrored addObject:entry];
         [named addObject:@{@"id": entry[@"id"], @"name": entry[@"name"], @"folder": @(folder)}];
     }

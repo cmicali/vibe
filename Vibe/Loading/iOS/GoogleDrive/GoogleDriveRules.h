@@ -215,14 +215,16 @@ static inline time_t VibeGoogleDriveParseTimestamp(NSString *_Nullable text) {
     return timegm(&parts);
 }
 
-// Which listing entries the mirror keeps: folders, and the files whose name
-// AccountRules.h mirrors.
+// Which entries the mirror keeps: folders, and the files whose name
+// AccountRules.h mirrors and that have bytes. A shortcut or a Google Docs
+// file states no size, and its media download is refused.
 static inline BOOL VibeGoogleDriveEntryIsMirrored(NSDictionary *entry, NSSet<NSString *> *playableExtensions) {
     NSString *name = entry[@"name"];
     if (![entry[@"id"] isKindOfClass:NSString.class] || ![name isKindOfClass:NSString.class] || name.length == 0) {
         return NO;
     }
-    return VibeGoogleDriveIsFolder(entry) || VibeAccountNameIsMirrored(name, playableExtensions);
+    return VibeGoogleDriveIsFolder(entry)
+            || (VibeAccountNameIsMirrored(name, playableExtensions) && VibeGoogleDriveSizeOf(entry) >= 0);
 }
 
 // A search's answer as entries: folders and mirrored files other than CUE
