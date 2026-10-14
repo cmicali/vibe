@@ -23,7 +23,8 @@ private let kLargeArtworkShare: CGFloat = 0.85
 private let kLargeGap: CGFloat = 12
 
 // The mac's transport row over its 150pt art (MainPlayerContentViewInternal.h),
-// scaled to the tile. The frames overlap, as on the mac.
+// scaled to the tile. The frames overlap, as on the mac. The card's compact
+// layout copies the same row (TrackPageCell.m).
 private let kMacArtSide: CGFloat = 150
 private let kMacTransportX: CGFloat = 4
 private let kMacTransportBottom: CGFloat = 3
@@ -49,7 +50,7 @@ struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.widgetRenderingMode) private var renderingMode
     let entry: VibeEntry
-    var smallLayout = VibeSmallLayout.artworkTile
+    let smallLayout: VibeSmallLayout
 
     private var progress: Double {
         state.map { $0.progress(at: entry.date) } ?? 0
@@ -84,7 +85,6 @@ struct VibeWidgetView: View {
             switch family {
             case .accessoryCircular: AccessoryWidgetBackground()
             case .accessoryRectangular, .accessoryInline: Color.clear
-            case .systemSmall where smallLayout == .fullBleed: Color.black
             default: background
             }
         }
@@ -178,16 +178,17 @@ struct VibeWidgetView: View {
     // Screen keeps it. The gradient is full color only, because a tint would
     // draw it as a light wash under the buttons.
     // Like the mac, the buttons show without a track, and play and next are
-    // dimmed. Playlist opens the app on the Playlist tab.
+    // dimmed.
     private var fullBleed: some View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
             let scale = side / kMacArtSide
             let diameter = kMacTransportButtonSize * scale
             let glyphScale = kMacTransportSymbolSize / kMacTransportButtonSize
-            let opacity = state != nil ? kMacTransportRestingOpacity : kMacTransportDisabledOpacity
+            let enabled = state != nil
+            let opacity = enabled ? kMacTransportRestingOpacity : kMacTransportDisabledOpacity
             ZStack(alignment: .bottomLeading) {
-                artworkFill(glyphSize: side * 0.32)
+                artworkFill(side: side)
                 if renderingMode == .fullColor {
                     LinearGradient(gradient: kMacTransportGradient, startPoint: .bottom, endPoint: .top)
                 }
@@ -195,9 +196,9 @@ struct VibeWidgetView: View {
                     glyphButton(VibeShowPlaylistIntent(), systemName: "list.bullet", diameter: diameter,
                                 glyphScale: glyphScale, opacity: kMacTransportRestingOpacity)
                     glyphButton(VibePlayPauseIntent(), systemName: playGlyph, diameter: diameter,
-                                glyphScale: glyphScale, opacity: opacity, enabled: state != nil)
+                                glyphScale: glyphScale, opacity: opacity, enabled: enabled)
                     glyphButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: diameter,
-                                glyphScale: glyphScale, opacity: opacity, enabled: state != nil)
+                                glyphScale: glyphScale, opacity: opacity, enabled: enabled)
                 }
                 .padding(.leading, kMacTransportX * scale)
                 .padding(.bottom, kMacTransportBottom * scale)
@@ -315,7 +316,7 @@ struct VibeWidgetView: View {
     }
 
     private func artworkTile(side: CGFloat) -> some View {
-        artworkFill(glyphSize: side * 0.32)
+        artworkFill(side: side)
             .frame(width: side, height: side)
             .clipShape(RoundedRectangle(cornerRadius: kCornerRadius, style: .continuous))
     }
@@ -324,7 +325,7 @@ struct VibeWidgetView: View {
     // tall image cannot grow the view past what it was offered.
     // TRAP: without a widget rendering mode, a tinted Home Screen draws the
     // art as a solid shape in the tint.
-    private func artworkFill(glyphSize: CGFloat) -> some View {
+    private func artworkFill(side: CGFloat) -> some View {
         Color.white.opacity(0.08)
             .overlay {
                 if let artwork = entry.artwork {
@@ -334,7 +335,7 @@ struct VibeWidgetView: View {
                         .scaledToFill()
                 } else {
                     Image(systemName: "waveform")
-                        .font(.system(size: glyphSize))
+                        .font(.system(size: side * 0.32))
                         .foregroundStyle(.white.opacity(0.35))
                 }
             }
@@ -370,14 +371,14 @@ struct VibeWidgetView: View {
             .font(.system(size: diameter * glyphScale))
             .foregroundStyle(.white.opacity(opacity))
             .frame(width: diameter, height: diameter)
+            .accessibilityLabel(Text(type(of: intent).title))
         if enabled {
             Button(intent: intent) {
                 glyph.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text(type(of: intent).title))
         } else {
-            glyph.accessibilityLabel(Text(type(of: intent).title))
+            glyph
         }
     }
 

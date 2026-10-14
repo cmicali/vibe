@@ -32,7 +32,7 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 ## The timeline
 
-A widget is not a live view. WidgetKit renders each entry ahead of time. A paused or empty state has one entry with policy `.never`. A playing state has entries every 5 s through 115 s, or until the remaining duration is shorter. Longer tracks then get up to 8 coarse entries through the end.
+A widget is not a live view. WidgetKit renders each entry ahead of time. A paused or empty state has one entry with policy `.never`. A playing state has entries every 5 s through 115 s, or until the remaining duration is shorter. Longer tracks then get up to 8 coarse entries through the end. The full-bleed tile always has one entry, because nothing on it moves (`VibeProvider.artworkOnly`). It also skips the blur and both waveform images. Every publish reloads every kind, which keeps its play glyph current.
 
 **The app requests a new timeline every minute during playback** (`Vibe/iOS/Widget/AGENTS.md`). WidgetKit controls delivery. **TRAP: keep coarse entries through the track’s end.** Without them, a delayed reload leaves the playhead frozen after the last dense entry. `.atEnd` also requests a reload on WidgetKit’s schedule.
 
