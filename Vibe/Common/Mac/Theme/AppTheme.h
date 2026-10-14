@@ -139,6 +139,11 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistNumber;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistTitle;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistArtist;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistDuration;
+// The playing and selected rows' text, behind the same switches. On, every
+// text column of that row draws the pair, an unset side inheriting the title
+// pair. Off (default), the row's columns draw their own colors.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRowText;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRowText;
 
 // The image fields. A value is "" (the factory image), "custom:<sha1>.<ext>"
 // (a picked image in the app container) or "bundled:<name>.<ext>" (shipped
@@ -298,7 +303,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 - (VibeColor *)resolvedInfoColor;
 - (VibeColor *)resolvedTimeColor;
 
-// By the four kVibeThemeColorPlaylist* text bases; captured like the above.
+// By the six switched kVibeThemeColorPlaylist* text bases; captured like the
+// above. A row text base's caller checks the switch first, because off means
+// no row color at all.
 - (BOOL)playlistColorEnabledForBase:(NSString *)base;
 - (void)setPlaylistColorEnabled:(BOOL)enabled forBase:(NSString *)base;
 - (VibeColor *)resolvedPlaylistColorForBase:(NSString *)base;

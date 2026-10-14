@@ -97,6 +97,8 @@ NSString *const kVibeThemeColorPlaylistNumber = @"playlistNumberColor";
 NSString *const kVibeThemeColorPlaylistTitle = @"playlistTitleColor";
 NSString *const kVibeThemeColorPlaylistArtist = @"playlistArtistColor";
 NSString *const kVibeThemeColorPlaylistDuration = @"playlistDurationColor";
+NSString *const kVibeThemeColorPlaylistPlayingRowText = @"playlistPlayingRowTextColor";
+NSString *const kVibeThemeColorPlaylistSelectedRowText = @"playlistSelectedRowTextColor";
 
 // The switch's key beside a switched pair: playlistNumberColorEnabled in
 // the record, numberColorEnabled in the JSON.
@@ -259,8 +261,8 @@ static void AddOpaqueColorPair(NSMutableArray *rows, NSString *base, NSString *g
     }
 }
 
-// A playlist column's switch, then its pair, whose rows carry the label pair
-// it inherits.
+// A playlist text color's switch, then its pair, whose rows carry the label
+// pair it inherits.
 static void AddSwitchedColorPair(NSMutableArray *rows, NSString *base, NSString *group,
                                  NSString *jsonBase, NSString *inheritsBase) {
     [rows addObject:Field(PlaylistColorEnabledKey(base), group,
@@ -401,7 +403,11 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor", kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistDuration, playlist, @"durationColor", kVibeThemeColorArtist);
         AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowText, playlist, @"playingRowTextColor",
+                             kVibeThemeColorTitle);
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowText, playlist, @"selectedRowTextColor",
+                             kVibeThemeColorTitle);
         specs = [rows copy];
     });
     return specs;
@@ -480,7 +486,7 @@ static NSString *ColorFieldKey(NSString *base, BOOL isDark) {
     return ColorFieldKeysByBase()[base][isDark ? 0 : 1];
 }
 
-// Column pair → the label pair it inherits; nil for every other base.
+// Switched playlist pair → the label pair it inherits; nil for every other base.
 NSDictionary<NSString *, NSString *> *VibeThemePlaylistColorFallbackBases(void) {
     static NSDictionary<NSString *, NSString *> *bases;
     static dispatch_once_t once;
@@ -626,7 +632,7 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     if (color) {
         return color;
     }
-    // A column's unset side shows the label pair it inherits.
+    // A switched playlist pair's unset side shows the label pair it inherits.
     NSString *inherited = VibeThemePlaylistColorFallbackBases()[base];
     return inherited ? [self displayColorForBase:inherited dark:isDark]
                      : DefaultColorForBase(base, isDark);
@@ -646,7 +652,7 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
 
 - (VibeColor *)resolvedPlaylistColorForBase:(NSString *)base {
     NSString *inherited = VibeThemePlaylistColorFallbackBases()[base];
-    NSCAssert(inherited, @"not a playlist column pair: %@", base);
+    NSCAssert(inherited, @"not a switched playlist pair: %@", base);
     VibeColor *fallback = [self resolvedColorForBase:inherited];
     if (![self playlistColorEnabledForBase:base]) {
         return fallback;

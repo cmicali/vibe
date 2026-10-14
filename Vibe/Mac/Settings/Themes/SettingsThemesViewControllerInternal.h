@@ -62,7 +62,7 @@ static NSString *const kChoiceStandard = @"standard";
     NSMutableDictionary<NSString *, NSPopUpButton *> *_glyphPopUps;
     NSMutableDictionary<NSString *, SettingsRowView *> *_buttonColorRows;
     NSMutableDictionary<NSString *, NSArray<SettingsRowView *> *> *_buttonImageRows;
-    // The playlist columns' text colors by pair base.
+    // The playlist's switched text colors, columns and rows, by pair base.
     NSMutableDictionary<NSString *, NSPopUpButton *> *_playlistColorPopUps;
     NSMutableDictionary<NSString *, NSStackView *> *_playlistColorPairs;
     // Every Dark/Light well pair, for Single Mode's collapse to one well.
