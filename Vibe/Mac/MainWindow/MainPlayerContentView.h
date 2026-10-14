@@ -70,7 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
 // on resize itself; TrackDisplayController calls this on every text change.
 - (void)layoutArtistLineClearOfCodecLine;
 // A spinner at the codec line's right end, while Buffering… is the line.
-// The controller's updateUI is the one caller.
+// TrackDisplayController's renderState is the one caller.
 - (void)setCodecSpinnerShown:(BOOL)shown;
 
 @end

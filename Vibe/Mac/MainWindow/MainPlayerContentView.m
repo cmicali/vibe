@@ -140,7 +140,6 @@ static BOOL VolumeAlwaysShown(AppTheme *theme) {
     CGFloat side = round(font.pointSize);
     NSRect column = _bpmTextField.frame;
     NSRect field = _fileMetadataTextField.frame;
-    field.origin.x = NSMinX(column);
     field.size.width = NSWidth(column) - (_codecSpinnerShown ? side + kCodecSpinnerGap : 0);
     _fileMetadataTextField.frame = field;
     CGFloat baseline = NSMaxY(field) - _fileMetadataTextField.firstBaselineOffsetFromTop;

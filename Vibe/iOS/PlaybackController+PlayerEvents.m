@@ -53,10 +53,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 }
 
 // A stream holding for its download stops Now Playing's clock
-// (publishNowPlaying) and leaves the card's waveform scrubbable. Once the hold
-// outlasts kVibeBufferingNoticeDelaySeconds, the card shows Buffering…. A
-// shorter hold never flashes it. A hold right after a shown one shows it at
-// once (VibeBufferingNoticeShowsAtOnce). Its end still asks again for a
+// (publishNowPlaying) and leaves the card's waveform scrubbable. Buffering…
+// waits (VibeBufferingNoticeNoteEdge). Its end still asks again for a
 // waveform the open skipped.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
@@ -65,13 +63,9 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         return;
     }
     NSUInteger generation = ++_bufferingNoticeGeneration;
-    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
     BOOL wasShown = _bufferingNoticeShown;
-    if (wasShown && !buffering) {
-        _bufferingNoticeEndedUptime = now;
-    }
-    _bufferingNoticeShown = buffering && VibeBufferingNoticeShowsAtOnce(now, _bufferingNoticeEndedUptime);
-    if (buffering && !_bufferingNoticeShown) {
+    if (VibeBufferingNoticeNoteEdge(buffering, NSProcessInfo.processInfo.systemUptime,
+                                    &_bufferingNoticeShown, &_bufferingNoticeEndedUptime)) {
         __weak PlaybackController *weakSelf = self;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kVibeBufferingNoticeDelaySeconds * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{

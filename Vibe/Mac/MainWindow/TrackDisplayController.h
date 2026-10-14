@@ -43,9 +43,10 @@ typedef struct {
 // Error, nil otherwise. duration is file time; the labels divide it by rate.
 // status goes on the artist line: in Error the track's play error, where nil
 // reads as the generic playback error, and in Notice the notice. In Track, a
-// status stands in for the file info line: a parked track's play error, or
-// Buffering… during a hold. title is what Empty and Notice name: an opened
-// playlist that listed nothing playable, or a link that failed to open.
+// parked track's play error stands in for the file info line. With no status,
+// buffering puts Buffering… there with its spinner. title is what Empty and
+// Notice name: an opened playlist that listed nothing playable, or a link
+// that failed to open.
 // While Notice is drawn, the track's strip stays off the header: the waveform
 // prep, the loading indicator, and the playhead drop their writes until
 // another state is rendered. The caller then loads the waveform again, and
@@ -55,6 +56,7 @@ typedef struct {
            duration:(NSTimeInterval)duration
                rate:(double)rate
              status:(nullable NSString *)status
+          buffering:(BOOL)buffering
               title:(nullable NSString *)title;
 
 // The position tick. duration is the caller's cache: the live one reads 0
