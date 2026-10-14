@@ -1,6 +1,6 @@
 # Future: Google Drive on iOS
 
-**Status: Not built.** A single shared Google Drive file already plays through Open URL (`GoogleDriveLinkRules.h`, `Loading/Net/AGENTS.md`). This study is a native Files-tab source for a whole Drive library. No Google account, Cloud project or authenticated API request has been exercised.
+**Status: Built, not yet run against Google.** The client, the mirror, browsing, search, Favorites, Recents, restore, Settings and streaming are in `Vibe/Loading/iOS/GoogleDrive/` (its `AGENTS.md` is the current behavior). The shared account code was factored out of Dropbox's into `Vibe/Loading/iOS/Account/`. The tests and the debug fake exercise it. No Google account, Cloud project or authenticated API request has. Step 1 of the sequence below is still to do, and a Release build lists no Google Drive until `project.yml` has a client id. Streaming went in before the step 2 probe. Each request is labelled with the version a lookup just before it names. A change between the two is not caught (`GoogleDriveClient.h`'s `TRAP:`). Shortcuts, shared drives and Shared with Me are not listed. The rest of this doc is the study as it was written.
 
 ## Recommendation
 

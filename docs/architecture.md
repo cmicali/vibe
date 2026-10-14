@@ -35,7 +35,9 @@ Vibe/
     Claim/             which open runs, and when: the claim, admission, the handle ceiling
     Transfer/          the bytes: downloads, progress, streaming, the network read-ahead
     Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
+    iOS/Account/       what every cloud account and its mirror share (iOS)
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
+    iOS/GoogleDrive/   the Google Drive account and its local mirror (iOS)
   Playlist/            the playlist model, the folder walk, and CUE and M3U files
     Mac/               the playlist table and the last-playlist store (macOS)
   NowPlaying/          the system's Now Playing info and remote commands
@@ -107,7 +109,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Loading
 
-`Vibe/Loading/` takes a path and hands back a readable `AudioFileHandle`. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns materialization and playback handle opens. Metadata can also read remote byte ranges through the backend. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Dropbox/` is the Dropbox account (`DropboxClient`) and its local mirror (`DropboxMirror`). Read next: `Vibe/Loading/AGENTS.md` for how the code works, and `docs/file-loading-spec.md` for the behavior it must keep.
+`Vibe/Loading/` takes a path and hands back a readable `AudioFileHandle`. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns materialization and playback handle opens. Metadata can also read remote byte ranges through the backend. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Account/` is what every cloud account shares: the OAuth client (`OAuthAccountClient`) and the local mirror (`AccountMirror`). `iOS/Dropbox/` and `iOS/GoogleDrive/` subclass both for their service. Read next: `Vibe/Loading/AGENTS.md` for how the code works, and `docs/file-loading-spec.md` for the behavior it must keep.
 
 ### Playlist
 
@@ -139,7 +141,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### The iOS shell
 
-`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Audio/iOS/` and `Loading/iOS/Dropbox/`. Read next: `Vibe/iOS/AGENTS.md`.
+`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Audio/iOS/` and `Loading/iOS/Account/`. Read next: `Vibe/iOS/AGENTS.md`.
 
 ### The widget
 
@@ -199,7 +201,7 @@ Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
 
 `AudioFileMaterializationCoordinator openURL:purpose:completionQueue:onDataless:completion:` (`Loading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. Those requests share the same materialization work.
 
-**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A file found local needs no transfer lane or download. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
+**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A file found local needs no transfer lane or download. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in an iOS account's mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
 
 **Stage 2 opens the handle** (`AudioFileMaterializationCoordinator+HandleOpen.m`). At most six handle opens run at once. Each calls `AudioFileHandle initForReading:interleaved:interrupted:error:` on a worker. The handle is delivered back on the player queue.
 
@@ -293,7 +295,9 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | Playing a file that is still downloading | `Loading/AGENTS.md` (CloudFileAvailability) | `Loading/Transfer/CloudFileAvailability.m` |
 | Files on a network share | `Loading/AGENTS.md` (The network-mount read-ahead) | `Loading/Transfer/NetworkReadAhead.m` |
 | Open URL and links | `Loading/Net/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
+| Cloud accounts on iOS | `Loading/iOS/Account/AGENTS.md` | `Loading/iOS/Account/AccountMirror.m`, `OAuthAccountClient.m` |
 | Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
+| Google Drive on iOS | `Loading/iOS/GoogleDrive/AGENTS.md` | `Loading/iOS/GoogleDrive/GoogleDriveMirror.m` |
 | Tags, the metadata cache, or the scan | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/AudioTrackMetadataLoader.m` |
 | Artwork and row thumbnails | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/Artwork/AudioTrackArtwork.m` |
 | Cover images beside the files | `Audio/Metadata/Artwork/FolderArt/AGENTS.md` | `Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
