@@ -111,27 +111,28 @@ struct VibeProvider: TimelineProvider {
 struct VibeWidgetBundle: WidgetBundle {
     var body: some Widget {
         VibeNowPlayingWidget(kind: "VibeNowPlayingWaveformPlay", families: [.systemSmall],
-                             waveformTile: true, playButton: true)
+                             smallLayout: .waveformPlay)
         VibeNowPlayingWidget()
         VibeNowPlayingWidget(kind: "VibeNowPlayingLarge", families: [.systemLarge])
         VibeNowPlayingWidget(kind: "VibeNowPlayingWaveform", families: [.systemSmall],
-                             waveformTile: true)
+                             smallLayout: .waveform)
+        VibeNowPlayingWidget(kind: "VibeNowPlayingArtwork", families: [.systemSmall],
+                             smallLayout: .fullBleed)
     }
 }
 
-// One type, four kinds. They share a name and a description, but the gallery
+// One type, five kinds. They share a name and a description, but the gallery
 // offers each kind as its own page, so every small layout can sit on one Home
 // Screen. The app's reload is reloadAllTimelines, so it reaches every kind.
 struct VibeNowPlayingWidget: Widget {
     var kind = "VibeNowPlaying"
     var families: [WidgetFamily] = [.systemSmall, .systemMedium,
                                     .accessoryCircular, .accessoryRectangular, .accessoryInline]
-    var waveformTile = false
-    var playButton = false
+    var smallLayout = VibeSmallLayout.artworkTile
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: VibeProvider()) { entry in
-            VibeWidgetView(entry: entry, waveformTile: waveformTile, playButton: playButton)
+            VibeWidgetView(entry: entry, smallLayout: smallLayout)
         }
         // Literals for the same reason the intents' titles are (VibeWidgetIntents.swift's
         // TRAP). Each MUST match its STR_WIDGET_* entry, which is what puts the key in the catalog.

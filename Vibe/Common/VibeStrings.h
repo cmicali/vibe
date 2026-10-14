@@ -715,6 +715,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_WIDGET_INTENT_PREVIOUS NSLS(@"widget.intent.previous", @"Previous Track",     @"Title of the widget action that skips to the previous track.")
 #define STR_WIDGET_INTENT_NEXT    NSLS(@"widget.intent.next",      @"Next Track",          @"Title of the widget action that skips to the next track.")
 #define STR_WIDGET_INTENT_SEEK    NSLS(@"widget.intent.seek",      @"Seek",                @"Title of the widget action that seeks within the current track.")
+#define STR_WIDGET_INTENT_SHOW_PLAYLIST NSLS(@"widget.intent.show_playlist", @"Show Playlist", @"Title of the widget action that opens Vibe on its Playlist tab, the list of tracks queued to play. A command. Vibe is the app name.")
 #define STR_SETTINGS_SECTION_TIME     NSLS(@"settings.section.time",     @"Time display",   @"iOS settings: heading above the choice between total duration and remaining time; also the time readout's accessibility label on the iOS player.")
 
 #define STR_SETTINGS_SEARCH_FOLDERS_COVERED NSLS(@"settings.search_folders.covered", @"That folder is already inside one you added, so it is being searched already.", @"iOS Files tab: alert message shown when the user adds a location that sits inside a folder already on the Locations list. Permission to a folder covers everything inside it, so nothing needed to be added.")

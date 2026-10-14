@@ -6,7 +6,7 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 
 ## Kinds and families
 
-`VibeWidget.swift` declares four kinds of one widget type. The gallery shows each kind as its own page, so every small layout can sit on one Home Screen. The app's reload reaches all of them.
+`VibeWidget.swift` declares five kinds of one widget type. The gallery shows each kind as its own page, so every small layout can sit on one Home Screen. The app's reload reaches all of them.
 
 | Kind | Families |
 | --- | --- |
@@ -14,10 +14,11 @@ The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetI
 | `VibeNowPlayingLarge` | large |
 | `VibeNowPlayingWaveform` | small, the waveform tile |
 | `VibeNowPlayingWaveformPlay` | small, the waveform tile with a play/pause disc |
+| `VibeNowPlayingArtwork` | small, the full-bleed tile |
 
 **TRAP: a placed widget belongs to its kind.** The original kind keeps its small and medium because both shipped. Moving a size to another kind breaks every copy of it on someone's Home Screen.
 
-`VibeWidgetView.swift` holds every layout. Small shows artwork, play/pause and text. Medium adds a waveform and next button. Large adds the previous button. The two small waveform tiles omit artwork. One includes play/pause. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape. With `playheadLine` set, the view draws the line itself over a strip that is wholly played.
+`VibeWidgetView.swift` holds every layout. Small shows artwork, play/pause and text. Medium adds a waveform and next button. Large adds the previous button. The two small waveform tiles omit artwork. One includes play/pause. The full-bleed tile copies the mac's artwork and transport row. The art fills the tile under the mac's darkening gradient. The playlist, play/pause and next buttons sit in its lower left, scaled from the mac's 150 pt art. As on the mac, the buttons show without a track, and play and next are disabled. The art and gradient are the container background. The Lock Screen families draw in the system's tint, so they use no artwork and only the played waveform image, as a shape. With `playheadLine` set, the view draws the line itself over a strip that is wholly played.
 
 **TRAP: the artwork tile leaves its trailing edge unpadded.** The text supplies its own trailing padding. This centers the play disc between the artwork and tile edge.
 

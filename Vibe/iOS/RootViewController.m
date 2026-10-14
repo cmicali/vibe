@@ -708,6 +708,12 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
+- (void)showPlaylist {
+    [self minimizePlayerAnimated:NO];
+    [self setSelectedTabIdentifier:kTabPlaylist];
+    [_playlistScreen.navigationController popToRootViewControllerAnimated:NO];
+}
+
 // The Playlist tab's item, in this view. UITab has no view of its own, so the
 // bar's is found by the label it draws; a bar that is not on screen (the
 // iPad's is elsewhere), or one drawn without that label, answers NO and the

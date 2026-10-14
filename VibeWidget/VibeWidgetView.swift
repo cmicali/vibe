@@ -22,12 +22,33 @@ private let kLargeTextSizes: [CGFloat] = [kTextSize, 19, 17, 15]
 private let kLargeArtworkShare: CGFloat = 0.85
 private let kLargeGap: CGFloat = 12
 
+// The mac's transport row over its 150pt art (MainPlayerContentViewInternal.h),
+// scaled to the tile. The frames overlap, as on the mac.
+private let kMacArtSide: CGFloat = 150
+private let kMacTransportX: CGFloat = 4
+private let kMacTransportBottom: CGFloat = 3
+private let kMacTransportButtonSize: CGFloat = 50
+private let kMacTransportSpacing: CGFloat = 46
+private let kMacTransportSymbolSize: CGFloat = 31
+// SymbolButton's resting and disabled white.
+private let kMacTransportRestingOpacity = 0.55
+private let kMacTransportDisabledOpacity = 0.19
+// The mac's darkening gradient over the art's lower edge, bottom up.
+private let kMacTransportGradient = Gradient(stops: [
+    .init(color: .black.opacity(0.96), location: 0),
+    .init(color: .black.opacity(0.55), location: 0.35),
+    .init(color: .black.opacity(0), location: 0.62),
+])
+
+// The small family's layouts; every other family has only one.
+enum VibeSmallLayout {
+    case artworkTile, waveform, waveformPlay, fullBleed
+}
+
 struct VibeWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: VibeEntry
-    // The small family's layout; every other family has only one.
-    var waveformTile = false
-    var playButton = false
+    var smallLayout = VibeSmallLayout.artworkTile
 
     private var progress: Double {
         state.map { $0.progress(at: entry.date) } ?? 0
@@ -45,8 +66,12 @@ struct VibeWidgetView: View {
     var body: some View {
         Group {
             switch family {
-            case .systemSmall where waveformTile: smallWaveform
-            case .systemSmall: small
+            case .systemSmall:
+                switch smallLayout {
+                case .artworkTile: small
+                case .waveform, .waveformPlay: smallWaveform
+                case .fullBleed: fullBleed
+                }
             case .systemLarge: large
             case .accessoryCircular: circular
             case .accessoryRectangular: rectangular
@@ -58,6 +83,7 @@ struct VibeWidgetView: View {
             switch family {
             case .accessoryCircular: AccessoryWidgetBackground()
             case .accessoryRectangular, .accessoryInline: Color.clear
+            case .systemSmall where smallLayout == .fullBleed: fullBleedBackground
             default: background
             }
         }
@@ -96,7 +122,7 @@ struct VibeWidgetView: View {
             Spacer(minLength: 4)
             if state != nil {
                 playPauseButton(diameter: 38)
-                skipButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: 34)
+                glyphButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: 34)
             }
         }
         .frame(height: kMediumHeaderHeight)
@@ -126,7 +152,7 @@ struct VibeWidgetView: View {
     }
 
     private var smallWaveform: some View {
-        let showsPlay = playButton && state != nil
+        let showsPlay = smallLayout == .waveformPlay && state != nil
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Group {
@@ -147,6 +173,41 @@ struct VibeWidgetView: View {
         .padding(kSmallPadding)
     }
 
+    // The art and gradient are the container background, so the system clips
+    // them to the tile and drops them in the tinted modes.
+    private var fullBleedBackground: some View {
+        ZStack {
+            Color.black
+            artworkFill(glyphSize: kMacArtSide * 0.32)
+            LinearGradient(gradient: kMacTransportGradient, startPoint: .bottom, endPoint: .top)
+        }
+    }
+
+    // Like the mac, the buttons show without a track, and play and next are
+    // disabled. Playlist opens the app on the Playlist tab.
+    private var fullBleed: some View {
+        GeometryReader { geometry in
+            let scale = min(geometry.size.width, geometry.size.height) / kMacArtSide
+            let side = kMacTransportButtonSize * scale
+            let glyphScale = kMacTransportSymbolSize / kMacTransportButtonSize
+            let opacity = state != nil ? kMacTransportRestingOpacity : kMacTransportDisabledOpacity
+            HStack(spacing: (kMacTransportSpacing - kMacTransportButtonSize) * scale) {
+                glyphButton(VibeShowPlaylistIntent(), systemName: "list.bullet", diameter: side,
+                            glyphScale: glyphScale, opacity: kMacTransportRestingOpacity)
+                Group {
+                    glyphButton(VibePlayPauseIntent(), systemName: playGlyph, diameter: side,
+                                glyphScale: glyphScale, opacity: opacity)
+                    glyphButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: side,
+                                glyphScale: glyphScale, opacity: opacity)
+                }
+                .disabled(state == nil)
+            }
+            .padding(.leading, kMacTransportX * scale)
+            .padding(.bottom, kMacTransportBottom * scale)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+    }
+
     // MARK: - Large
 
     private var large: some View {
@@ -160,9 +221,9 @@ struct VibeWidgetView: View {
                         fittedTextLines(sizes: kLargeTextSizes)
                         if state != nil {
                             HStack(spacing: 14) {
-                                skipButton(VibePreviousIntent(), systemName: "backward.end.fill", diameter: 40)
+                                glyphButton(VibePreviousIntent(), systemName: "backward.end.fill", diameter: 40)
                                 playPauseButton(diameter: 48)
-                                skipButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: 40)
+                                glyphButton(VibeNextIntent(), systemName: "forward.end.fill", diameter: 40)
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
@@ -256,20 +317,25 @@ struct VibeWidgetView: View {
     }
 
     private func artworkTile(side: CGFloat) -> some View {
-        Group {
-            if let artwork = entry.artwork {
-                Image(uiImage: artwork).resizable().scaledToFill()
-            } else {
-                ZStack {
-                    Color.white.opacity(0.08)
+        artworkFill(glyphSize: side * 0.32)
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: kCornerRadius, style: .continuous))
+    }
+
+    // Fills the offered size and crops the art to it. Drawn as an overlay, a
+    // tall image cannot grow the view past what it was offered.
+    private func artworkFill(glyphSize: CGFloat) -> some View {
+        Color.white.opacity(0.08)
+            .overlay {
+                if let artwork = entry.artwork {
+                    Image(uiImage: artwork).resizable().scaledToFill()
+                } else {
                     Image(systemName: "waveform")
-                        .font(.system(size: side * 0.32))
+                        .font(.system(size: glyphSize))
                         .foregroundStyle(.white.opacity(0.35))
                 }
             }
-        }
-        .frame(width: side, height: side)
-        .clipShape(RoundedRectangle(cornerRadius: kCornerRadius, style: .continuous))
+            .clipped()
     }
 
     private func playPauseButton(diameter: CGFloat) -> some View {
@@ -286,11 +352,12 @@ struct VibeWidgetView: View {
         .buttonStyle(.plain)
     }
 
-    private func skipButton(_ intent: some AppIntent, systemName: String, diameter: CGFloat) -> some View {
+    private func glyphButton(_ intent: some AppIntent, systemName: String, diameter: CGFloat,
+                             glyphScale: CGFloat = 0.46, opacity: Double = 0.85) -> some View {
         Button(intent: intent) {
             Image(systemName: systemName)
-                .font(.system(size: diameter * 0.46))
-                .foregroundStyle(.white.opacity(0.85))
+                .font(.system(size: diameter * glyphScale))
+                .foregroundStyle(.white.opacity(opacity))
                 .frame(width: diameter, height: diameter)
                 .contentShape(Rectangle())
         }
