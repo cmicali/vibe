@@ -36,9 +36,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks;
 // Moves every selected row's file to the Trash and removes every row of each
-// file: all of a cue sheet's rows, and any duplicate. Undo puts the files
-// back and restores the rows; redo trashes them again.
-- (IBAction)moveSelectedPlaylistTracksToTrash:(nullable id)sender;
+// file: all of a cue sheet's rows, and any duplicate. With the playlist
+// collapsed, it moves the loaded track's file. Undo puts the files back and
+// restores the rows; redo trashes them again.
+- (IBAction)moveToTrash:(nullable id)sender;
 - (void)trashPlaylistTracks:(NSArray<AudioTrack *> *)tracks;
 - (void)movePlaylistTracksFromIndexes:(NSIndexSet *)sourceIndexes
                             toIndexes:(NSIndexSet *)destinationIndexes

@@ -9,7 +9,7 @@
 * Improved hi-res playback from slow network shares
 * Added the vibe theme track, which loads on the first launch
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
-* mac: Added Move to Trash (⌘⌫) to delete a song's file from the playlist, with Undo
+* mac: Added Move to Trash (⌘⌫) to delete the selected or playing song's file, with Undo
 * mac: Added automatic updates to the non-appstore version
 * mac: Added the RGB theme
 * mac: Added the Dark Wolf theme and its app icon, contributed by JohnnyFireOne

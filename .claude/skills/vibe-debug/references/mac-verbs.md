@@ -78,7 +78,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd select_rows 0 2     # {ok, selectedRows}: table selection without focus; all/none accepted; rows beyond the list are ignored
 "$V" --debug-cmd select_rows current 50  # `current` resolves the playing row at execution time
 "$V" --debug-cmd remove_selected     # the shell's removal action over that selection, transport and undo included
-"$V" --debug-cmd trash_selected      # Move to Trash over that selection, without the key window: real files go to the Trash, so use working copies. Replies before the moves settle; poll dump_state
+"$V" --debug-cmd move_to_trash       # Move to Trash without the key window: that selection, or the loaded track while the playlist is collapsed. Real files go to the Trash, so use working copies. Replies before the moves settle; poll dump_state
 "$V" --debug-cmd save_playlist ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/set.m3u  # {ok, path, tracks}: File > Save Playlist… without its panel. The path must be writable by the sandboxed app
 "$V" --debug-cmd file_cache song.flac        # {ok, path, wasCached, bpm, key, camelot, timing}: decode and cache one file's waveform, UI untouched; waits up to 60 s and replies once the entry is on disk
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, path, wasPresent}: evict one file's waveform entry. Clear then file_cache is a forced cold decode

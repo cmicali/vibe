@@ -225,9 +225,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeJSONString(controller.debugActionSummary);
             }),
             // Moves real files to the Trash: never for a stress run.
-            VibeDebugCmd(@"trash_selected", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                if (tokens.count != 1) return VibeErrorJSON(@"usage: trash_selected");
-                [controller moveSelectedPlaylistTracksToTrash:nil];
+            VibeDebugCmd(@"move_to_trash", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count != 1) return VibeErrorJSON(@"usage: move_to_trash");
+                [controller moveToTrash:nil];
                 return VibeJSONString(controller.debugActionSummary);
             }),
             VibeDebugCmd(@"gesture_test pitch-reset|pitch-drag isolated-desktop", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
