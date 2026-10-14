@@ -318,6 +318,10 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: "Vibe connects to devices on your local network only to play an address you enter, like a music server at home."
+        # Open URL lists a shared Google Drive folder with this Drive API key
+        # (LinkClient). Not a secret: it ships in the app, so restrict it to
+        # the Drive API and this bundle id. Empty, a folder link fails.
+        VibeGoogleDriveAPIKey: ""
         # Sparkle's. The AppStore configuration strips every SU* key from the
         # built Info.plist (the post-build script above). The feed and the key are
         # permanent: every shipped build trusts them.
@@ -605,6 +609,10 @@ targets:
         # PKCE, which needs none, and the redirect it pairs with is the
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
+        # Open URL lists a shared Google Drive folder with this Drive API key
+        # (LinkClient). Not a secret: it ships in the app, so restrict it to
+        # the Drive API and this bundle id. Empty, a folder link fails.
+        VibeGoogleDriveAPIKey: ""
         # Share the localized audio, audiobook and CUE declarations.
         # The iOS shell reads M3U files but declares no M3U document type here.
         CFBundleDocumentTypes:

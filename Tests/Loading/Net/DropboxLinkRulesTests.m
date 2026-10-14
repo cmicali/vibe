@@ -155,9 +155,8 @@ static NSData *ListingPage(NSArray<NSDictionary *> *entries, NSString *_Nullable
     XCTAssertEqualObjects(entries[0][@"modified"], @1700000000);
     XCTAssertEqualObjects([entries[0][@"url"] absoluteString],
                           @"https://www.dropbox.com/scl/fo/key1/hash1/Track%20One.flac?rlkey=rk&dl=1", @"no st");
-    XCTAssertEqualObjects(entries[1][@"folder"], @YES);
-    XCTAssertEqualObjects(entries[1][@"token"][@"subPath"], @"Live");
-    XCTAssertEqualObjects(entries[1][@"token"][@"rlkey"], @"rk");
+    XCTAssertEqualObjects(entries[1][@"folder"][@"subPath"], @"Live");
+    XCTAssertEqualObjects(entries[1][@"folder"][@"rlkey"], @"rk");
     XCTAssertEqualObjects([entries[2][@"url"] absoluteString],
                           @"https://www.dropbox.com/scl/fo/key1/hash1/relative.mp3?rlkey=rk&dl=1", @"the folder's rlkey");
     XCTAssertNil(entries[2][@"modified"]);

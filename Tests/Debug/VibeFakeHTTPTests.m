@@ -449,6 +449,25 @@ typedef struct {
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], _song);
 }
 
+- (void)testAGoogleDriveFolderLinkOpensFromTheFake {
+    _client.googleDriveAPIKey = @"fake-key";
+    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+    NSError *error = nil;
+    NSURL *playlist = [self resolve:store link:@"https://drive.google.com/drive/folders/album?usp=sharing" error:&error];
+    XCTAssertNotNil(playlist, @"%@", error);
+    XCTAssertEqualObjects(playlist.lastPathComponent, @"album.m3u8");
+    NSArray<NSDictionary *> *log = self.log;
+    XCTAssertEqual(log.count, 2u, @"files.get and one files.list, and no file");
+    XCTAssertEqualObjects(log[0][@"host"], @"www.googleapis.com");
+    NSArray *rows = [PlaylistFile rowsForPlaylistAtURL:playlist];
+    XCTAssertEqual(rows.count, 1u);
+    NSURL *file = [rows.firstObject url];
+    XCTAssertEqualObjects(file.lastPathComponent, @"song.mp3");
+    XCTAssertTrue([store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
+    } error:&error], @"%@", error);
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file], _song);
+}
+
 - (void)testAnExpiredAddressIsLookedUpAgain {
     LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
     XCTAssertTrue([VibeFakeHTTP addFaultOfKind:@"expiry" file:nil after:0 seconds:0 rate:0 status:0 once:@YES]);

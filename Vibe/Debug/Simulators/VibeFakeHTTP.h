@@ -10,7 +10,11 @@
 //  address that expires. A Dropbox folder link,
 //  https://www.dropbox.com/scl/fo/<name>/<any>?rlkey=<any>, is the root's
 //  directory <name>: its page sets t, its listing answers as the share
-//  page's does, and each file below it is served at its href. The link's
+//  page's does, and each file below it is served at its href. A Google
+//  Drive folder link, https://drive.google.com/drive/folders/<name>, is the
+//  root's directory <name> too: the Drive API's files.get and files.list
+//  answer for it with any key, and its files download from Drive's host.
+//  The link's
 //  probe, its stream, its tail and tag reads, and every resend run unchanged
 //  against it, with no network. Faults script what real servers do.
 //
