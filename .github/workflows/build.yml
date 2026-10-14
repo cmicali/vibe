@@ -1,10 +1,11 @@
 name: CI
 
+# DIAGNOSTIC BRANCH ONLY. Runs the fixed
+# AudioVoiceBusPoolTests.testFilesInUseFollowsTheDecodersHandoff under load.
+
 on:
   push:
-    branches: [main]
-  pull_request:
-  workflow_dispatch:
+    branches: [diag/files-in-use-handoff-after]
 
 permissions:
   contents: read
@@ -13,163 +14,80 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ONE: VibeTests/AudioVoiceBusPoolTests/testFilesInUseFollowsTheDecodersHandoff
+  FORCED: VibeTests/AudioVoiceBusPoolTests/testDiagnosticForcedLateSuccessorLosesToTheRender
+  XB: xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug
+
 jobs:
-  # Treat uncertain comparisons as code changes. Renames check both paths.
-  changes:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      code: ${{ steps.diff.outputs.code }}
-    steps:
-      - id: diff
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          code=true
-          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] \
-              && files="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...$HEAD" --jq '.files[] | .filename, .previous_filename // empty')" \
-              && [ -n "$files" ] && [ "$(wc -l <<<"$files")" -lt 300 ] \
-              && ! grep -qvE '\.md$|^docs/|^Assets/Web/' <<<"$files"; then
-              code=false
-          fi
-          echo "code=$code" >>"$GITHUB_OUTPUT"
-          echo "code=$code for $BASE...$HEAD"
-
-  repo-checks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check naming vocabulary
-        run: make check-vocabulary
-
-      - name: Check layout
-        if: ${{ !cancelled() }}
-        run: make check-layout
-
-      # Report missing translations here. Release scripts make them fatal.
-      - name: Report untranslated keys
-        if: ${{ !cancelled() }}
-        run: scripts/checks/check-translations.sh --github
-
-  # Keep four macOS jobs to limit runner contention. Text-only checks use Linux.
-  # Analyze Release: findings can depend on the configuration.
-  analyze-macos:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
+  repro:
     runs-on: macos-26
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Show toolchain
-        run: |
-          sw_vers
-          xcodebuild -version
-          xcrun --show-sdk-version --sdk macosx
-
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Build Release and analyze (macOS)
-        run: scripts/build/analyze.sh Release macos
-
-      - name: Verify code signature
-        run: |
-          codesign --verify --deep --strict --verbose=2 \
-            build/AnalyzeDD/Build/Products/Release/Vibe.app
-
-  analyze-ios:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-xcodegen
 
-      - name: Build Release and analyze (iOS)
-        run: scripts/build/analyze.sh Release ios
+      - name: Toolchain
+        run: |
+          sw_vers; xcodebuild -version; sysctl -n hw.ncpu hw.model machdep.cpu.brand_string || true
 
-  build-and-check:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
+      - name: Build for testing
+        run: |
+          make project
+          $XB -derivedDataPath build/ReproDD build-for-testing -quiet
+          cp -R build/ReproDD build/LoadDD
 
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Check string catalog is in sync
-        run: make check-strings
-
-      - name: Validate App Store copy
-        if: ${{ !cancelled() }}
-        run: make appstore-validate-copy
-
-      - uses: ./.github/actions/setup-xcodegen
-        if: ${{ !cancelled() }}
-
-      - name: Build AppStore and check it has no updater
+      - name: Fixed test under load
         if: ${{ !cancelled() }}
         run: |
-          make build CONFIG=AppStore ARGS='ARCHS=arm64'
-          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
-            asc_require_no_updater build/DerivedData/Build/Products/AppStore/Vibe.app'
+          set +e
+          touch build/load-running
+          ( i=0; while [ -f build/load-running ]; do i=$((i+1)); rm -rf build/load.xcresult
+              $XB -derivedDataPath build/LoadDD test-without-building -collect-test-diagnostics never \
+                  -resultBundlePath build/load.xcresult -quiet >/dev/null 2>&1; echo "load pass $i done"; done ) &
+          for n in 1 2 3; do ( while [ -f build/load-running ]; do :; done ) & done
+          sleep 30
+          start=$(date +%s)
+          perl -e 'alarm shift; exec @ARGV' 3000 $XB -derivedDataPath build/ReproDD test-without-building -only-testing:$ONE \
+              -test-iterations 30000 -run-tests-until-failure -parallel-testing-enabled NO -collect-test-diagnostics never \
+              -resultBundlePath build/natural.xcresult > build/natural.log 2>&1
+          status=$?
+          rm -f build/load-running
+          echo "status=$status seconds=$(( $(date +%s) - start ))"
+          echo "passed iterations: $(grep -c "testFilesInUseFollowsTheDecodersHandoff\]' passed" build/natural.log)"
+          echo "failed iterations: $(grep -c "testFilesInUseFollowsTheDecodersHandoff\]' failed" build/natural.log)"
+          echo "--- DIAG lines (reopen path seen, or a miss)"
+          grep -E "DIAG" build/natural.log | cut -c1-2000 | head -200
+          echo "--- errors"
+          grep -E "error:" build/natural.log | cut -c1-2000 | head -20
+          echo "--- tail"
+          tail -30 build/natural.log | cut -c1-600
+          [ -d build/natural.xcresult ] && xcrun xcresulttool get test-results tests --path build/natural.xcresult --format json \
+              | jq '[.. | objects | select(.nodeType? == "Failure Message") | .name]' | head -40
+          wait
+          true
 
-      - name: Build Debug (iOS, simulator)
+      - name: ThreadSanitizer under load
         if: ${{ !cancelled() }}
-        run: make build-ios CONFIG=Debug
-
-  test:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Install fixture encoder
-        run: brew install ffmpeg
-
-      - name: Build Debug (macOS, x86_64)
-        run: make build CONFIG=Debug ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
-
-      - name: Run unit and audio tests
-        if: ${{ !cancelled() }}
-        run: make -k -j3 test test-audio
-
-      - name: Test summary
-        if: always()
-        run: make test-summary
-
-      - name: Audio test summary
-        if: always()
-        run: make test-audio-summary
-
-      - name: Upload result bundle
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: TestResults.xcresult
-          path: build/TestResults.xcresult
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload audio failures and PCM attachments
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: AudioTestResults.xcresult
-          path: build/AudioTestResults.xcresult
-          retention-days: 7
-          if-no-files-found: ignore
+        run: |
+          set +e
+          $XB -derivedDataPath build/TSanDD -enableThreadSanitizer YES -enableCodeCoverage NO build-for-testing -quiet
+          touch build/load-running
+          ( while [ -f build/load-running ]; do rm -rf build/load2.xcresult
+              $XB -derivedDataPath build/LoadDD test-without-building -collect-test-diagnostics never \
+                  -resultBundlePath build/load2.xcresult -quiet >/dev/null 2>&1; done ) &
+          sleep 30
+          perl -e 'alarm shift; exec @ARGV' 1800 $XB -derivedDataPath build/TSanDD test-without-building -only-testing:$ONE \
+              -enableThreadSanitizer YES -enableCodeCoverage NO \
+              -test-iterations 1000 -run-tests-until-failure -parallel-testing-enabled NO -collect-test-diagnostics never \
+              -resultBundlePath build/tsan.xcresult > build/tsan.log 2>&1
+          echo "status=$?"
+          rm -f build/load-running
+          echo "passed iterations: $(grep -c "' passed" build/tsan.log)"
+          echo "failed iterations: $(grep -c "' failed" build/tsan.log)"
+          grep -E "DIAG|ThreadSanitizer|WARNING|error:" build/tsan.log | cut -c1-2000 | head -100
+          tail -20 build/tsan.log | cut -c1-600
+          wait
+          true
