@@ -434,8 +434,8 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
                                                   name:NULL error:NULL], record);
 }
 
-// A row's title pair inherits the title pair and its artist pair the artist
-// pair, and both travel beside the row's fill under the playlist section.
+// A row's title pair inherits the title pair. Its artist pair inherits the
+// artist pair. Both travel beside the row's fill under the playlist section.
 - (void)testPlaylistRowTextColorsInheritTheLabelPairs {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     [theme setColor:VibeColorFromHexString(@"#FF0000") forBase:kVibeThemeColorTitle dark:YES];

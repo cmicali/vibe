@@ -373,7 +373,7 @@ static NSTextField *makeCellTextField(NSRect frame) {
                                            attributes:lengthColumnAttributes];
 }
 
-// A selected row takes the selected color, nil included, as it takes the
+// A selected row takes the selected colors, nil included, as it takes the
 // selected fill. A selected playing row never draws the playing color.
 + (NSColor *)textColorForRowSelected:(BOOL)selected playing:(BOOL)playing title:(BOOL)title {
     ensureCellAttributes();

@@ -7,14 +7,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Marks a string's title run. PlaylistTableView sets it; the cell reads it.
+// Marks a string's title run. PlaylistTableView sets it. The cell reads it.
 extern NSAttributedStringKey const PlaylistTitleRunAttributeName;
 
 @interface PlaylistTextCell : NSTextFieldCell
 
-// Drawn over the string's colors: the title color over its title run, the
-// artist color over every other run, nil keeping a run as set. PlaylistRowView
-// pushes them. The string keeps its own colors, so clearing restores them.
+// The title color draws the title run. The artist color draws every other
+// run. A nil color keeps a run as set. PlaylistRowView pushes them. The string
+// keeps its own colors, so clearing them restores the string.
 - (void)setRowTitleColor:(nullable NSColor *)titleColor artistColor:(nullable NSColor *)artistColor;
 
 @end
