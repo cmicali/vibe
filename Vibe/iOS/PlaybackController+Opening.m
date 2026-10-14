@@ -9,7 +9,7 @@
 #import "PlaybackControllerInternal.h"
 
 #import "AudioTrack.h"
-#import "DropboxMirror.h"
+#import "AccountMirror.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "LocationStore.h"
@@ -59,7 +59,7 @@
 
 #pragma mark - The row being opened
 
-// Long enough for a Dropbox folder's listing (FolderSession's bound) and the
+// Long enough for an account folder's listing (FolderSession's bound) and the
 // read after it; past it the user is better told than left watching.
 static const NSTimeInterval kOpeningTimeout = 25;
 
@@ -171,17 +171,22 @@ static const NSTimeInterval kOpeningTimeout = 25;
 
 // The only composition of the search scope: transient roots, then persistent
 // ones. FileSearchIndex prunes the nesting.
-// Never a Dropbox folder: the search screen's Dropbox section asks Dropbox,
-// and a walk of the mirror would offer the same file twice from the folders
-// already browsed.
+// Never an account's mirror: the search screen's section for that account
+// asks the service, and a walk of the mirror would offer the same file twice
+// from the folders already browsed.
 - (NSArray<NSURL *> *)searchRoots {
     NSArray<NSURL *> *roots = [[_folderSession.searchRoots
             arrayByAddingObjectsFromArray:LocationStore.shared.searchRoots]
             arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
-    DropboxMirror *mirror = DropboxMirror.shared;
+    NSArray<AccountMirror *> *mirrors = AccountMirror.mirrors;
     return [roots filteredArrayUsingPredicate:
             [NSPredicate predicateWithBlock:^BOOL(NSURL *root, NSDictionary *bindings) {
-        return ![mirror containsURL:root];
+        for (AccountMirror *mirror in mirrors) {
+            if ([mirror containsURL:root]) {
+                return NO;
+            }
+        }
+        return YES;
     }]];
 }
 

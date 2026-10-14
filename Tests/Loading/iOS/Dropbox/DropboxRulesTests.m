@@ -17,18 +17,6 @@
     [super tearDown];
 }
 
-// RFC 7636 appendix B.
-- (void)testCodeChallengeMatchesTheRFCVector {
-    XCTAssertEqualObjects(VibeDropboxCodeChallenge(@"dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
-                          @"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
-}
-
-- (void)testBase64URLHasNoPaddingOrUnsafeCharacters {
-    const unsigned char bytes[] = {0xfb, 0xff, 0xbf, 0x01};
-    NSString *encoded = VibeDropboxBase64URL([NSData dataWithBytes:bytes length:sizeof bytes]);
-    XCTAssertEqualObjects(encoded, @"-_-_AQ");
-}
-
 - (void)testRedirectIsTheUnregisteredAppScheme {
     XCTAssertEqualObjects(VibeDropboxRedirectURI(@"abc123"), @"db-abc123://2/token");
     NSURL *authorize = VibeDropboxAuthorizeURL(@"abc123", @"challenge", @"state1");
@@ -41,26 +29,6 @@
     XCTAssertEqualObjects(query[@"code_challenge_method"], @"S256");
     XCTAssertEqualObjects(query[@"token_access_type"], @"offline");
     XCTAssertEqualObjects(query[@"state"], @"state1");
-}
-
-- (void)testAuthorizationCodeRequiresTheStateWeSent {
-    NSString *reason = nil;
-    NSURL *good = [NSURL URLWithString:@"db-k://2/token?code=C0DE&state=s1"];
-    XCTAssertEqualObjects(VibeDropboxAuthorizationCode(good, @"s1", &reason), @"C0DE");
-
-    NSURL *forged = [NSURL URLWithString:@"db-k://2/token?code=C0DE&state=other"];
-    XCTAssertNil(VibeDropboxAuthorizationCode(forged, @"s1", &reason));
-    XCTAssertEqualObjects(reason, @"state mismatch");
-
-    NSURL *denied = [NSURL URLWithString:@"db-k://2/token?error=access_denied&error_description=The+user+said+no&state=s1"];
-    XCTAssertNil(VibeDropboxAuthorizationCode(denied, @"s1", &reason));
-    XCTAssertEqualObjects(reason, @"The+user+said+no");
-}
-
-- (void)testFormBodyPercentEncodesReservedCharacters {
-    NSData *body = VibeDropboxFormBody(@{@"redirect_uri": @"db-k://2/token", @"a": @"x y"});
-    NSString *text = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
-    XCTAssertEqualObjects(text, @"a=x%20y&redirect_uri=db-k%3A%2F%2F2%2Ftoken");
 }
 
 // The argument header must be ASCII (DropboxRules.h).
@@ -89,14 +57,6 @@
     XCTAssertTrue(VibeDropboxIsExpiredAccessToken(401, @{@"error_summary": @"expired_access_token/"}));
 }
 
-- (void)testOnlyARevokedGrantUnlinks {
-    NSDictionary *revoked = @{@"error": @"invalid_grant", @"error_description": @"refresh token is invalid or revoked"};
-    XCTAssertTrue(VibeDropboxIsRevokedGrant(400, revoked));
-    XCTAssertFalse(VibeDropboxIsRevokedGrant(400, nil));
-    XCTAssertFalse(VibeDropboxIsRevokedGrant(400, @{@"error": @"invalid_request"}));
-    XCTAssertFalse(VibeDropboxIsRevokedGrant(401, revoked));
-}
-
 - (void)testThrottlingIsRetriedAfterACappedDelay {
     XCTAssertEqual(VibeHTTPRetryDelay(429, @"3"), 3.0);
     XCTAssertEqual(VibeHTTPRetryDelay(429, nil), 1.0);
@@ -117,25 +77,6 @@
     XCTAssertEqual(VibeDropboxEntryKindOf(@{@".tag": @"folder"}), VibeDropboxEntryKindFolder);
     XCTAssertEqual(VibeDropboxEntryKindOf(@{@".tag": @"deleted"}), VibeDropboxEntryKindDeleted);
     XCTAssertEqual(VibeDropboxEntryKindOf(@{}), VibeDropboxEntryKindUnknown);
-}
-
-- (void)testOnlyAudioAndPlaylistFilesAreMirrored {
-    NSSet *playable = [NSSet setWithArray:@[@"flac", @"mp3"]];
-    XCTAssertTrue(VibeDropboxNameIsMirrored(@"01 Song.FLAC", playable));
-    XCTAssertTrue(VibeDropboxNameIsMirrored(@"Album.cue", playable));
-    XCTAssertTrue(VibeDropboxNameIsMirrored(@"Mix.M3U", playable));
-    XCTAssertTrue(VibeDropboxNameIsMirrored(@"Mix.m3u8", playable));
-    XCTAssertFalse(VibeDropboxNameIsMirrored(@"cover.jpg", playable));
-    XCTAssertFalse(VibeDropboxNameIsMirrored(@".hidden.mp3", playable));
-    XCTAssertFalse(VibeDropboxNameIsMirrored(@"notes", playable));
-}
-
-- (void)testAComponentLandsOnTheExistingSpelling {
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"music", VibeDropboxNameIndex(@[@"Podcasts", @"Music"])), @"Music");
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"CAFÉ", VibeDropboxNameIndex(@[@"café"])), @"café");
-    // A decomposed name read back from disk still finds the composed one.
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"Cafe\u0301", VibeDropboxNameIndex(@[@"Café"])), @"Café");
-    XCTAssertEqualObjects(VibeDropboxLocalName(@"New", VibeDropboxNameIndex(@[@"Music"])), @"New");
 }
 
 - (void)testPathComponentsDropEmptySegments {
@@ -227,17 +168,6 @@
     NSURL *url = [NSURL fileURLWithPath:@"/mirror/Album/01 Song.flac"];
     XCTAssertEqualObjects([PlaceholderFiles remotePlaceholderPartURL:url].path,
                           @"/mirror/Album/.01 Song.flac.vibe-download");
-}
-
-- (void)testASavedDownloadBudgetIsOneOfTheChoices {
-    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(0)], 10000L * 1000 * 1000);
-    for (size_t i = 0; i < kVibeDropboxDownloadBudgetCount; i++) {
-        XCTAssertEqual(VibeDropboxDownloadBudgetIndex(kVibeDropboxDownloadBudgets[i]), i);
-        XCTAssertTrue(i == 0 || kVibeDropboxDownloadBudgets[i] > kVibeDropboxDownloadBudgets[i - 1], @"smallest first");
-    }
-    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(3000L * 1000 * 1000)], 2000L * 1000 * 1000);
-    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(NSIntegerMax)], 50000L * 1000 * 1000);
-    XCTAssertEqual(kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(-1)], 10000L * 1000 * 1000);
 }
 
 @end

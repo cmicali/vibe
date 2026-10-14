@@ -2,7 +2,7 @@
 //  DebugiOSVerbs.m
 //  Vibe (iOS)
 //
-//  The iOS verb table, which adds the Dropbox verbs after its own.
+//  The iOS verb table, which adds the accounts' verbs after its own.
 //
 
 #import "DebugiOSEntry.h"
@@ -154,7 +154,7 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 
 #pragma mark Command table
 
-// The iOS-only verbs, then the Dropbox ones (DebugDropboxVerbs.m). The shared
+// The iOS-only verbs, then the accounts' (DebugAccountVerbs.m). The shared
 // ones are in Vibe/Debug/Verbs/.
 NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static NSArray<NSDictionary *> *table;
@@ -489,7 +489,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.selectedTabIdentifier});
             }),
         ];
-        table = [own arrayByAddingObjectsFromArray:VibeDebugDropboxVerbs()];
+        table = [own arrayByAddingObjectsFromArray:VibeDebugAccountVerbs()];
     });
     return table;
 }

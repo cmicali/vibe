@@ -8,6 +8,7 @@
 //
 
 #import "FolderViewController.h"
+#import "AccountMirror.h"
 #import "AudioTrackMetadataCache.h"
 #import "PlaybackController.h"
 
@@ -23,8 +24,8 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     BOOL _appending;
 
     // A directory's whole listing, in the folder-open order. Which of the
-    // files are Dropbox placeholders, and each file's size, are found with the
-    // listing, off main. The M3U playlists lead the files, and a folder
+    // files are an account's placeholders, and each file's size, are found
+    // with the listing, off main. The M3U playlists lead the files, and a folder
     // holding nothing else has no song for the play button to play.
     NSArray<NSURL *> *_allFolders;
     NSArray<NSURL *> *_allFiles;
@@ -45,13 +46,13 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     NSArray<NSURL *> *_files;
     // Stamped on each disk listing, so a slow one cannot overwrite a newer.
     uint64_t _listingGeneration;
-    // The Dropbox folder this directory mirrors ("" for the root), nil
-    // outside the mirror: listed from disk at once, then refreshed.
-    NSString *_dropboxPath;
+    // The account mirror this directory lies in, nil outside every mirror:
+    // listed from disk at once, then refreshed from the service.
+    AccountMirror *_mirror;
     BOOL _refreshing;
     NSError *_refreshError;
-    // When this screen last listed its folder from Dropbox; a reappearance
-    // within kRelistInterval shows the disk alone.
+    // When this screen last listed its folder from its account; a
+    // reappearance within kRelistInterval shows the disk alone.
     CFAbsoluteTime _listedAt;
     // Open Folder's file, shown and briefly selected once the listing lands.
     NSURL *_highlightURL;

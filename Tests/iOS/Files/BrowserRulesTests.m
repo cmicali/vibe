@@ -12,42 +12,62 @@
 
 - (void)testTheLocationsAreTheSourcesThenTheGrantedFolders {
     NSArray *unlinked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowLocation), @(VibeBrowserRootRowLocation)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 2, NO), unlinked);
-    NSArray *linked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox), @(VibeBrowserRootRowLocation)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 1, YES), linked);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, 0, 2, NO), unlinked);
+    NSArray *linked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowAccount), @(VibeBrowserRootRowLocation)];
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, 1, 1, YES), linked);
+    NSArray *both = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowAccount), @(VibeBrowserRootRowAccount),
+                      @(VibeBrowserRootRowLocation)];
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, 2, 1, NO), both);
 }
 
 - (void)testALocationRowMapsToItsIndexInTheStore {
-    for (NSNumber *linked in @[@NO, @YES]) {
-        NSArray<NSNumber *> *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, linked.boolValue, 3, NO);
+    for (NSUInteger linked = 0; linked <= 2; linked++) {
+        NSArray<NSNumber *> *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, linked, 3, NO);
         NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
         for (NSUInteger row = 0; row <= rows.count; row++) {
-            NSUInteger index = VibeBrowserRootLocationIndex(VibeBrowserRootSectionLocations, row, linked.boolValue, 3);
+            NSUInteger index = VibeBrowserRootLocationIndex(VibeBrowserRootSectionLocations, row, linked, 3);
             BOOL location = row < rows.count && rows[row].integerValue == VibeBrowserRootRowLocation;
-            XCTAssertEqual(index == NSNotFound, !location, @"row %lu, linked %@", (unsigned long)row, linked);
+            XCTAssertEqual(index == NSNotFound, !location, @"row %lu, linked %lu", (unsigned long)row,
+                           (unsigned long)linked);
             if (location) {
                 [indexes addObject:@(index)];
             }
         }
         XCTAssertEqualObjects(indexes, (@[@0, @1, @2]));
     }
-    XCTAssertEqual(VibeBrowserRootLocationIndex(VibeBrowserRootSectionActions, 2, NO, 3), (NSUInteger)NSNotFound);
+    XCTAssertEqual(VibeBrowserRootLocationIndex(VibeBrowserRootSectionActions, 2, 0, 3), (NSUInteger)NSNotFound);
+}
+
+- (void)testAnAccountRowMapsToItsIndexAmongTheLinked {
+    NSArray<NSNumber *> *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, 2, 1, NO);
+    NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
+    for (NSUInteger row = 0; row <= rows.count; row++) {
+        NSUInteger index = VibeBrowserRootAccountIndex(VibeBrowserRootSectionLocations, row, 2);
+        BOOL account = row < rows.count && rows[row].integerValue == VibeBrowserRootRowAccount;
+        XCTAssertEqual(index == NSNotFound, !account, @"row %lu", (unsigned long)row);
+        if (account) {
+            [indexes addObject:@(index)];
+        }
+    }
+    XCTAssertEqualObjects(indexes, (@[@0, @1]));
+    XCTAssertEqual(VibeBrowserRootAccountIndex(VibeBrowserRootSectionRecents, 1, 2), (NSUInteger)NSNotFound);
+    XCTAssertEqual(VibeBrowserRootAccountIndex(VibeBrowserRootSectionLocations, 1, 0), (NSUInteger)NSNotFound);
 }
 
 - (void)testThePasteRowFollowsOpenURLOnlyWithALinkOnTheClipboard {
     NSArray *expected = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, YES, 1, YES), expected);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, 1, 1, YES), expected);
     NSArray *noLink = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, NO, 1, NO), noLink);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, 0, 1, NO), noLink);
     for (NSInteger section = VibeBrowserRootSectionLocations; section < VibeBrowserRootSectionActions; section++) {
-        XCTAssertFalse([VibeBrowserRootRows((VibeBrowserRootSection)section, YES, 1, YES)
+        XCTAssertFalse([VibeBrowserRootRows((VibeBrowserRootSection)section, 1, 1, YES)
                 containsObject:@(VibeBrowserRootRowPasteURL)]);
     }
 }
 
 - (void)testTheRecentsSectionIsRecentsAlone {
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionRecents, YES, 3, NO), @[@(VibeBrowserRootRowRecents)]);
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionCount, YES, 3, NO), @[]);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionRecents, 1, 3, NO), @[@(VibeBrowserRootRowRecents)]);
+    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionCount, 1, 3, NO), @[]);
 }
 
 #pragma mark - Recents

@@ -7,7 +7,7 @@
 #import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioTrack.h"
-#import "DropboxMirror.h"
+#import "AccountMirror.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "FolderSessionRules.h"
@@ -21,9 +21,9 @@
 
 // Past this many contributors an open is ONE recent, the folder they share.
 static const NSUInteger kMaximumRecentItemsPerOpen = 5;
-// An open waits this long for Dropbox to list a folder before reading what
-// the disk has.
-static const NSTimeInterval kDropboxListingTimeout = 20;
+// An open waits this long for an account to list a folder before reading
+// what the disk has.
+static const NSTimeInterval kAccountListingTimeout = 20;
 
 // One open on the work queue, handed from phase to phase. The request is set
 // before the first phase. Each phase fills in what the next one reads.
@@ -187,14 +187,16 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [coveringRootPaths addObject:VibeComparablePath(folder.path) ?: @""];
     }
     // The app's own trees need no grant, so a file picked in one always
-    // reaches its folder: Documents, and the Dropbox mirror.
+    // reaches its folder: Documents, and each account's mirror.
     NSString *documents = VibeComparablePath(LocationStore.containerDocumentsURL.path);
-    NSString *dropbox = VibeComparablePath(DropboxMirror.shared.accountURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
     }
-    if (dropbox) {
-        [coveringRootPaths addObject:dropbox];
+    for (AccountMirror *mirror in AccountMirror.mirrors) {
+        NSString *account = VibeComparablePath(mirror.accountURL.path);
+        if (account) {
+            [coveringRootPaths addObject:account];
+        }
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
     NSMutableArray<LocationGrant *> *grants = [NSMutableArray array];
@@ -251,21 +253,20 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 
 // Work queue. Populate unlisted mirror folders before reading them.
 // After the timeout, use the entries already on disk.
-- (void)listFromDropboxIfMirrored:(NSURL *)url {
-    DropboxMirror *mirror = DropboxMirror.shared;
-    NSString *dropboxPath = [mirror dropboxPathForURL:url];
-    if (!dropboxPath || [mirror hasListedDirectory:url]) {
+- (void)listFromAccountIfMirrored:(NSURL *)url {
+    AccountMirror *mirror = [AccountMirror mirrorOfURL:url];
+    if (!mirror || [mirror hasListedDirectory:url]) {
         return;
     }
     dispatch_semaphore_t listed = dispatch_semaphore_create(0);
-    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+    [mirror refreshDirectoryAtURL:url completion:^(NSURL *folderURL, NSError *error) {
         if (error) {
-            LogWarn(@"FolderSession: could not list %@ from Dropbox: %@", url.lastPathComponent,
+            LogWarn(@"FolderSession: could not list %@ from %@: %@", url.lastPathComponent, mirror.serviceName,
                     error.localizedDescription);
         }
         dispatch_semaphore_signal(listed);
     }];
-    dispatch_semaphore_wait(listed, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDropboxListingTimeout * NSEC_PER_SEC)));
+    dispatch_semaphore_wait(listed, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kAccountListingTimeout * NSEC_PER_SEC)));
 }
 
 // Answers how many it took, so a caller can tell "contributed nothing". Keyed
@@ -466,7 +467,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 }
             }
             if (listable) {
-                [self listFromDropboxIfMirrored:parent];
+                [self listFromAccountIfMirrored:parent];
                 if ([self appendFresh:[FolderWalk rowsInDirectory:parent sortedBy:sort]
                                    to:tracks
                                  seen:seenKeys] > 0) {
@@ -490,9 +491,9 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // A URL that added nothing is not persisted: that prunes a redundant
         // addition.
         if (isDir) {
-            [self listFromDropboxIfMirrored:url];
+            [self listFromAccountIfMirrored:url];
         }
-        else if (m3u && [DropboxMirror.shared dropboxPathForURL:url]) {
+        else if (m3u && [AccountMirror mirrorOfURL:url]) {
             // Each folder the playlist names, as the mirror holds only what
             // something has listed.
             NSMutableOrderedSet<NSURL *> *entryFolders = [NSMutableOrderedSet orderedSet];
@@ -500,7 +501,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 [entryFolders addObject:row.url.URLByDeletingLastPathComponent];
             }
             for (NSURL *folder in entryFolders) {
-                [self listFromDropboxIfMirrored:folder];
+                [self listFromAccountIfMirrored:folder];
             }
         }
         NSArray<AudioTrack *> *produced = isDir ? [FolderWalk rowsInDirectory:url sortedBy:sort]
@@ -660,7 +661,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [linkHosts addObject:[LinkStore.shared hostOfLinkFileURL:url] ?: NSNull.null];
     }
     run_on_main_thread({
-        // On main: the name asks the Dropbox mirror and UIDevice.
+        // On main: the name asks the account mirrors and UIDevice.
         // Recorded, not derived at draw time: the path can outlive
         // the app container it names.
         [recents enumerateObjectsUsingBlock:^(NSMutableDictionary *item, NSUInteger index, BOOL *stop) {

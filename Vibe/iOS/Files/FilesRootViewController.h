@@ -3,11 +3,12 @@
 //  Vibe (iOS)
 //
 //  The Files tab's root, and the Playlist tab's add sheet: one list of every
-//  place the app can list. The Locations are the app's own Documents, Dropbox
-//  through its mirror, and each folder the user granted. Each opens in a
-//  FolderViewController pushed above this one. The system folder picker's one
-//  remaining job is granting a location, from the plus. The system file
-//  picker stays behind Choose File… for a one-off pick outside them.
+//  place the app can list. The Locations are the app's own Documents, each
+//  linked account through its mirror, and each folder the user granted. Each
+//  opens in a FolderViewController pushed above this one. The system folder
+//  picker's one remaining job is granting a location, from the plus. The
+//  system file picker stays behind Choose File… for a one-off pick outside
+//  them.
 //
 //  Every open goes through PlaybackController's roads, so nothing about
 //  opening is reimplemented here.

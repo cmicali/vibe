@@ -8,7 +8,7 @@
 
 #import <UIKit/UIKit.h>
 
-#import "DropboxMirror.h"
+#import "AccountMirror.h"
 #import "FileSearchRules.h"
 #import "LocationStoreInternal.h"
 #import "VibeStrings.h"
@@ -178,9 +178,11 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 // Spelling and stored names only, never the disk: asking a provider's folder
 // for its name is IPC that can block main.
 + (NSString *)displayNameForFolderURL:(NSURL *)url {
-    // The account's mirror directory is named for its Dropbox account id.
-    if ([[DropboxMirror.shared derivedDropboxPathForURL:url] isEqualToString:@""]) {
-        return VibeNotLocalized(@"Dropbox");
+    // An account's mirror directory is named for its account id.
+    for (AccountMirror *mirror in AccountMirror.mirrors) {
+        if ([mirror isAccountRootURL:url]) {
+            return mirror.serviceName;
+        }
     }
     static NSString *documentsPath;
     static dispatch_once_t once;

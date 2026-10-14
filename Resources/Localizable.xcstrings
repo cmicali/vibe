@@ -2605,6 +2605,378 @@
       },
       "extractionState": "manual"
     },
+    "browser.account_unavailable": {
+      "comment": "iOS Files tab: shown in place of a cloud storage folder's contents, or under them, when they could not be loaded, for example while offline. Pulling the list down retries. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending. Uses a curly apostrophe (’) where the language has one.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Няма връзка с %@. Плъзнете надолу, за да опитате отново."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepodařilo se připojit ke službě %@. Stažením dolů to zkuste znovu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke få forbindelse til %@. Træk ned for at prøve igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ konnte nicht erreicht werden. Zum erneuten Versuchen nach unten ziehen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατή η πρόσβαση στο %@. Τραβήξτε προς τα κάτω για να δοκιμάσετε ξανά."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t reach %@. Pull down to try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido conectar con %@. Desliza hacia abajo para volver a intentarlo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palveluun %@ ei saatu yhteyttä. Yritä uudelleen vetämällä alas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de joindre %@. Tirez vers le bas pour réessayer."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nije moguće pristupiti usluzi %@. Povucite prema dolje za ponovni pokušaj."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nem sikerült elérni a(z) %@ szolgáltatást. Húzd le az újrapróbálkozáshoz."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat menjangkau %@. Tarik ke bawah untuk mencoba lagi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile raggiungere %@. Trascina verso il basso per riprovare."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に接続できませんでした。下に引いてもう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 연결할 수 없습니다. 아래로 당겨서 다시 시도하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke nå %@. Dra ned for å prøve igjen."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan %@ niet bereiken. Trek omlaag om het opnieuw te proberen."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można połączyć z usługą %@. Przeciągnij w dół, aby spróbować ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível acessar o %@. Puxe para baixo para tentar novamente."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível aceder ao %@. Puxe para baixo para tentar novamente."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nu a putut fi accesat. Trageți în jos pentru a reîncerca."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к %@. Потяните вниз, чтобы повторить попытку."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepodarilo sa pripojiť k službe %@. Potiahnutím nadol to skúste znova."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att nå %@. Dra nedåt för att försöka igen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถเชื่อมต่อ %@ ได้ ดึงลงเพื่อลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hizmetine ulaşılamadı. Yeniden denemek için aşağı çekin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося зʼєднатися з %@. Потягніть униз, щоб повторити спробу."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kết nối %@. Kéo xuống để thử lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接 %@。下拉以重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線至 %@。下拉即可重試。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "browser.account_unreachable": {
+      "comment": "iOS: heading of a cloud storage service's search results when the search could not reach the service, for example while offline. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending. Uses a curly apostrophe (’) where the language has one.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Няма връзка с %@."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepodařilo se připojit ke službě %@."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke få forbindelse til %@."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ konnte nicht erreicht werden."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατή η πρόσβαση στο %@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t reach %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido conectar con %@."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palveluun %@ ei saatu yhteyttä."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de joindre %@."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nije moguće pristupiti usluzi %@."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nem sikerült elérni a(z) %@ szolgáltatást."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat menjangkau %@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile raggiungere %@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に接続できませんでした。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 연결할 수 없습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke nå %@."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan %@ niet bereiken."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można połączyć z usługą %@."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível acessar o %@."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível aceder ao %@."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ nu a putut fi accesat."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к %@."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepodarilo sa pripojiť k službe %@."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att nå %@."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถเชื่อมต่อ %@ ได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hizmetine ulaşılamadı."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося зʼєднатися з %@."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kết nối %@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接 %@。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線至 %@。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "browser.add_clipboard_link": {
       "comment": "iOS Add to Playlist sheet: a row below Recents, shown only while the clipboard holds a web link. A tap adds the copied link to the playlist. iOS may first ask to allow pasting. Clipboard is the system's word for what was copied: use the wording iOS uses in this language. Title case, as the rows beside it.",
       "localizations": {
@@ -2978,7 +3350,7 @@
       "extractionState": "manual"
     },
     "browser.add_location": {
-      "comment": "iOS Files tab: accessibility label of the plus button at the top right. Its menu adds a place to the Locations list: a folder, or the user's Dropbox.",
+      "comment": "iOS Files tab: accessibility label of the plus button at the top right. Its menu adds a place to the Locations list: a folder, or a cloud storage account such as Dropbox.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -3349,378 +3721,6 @@
       },
       "extractionState": "manual"
     },
-    "browser.dropbox_unavailable": {
-      "comment": "iOS Files tab: shown in place of a Dropbox folder's contents when they could not be loaded, for example while offline. Pulling the list down retries. Dropbox is a product name: keep it untranslated. Uses a curly apostrophe (’).",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Няма връзка с Dropbox. Плъзнете надолу, за да опитате отново."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepodařilo se připojit ke službě Dropbox. Stažením dolů to zkuste znovu."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunne ikke få forbindelse til Dropbox. Træk ned for at prøve igen."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox konnte nicht erreicht werden. Zum erneuten Versuchen nach unten ziehen."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Δεν ήταν δυνατή η πρόσβαση στο Dropbox. Τραβήξτε προς τα κάτω για να δοκιμάσετε ξανά."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t reach Dropbox. Pull down to try again."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se ha podido conectar con Dropbox. Desliza hacia abajo para volver a intentarlo."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxiin ei saatu yhteyttä. Yritä uudelleen vetämällä alas."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossible de joindre Dropbox. Tirez vers le bas pour réessayer."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nije moguće pristupiti Dropboxu. Povucite prema dolje za ponovni pokušaj."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nem sikerült elérni a Dropboxot. Húzd le az újrapróbálkozáshoz."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tidak dapat menjangkau Dropbox. Tarik ke bawah untuk mencoba lagi."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossibile raggiungere Dropbox. Trascina verso il basso per riprovare."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxに接続できませんでした。下に引いてもう一度お試しください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox에 연결할 수 없습니다. 아래로 당겨서 다시 시도하십시오."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunne ikke nå Dropbox. Dra ned for å prøve igjen."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kan Dropbox niet bereiken. Trek omlaag om het opnieuw te proberen."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie można połączyć z Dropbox. Przeciągnij w dół, aby spróbować ponownie."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível acessar o Dropbox. Puxe para baixo para tentar novamente."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível aceder ao Dropbox. Puxe para baixo para tentar novamente."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox nu a putut fi accesat. Trageți în jos pentru a reîncerca."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось подключиться к Dropbox. Потяните вниз, чтобы повторить попытку."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepodarilo sa pripojiť k službe Dropbox. Potiahnutím nadol to skúste znova."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Det gick inte att nå Dropbox. Dra nedåt för att försöka igen."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่สามารถเชื่อมต่อ Dropbox ได้ ดึงลงเพื่อลองอีกครั้ง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox’a ulaşılamadı. Yeniden denemek için aşağı çekin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не вдалося зʼєднатися з Dropbox. Потягніть униз, щоб повторити спробу."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể kết nối Dropbox. Kéo xuống để thử lại."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接 Dropbox。下拉以重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法連線至 Dropbox。下拉即可重試。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "browser.dropbox_unreachable": {
-      "comment": "iOS: shown under the Dropbox search results when the search could not reach Dropbox, for example while offline. Dropbox is a product name: keep it as is.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Няма връзка с Dropbox."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepodařilo se připojit ke službě Dropbox."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunne ikke få forbindelse til Dropbox."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox konnte nicht erreicht werden."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Δεν ήταν δυνατή η πρόσβαση στο Dropbox."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t reach Dropbox."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se ha podido conectar con Dropbox."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxiin ei saatu yhteyttä."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossible de joindre Dropbox."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nije moguće pristupiti Dropboxu."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nem sikerült elérni a Dropboxot."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tidak dapat menjangkau Dropbox."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossibile raggiungere Dropbox."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxに接続できませんでした。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox에 연결할 수 없습니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunne ikke nå Dropbox."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kan Dropbox niet bereiken."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie można połączyć z Dropbox."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível acessar o Dropbox."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível aceder ao Dropbox."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox nu a putut fi accesat."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось подключиться к Dropbox."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepodarilo sa pripojiť k službe Dropbox."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Det gick inte att nå Dropbox."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่สามารถเชื่อมต่อ Dropbox ได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox’a ulaşılamadı."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не вдалося зʼєднатися з Dropbox."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể kết nối Dropbox."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接 Dropbox。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法連線至 Dropbox。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "browser.filter": {
       "comment": "iOS Files tab: placeholder of the field at the top of a folder that narrows its list to the names containing what is typed. A verb or noun, as this language's Files or Mail app uses it.",
       "localizations": {
@@ -3908,7 +3908,7 @@
       "extractionState": "manual"
     },
     "browser.locations": {
-      "comment": "iOS Files tab: heading above the places the user can browse: the files on the device, their Dropbox, and the folders they have given the app permission to read (on the device, an external drive, a cloud service's folder).",
+      "comment": "iOS Files tab: heading above the places the user can browse: the files on the device, their cloud storage accounts such as Dropbox, and the folders they have given the app permission to read (on the device, an external drive, a cloud service's folder).",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -35713,187 +35713,187 @@
       },
       "extractionState": "manual"
     },
-    "search.dropbox.searching": {
-      "comment": "iOS: heading of the Dropbox search results while the app is still waiting for Dropbox to answer the query; it becomes 'Dropbox' when the results arrive. Dropbox is a product name: keep it untranslated. Ends with an ellipsis character.",
+    "search.account.searching": {
+      "comment": "iOS: heading of a cloud storage service's search results while the app is still waiting for the service to answer the query; it becomes the service's name when the results arrive. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending. Ends with an ellipsis character.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Търсене в Dropbox…"
+            "value": "Търсене в %@…"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hledání ve službě Dropbox…"
+            "value": "Hledání ve službě %@…"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søger i Dropbox…"
+            "value": "Søger i %@…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dropbox wird durchsucht…"
+            "value": "%@ wird durchsucht…"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αναζήτηση στο Dropbox…"
+            "value": "Αναζήτηση στο %@…"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Searching Dropbox…"
+            "value": "Searching %@…"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buscando en Dropbox…"
+            "value": "Buscando en %@…"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Etsitään Dropboxista…"
+            "value": "Etsitään palvelusta %@…"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recherche dans Dropbox…"
+            "value": "Recherche dans %@…"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pretraživanje Dropboxa…"
+            "value": "Pretraživanje usluge %@…"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keresés a Dropboxban…"
+            "value": "Keresés a(z) %@ szolgáltatásban…"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mencari di Dropbox…"
+            "value": "Mencari di %@…"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ricerca in Dropbox…"
+            "value": "Ricerca in %@…"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dropboxを検索中…"
+            "value": "%@を検索中…"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dropbox 검색 중…"
+            "value": "%@ 검색 중…"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Søker i Dropbox…"
+            "value": "Søker i %@…"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dropbox doorzoeken…"
+            "value": "%@ doorzoeken…"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Szukanie w Dropbox…"
+            "value": "Szukanie w usłudze %@…"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buscando no Dropbox…"
+            "value": "Buscando no %@…"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "A pesquisar no Dropbox…"
+            "value": "A pesquisar no %@…"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se caută în Dropbox…"
+            "value": "Se caută în %@…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Поиск в Dropbox…"
+            "value": "Поиск в %@…"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hľadanie v službe Dropbox…"
+            "value": "Hľadanie v službe %@…"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Söker i Dropbox…"
+            "value": "Söker i %@…"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กำลังค้นหา Dropbox…"
+            "value": "กำลังค้นหา %@…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dropbox’ta Aranıyor…"
+            "value": "%@ Hizmetinde Aranıyor…"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пошук у Dropbox…"
+            "value": "Пошук у %@…"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đang tìm trong Dropbox…"
+            "value": "Đang tìm trong %@…"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在搜索 Dropbox…"
+            "value": "正在搜索 %@…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "正在搜尋 Dropbox…"
+            "value": "正在搜尋 %@…"
           }
         }
       },
@@ -36086,7 +36086,7 @@
       "extractionState": "manual"
     },
     "search.scope.all": {
-      "comment": "iOS: the first button of the scope bar above the search results; shows matches from every place searched — files, Dropbox and the playlist — rather than one of them.",
+      "comment": "iOS: the first button of the scope bar above the search results; shows matches from every place searched — files, cloud storage accounts such as Dropbox, and the playlist — rather than one of them.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -36272,7 +36272,7 @@
       "extractionState": "manual"
     },
     "search.section.files": {
-      "comment": "iOS: header of the search results section listing matching audio files stored on the device or in a folder the user added, which are not in the playlist yet, and the scope-bar button above the results that shows only that section. It stands beside a 'Dropbox' section for files in the user's Dropbox, so it means 'not in Dropbox'.",
+      "comment": "iOS: header of the search results section listing matching audio files stored on the device or in a folder the user added, which are not in the playlist yet, and the scope-bar button above the results that shows only that section. It stands beside a section per cloud storage service, such as 'Dropbox', so it means 'not in a cloud service'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -37196,6 +37196,1866 @@
           "stringUnit": {
             "state": "translated",
             "value": "網站"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.connect": {
+      "comment": "iOS: signs in to the user's account with a cloud storage service, opening the service's own sign-in page. A row in Settings, Files and Accounts, and an item in the menu of the plus button on the Files tab. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свързване с %@…"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Připojit službu %@…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opret forbindelse til %@…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit %@ verbinden…"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Σύνδεση στο %@…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to %@…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar con %@…"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yhdistä palveluun %@…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter à %@…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poveži se s uslugom %@…"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Csatlakozás a(z) %@ szolgáltatáshoz…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hubungkan ke %@…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connetti a %@…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に接続…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 연결…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koble til %@…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maak verbinding met %@…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Połącz z usługą %@…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar ao %@…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ligar ao %@…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectați-vă la %@…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключить %@…"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pripojiť službu %@…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anslut till %@…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เชื่อมต่อกับ %@…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Hizmetine Bağlan…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підключити %@…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối với %@…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接到 %@…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連線至 %@…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.connect_failed": {
+      "comment": "iOS: alert message when signing in to a cloud storage account failed, or a search result in it could not be reached. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending. Uses a curly apostrophe (’) where the language has one.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неуспешно свързване с %@. Проверете интернет връзката си и опитайте отново."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepodařilo se připojit ke službě %@. Zkontrolujte připojení k internetu a zkuste to znovu."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke oprette forbindelse til %@. Tjek din internetforbindelse, og prøv igen."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung mit %@ nicht möglich. Überprüfe deine Internetverbindung und versuche es erneut."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Δεν ήταν δυνατή η σύνδεση στο %@. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και δοκιμάστε ξανά."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t connect to %@. Check your internet connection and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se ha podido conectar con %@. Comprueba tu conexión a internet y vuelve a intentarlo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palveluun %@ ei voitu yhdistää. Tarkista internetyhteys ja yritä uudelleen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de se connecter à %@. Vérifiez votre connexion Internet et réessayez."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povezivanje s uslugom %@ nije uspjelo. Provjerite internetsku vezu i pokušajte ponovno."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nem sikerült csatlakozni a(z) %@ szolgáltatáshoz. Ellenőrizd az internetkapcsolatot, és próbáld újra."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidak dapat terhubung ke %@. Periksa koneksi internet Anda dan coba lagi."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossibile connettersi a %@. Controlla la connessione a Internet e riprova."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に接続できませんでした。インターネット接続を確認して、もう一度お試しください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 연결할 수 없습니다. 인터넷 연결을 확인한 후 다시 시도하십시오."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kunne ikke koble til %@. Sjekk internettforbindelsen, og prøv igjen."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kan geen verbinding maken met %@. Controleer je internetverbinding en probeer het opnieuw."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nie można połączyć z usługą %@. Sprawdź połączenie z internetem i spróbuj ponownie."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível conectar ao %@. Verifique sua conexão com a internet e tente novamente."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível ligar ao %@. Verifique a ligação à internet e tente novamente."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nu s-a putut realiza conectarea la %@. Verificați conexiunea la internet și încercați din nou."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось подключиться к %@. Проверьте подключение к интернету и повторите попытку."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nepodarilo sa pripojiť k službe %@. Skontrolujte pripojenie na internet a skúste to znova."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Det gick inte att ansluta till %@. Kontrollera internetanslutningen och försök igen."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถเชื่อมต่อกับ %@ ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hizmetine bağlanılamadı. İnternet bağlantınızı denetleyip yeniden deneyin."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не вдалося підключитися до %@. Перевірте підключення до інтернету й повторіть спробу."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kết nối với %@. Hãy kiểm tra kết nối Internet và thử lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法连接到 %@。请检查互联网连接，然后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法連線至 %@。請檢查網際網路連線，然後再試一次。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.connected": {
+      "comment": "iOS settings screen, Files and Accounts: shown beside the signed-in account's name, saying the app can reach that account.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свързан"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Připojeno"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forbundet"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbunden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Συνδεδεμένο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectado"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yhdistetty"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecté"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Povezano"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Csatlakoztatva"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terhubung"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connesso"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続済み"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결됨"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tilkoblet"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbonden"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Połączono"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectado"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ligado"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectat"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключено"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pripojené"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ansluten"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เชื่อมต่อแล้ว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Підключено"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã kết nối"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已连接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已連線"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.disconnect": {
+      "comment": "iOS settings screen, Files and Accounts: destructive row under a signed-in cloud storage account; signs the app out of that account. Also the confirm button of the alert that asks first.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прекъсване на връзката"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odpojit"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afbryd forbindelse"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αποσύνδεση"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Katkaise yhteys"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prekini vezu"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapcsolat bontása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Putuskan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnetti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続解除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "연결 해제"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koble fra"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbreek verbinding"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozłącz"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desligar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deconectați"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отключить"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odpojiť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koppla från"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัดการเชื่อมต่อ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantıyı Kes"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відключити"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắt kết nối"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "断开连接"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中斷連線"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.disconnect.message": {
+      "comment": "iOS settings screen, Files and Accounts: message of the alert asking the user to confirm signing out of a cloud storage account. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Песните, изтеглени от %@, ще бъдат премахнати от това устройство и всичко, което се възпроизвежда оттам, ще спре."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skladby stažené ze služby %@ budou z tohoto zařízení odstraněny a přehrávání z ní se zastaví."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sange, der er hentet fra %@, fjernes fra denne enhed, og alt, der afspilles derfra, stopper."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von %@ geladene Titel werden von diesem Gerät entfernt und die Wiedergabe daraus wird beendet."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τα κομμάτια που έχουν ληφθεί από το %@ θα αφαιρεθούν από αυτήν τη συσκευή και ό,τι αναπαράγεται από εκεί θα σταματήσει."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songs downloaded from %@ will be removed from this device, and anything playing from it will stop."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las canciones descargadas de %@ se eliminarán de este dispositivo y se detendrá todo lo que se esté reproduciendo desde allí."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palvelusta %@ ladatut kappaleet poistetaan tästä laitteesta, ja sieltä toistettava sisältö pysähtyy."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les morceaux téléchargés depuis %@ seront supprimés de cet appareil et toute lecture depuis ce service s’arrêtera."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pjesme preuzete s usluge %@ bit će uklonjene s ovog uređaja, a sve što se s nje reproducira zaustavit će se."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A(z) %@ szolgáltatásból letöltött számok törlődnek erről az eszközről, és ami onnan szól, leáll."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lagu yang diunduh dari %@ akan dihapus dari perangkat ini, dan apa pun yang diputar dari sana akan berhenti."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I brani scaricati da %@ verranno rimossi da questo dispositivo e la riproduzione da questo servizio verrà interrotta."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@からダウンロードした曲はこのデバイスから削除され、そこから再生中の曲は停止します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에서 다운로드한 곡이 이 기기에서 제거되며, 해당 서비스에서 재생 중인 항목은 정지됩니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sanger som er lastet ned fra %@, blir fjernet fra denne enheten, og alt som spilles av derfra, stopper."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummers die van %@ zijn gedownload, worden van dit apparaat verwijderd en alles wat daarvandaan wordt afgespeeld, stopt."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utwory pobrane z usługi %@ zostaną usunięte z tego urządzenia, a odtwarzanie z niej zostanie zatrzymane."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As músicas baixadas do %@ serão removidas deste dispositivo, e o que estiver tocando de lá será interrompido."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As músicas descarregadas do %@ serão removidas deste dispositivo e o que estiver a ser reproduzido a partir daí será interrompido."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melodiile descărcate din %@ vor fi eliminate de pe acest dispozitiv, iar orice se redă de acolo se va opri."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Треки, загруженные из %@, будут удалены с этого устройства, а воспроизведение из этого сервиса остановится."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skladby stiahnuté zo služby %@ sa z tohto zariadenia odstránia a prehrávanie z nej sa zastaví."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Låtar som hämtats från %@ tas bort från den här enheten, och allt som spelas upp därifrån stoppas."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพลงที่ดาวน์โหลดจาก %@ จะถูกลบออกจากอุปกรณ์นี้ และสิ่งที่กำลังเล่นจากบริการนี้จะหยุด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ hizmetinden indirilen şarkılar bu aygıttan kaldırılacak ve oradan çalınan her şey duracak."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Треки, завантажені з %@, буде вилучено з цього пристрою, а відтворення з цього сервісу зупиниться."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các bài hát đã tải về từ %@ sẽ bị xóa khỏi thiết bị này và mọi nội dung đang phát từ dịch vụ đó sẽ dừng."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 %@ 下载的歌曲将从此设备中移除，正在从该服务播放的内容将停止。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從 %@ 下載的歌曲將從此裝置中移除，正在從該服務播放的內容將會停止。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.disconnect.title": {
+      "comment": "iOS settings screen, Files and Accounts: title of the alert asking before the app signs out of a cloud storage account. %@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. Choose a wording where the name needs no case ending.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прекъсване на връзката с %@?"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odpojit službu %@?"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Afbryd forbindelsen til %@?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung mit %@ trennen?"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αποσύνδεση από το %@;"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect from %@?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Desconectar de %@?"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Katkaistaanko yhteys palveluun %@?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se déconnecter de %@ ?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prekinuti vezu s uslugom %@?"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bontod a kapcsolatot a(z) %@ szolgáltatással?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Putuskan dari %@?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnettersi da %@?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@との接続を解除しますか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 연결을 해제하겠습니까?"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koble fra %@?"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinding met %@ verbreken?"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rozłączyć z usługą %@?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar do %@?"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desligar do %@?"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vă deconectați de la %@?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отключить %@?"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odpojiť službu %@?"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Koppla från %@?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัดการเชื่อมต่อจาก %@ ใช่หรือไม่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Bağlantısı Kesilsin mi?"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Відключити %@?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngắt kết nối khỏi %@?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要断开与 %@ 的连接吗？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要中斷與 %@ 的連線嗎？"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.footer": {
+      "comment": "iOS settings screen, Files and Accounts: explanation under a Connect row, before an account is signed in. %1$@ is the name of a cloud storage service, such as Dropbox or Google Drive: a product name, kept as is. %2$@ is the app name. Choose a wording where neither name needs a case ending or an article that agrees with it.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разглеждайте и търсете файловете си в %1$@ чрез %2$@."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Procházejte a prohledávejte své soubory ve službě %1$@ v aplikaci %2$@."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gennemse og søg i dine filer på %1$@ i %2$@."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Dateien in %1$@ mit %2$@ durchblättern und durchsuchen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Περιηγηθείτε και κάντε αναζήτηση στα αρχεία σας στο %1$@ μέσα από το %2$@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse and search your %1$@ in %2$@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explora y busca tus archivos de %1$@ desde %2$@."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selaa ja etsi tiedostojasi palvelussa %1$@ %2$@-apissa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parcourez vos fichiers %1$@ et effectuez des recherches dans %2$@."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregledavajte i pretražujte svoje datoteke na usluzi %1$@ u aplikaciji %2$@."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Böngészd és keresd át a fájljaidat a(z) %1$@ szolgáltatásban a(z) %2$@ appban."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Telusuri dan cari file %1$@ Anda di %2$@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sfoglia e cerca i tuoi file di %1$@ in %2$@."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@で%1$@をブラウズ・検索できます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@에서 %1$@ 파일을 탐색하고 검색할 수 있습니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bla gjennom og søk i filene dine på %1$@ i %2$@."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blader door en zoek in je %1$@-bestanden in %2$@."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przeglądaj i przeszukuj swoje pliki w usłudze %1$@ w aplikacji %2$@."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navegue e busque nos seus arquivos do %1$@ pelo %2$@."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explore e pesquise os seus ficheiros do %1$@ no %2$@."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Răsfoiți și căutați fișierele din %1$@ în %2$@."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Просматривайте файлы в %1$@ и ищите среди них в %2$@."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prehliadajte a prehľadávajte svoje súbory v službe %1$@ v aplikácii %2$@."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bläddra och sök bland dina filer i %1$@ i %2$@."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เลือกดูและค้นหาไฟล์ใน %1$@ ของคุณใน %2$@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ dosyalarınıza %2$@ içinden göz atın ve arama yapın."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переглядайте файли в %1$@ і шукайте серед них у %2$@."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duyệt và tìm kiếm tệp trong %1$@ của bạn ngay trong %2$@."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %2$@ 中浏览和搜索你的 %1$@ 文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 %2$@ 中瀏覽和搜尋你的 %1$@ 檔案。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.footer.linked": {
+      "comment": "iOS settings screen, Files and Accounts: explanation under a signed-in cloud storage account's rows. 'The maximum size' is the Maximum Size row just above it.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Песните се изтеглят, когато ги пуснете. Най-старите се премахват, когато изтеглянията достигнат максималния размер."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skladby se stahují, když je přehrajete. Po dosažení maximální velikosti stažených souborů se nejstarší odstraní."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sange hentes, når du afspiller dem. De ældste fjernes, når overførslerne når den maksimale størrelse."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel werden beim Abspielen geladen. Die ältesten werden entfernt, wenn die Downloads die maximale Größe erreichen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Τα κομμάτια λαμβάνονται όταν τα αναπαράγετε. Τα παλαιότερα αφαιρούνται όταν οι λήψεις φτάσουν το μέγιστο μέγεθος."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songs download when you play them. The oldest are removed when downloads reach the maximum size."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las canciones se descargan al reproducirlas. Las más antiguas se eliminan cuando las descargas alcanzan el tamaño máximo."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kappaleet ladataan, kun toistat ne. Vanhimmat poistetaan, kun lataukset saavuttavat enimmäiskoon."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les morceaux sont téléchargés lorsque vous les lisez. Les plus anciens sont supprimés lorsque les téléchargements atteignent la taille maximale."
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pjesme se preuzimaju kad ih reproducirate. Najstarije se uklanjaju kad preuzimanja dosegnu maksimalnu veličinu."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A számok lejátszáskor töltődnek le. A legrégebbiek törlődnek, ha a letöltések elérik a maximális méretet."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lagu diunduh saat Anda memutarnya. Lagu terlama dihapus saat unduhan mencapai ukuran maksimum."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I brani vengono scaricati quando li riproduci. I più vecchi vengono rimossi quando i download raggiungono la dimensione massima."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "曲は再生時にダウンロードされます。ダウンロードが最大サイズに達すると、古いものから削除されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "곡은 재생할 때 다운로드됩니다. 다운로드가 최대 크기에 도달하면 가장 오래된 곡부터 제거됩니다."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sanger lastes ned når du spiller dem av. De eldste fjernes når nedlastingene når maksimal størrelse."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nummers worden gedownload wanneer je ze afspeelt. De oudste worden verwijderd wanneer de downloads de maximale grootte bereiken."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utwory są pobierane podczas odtwarzania. Gdy pobrane pliki osiągną maksymalny rozmiar, najstarsze zostaną usunięte."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As músicas são baixadas quando você as reproduz. As mais antigas são removidas quando os downloads atingem o tamanho máximo."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "As músicas são descarregadas quando as reproduz. As mais antigas são removidas quando as transferências atingem o tamanho máximo."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melodiile se descarcă atunci când le redați. Cele mai vechi sunt eliminate când descărcările ating dimensiunea maximă."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Треки загружаются при воспроизведении. Когда загрузки достигают максимального размера, самые старые удаляются."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skladby sa stiahnu, keď ich prehráte. Keď stiahnuté súbory dosiahnu maximálnu veľkosť, najstaršie sa odstránia."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Låtar hämtas när du spelar upp dem. De äldsta tas bort när hämtningarna når maxstorleken."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เพลงจะดาวน์โหลดเมื่อคุณเล่น เมื่อรายการดาวน์โหลดถึงขนาดสูงสุด เพลงที่เก่าที่สุดจะถูกลบออก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şarkılar, çaldığınızda indirilir. İndirilenler maksimum boyuta ulaştığında en eskileri kaldırılır."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Треки завантажуються, коли ви їх відтворюєте. Коли завантаження досягають максимального розміру, найстаріші вилучаються."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bài hát được tải về khi bạn phát. Các bài cũ nhất sẽ bị xóa khi bản tải về đạt kích thước tối đa."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌曲会在播放时下载。下载内容达到大小上限时，最早下载的歌曲将被移除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌曲會在播放時下載。下載內容達到大小上限時，最早下載的歌曲將被移除。"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.maximum_size": {
+      "comment": "iOS settings screen, Files and Accounts: row under a signed-in cloud storage account choosing how much space songs downloaded from it may take before the oldest are removed; the chosen size, such as 10 GB, is shown beside it. Also the title of the screen listing the sizes.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимален размер"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximální velikost"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maksimal størrelse"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximale Größe"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μέγιστο μέγεθος"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximum Size"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamaño máximo"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enimmäiskoko"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taille maximale"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maksimalna veličina"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximális méret"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukuran Maksimum"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimensione massima"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最大サイズ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "최대 크기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maksimal størrelse"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximale grootte"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maksymalny rozmiar"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamanho máximo"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamanho máximo"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dimensiune maximă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимальный размер"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maximálna veľkosť"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maxstorlek"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ขนาดสูงสุด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maksimum Boyut"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Максимальний розмір"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kích thước tối đa"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大小上限"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大小上限"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.account.remove_downloads": {
+      "comment": "iOS settings screen, Files and Accounts: row under a signed-in cloud storage account that deletes the songs downloaded from it to this device; they download again when played. The space they take is shown beside it.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Премахване на изтеглянията"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstranit stažené"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern overførsler"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads entfernen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αφαίρεση λήψεων"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Downloads"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar descargas"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poista lataukset"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Supprimer les téléchargements"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukloni preuzimanja"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letöltések eltávolítása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hapus Unduhan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rimuovi download"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードを削除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다운로드 항목 제거"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fjern nedlastinger"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwijder downloads"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usuń pobrane"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover downloads"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remover transferências"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminați descărcările"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить загрузки"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odstrániť stiahnuté"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ta bort hämtningar"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ลบรายการดาวน์โหลด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İndirilenleri Kaldır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вилучити завантаження"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa bản tải về"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除下载内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除下載項目"
           }
         }
       },
@@ -84445,1866 +86305,6 @@
       },
       "extractionState": "manual"
     },
-    "settings.dropbox.connect": {
-      "comment": "iOS: signs in to the user's Dropbox account, opening Dropbox's own sign-in page. A row in Settings, Files, and an item in the menu of the plus button on the Files tab. Dropbox is a product name: keep it untranslated. Ends with a real ellipsis character (…), not three periods.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Свързване с Dropbox…"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Připojit Dropbox…"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opret forbindelse til Dropbox…"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mit Dropbox verbinden…"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Σύνδεση στο Dropbox…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connect to Dropbox…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectar con Dropbox…"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yhdistä Dropboxiin…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se connecter à Dropbox…"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poveži se s Dropboxom…"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Csatlakozás a Dropboxhoz…"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hubungkan ke Dropbox…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connetti a Dropbox…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxに接続…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox에 연결…"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koble til Dropbox…"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maak verbinding met Dropbox…"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Połącz z Dropbox…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectar ao Dropbox…"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ligar ao Dropbox…"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectați-vă la Dropbox…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключить Dropbox…"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pripojiť Dropbox…"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anslut till Dropbox…"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เชื่อมต่อกับ Dropbox…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox’a Bağlan…"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Підключити Dropbox…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kết nối với Dropbox…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "连接到 Dropbox…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "連線至 Dropbox…"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.connect_failed": {
-      "comment": "iOS settings screen, Files: alert message when signing in to Dropbox failed. Dropbox is a product name: keep it untranslated. Uses a curly apostrophe (’).",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Неуспешно свързване с Dropbox. Проверете интернет връзката си и опитайте отново."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepodařilo se připojit ke službě Dropbox. Zkontrolujte připojení k internetu a zkuste to znovu."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunne ikke oprette forbindelse til Dropbox. Tjek din internetforbindelse, og prøv igen."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindung mit Dropbox nicht möglich. Überprüfe deine Internetverbindung und versuche es erneut."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Δεν ήταν δυνατή η σύνδεση στο Dropbox. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και δοκιμάστε ξανά."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn’t connect to Dropbox. Check your internet connection and try again."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se ha podido conectar con Dropbox. Comprueba tu conexión a internet y vuelve a intentarlo."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxiin ei voitu yhdistää. Tarkista internetyhteys ja yritä uudelleen."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossible de se connecter à Dropbox. Vérifiez votre connexion Internet et réessayez."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Povezivanje s Dropboxom nije uspjelo. Provjerite internetsku vezu i pokušajte ponovno."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nem sikerült csatlakozni a Dropboxhoz. Ellenőrizd az internetkapcsolatot, és próbáld újra."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tidak dapat terhubung ke Dropbox. Periksa koneksi internet Anda dan coba lagi."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossibile connettersi a Dropbox. Controlla la connessione a Internet e riprova."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxに接続できませんでした。インターネット接続を確認して、もう一度お試しください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox에 연결할 수 없습니다. 인터넷 연결을 확인한 후 다시 시도하십시오."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kunne ikke koble til Dropbox. Sjekk internettforbindelsen, og prøv igjen."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kan geen verbinding maken met Dropbox. Controleer je internetverbinding en probeer het opnieuw."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie można połączyć z Dropbox. Sprawdź połączenie z internetem i spróbuj ponownie."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível conectar ao Dropbox. Verifique sua conexão com a internet e tente novamente."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível ligar ao Dropbox. Verifique a ligação à internet e tente novamente."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nu s-a putut realiza conectarea la Dropbox. Verificați conexiunea la internet și încercați din nou."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось подключиться к Dropbox. Проверьте подключение к интернету и повторите попытку."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nepodarilo sa pripojiť k službe Dropbox. Skontrolujte pripojenie na internet a skúste to znova."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Det gick inte att ansluta till Dropbox. Kontrollera internetanslutningen och försök igen."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่สามารถเชื่อมต่อกับ Dropbox ได้ โปรดตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox’a bağlanılamadı. İnternet bağlantınızı denetleyip yeniden deneyin."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не вдалося підключитися до Dropbox. Перевірте підключення до інтернету й повторіть спробу."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể kết nối với Dropbox. Hãy kiểm tra kết nối Internet và thử lại."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接到 Dropbox。请检查互联网连接，然后重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法連線至 Dropbox。請檢查網際網路連線，然後再試一次。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.connected": {
-      "comment": "iOS settings screen, Files: shown beside the signed-in Dropbox account's name, saying the app can reach that account.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Свързан"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Připojeno"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Forbundet"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbunden"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Συνδεδεμένο"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connected"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectado"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yhdistetty"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connecté"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Povezano"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Csatlakoztatva"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terhubung"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connesso"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接続済み"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "연결됨"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tilkoblet"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbonden"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Połączono"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectado"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ligado"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectat"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключено"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pripojené"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ansluten"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เชื่อมต่อแล้ว"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bağlı"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Підключено"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đã kết nối"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已连接"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已連線"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.disconnect": {
-      "comment": "iOS settings screen, Files: destructive row under the signed-in Dropbox account; signs the app out of that account. Also the confirm button of the alert that asks first.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прекъсване на връзката"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odpojit"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afbryd forbindelse"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trennen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Αποσύνδεση"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnect"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desconectar"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Katkaise yhteys"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se déconnecter"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prekini vezu"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kapcsolat bontása"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Putuskan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnetti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接続解除"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "연결 해제"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koble fra"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbreek verbinding"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rozłącz"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desconectar"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desligar"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deconectați"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отключить"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odpojiť"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koppla från"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ตัดการเชื่อมต่อ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bağlantıyı Kes"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Відключити"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ngắt kết nối"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "断开连接"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "中斷連線"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.disconnect.message": {
-      "comment": "iOS settings screen, Files: message of the alert asking the user to confirm signing out of Dropbox. Dropbox is a product name: keep it untranslated.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Песните, изтеглени от Dropbox, ще бъдат премахнати от това устройство и всичко, което се възпроизвежда от Dropbox, ще спре."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladby stažené ze služby Dropbox budou z tohoto zařízení odstraněny a přehrávání ze služby Dropbox se zastaví."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sange, der er hentet fra Dropbox, fjernes fra denne enhed, og alt, der afspilles fra Dropbox, stopper."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Von Dropbox geladene Titel werden von diesem Gerät entfernt und die Wiedergabe aus Dropbox wird beendet."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Τα κομμάτια που έχουν ληφθεί από το Dropbox θα αφαιρεθούν από αυτήν τη συσκευή και ό,τι αναπαράγεται από το Dropbox θα σταματήσει."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Songs downloaded from Dropbox will be removed from this device, and anything playing from Dropbox will stop."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las canciones descargadas de Dropbox se eliminarán de este dispositivo y se detendrá todo lo que se esté reproduciendo desde Dropbox."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxista ladatut kappaleet poistetaan tästä laitteesta, ja Dropboxista toistettava sisältö pysähtyy."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les morceaux téléchargés depuis Dropbox seront supprimés de cet appareil et toute lecture depuis Dropbox s’arrêtera."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pjesme preuzete s Dropboxa bit će uklonjene s ovog uređaja, a sve što se reproducira s Dropboxa zaustavit će se."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A Dropboxból letöltött számok törlődnek erről az eszközről, és ami a Dropboxból szól, leáll."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lagu yang diunduh dari Dropbox akan dihapus dari perangkat ini, dan apa pun yang diputar dari Dropbox akan berhenti."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I brani scaricati da Dropbox verranno rimossi da questo dispositivo e la riproduzione da Dropbox verrà interrotta."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxからダウンロードした曲はこのデバイスから削除され、Dropboxから再生中の曲は停止します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox에서 다운로드한 곡이 이 기기에서 제거되며, Dropbox에서 재생 중인 항목은 정지됩니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sanger som er lastet ned fra Dropbox, blir fjernet fra denne enheten, og alt som spilles av fra Dropbox, stopper."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nummers die van Dropbox zijn gedownload, worden van dit apparaat verwijderd en alles wat vanuit Dropbox wordt afgespeeld, stopt."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utwory pobrane z Dropbox zostaną usunięte z tego urządzenia, a odtwarzanie z Dropbox zostanie zatrzymane."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As músicas baixadas do Dropbox serão removidas deste dispositivo, e o que estiver tocando do Dropbox será interrompido."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As músicas descarregadas do Dropbox serão removidas deste dispositivo e o que estiver a ser reproduzido a partir do Dropbox será interrompido."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Melodiile descărcate din Dropbox vor fi eliminate de pe acest dispozitiv, iar orice se redă din Dropbox se va opri."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Треки, загруженные из Dropbox, будут удалены с этого устройства, а воспроизведение из Dropbox остановится."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladby stiahnuté zo služby Dropbox sa z tohto zariadenia odstránia a prehrávanie zo služby Dropbox sa zastaví."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Låtar som hämtats från Dropbox tas bort från den här enheten, och allt som spelas upp från Dropbox stoppas."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพลงที่ดาวน์โหลดจาก Dropbox จะถูกลบออกจากอุปกรณ์นี้ และสิ่งที่กำลังเล่นจาก Dropbox จะหยุด"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox’tan indirilen şarkılar bu aygıttan kaldırılacak ve Dropbox’tan çalınan her şey duracak."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Треки, завантажені з Dropbox, буде вилучено з цього пристрою, а відтворення з Dropbox зупиниться."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Các bài hát đã tải về từ Dropbox sẽ bị xóa khỏi thiết bị này và mọi nội dung đang phát từ Dropbox sẽ dừng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "从 Dropbox 下载的歌曲将从此设备中移除，正在从 Dropbox 播放的内容将停止。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "從 Dropbox 下載的歌曲將從此裝置中移除，正在從 Dropbox 播放的內容將會停止。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.disconnect.title": {
-      "comment": "iOS settings screen, Files and Dropbox: title of the alert asking before the app signs out of the user's Dropbox account. Dropbox is a product name: keep it as is.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Прекъсване на връзката с Dropbox?"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odpojit Dropbox?"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Afbryd forbindelsen til Dropbox?"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindung mit Dropbox trennen?"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Αποσύνδεση από το Dropbox;"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnect from Dropbox?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Desconectar de Dropbox?"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Katkaistaanko yhteys Dropboxiin?"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se déconnecter de Dropbox ?"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prekinuti vezu s Dropboxom?"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bontod a kapcsolatot a Dropboxszal?"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Putuskan dari Dropbox?"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disconnettersi da Dropbox?"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropboxとの接続を解除しますか？"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox 연결을 해제하겠습니까?"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koble fra Dropbox?"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbinding met Dropbox verbreken?"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rozłączyć z Dropbox?"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desconectar do Dropbox?"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desligar do Dropbox?"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vă deconectați de la Dropbox?"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Отключить Dropbox?"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odpojiť Dropbox?"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koppla från Dropbox?"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ตัดการเชื่อมต่อจาก Dropbox ใช่หรือไม่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox Bağlantısı Kesilsin mi?"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Відключити Dropbox?"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ngắt kết nối khỏi Dropbox?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "要断开与 Dropbox 的连接吗？"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "要中斷與 Dropbox 的連線嗎？"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.footer": {
-      "comment": "iOS settings screen, Files: explanation under the Connect to Dropbox row, before an account is signed in. %@ is the app name. Dropbox is a product name: keep it untranslated.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Разглеждайте и търсете във вашия Dropbox в %@."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Procházejte a prohledávejte svůj Dropbox v aplikaci %@."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gennemse og søg i din Dropbox i %@."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deine Dropbox in %@ durchblättern und durchsuchen."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Περιηγηθείτε και κάντε αναζήτηση στο Dropbox σας μέσα από το %@."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Browse and search your Dropbox in %@."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Explora y busca en tu Dropbox desde %@."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selaa ja etsi Dropboxiasi %@-apissa."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Parcourez votre Dropbox et effectuez des recherches dans %@."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pregledavajte i pretražujte svoj Dropbox u aplikaciji %@."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Böngészd és keresd át a Dropboxodat a(z) %@ appban."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Telusuri dan cari Dropbox Anda di %@."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sfoglia e cerca nel tuo Dropbox in %@."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@でDropboxをブラウズ・検索できます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@에서 Dropbox를 탐색하고 검색할 수 있습니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bla gjennom og søk i din Dropbox i %@."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Blader door en zoek in je Dropbox in %@."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przeglądaj i przeszukuj swój Dropbox w %@."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Navegue e busque no seu Dropbox pelo %@."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Explore e pesquise o seu Dropbox no %@."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Răsfoiți și căutați în Dropbox în %@."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Просматривайте свой Dropbox и ищите в нём в %@."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prehliadajte a prehľadávajte svoj Dropbox v aplikácii %@."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bläddra och sök i din Dropbox i %@."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เลือกดูและค้นหา Dropbox ของคุณใน %@"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dropbox’ınıza %@ içinden göz atın ve arama yapın."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Переглядайте свій Dropbox і шукайте в ньому в %@."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duyệt và tìm kiếm trong Dropbox của bạn ngay trong %@."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在 %@ 中浏览和搜索你的 Dropbox。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在 %@ 中瀏覽和搜尋你的 Dropbox。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.footer.linked": {
-      "comment": "iOS settings screen, Files: explanation under the signed-in Dropbox account's rows. 'The maximum size' is the Maximum Size row just above it.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Песните се изтеглят, когато ги пуснете. Най-старите се премахват, когато изтеглянията достигнат максималния размер."
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladby se stahují, když je přehrajete. Po dosažení maximální velikosti stažených souborů se nejstarší odstraní."
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sange hentes, når du afspiller dem. De ældste fjernes, når overførslerne når den maksimale størrelse."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titel werden beim Abspielen geladen. Die ältesten werden entfernt, wenn die Downloads die maximale Größe erreichen."
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Τα κομμάτια λαμβάνονται όταν τα αναπαράγετε. Τα παλαιότερα αφαιρούνται όταν οι λήψεις φτάσουν το μέγιστο μέγεθος."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Songs download when you play them. The oldest are removed when downloads reach the maximum size."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las canciones se descargan al reproducirlas. Las más antiguas se eliminan cuando las descargas alcanzan el tamaño máximo."
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kappaleet ladataan, kun toistat ne. Vanhimmat poistetaan, kun lataukset saavuttavat enimmäiskoon."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les morceaux sont téléchargés lorsque vous les lisez. Les plus anciens sont supprimés lorsque les téléchargements atteignent la taille maximale."
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pjesme se preuzimaju kad ih reproducirate. Najstarije se uklanjaju kad preuzimanja dosegnu maksimalnu veličinu."
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A számok lejátszáskor töltődnek le. A legrégebbiek törlődnek, ha a letöltések elérik a maximális méretet."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lagu diunduh saat Anda memutarnya. Lagu terlama dihapus saat unduhan mencapai ukuran maksimum."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "I brani vengono scaricati quando li riproduci. I più vecchi vengono rimossi quando i download raggiungono la dimensione massima."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "曲は再生時にダウンロードされます。ダウンロードが最大サイズに達すると、古いものから削除されます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "곡은 재생할 때 다운로드됩니다. 다운로드가 최대 크기에 도달하면 가장 오래된 곡부터 제거됩니다."
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sanger lastes ned når du spiller dem av. De eldste fjernes når nedlastingene når maksimal størrelse."
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nummers worden gedownload wanneer je ze afspeelt. De oudste worden verwijderd wanneer de downloads de maximale grootte bereiken."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utwory są pobierane podczas odtwarzania. Gdy pobrane pliki osiągną maksymalny rozmiar, najstarsze zostaną usunięte."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As músicas são baixadas quando você as reproduz. As mais antigas são removidas quando os downloads atingem o tamanho máximo."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As músicas são descarregadas quando as reproduz. As mais antigas são removidas quando as transferências atingem o tamanho máximo."
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Melodiile se descarcă atunci când le redați. Cele mai vechi sunt eliminate când descărcările ating dimensiunea maximă."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Треки загружаются при воспроизведении. Когда загрузки достигают максимального размера, самые старые удаляются."
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skladby sa stiahnu, keď ich prehráte. Keď stiahnuté súbory dosiahnu maximálnu veľkosť, najstaršie sa odstránia."
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Låtar hämtas när du spelar upp dem. De äldsta tas bort när hämtningarna når maxstorleken."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพลงจะดาวน์โหลดเมื่อคุณเล่น เมื่อรายการดาวน์โหลดถึงขนาดสูงสุด เพลงที่เก่าที่สุดจะถูกลบออก"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Şarkılar, çaldığınızda indirilir. İndirilenler maksimum boyuta ulaştığında en eskileri kaldırılır."
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Треки завантажуються, коли ви їх відтворюєте. Коли завантаження досягають максимального розміру, найстаріші вилучаються."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bài hát được tải về khi bạn phát. Các bài cũ nhất sẽ bị xóa khi bản tải về đạt kích thước tối đa."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歌曲会在播放时下载。下载内容达到大小上限时，最早下载的歌曲将被移除。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歌曲會在播放時下載。下載內容達到大小上限時，最早下載的歌曲將被移除。"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.maximum_size": {
-      "comment": "iOS settings screen, Files: row under the signed-in Dropbox account choosing how much space songs downloaded from Dropbox may take before the oldest are removed; the chosen size, such as 10 GB, is shown beside it. Also the title of the screen listing the sizes.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Максимален размер"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximální velikost"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maksimal størrelse"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximale Größe"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Μέγιστο μέγεθος"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximum Size"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tamaño máximo"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enimmäiskoko"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Taille maximale"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maksimalna veličina"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximális méret"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ukuran Maksimum"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dimensione massima"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最大サイズ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "최대 크기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maksimal størrelse"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximale grootte"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maksymalny rozmiar"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tamanho máximo"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tamanho máximo"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dimensiune maximă"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Максимальный размер"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maximálna veľkosť"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maxstorlek"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ขนาดสูงสุด"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Maksimum Boyut"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Максимальний розмір"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kích thước tối đa"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "大小上限"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "大小上限"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.dropbox.remove_downloads": {
-      "comment": "iOS settings screen, Files: row under the signed-in Dropbox account that deletes the songs downloaded from Dropbox to this device; they download again when played. The space they take is shown beside it.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Премахване на изтеглянията"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odstranit stažené"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fjern overførsler"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Downloads entfernen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Αφαίρεση λήψεων"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove Downloads"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar descargas"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poista lataukset"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supprimer les téléchargements"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ukloni preuzimanja"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Letöltések eltávolítása"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hapus Unduhan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rimuovi download"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ダウンロードを削除"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다운로드 항목 제거"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fjern nedlastinger"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verwijder downloads"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usuń pobrane"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remover downloads"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remover transferências"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminați descărcările"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удалить загрузки"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Odstrániť stiahnuté"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ta bort hämtningar"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ลบรายการดาวน์โหลด"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "İndirilenleri Kaldır"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вилучити завантаження"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xóa bản tải về"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除下载内容"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "移除下載項目"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "settings.files": {
       "comment": "Settings window: the Files pane's sidebar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.",
       "localizations": {
@@ -88723,187 +88723,187 @@
       },
       "extractionState": "manual"
     },
-    "settings.files_dropbox": {
-      "comment": "iOS settings: the row, and the title of the screen it opens, holding the Dropbox account, the order folders are sorted in, and the row that allows pasting links. Dropbox is a product name: keep it as is.",
+    "settings.files_accounts": {
+      "comment": "iOS settings: the row, and the title of the screen it opens, holding the user's cloud storage accounts (such as Dropbox and Google Drive), the order folders are sorted in, and the row that allows pasting links. 'Accounts' are those cloud storage accounts; the app has no account of its own.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файлове и Dropbox"
+            "value": "Файлове и акаунти"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soubory a Dropbox"
+            "value": "Soubory a účty"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Filer og Dropbox"
+            "value": "Filer og konti"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dateien und Dropbox"
+            "value": "Dateien und Accounts"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Αρχεία και Dropbox"
+            "value": "Αρχεία και λογαριασμοί"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Files and Dropbox"
+            "value": "Files and Accounts"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Archivos y Dropbox"
+            "value": "Archivos y cuentas"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tiedostot ja Dropbox"
+            "value": "Tiedostot ja tilit"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fichiers et Dropbox"
+            "value": "Fichiers et comptes"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Datoteke i Dropbox"
+            "value": "Datoteke i računi"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fájlok és Dropbox"
+            "value": "Fájlok és fiókok"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "File dan Dropbox"
+            "value": "File dan Akun"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "File e Dropbox"
+            "value": "File e account"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ファイルとDropbox"
+            "value": "ファイルとアカウント"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "파일 및 Dropbox"
+            "value": "파일 및 계정"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Filer og Dropbox"
+            "value": "Filer og kontoer"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bestanden en Dropbox"
+            "value": "Bestanden en accounts"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pliki i Dropbox"
+            "value": "Pliki i konta"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arquivos e Dropbox"
+            "value": "Arquivos e contas"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ficheiros e Dropbox"
+            "value": "Ficheiros e contas"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fișiere și Dropbox"
+            "value": "Fișiere și conturi"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файлы и Dropbox"
+            "value": "Файлы и учётные записи"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Súbory a Dropbox"
+            "value": "Súbory a účty"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Filer och Dropbox"
+            "value": "Filer och konton"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไฟล์และ Dropbox"
+            "value": "ไฟล์และบัญชี"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dosyalar ve Dropbox"
+            "value": "Dosyalar ve Hesaplar"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Файли та Dropbox"
+            "value": "Файли та облікові записи"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tệp và Dropbox"
+            "value": "Tệp và tài khoản"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "文件和 Dropbox"
+            "value": "文件和账户"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "檔案和 Dropbox"
+            "value": "檔案和帳號"
           }
         }
       },
@@ -111044,7 +111044,7 @@
       "extractionState": "manual"
     },
     "tab.files": {
-      "comment": "iOS: title of the tab that browses for music to play: the user's Dropbox, the files on the device and any folders they have added.",
+      "comment": "iOS: title of the tab that browses for music to play: the user's cloud storage accounts, the files on the device and any folders they have added.",
       "localizations": {
         "bg": {
           "stringUnit": {

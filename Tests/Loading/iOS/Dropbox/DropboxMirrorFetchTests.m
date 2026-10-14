@@ -34,7 +34,7 @@
     XCTAssertTrue([argument containsString:@"id:/music/caf\\u00e9.flac"], @"%@", argument);
 }
 
-// VibeDropboxIndexKey, for a folder: listed by its URL, it is asked
+// VibeAccountIndexKey, for a folder: listed by its URL, it is asked
 // for by the path its parent's listing recorded, not its decomposed name.
 - (void)testAFolderWithAnAccentIsRelistedByItsRecordedPath {
     _listings[@"/music"] = @[VibeFolderEntry(@"/Music", @"Café")];
@@ -94,10 +94,10 @@
     XCTAssertTrue([self materialize:two]);
     XCTAssertEqual([self measuredDownloads], 6, @"both fit the 8-byte budget");
 
-    XCTestExpectation *posted = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+    XCTestExpectation *posted = [self expectationForNotification:VibeAccountDownloadsDidChangeNotification
                                                           object:_mirror
                                                          handler:^BOOL(NSNotification *notification) {
-        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 3;
+        return [notification.userInfo[VibeAccountDownloadsBytesKey] longLongValue] == 3;
     }];
     _mirror.downloadBudget = 4;
     XCTAssertEqual(_mirror.downloadBudget, 4);
@@ -115,10 +115,10 @@
     XCTAssertTrue([self materialize:[folder URLByAppendingPathComponent:@"one.flac"]]);
 
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"one.flac", 6, @"2021-01-02T03:04:05Z")];
-    XCTestExpectation *told = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+    XCTestExpectation *told = [self expectationForNotification:VibeAccountDownloadsDidChangeNotification
                                                         object:_mirror
                                                        handler:^BOOL(NSNotification *notification) {
-        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 0;
+        return [notification.userInfo[VibeAccountDownloadsBytesKey] longLongValue] == 0;
     }];
     [self refresh:@"/Music"];
     [self waitForExpectations:@[told] timeout:VIBE_TEST_HANG_TIMEOUT];
@@ -138,10 +138,10 @@
     // The readers of a row's downloaded state (Search, the browser,
     // Settings) hear the removal, with nothing left counted. The fetch's own
     // post may still be in flight, so the handler waits for the empty one.
-    XCTestExpectation *told = [self expectationForNotification:VibeDropboxDownloadsDidChangeNotification
+    XCTestExpectation *told = [self expectationForNotification:VibeAccountDownloadsDidChangeNotification
                                                         object:_mirror
                                                        handler:^BOOL(NSNotification *notification) {
-        return [notification.userInfo[VibeDropboxDownloadsBytesKey] longLongValue] == 0;
+        return [notification.userInfo[VibeAccountDownloadsBytesKey] longLongValue] == 0;
     }];
     XCTestExpectation *removed = [self expectationWithDescription:@"remove"];
     [_mirror removeDownloadsWithCompletion:^{
@@ -166,7 +166,7 @@
     dispatch_block_t cancelRead = [_client readTarget:@"/Music/a.flac" offset:0 length:8
                                          completion:^(NSData *data, NSDictionary *metadata, NSError *error) {
         XCTAssertNil(data);
-        XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
+        XCTAssertEqual(error.code, VibeAccountErrorCancelled);
         [read fulfill];
     }];
     XCTestExpectation *download = [self expectationWithDescription:@"download"];
@@ -175,7 +175,7 @@
                                                    progress:nil
                                                  completion:^(NSDictionary *metadata, NSError *error) {
         XCTAssertNil(metadata);
-        XCTAssertEqual(error.code, VibeDropboxErrorCancelled);
+        XCTAssertEqual(error.code, VibeAccountErrorCancelled);
         [download fulfill];
     }];
     [self waitForRequests:1 toPath:@"/oauth2/token"];
@@ -367,8 +367,8 @@
     }];
 
     NSError *error = [self downloadSong:NULL];
-    XCTAssertEqualObjects(error.domain, VibeDropboxErrorDomain);
-    XCTAssertEqual(error.code, VibeDropboxErrorFileChanged);
+    XCTAssertEqualObjects(error.domain, VibeAccountErrorDomain);
+    XCTAssertEqual(error.code, VibeAccountErrorFileChanged);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
 }
 
@@ -386,7 +386,7 @@
     [NSFileManager.defaultManager removeItemAtURL:[self partURL] error:NULL];
     drop = YES;
     NSError *error = [self downloadSong:NULL];
-    XCTAssertEqual(error.code, VibeDropboxErrorFileChanged);
+    XCTAssertEqual(error.code, VibeAccountErrorFileChanged);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path]);
 }
 
@@ -433,8 +433,8 @@
 
     [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(completions, 1);
-    XCTAssertEqualObjects(failure.domain, VibeDropboxErrorDomain);
-    XCTAssertEqual(failure.code, VibeDropboxErrorCancelled);
+    XCTAssertEqualObjects(failure.domain, VibeAccountErrorDomain);
+    XCTAssertEqual(failure.code, VibeAccountErrorCancelled);
     XCTAssertEqual(StatOf([self partURL]).st_size, 1600, @"kept for the next download");
 }
 
@@ -535,8 +535,8 @@
             return VibeDownloadAnswer(request, bytes, @{@"rev": kRev, @"server_modified": kStamp, @"size": size});
         }];
         NSError *error = [self downloadSong:NULL];
-        XCTAssertEqualObjects(error.domain, VibeDropboxErrorDomain, @"size %@", size);
-        XCTAssertEqual(error.code, VibeDropboxErrorAPI, @"size %@", size);
+        XCTAssertEqualObjects(error.domain, VibeAccountErrorDomain, @"size %@", size);
+        XCTAssertEqual(error.code, VibeAccountErrorAPI, @"size %@", size);
         XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:[self partURL].path], @"size %@", size);
     }
 }

@@ -605,6 +605,12 @@ targets:
         # PKCE, which needs none, and the redirect it pairs with is the
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
+        # The Google Cloud project's iOS OAuth client id (GoogleDriveMirror),
+        # "<number>-<id>.apps.googleusercontent.com". Not a secret: the
+        # sign-in is PKCE, and its redirect is the id reversed, which Google
+        # registers with the client. Empty, a Release build lists no Google
+        # Drive.
+        VibeGoogleDriveClientID: ""
         # Share the localized audio, audiobook and CUE declarations.
         # The iOS shell reads M3U files but declares no M3U document type here.
         CFBundleDocumentTypes:
@@ -655,11 +661,11 @@ targets:
       - sdk: AVKit.framework                # AVRoutePickerView (OutputRouteView)
       - sdk: Accelerate.framework
       - sdk: AudioToolbox.framework
-      - sdk: AuthenticationServices.framework  # the Dropbox sign-in sheet
+      - sdk: AuthenticationServices.framework  # the accounts' sign-in sheet
       - sdk: ImageIO.framework
       - sdk: MediaPlayer.framework
       - sdk: QuartzCore.framework
-      - sdk: Security.framework             # the Dropbox refresh token's Keychain item
+      - sdk: Security.framework             # the accounts' refresh tokens' Keychain items
       - sdk: UniformTypeIdentifiers.framework
 
   # The home-screen widget. A SECOND PROCESS: no engine, no playlist, no audio
@@ -826,8 +832,12 @@ targets:
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
+      - path: Vibe/Loading/iOS/Account/OAuthAccountClient.m
+      - path: Vibe/Loading/iOS/Account/AccountMirror.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
+      - path: Vibe/Loading/iOS/GoogleDrive/GoogleDriveClient.m
+      - path: Vibe/Loading/iOS/GoogleDrive/GoogleDriveMirror.m
       - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Common/PlatformColor.m
       - path: Vibe/Util/Mac/NSImage+Util.m
@@ -880,7 +890,9 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/Claim"
           - "$(SRCROOT)/Vibe/Loading/Transfer"
           - "$(SRCROOT)/Vibe/Loading/Net"
+          - "$(SRCROOT)/Vibe/Loading/iOS/Account"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
+          - "$(SRCROOT)/Vibe/Loading/iOS/GoogleDrive"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/Vibe/Util"
@@ -916,8 +928,8 @@ targets:
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
       - sdk: AVFoundation.framework          # AudioWaveformLoader reads (and its tests write) files
-      - sdk: AuthenticationServices.framework  # DropboxClient's sign-in, compiled in, never presented
-      - sdk: Security.framework              # DropboxClient's Keychain item, never written here
+      - sdk: AuthenticationServices.framework  # OAuthAccountClient's sign-in, compiled in, never presented
+      - sdk: Security.framework              # OAuthAccountClient's Keychain item, never written here
 
   # Production pipeline rendering, with no test host or output device.
   VibeAudioTests:

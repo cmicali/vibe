@@ -9,8 +9,8 @@
 
 #import "AudioTrackMetadataCache.h"
 #import "BrowserRules.h"
+#import "AccountMirror.h"
 #import "DocumentTypes.h"
-#import "DropboxMirror.h"
 #import "FileRow.h"
 #import "FileSearchRules.h"
 #import "FilePaths.h"
@@ -86,11 +86,11 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     // then probably held a web link. The paste row shows only while it does.
     NSInteger _clipboardChangeCount;
     BOOL _clipboardHasLink;
-    // Whether Dropbox was linked when the root last reloaded. The rows read
-    // this, never the live account. The account flips off main before its
-    // change is posted. A live read in that gap maps a folder's row to the
-    // folder beside it.
-    BOOL _dropboxLinked;
+    // The accounts linked when the root last reloaded. The rows read this,
+    // never the live accounts. An account flips off main before its change
+    // is posted. A live read in that gap maps a folder's row to the folder
+    // beside it.
+    NSArray<AccountMirror *> *_linkedMirrors;
     OpenURLSheetController *_linkSheet;
 }
 
@@ -135,8 +135,8 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
                                              object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(sourcesDidChange:)
-                                               name:VibeDropboxAccountDidChangeNotification
-                                             object:DropboxMirror.shared.client];
+                                               name:VibeAccountDidChangeNotification
+                                             object:nil];
 }
 
 - (void)dealloc {
@@ -146,7 +146,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self refreshClipboardLink];
-    _dropboxLinked = DropboxMirror.shared.client.isLinked;
+    [self snapshotLinkedMirrors];
     [self.tableView reloadData];
 }
 
@@ -175,13 +175,23 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
 }
 
+- (void)snapshotLinkedMirrors {
+    NSMutableArray<AccountMirror *> *linked = [NSMutableArray array];
+    for (AccountMirror *mirror in AccountMirror.mirrors) {
+        if (mirror.client.isLinked) {
+            [linked addObject:mirror];
+        }
+    }
+    _linkedMirrors = linked;
+}
+
 - (void)sourcesDidChange:(NSNotification *)notification {
-    _dropboxLinked = DropboxMirror.shared.client.isLinked;
+    [self snapshotLinkedMirrors];
     [self.tableView reloadData];
 }
 
-// The root's plus. It is built each time it opens. Connect to Dropbox then
-// follows the account.
+// The root's plus. It is built each time it opens. Each Connect then follows
+// its account.
 - (UIMenu *)addLocationMenu {
     __weak FilesRootViewController *weakSelf = self;
     UIDeferredMenuElement *items = [UIDeferredMenuElement elementWithUncachedProvider:
@@ -190,17 +200,20 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             [weakSelf presentPickerForLocation:YES];
         });
         addFolder.subtitle = STR_BROWSER_ADD_FOLDER_CAPTION;
-        if (DropboxMirror.shared.client.isLinked) {
-            completion(@[addFolder]);
-            return;
+        NSMutableArray<UIMenuElement *> *elements = [NSMutableArray arrayWithObject:addFolder];
+        for (AccountMirror *mirror in AccountMirror.mirrors) {
+            if (mirror.client.isLinked) {
+                continue;
+            }
+            [elements addObject:[UIAction actionWithTitle:[NSString stringWithFormat:STR_SETTINGS_ACCOUNT_CONNECT,
+                                                           mirror.serviceName]
+                                                    image:[UIImage imageNamed:mirror.glyphName]
+                                               identifier:nil
+                                                  handler:^(UIAction *action) {
+                [weakSelf connectMirror:mirror];
+            }]];
         }
-        UIAction *connect = [UIAction actionWithTitle:STR_SETTINGS_DROPBOX_CONNECT
-                                                image:[UIImage imageNamed:@"dropbox-glyph"]
-                                           identifier:nil
-                                              handler:^(UIAction *action) {
-            [weakSelf connectDropbox];
-        }];
-        completion(@[addFolder, connect]);
+        completion(elements);
     }];
     return [UIMenu menuWithChildren:@[items]];
 }
@@ -436,8 +449,10 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 - (void)showDirectory:(NSURL *)directory highlighting:(NSURL *)file {
     NSMutableArray<NSURL *> *sources = [NSMutableArray array];
-    if (DropboxMirror.shared.accountURL) {
-        [sources addObject:DropboxMirror.shared.accountURL];
+    for (AccountMirror *mirror in AccountMirror.mirrors) {
+        if (mirror.accountURL) {
+            [sources addObject:mirror.accountURL];
+        }
     }
     [sources addObjectsFromArray:LocationStore.shared.searchRoots];
     NSMutableArray<NSString *> *sourcePaths = [NSMutableArray arrayWithCapacity:sources.count];
@@ -471,7 +486,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 #pragma mark - Table
 
 - (NSArray<NSNumber *> *)rootRowsInSection:(NSInteger)section {
-    return VibeBrowserRootRows((VibeBrowserRootSection)section, _dropboxLinked,
+    return VibeBrowserRootRows((VibeBrowserRootSection)section, _linkedMirrors.count,
                                LocationStore.shared.folderURLs.count, _clipboardHasLink);
 }
 
@@ -483,7 +498,14 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 - (NSUInteger)locationIndexAtIndexPath:(NSIndexPath *)indexPath {
     return VibeBrowserRootLocationIndex((VibeBrowserRootSection)indexPath.section, (NSUInteger)indexPath.row,
-                                        _dropboxLinked, LocationStore.shared.folderURLs.count);
+                                        _linkedMirrors.count, LocationStore.shared.folderURLs.count);
+}
+
+// The linked account an account row shows. Nil for any other row.
+- (AccountMirror *)mirrorAtIndexPath:(NSIndexPath *)indexPath {
+    NSUInteger index = VibeBrowserRootAccountIndex((VibeBrowserRootSection)indexPath.section,
+                                                   (NSUInteger)indexPath.row, _linkedMirrors.count);
+    return index == NSNotFound ? nil : _linkedMirrors[index];
 }
 
 // The granted folder a Locations row shows. Nil for any other row.
@@ -519,7 +541,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.imageProperties.tintColor = UIColor.secondaryLabelColor;
-    // The Dropbox glyph is a 28pt asset, wider than a symbol's reservation,
+    // An account's glyph is a 28pt asset, wider than a symbol's reservation,
     // so every row reserves its width and the labels line up.
     content.imageProperties.reservedLayoutSize = CGSizeMake(28, 28);
     BOOL action = NO;
@@ -531,11 +553,13 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             content.image = [UIImage systemImageNamed:
                     UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"ipad" : @"iphone"];
             break;
-        case VibeBrowserRootRowDropbox:
-            content.text = VibeNotLocalized(@"Dropbox");
-            content.secondaryText = DropboxMirror.shared.client.accountName;
-            content.image = [UIImage imageNamed:@"dropbox-glyph"];
+        case VibeBrowserRootRowAccount: {
+            AccountMirror *mirror = [self mirrorAtIndexPath:indexPath];
+            content.text = mirror.serviceName;
+            content.secondaryText = mirror.client.accountName;
+            content.image = mirror ? [UIImage imageNamed:mirror.glyphName] : nil;
             break;
+        }
         case VibeBrowserRootRowRecents:
             content.text = STR_BROWSER_RECENTS;
             content.image = [UIImage systemImageNamed:@"clock"];
@@ -590,11 +614,13 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         case VibeBrowserRootRowDevice:
             [self pushDirectory:LocationStore.containerDocumentsURL];
             return;
-        case VibeBrowserRootRowDropbox:
-            if (DropboxMirror.shared.accountURL) {
-                [self pushDirectory:DropboxMirror.shared.accountURL];
+        case VibeBrowserRootRowAccount: {
+            NSURL *account = [self mirrorAtIndexPath:indexPath].accountURL;
+            if (account) {
+                [self pushDirectory:account];
             }
             return;
+        }
         case VibeBrowserRootRowRecents:
             [self.navigationController pushViewController:[[RecentsViewController alloc] initWithPlayback:_playback
                                                                                                 appending:_appending]
@@ -619,24 +645,24 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
 }
 
-// A sign-in that lands goes straight into the account: the plus's Connect to
-// Dropbox was tapped to get there.
-- (void)connectDropbox {
+// A sign-in that lands goes straight into the account: the plus's Connect
+// was tapped to get there.
+- (void)connectMirror:(AccountMirror *)mirror {
     __weak FilesRootViewController *weakSelf = self;
-    [DropboxMirror.shared.client signInWithPresentationAnchor:self.view.window completion:^(NSError *error) {
+    [mirror.client signInWithPresentationAnchor:self.view.window completion:^(NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             FilesRootViewController *strongSelf = weakSelf;
             if (!strongSelf) {
                 return;
             }
             if (error) {
-                LogWarn(@"Dropbox: sign-in failed: %@", error.localizedDescription);
-                [strongSelf vibePresentAlertWithTitle:VibeNotLocalized(@"Dropbox")
-                                              message:STR_SETTINGS_DROPBOX_CONNECT_FAILED];
+                LogWarn(@"%@: sign-in failed: %@", mirror.serviceName, error.localizedDescription);
+                [strongSelf vibePresentAlertWithTitle:mirror.serviceName
+                                              message:[NSString stringWithFormat:STR_SETTINGS_ACCOUNT_CONNECT_FAILED,
+                                                       mirror.serviceName]];
             }
-            else if (DropboxMirror.shared.accountURL
-                    && strongSelf.navigationController.topViewController == strongSelf) {
-                [strongSelf pushDirectory:DropboxMirror.shared.accountURL];
+            else if (mirror.accountURL && strongSelf.navigationController.topViewController == strongSelf) {
+                [strongSelf pushDirectory:mirror.accountURL];
             }
         });
     }];

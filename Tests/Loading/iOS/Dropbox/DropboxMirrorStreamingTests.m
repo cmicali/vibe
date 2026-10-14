@@ -479,7 +479,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
         XCTAssertEqual(waited, CloudFileAvailabilityFailed, @"changed %@", changed);
         XCTAssertEqualObjects(readError, _fetchError);
         if (changed.boolValue) {
-            XCTAssertEqual(readError.code, VibeDropboxErrorFileChanged);
+            XCTAssertEqual(readError.code, VibeAccountErrorFileChanged);
         }
         XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
         [self assertFinishedOnce:availability error:_fetchError];
@@ -507,8 +507,8 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     [self await:returned];
     [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(waited, CloudFileAvailabilityFailed);
-    XCTAssertEqualObjects(readError.domain, VibeDropboxErrorDomain);
-    XCTAssertEqual(readError.code, VibeDropboxErrorCancelled);
+    XCTAssertEqualObjects(readError.domain, VibeAccountErrorDomain);
+    XCTAssertEqual(readError.code, VibeAccountErrorCancelled);
     XCTAssertFalse(_fetched);
     XCTAssertEqual(_fetchError.code, NSUserCancelledError);
     XCTAssertEqual(StatOf(track).st_mode & 0777, 0);

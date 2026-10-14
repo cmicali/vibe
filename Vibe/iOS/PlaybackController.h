@@ -277,7 +277,7 @@ NS_ASSUME_NONNULL_BEGIN
                completion:(void (^)(NSData *_Nullable bookmark))completion;
 
 // Every tree the search screen may walk: the session's, then the Locations and
-// Documents, then resolved favorites. Never a Dropbox folder. FileSearchIndex
+// Documents, then resolved favorites. Never an account mirror. FileSearchIndex
 // prunes nesting.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 

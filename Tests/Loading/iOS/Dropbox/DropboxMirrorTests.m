@@ -319,13 +319,13 @@
     }];
     [self spinMainQueue];
     XCTNSNotificationExpectation *unlinked =
-            [[XCTNSNotificationExpectation alloc] initWithName:VibeDropboxAccountDidChangeNotification
+            [[XCTNSNotificationExpectation alloc] initWithName:VibeAccountDidChangeNotification
                                                         object:_client];
     XCTestExpectation *done = [self expectationWithDescription:@"refresh"];
     [_mirror refreshDropboxFolder:@"/A" completion:^(NSURL *folderURL, NSError *error) {
         XCTAssertNil(folderURL);
-        XCTAssertEqualObjects(error.domain, VibeDropboxErrorDomain);
-        XCTAssertEqual(error.code, VibeDropboxErrorNotLinked);
+        XCTAssertEqualObjects(error.domain, VibeAccountErrorDomain);
+        XCTAssertEqual(error.code, VibeAccountErrorNotLinked);
         [done fulfill];
     }];
     [self waitForExpectations:@[done, unlinked] timeout:VIBE_TEST_HANG_TIMEOUT];
@@ -387,7 +387,7 @@
     }];
     XCTestExpectation *done = [self expectationWithDescription:@"refresh"];
     [_mirror refreshDropboxFolder:@"/A" completion:^(NSURL *folderURL, NSError *error) {
-        XCTAssertEqual(error.code, VibeDropboxErrorNotLinked);
+        XCTAssertEqual(error.code, VibeAccountErrorNotLinked);
         [done fulfill];
     }];
     [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
