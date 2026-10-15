@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "Dark Wolf",
+  "name": "Dark Core",
   "description": "Contributed by JohnnyFireOne (#183, #187, #257). A dark teal window with red and amber waveform bars. Its app icon is a blue waveform.",
   "window": {
     "appIcon": "bundled:dark_wolf_icon.png",
