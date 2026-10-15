@@ -99,7 +99,10 @@ compile-commands: project
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
 # `make -j3 test test-audio` runs both suites at once: test-audio has its own
 # derived data, since two xcodebuilds cannot share one.
-# ARGS='-only-testing:VibeTests/<Class>' narrows a run.
+# ARGS='-only-testing:VibeTests/<Class>' narrows a run. COVERAGE=1 measures
+# coverage, which test-summary reports. CI passes it. It adds about a quarter
+# to a clean run's time, so it is off by default.
+COVERAGE_FLAG = $(if $(filter 1,$(COVERAGE)),-enableCodeCoverage YES)
 test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
@@ -109,6 +112,7 @@ test: project check-cloud-scenarios
 	    -derivedDataPath build/DerivedData \
 	    -resultBundlePath $(RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
+	    $(COVERAGE_FLAG) \
 	    $(ARGS) test
 
 # One compiled PCM verifier shared by hardware and device-free audio tests.
@@ -133,10 +137,12 @@ test-bit-perfect: audio-fixtures
 # The render suite produces real PCM without opening hardware. ARGS can narrow
 # XCTest, and reaches the build too, so a sanitizer flag builds what it tests.
 # Under `make -j` its two prerequisites run side by side. The bundle compiles
-# as the fixtures generate.
+# as the fixtures generate. COVERAGE=1 applies as for `make test`, and to
+# both halves of the split.
 AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
 AUDIO_XCODEBUILD = scripts/build/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
-    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData
+    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData \
+    $(COVERAGE_FLAG)
 test-audio: audio-test-bundle audio-fixtures
 	rm -rf $(AUDIO_RESULT_BUNDLE)
 	$(AUDIO_XCODEBUILD) -resultBundlePath $(AUDIO_RESULT_BUNDLE) -collect-test-diagnostics never \

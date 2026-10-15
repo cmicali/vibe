@@ -12,10 +12,18 @@
 # passed nor failed; without the column a run carrying known failures reads as
 # unqualified green. The sum check flags any state the table does not name.
 #
-# Exit status says only whether the summary could be produced.
+# When the bundle has coverage, one line follows with the line coverage of the
+# sources under Vibe/ that the suite compiled, ThirdParty/ excluded. It is a
+# measurement and never fails the run.
+#
+# The skip gate fails the run when the bundle skips more tests than
+# skip-baseline allows for its name (the bundle's basename). A name with no
+# line there allows none. Failed tests do not fail this script; xcodebuild
+# already did.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
+ROOT="$(pwd -P)"
 
 BUNDLE="${1:-build/TestResults.xcresult}"
 
@@ -69,4 +77,29 @@ if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     jq -r '.testFailures[]?
       | "::error title=\(.targetName)/\(.testIdentifierString // .testName)::"
         + ((.failureText // "test failed") | gsub("\n"; "%0A"))' <<<"$SUMMARY"
+fi
+
+if COVERAGE="$(xcrun xccov view --report --json "$BUNDLE" 2>/dev/null)"; then
+    # Every target that compiled a file reports it, so each path counts once.
+    jq -r --arg vibe "$ROOT/Vibe/" '
+      [.targets[].files[] | select((.path | startswith($vibe)) and (.path | contains("/ThirdParty/") | not))]
+      | unique_by(.path)
+      | (map(.coveredLines) | add // 0) as $covered | (map(.executableLines) | add // 0) as $lines
+      | if $lines > 0 then
+          "\n**Coverage:** \($covered * 1000 / $lines | round / 10)% of \($lines) lines in the \(length) files under `Vibe/` the suite compiled, `ThirdParty/` excluded.\n"
+        else empty end' <<<"$COVERAGE" | emit
+fi
+
+KIND="$(basename "$BUNDLE" .xcresult)"
+ALLOWED="$(awk -v kind="$KIND" '$1 == kind { print $2 }' scripts/checks/skip-baseline)"
+ALLOWED="${ALLOWED:-0}"
+SKIPPED="$(jq -r '.skippedTests' <<<"$SUMMARY")"
+if (( SKIPPED > ALLOWED )); then
+    message="$KIND skipped $SKIPPED tests, and scripts/checks/skip-baseline allows $ALLOWED."
+    printf '\n> ❌ %s\n' "$message" | emit
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+        echo "::error title=Skipped tests::$message"
+    fi
+    echo "error: $message A deliberate skip raises the baseline and names the test." >&2
+    exit 1
 fi

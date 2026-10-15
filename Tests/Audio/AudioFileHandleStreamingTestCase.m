@@ -42,17 +42,6 @@ NSURL *VibeWriteEncoded(NSURL *url, AudioFileTypeID type, AudioStreamBasicDescri
     return [writer writeFromBuffer:buffer error:error] && [writer closeWithError:error] ? url : nil;
 }
 
-// A file of the gitignored corpus. CI has no corpus, so the case is optional
-// there. Anywhere else its absence is a skip, never a quiet pass.
-static NSURL *VibeAssetFixture(NSString *name) {
-    NSString *tests = [NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent;
-    NSString *path = [tests stringByAppendingPathComponent:[@"../../Assets/test_audio_files" stringByAppendingPathComponent:name]];
-    if ([NSFileManager.defaultManager fileExistsAtPath:path]) {
-        return [NSURL fileURLWithPath:path.stringByStandardizingPath];
-    }
-    XCTSkipIf(!getenv("CI"), @"%@ is missing; run scripts/test/generate-test-audio.sh", path);
-    return nil;
-}
 
 #pragma mark - Reading
 
@@ -163,6 +152,14 @@ NSData *VibeWithoutVBRHeader(NSData *mp3) {
     return nil;
 }
 
+// 128 to 256 kbps in turn, so no single rate guesses the length.
+static uint8_t (^const VibeVBRIndex)(uint32_t) = ^uint8_t(uint32_t frame) { return (uint8_t)(9 + frame % 6); };
+
+// A VBR stream behind a Xing header, as LAME writes one: 31 seconds.
+static NSData *VibeXingVBR(void) {
+    return VibeMP3WithXingFrame(1200, VibeVBRIndex);
+}
+
 @implementation AudioFileHandleStreamingTestCase
 
 - (void)setUp {
@@ -238,15 +235,8 @@ NSData *VibeWithoutVBRHeader(NSData *mp3) {
     add(VibeWriteEncoded([self sourceNamed:@"noise-aac.m4a"], kAudioFileM4AType, aac, &error), @"apple");
     NSURL *mp3 = [self sourceNamed:@"info.mp3"];
     add([VibeMP3WithInfoFrame(400, NO) writeToURL:mp3 atomically:YES] ? mp3 : nil, @"dr_mp3");
-    // Real encodes when the gitignored corpus is here: a seek table, LAME's
-    // CBR Info frame and a VBR Xing frame.
-    for (NSString *name in @[@"tone.flac", @"tone-cbr.mp3", @"tone-vbr.mp3"]) {
-        NSURL *asset = VibeAssetFixture(name);
-        NSURL *copy = [self sourceNamed:name];
-        if (asset && [NSFileManager.defaultManager copyItemAtURL:asset toURL:copy error:NULL]) {
-            add(copy, [name hasSuffix:@"flac"] ? @"dr_flac" : @"dr_mp3");
-        }
-    }
+    NSURL *xing = [self sourceNamed:@"xing.mp3"];
+    add([VibeXingVBR() writeToURL:xing atomically:YES] ? xing : nil, @"dr_mp3");
     return fixtures;
 }
 
@@ -317,16 +307,9 @@ NSData *VibeWithoutVBRHeader(NSData *mp3) {
     add(@"head-only.wav", [NSData dataWithContentsOfURL:VibeWriteWAV([self sourceNamed:@"head.wav"],
             VibeNoiseSamples(88200, 2), 44100, 2, 16, 88200 * 4)], @"dr_wav");
     add(@"unheadered.mp3", VibeWithoutVBRHeader(VibeMP3WithInfoFrame(400, YES)), @"dr_mp3");
-    add(@"unheadered-vbr.mp3", VibeMP3WithoutVBRHeader(1200, 44100, ^uint8_t(uint32_t frame) { return (uint8_t)(9 + frame % 6); }),
-        @"dr_mp3");
-    for (NSString *name in @[@"tone-cbr.mp3", @"tone-vbr.mp3"]) {
-        NSURL *asset = VibeAssetFixture(name);
-        if (asset) {
-            add(name, [NSData dataWithContentsOfURL:asset], @"dr_mp3");
-            add([@"unheadered-" stringByAppendingString:name],
-                VibeWithoutVBRHeader([NSData dataWithContentsOfURL:asset]), @"dr_mp3");
-        }
-    }
+    add(@"unheadered-vbr.mp3", VibeMP3WithoutVBRHeader(1200, 44100, VibeVBRIndex), @"dr_mp3");
+    add(@"xing-vbr.mp3", VibeXingVBR(), @"dr_mp3");
+    add(@"unheadered-xing-vbr.mp3", VibeWithoutVBRHeader(VibeXingVBR()), @"dr_mp3");
     return fixtures;
 }
 

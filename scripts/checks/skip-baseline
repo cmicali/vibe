@@ -1,0 +1,10 @@
+# The skipped tests each result bundle may carry, by bundle name. Read by
+# test-summary.sh, which fails when a bundle skips more. A new deliberate skip
+# raises its count in the same change and names the test here.
+#
+# TestResults (make test): none.
+TestResults 0
+# AudioTestResults (make test-audio), with ffmpeg installed, as on CI:
+#   testDrMP3PassesTheISOComplianceStreamAtFullAccuracy skips when the
+#   generator cannot fetch ISO's compliance stream, which needs the network.
+AudioTestResults 1
