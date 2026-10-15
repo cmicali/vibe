@@ -17,6 +17,22 @@
     return self;
 }
 
+// The art is set by the test as cachedArt, already decoded: there is nothing
+// to load and nothing to discard.
+- (BOOL)artNeedsLoad {
+    return NO;
+}
+
+- (BOOL)isArtLoadPending {
+    return NO;
+}
+
+- (void)loadArtIfNeededStillWanted:(BOOL (^)(void))stillWanted completion:(void (^)(UIImage *))completion {
+}
+
+- (void)discardDecodedArt {
+}
+
 @end
 
 @implementation FakePlayback {
