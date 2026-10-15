@@ -1,6 +1,6 @@
 # Converting to FLAC (macOS only)
 
-File > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it. This is the app's audio-file conversion path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve. The controller half, the playlist swap and undo UI settlement, is `Mac/MainWindow/Convert/AGENTS.md`.
+Convert > Convert to FLAC and the window body's right-click item re-encode the **current track** as FLAC beside it. This is the app's audio-file conversion path. Current-track-only is deliberate: a background row's conversion has no progress surface, and its swap has no playback state to preserve. The controller half, the playlist swap and undo UI settlement, is `Mac/MainWindow/Convert/AGENTS.md`.
 
 **The encoder is CoreAudio's** (`AudioFileHandle`'s writing side, an ExtAudioFile created as `kAudioFileFLACType`), so there is no new dependency. The app is sandboxed and ships in the App Store, so ffmpeg is not an option.
 
@@ -33,7 +33,7 @@ That rung also needs the flac extension declared in `CFBundleDocumentTypes` with
 `cancelConversionWithCompletion:` sets a flag the encode loop polls once per buffer. The temp is removed and the request completes with `NSUserCancelledError`, the same decision-not-failure a dismissed save panel reports, so the controller neither beeps nor logs. A conversion past its encode (copying tags, placing the file, or a save panel waiting) runs to its own completion, and the cancel parks until then. It has two callers:
 
 - `AppDelegate.applicationShouldTerminate:`. A Quit mid-encode answers `NSTerminateLater`, cancels, and replies from the converter's completion, so the temp file is gone before the process exits.
-- File > Cancel Conversion. It is the Convert to FLAC item itself, retitled and re-aimed at `MainPlayerController.cancelConversion:` by menu validation while `isConverting` (`Mac/Menu/AGENTS.md`). A click after the conversion settled reaches a no-op.
+- Convert > Cancel Conversion. It is the Convert to FLAC item itself, retitled and re-aimed at `MainPlayerController.cancelConversion:` by menu validation while `isConverting` (`Mac/Menu/AGENTS.md`). A click after the conversion settled reaches a no-op.
 
 **TRAP: settlement and progress reach main through the run loop's block queue (`CFRunLoopPerformBlock`), never the main dispatch queue.** A Quit issued from a main-queue block waits for the cancel inside that block, where libdispatch never drains the main queue (`Mac/App/AGENTS.md`). Progress shares the queue, so no report lands after the settlement's sweep reset.
 

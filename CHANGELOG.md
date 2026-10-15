@@ -11,7 +11,7 @@
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
 * mac: Added a Window menu with Minimize (⌘M), Window Width, Always on Top, and Lock Window Position
 * mac: Added Show in Finder (⇧⌘R) and Play to the menus
-* mac: Changed the menus to follow macOS conventions: Edit > Copy, Open Location… (⌘L), a Repeat submenu, Audio Output under Playback, and Convert to FLAC under File
+* mac: Changed the menus to follow macOS conventions: Edit > Copy, Open Location… (⌘L), and a Repeat submenu
 * mac: Changed the skip items to show their distance in bars or seconds
 * mac: Added Move to Trash (⌘⌫) to delete the selected or playing song's file, with Undo
 * mac: Added automatic updates to the non-appstore version

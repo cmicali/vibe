@@ -211,8 +211,8 @@
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
-    // The File item and the window-body context menu's share this. Hiding it
-    // here is how both follow the Convert setting live.
+    // Shared with the window-body context menu. Hiding it here is how the
+    // context menus follow the Convert setting live.
     NSString *path = self.playlistController.currentTrack.url.path;
     menuItem.hidden = VibeConvertMenuItemHidden(AppSettings.sharedInstance.convertEnabled,
                                                 path && VibePathIsUnderRemotePlaceholderRoot(path));

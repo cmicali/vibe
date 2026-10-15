@@ -25,6 +25,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // keyColorsEnabled share one display pass.
     VibeSettingsLiveEffectTrackDisplay     = 1UL << 9,
     VibeSettingsLiveEffectFolderArt        = 1UL << 10,
+    VibeSettingsLiveEffectConvertMenu      = 1UL << 11,
     VibeSettingsLiveEffectFXControls       = 1UL << 12,
     VibeSettingsLiveEffectTrafficLights    = 1UL << 13,
     // The themed window shape and background: the corner radius at every

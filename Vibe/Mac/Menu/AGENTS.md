@@ -1,14 +1,14 @@
 # Menu bar (macOS)
 
-This directory holds the menu bar's builder (`MainMenuBuilder`) and the controllers of the Open Recent and Audio Output submenus. It also holds the menu validation rules (`MenuValidationRules.h`) and the default shortcuts (`ShortcutRules.h`).
+This directory holds the menu bar's builder (`MainMenuBuilder`) and the controllers of the Open Recent and Output submenus. It also holds the menu validation rules (`MenuValidationRules.h`) and the default shortcuts (`ShortcutRules.h`).
 
-**The menus are Vibe, File, Edit, View, Playback, FX and Window, in Apple's order.** There is no Help menu, since the app ships no help book. There is no Convert menu, since Convert to FLAC is a File item. Output is a Playback submenu. **The menu bar carries no images**, as Apple's own menus do not. The context menus keep their SF Symbols (`symbolItemWithTitle:`).
+**The menus are Vibe, File, Edit, View, Playback, FX, Convert, Output and Window, in Apple's order.** There is no Help menu, since the app ships no help book. Output stays top level for quick access while playing. **The menu bar carries no images**, as Apple's own menus do not. The context menus keep their SF Symbols (`symbolItemWithTitle:`).
 
 There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `AppDelegate.applicationWillFinishLaunching:` calls it **after `MainPlayerController` exists**. There is one builder method per top-level menu. The window-body context menu and the playlist row menu build their own items with `symbolItemWithTitle:`. The window-body items share the menu bar's identifiers, and so its validation. The row menu's act on the **clicked** row under its own actions and identifiers (`Playlist/Mac/AGENTS.md`).
 
 **Menu identifiers and the domain that validates each are `MenuValidationRules.h`.** Each identifier has one `kVibeMenu*` constant, and the literal appears nowhere else, so a rename that misses a site fails the build. **TRAP: an identifier that reaches Unknown is DISABLED** (and asserts in Debug). A new controller-targeted menu item must be added there, or it never enables. **An identifier is a stored key** (`AppSettings.shortcutOverrides`), so an item that moves to another menu keeps its identifier. Move to Trash is `menu_edit_move_to_trash` in the File menu.
 
-**Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time. Open Recent is `AppDelegate`'s `OpenRecentMenuController` (over `NSDocumentController.recentDocumentURLs`). Playback > Audio Output is `MainPlayerController`'s `OutputDevicesMenuController`. View > Theme is the player controller itself.
+**Live submenus belong to per-menu delegates**, each owned by the object it works for and wired at build time. Open Recent is `AppDelegate`'s `OpenRecentMenuController` (over `NSDocumentController.recentDocumentURLs`). Output is `MainPlayerController`'s `OutputDevicesMenuController`. View > Theme is the player controller itself.
 
 ## App menu
 
@@ -38,7 +38,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **Open…, Add to Playlist… and Open Location… target the app delegate, which always enables them.** Add to Playlist… (`menu_add_to_playlist`, ⇧⌘O) sits after Open… and shares its panel (`Mac/App/AGENTS.md`). Open Location… (`menu_open_link`, ⌘L) comes next and asks for a link in a window of its own (`Mac/App/AGENTS.md`). The name is QuickTime Player's and Safari's. Open Recent shows each file's icon, and names a file twice listed by its folder.
 
-**Show in Finder (⇧⌘R) and Convert to FLAC act on the current track. Move to Trash (⌘⌫) acts on the selected rows.** They sit together in the Finder's order. Show in Finder validates on the track having a URL. Move to Trash validates on the visible selection, or on the loaded track while the playlist is collapsed (`VibeMenuHasTrashTarget`), waits for `fileMoveInFlight` as Remove does, and its default is the Finder's. The row menu carries both for the **clicked** row (`Playlist/Mac/AGENTS.md`). Close is nil-targeted (`MainWindow/AGENTS.md`).
+**Show in Finder (⇧⌘R) acts on the current track. Move to Trash (⌘⌫) acts on the selected rows.** They sit together in the Finder's order. Show in Finder validates on the track having a URL. Move to Trash validates on the visible selection, or on the loaded track while the playlist is collapsed (`VibeMenuHasTrashTarget`), waits for `fileMoveInFlight` as Remove does, and its default is the Finder's. The row menu carries both for the **clicked** row (`Playlist/Mac/AGENTS.md`). Close is nil-targeted (`MainWindow/AGENTS.md`).
 
 **Close File retitles itself Clear Playlist with more than one track loaded.** `closeFile:` owns the whole teardown either way. There is deliberately no second whole-list command, which would be an alias, or a second teardown path that could miss a future piece of playback state.
 
@@ -72,13 +72,17 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **Each skip item names its distance** (`VibeSkipMenuTitle`): whole bars while the track's tempo is known, else seconds, from `AppSettings.skipBaseBars` and `TransportMath.h`'s three levels. The Shortcuts pane labels them in the bars form whatever the track. They are listed back before forward, as Previous and Next are.
 
-**Convert to FLAC validates through `AudioFileConverter.validateConvertMenuItem:forTrack:`**, shared with the window-body item under the same `menu_convert_to_flac` identifier. It enables for WAV and AIFF. In automatic-placement mode an existing sibling FLAC disables it and changes its title to "FLAC Already Exists". Ask-mode leaves destination selection to the save panel. **While a conversion runs, the same item becomes the enabled Cancel Conversion.** `MainPlayerController.validateConvertMenuItem:` swaps its title and action to `cancelConversion:` ahead of the converter's rule (`Mac/Convert/AGENTS.md`). Only the current track is convertible, so there is deliberately no playlist row item. **The item hides itself in validation** while Settings > Files > Convert to FLAC is off and for a file under a remote root (`VibeConvertMenuItemHidden`), decided from the path alone. An Open Location link's file belongs to its store, and a FLAC beside it would land in the store's directory. A hidden item stays in `itemArray`, and `dump_menu` reports it with `hidden: true`. Move original to Trash after conversion is a Settings > Files switch and no menu item.
+## Convert
+
+**Settings > Files > Convert menu off hides the whole menu, live.** The menu is always built (`menu_convert`) and hidden in place. The `ConvertMenu` effect calls `MainMenuBuilder.applyConvertMenuVisibility`, and the build seeds the initial state. Move original to Trash after conversion is a Settings > Files switch and no menu item, so Convert to FLAC is the menu's one item.
+
+**Convert to FLAC validates through `AudioFileConverter.validateConvertMenuItem:forTrack:`**, shared with the window-body item under the same `menu_convert_to_flac` identifier. It enables for WAV and AIFF. In automatic-placement mode an existing sibling FLAC disables it and changes its title to "FLAC Already Exists". Ask-mode leaves destination selection to the save panel. **While a conversion runs, the same item becomes the enabled Cancel Conversion.** `MainPlayerController.validateConvertMenuItem:` swaps its title and action to `cancelConversion:` ahead of the converter's rule (`Mac/Convert/AGENTS.md`). Only the current track is convertible, so there is deliberately no playlist row item. **The item hides itself in validation** while Convert is off and for a file under a remote root (`VibeConvertMenuItemHidden`), decided from the path alone. That is how the context menus follow the setting live. An Open Location link's file belongs to its store, and a FLAC beside it would land in the store's directory. A hidden item stays in `itemArray`, and `dump_menu` reports it with `hidden: true`.
 
 ## FX
 
 There is one checkmarked toggle per effect, on bare Q, W, E, R and T by default. The actions are `MainPlayerController+Transport`'s, so a menu toggle and a bare-key tap are the same flip. **The menu is always built and hidden in place.** `FXControls` clears active effects before hiding it and sends the saved audio settings through the player's shared rebuild. Enabling can create the FX segment without a relaunch. Validation and `TransportKeyMonitor` both require `AppSettings.audioFXAllowed` *and* the FX controls object.
 
-**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches the FX keys under a hidden `menu_fx`, even when validation returns NO. `applyShortcuts` gives no equivalent to any item under a hidden menu, and `applyFXMenuVisibility` calls it after hiding. Validation remains the gate for direct dispatch.
+**TRAP: hiding a top-level submenu does not deactivate its children's key equivalents.** AppKit still matches the FX keys under a hidden `menu_fx`, even when validation returns NO. `applyShortcuts` gives no equivalent to any item under a hidden menu, FX and Convert alike, and both visibility hooks call it after hiding. Validation remains the gate for direct dispatch.
 
 ## Window
 
@@ -87,7 +91,7 @@ There is one checkmarked toggle per effect, on bare Q, W, E, R and T by default.
 - **Window Width** (Small, Default, Large) snaps to `kMainWindowMinContentWidth`, `kMainWindowContentWidth` or `kMainWindowLargeContentWidth`. These are *body* widths: the window is that plus the pitch panel's slice. The height is deliberately untouched, since it belongs to Show Playlist and the resize handle. One mapping, `contentWidthForSizeIdentifier:`, serves the action and the checkmarks, so a window dragged off a preset matches none.
 - **Always on Top and Lock Window Position** are checkmarked toggles of the window's state, shared with Settings > General.
 
-## Audio Output
+## Output
 
 `OutputDevicesMenuController` builds "System Output (<default device>)" (tag -1), then every device from `AudioDeviceManager`. As an observer it **rebuilds the menu in place while it is open**, which is why the manager fans out in the common run-loop modes (`Audio/Mac/Devices/AGENTS.md`). The checkmark follows `AudioPlayer.currentlyRequestedAudioDeviceId`. A vanished device falls back to System Output for playback. Its saved preference stays available for re-adoption. Explicitly choosing System Output clears that preference.
 

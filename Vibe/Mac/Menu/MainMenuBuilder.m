@@ -111,6 +111,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     [self buildViewMenuIn:mainMenu player:player];
     [self buildPlaybackMenuIn:mainMenu player:player];
     [self buildFXMenuIn:mainMenu player:player];
+    [self buildConvertMenuIn:mainMenu player:player];
+    [self buildOutputMenuIn:mainMenu player:player];
     [self buildWindowMenuIn:mainMenu player:player];
 
     NSApp.mainMenu = mainMenu;
@@ -178,15 +180,11 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     AddSeparator(fileMenu);
     AddItem(fileMenu, STR_MENU_FILE_SAVE_PLAYLIST, @selector(savePlaylist:), player, @"", 0, kVibeMenuSavePlaylist);
     AddSeparator(fileMenu);
-    // The file commands, in the Finder's order. Show in Finder and Convert
-    // act on the current track; Move to Trash on the selected rows.
+    // The file commands, in the Finder's order. Show in Finder acts on the
+    // current track; Move to Trash on the selected rows.
     AddItem(fileMenu, STR_MENU_SHOW_IN_FINDER, @selector(showInFinder:), player, @"", 0, kVibeMenuShowInFinder);
     AddItem(fileMenu, STR_MENU_EDIT_MOVE_TO_TRASH, @selector(moveToTrash:), player, @"", 0,
             kVibeMenuEditMoveToTrash);
-    // Validation hides it while Convert is off (Settings > Files) and for a
-    // file under a remote root, as it does the window-body item's.
-    AddItem(fileMenu, STR_MENU_CONVERT_TO_FLAC, @selector(convertCurrentTrackToFLAC:), player, @"", 0,
-            kVibeMenuConvertToFLAC);
     AddSeparator(fileMenu);
     // Nil-targeted so ⌘W follows the key window; Settings and About close
     // themselves.
@@ -276,11 +274,6 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSMenu *pitchRangeMenu = Submenu(playbackMenu, STR_MENU_PITCH_RANGE).submenu;
     AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_8, @selector(setPitchRange:), player, @"", 0, kVibeMenuPitchRange8);
     AddItem(pitchRangeMenu, STR_MENU_PITCH_RANGE_16, @selector(setPitchRange:), player, @"", 0, kVibeMenuPitchRange16);
-    AddSeparator(playbackMenu);
-
-    NSMenu *outputMenu = Submenu(playbackMenu, STR_SETTINGS_AUDIO_SECTION).submenu;
-    outputMenu.autoenablesItems = NO;
-    outputMenu.delegate = player.devicesMenuController; // builds the device list
 }
 
 + (void)buildFXMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
@@ -323,8 +316,32 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     NSApp.windowsMenu = windowMenu;
 }
 
-// The FX settings effect's hook, which also re-applies the shortcuts, since
-// a hidden menu withdraws them.
++ (void)buildConvertMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
+    // Always built, hidden in place by its settings effect. Validation also
+    // hides the item for a file under a remote root, as it does the
+    // window-body item's.
+    NSMenuItem *convertItem = Submenu(mainMenu, STR_MENU_CONVERT);
+    convertItem.identifier = @"menu_convert";
+    AddItem(convertItem.submenu, STR_MENU_CONVERT_TO_FLAC, @selector(convertCurrentTrackToFLAC:), player, @"", 0,
+            kVibeMenuConvertToFLAC);
+    convertItem.hidden = !AppSettings.sharedInstance.convertEnabled;
+}
+
++ (void)buildOutputMenuIn:(NSMenu *)mainMenu player:(MainPlayerController *)player {
+    // Top level, for quick access while playing.
+    NSMenu *outputMenu = Submenu(mainMenu, STR_MENU_OUTPUT).submenu;
+    outputMenu.autoenablesItems = NO;
+    outputMenu.delegate = player.devicesMenuController; // builds the device list
+}
+
+// The ConvertMenu and FX settings effects' hooks. Each menu is always built
+// and hidden in place, and each call re-applies the shortcuts, which a
+// hidden menu withdraws.
++ (void)applyConvertMenuVisibility {
+    [self mainMenuItemWithIdentifier:@"menu_convert"].hidden = !AppSettings.sharedInstance.convertEnabled;
+    [self applyShortcuts];
+}
+
 + (void)applyFXMenuVisibility {
     [self mainMenuItemWithIdentifier:@"menu_fx"].hidden = !AppSettings.sharedInstance.audioFXAllowed;
     [self applyShortcuts];

@@ -29,8 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
                              target:(nullable id)target
                          identifier:(nullable NSString *)identifier;
 
-// The FX settings effect's hook. The menu is always built and hidden in
-// place, and the call re-applies the shortcuts, which a hidden menu withdraws.
+// The ConvertMenu and FX settings effects' hooks. Each menu is always built
+// and hidden in place, and each call re-applies the shortcuts, which a
+// hidden menu withdraws.
++ (void)applyConvertMenuVisibility;
 + (void)applyFXMenuVisibility;
 
 // The Shortcuts settings effect's hook: the one place a remappable item's key

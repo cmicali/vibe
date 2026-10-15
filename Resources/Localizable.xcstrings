@@ -20464,12 +20464,6 @@
     "menu.app.send_feedback": {
       "comment": "App menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature. Use the wording Apple's own apps use for sending feedback. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send Feedback…"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -20498,6 +20492,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Αποστολή σχολίων…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send Feedback…"
           }
         },
         "es": {
@@ -22507,8 +22507,194 @@
       },
       "extractionState": "manual"
     },
+    "menu.convert": {
+      "comment": "Menu bar: the Convert menu.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Конвертиране"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Převést"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konverter"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konvertieren"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μετατροπή"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convertir"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muunna"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convertir"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konverzija"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konvertálás"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konversi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converti"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変換"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변환"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konverter"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converteer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konwersja"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converter"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converter"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Конвертация"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konverzia"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konvertera"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แปลง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dönüştür"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Конвертація"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển đổi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转换"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉換"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.convert.cancel": {
-      "comment": "File menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.",
+      "comment": "Convert menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22694,7 +22880,7 @@
       "extractionState": "manual"
     },
     "menu.convert.flac_exists": {
-      "comment": "File menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.",
+      "comment": "Convert menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22880,7 +23066,7 @@
       "extractionState": "manual"
     },
     "menu.convert.to_flac": {
-      "comment": "File menu and context menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.",
+      "comment": "Convert menu item: converts the current uncompressed track to FLAC. Also the context-menu item, the save panel's title and the undo action's name. FLAC is a format name — keep it.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23254,12 +23440,6 @@
     "menu.edit.copy": {
       "comment": "Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -23288,6 +23468,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Αντιγραφή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
           }
         },
         "es": {
@@ -27901,8 +28087,194 @@
       },
       "extractionState": "manual"
     },
+    "menu.output": {
+      "comment": "Menu bar: the menu selecting the audio output device.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аудиоизход"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Výstup"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgabe"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Έξοδος"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salida"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ulostulo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortie"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Izlaz"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kimenet"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uscita"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出力"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "출력"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utgang"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uitvoer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyjście"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saída"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saída"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ieșire"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вывод"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Výstup"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utmatning"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เอาต์พุต"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çıkış"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вихід"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đầu ra"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "输出"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輸出"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.output.system": {
-      "comment": "Playback > Audio Output submenu item: follow the system's default output device, used when its name is unknown.",
+      "comment": "Output menu item: follow the system's default output device, used when its name is unknown.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28088,7 +28460,7 @@
       "extractionState": "manual"
     },
     "menu.output.system_named": {
-      "comment": "Playback > Audio Output submenu item: follow the system's default output device. %@ is that device's name.",
+      "comment": "Output menu item: follow the system's default output device. %@ is that device's name.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29206,12 +29578,6 @@
     "menu.playback.repeat.all": {
       "comment": "Repeat submenu item: after the last track the playlist plays again from the start.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29240,6 +29606,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Όλα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
           }
         },
         "es": {
@@ -29392,12 +29764,6 @@
     "menu.playback.repeat.off": {
       "comment": "Repeat submenu item: playback stops at the end of the playlist.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Off"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29426,6 +29792,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ανενεργή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
           }
         },
         "es": {
@@ -29578,12 +29950,6 @@
     "menu.playback.repeat.one": {
       "comment": "Repeat submenu item: the current track replays when it ends.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "One"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29612,6 +29978,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ένα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One"
           }
         },
         "es": {
@@ -29764,12 +30136,6 @@
     "menu.playback.skip_back_bars": {
       "comment": "Playback menu item: seek backward a whole number of musical bars. %ld is the count, 4 to 64, never 1.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Back %ld Bars"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29798,6 +30164,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μεταπήδηση πίσω %ld μέτρα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Back %ld Bars"
           }
         },
         "es": {
@@ -29950,12 +30322,6 @@
     "menu.playback.skip_back_seconds": {
       "comment": "Playback menu item: seek backward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Back %ld Seconds"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -29984,6 +30350,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μεταπήδηση πίσω %ld δευτερόλεπτα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Back %ld Seconds"
           }
         },
         "es": {
@@ -30136,12 +30508,6 @@
     "menu.playback.skip_forward_bars": {
       "comment": "Playback menu item: seek forward a whole number of musical bars. %ld is the count, 4 to 64, never 1.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Forward %ld Bars"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30170,6 +30536,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μεταπήδηση εμπρός %ld μέτρα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Forward %ld Bars"
           }
         },
         "es": {
@@ -30322,12 +30694,6 @@
     "menu.playback.skip_forward_seconds": {
       "comment": "Playback menu item: seek forward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Forward %ld Seconds"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -30356,6 +30722,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μεταπήδηση εμπρός %ld δευτερόλεπτα"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Forward %ld Seconds"
           }
         },
         "es": {
@@ -32182,12 +32554,6 @@
     "menu.view.pitch_control.hide": {
       "comment": "View menu item: hides the pitch fader panel. Replaces 'Show Pitch Control' while the panel is shown.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Pitch Control"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -32216,6 +32582,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Απόκρυψη ρυθμιστικού pitch"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Pitch Control"
           }
         },
         "es": {
@@ -32554,12 +32926,6 @@
     "menu.view.playlist.hide": {
       "comment": "View menu item: collapses the playlist. Replaces 'Show Playlist' while the playlist is shown.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hide Playlist"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -32588,6 +32954,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Απόκρυψη λίστας αναπαραγωγής"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Playlist"
           }
         },
         "es": {
@@ -33856,12 +34228,6 @@
     "menu.window": {
       "comment": "Menu bar: the Window menu. macOS uses this same name in every app.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Window"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -33890,6 +34256,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Παράθυρο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window"
           }
         },
         "es": {
@@ -34042,12 +34414,6 @@
     "menu.window.bring_all_to_front": {
       "comment": "Window menu item: brings every window of the app in front of other apps' windows. macOS uses this same name in every app.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bring All to Front"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -34076,6 +34442,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μεταφορά όλων σε πρώτο πλάνο"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bring All to Front"
           }
         },
         "es": {
@@ -85190,186 +85562,186 @@
       "extractionState": "manual"
     },
     "settings.convert.enabled": {
-      "comment": "Settings, Files pane, FLAC conversion group: switch showing or hiding the whole Convert feature: off removes the Convert to FLAC item from the File menu and the context menus. FLAC is a format name — keep it.",
+      "comment": "Settings, Files pane, FLAC conversion group: switch showing or hiding the whole Convert feature: off removes the Convert menu from the menu bar and the Convert to FLAC item from the context menus.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Конвертирай във FLAC"
+            "value": "Меню „Конвертиране“"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Převést do FLAC"
+            "value": "Nabídka Převést"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konverter til FLAC"
+            "value": "Menuen Konverter"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "In FLAC konvertieren"
+            "value": "Menü „Konvertieren“"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μετατροπή σε FLAC"
+            "value": "Μενού «Μετατροπή»"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convert to FLAC"
+            "value": "Convert menu"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convertir a FLAC"
+            "value": "Menú Convertir"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muunna FLAC-muotoon"
+            "value": "Muunna-valikko"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convertir en FLAC"
+            "value": "Menu Convertir"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertiraj u FLAC"
+            "value": "Izbornik „Konverzija”"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertálás FLAC formátumba"
+            "value": "Konvertálás menü"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konversi ke FLAC"
+            "value": "Menu Konversi"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Converti in FLAC"
+            "value": "Menu Converti"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "FLACに変換"
+            "value": "「変換」メニュー"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "FLAC으로 변환"
+            "value": "변환 메뉴"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konverter til FLAC"
+            "value": "Konverter-menyen"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Converteer naar FLAC"
+            "value": "Menu Converteer"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konwertuj do FLAC"
+            "value": "Menu Konwersja"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Converter para FLAC"
+            "value": "Menu Converter"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Converter para FLAC"
+            "value": "Menu Converter"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convertiți în FLAC"
+            "value": "Meniul „Conversie”"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Конвертировать в FLAC"
+            "value": "Меню «Конвертация»"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertovať do FLAC"
+            "value": "Ponuka Konverzia"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertera till FLAC"
+            "value": "Menyn Konvertera"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แปลงเป็น FLAC"
+            "value": "เมนูแปลง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "FLAC Biçimine Dönüştür"
+            "value": "Dönüştür menüsü"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Конвертувати у FLAC"
+            "value": "Меню «Конвертація»"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chuyển đổi sang FLAC"
+            "value": "Menu Chuyển đổi"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "转换为 FLAC"
+            "value": "“转换”菜单"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "轉換為 FLAC"
+            "value": "「轉換」選單"
           }
         }
       },

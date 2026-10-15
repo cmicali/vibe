@@ -155,24 +155,24 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"Window menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
 #define STR_MENU_VIEW_LOCK_WINDOW_POSITION NSLS(@"menu.view.lock_window_position", @"Lock Window Position", @"Window menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.")
 
-#pragma mark - Convert
+#pragma mark - Convert menu
 
 // STR_MENU_CONVERT_TO_FLAC is also the context-menu item, the save panel's
 // title, and the NSUndoManager action name ("Undo Convert to FLAC") — one
 // action, so one name everywhere it appears.
 
-#define STR_MENU_CONVERT_TO_FLAC         NSLS(@"menu.convert.to_flac",         @"Convert to FLAC",               @"File menu and context menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.")
-#define STR_MENU_CONVERT_CANCEL          NSLS(@"menu.convert.cancel",          @"Cancel Conversion",             @"File menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.")
-#define STR_MENU_CONVERT_FLAC_EXISTS     NSLS(@"menu.convert.flac_exists",     @"FLAC Already Exists",           @"File menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.")
+#define STR_MENU_CONVERT                 NSLS(@"menu.convert",                 @"Convert",                       @"Menu bar: the Convert menu.")
+#define STR_MENU_CONVERT_TO_FLAC         NSLS(@"menu.convert.to_flac",         @"Convert to FLAC",               @"Convert menu item: converts the current uncompressed track to FLAC. Also the context-menu item, the save panel's title and the undo action's name. FLAC is a format name — keep it.")
+#define STR_MENU_CONVERT_CANCEL          NSLS(@"menu.convert.cancel",          @"Cancel Conversion",             @"Convert menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.")
+#define STR_MENU_CONVERT_FLAC_EXISTS     NSLS(@"menu.convert.flac_exists",     @"FLAC Already Exists",           @"Convert menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.")
 
 #define STR_LABEL_CONVERT_SAVE_MESSAGE NSLS(@"label.convert.save_message", @"Choose where to save the converted FLAC.", @"Message atop the save panel for the converted FLAC. The panel can be requested by the save-location setting or a failed move beside the source.")
 
-#pragma mark - Audio Output submenu
+#pragma mark - Output menu
 
-// Its title is STR_SETTINGS_AUDIO_SECTION, shared with the Settings pane.
-
-#define STR_MENU_OUTPUT_SYSTEM_NAMED NSLS(@"menu.output.system_named", @"System Output (%@)", @"Playback > Audio Output submenu item: follow the system's default output device. %@ is that device's name.")
-#define STR_MENU_OUTPUT_SYSTEM       NSLS(@"menu.output.system",       @"System Output",      @"Playback > Audio Output submenu item: follow the system's default output device, used when its name is unknown.")
+#define STR_MENU_OUTPUT              NSLS(@"menu.output",              @"Output",             @"Menu bar: the menu selecting the audio output device.")
+#define STR_MENU_OUTPUT_SYSTEM_NAMED NSLS(@"menu.output.system_named", @"System Output (%@)", @"Output menu item: follow the system's default output device. %@ is that device's name.")
+#define STR_MENU_OUTPUT_SYSTEM       NSLS(@"menu.output.system",       @"System Output",      @"Output menu item: follow the system's default output device, used when its name is unknown.")
 
 #pragma mark - Context menus
 
@@ -493,7 +493,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_TIME_TOTAL         NSLS(@"settings.appearance.time_total",                 @"Total time",               @"Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label shows the track's full length. Pairs with 'Remaining time' — use the same noun in both.")
 #define STR_SETTINGS_TIME_REMAINING     NSLS(@"settings.appearance.time_remaining",             @"Remaining time",           @"Settings, Appearance pane, and the iOS settings screen, time display choice: the right time label counts down the time left, e.g. '-1:50'. Pairs with 'Total time' — use the same noun in both.")
 
-#define STR_SETTINGS_CONVERT_ENABLED     NSLS(@"settings.convert.enabled",                      @"Convert to FLAC",               @"Settings, Files pane, FLAC conversion group: switch showing or hiding the whole Convert feature: off removes the Convert to FLAC item from the File menu and the context menus. FLAC is a format name — keep it.")
+#define STR_SETTINGS_CONVERT_ENABLED     NSLS(@"settings.convert.enabled",                      @"Convert menu",                  @"Settings, Files pane, FLAC conversion group: switch showing or hiding the whole Convert feature: off removes the Convert menu from the menu bar and the Convert to FLAC item from the context menus.")
 #define STR_SETTINGS_CONVERT_ENABLED_CAPTION NSLS(@"settings.convert.enabled.caption", @"Show Convert to FLAC in the menus", @"Settings, Files pane: caption under the Convert menu switch.")
 #define STR_SETTINGS_CONVERT_DEST_LABEL  NSLS(@"settings.convert.destination_label",            @"Save converted files:",    @"Settings, Files pane, FLAC conversion group: label beside the dropdown choosing where Convert to FLAC writes its output. Ends with a colon.")
 #define STR_SETTINGS_CONVERT_DEST_BESIDE NSLS(@"settings.convert.destination.beside",           @"Next to original",         @"Files pane, FLAC conversion: tries to save beside the source. The default.")
