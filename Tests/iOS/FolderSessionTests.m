@@ -11,6 +11,7 @@
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "FolderSessionInternal.h"
+#import "PlaylistTestSupport.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "RecentsStore.h"
@@ -30,27 +31,19 @@
     return self;
 }
 
-static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
-    NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (AudioTrack *row in rows) {
-        [names addObject:row.url.lastPathComponent];
-    }
-    return names;
-}
-
 - (void)folderSession:(FolderSession *)session
         didOpenTracks:(NSArray<AudioTrack *> *)rows
             folderURL:(NSURL *)folderURL
           selectedURL:(NSURL *)selectedURL
              restored:(BOOL)restored {
-    [_events addObject:@{@"kind": @"open", @"names": VibeRowNames(rows),
+    [_events addObject:@{@"kind": @"open", @"names": NamesOf(rows),
                          @"folder": folderURL.lastPathComponent ?: @"",
                          @"selected": selectedURL.lastPathComponent ?: @"",
                          @"restored": @(restored)}];
 }
 
 - (void)folderSession:(FolderSession *)session didAppendTracks:(NSArray<AudioTrack *> *)rows {
-    [_events addObject:@{@"kind": @"append", @"names": VibeRowNames(rows)}];
+    [_events addObject:@{@"kind": @"append", @"names": NamesOf(rows)}];
 }
 
 - (void)folderSessionDidOpenEmptyFolder:(FolderSession *)session {
@@ -64,7 +57,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
 - (void)folderSession:(FolderSession *)session
         needsFolderOfSheetAtURL:(NSURL *)sheetURL
                       appending:(BOOL)appending {
-    [_events addObject:@{@"kind": @"needsFolder", @"names": @[sheetURL.lastPathComponent]}];
+    [_events addObject:@{@"kind": @"needsFolder", @"names": sheetURL.lastPathComponent.stringByDeletingPathExtension}];
 }
 
 @end
@@ -136,7 +129,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [_session openURLs:@[_albumA] openInPlace:YES];
     NSDictionary *event = [self waitForEvent:0];
     XCTAssertEqualObjects(event[@"kind"], @"open");
-    XCTAssertEqualObjects(event[@"names"], (@[@"A1.mp3", @"A2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"A1 A2");
     XCTAssertEqualObjects(event[@"folder"], @"A");
     XCTAssertEqualObjects(event[@"restored"], @NO);
     XCTAssertEqualObjects(_session.folderURL.lastPathComponent, @"A");
@@ -163,7 +156,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
 
 - (void)testOneDeliveryNamesEachTrackOnceAndARedundantURLIsNotPersisted {
     [_session openURLs:@[_albumA, _albumA] openInPlace:YES];
-    XCTAssertEqualObjects([self waitForEvent:0][@"names"], (@[@"A1.mp3", @"A2.mp3"]));
+    XCTAssertEqualObjects([self waitForEvent:0][@"names"], @"A1 A2");
     XCTAssertNotNil(self.storedBase);
     XCTAssertNil(self.storedAdditions);
 }
@@ -172,7 +165,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     NSURL *song = [self file:@"Loose/Song.mp3"];
     [_session openURLs:@[song, _albumB] openInPlace:YES];
     NSDictionary *event = [self waitForEvent:0];
-    XCTAssertEqualObjects(event[@"names"], (@[@"Song.mp3", @"B1.mp3", @"B2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"Song B1 B2");
     XCTAssertEqualObjects(event[@"folder"], @"");
     XCTAssertNil(_session.folderURL);
     XCTAssertNil(_session.folderDisplayName);
@@ -188,7 +181,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     NSURL *song = [_albumA URLByAppendingPathComponent:@"A2.mp3"];
     [_session openURL:song inFolder:YES];
     NSDictionary *event = [self waitForEvent:0];
-    XCTAssertEqualObjects(event[@"names"], @[@"A2.mp3"]);
+    XCTAssertEqualObjects(event[@"names"], @"A2");
     XCTAssertEqualObjects(event[@"folder"], @"");
     XCTAssertEqualObjects(event[@"selected"], @"");
 }
@@ -198,7 +191,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     NSURL *song = [_albumA URLByAppendingPathComponent:@"A2.mp3"];
     [_session openURL:song inFolder:YES];
     NSDictionary *event = [self waitForEvent:0];
-    XCTAssertEqualObjects(event[@"names"], (@[@"A1.mp3", @"A2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"A1 A2");
     XCTAssertEqualObjects(event[@"folder"], @"A");
     XCTAssertEqualObjects(event[@"selected"], @"A2.mp3");
 }
@@ -207,7 +200,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     NSURL *song = [_albumA URLByAppendingPathComponent:@"A1.mp3"];
     XCTAssertTrue([LocationStore.shared addFolderURL:_albumA]);
     [_session openURLs:@[song] openInPlace:NO];
-    XCTAssertEqualObjects([self waitForEvent:0][@"names"], @[@"A1.mp3"]);
+    XCTAssertEqualObjects([self waitForEvent:0][@"names"], @"A1");
     XCTAssertNil(self.storedBase, @"an inbox copy is never bookmarked");
 }
 
@@ -225,7 +218,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [_session addURLs:@[_albumB]];
     NSDictionary *event = [self waitForEvent:1];
     XCTAssertEqualObjects(event[@"kind"], @"append");
-    XCTAssertEqualObjects(event[@"names"], (@[@"B1.mp3", @"B2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"B1 B2");
     XCTAssertTrue(_session.hasAdditions);
     XCTAssertEqualObjects(_session.folderURL.lastPathComponent, @"A", @"an Add never moves the base");
     XCTAssertEqualObjects([_session.searchRoots valueForKey:@"lastPathComponent"], (@[@"A", @"B"]));
@@ -236,7 +229,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     XCTAssertTrue([LocationStore.shared addFolderURL:_albumB]);
     [self land:_albumA];
     [_session addURLs:@[[_albumB URLByAppendingPathComponent:@"B2.mp3"]]];
-    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @[@"B2.mp3"]);
+    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @"B2");
     XCTAssertEqualObjects([_session.searchRoots valueForKey:@"lastPathComponent"], @[@"A"],
                           @"a single added file is a scope, not a root");
 }
@@ -246,7 +239,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [_session addURLs:@[_empty]];
     NSDictionary *event = [self waitForEvent:1];
     XCTAssertEqualObjects(event[@"kind"], @"append");
-    XCTAssertEqualObjects(event[@"names"], @[]);
+    XCTAssertEqualObjects(event[@"names"], @"");
     XCTAssertFalse(_session.hasAdditions);
 }
 
@@ -264,8 +257,8 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [_session addURLs:@[_albumB]];
     [_session addURLs:@[_albumC]];
     XCTAssertEqualObjects([self waitForEvent:0][@"kind"], @"open");
-    XCTAssertEqualObjects([self waitForEvent:1][@"names"], (@[@"B1.mp3", @"B2.mp3"]));
-    XCTAssertEqualObjects([self waitForEvent:2][@"names"], (@[@"C1.mp3", @"C2.mp3"]));
+    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @"B1 B2");
+    XCTAssertEqualObjects([self waitForEvent:2][@"names"], @"C1 C2");
     XCTAssertEqualObjects(_recorder.events[1][@"kind"], @"append");
     XCTAssertEqualObjects(_recorder.events[2][@"kind"], @"append");
 }
@@ -279,7 +272,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     XCTAssertEqualObjects([self waitForEvent:0][@"kind"], @"open");
     NSDictionary *event = [self waitForEvent:1];
     XCTAssertEqualObjects(event[@"kind"], @"append");
-    XCTAssertEqualObjects(event[@"names"], (@[@"B1.mp3", @"B2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"B1 B2");
 }
 
 - (void)testAnAddWhoseTokenAReplaceOvertookIsDropped {
@@ -300,7 +293,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     XCTAssertEqualObjects([self waitForEvent:0][@"folder"], @"C");
     NSDictionary *event = [self waitForEvent:1];
     XCTAssertEqualObjects(event[@"kind"], @"append");
-    XCTAssertEqualObjects(event[@"names"], (@[@"B1.mp3", @"B2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"B1 B2");
     [self settle];
     XCTAssertEqual(_recorder.events.count, 2u, @"the superseded promotion never lands: %@", _recorder.events);
 }
@@ -359,7 +352,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     XCTAssertTrue([relaunched restorePersistedFolder]);
     NSDictionary *event = [self waitForEvent:2];
     XCTAssertEqualObjects(event[@"kind"], @"open");
-    XCTAssertEqualObjects(event[@"names"], (@[@"A1.mp3", @"A2.mp3", @"B1.mp3", @"B2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"A1 A2 B1 B2");
     XCTAssertEqualObjects(event[@"folder"], @"A");
     XCTAssertEqualObjects(event[@"restored"], @YES);
     XCTAssertTrue(relaunched.hasAdditions);
@@ -377,7 +370,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     FolderSession *relaunched = [self newSession];
     XCTAssertTrue([relaunched restorePersistedFolder]);
     NSDictionary *event = [self waitForEvent:2];
-    XCTAssertEqualObjects(event[@"names"], (@[@"B1.mp3", @"B2.mp3"]));
+    XCTAssertEqualObjects(event[@"names"], @"B1 B2");
     XCTAssertEqualObjects(event[@"folder"], @"B", @"the first survivor becomes the base");
     NSURL *base = [NSURL URLByResolvingBookmarkData:self.storedBase options:0 relativeToURL:nil
                                 bookmarkDataIsStale:NULL error:NULL];
@@ -411,7 +404,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [self land:_albumA];
     NSData *base = self.storedBase;
     [_session openURLs:@[[self file:@"Inbox/Copy.mp3"]] openInPlace:NO];
-    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @[@"Copy.mp3"]);
+    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @"Copy");
     [_session addURLs:@[_albumB]];
     XCTAssertEqualObjects([self waitForEvent:2][@"kind"], @"append");
     XCTAssertEqualObjects(self.storedBase, base);
@@ -422,7 +415,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [self land:_albumA];
     NSData *base = self.storedBase;
     [_session openURL:[self file:@"Loose/Song.mp3"] inFolder:NO];
-    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @[@"Song.mp3"]);
+    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @"Song");
     XCTAssertEqualObjects(self.storedBase, base);
 }
 
@@ -435,7 +428,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [[NSData dataWithBytes:"x" length:1] writeToURL:link atomically:YES];
     [_session openURL:link inFolder:YES];
     NSDictionary *event = [self waitForEvent:1];
-    XCTAssertEqualObjects(event[@"names"], @[@"Stream.mp3"], @"a link never expands to its hashed folder");
+    XCTAssertEqualObjects(event[@"names"], @"Stream", @"a link never expands to its hashed folder");
     NSURL *base = [NSURL URLByResolvingBookmarkData:self.storedBase options:0 relativeToURL:nil
                                 bookmarkDataIsStale:NULL error:NULL];
     XCTAssertEqualObjects(base.lastPathComponent, @"Stream.mp3");
@@ -528,9 +521,9 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
                                             attributes:nil error:NULL];
 
     [_session openURLs:@[music] openInPlace:YES];
-    XCTAssertEqualObjects([self waitForEvent:0][@"names"], @[@"Song.mp3"]);
+    XCTAssertEqualObjects([self waitForEvent:0][@"names"], @"Song");
     [_session openURLs:@[music] openInPlace:YES];
-    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @[@"Song.mp3"]);
+    XCTAssertEqualObjects([self waitForEvent:1][@"names"], @"Song");
     @synchronized (self) {
         XCTAssertEqual(listings, 1u, @"a folder already listed is read from disk");
     }

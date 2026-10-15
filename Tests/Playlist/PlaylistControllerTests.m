@@ -43,22 +43,6 @@
     NSPasteboardType _reorderType;
 }
 
-static NSArray<AudioTrack *> *TracksNamed(NSString *names) {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (NSString *name in [names componentsSeparatedByString:@" "]) {
-        [urls addObject:URLNamed([name stringByAppendingString:@".mp3"])];
-    }
-    return Rows(urls);
-}
-
-static NSString *NamesOf(NSArray<AudioTrack *> *tracks) {
-    NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (AudioTrack *track in tracks) {
-        [names addObject:track.url.lastPathComponent.stringByDeletingPathExtension];
-    }
-    return [names componentsJoinedByString:@" "];
-}
-
 - (void)setUp {
     [super setUp];
     _player = [VibeShellTestPlayer new];

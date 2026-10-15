@@ -18,7 +18,7 @@ This directory holds the main window and its controller, `MainPlayerController`,
 - `+NowPlaying`: the system's Now Playing info and remote commands.
 - `+Convert` (`Convert/`): Convert to FLAC's swap and its undo.
 
-**The host-less suite builds the controller through `initWithWindow:audioPlayer:metadataCache:metadataScheduler:`** (`MainPlayerControllerInternal.h`). It builds only the playlist controller and its handlers (`buildPlaylistController`), so `MainPlayerControllerTests` runs those handlers as shipped. The scheduler runs the deferred metadata load's fallback. The app's `init` passes `dispatch_after` on main.
+**Every controller is built through `initWithWindow:audioPlayer:metadataCache:metadataScheduler:`** (`MainPlayerControllerInternal.h`). It stores what it is handed and builds nothing. The scheduler runs the deferred metadata load's fallback. The app's `init` is in the `+Construction` category. It passes `dispatch_after` on main and a nil player and cache, then builds the window, the collaborators and the OS publishers. The host-less suite does not compile `+Construction`. `MainPlayerControllerTests` passes fakes and calls `buildPlaylistController`, so it runs the playlist's handlers as shipped. `+Construction` has no header. It overrides only inherited methods, and its other methods are called only from its own file.
 
 **A method a category implements is declared in that category's header.** It is never declared in `MainPlayerController.h` or in `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared under `Vibe/Debug/Mac/Seams/`.
 
