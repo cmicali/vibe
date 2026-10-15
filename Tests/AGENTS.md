@@ -1,8 +1,8 @@
 # Unit tests
 
-This directory holds the tests of both test targets, `VibeTests` and `VibeAudioTests`, and their shared helpers in `Support/`. It also holds two tools that are not test suites, `iOSDriver/` and `BenchComponents/`.
+This directory holds the tests of the three test targets, `VibeTests`, `VibeAudioTests`, and `VibeiOSTests`, and their shared helpers in `Support/`. It also holds two tools that are not test suites, `iOSDriver/` and `BenchComponents/`.
 
-`make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests` (below). Both targets are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
+`make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests`, and `make test-ios` runs `VibeiOSTests` (both below). All three are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
 
 `iOSDriver/` is **not** a test suite. It is the `vibe-debug` skill's touch driver, a resident XCUITest (`VibeiOSDriver`) started by `drive-ios.sh`, and `VibeTests`' `Tests` source entry excludes it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, excluded the same way.
 
@@ -20,7 +20,7 @@ This directory holds the tests of both test targets, `VibeTests` and `VibeAudioT
 - `MaterializationTestFakes.h` and `.m`: the gated dataless probe and the hand-completed provider operations of the stage-1 coordinator tests (`AudioFileMaterializationCoordinatorTestCase`).
 - `MetadataLoaderTestFakes.h` and `.m`: the metadata loader tests' fakes, and the suite's `AudioTrackMetadata` decoy.
 - `ShellTestFakes.h` and `.m`: the mac shell's duck-typed player and metadata scan, the window's occlusion answer, and the shell's decoys.
-- `TestFilesystemGuard.h` and `.m`: the per-process temp root and in-memory defaults, installed at image load. Both targets compile it.
+- `TestFilesystemGuard.h` and `.m`: the per-process temp root and in-memory defaults, installed at image load. All three targets compile it.
 - `VibeReadAheadScript.h` and `.m`: forces the network-mount rule and scripts each read. Both targets compile it.
 
 ## What belongs here
@@ -94,6 +94,16 @@ The fixture generator (`scripts/test/generate-test-audio.sh`) owns the source co
 **A skip is gated.** `make test-summary` and `make test-audio-summary` fail when a bundle skips more tests than `scripts/checks/skip-baseline` allows. A new deliberate skip raises the baseline in the same change, and names the test there.
 
 The pump proves the software path, **not** DAC samples, hardware negotiation, exclusivity or iOS session recovery. `make test-audio-loopback` and `make test-audio-device` run the same verifier against a real device for those macOS boundaries. Each needs a Debug app running first (`vibe-debug`). Hardware is never a CI prerequisite.
+
+## The iOS shell on a simulator
+
+`make test-ios` runs **VibeiOSTests** on an iOS simulator. `IOS_TEST_DEVICE` names it, and the default is `iPhone 17`. CI runs it in the job that builds iOS. The suite lives in `iOSSim/`, which `VibeTests` excludes. It is one directory, like `AudioRender/`, because it is one target's suite. Its classes are named for the code they test.
+
+**It is hosted, unlike the other two.** `TEST_HOST` is the Debug `VibeiOS` app. The card, the root, and the settings screens reach `PlaybackController`, and through it the whole engine. Compiling them in would repeat the app's source list. So the bundle links against the app (`BUNDLE_LOADER`) and compiles only its tests and `TestFilesystemGuard.m`. The guard is in before the app registers its defaults, so the host's settings are the in-memory store too. `HostSmokeTests` checks that the registered defaults landed there. The cost is the app's launch, a few seconds per run. The host's own scene and its one `AudioPlayer` stay up underneath and are never driven. The debug channel is not used.
+
+**No second player.** `FakePlayback` (`IOSSimTestCase.h`) is a duck-typed `PlaybackController`. The screens read its properties. A test sets `screenState` and sends a `PlaybackObserver` event (`notify:`). Any other selector `PlaybackController` declares is recorded in `calls` and answers zero. Tracks carry the duck-typed `FakeTrackMetadata`, as in `VibeTests`. `IOSSimTestCase` gives each test a window of its own on the host's scene. It puts back every setting a test wrote.
+
+**What belongs here is what needs UIKit**: view and controller lifecycles, cells, layers, trait changes, gestures driven through their handlers, and table data sources. Assert state, not pixels. The scrubber's bitmaps are read back from the layer tree and checked for coverage and tint, never compared. A decision that needs no view belongs in a `*Rules.h` seam and `VibeTests`. Taps, drags, and layout on a running app belong to the touch driver (`vibe-debug`).
 
 ## Rules that are easy to get wrong
 

@@ -744,6 +744,38 @@ targets:
         CODE_SIGN_STYLE: Automatic
         GCC_PREFIX_HEADER: ""               # no app pch; XCTest only
 
+  # The iOS shell's views and controllers on a simulator (Tests/AGENTS.md).
+  # HOSTED on VibeiOS, unlike VibeTests: the card, the root and the settings
+  # screens reach PlaybackController, and through it the whole engine, so
+  # compiling them in would repeat the app's source list. The tests link
+  # against the app (BUNDLE_LOADER) and import its headers by basename.
+  VibeiOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/iOSSim
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Tests/Support/TestFilesystemGuard.m
+    dependencies:
+      - target: VibeiOS
+    settings:
+      groups: [vibe-header-paths]
+      base:
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeiOSTests
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Vibe.app/Vibe"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "VIBE_TEST_HANG_TIMEOUT=10"
+
   # Host-LESS: no TEST_HOST, so the suite never launches the app and never
   # inherits its sandbox (which would block reading fixtures from the repo).
   # Sources under test are compiled in, so the list below is the deliberately
@@ -768,6 +800,7 @@ targets:
           - "AudioRender/**"                  # VibeAudioTests' suite
           - "Audio/Metadata/AudioTrackMetadataTagTests.mm"    # VibeAudioTests': TagLib
           - "Audio/Metadata/AudioTrackMetadataFuzzTests.mm"   # same
+          - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -1132,6 +1165,16 @@ schemes:
       config: Debug
       targets:
         - VibeiOSDriver
+  # `make test-ios`. Serial: a hosted bundle runs in the one app process.
+  VibeiOSTests:
+    build:
+      parallelizeBuild: true
+      targets:
+        VibeiOSTests: [test]
+    test:
+      config: Debug
+      targets:
+        - VibeiOSTests
   Vibe:
     build:
       parallelizeBuild: true
