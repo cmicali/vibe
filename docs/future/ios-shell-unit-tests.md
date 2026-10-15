@@ -1,6 +1,6 @@
 # Future: unit tests for the iOS app shell
 
-**Status: Not built.**
+**Status: Moves 1 and 2 built, and an in-simulator tier added.** `FolderSession`, the iOS stores and the rules seams run in `VibeTests` on the Mac. `VibeiOSTests` runs the views and controllers on a simulator (`make test-ios`, below). Move 3 and the browser regression cases remain.
 
 ## The question, and the answer
 
@@ -80,14 +80,30 @@ Host-less tests must call the shipping decisions. Drawing and navigation stay in
 
 It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` and `WidgetPublisher`. Running it whole on the Mac means replacing the player, which costs more than the decisions are worth. Follow `PlaybackDeliveryRules.h` (`VibePlaybackPreviousIsAvailable`, shared with the mac). Move pure decisions into seams as they are touched: the Add settle, the metadata neighborhood, the empty-folder bring-forward, and which open URL context wins. Leave the player wiring to `make test-audio` and the channel.
 
+## The in-simulator tier
+
+`VibeiOSTests` is a unit-test bundle hosted in the Debug iOS app (`Tests/AGENTS.md`). It covers what needs UIKit and no touch:
+
+| Class | What its tests hold |
+| --- | --- |
+| `WaveformScrubberView` and its categories | The bake is a nonblank bitmap. The playhead sits where `WaveformZoomMath.h` puts it. The zoom stops at the bake's floor and keeps the request. The theme beats the style's palette, and `album_art` reads only the art's color. A slow open keeps its indicator over a landed waveform. Taps, drags, and pinches seek once per gesture. |
+| `EqualizerIndicatorView`, `LoadingIndicatorView` | Demand follows the window, `hidden`, and the source. The alpha and the bar color follow UIKit's hooks. A bar leaves with its window. |
+| `PlaylistTrackCell`, `PlaylistViewController` | The gutter's precedence. The filename's single line takes the title's color. The loading bar follows `CloudTransferRegistry`. The playing row asks for levels only while it is seen and sounding. |
+| `FileRow`, `TrackPageViews`, `MiniPlayerView` | The tile, the icon slot, the opening spinner, and the viewport test. The time control and the card shapes. The strip's lines, its play button, and its delegate. |
+| `PlayerViewController` | Each screen state's times and progress. The error line, the chrome's fade, the play glyph, and Next on the last page. The art's color on its own page. A scrub or seek from another page is dropped. A pager hold is released by its holder. |
+| `RootViewController` | The card fold: tabs hidden at rest up, a snapshot while the card moves or is dragged, a short drag springs back, and a flick minimizes. The strip is wanted when the screen describes a track. |
+| `Settings/*` | Each screen's rows against `SettingsRules.h` and the registry. Each choice is read back from `AppSettings`, and a model write reaches the model. |
+
+Still without a test here: the Files tab's browser (`FilesRootViewController`, `FolderViewController`, `RecentsViewController`), `SearchViewController`, `FavoritesViewController`, `TrackPageCell`'s layouts, `FXPadView`, `OutputRouteView`, `OpenURLSheetController`, `CueFolderGrantPrompt`, and `WidgetPublisher`'s image side. Each reaches a provider, the system picker, AVKit, or the app group container, so each needs its own fake first. They are the next candidates for this tier.
+
 ## What stays in the simulator
 
-Layout and the safe area, animations and their frame rate, the fixed height of `UITabAccessory`, the system document picker and its grants, and accessibility focus. The oracles are `check-layout-stability.sh`, `sample_frame_rate` and `check_consistency` (`vibe-debug`). A one-off picker grant can only be checked on a phone.
+Layout and the safe area, animations and their frame rate, the fixed height of `UITabAccessory`, the system document picker and its grants, and accessibility focus. Real touches belong to the touch driver: a pinch with two fingers, the pager's swipe, and the minimize pan's own recognizer. The oracles are `check-layout-stability.sh`, `sample_frame_rate` and `check_consistency` (`vibe-debug`). A one-off picker grant can only be checked on a phone.
 
 ## Order of work
 
-1. `FolderSession` into `VibeTests` with the six tests above. Report the dependency pull before moving anything.
-2. The card fold seam, the smallest.
-3. The browser's row-action seam, against the regression cases.
+1. Done: `FolderSession` into `VibeTests` with the six tests above.
+2. Done in the simulator tier: the card fold, driven through the root's delegate calls. A seam is no longer needed for it.
+3. The browser's row-action seam, against the regression cases. Part of it is done (`BrowserRules.h`).
 4. The Playlist tab's follow rule and the waveform gate, as their files are next touched.
 5. Decide whether the tests' `DropboxStubProtocol` and the debug channel's `VibeFakeDropbox` can share one fixture. The transport's session configuration and retry-delay seams are declared in `HTTPTransferClientInternal.h`. The fixtures differ on purpose: the tests script inconsistencies a fixture directory cannot express.

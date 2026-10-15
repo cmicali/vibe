@@ -127,6 +127,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: make build-ios CONFIG=Debug
 
+      # Hosted in the Debug app on a simulator. Here, beside the iOS build,
+      # to keep four macOS jobs.
+      - name: Run iOS shell tests (simulator)
+        if: ${{ !cancelled() }}
+        run: make test-ios
+
   test:
     needs: changes
     if: needs.changes.outputs.code == 'true'
