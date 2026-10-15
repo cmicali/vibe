@@ -110,7 +110,7 @@ Current production values, all reviewable.
 - **I1.** The macOS-only features and the shared ones are root `AGENTS.md`'s. Analysis rides the waveform decode pass. Tags take precedence through `AudioTrack.bpm` and `.key`, and a CUE row uses its window's analysis.
 - **I2.** File > Close is macOS-only. iOS tears down through Clear Playlist and playlist replacement. Background audio keeps its session when the app leaves the foreground.
 - **I3.** The iOS now-playing page deliberately draws no thumbnail, only full or rendition art.
-- **I4.** Metadata and waveform cache size and clear controls are macOS-only. iOS has separate Dropbox download storage controls. Those files are not these caches.
+- **I4.** Metadata and waveform cache size and clear controls are macOS-only. iOS has separate download storage controls for each cloud account. Those files are not these caches.
 
 ## J. Decisions and open items
 

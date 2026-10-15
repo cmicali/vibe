@@ -70,7 +70,7 @@ Host-less tests must call the shipping decisions. Drawing and navigation stay in
 | Replacing a playlist | Ask only after an Add has landed, restored additions included. Cover Replace, Add Instead and Cancel. A playlist with no additions replaces directly. |
 | Folder commands | Ordinary Play never recurses. Play and Add with Subfolders report an early stop at the walk limits. The file limit is soft across the last folder and CUE expansion. A folder with no direct songs offers the subfolder menu. An empty result still settles an Add exactly once. |
 | Sort | The browser writes the shared folder-open sort setting. It keeps no per-folder order. |
-| Search state | Scope order is All, Playlist, Local, Dropbox. Appearing with an empty query resets to All. No Results waits for every scoped source. A Dropbox error stays distinct from no matches. |
+| Search state | Scope order is All, Playlist, Local, then each linked account. Appearing with an empty query resets to All. No Results waits for every scoped source. An account's error stays distinct from no matches. |
 | Folder navigation | Open Folder highlights the originating file after listing. A folder search hit browses. A failed resolve shows an error. |
 | Connect flow | Signing in from the Files Connect row opens the account root. Cancelling sign-in is quiet. |
 | Display names | Browser, playlist and favorites share the folder-name rule, the Dropbox account root included. New Recents records keep their display name. |

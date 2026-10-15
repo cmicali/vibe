@@ -6,7 +6,7 @@
 #import "FavoritesViewController.h"
 
 #import "AppSettings.h"
-#import "DropboxMirror.h"
+#import "AccountMirror.h"
 #import "FavoritesStore.h"
 #import "FileRow.h"
 #import "PlaybackController.h"
@@ -219,21 +219,21 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
         [_playback addURLs:@[folderURL] token:token];
         return;
     }
-    // A Dropbox folder of folders has nothing to play: it opens in the Files
-    // tab, where its subfolders are, not as an empty playlist.
-    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:folderURL];
+    // An account's folder of folders has nothing to play: it opens in the
+    // Files tab, where its subfolders are, not as an empty playlist.
+    AccountMirror *mirror = [AccountMirror mirrorOfURL:folderURL];
     void (^showDirectory)(NSURL *) = _showDirectoryHandler;
-    if (!dropboxPath || !showDirectory) {
+    if (!mirror || !showDirectory) {
         [self playFolderURL:folderURL token:token];
         return;
     }
     __weak FavoritesViewController *weakSelf = self;
     // Listed first: the mirror holds only what something has listed, so a
-    // folder never browsed is empty on disk whatever Dropbox holds. A failed
-    // listing falls back on what the disk has; the open that follows reads
-    // the listed folder as it is.
+    // folder never browsed is empty on disk whatever the service holds. A
+    // failed listing falls back on what the disk has; the open that follows
+    // reads the listed folder as it is.
     VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
-    [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *listedURL, NSError *error) {
+    [mirror refreshDirectoryAtURL:folderURL completion:^(NSURL *listedURL, NSError *error) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             NSArray<NSURL *> *audio = @[];
             [FolderWalk listDirectory:folderURL sortedBy:sort folders:NULL playlists:NULL audio:&audio];

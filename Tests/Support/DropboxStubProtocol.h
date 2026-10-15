@@ -1,11 +1,12 @@
 //
 //  DropboxStubProtocol.h
 //
-//  The Dropbox tests' HTTP boundary, an NSURLProtocol in the session's
-//  configuration. Every request goes to one handler the test installs, and
-//  the handler's answer can hang, wait on a gate, go out in held chunks or
-//  end in a dropped connection. The handler and the request log are
-//  process-wide, so one test at a time installs a handler.
+//  The account tests' HTTP boundary (Dropbox's and Google Drive's), an
+//  NSURLProtocol in the session's configuration. Every request goes to one
+//  handler the test installs, and the handler's answer can hang, wait on a
+//  gate, go out in held chunks or end in a dropped connection. The handler
+//  and the request log are process-wide, so one test at a time installs a
+//  handler.
 //
 
 #import <Foundation/Foundation.h>
@@ -40,6 +41,13 @@ extern DropboxStubHandler _Nullable sStubHandler;
 extern NSMutableArray<NSURLRequest *> *sStubRequests;
 
 DropboxStubResponse DropboxStubJSON(NSInteger status, id object);
+
+// The handler every request goes to; nil leaves requests unanswered.
+void DropboxStubInstall(DropboxStubHandler _Nullable handler);
+// Empties the request log.
+void DropboxStubClearRequests(void);
+// The logged requests to one URL path, in arrival order.
+NSArray<NSURLRequest *> *DropboxStubRequestsToPath(NSString *path);
 
 @interface DropboxStubProtocol : NSURLProtocol
 @property (atomic) BOOL stopped;

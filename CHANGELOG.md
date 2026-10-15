@@ -18,6 +18,7 @@
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
+* ios: Added Google Drive integration with audio streaming
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
 * ios: Added a full-bleed artwork widget with the mac's playlist, play, and next buttons
 * ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors

@@ -60,7 +60,7 @@ static NSString *const kGroupCellIdentifier = @"group";
     }
     switch ((VibeSettingsGroupRow)indexPath.row) {
         case VibeSettingsGroupRowPlayback: return STR_MENU_PLAYBACK;
-        case VibeSettingsGroupRowFiles:    return STR_SETTINGS_FILES_DROPBOX;
+        case VibeSettingsGroupRowFiles:    return STR_SETTINGS_FILES_ACCOUNTS;
         default:                           return STR_MENU_VIEW_APPEARANCE;
     }
 }

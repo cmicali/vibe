@@ -9,7 +9,6 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
-#import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
 #import "FileRow.h"
@@ -65,7 +64,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
         // TRAP: nothing here may touch the disk. A screen is made on main as
         // a folder opens, and for a provider's folder a stat or a name lookup
         // is IPC that can block.
-        _dropboxPath = [DropboxMirror.shared dropboxPathForURL:directoryURL];
+        _mirror = [AccountMirror mirrorOfURL:directoryURL];
         _standardizedPath = VibeComparablePath(directoryURL.path);
         _title = [LocationStore displayNameForFolderURL:directoryURL];
         _playingPath = VibeComparablePath(playback.currentTrack.url.path);
@@ -80,8 +79,8 @@ static const NSTimeInterval kHighlightInterval = 1.2;
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
                                              object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(dropboxDownloadsDidChange:)
-                                               name:VibeDropboxDownloadsDidChangeNotification
+                                           selector:@selector(accountDownloadsDidChange:)
+                                               name:VibeAccountDownloadsDidChangeNotification
                                              object:nil];
     if (_appending) {
         _closeItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
@@ -144,10 +143,12 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     [refresh addTarget:self action:@selector(refreshDirectory) forControlEvents:UIControlEventValueChanged];
     self.refreshControl = refresh;
     [_playback addObserver:self];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(sourcesDidChange:)
-                                               name:VibeDropboxAccountDidChangeNotification
-                                             object:DropboxMirror.shared.client];
+    if (_mirror) {
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(sourcesDidChange:)
+                                                   name:VibeAccountDidChangeNotification
+                                                 object:_mirror.client];
+    }
 }
 
 - (void)dealloc {
@@ -165,8 +166,8 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     _playingPath = VibeComparablePath(_playback.currentTrack.url.path);
     [self syncEqualizer];
     [self reloadFromDisk];
-    if (_dropboxPath && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
-        [self refreshFromDropbox];
+    if (_mirror && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
+        [self refreshFromAccount];
     }
 }
 
@@ -196,16 +197,16 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 
 // A download landed, or the downloads were removed: the mark and the art
 // follow the file, so a mirrored folder on screen reads its listing again.
-- (void)dropboxDownloadsDidChange:(NSNotification *)notification {
-    if (_dropboxPath && self.viewIfLoaded.window) {
+- (void)accountDownloadsDidChange:(NSNotification *)notification {
+    if (_mirror && notification.object == _mirror && self.viewIfLoaded.window) {
         [self reloadFromDisk];
     }
 }
 
-// The account went or came. A pushed Dropbox folder of a signed-out account
-// has nothing left to show. The stack goes back to the root.
+// The account went or came. A pushed folder of a signed-out account has
+// nothing left to show. The stack goes back to the root.
 - (void)sourcesDidChange:(NSNotification *)notification {
-    if (_dropboxPath && !DropboxMirror.shared.client.isLinked) {
+    if (_mirror && !_mirror.client.isLinked) {
         [self.navigationController popToRootViewControllerAnimated:NO];
     }
 }
@@ -280,24 +281,26 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     });
 }
 
-// Pull to refresh: Dropbox is asked again; any other folder is relisted.
+// Pull to refresh: an account's folder asks its service again; any other
+// folder is relisted.
 - (void)refreshDirectory {
-    if (_dropboxPath) {
-        [self refreshFromDropbox];
+    if (_mirror) {
+        [self refreshFromAccount];
     }
     else {
         [self reloadFromDisk];
     }
 }
 
-- (void)refreshFromDropbox {
+- (void)refreshFromAccount {
     if (_refreshing) {
         return;
     }
     _refreshing = YES;
     [self refreshEmptyState];
     __weak FolderViewController *weakSelf = self;
-    [DropboxMirror.shared refreshDropboxFolder:_dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+    AccountMirror *mirror = _mirror;
+    [mirror refreshDirectoryAtURL:_directoryURL completion:^(NSURL *folderURL, NSError *error) {
         FolderViewController *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -308,7 +311,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
         strongSelf->_listedAt = error ? 0 : CFAbsoluteTimeGetCurrent();
         [strongSelf.refreshControl endRefreshing];
         if (error) {
-            LogWarn(@"Dropbox: could not list %@: %@", strongSelf->_directoryURL.lastPathComponent,
+            LogWarn(@"%@: could not list %@: %@", mirror.serviceName, strongSelf->_directoryURL.lastPathComponent,
                     error.localizedDescription);
         }
         [strongSelf reloadFromDisk];
@@ -374,7 +377,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     UIContentUnavailableConfiguration *empty = [UIContentUnavailableConfiguration emptyConfiguration];
     if (_refreshError) {
         empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
-        empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
+        empty.text = [NSString stringWithFormat:STR_BROWSER_ACCOUNT_UNAVAILABLE, _mirror.serviceName];
     }
     else {
         empty.image = [UIImage systemImageNamed:@"music.note"];
@@ -406,7 +409,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     [self openURLs:urls inFolder:inFolder token:[_playback replaceRequestTokenOpening:row]];
 }
 
-// For the subfolder walk, whose Dropbox listings come between the tap and
+// For the subfolder walk, whose account listings come between the tap and
 // the open: its token is the tap's.
 - (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder token:(uint64_t)token {
     if (_appending) {
@@ -462,9 +465,10 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     }];
 }
 
-// One folder per turn. A Dropbox folder is listed from Dropbox first: the
-// mirror holds only what something has listed, so one never browsed is empty
-// on disk. Completion on main; capped means folders were left unvisited.
+// One folder per turn. An account's folder is listed from its service first:
+// the mirror holds only what something has listed, so one never browsed is
+// empty on disk. Completion on main; capped means folders were left
+// unvisited.
 - (void)walkSubfolders:(NSMutableArray<NSURL *> *)pending
                  found:(NSMutableArray<NSURL *> *)found
                 tracks:(NSUInteger)tracks
@@ -498,9 +502,9 @@ static const NSTimeInterval kHighlightInterval = 1.2;
     };
     // The open that follows reads a listed folder as it is, so each is
     // listed once.
-    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:directory];
-    if (dropboxPath) {
-        [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+    AccountMirror *mirror = [AccountMirror mirrorOfURL:directory];
+    if (mirror) {
+        [mirror refreshDirectoryAtURL:directory completion:^(NSURL *folderURL, NSError *error) {
             list();
         }];
     }
@@ -574,7 +578,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
         return [url.lastPathComponent isEqualToString:name];
     }];
     if (row == NSNotFound) {
-        return;   // a Dropbox folder not listed yet: the relist's landing tries again
+        return;   // an account's folder not listed yet: the relist's landing tries again
     }
     _highlightURL = nil;
     NSIndexPath *indexPath = [NSIndexPath indexPathForRow:(NSInteger)row inSection:VibeBrowserSectionFiles];
@@ -631,7 +635,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     // A relist that failed over rows already here: they may be out of date.
     if (section == VibeBrowserSectionFiles && _refreshError && !self.isEmpty) {
-        return STR_BROWSER_DROPBOX_UNAVAILABLE;
+        return [NSString stringWithFormat:STR_BROWSER_ACCOUNT_UNAVAILABLE, _mirror.serviceName];
     }
     return nil;
 }

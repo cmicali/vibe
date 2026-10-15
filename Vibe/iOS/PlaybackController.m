@@ -21,7 +21,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
-#import "DropboxMirror.h"
+#import "AccountMirror.h"
 #import "SettingsRules.h"
 #import "UIUpdateTimer.h"
 
@@ -72,27 +72,28 @@ static const NSUInteger kUIUpdateHz = 3;
                                                    name:AudioTrackMetadataThumbnailDidLoadNotification
                                                  object:nil];
         [NSNotificationCenter.defaultCenter addObserver:self
-                                               selector:@selector(dropboxAccountDidChange:)
-                                                   name:VibeDropboxAccountDidChangeNotification
-                                                 object:DropboxMirror.shared.client];
+                                               selector:@selector(accountDidChange:)
+                                                   name:VibeAccountDidChangeNotification
+                                                 object:nil];
         [CloudTransferRegistry.sharedRegistry addObserver:self];
     }
     return self;
 }
 
-// Signed out, or revoked on dropbox.com: the mirror is being deleted and its
-// placeholders can no longer download, so a playlist reaching into it goes
-// whole, as Clear Playlist does — never a row edit (AGENTS.md).
-- (void)dropboxAccountDidChange:(NSNotification *)notification {
-    DropboxMirror *mirror = DropboxMirror.shared;
-    if (mirror.client.isLinked) {
-        return;
-    }
-    for (AudioTrack *track in _playlist.tracks) {
-        if ([mirror containsURL:track.url]) {
-            LogInfo(@"Dropbox: account gone, clearing a playlist in its mirror");
-            [self clearPlaylist];
-            return;
+// Signed out, or revoked on the service's site: the mirror is being deleted
+// and its placeholders can no longer download, so a playlist reaching into
+// it goes whole, as Clear Playlist does — never a row edit (AGENTS.md).
+- (void)accountDidChange:(NSNotification *)notification {
+    for (AccountMirror *mirror in AccountMirror.mirrors) {
+        if (mirror.client != notification.object || mirror.client.isLinked) {
+            continue;
+        }
+        for (AudioTrack *track in _playlist.tracks) {
+            if ([mirror containsURL:track.url]) {
+                LogInfo(@"%@: account gone, clearing a playlist in its mirror", mirror.serviceName);
+                [self clearPlaylist];
+                return;
+            }
         }
     }
 }

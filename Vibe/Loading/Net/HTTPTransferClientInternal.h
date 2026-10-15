@@ -32,8 +32,8 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark Hooks
 
 // The request for one attempt, any thread, exactly one of request and error.
-// The base adds the Range header. The default is a GET of the target, an
-// NSURL, with identity encoding.
+// The base adds the Range header and identity encoding. The default is a GET
+// of the target, an NSURL.
 - (void)makeRequestForTarget:(id)target
                        state:(NSMutableDictionary<NSString *, id> *)state
                   completion:(void (^)(NSMutableURLRequest *_Nullable request, NSError *_Nullable error))completion;

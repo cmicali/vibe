@@ -17,7 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 // hand, with Add Instead as the other answer. Every screen whose tap replaces
 // the playlist comes through here. `token` is the receiver's
 // replaceRequestTokenOpening:, taken when the user asked: a caller with asynchronous
-// work first (a bookmark to resolve, a Dropbox folder to list) is dropped
+// work first (a bookmark to resolve, an account's folder to list) is dropped
 // here when another open was asked for meanwhile, or an older tap landing
 // late would replace what the user chose last.
 - (void)confirmReplacingPlaylistFrom:(UIViewController *)presenter

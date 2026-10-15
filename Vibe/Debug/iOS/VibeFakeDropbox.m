@@ -131,7 +131,7 @@ static NSDictionary *VibeFakeDropboxEntry(VibeFakeDropboxItem *item, NSString *r
         BOOL stated = stat(item.url.fileSystemRepresentation, &info) == 0;
         NSDate *modified = stated ? [NSDate dateWithTimeIntervalSince1970:info.st_mtimespec.tv_sec] : nil;
         entry[@"size"] = @(stated ? info.st_size : 0);
-        // Dropbox's form, UTC to the second: what VibeDropboxParseTimestamp reads.
+        // Dropbox's form, UTC to the second: what VibeAccountParseTimestamp reads.
         entry[@"server_modified"] = [NSISO8601DateFormatter stringFromDate:modified ?: NSDate.date
                                                                   timeZone:[NSTimeZone timeZoneForSecondsFromGMT:0]
                                                              formatOptions:NSISO8601DateFormatWithInternetDateTime];
@@ -526,7 +526,7 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
 
 + (void)installWithDirectory:(NSURL *)directory
              transferSeconds:(NSTimeInterval)transferSeconds
-                      client:(DropboxClient *)client {
+                      client:(OAuthAccountClient *)client {
     os_unfair_lock_lock(&sLock);
     // TRAP: never rebuild the sessions under transfers in flight. The client
     // keys a download by its task's identifier, which counts from 1 in every
@@ -554,7 +554,7 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     [client adoptRefreshToken:@"fake-refresh" accountID:kFakeAccountID];
 }
 
-+ (void)uninstallFromClient:(DropboxClient *)client {
++ (void)uninstallFromClient:(OAuthAccountClient *)client {
     if (![self isInstalled]) {
         return;
     }

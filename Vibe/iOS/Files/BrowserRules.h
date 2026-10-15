@@ -25,7 +25,8 @@ typedef NS_ENUM(NSInteger, VibeBrowserRootSection) {
 
 typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
     VibeBrowserRootRowDevice = 0,
-    VibeBrowserRootRowDropbox,
+    // A linked account, one row each, in AccountMirror.mirrors order.
+    VibeBrowserRootRowAccount,
     VibeBrowserRootRowLocation,
     VibeBrowserRootRowRecents,
     VibeBrowserRootRowChooseFile,
@@ -33,18 +34,18 @@ typedef NS_ENUM(NSInteger, VibeBrowserRootRow) {
     VibeBrowserRootRowPasteURL,
 };
 
-// The rows of one root section. Locations: the device, Dropbox once linked,
+// The rows of one root section. Locations: the device, each linked account,
 // then the granted folders in the store's order. Recents, alone. Actions:
 // Choose File… and Open URL…. The paste row follows Open URL… only while the
 // clipboard probably holds a web link. Adding a location is the bar's plus.
 static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection section,
-                                                       BOOL dropboxLinked,
+                                                       NSUInteger linkedAccounts,
                                                        NSUInteger locations,
                                                        BOOL clipboardHasLink) {
     if (section == VibeBrowserRootSectionLocations) {
         NSMutableArray<NSNumber *> *rows = [NSMutableArray arrayWithObject:@(VibeBrowserRootRowDevice)];
-        if (dropboxLinked) {
-            [rows addObject:@(VibeBrowserRootRowDropbox)];
+        for (NSUInteger i = 0; i < linkedAccounts; i++) {
+            [rows addObject:@(VibeBrowserRootRowAccount)];
         }
         for (NSUInteger i = 0; i < locations; i++) {
             [rows addObject:@(VibeBrowserRootRowLocation)];
@@ -63,16 +64,27 @@ static inline NSArray<NSNumber *> *VibeBrowserRootRows(VibeBrowserRootSection se
 }
 
 // A Location row's index in LocationStore, or NSNotFound for any other
-// row. The folders follow the device and, once linked, Dropbox.
+// row. The folders follow the device and the linked accounts.
 static inline NSUInteger VibeBrowserRootLocationIndex(VibeBrowserRootSection section,
                                                       NSUInteger row,
-                                                      BOOL dropboxLinked,
+                                                      NSUInteger linkedAccounts,
                                                       NSUInteger locations) {
-    NSUInteger first = dropboxLinked ? 2 : 1;
+    NSUInteger first = 1 + linkedAccounts;
     if (section != VibeBrowserRootSectionLocations || row < first || row - first >= locations) {
         return NSNotFound;
     }
     return row - first;
+}
+
+// An account row's index among the linked accounts, or NSNotFound for any
+// other row.
+static inline NSUInteger VibeBrowserRootAccountIndex(VibeBrowserRootSection section,
+                                                     NSUInteger row,
+                                                     NSUInteger linkedAccounts) {
+    if (section != VibeBrowserRootSectionLocations || row < 1 || row - 1 >= linkedAccounts) {
+        return NSNotFound;
+    }
+    return row - 1;
 }
 
 #pragma mark - Recents

@@ -23,7 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 
 // Shows a directory in the Files tab, which this screen knows nothing about:
-// where a Dropbox favorite with no song directly inside goes instead of
+// where an account's favorite with no song directly inside goes instead of
 // opening as an empty playlist.
 @property (nonatomic, copy, nullable) void (^showDirectoryHandler)(NSURL *directory);
 

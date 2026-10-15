@@ -479,7 +479,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
         XCTAssertEqual(waited, CloudFileAvailabilityFailed, @"changed %@", changed);
         XCTAssertEqualObjects(readError, _fetchError);
         if (changed.boolValue) {
-            XCTAssertEqual(readError.code, VibeDropboxErrorFileChanged);
+            XCTAssertEqual(readError.code, VibeAccountErrorFileChanged);
         }
         XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
         [self assertFinishedOnce:availability error:_fetchError];
@@ -507,8 +507,8 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
     [self await:returned];
     [self waitForExpectations:@[fetched] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(waited, CloudFileAvailabilityFailed);
-    XCTAssertEqualObjects(readError.domain, VibeDropboxErrorDomain);
-    XCTAssertEqual(readError.code, VibeDropboxErrorCancelled);
+    XCTAssertEqualObjects(readError.domain, VibeAccountErrorDomain);
+    XCTAssertEqual(readError.code, VibeAccountErrorCancelled);
     XCTAssertFalse(_fetched);
     XCTAssertEqual(_fetchError.code, NSUserCancelledError);
     XCTAssertEqual(StatOf(track).st_mode & 0777, 0);
@@ -757,9 +757,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
         [self installHandler:^DropboxStubResponse(NSURLRequest *request, NSDictionary *json) {
             return [self defaultResponseFor:request json:json];
         }];
-        os_unfair_lock_lock(&sStubLock);
-        [sStubRequests removeAllObjects];
-        os_unfair_lock_unlock(&sStubLock);
+        [self clearRequests];
     }
 }
 
@@ -781,9 +779,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
         uint64_t listed = each == StaleListing ? bytes.length - 10 : bytes.length;
         NSString *name = [NSString stringWithFormat:@"case%ld.flac", (long)each];
         _chunkGate = dispatch_semaphore_create(0);
-        os_unfair_lock_lock(&sStubLock);
-        [sStubRequests removeAllObjects];
-        os_unfair_lock_unlock(&sStubLock);
+        [self clearRequests];
         NSURL *track = [self streamingTrack:bytes name:name chunk:chunk];
         if (each == StaleListing) {
             _listings[@"/music"] = @[VibeFileEntry(@"/Music", name, (long long)listed, kStamp)];

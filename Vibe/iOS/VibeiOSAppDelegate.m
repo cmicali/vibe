@@ -5,7 +5,7 @@
 
 #import "VibeiOSAppDelegate.h"
 #import "AppSettings.h"
-#import "DropboxMirror.h"
+#import "AccountMirror.h"
 #import "LinkStore.h"
 #import "NSBundle+BuildInfo.h"
 #if DEBUG
@@ -22,12 +22,17 @@
     // link. From here their placeholders are dataless. Opening one downloads
     // it, and its tags are read by range. Opening a folder then does not
     // download it whole.
-    [DropboxMirror.shared installAsRemoteBackend];
+    NSArray<AccountMirror *> *mirrors = AccountMirror.mirrors;
+    for (AccountMirror *mirror in mirrors) {
+        [mirror installAsRemoteBackend];
+    }
     [LinkStore.shared installAsRemoteBackend];
-    // Off main: the token refresh and the connections the first play would
+    // Off main: the token refreshes and the connections the first play would
     // otherwise open, once, and nothing without an account.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        [DropboxMirror.shared.client warmUp];
+        for (AccountMirror *mirror in mirrors) {
+            [mirror.client warmUp];
+        }
     });
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
