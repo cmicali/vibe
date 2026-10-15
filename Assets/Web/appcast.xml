@@ -7,6 +7,29 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta8</title>
+<pubDate>Thu, 15 Oct 2026 14:05:58 +0000</pubDate>
+<sparkle:version>315</sparkle:version>
+<sparkle:shortVersionString>1.16-beta8</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* New: the Kinda Blue theme
+* New: a Default artwork choice for every theme: Artwork, Clear, Window, or a custom color
+* New: a Window menu with Minimize (⌘M), Window Width, Always on Top, and Lock Window Position
+* New: Show in Finder (⇧⌘R) and Play in the menus
+* New: click PITCH at the top of the pitch panel to switch the range between 8% and 16%
+* Changed: the menus follow the macOS conventions, with Edit > Copy, Open Location… (⌘L), and a Repeat submenu
+* Changed: the skip items show their distance in bars or seconds
+* Changed: Move to Trash (⌘⌫) also trashes the playing song while the playlist is hidden
+* Changed: Dark Wolf is now Dark Core, with the row colors its author chose
+* Changed: the theme track stays in the playlist until you play or open something
+* Changed: the Cupertino theme darkens only cover art behind the playback buttons
+* Improved: the Settings window, with clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta8/Vibe-macOS-universal-1.16-beta8.zip" length="10104254" type="application/octet-stream" sparkle:edSignature="+Md9HAzu+haBFEVn6QOhpBsQsvrOHTb/XGo9DWwvuHBjUIKVNDvGKcIn8/dThLOJfNkBKhWpejgtaxoiGqmfAA=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta7</title>
 <pubDate>Wed, 14 Oct 2026 23:39:55 +0000</pubDate>
 <sparkle:version>314</sparkle:version>
