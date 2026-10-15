@@ -30,8 +30,6 @@
     VibeSwitch *_declickSwitch;
     SettingsRowView *_declickRow;
     SettingsSectionView *_deviceSection;
-    VibeSwitch *_volumeControlSwitch;
-    SettingsRowView *_volumeControlRow;
 }
 
 - (void)loadView {
@@ -63,25 +61,23 @@
     _declickRow = [SettingsRowView rowWithTitle:STR_SETTINGS_DECLICK
                                         caption:STR_SETTINGS_DECLICK_CAPTION
                                         control:_declickSwitch];
-    _volumeControlSwitch = [self switchWithAction:@selector(toggleVolumeControl:)];
-    _volumeControlRow = [SettingsRowView rowWithTitle:STR_SETTINGS_VOLUME_CONTROL
-                                              caption:STR_SETTINGS_VOLUME_CONTROL_CAPTION
-                                              control:_volumeControlSwitch];
 
     _deviceSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_DEVICE_SECTION rows:@[
         _bitPerfectRow,
         _exclusiveOutputRow,
     ]];
+    // Declick is one choice for every device, so it sits in the Output card
+    // under the list, ahead of the card that belongs to the selected device.
+    SettingsRowView *listRow = [SettingsRowView rowWithTableView:_outputTable rowCount:7];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
-            [SettingsRowView rowWithTableView:_outputTable rowCount:7],
-        ]],
-        _deviceSection,
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_LEVEL_SECTION rows:@[
-            _volumeControlRow,
+            listRow,
             _declickRow,
         ]],
+        _deviceSection,
     ]];
+    // The list is its own divider; the section's hairline would double it.
+    _declickRow.showsTopSeparator = NO;
     _refreshingOutputList = NO;
 }
 
@@ -129,7 +125,6 @@
             ? [NSString stringWithFormat:STR_SETTINGS_DEVICE_SECTION_NAMED, deviceName]
             : STR_SETTINGS_DEVICE_SECTION];
     _declickSwitch.state = AppSettings.sharedInstance.declick ? NSControlStateValueOn : NSControlStateValueOff;
-    _volumeControlSwitch.state = AppSettings.sharedInstance.volumeControl ? NSControlStateValueOn : NSControlStateValueOff;
     if (captionChanged) {
         [self paneContentDidChange];
     }
@@ -150,11 +145,6 @@
 - (void)toggleDeclick:(id)sender {
     AppSettings.sharedInstance.declick = (_declickSwitch.state == NSControlStateValueOn);
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
-}
-
-- (void)toggleVolumeControl:(id)sender {
-    AppSettings.sharedInstance.volumeControl = (_volumeControlSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
 }
 
 #pragma mark - Output device

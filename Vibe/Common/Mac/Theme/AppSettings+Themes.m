@@ -271,7 +271,11 @@ static BOOL ThemeHistoryChangeRemovesTheme(NSDictionary *change) {
 }
 
 - (NSArray<NSString *> *)orderedThemeIdentifiers {
-    NSMutableArray<NSString *> *identifiers = [[AppTheme builtInThemeIdentifiers] mutableCopy];
+    return [[AppTheme builtInThemeIdentifiers] arrayByAddingObjectsFromArray:[self userThemeIdentifiers]];
+}
+
+- (NSArray<NSString *> *)userThemeIdentifiers {
+    NSMutableArray<NSString *> *identifiers = [NSMutableArray array];
     for (NSDictionary *entry in [self storedUserThemes]) {
         [identifiers addObject:entry[kVibeThemeRecordIdentifierKey]];
     }

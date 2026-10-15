@@ -55,11 +55,9 @@ FOUNDATION_EXPORT const NSInteger kVibeSkipBasePresets[];
 FOUNDATION_EXPORT const size_t kVibeSkipBasePresetCount;
 FOUNDATION_EXPORT const NSInteger kVibeUIUpdateHzCapPresets[];
 FOUNDATION_EXPORT const size_t kVibeUIUpdateHzCapPresetCount;
-#if VIBE_DIRECT_DISTRIBUTION
-// Settings > General's update check intervals in seconds, after Never.
-FOUNDATION_EXPORT const NSInteger kVibeUpdateCheckIntervalPresets[];
-FOUNDATION_EXPORT const size_t kVibeUpdateCheckIntervalPresetCount;
-#endif
+// The interval Automatically check for updates writes when turned on: daily,
+// Sparkle's own first-launch schedule.
+static const NSTimeInterval kVibeUpdateCheckIntervalDefault = 24 * 3600;
 
 static const double kVibeWaveformGainMaxDB = 12;
 
@@ -73,6 +71,9 @@ static const double kVibeWaveformGainMaxDB = 12;
 // window frames live elsewhere. Clears the store only: the caller owns the
 // running-app effects.
 - (BOOL)allSettingsAtDefaults;
+// What factoryReset would leave: settings at their defaults, no user themes,
+// and the welcome track not yet spent. Restore Defaults… enables on NO.
+- (BOOL)atFactoryDefaults;
 - (void)resetToDefaults;
 // Reset settings and delete custom themes and their unused images.
 - (void)factoryReset;

@@ -458,7 +458,7 @@ static UIImage *TransportGradientImage(void) {
         CGSize size = CGSizeMake(1, 128);
         image = [[[UIGraphicsImageRenderer alloc] initWithSize:size format:format]
                 imageWithActions:^(UIGraphicsImageRendererContext *context) {
-            const CGFloat components[] = {0, 0, 0, 0.55, 0, 0.96};
+            const CGFloat components[] = {0, 0, 0, 0.47, 0, 0.82};
             const CGFloat locations[] = {0, 0.435, 1};
             CGColorSpaceRef gray = CGColorSpaceCreateDeviceGray();
             CGGradientRef gradient = CGGradientCreateWithColorComponents(gray, components, locations, 3);

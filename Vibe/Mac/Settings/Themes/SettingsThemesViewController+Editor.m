@@ -250,7 +250,8 @@ static const CGFloat kImageBadgeInset = 1.5;
     _glyphPopUps = [NSMutableDictionary dictionary];
     _buttonColorRows = [NSMutableDictionary dictionary];
     _buttonImageRows = [NSMutableDictionary dictionary];
-    NSArray<NSView *> *sections = @[
+    // Name first: the Theme segment is the way back to the top.
+    _editorJumpSections = @[
         [self buildNameSection],
         [self buildAppIconSection],
         [self buildWindowSection],
@@ -260,10 +261,26 @@ static const CGFloat kImageBadgeInset = 1.5;
         [self buildVolumeSection],
         [self buildPlaylistSection],
     ];
+    // Short labels, since eight must fit the pane's minimum width; the
+    // tooltips carry the cards' full headers.
+    NSArray<NSString *> *jumpLabels = @[STR_SETTINGS_THEME_JUMP_THEME, STR_SETTINGS_THEME_JUMP_ICON,
+                                        STR_SETTINGS_WINDOW_SECTION,
+                                        STR_SETTINGS_THEME_JUMP_PLAYER, STR_SETTINGS_THEME_JUMP_BUTTONS,
+                                        STR_SETTINGS_THEME_JUMP_INFO, STR_SETTINGS_THEME_JUMP_VOLUME,
+                                        STR_SETTINGS_PLAYLIST_SECTION];
+    _editorJumpControl = [NSSegmentedControl segmentedControlWithLabels:jumpLabels
+                                                           trackingMode:NSSegmentSwitchTrackingSelectOne
+                                                                 target:self action:@selector(jumpToSection:)];
+    _editorJumpControl.segmentStyle = NSSegmentStyleCapsule;
+    _editorJumpControl.translatesAutoresizingMaskIntoConstraints = NO;
+    for (NSUInteger i = 0; i < _editorJumpSections.count; i++) {
+        [_editorJumpControl setToolTip:_editorJumpSections[i].headerLabel.stringValue ?: STR_SETTINGS_THEME_NAME_LABEL
+                            forSegment:(NSInteger)i];
+    }
 
     SettingsStackView *editorStack =
             [[SettingsStackView alloc] initWithFrame:NSZeroRect];
-    for (NSView *section in sections) {
+    for (NSView *section in _editorJumpSections) {
         [editorStack addArrangedSubview:section];
     }
     _editorStack = editorStack;
@@ -272,7 +289,7 @@ static const CGFloat kImageBadgeInset = 1.5;
     _editorStack.spacing = 20;
     _editorStack.translatesAutoresizingMaskIntoConstraints = NO;
     _editorStack.wantsLayer = YES;
-    for (NSView *section in sections) {
+    for (NSView *section in _editorJumpSections) {
         [section.widthAnchor constraintEqualToAnchor:_editorStack.widthAnchor].active = YES;
     }
 
@@ -289,9 +306,16 @@ static const CGFloat kImageBadgeInset = 1.5;
     NSView *container = [[NSView alloc] initWithFrame:NSZeroRect];
     container.translatesAutoresizingMaskIntoConstraints = NO;
     container.hidden = YES;
+    [container addSubview:_editorJumpControl];
     [container addSubview:scroll];
     [self.view addSubview:container];
     _detailContainer = container;
+    // The selected segment follows every scroll: by hand, a click's animation,
+    // a search reveal and settings_reveal.
+    scroll.contentView.postsBoundsChangedNotifications = YES;
+    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(editorDidScroll:)
+                                               name:NSViewBoundsDidChangeNotification
+                                             object:scroll.contentView];
 
     NSLayoutGuide *safeArea = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
@@ -299,7 +323,9 @@ static const CGFloat kImageBadgeInset = 1.5;
         [container.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:kPanePadding],
         [container.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-kPanePadding],
         [container.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-kPanePadding],
-        [scroll.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [_editorJumpControl.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [_editorJumpControl.centerXAnchor constraintEqualToAnchor:container.centerXAnchor],
+        [scroll.topAnchor constraintEqualToAnchor:_editorJumpControl.bottomAnchor constant:12],
         [scroll.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
         [scroll.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
         [scroll.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
@@ -308,6 +334,34 @@ static const CGFloat kImageBadgeInset = 1.5;
         [_editorStack.leadingAnchor constraintEqualToAnchor:scroll.contentView.leadingAnchor],
         [_editorStack.widthAnchor constraintEqualToAnchor:scroll.contentView.widthAnchor],
     ]];
+}
+
+#pragma mark - The jump bar
+
+- (void)jumpToSection:(NSSegmentedControl *)sender {
+    [SettingsPaneViewController scrollCardToTop:_editorJumpSections[(NSUInteger)sender.selectedSegment]
+                                       animated:YES];
+}
+
+- (void)editorDidScroll:(NSNotification *)notification {
+    [self syncEditorJumpSelection];
+}
+
+// The selected segment is the last card whose header sits at the top, within
+// twice the reveal inset, which is where a reveal and a hand scroll leave it.
+// Also run when the page shows, since no scroll fires then.
+- (void)syncEditorJumpSelection {
+    NSClipView *clip = _editorStack.enclosingScrollView.contentView;
+    CGFloat top = NSMinY(clip.bounds) + 2 * kSettingsCardRevealInset;
+    NSInteger selected = 0;
+    for (NSUInteger i = 0; i < _editorJumpSections.count; i++) {
+        if (NSMinY(_editorJumpSections[i].frame) <= top) {
+            selected = (NSInteger)i;
+        }
+    }
+    if (_editorJumpControl.selectedSegment != selected) {
+        _editorJumpControl.selectedSegment = selected;
+    }
 }
 
 - (SettingsSectionView *)buildNameSection {
@@ -343,18 +397,15 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_FROSTED value:SETTINGS_VALUE_WINDOW_BACKGROUND_FROSTED to:_backgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_SOLID value:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID to:_backgroundPopUp];
     [self addItem:STR_SETTINGS_THEME_BACKGROUND_CLEAR value:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR to:_backgroundPopUp];
-    _backgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_COLORS
-            control:[self darkLightPairForBase:kVibeThemeColorWindowBackground
-                                        effect:VibeSettingsLiveEffectWindowChrome]];
+    _backgroundColorsPair = [self darkLightPairForBase:kVibeThemeColorWindowBackground
+                                                effect:VibeSettingsLiveEffectWindowChrome];
 
     _windowTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(windowTintChanged:)];
     [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_windowTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_windowTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_windowTintPopUp];
-    _windowTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
-    _windowTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO base:kVibeThemeColorWindowTint effect:VibeSettingsLiveEffectWindowTint]];
+    _windowTintPair = [self darkLightPairForBase:kVibeThemeColorWindowTint
+                                          effect:VibeSettingsLiveEffectWindowTint];
 
     _cornerRadiusCluster = [self detentSliderClusterWithDetent:kVibeThemeCornerRadiusDefault
             min:0 max:kVibeThemeCornerRadiusMax action:@selector(cornerRadiusChanged:)
@@ -362,11 +413,10 @@ static const CGFloat kImageBadgeInset = 1.5;
 
     return [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_APPEARANCE control:_modePopUp],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL control:_backgroundPopUp],
-        _backgroundColorsRow,
-        [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL control:_windowTintPopUp],
-        _windowTintDarkRow,
-        _windowTintLightRow,
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL
+                             controls:@[_backgroundColorsPair, _backgroundPopUp]],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL
+                             controls:@[_windowTintPair, _windowTintPopUp]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CORNER_RADIUS
                              controls:@[_cornerRadiusCluster, _cornerRadiusPopUp]],
     ]];
@@ -523,9 +573,11 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_ARTWORK value:SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK to:_buttonGradientPopUp];
     [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_ALWAYS value:SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS to:_buttonGradientPopUp];
 
-    NSMutableArray<SettingsRowView *> *transportRows =
-        [NSMutableArray arrayWithObject:[SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TRANSPORT_BUTTONS
-                                                            control:_transportButtonsSwitch]];
+    NSMutableArray<SettingsRowView *> *transportRows = [@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TRANSPORT_BUTTONS control:_transportButtonsSwitch],
+        // Said once here, so each well's caption can be two words.
+        [SettingsRowView rowWithContentView:[self wrappingLabelWithString:STR_SETTINGS_TRANSPORT_ART_EXPLAIN]],
+    ] mutableCopy];
     [transportRows addObjectsFromArray:playlistButtonRows];
     [transportRows addObjectsFromArray:playButtonRows];
     [transportRows addObjectsFromArray:nextButtonRows];
@@ -561,20 +613,16 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_volumeBarPopUp];
     // Every waveform theme resolution re-resolves the slider's fill and knob,
     // so a well drag takes that effect rather than Volume's relayout.
-    _volumeBarDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES base:kVibeThemeColorVolumeBar effect:VibeSettingsLiveEffectWaveformTheme]];
-    _volumeBarLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO base:kVibeThemeColorVolumeBar effect:VibeSettingsLiveEffectWaveformTheme]];
+    _volumeBarPair = [self darkLightPairForBase:kVibeThemeColorVolumeBar
+                                         effect:VibeSettingsLiveEffectWaveformTheme];
     _volumeKnobPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeKnobChanged:)];
     [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_volumeKnobPopUp];
     [self addItem:STR_SETTINGS_THEME_VOLUME_KNOB_BAR value:SETTINGS_VALUE_VOLUME_KNOB_BAR to:_volumeKnobPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_volumeKnobPopUp];
     [self addItem:STR_SETTINGS_THEME_VOLUME_WAVEFORM value:SETTINGS_VALUE_VOLUME_WAVEFORM to:_volumeKnobPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_volumeKnobPopUp];
-    _volumeKnobDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES base:kVibeThemeColorVolumeKnob effect:VibeSettingsLiveEffectWaveformTheme]];
-    _volumeKnobLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO base:kVibeThemeColorVolumeKnob effect:VibeSettingsLiveEffectWaveformTheme]];
+    _volumeKnobPair = [self darkLightPairForBase:kVibeThemeColorVolumeKnob
+                                          effect:VibeSettingsLiveEffectWaveformTheme];
     _volumeLabelsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectVolume
             write:^(AppTheme *theme, BOOL on) { theme.showVolumeLabels = on; }];
     _volumeLocationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeLocationChanged:)];
@@ -597,12 +645,8 @@ static const CGFloat kImageBadgeInset = 1.5;
                               control:_volumeLocationPopUp],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_VISIBILITY control:_volumeVisibilityPopUp],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_VOLUME_LABELS control:_volumeLabelsSwitch],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_BAR control:_volumeBarPopUp],
-        _volumeBarDarkRow,
-        _volumeBarLightRow,
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_KNOB control:_volumeKnobPopUp],
-        _volumeKnobDarkRow,
-        _volumeKnobLightRow,
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_BAR controls:@[_volumeBarPair, _volumeBarPopUp]],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_KNOB controls:@[_volumeKnobPair, _volumeKnobPopUp]],
     ]];
 }
 
@@ -626,19 +670,16 @@ static const CGFloat kImageBadgeInset = 1.5;
 
     // The background is one layer color and the row colors skip the cell
     // rebuild, so their drags take lighter effects than PlaylistAppearance.
-    _playlistBackgroundColorsRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYLIST_BACKGROUND_COLORS
-            control:[self darkLightPairForBase:kVibeThemeColorPlaylistBackground
-                                        effect:VibeSettingsLiveEffectPlaylistBackground]];
+    _playlistBackgroundColorsPair = [self darkLightPairForBase:kVibeThemeColorPlaylistBackground
+                                                        effect:VibeSettingsLiveEffectPlaylistBackground];
 
     _playlistTintPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                              action:@selector(playlistTintChanged:)];
     [self addItem:STR_SETTINGS_WINDOW_TINT_NONE value:SETTINGS_VALUE_WINDOW_TINT_MONO to:_playlistTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_ARTWORK value:SETTINGS_VALUE_WINDOW_TINT_ARTWORK to:_playlistTintPopUp];
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_playlistTintPopUp];
-    _playlistTintDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
-            control:[self wellForDark:YES base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
-    _playlistTintLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
-            control:[self wellForDark:NO base:kVibeThemeColorPlaylistTint effect:VibeSettingsLiveEffectWindowTint]];
+    _playlistTintPair = [self darkLightPairForBase:kVibeThemeColorPlaylistTint
+                                            effect:VibeSettingsLiveEffectWindowTint];
 
     _playlistColorPopUps = [NSMutableDictionary dictionary];
     _playlistColorPairs = [NSMutableDictionary dictionary];
@@ -654,12 +695,9 @@ static const CGFloat kImageBadgeInset = 1.5;
 
     return [SettingsSectionView sectionWithHeader:STR_SETTINGS_PLAYLIST_SECTION rows:@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_BACKGROUND_LABEL
-                control:_playlistBackgroundPopUp],
-        _playlistBackgroundColorsRow,
+                             controls:@[_playlistBackgroundColorsPair, _playlistBackgroundPopUp]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_BACKGROUND_TINT_LABEL
-                control:_playlistTintPopUp],
-        _playlistTintDarkRow,
-        _playlistTintLightRow,
+                             controls:@[_playlistTintPair, _playlistTintPopUp]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST control:playlistFontCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_FONT_PLAYLIST_DURATION
                 control:playlistDurationFontCluster],

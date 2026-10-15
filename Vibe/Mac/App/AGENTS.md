@@ -66,10 +66,10 @@ Restoration runs three utility workers plus one user-initiated lane for a grant 
 
 - **Check for Updates…** targets the controller, which validates it.
 - `allowedChannelsForUpdater:` adds the feed's `beta` channel while `AppSettings.receiveBetaUpdates` is on. Sparkle asks at every check, so the setting needs no live effect.
-- Settings > General's **Check for updates** sets `updateCheckInterval`. Never turns automatic checks off. The other choices set the interval. Sparkle stores the choice over the Info.plist defaults.
+- Settings > General's **Automatically check for updates** switch writes `updateCheckInterval`. Off turns Sparkle's automatic checks off. On turns them on at the daily interval, unless a longer one is stored. The getter reads Sparkle's own store and answers 0 while automatic checks are off. **Check for updates now** sends `checkForUpdates:` to the controller, as the menu item does.
 - `feedParametersForUpdater:` appends the macOS version, the running architecture, the update channel, and the app's language to the feed URL at every check. Sparkle's User-Agent already names the app version. It adds `d=1`, `w=1`, or `m=1` on the copy's first check in a UTC day, ISO week, or month. It compares each period with the one saved in user defaults. `updater:didFinishLoadingAppcast:` saves all three, so a check that fails offline uses up no period. The site counts the checks (`Assets/Web/README.md`, Update checks). The privacy policy names every key. A new key needs a policy change in the same commit.
 
-**A Debug build starts no updater** unless launched with `--update-feed <url>`, which `feedURLStringForUpdater:` then answers. So the debug channel, stress runs and screenshots never raise an update dialog. Without it the menu item is disabled.
+**A Debug build creates the updater but does not start it** unless launched with `--update-feed <url>`, which `feedURLStringForUpdater:` then answers (`startUpdaterIfConfigured`). So the debug channel, stress runs and screenshots never raise an update dialog. An unstarted updater still stores the interval and the automatic-check flag, and `checkForUpdates:` on it does nothing. So Settings > General's Updates rows stay live to test, and the menu item validates as disabled.
 
 **The app stays sandboxed.** Sparkle's installer runs as its XPC service (`SUEnableInstallerLauncherService`). `Vibe-Direct.entitlements` adds the two mach-lookup exceptions for the installer's connection. App Review rejects temporary exceptions, so the `AppStore` configuration signs with `Vibe.entitlements`.
 

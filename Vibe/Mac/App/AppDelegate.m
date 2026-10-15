@@ -146,7 +146,7 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
     [self.mainPlayerController showWindow:self];
 
 #if VIBE_DIRECT_DISTRIBUTION
-    [_updaterController startUpdater];
+    [self startUpdaterIfConfigured];
 #endif
 
     [self openCommandLineArguments];

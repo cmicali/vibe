@@ -32,7 +32,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     VibeSwitch *_allowBitPerfectAnyDeviceSwitch;
     NSPopUpButton *_mp3DecoderPopUp;
     NSButton *_resetButton;
-    NSButton *_factoryResetButton;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
     NSButton *_debugInfoButton;
@@ -74,9 +73,7 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     _mp3DecoderPopUp.lastItem.tag = YES;
 
     _resetButton = [NSButton buttonWithTitle:STR_SETTINGS_RESET_DEFAULTS
-                                      target:self action:@selector(resetSettings:)];
-    _factoryResetButton = [NSButton buttonWithTitle:STR_SETTINGS_FACTORY_RESET_BUTTON
-                                             target:self action:@selector(resetSettings:)];
+                                      target:self action:@selector(confirmResetSettings:)];
     _cacheSizeValue = [self valueLabel];
     _clearCacheButton = [NSButton buttonWithTitle:STR_SETTINGS_CLEAR_CACHE
                                            target:self action:@selector(clearCache:)];
@@ -125,16 +122,12 @@ static const CGFloat kAdvancedPopUpWidth = 200;
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE
                                   caption:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE_CAPTION
                                   control:_allowBitPerfectAnyDeviceSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_MP3_DECODER_LABEL
-                                  caption:STR_SETTINGS_MP3_DECODER_CAPTION control:_mp3DecoderPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_MP3_DECODER_LABEL control:_mp3DecoderPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_MAINTENANCE_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL caption:STR_SETTINGS_CACHE_CAPTION
                                  controls:@[_cacheSizeValue, _clearCacheButton]],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_RESET_LABEL
-                                 caption:STR_SETTINGS_RESET_CAPTION control:_resetButton],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_FACTORY_RESET_LABEL
-                                 caption:STR_SETTINGS_FACTORY_RESET_CAPTION control:_factoryResetButton],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_RESET_LABEL control:_resetButton],
         ]],
         _audioSection,
     ]];
@@ -455,12 +448,8 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     _allowBitPerfectAnyDeviceSwitch.state = AppSettings.sharedInstance.allowBitPerfectOnAnyDevice
             ? NSControlStateValueOn : NSControlStateValueOff;
     [_mp3DecoderPopUp selectItemWithTag:AppSettings.sharedInstance.appleMPEGDecoder];
-    [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults];
-    [SettingsRowView setControl:_factoryResetButton enabled:_resetButton.enabled
-            || AppSettings.sharedInstance.welcomeTrackSpent
-            || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
+    [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.atFactoryDefaults];
     _resetButton.toolTip = _resetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
-    _factoryResetButton.toolTip = _factoryResetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
     [self refreshAudioPath];
 }
 
@@ -513,11 +502,29 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 #pragma mark - Reset to defaults
 
+// Asks first: nothing here is undoable, and the checkbox is the one way to
+// delete custom themes, which a plain reset keeps.
+- (void)confirmResetSettings:(id)sender {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = STR_SETTINGS_RESET_CONFIRM_TITLE;
+    alert.informativeText = [NSString stringWithFormat:STR_SETTINGS_RESET_CONFIRM_MESSAGE, VibeAppName()];
+    [alert addButtonWithTitle:STR_SETTINGS_RESET_CONFIRM_BUTTON];
+    [alert addButtonWithTitle:STR_BUTTON_CANCEL];
+    NSButton *deleteThemes = [NSButton checkboxWithTitle:STR_SETTINGS_RESET_DELETE_THEMES target:nil action:NULL];
+    alert.accessoryView = deleteThemes;
+    __weak __typeof(self) weakSelf = self;
+    [alert beginSheetModalForWindow:self.view.window completionHandler:^(NSModalResponse response) {
+        if (response == NSAlertFirstButtonReturn) {
+            [weakSelf resetSettingsDeletingThemes:deleteThemes.state == NSControlStateValueOn];
+        }
+    }];
+}
+
 // TRAP: reset clears both window-shape settings and no live effect applies
 // them, so the window is restored separately or it disagrees with the store
 // until the next launch.
-- (void)resetSettings:(id)sender {
-    if (sender == _factoryResetButton) {
+- (void)resetSettingsDeletingThemes:(BOOL)deleteThemes {
+    if (deleteThemes) {
         [AppSettings.sharedInstance factoryReset];
     } else {
         [AppSettings.sharedInstance resetToDefaults];

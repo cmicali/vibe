@@ -23,6 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
                                     target:(id)target
                                     action:(SEL)action;
 
+// The settings screens' choice row: a title, an optional image before it, and
+// a checkmark on the current one. The caller reloads the section on a change,
+// so the checkmark leaves the row it was on.
++ (UITableViewCell *)checkmarkCellInTableView:(UITableView *)tableView
+                                        title:(NSString *)title
+                                        image:(nullable UIImage *)image
+                                      checked:(BOOL)checked;
+
 // The checkmark moves before onSelect runs; the screen stays up afterwards.
 - (instancetype)initWithTitle:(NSString *)title
                       choices:(NSArray<NSString *> *)choices

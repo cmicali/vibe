@@ -12,26 +12,20 @@
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 
+// On track end is two checkmarked choices in place, a small set needs no
+// pushed screen. The other three sections hold one row each.
 typedef NS_ENUM(NSInteger, VibePlaybackSection) {
-    VibePlaybackSectionTransitions = 0,
+    VibePlaybackSectionOnTrackEnd = 0,
+    VibePlaybackSectionCrossfade,
     VibePlaybackSectionEffects,
     VibePlaybackSectionAnalysis,
     VibePlaybackSectionCount,
 };
 
-// The Track transitions rows; the other two sections hold one row each —
-// the effects switch and the BPM detection switch.
-typedef NS_ENUM(NSInteger, VibePlaybackRow) {
-    VibePlaybackRowOnTrackEnd = 0,
-    VibePlaybackRowCrossfade,
-    VibePlaybackRowCount,
-};
-
 // Not a cast of the BOOL: a row index is a screen position.
-static const NSInteger kOnEndRowPlayNext = 0;
 static const NSInteger kOnEndRowPause    = 1;
+static const NSInteger kOnEndRowCount    = 2;
 
-static NSString *const kValueCellIdentifier = @"value";
 
 @implementation PlaybackSettingsViewController {
     PlaybackController *_playback;
@@ -54,17 +48,9 @@ static NSString *const kValueCellIdentifier = @"value";
     self.title = STR_MENU_PLAYBACK;
 }
 
-// A picker writes without telling this screen.
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [self.tableView reloadData];
-}
-
-#pragma mark - Current values
-
-- (NSString *)onTrackEndValueText {
-    return AppSettings.sharedInstance.pauseAtTrackEnd ? STR_SETTINGS_ON_END_PAUSE
-                                                       : STR_SETTINGS_ON_END_PLAY_NEXT;
 }
 
 #pragma mark - Table
@@ -74,14 +60,16 @@ static NSString *const kValueCellIdentifier = @"value";
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return section == VibePlaybackSectionTransitions ? VibePlaybackRowCount : 1;
+    return section == VibePlaybackSectionOnTrackEnd ? kOnEndRowCount : 1;
 }
 
+// The crossfade row carries its own title, so its section has no header.
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     switch ((VibePlaybackSection)section) {
+        case VibePlaybackSectionOnTrackEnd: return STR_SETTINGS_ON_END_LABEL;
         case VibePlaybackSectionEffects: return STR_SETTINGS_FX_SECTION;
         case VibePlaybackSectionAnalysis: return STR_SETTINGS_ANALYSIS_SECTION;
-        default: return STR_SETTINGS_TRANSITIONS_SECTION;
+        default: return nil;
     }
 }
 
@@ -105,44 +93,33 @@ static NSString *const kValueCellIdentifier = @"value";
                                                                 on:AppSettings.sharedInstance.analyzeBPM
                                                             target:self action:@selector(detectBPMToggled:)];
     }
-    if ((VibePlaybackRow)indexPath.row == VibePlaybackRowCrossfade) {
+    if (indexPath.section == VibePlaybackSectionCrossfade) {
         return [self crossfadeCell];
     }
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kValueCellIdentifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                      reuseIdentifier:kValueCellIdentifier];
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    }
-    UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
-    content.text = STR_SETTINGS_ON_END_LABEL;
-    content.secondaryText = [self onTrackEndValueText];
-    cell.contentConfiguration = content;
-    return cell;
+    BOOL pauseRow = indexPath.row == kOnEndRowPause;
+    return [SettingsChoiceViewController checkmarkCellInTableView:tableView
+                                                            title:pauseRow ? STR_SETTINGS_ON_END_PAUSE : STR_SETTINGS_ON_END_PLAY_NEXT
+                                                            image:nil
+                                                          checked:pauseRow == AppSettings.sharedInstance.pauseAtTrackEnd];
 }
 
 #pragma mark - Selection
 
+// Apply the transition setting through the model to re-park the successor.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (indexPath.section != VibePlaybackSectionTransitions || indexPath.row != VibePlaybackRowOnTrackEnd) {
+    if (indexPath.section != VibePlaybackSectionOnTrackEnd) {
         return; // the switch and slider rows
     }
-    [self.navigationController pushViewController:[self onTrackEndPicker] animated:YES];
-}
-
-// Apply the transition setting through the model to re-park the successor.
-- (SettingsChoiceViewController *)onTrackEndPicker {
-    PlaybackController *playback = _playback;
-    return [[SettingsChoiceViewController alloc]
-            initWithTitle:STR_SETTINGS_ON_END_LABEL
-                  choices:@[STR_SETTINGS_ON_END_PLAY_NEXT, STR_SETTINGS_ON_END_PAUSE]
-            selectedIndex:(AppSettings.sharedInstance.pauseAtTrackEnd ? kOnEndRowPause
-                                                                       : kOnEndRowPlayNext)
-                 onSelect:^(NSInteger index) {
-        AppSettings.sharedInstance.pauseAtTrackEnd = (index == kOnEndRowPause);
-        [playback applyTrackTransitionSettings];
-    }];
+    BOOL pause = indexPath.row == kOnEndRowPause;
+    if (pause == AppSettings.sharedInstance.pauseAtTrackEnd) {
+        return;
+    }
+    AppSettings.sharedInstance.pauseAtTrackEnd = pause;
+    [_playback applyTrackTransitionSettings];
+    // The whole section, so the checkmark leaves the row it was on.
+    [tableView reloadSections:[NSIndexSet indexSetWithIndex:VibePlaybackSectionOnTrackEnd]
+             withRowAnimation:UITableViewRowAnimationNone];
 }
 
 // The one Playback write that also notifies the card: the FX pad it shows or

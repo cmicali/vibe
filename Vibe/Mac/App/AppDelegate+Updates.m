@@ -8,7 +8,6 @@
 #import "AppDelegate+Updates.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "SettingsRules.h"
 
 @implementation AppDelegate (Updates)
 
@@ -27,24 +26,26 @@ static NSString *DebugUpdateFeed(void) {
 #endif
 
 - (SPUStandardUpdaterController *)makeUpdaterController {
-#if DEBUG
-    if (!DebugUpdateFeed()) {
-        return nil;
-    }
-#endif
     return [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO
                                                          updaterDelegate:self
                                                       userDriverDelegate:nil];
 }
 
-// Any other stored interval reads as the nearest preset.
+// An unstarted updater still stores its settings, so Settings > General's
+// rows read and write the real ones, and a check it is asked for logs and
+// does nothing.
+- (void)startUpdaterIfConfigured {
+#if DEBUG
+    if (!DebugUpdateFeed()) {
+        return;
+    }
+#endif
+    [self.updaterController startUpdater];
+}
+
 - (NSTimeInterval)updateCheckInterval {
     SPUUpdater *updater = self.updaterController.updater;
-    if (!updater.automaticallyChecksForUpdates) {
-        return 0;
-    }
-    return VibeNearestPreset((NSInteger)updater.updateCheckInterval,
-                             kVibeUpdateCheckIntervalPresets, kVibeUpdateCheckIntervalPresetCount);
+    return updater.automaticallyChecksForUpdates ? updater.updateCheckInterval : 0;
 }
 
 - (void)setUpdateCheckInterval:(NSTimeInterval)interval {

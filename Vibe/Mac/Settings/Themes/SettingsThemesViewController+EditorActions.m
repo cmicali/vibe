@@ -117,14 +117,6 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             AppSettings.sharedInstance.activeThemeIdentifier];
     [_nameRow setCaption:builtIn ? STR_SETTINGS_THEME_BUILT_IN_COPY_CAPTION : nil];
     BOOL single = theme.isSingleMode;
-    [_windowTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
-                                           : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
-    [_playlistTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
-                                             : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
-    [_volumeBarDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
-                                           : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
-    [_volumeKnobDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
-                                           : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_customDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLORS_LABEL
                                        : STR_SETTINGS_WAVEFORM_CUSTOM_DARK_LABEL];
     [_bandsDarkRow setRowTitle:single ? STR_SETTINGS_THEME_WAVEFORM_COLOR
@@ -151,21 +143,15 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _bandsLightRow.hidden = !bandWells || single;
     _shadeOverlapsRow.hidden = kind != VibeWaveformPaletteKindBands;
     _playheadColorsRow.hidden = !theme.waveformPlayheadLine;
-    BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    _windowTintDarkRow.hidden = !customTint;
-    _windowTintLightRow.hidden = !customTint || single;
-    _backgroundColorsRow.hidden = !VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle);
-    BOOL customPlaylistTint = [theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    _playlistTintDarkRow.hidden = !customPlaylistTint;
-    _playlistTintLightRow.hidden = !customPlaylistTint || single;
-    _playlistBackgroundColorsRow.hidden = ![theme.playlistBackgroundStyle
+    // Each pair shows while its choice takes a color; single mode has already
+    // folded it to one well above.
+    _windowTintPair.hidden = ![theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _backgroundColorsPair.hidden = !VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle);
+    _playlistTintPair.hidden = ![theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _playlistBackgroundColorsPair.hidden = ![theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
-    BOOL customVolumeBar = [theme.volumeBar isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    _volumeBarDarkRow.hidden = !customVolumeBar;
-    _volumeBarLightRow.hidden = !customVolumeBar || single;
-    BOOL customVolumeKnob = [theme.volumeKnob isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
-    _volumeKnobDarkRow.hidden = !customVolumeKnob;
-    _volumeKnobLightRow.hidden = !customVolumeKnob || single;
+    _volumeBarPair.hidden = ![theme.volumeBar isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
+    _volumeKnobPair.hidden = ![theme.volumeKnob isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     for (NSString *base in _playlistColorPairs) {
         _playlistColorPairs[base].hidden = ![theme playlistColorEnabledForBase:base];
     }
@@ -346,13 +332,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     // Frosted and solid share the color pair, so either reveals it.
     NSString *chosen = _backgroundPopUp.selectedItem.representedObject;
     [self chooseFromPopUp:_backgroundPopUp revealing:VibeWindowBackgroundTakesColor(chosen) ? chosen : nil
-                    wells:@[_backgroundColorsRow] effect:VibeSettingsLiveEffectWindowChrome
+                    wells:@[_backgroundColorsPair] effect:VibeSettingsLiveEffectWindowChrome
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowBackgroundStyle = identifier; }];
 }
 
 - (void)windowTintChanged:(id)sender {
     [self chooseFromPopUp:_windowTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
-                    wells:@[_windowTintDarkRow, _windowTintLightRow] effect:VibeSettingsLiveEffectWindowTint
+                    wells:@[_windowTintPair] effect:VibeSettingsLiveEffectWindowTint
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
 }
 
@@ -494,13 +480,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 - (void)volumeBarChanged:(id)sender {
     [self chooseFromPopUp:_volumeBarPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
-                    wells:@[_volumeBarDarkRow, _volumeBarLightRow] effect:VibeSettingsLiveEffectVolume
+                    wells:@[_volumeBarPair] effect:VibeSettingsLiveEffectVolume
                     write:^(AppTheme *theme, NSString *identifier) { theme.volumeBar = identifier; }];
 }
 
 - (void)volumeKnobChanged:(id)sender {
     [self chooseFromPopUp:_volumeKnobPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
-                    wells:@[_volumeKnobDarkRow, _volumeKnobLightRow] effect:VibeSettingsLiveEffectVolume
+                    wells:@[_volumeKnobPair] effect:VibeSettingsLiveEffectVolume
                     write:^(AppTheme *theme, NSString *identifier) { theme.volumeKnob = identifier; }];
 }
 
@@ -570,13 +556,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 - (void)playlistBackgroundStyleChanged:(id)sender {
     [self chooseFromPopUp:_playlistBackgroundPopUp revealing:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID
-                    wells:@[_playlistBackgroundColorsRow] effect:VibeSettingsLiveEffectPlaylistAppearance
+                    wells:@[_playlistBackgroundColorsPair] effect:VibeSettingsLiveEffectPlaylistAppearance
                     write:^(AppTheme *theme, NSString *identifier) { theme.playlistBackgroundStyle = identifier; }];
 }
 
 - (void)playlistTintChanged:(id)sender {
     [self chooseFromPopUp:_playlistTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
-                    wells:@[_playlistTintDarkRow, _playlistTintLightRow] effect:VibeSettingsLiveEffectWindowTint
+                    wells:@[_playlistTintPair] effect:VibeSettingsLiveEffectWindowTint
                     write:^(AppTheme *theme, NSString *identifier) { theme.playlistTint = identifier; }];
 }
 

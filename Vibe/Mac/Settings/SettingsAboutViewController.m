@@ -8,6 +8,7 @@
 #import "AppStats.h"
 #import "Formatters.h"
 #import "NSBundle+BuildInfo.h"
+#import "NSImage+Util.h"
 #import "VibeProductURLs.h"
 #import "VibeStrings.h"
 
@@ -111,6 +112,11 @@ static const CGFloat kAboutIconSize = 96;
                 NSFontAttributeName: [NSFont systemFontOfSize:13],
                 NSForegroundColorAttributeName: NSColor.linkColor,
             }];
+    // The one unbordered button in the window: the arrow marks it as a link
+    // that leaves the app.
+    button.image = [NSImage symbolNamed:@"arrow.up.forward" pointSize:10 weight:NSFontWeightSemibold
+                                palette:@[NSColor.linkColor] accessibilityDescription:nil];
+    button.imagePosition = NSImageTrailing;
     return button;
 }
 
