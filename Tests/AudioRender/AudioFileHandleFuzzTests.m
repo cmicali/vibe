@@ -12,18 +12,20 @@
 //  TEST_RUNNER_VIBE_FUZZ_SEED re-runs one base seed, and
 //  TEST_RUNNER_VIBE_FUZZ_ITERATIONS multiplies every random mutator's count.
 //
-//  Budgets at the default count. The class must stay under 30 seconds in CI.
-//  Seconds are measured on an M-series Mac, one runner process for the class.
+//  Budgets at the default count. Each family is a subclass, so the parallel
+//  runner gives each its own process. Each must stay under 30 seconds in CI.
+//  One source's mutants decode across the cores. Seconds are measured on an
+//  M-series Mac with the four classes running at once.
 //
-//  | Test          | Formats                                                   | Sources | Iterations | Seconds |
-//  | ------------- | --------------------------------------------------------- | ------- | ---------- | ------- |
-//  | testDrWAV     | WAV, RF64, W64, AIFF, AIFF-C: every PCM width, float,      | 26      | 8          | 4.4     |
-//  |               | G.711, unsigned 8-bit, IMA and MS ADPCM, ima4              |         |            |         |
-//  | testDrFLAC    | every FLAC fixture: 16 to 32 bits, 1 to 8 channels,        | 11      | 8          | 2.5     |
-//  |               | block sizes 16 to 65535, 705.6 kHz, 33-bit side channels   |         |            |         |
-//  | testMPEG      | MP3, MP2, MPEG in WAV, each through dr_mp3 and Apple's     | 12      | 4          | 2.8     |
-//  | testCoreAudio | AAC, ADTS, QuickTime, ALAC in MP4 and CAF, LPCM in CAF,    | 10      | 8          | 3.1     |
-//  |               | Ogg Vorbis, Opus, a WAV past dr_wav's 384 kHz              |         |            |         |
+//  | Class                             | Formats                                                   | Sources | Iterations | Seconds |
+//  | --------------------------------- | --------------------------------------------------------- | ------- | ---------- | ------- |
+//  | AudioFileHandleFuzzDrWAVTests     | WAV, RF64, W64, AIFF, AIFF-C: every PCM width, float,      | 26      | 8          | 1.3     |
+//  |                                   | G.711, unsigned 8-bit, IMA and MS ADPCM, ima4              |         |            |         |
+//  | AudioFileHandleFuzzDrFLACTests    | every FLAC fixture: 16 to 32 bits, 1 to 8 channels,        | 11      | 8          | 0.9     |
+//  |                                   | block sizes 16 to 65535, 705.6 kHz, 33-bit side channels   |         |            |         |
+//  | AudioFileHandleFuzzMPEGTests      | MP3, MP2, MPEG in WAV, each through dr_mp3 and Apple's     | 12      | 4          | 1.1     |
+//  | AudioFileHandleFuzzCoreAudioTests | AAC, ADTS, QuickTime, ALAC in MP4 and CAF, LPCM in CAF,    | 10      | 8          | 1.2     |
+//  |                                   | Ogg Vorbis, Opus, a WAV past dr_wav's 384 kHz              |         |            |         |
 //
 //  Iterations is how often each random mutator runs per source. A named shape
 //  runs once per source it applies to, whatever the count.
@@ -55,24 +57,8 @@ static const AVAudioFrameCount kFuzzChunkFrames = 4096;
 
 #pragma mark - Random
 
-// xorshift64*, as PlaylistFileFuzzTests uses.
-typedef struct { uint64_t state; } FuzzRandom;
-
-static uint64_t FuzzNext(FuzzRandom *random) {
-    uint64_t x = random->state;
-    x ^= x >> 12;
-    x ^= x << 25;
-    x ^= x >> 27;
-    random->state = x;
-    return x * 0x2545F4914F6CDD1DULL;
-}
-
-static NSUInteger FuzzBelow(FuzzRandom *random, NSUInteger bound) {
-    return bound ? (NSUInteger)(FuzzNext(random) % bound) : 0;
-}
-
-static NSUInteger FuzzIn(FuzzRandom *random, NSRange range) {
-    return range.location + FuzzBelow(random, range.length);
+static NSUInteger FuzzIn(VibeFuzzRandom *random, NSRange range) {
+    return range.location + VibeFuzzBelow(random, range.length);
 }
 
 #pragma mark - Containers
@@ -244,7 +230,12 @@ static NSData *FuzzWalk(NSData *data, FuzzContainer container, NSRange *audio) {
                 NSUInteger segments = b[at + 26], body = at + 27 + segments, size = 0;
                 if (body > length) break;
                 for (NSUInteger s = 0; s < segments; s++) size += b[at + 27 + s];
-                FuzzAddChunk(chunks, data, at, at + 26, 1, NO, body, size, body + size, 0, "OggS");
+                // TRAP: a changed page segment count can make Apple's Ogg parser spin forever inside
+                // ExtAudioFileRead (OggAudioFile::ReadPacketData over CompressedPacketTable). It reads memory
+                // it never wrote, so it hangs only when the allocator leaves garbage there (ASan, MallocScribble).
+                // So the page registers no size field, and no size mutator writes the count.
+                // lossy.ogg at seed 0x73262c100d5d02fa reproduces it.
+                FuzzAddChunk(chunks, data, at, at + 26, 0, NO, body, size, body + size, 0, "OggS");
                 if (++pages == 3) *audio = NSMakeRange(at, length - at);
                 at = body + size;
             }
@@ -317,6 +308,12 @@ static NSData *FuzzAsRF64(NSData *wav, uint64_t sampleCount) {
     return rf64;
 }
 
+// The containers FuzzSlice cuts. A larger source of any other is never read.
+static BOOL FuzzSliceable(FuzzContainer container) {
+    return container == FuzzFLAC || container == FuzzRIFF || container == FuzzRF64 || container == FuzzW64
+        || container == FuzzFORM || container == FuzzCAF;
+}
+
 // The source cut to about kFuzzSliceBytes of audio and still well formed: a FLAC
 // cut anywhere with its length cleared, as a streamed encode leaves it; fixed-size
 // frames with every count that names them rewritten. nil when neither applies.
@@ -332,9 +329,7 @@ static NSData *FuzzSlice(FuzzSource *source, AudioFileHandle *handle) {
     }
     const AudioStreamBasicDescription *file = handle.fileFormat.streamDescription;
     NSUInteger packet = file->mBytesPerPacket, frames = MAX(file->mFramesPerPacket, 1u);
-    BOOL chunked = source.container == FuzzRIFF || source.container == FuzzRF64 || source.container == FuzzW64
-            || source.container == FuzzFORM || source.container == FuzzCAF;
-    if (!chunked || packet == 0 || source.audio.length <= kFuzzSliceBytes) return nil;
+    if (!FuzzSliceable(source.container) || packet == 0 || source.audio.length <= kFuzzSliceBytes) return nil;
     NSUInteger keep = kFuzzSliceBytes / (packet * 2) * packet * 2, cut = source.audio.length - keep;
     [bytes replaceBytesInRange:NSMakeRange(NSMaxRange(source.audio) - cut, cut) withBytes:NULL length:0];
     uint64_t frameCount = keep / packet * frames;
@@ -380,9 +375,9 @@ static AudioFileHandle *FuzzOpenBytes(NSData *bytes, NSString *name) {
 }
 
 // Fixtures no encoder here supplies: integer LPCM and a 5.1 layout in CAF, a 5.1
-// extensible WAV, and float W64. A quarter second of noise each.
-static NSArray<NSArray *> *FuzzWrittenSources(void) {
-    NSMutableArray<NSArray *> *written = [NSMutableArray array];
+// extensible WAV, and float W64. A quarter second of noise each, written into `dir`.
+static NSArray<NSString *> *FuzzWrittenSources(NSURL *dir) {
+    NSMutableArray<NSString *> *written = [NSMutableArray array];
     AVAudioChannelLayout *surround = [AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_MPEG_5_1_A];
     NSArray *specs = @[@[@"written-int16.caf", @(AVAudioPCMFormatInt16), @2], @[@"written-float32-5.1.caf", @(AVAudioPCMFormatFloat32), @6],
                        @[@"written-int16-5.1.wav", @(AVAudioPCMFormatInt16), @6], @[@"written-float32.w64", @(AVAudioPCMFormatFloat32), @2]];
@@ -393,18 +388,16 @@ static NSArray<NSArray *> *FuzzWrittenSources(void) {
                 : [[AVAudioFormat alloc] initWithCommonFormat:[spec[1] integerValue] sampleRate:48000 channels:channels interleaved:NO];
         AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:12000];
         buffer.frameLength = 12000;
-        uint32_t state = 0x12345678;
+        VibeFuzzRandom random = {0x12345678};
         for (AVAudioChannelCount c = 0; c < channels; c++) {
             for (AVAudioFrameCount f = 0; f < buffer.frameLength; f++) {
-                state = state * 1664525u + 1013904223u;
-                float value = ((float)(state >> 8) / 8388608.0f - 1.0f) * 0.25f;
+                float value = ((float)(VibeFuzzNext(&random) >> 40) / 8388608.0f - 1.0f) * 0.25f;
                 if (buffer.int16ChannelData) buffer.int16ChannelData[c][f] = (int16_t)(value * 32767);
                 else buffer.floatChannelData[c][f] = value;
             }
         }
-        NSURL *url = [FuzzScratch() URLByAppendingPathComponent:spec[0]];
-        if (VibeWriteFixture(url, buffer, NULL)) [written addObject:@[spec[0], [NSData dataWithContentsOfURL:url]]];
-        [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
+        NSURL *url = [dir URLByAppendingPathComponent:spec[0]];
+        if (VibeWriteFixture(url, buffer, NULL)) [written addObject:url.path];
     }
     return written;
 }
@@ -414,148 +407,155 @@ static FuzzFamily FuzzFamilyOf(NSString *decoder) {
          : [decoder isEqualToString:@"dr_mp3"] ? FuzzFamilyMPEG : FuzzFamilyApple;
 }
 
-// Every fixture the generator wrote, one per coding for the PCM families and every
-// one for the rest, opened under dr_mp3's default to learn its family.
-static NSArray<FuzzSource *> *FuzzCorpus(NSMutableArray<NSString *> *skipped) {
-    static NSArray<FuzzSource *> *corpus;
-    static NSArray<NSString *> *skips;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        BOOL priorApple = AudioFileHandle.appleMPEGDecoder;
-        AudioFileHandle.appleMPEGDecoder = NO;
-        NSMutableArray<NSString *> *notes = [NSMutableArray array];
-        NSMutableArray<NSArray *> *candidates = [NSMutableArray array];
-        NSString *root = NSProcessInfo.processInfo.environment[@"VIBE_AUDIO_FIXTURES"];
-        for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:NULL] sortedArrayUsingSelector:@selector(compare:)]) {
-            if ([name hasPrefix:@"alias."] || [@[@"f32", @"json"] containsObject:name.pathExtension]) continue;
-            NSData *bytes = [NSData dataWithContentsOfFile:[root stringByAppendingPathComponent:name]];
-            if (bytes) [candidates addObject:@[name, bytes]];
+// Every fixture of `family` the generator wrote, one per coding for dr_wav's and every one for
+// the rest. Each is probed at its own path under dr_mp3's default to learn its family. Only the
+// family's own are read, and a source over the cap only when FuzzSlice can cut it.
+static NSArray<FuzzSource *> *FuzzCorpus(FuzzFamily family, NSURL *scratch, NSMutableArray<NSString *> *notes) {
+    BOOL priorApple = AudioFileHandle.appleMPEGDecoder;
+    AudioFileHandle.appleMPEGDecoder = NO;
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    NSString *root = NSProcessInfo.processInfo.environment[@"VIBE_AUDIO_FIXTURES"];
+    for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:NULL] sortedArrayUsingSelector:@selector(compare:)]) {
+        if ([name hasPrefix:@"alias."] || [@[@"f32", @"json"] containsObject:name.pathExtension]) continue;
+        [paths addObject:[root stringByAppendingPathComponent:name]];
+    }
+    [paths addObjectsFromArray:FuzzWrittenSources(scratch)];
+    NSMutableDictionary<NSString *, FuzzSource *> *byKey = [NSMutableDictionary dictionary];
+    for (NSString *path in paths) {
+        FuzzSource *source = [FuzzSource new];
+        source.name = path.lastPathComponent;
+        source.extension = source.name.pathExtension;
+        AudioFileHandle *handle = [[AudioFileHandle alloc] initForReading:[NSURL fileURLWithPath:path] error:NULL];
+        if (!handle) { [notes addObject:[source.name stringByAppendingString:@": refused"]]; continue; }
+        if (handle.length > kFuzzMaxSourceFrames) {
+            [notes addObject:[NSString stringWithFormat:@"%@: declares %lld frames", source.name, handle.length]];
+            continue;
         }
-        [candidates addObjectsFromArray:FuzzWrittenSources()];
-        NSMutableDictionary<NSString *, FuzzSource *> *byKey = [NSMutableDictionary dictionary];
-        for (NSArray *candidate in candidates) {
-            FuzzSource *source = [FuzzSource new];
-            source.name = candidate[0];
-            source.extension = source.name.pathExtension;
-            source.bytes = candidate[1];
-            FuzzReadWalk(source);
-            AudioFileHandle *handle = FuzzOpenBytes(source.bytes, source.name);
-            if (!handle) { [notes addObject:[source.name stringByAppendingString:@": refused"]]; continue; }
-            if (handle.length > kFuzzMaxSourceFrames) {
-                [notes addObject:[NSString stringWithFormat:@"%@: declares %lld frames", source.name, handle.length]];
+        if (FuzzFamilyOf(handle.decoderName) != family) continue;
+        unsigned long long size = [NSFileManager.defaultManager attributesOfItemAtPath:path error:NULL].fileSize;
+        if (size > kFuzzSourceByteCap) {
+            NSFileHandle *file = [NSFileHandle fileHandleForReadingAtPath:path];
+            NSData *head = [file readDataUpToLength:12 error:NULL];
+            [file closeAndReturnError:NULL];
+            if (!FuzzSliceable(FuzzContainerOf(head))) {
+                [notes addObject:[NSString stringWithFormat:@"%@: %llu bytes, not sliceable", source.name, size]];
                 continue;
             }
-            if (source.bytes.length > kFuzzSourceByteCap) {
-                NSData *sliced = FuzzSlice(source, handle);
-                handle = sliced ? FuzzOpenBytes(sliced, source.name) : nil;
-                if (!handle || handle.length > kFuzzMaxSourceFrames) {
-                    [notes addObject:[NSString stringWithFormat:@"%@: %lu bytes, not sliceable", source.name, (unsigned long)source.bytes.length]];
-                    continue;
-                }
-                source.bytes = sliced;
-                FuzzReadWalk(source);
+        }
+        source.bytes = [NSData dataWithContentsOfFile:path];
+        FuzzReadWalk(source);
+        if (size > kFuzzSourceByteCap) {
+            NSData *sliced = FuzzSlice(source, handle);
+            handle = sliced ? FuzzOpenBytes(sliced, source.name) : nil;
+            if (!handle || handle.length > kFuzzMaxSourceFrames) {
+                [notes addObject:[NSString stringWithFormat:@"%@: %llu bytes, not sliceable", source.name, size]];
+                continue;
             }
-            source.family = FuzzFamilyOf(handle.decoderName);
-            source.length = handle.length;
-            const AudioStreamBasicDescription *file = handle.fileFormat.streamDescription;
-            source.heldFrames = MAX(source.length, file->mBytesPerPacket
-                    ? (AVAudioFramePosition)(source.audio.length / file->mBytesPerPacket * MAX(file->mFramesPerPacket, 1u)) : 0);
-            NSString *key = source.name;
-            if (source.family == FuzzFamilyWAV && ![source.name hasPrefix:@"written-"]) {
-                // The form type (WAVE, AIFF or AIFC) is in the key, since AIFF's COMM is not AIFF-C's.
-                NSString *form = [[NSString alloc] initWithData:[source.bytes subdataWithRange:NSMakeRange(8, 4)] encoding:NSISOLatin1StringEncoding];
-                key = [NSString stringWithFormat:@"%lu-%@-%u-%u-%u-%u", (unsigned long)source.container, form, (unsigned)file->mFormatID,
-                       (unsigned)file->mBitsPerChannel, (unsigned)(file->mFormatFlags & kAudioFormatFlagIsFloat), (unsigned)(file->mChannelsPerFrame > 2)];
-            }
-            FuzzSource *held = byKey[key];
-            if (!held || held.bytes.length > source.bytes.length) byKey[key] = source;
-            // A true RF64, with its ds64, made from afconvert's RIFF.
-            if (source.container == FuzzRIFF && [source.name hasPrefix:@"rf64-"]) {
-                FuzzSource *rf64 = [FuzzSource new];
-                rf64.name = [source.name.stringByDeletingPathExtension stringByAppendingString:@"-as-rf64.wav"];
-                rf64.extension = @"wav";
-                rf64.bytes = FuzzAsRF64(source.bytes, (uint64_t)source.length);
-                rf64.family = FuzzFamilyWAV;
-                rf64.length = source.length;
-                rf64.heldFrames = source.heldFrames;
-                if (rf64.bytes && FuzzOpenBytes(rf64.bytes, rf64.name)) {
-                    FuzzReadWalk(rf64);
-                    byKey[rf64.name] = rf64;
-                }
+            source.bytes = sliced;
+            FuzzReadWalk(source);
+        }
+        source.family = family;
+        source.length = handle.length;
+        const AudioStreamBasicDescription *file = handle.fileFormat.streamDescription;
+        source.heldFrames = MAX(source.length, file->mBytesPerPacket
+                ? (AVAudioFramePosition)(source.audio.length / file->mBytesPerPacket * MAX(file->mFramesPerPacket, 1u)) : 0);
+        NSString *key = source.name;
+        if (family == FuzzFamilyWAV && ![source.name hasPrefix:@"written-"]) {
+            // The form type (WAVE, AIFF or AIFC) is in the key, since AIFF's COMM is not AIFF-C's.
+            NSString *form = [[NSString alloc] initWithData:[source.bytes subdataWithRange:NSMakeRange(8, 4)] encoding:NSISOLatin1StringEncoding];
+            key = [NSString stringWithFormat:@"%lu-%@-%u-%u-%u-%u", (unsigned long)source.container, form, (unsigned)file->mFormatID,
+                   (unsigned)file->mBitsPerChannel, (unsigned)(file->mFormatFlags & kAudioFormatFlagIsFloat), (unsigned)(file->mChannelsPerFrame > 2)];
+        }
+        FuzzSource *held = byKey[key];
+        if (!held || held.bytes.length > source.bytes.length) byKey[key] = source;
+        // A true RF64, with its ds64, made from afconvert's RIFF.
+        if (source.container == FuzzRIFF && [source.name hasPrefix:@"rf64-"]) {
+            FuzzSource *rf64 = [FuzzSource new];
+            rf64.name = [source.name.stringByDeletingPathExtension stringByAppendingString:@"-as-rf64.wav"];
+            rf64.extension = @"wav";
+            rf64.bytes = FuzzAsRF64(source.bytes, (uint64_t)source.length);
+            rf64.family = FuzzFamilyWAV;
+            rf64.length = source.length;
+            rf64.heldFrames = source.heldFrames;
+            if (rf64.bytes && FuzzOpenBytes(rf64.bytes, rf64.name)) {
+                FuzzReadWalk(rf64);
+                byKey[rf64.name] = rf64;
             }
         }
-        corpus = [byKey.allValues sortedArrayUsingComparator:^NSComparisonResult(FuzzSource *a, FuzzSource *b) { return [a.name compare:b.name]; }];
-        skips = notes;
-        AudioFileHandle.appleMPEGDecoder = priorApple;
-    });
-    [skipped addObjectsFromArray:skips];
-    return corpus;
+    }
+    AudioFileHandle.appleMPEGDecoder = priorApple;
+    return [byKey.allValues sortedArrayUsingComparator:^NSComparisonResult(FuzzSource *a, FuzzSource *b) { return [a.name compare:b.name]; }];
 }
 
 #pragma mark - Mutators
 
-typedef BOOL (*FuzzMutate)(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random);
+// `arg` is the table's, for a mutator that runs in more than one shape.
+typedef BOOL (*FuzzMutate)(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg);
 
-static const FuzzChunk *FuzzAnyChunk(FuzzSource *source, FuzzRandom *random) {
-    return source.chunkCount ? [source chunkAt:FuzzBelow(random, source.chunkCount)] : NULL;
+static const FuzzChunk *FuzzAnyChunk(FuzzSource *source, VibeFuzzRandom *random) {
+    return source.chunkCount ? [source chunkAt:VibeFuzzBelow(random, source.chunkCount)] : NULL;
 }
 
-static BOOL FuzzTruncateHeader(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+// A chunk with a size field. An Ogg page has none (FuzzWalk).
+static const FuzzChunk *FuzzSizedChunk(FuzzSource *source, VibeFuzzRandom *random) {
+    NSUInteger sized = 0;
+    for (NSUInteger i = 0; i < source.chunkCount; i++) sized += [source chunkAt:i]->sizeWidth > 0;
+    for (NSUInteger i = 0, k = VibeFuzzBelow(random, sized); sized && i < source.chunkCount; i++) {
+        if ([source chunkAt:i]->sizeWidth > 0 && k-- == 0) return [source chunkAt:i];
+    }
+    return NULL;
+}
+
+static BOOL FuzzTruncateHeader(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     if (source.audio.location < 2) return NO;
-    bytes.length = 1 + FuzzBelow(random, source.audio.location - 1);
+    bytes.length = 1 + VibeFuzzBelow(random, source.audio.location - 1);
     return YES;
 }
 
-static BOOL FuzzTruncateFrames(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzTruncateFrames(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     if (source.audio.length < 2) return NO;
     bytes.length = FuzzIn(random, NSMakeRange(source.audio.location + 1, source.audio.length - 1));
     return YES;
 }
 
-static BOOL FuzzFlipHeader(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzFlipHeader(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     if (source.audio.location == 0) return NO;
-    for (NSUInteger i = 0, n = 1 + FuzzBelow(random, 4); i < n; i++) {
-        ((uint8_t *)bytes.mutableBytes)[FuzzBelow(random, source.audio.location)] ^= (uint8_t)(1 << FuzzBelow(random, 8));
+    for (NSUInteger i = 0, n = 1 + VibeFuzzBelow(random, 4); i < n; i++) {
+        ((uint8_t *)bytes.mutableBytes)[VibeFuzzBelow(random, source.audio.location)] ^= (uint8_t)(1 << VibeFuzzBelow(random, 8));
     }
     return YES;
 }
 
-static BOOL FuzzFlipSizeField(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
-    // TRAP: a flipped Ogg page segment count can make Apple's Ogg parser spin forever inside
-    // ExtAudioFileRead (OggAudioFile::ReadPacketData over CompressedPacketTable). It reads memory
-    // it never wrote, so it hangs only when the allocator leaves garbage there (ASan, MallocScribble).
-    // Run here, it would hang the class at random. lossy.ogg at seed 0x73262c100d5d02fa reproduces it.
-    if (source.container == FuzzOgg) return NO;
-    const FuzzChunk *chunk = FuzzAnyChunk(source, random);
+static BOOL FuzzFlipSizeField(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
+    const FuzzChunk *chunk = FuzzSizedChunk(source, random);
     if (!chunk) return NO;
-    ((uint8_t *)bytes.mutableBytes)[chunk->sizeAt + FuzzBelow(random, chunk->sizeWidth)] ^= (uint8_t)(1 << FuzzBelow(random, 8));
+    ((uint8_t *)bytes.mutableBytes)[chunk->sizeAt + VibeFuzzBelow(random, chunk->sizeWidth)] ^= (uint8_t)(1 << VibeFuzzBelow(random, 8));
     return YES;
 }
 
-static BOOL FuzzFlipFrames(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzFlipFrames(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     if (source.audio.length == 0) return NO;
-    for (NSUInteger i = 0, n = 1 + FuzzBelow(random, 16); i < n; i++) {
-        ((uint8_t *)bytes.mutableBytes)[FuzzIn(random, source.audio)] = (uint8_t)FuzzNext(random);
+    for (NSUInteger i = 0, n = 1 + VibeFuzzBelow(random, 16); i < n; i++) {
+        ((uint8_t *)bytes.mutableBytes)[FuzzIn(random, source.audio)] = (uint8_t)VibeFuzzNext(random);
     }
     return YES;
 }
 
-static BOOL FuzzSetSize(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random, int which) {
-    const FuzzChunk *chunk = FuzzAnyChunk(source, random);
+typedef NS_ENUM(NSUInteger, FuzzSize) { FuzzSizeZero, FuzzSizeMax, FuzzSizePastEnd, FuzzSizeOdd };
+
+static BOOL FuzzSetSize(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
+    const FuzzChunk *chunk = FuzzSizedChunk(source, random);
     if (!chunk) return NO;
     uint64_t max = chunk->sizeWidth == 8 ? UINT64_MAX : (1ULL << (8 * chunk->sizeWidth)) - 1;
     uint64_t now = FuzzGet(bytes, chunk->sizeAt, chunk->sizeWidth, chunk->bigEndian);
-    uint64_t value = which == 0 ? 0 : which == 1 ? max : which == 2 ? MIN(max, (uint64_t)bytes.length + 1 + FuzzBelow(random, 1 << 20)) : now | 1;
+    uint64_t value = arg == FuzzSizeZero ? 0 : arg == FuzzSizeMax ? max
+                   : arg == FuzzSizePastEnd ? MIN(max, (uint64_t)bytes.length + 1 + VibeFuzzBelow(random, 1 << 20)) : now | 1;
     FuzzPut(bytes, chunk->sizeAt, chunk->sizeWidth, chunk->bigEndian, value);
     return YES;
 }
-static BOOL FuzzSizeZero(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzSetSize(b, s, r, 0); }
-static BOOL FuzzSizeMax(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzSetSize(b, s, r, 1); }
-static BOOL FuzzSizePastEnd(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzSetSize(b, s, r, 2); }
-static BOOL FuzzSizeOdd(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzSetSize(b, s, r, 3); }
 
 // Chunks a container lets stand in any order: never the outer size, and in an MP4 only the top level.
-static const FuzzChunk *FuzzMovableChunk(FuzzSource *source, FuzzRandom *random) {
+static const FuzzChunk *FuzzMovableChunk(FuzzSource *source, VibeFuzzRandom *random) {
     if (source.container == FuzzOgg || source.container == FuzzMPEG || source.container == FuzzADTS) return NULL;
     for (int attempt = 0; attempt < 8; attempt++) {
         const FuzzChunk *chunk = FuzzAnyChunk(source, random);
@@ -564,7 +564,7 @@ static const FuzzChunk *FuzzMovableChunk(FuzzSource *source, FuzzRandom *random)
     return NULL;
 }
 
-static BOOL FuzzDuplicateChunk(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzDuplicateChunk(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *chunk = FuzzMovableChunk(source, random);
     if (!chunk) return NO;
     NSData *copy = [bytes subdataWithRange:NSMakeRange(chunk->at, chunk->end - chunk->at)];
@@ -572,7 +572,7 @@ static BOOL FuzzDuplicateChunk(NSMutableData *bytes, FuzzSource *source, FuzzRan
     return YES;
 }
 
-static BOOL FuzzReorderChunks(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzReorderChunks(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *a = FuzzMovableChunk(source, random), *b = FuzzMovableChunk(source, random);
     if (!a || !b || a == b) return NO;
     if (a->at > b->at) { const FuzzChunk *t = a; a = b; b = t; }
@@ -621,7 +621,9 @@ static NSUInteger FuzzFactFields(FuzzSource *source, BOOL rate, FuzzField *field
     return n;
 }
 
-static BOOL FuzzExtremeFact(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random, BOOL rate) {
+// `arg` YES for a rate, NO for a count.
+static BOOL FuzzExtremeFact(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
+    BOOL rate = arg != 0;
     FuzzField fields[32];
     NSUInteger n = FuzzFactFields(source, rate, fields);
     // MPEG and ADTS state theirs in every frame header: a reserved rate index, or a frame length of 0 or 8191.
@@ -632,34 +634,32 @@ static BOOL FuzzExtremeFact(NSMutableData *bytes, FuzzSource *source, FuzzRandom
             BOOL adts = source.container == FuzzADTS;
             if (b[at] == 0xFF && (adts ? (b[at + 1] & 0xF6) == 0xF0 : (b[at + 1] & 0xE0) == 0xE0)) break;
         }
-        if (at + 7 < bytes.length && (n == 0 || FuzzBelow(random, 2))) {
+        if (at + 7 < bytes.length && (n == 0 || VibeFuzzBelow(random, 2))) {
             uint8_t *h = (uint8_t *)bytes.mutableBytes + at;
             if (source.container == FuzzMPEG) h[2] = rate ? (h[2] | 0x0C) : (h[2] | 0xF0);
-            else if (rate) h[2] = (uint8_t)((h[2] & ~0x3C) | (FuzzBelow(random, 2) ? 0x3C : 0x34));
-            else { uint16_t frame = FuzzBelow(random, 2) ? 0 : 0x1FFF; h[3] = (uint8_t)((h[3] & 0xFC) | (frame >> 11)); h[4] = (uint8_t)(frame >> 3); h[5] = (uint8_t)((h[5] & 0x1F) | (frame & 7) << 5); }
+            else if (rate) h[2] = (uint8_t)((h[2] & ~0x3C) | (VibeFuzzBelow(random, 2) ? 0x3C : 0x34));
+            else { uint16_t frame = VibeFuzzBelow(random, 2) ? 0 : 0x1FFF; h[3] = (uint8_t)((h[3] & 0xFC) | (frame >> 11)); h[4] = (uint8_t)(frame >> 3); h[5] = (uint8_t)((h[5] & 0x1F) | (frame & 7) << 5); }
             return YES;
         }
     }
     if (n == 0) return NO;
-    FuzzField field = fields[FuzzBelow(random, n)];
+    FuzzField field = fields[VibeFuzzBelow(random, n)];
     uint64_t max = field.width == 8 ? UINT64_MAX : (1ULL << (8 * field.width)) - 1;
-    uint64_t choices[] = {0, 1, max, max >> 1, 384001, 0x7FFFFFFF, FuzzNext(random) & max};
+    uint64_t choices[] = {0, 1, max, max >> 1, 384001, 0x7FFFFFFF, VibeFuzzNext(random) & max};
     if (field.width == 8 && field.bigEndian && rate) {
         // CAF's rate is a float64.
         double doubles[] = {0, -1, NAN, INFINITY, 1e300, 5e-324, 384001};
-        double value = doubles[FuzzBelow(random, 7)];
+        double value = doubles[VibeFuzzBelow(random, 7)];
         uint64_t bits;
         memcpy(&bits, &value, sizeof(bits));
         FuzzPut(bytes, field.at, 8, YES, bits);
         return YES;
     }
-    FuzzPut(bytes, field.at, field.width, field.bigEndian, choices[FuzzBelow(random, 7)] & max);
+    FuzzPut(bytes, field.at, field.width, field.bigEndian, choices[VibeFuzzBelow(random, 7)] & max);
     return YES;
 }
-static BOOL FuzzExtremeRate(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzExtremeFact(b, s, r, YES); }
-static BOOL FuzzExtremeCount(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzExtremeFact(b, s, r, NO); }
 
-static BOOL FuzzSyncMidFrame(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzSyncMidFrame(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     static const uint8_t mpeg[] = {0xFF, 0xFB, 0x90, 0x64}, adts[] = {0xFF, 0xF1, 0x50, 0x80, 0x02, 0x1F, 0xFC},
                          flac[] = {0xFF, 0xF8, 0xC9, 0x18, 0x00}, ogg[] = {'O', 'g', 'g', 'S', 0}, riff[] = {'d', 'a', 't', 'a', 0xF0, 0xFF, 0xFF, 0xFF},
                          form[] = {'S', 'S', 'N', 'D', 0x7F, 0xFF, 0xFF, 0xF0};
@@ -678,8 +678,8 @@ static BOOL FuzzSyncMidFrame(NSMutableData *bytes, FuzzSource *source, FuzzRando
     return YES;
 }
 
-static BOOL FuzzSeekTablePastEnd(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
-    uint64_t past = bytes.length + 1 + FuzzBelow(random, 1 << 24);
+static BOOL FuzzSeekTablePastEnd(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
+    uint64_t past = bytes.length + 1 + VibeFuzzBelow(random, 1 << 24);
     if (source.container == FuzzFLAC && source.chunkCount) {
         const FuzzChunk *table = [source chunkTagged:"BLK3"];
         if (table) {
@@ -718,7 +718,7 @@ static BOOL FuzzSeekTablePastEnd(NSMutableData *bytes, FuzzSource *source, FuzzR
         uint8_t width = FuzzTagIs(stco, "co64") ? 8 : 4;
         uint64_t count = FuzzGet(bytes, stco->body + 4, 4, YES);
         for (uint64_t i = 0; i < count && stco->body + 8 + (i + 1) * width <= stco->body + stco->length; i++) {
-            if (FuzzBelow(random, 4) == 0) FuzzPut(bytes, stco->body + 8 + (NSUInteger)i * width, width, YES, past + i);
+            if (VibeFuzzBelow(random, 4) == 0) FuzzPut(bytes, stco->body + 8 + (NSUInteger)i * width, width, YES, past + i);
         }
         return YES;
     }
@@ -727,10 +727,15 @@ static BOOL FuzzSeekTablePastEnd(NSMutableData *bytes, FuzzSource *source, FuzzR
 
 #pragma mark Named shapes: the dr_wav fixes (ThirdParty/AGENTS.md)
 
-// Grows COMM to `size` bytes, padded to even, as the fix for COMM chunks of 23, odd or more than 18 bytes reads.
-static BOOL FuzzCOMMSize(NSMutableData *bytes, FuzzSource *source, uint32_t size) {
+typedef NS_ENUM(NSUInteger, FuzzCOMM) { FuzzCOMM23, FuzzCOMMOdd, FuzzCOMMLong };
+
+// Grows COMM to 23 bytes, an odd size or 8 bytes more, padded to even. The dr_wav fix reads COMM
+// chunks of 23, odd or more than 18 bytes.
+static BOOL FuzzCOMMSize(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *comm = [source chunkTagged:"COMM"];
-    if (source.container != FuzzFORM || !comm || comm->length > size) return NO;
+    if (source.container != FuzzFORM || !comm) return NO;
+    uint32_t size = arg == FuzzCOMM23 ? 23 : arg == FuzzCOMMOdd ? (uint32_t)(comm->length | 1) + 2 : (uint32_t)comm->length + 8;
+    if (comm->length > size) return NO;
     NSUInteger held = comm->body + (NSUInteger)comm->length, padded = comm->body + (NSUInteger)(comm->length + (comm->length & 1));
     NSUInteger grown = size + (size & 1) - (NSUInteger)comm->length;
     [bytes replaceBytesInRange:NSMakeRange(held, MIN(padded, bytes.length) - held) withBytes:[NSMutableData dataWithLength:grown].bytes length:grown];
@@ -738,31 +743,22 @@ static BOOL FuzzCOMMSize(NSMutableData *bytes, FuzzSource *source, uint32_t size
     FuzzPut(bytes, 4, 4, YES, bytes.length - 8);
     return YES;
 }
-static BOOL FuzzCOMM23(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzCOMMSize(b, s, 23); }
-static BOOL FuzzCOMMOdd(NSMutableData *b, FuzzSource *s, FuzzRandom *r) {
-    const FuzzChunk *comm = [s chunkTagged:"COMM"];
-    return comm && FuzzCOMMSize(b, s, (uint32_t)(comm->length | 1) + 2);
-}
-static BOOL FuzzCOMMLong(NSMutableData *b, FuzzSource *s, FuzzRandom *r) {
-    const FuzzChunk *comm = [s chunkTagged:"COMM"];
-    return comm && FuzzCOMMSize(b, s, (uint32_t)comm->length + 8);
-}
 
-static BOOL FuzzCOMMCountPastData(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzCOMMCountPastData(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *comm = [source chunkTagged:"COMM"];
     if (!comm) return NO;
     FuzzPut(bytes, comm->body + 2, 4, YES, (uint64_t)source.length * 2 + 1);
     return YES;
 }
 
-static BOOL FuzzDS64CountPastData(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzDS64CountPastData(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *ds64 = [source chunkTagged:"ds64"];
     if (!ds64) return NO;
     FuzzPut(bytes, ds64->body + 16, 8, NO, (uint64_t)source.length * 3 + 7);
     return YES;
 }
 
-static BOOL FuzzFactCountPastData(NSMutableData *bytes, FuzzSource *source, FuzzRandom *random) {
+static BOOL FuzzFactCountPastData(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     if (source.container != FuzzRIFF && source.container != FuzzRF64) return NO;
     const FuzzChunk *fact = [source chunkTagged:"fact"], *data = [source chunkTagged:"data"];
     uint64_t count = (uint64_t)source.length * 2 + 1;
@@ -778,24 +774,21 @@ static BOOL FuzzFactCountPastData(NSMutableData *bytes, FuzzSource *source, Fuzz
     return YES;
 }
 
-// MS ADPCM's coefficient table: wNumCoef past the pairs the chunk holds, or none.
-static BOOL FuzzMSADPCMTable(NSMutableData *bytes, FuzzSource *source, uint16_t count) {
+// MS ADPCM's coefficient table: wNumCoef (`arg`) past the pairs the chunk holds, or none.
+static BOOL FuzzMSADPCMTable(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *fmt = [source chunkTagged:"fmt "];
     if (!fmt || fmt->length < 22 || FuzzGet(bytes, fmt->body, 2, NO) != 2) return NO;
-    FuzzPut(bytes, fmt->body + 20, 2, NO, count);
+    FuzzPut(bytes, fmt->body + 20, 2, NO, arg);
     return YES;
 }
-static BOOL FuzzMSADPCMTableShort(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzMSADPCMTable(b, s, 200); }
-static BOOL FuzzMSADPCMNoPairs(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzMSADPCMTable(b, s, 0); }
 
-static BOOL FuzzDataSize(NSMutableData *bytes, FuzzSource *source, uint32_t size) {
+// The WAV data chunk's size set to `arg`.
+static BOOL FuzzDataSize(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     const FuzzChunk *data = [source chunkTagged:"data"];
     if (source.container != FuzzRIFF || !data) return NO;
-    FuzzPut(bytes, data->sizeAt, 4, NO, size);
+    FuzzPut(bytes, data->sizeAt, 4, NO, arg);
     return YES;
 }
-static BOOL FuzzDataSizeZero(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzDataSize(b, s, 0); }
-static BOOL FuzzDataSizeMax(NSMutableData *b, FuzzSource *s, FuzzRandom *r) { return FuzzDataSize(b, s, 0xFFFFFFFF); }
 
 // What a named shape must deliver besides what every mutant must.
 typedef NS_ENUM(NSUInteger, FuzzExpect) {
@@ -808,48 +801,55 @@ typedef NS_ENUM(NSUInteger, FuzzExpect) {
 typedef struct {
     const char *name;
     FuzzMutate mutate;
+    NSUInteger arg;
     BOOL named;
     FuzzExpect expect;
 } FuzzMutator;
 
 static const FuzzMutator kFuzzMutators[] = {
-    {"truncate-header", FuzzTruncateHeader, NO, FuzzExpectNothingMore},
-    {"truncate-frames", FuzzTruncateFrames, NO, FuzzExpectNothingMore},
-    {"flip-header", FuzzFlipHeader, NO, FuzzExpectNothingMore},
-    {"flip-size-field", FuzzFlipSizeField, NO, FuzzExpectNothingMore},
-    {"flip-frames", FuzzFlipFrames, NO, FuzzExpectNothingMore},
-    {"size-zero", FuzzSizeZero, NO, FuzzExpectNothingMore},
-    {"size-max", FuzzSizeMax, NO, FuzzExpectNothingMore},
-    {"size-past-end", FuzzSizePastEnd, NO, FuzzExpectNothingMore},
-    {"size-odd", FuzzSizeOdd, NO, FuzzExpectNothingMore},
-    {"duplicate-chunk", FuzzDuplicateChunk, NO, FuzzExpectNothingMore},
-    {"reorder-chunks", FuzzReorderChunks, NO, FuzzExpectNothingMore},
-    {"extreme-rate", FuzzExtremeRate, NO, FuzzExpectNothingMore},
-    {"extreme-count", FuzzExtremeCount, NO, FuzzExpectNothingMore},
-    {"sync-mid-frame", FuzzSyncMidFrame, NO, FuzzExpectNothingMore},
-    {"seek-table-past-end", FuzzSeekTablePastEnd, NO, FuzzExpectNothingMore},
-    {"aiff-comm-23-bytes", FuzzCOMM23, YES, FuzzExpectSourceDecode},
-    {"aiff-comm-odd-size", FuzzCOMMOdd, YES, FuzzExpectSourceDecode},
-    {"aiff-comm-longer-than-18", FuzzCOMMLong, YES, FuzzExpectSourceDecode},
-    {"aiff-comm-count-past-data", FuzzCOMMCountPastData, YES, FuzzExpectNoLongerThanSource},
-    {"rf64-ds64-count-past-data", FuzzDS64CountPastData, YES, FuzzExpectNoLongerThanSource},
-    {"wav-fact-count-past-data", FuzzFactCountPastData, YES, FuzzExpectNoLongerThanSource},
-    {"ms-adpcm-table-cut-short", FuzzMSADPCMTableShort, YES, FuzzExpectNotDrWAV},
-    {"ms-adpcm-table-of-no-pairs", FuzzMSADPCMNoPairs, YES, FuzzExpectNotDrWAV},
-    {"wav-data-size-zero", FuzzDataSizeZero, YES, FuzzExpectNothingMore},
-    {"wav-data-size-0xffffffff", FuzzDataSizeMax, YES, FuzzExpectSourceDecode},
+    {"truncate-header", FuzzTruncateHeader, 0, NO, FuzzExpectNothingMore},
+    {"truncate-frames", FuzzTruncateFrames, 0, NO, FuzzExpectNothingMore},
+    {"flip-header", FuzzFlipHeader, 0, NO, FuzzExpectNothingMore},
+    {"flip-size-field", FuzzFlipSizeField, 0, NO, FuzzExpectNothingMore},
+    {"flip-frames", FuzzFlipFrames, 0, NO, FuzzExpectNothingMore},
+    {"size-zero", FuzzSetSize, FuzzSizeZero, NO, FuzzExpectNothingMore},
+    {"size-max", FuzzSetSize, FuzzSizeMax, NO, FuzzExpectNothingMore},
+    {"size-past-end", FuzzSetSize, FuzzSizePastEnd, NO, FuzzExpectNothingMore},
+    {"size-odd", FuzzSetSize, FuzzSizeOdd, NO, FuzzExpectNothingMore},
+    {"duplicate-chunk", FuzzDuplicateChunk, 0, NO, FuzzExpectNothingMore},
+    {"reorder-chunks", FuzzReorderChunks, 0, NO, FuzzExpectNothingMore},
+    {"extreme-rate", FuzzExtremeFact, YES, NO, FuzzExpectNothingMore},
+    {"extreme-count", FuzzExtremeFact, NO, NO, FuzzExpectNothingMore},
+    {"sync-mid-frame", FuzzSyncMidFrame, 0, NO, FuzzExpectNothingMore},
+    {"seek-table-past-end", FuzzSeekTablePastEnd, 0, NO, FuzzExpectNothingMore},
+    {"aiff-comm-23-bytes", FuzzCOMMSize, FuzzCOMM23, YES, FuzzExpectSourceDecode},
+    {"aiff-comm-odd-size", FuzzCOMMSize, FuzzCOMMOdd, YES, FuzzExpectSourceDecode},
+    {"aiff-comm-longer-than-18", FuzzCOMMSize, FuzzCOMMLong, YES, FuzzExpectSourceDecode},
+    {"aiff-comm-count-past-data", FuzzCOMMCountPastData, 0, YES, FuzzExpectNoLongerThanSource},
+    {"rf64-ds64-count-past-data", FuzzDS64CountPastData, 0, YES, FuzzExpectNoLongerThanSource},
+    {"wav-fact-count-past-data", FuzzFactCountPastData, 0, YES, FuzzExpectNoLongerThanSource},
+    {"ms-adpcm-table-cut-short", FuzzMSADPCMTable, 200, YES, FuzzExpectNotDrWAV},
+    {"ms-adpcm-table-of-no-pairs", FuzzMSADPCMTable, 0, YES, FuzzExpectNotDrWAV},
+    {"wav-data-size-zero", FuzzDataSize, 0, YES, FuzzExpectNothingMore},
+    {"wav-data-size-0xffffffff", FuzzDataSize, 0xFFFFFFFF, YES, FuzzExpectSourceDecode},
 };
 
 #pragma mark - Decoding
 
-// What one file delivered. Problems are collected, never asserted, so a decode can run off the test thread.
+// One file and what it delivered. Problems are collected, never asserted, so a decode can run off
+// the test thread. A mutant also carries its bytes, its mutator and its seed.
 @interface FuzzDecode : NSObject
+@property (nonatomic, strong) NSData *bytes;
+@property (nonatomic, copy) NSString *name;
+@property (nonatomic) NSUInteger mutator;
+@property (nonatomic) uint64_t seed;
+@property (atomic) BOOL finished;
 @property (nonatomic) BOOL opened;
 @property (nonatomic, copy) NSString *decoder;
 @property (nonatomic) AVAudioFramePosition length;
 @property (nonatomic) BOOL estimated;
-@property (nonatomic, strong) NSMutableData *pcm;        // every frame read to the end, interleaved
-@property (nonatomic, strong) NSMutableData *seekReads;  // what each seek's read delivered, in order
+@property (nonatomic, strong) NSMutableData *pcm;        // every frame read to the end, interleaved, when captured
+@property (nonatomic, strong) NSMutableData *seekReads;  // what each seek's read delivered, in order, when captured
 @property (nonatomic, strong) NSMutableArray<NSString *> *problems;
 @end
 @implementation FuzzDecode
@@ -902,8 +902,9 @@ static BOOL FuzzRead(AudioFileHandle *handle, AVAudioPCMBuffer *buffer, AVAudioF
 }
 
 // Open, facts, decode to the end within `budget` frames, then seeks across the file, each read back.
-static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
-    FuzzDecode *result = [FuzzDecode new];
+// The samples are kept when `capture` asks for them. dr_wav and dr_flac keep them for the seek checks
+// and drop them after unless asked.
+static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition budget, BOOL capture) {
     result.pcm = [NSMutableData data];
     result.seekReads = [NSMutableData data];
     result.problems = [NSMutableArray array];
@@ -916,7 +917,7 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
         if (cpu > kFuzzCallCPUSeconds) [problems addObject:[NSString stringWithFormat:@"the open took %.2f s of CPU", cpu]];
         if (!handle) {
             if (!error) [problems addObject:@"a refused open set no error"];
-            return result;
+            return;
         }
         result.opened = YES;
         result.decoder = handle.decoderName;
@@ -926,6 +927,7 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
         BOOL ours = ![result.decoder isEqualToString:@"apple"];
         // dr_wav's and dr_flac's seeks land on the samples a decode from the start holds there, damaged or not.
         BOOL exact = [result.decoder isEqualToString:@"dr_wav"] || [result.decoder isEqualToString:@"dr_flac"];
+        BOOL keep = capture || exact;
         BOOL estimated = NO;
         result.length = [handle lengthEstimated:&estimated];
         result.estimated = estimated;
@@ -934,12 +936,12 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
         NSUInteger channels = format.channelCount;
         if (channels == 0 || !(format.sampleRate > 0) || !isfinite(format.sampleRate)) {
             [problems addObject:[NSString stringWithFormat:@"processing format %@", format]];
-            return result;
+            return;
         }
         AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:kFuzzChunkFrames];
         AVAudioFramePosition delivered = 0;
         while (delivered < budget && FuzzRead(handle, buffer, kFuzzChunkFrames, @"decode", problems)) {
-            VibeAppendPCM(result.pcm, buffer);
+            if (keep) VibeAppendPCM(result.pcm, buffer);
             delivered += buffer.frameLength;
         }
         if (ours && delivered < budget && [handle readIntoBuffer:buffer error:NULL] && buffer.frameLength > 0) {
@@ -952,7 +954,8 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
         AVAudioFramePosition reach = MAX(length, delivered);
         // A damaged count can make a length near INT64_MAX, so the target past it saturates.
         AVAudioFramePosition targets[] = {0, 1, delivered / 3, delivered / 2, delivered - 1, delivered, delivered + 4096,
-                                          length < INT64_MAX ? length + 1 : length, delivered * 7 / 11};        for (size_t i = 0; i < sizeof(targets) / sizeof(*targets); i++) {
+                                          length < INT64_MAX ? length + 1 : length, delivered * 7 / 11};
+        for (size_t i = 0; i < sizeof(targets) / sizeof(*targets); i++) {
             AVAudioFramePosition target = MAX(0, targets[i]);
             NSString *what = [NSString stringWithFormat:@"seek to %lld", target];
             error = nil;
@@ -972,7 +975,7 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
             AVAudioFramePosition read = 0;
             NSMutableData *slice = [NSMutableData data];
             while (read < 2 * kFuzzChunkFrames && FuzzRead(handle, buffer, kFuzzChunkFrames, what, problems)) {
-                VibeAppendPCM(slice, buffer);
+                if (keep) VibeAppendPCM(slice, buffer);
                 read += buffer.frameLength;
             }
             if (ours && read > 0 && (at > reach || read > reach - at)) [problems addObject:[NSString stringWithFormat:@"%@: read %lld frames from %lld, past %lld", what, read, at, reach]];
@@ -983,20 +986,22 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
                     [problems addObject:[what stringByAppendingString:@": reads other samples than the decode from the start"]];
                 }
             }
-            [result.seekReads appendData:slice];
+            if (capture) [result.seekReads appendData:slice];
         }
+        if (!capture) result.pcm = nil;
     } @catch (NSException *exception) {
         [problems addObject:[NSString stringWithFormat:@"exception %@: %@", exception.name, exception.reason]];
     }
-    return result;
 }
 
 #pragma mark - Tests
 
-@interface AudioFileHandleFuzzTests : XCTestCase
+// The fuzz of one decoder family. It runs no tests itself. Each family is a subclass below, so the
+// parallel runner spreads them across processes.
+@interface AudioFileHandleFuzzTestCase : XCTestCase
 @end
 
-@implementation AudioFileHandleFuzzTests {
+@implementation AudioFileHandleFuzzTestCase {
     NSURL *_root;
     uint64_t _baseSeed;
     NSUInteger _multiplier;
@@ -1007,10 +1012,8 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
 - (void)setUp {
     [super setUp];
     self.continueAfterFailure = YES;
-    NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
-    // Fixed by default: a suite that explores new inputs on every run passes and fails at random.
-    _baseSeed = environment[@"VIBE_FUZZ_SEED"] ? strtoull(environment[@"VIBE_FUZZ_SEED"].UTF8String, NULL, 0) : 0xF022DEC0DE5EED01ULL;
-    _multiplier = MAX(1, environment[@"VIBE_FUZZ_ITERATIONS"].integerValue);
+    _baseSeed = VibeFuzzBaseSeed(0xF022DEC0DE5EED01ULL);
+    _multiplier = MAX(1, NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_ITERATIONS"].integerValue);
     _root = [FuzzScratch() URLByAppendingPathComponent:NSUUID.UUID.UUIDString isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:_root withIntermediateDirectories:YES attributes:nil error:NULL];
     _priorAppleMPEGDecoder = AudioFileHandle.appleMPEGDecoder;
@@ -1024,16 +1027,40 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
 
 // The decode on a worker, under the hang guard. nil when it never returned.
 - (FuzzDecode *)decode:(NSURL *)url budget:(AVAudioFramePosition)budget {
-    __block FuzzDecode *result;
+    FuzzDecode *result = [FuzzDecode new];
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        result = FuzzDecodeURL(url, budget);
+        FuzzDecodeURL(result, url, budget, YES);
         dispatch_semaphore_signal(done);
     });
     if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) != 0) {
         return nil;
     }
     return result;
+}
+
+// Every mutant across the cores, each from its own file. NO when none finished within the hang
+// guard. The ones still unfinished then are the hung ones.
+- (BOOL)decodeMutants:(NSArray<FuzzDecode *> *)mutants budget:(AVAudioFramePosition)budget {
+    NSURL *root = _root;
+    dispatch_semaphore_t finished = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        dispatch_apply(mutants.count, DISPATCH_APPLY_AUTO, ^(size_t k) {
+            FuzzDecode *mutant = mutants[k];
+            NSURL *url = [root URLByAppendingPathComponent:mutant.name];
+            [mutant.bytes writeToURL:url atomically:NO];
+            FuzzDecodeURL(mutant, url, budget, kFuzzMutators[mutant.mutator].expect == FuzzExpectSourceDecode);
+            [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
+            mutant.finished = YES;
+            dispatch_semaphore_signal(finished);
+        });
+    });
+    for (NSUInteger k = 0; k < mutants.count; k++) {
+        if (dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))) != 0) {
+            return NO;
+        }
+    }
+    return YES;
 }
 
 - (void)attach:(NSData *)bytes name:(NSString *)name {
@@ -1059,42 +1086,53 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
     uint64_t sourceHash = 0;
     for (const char *c = source.name.UTF8String; *c; c++) sourceHash = sourceHash * 131 + (uint8_t)*c;
 
+    // Every mutant is made here, in order, and decoded after.
+    NSMutableArray<FuzzDecode *> *mutants = [NSMutableArray array];
     for (NSUInteger m = 0; m < sizeof(kFuzzMutators) / sizeof(*kFuzzMutators); m++) {
         FuzzMutator mutator = kFuzzMutators[m];
         NSUInteger iterations = mutator.named ? 1 : kFuzzIterations[source.family] * _multiplier;
         for (NSUInteger i = 0; i < iterations; i++) {
             uint64_t seed = _baseSeed ^ sourceHash ^ ((uint64_t)m << 40) ^ ((uint64_t)i << 20) ^ (appleMPEG ? 1ULL << 63 : 0);
-            FuzzRandom random = {seed | 1};
+            VibeFuzzRandom random = {seed | 1};
             NSMutableData *bytes = [source.bytes mutableCopy];
-            if (!mutator.mutate(bytes, source, &random)) break; // the shape does not apply to this container            if ([bytes isEqualToData:source.bytes]) continue;
-            NSString *name = [NSString stringWithFormat:@"%s-%lu.%@", mutator.name, (unsigned long)i, source.extension];
-            NSString *context = [NSString stringWithFormat:@"%@, %s, seed 0x%016llx", label, mutator.name, seed];
-            NSURL *url = [_root URLByAppendingPathComponent:name];
-            [bytes writeToURL:url atomically:NO];
-            FuzzDecode *mutant = [self decode:url budget:budget];
-            if (!mutant) {
-                XCTFail(@"%@: hung past %d s", context, VIBE_TEST_HANG_TIMEOUT);
-                [self attach:bytes name:[source.name stringByAppendingFormat:@"-%@", name]];
-                return; // the worker still holds the file; nothing after it can be trusted
-            }
-            NSMutableArray<NSString *> *problems = mutant.problems;
-            if (mutant.opened && mutator.expect == FuzzExpectNoLongerThanSource && !mutant.estimated && mutant.length > source.heldFrames) {
-                [problems addObject:[NSString stringWithFormat:@"length %lld past the %lld frames the data holds", mutant.length, source.heldFrames]];
-            }
-            if (mutant.opened && mutator.expect == FuzzExpectSourceDecode && [mutant.decoder isEqualToString:@"dr_wav"]
-                    && ![mutant.pcm isEqualToData:reference.pcm]) {
-                [problems addObject:@"decodes other samples than the source"];
-            }
-            if (mutant.opened && mutator.expect == FuzzExpectNotDrWAV && [mutant.decoder isEqualToString:@"dr_wav"]) {
-                [problems addObject:@"dr_wav accepted it"];
-            }
-            if (problems.count) {
-                XCTFail(@"%@ (%@): %@", context, mutant.decoder ?: @"refused", problems);
-                [self attach:bytes name:[source.name stringByAppendingFormat:@"-%@", name]];
-            }
-            [NSFileManager.defaultManager removeItemAtURL:url error:NULL];
+            // NO: the shape does not apply to this container.
+            if (!mutator.mutate(bytes, source, &random, mutator.arg)) break;
+            if ([bytes isEqualToData:source.bytes]) continue;
+            FuzzDecode *mutant = [FuzzDecode new];
+            mutant.bytes = bytes;
+            mutant.name = [NSString stringWithFormat:@"%s-%lu.%@", mutator.name, (unsigned long)i, source.extension];
+            mutant.mutator = m;
+            mutant.seed = seed;
+            [mutants addObject:mutant];
         }
     }
+    BOOL returned = [self decodeMutants:mutants budget:budget];
+    for (FuzzDecode *mutant in mutants) {
+        FuzzMutator mutator = kFuzzMutators[mutant.mutator];
+        NSString *context = [NSString stringWithFormat:@"%@, %s, seed 0x%016llx", label, mutator.name, mutant.seed];
+        NSString *attachment = [source.name stringByAppendingFormat:@"-%@", mutant.name];
+        if (!mutant.finished) {
+            XCTFail(@"%@: hung past %d s", context, VIBE_TEST_HANG_TIMEOUT);
+            [self attach:mutant.bytes name:attachment];
+            continue;
+        }
+        NSMutableArray<NSString *> *problems = mutant.problems;
+        if (mutant.opened && mutator.expect == FuzzExpectNoLongerThanSource && !mutant.estimated && mutant.length > source.heldFrames) {
+            [problems addObject:[NSString stringWithFormat:@"length %lld past the %lld frames the data holds", mutant.length, source.heldFrames]];
+        }
+        if (mutant.opened && mutator.expect == FuzzExpectSourceDecode && [mutant.decoder isEqualToString:@"dr_wav"]
+                && ![mutant.pcm isEqualToData:reference.pcm]) {
+            [problems addObject:@"decodes other samples than the source"];
+        }
+        if (mutant.opened && mutator.expect == FuzzExpectNotDrWAV && [mutant.decoder isEqualToString:@"dr_wav"]) {
+            [problems addObject:@"dr_wav accepted it"];
+        }
+        if (problems.count) {
+            XCTFail(@"%@ (%@): %@", context, mutant.decoder ?: @"refused", problems);
+            [self attach:mutant.bytes name:attachment];
+        }
+    }
+    if (!returned) return; // a worker still holds its file; nothing after it can be trusted
     FuzzDecode *again = [self decode:originalURL budget:kFuzzMaxSourceFrames];
     XCTAssertNotNil(again, @"%@: the source hung after its mutants", label);
     XCTAssertEqualObjects(again.pcm, reference.pcm, @"%@: the source decodes differently after its mutants", label);
@@ -1103,8 +1141,7 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
 
 - (void)fuzzFamily:(FuzzFamily)family {
     NSMutableArray<NSString *> *skipped = [NSMutableArray array];
-    NSArray<FuzzSource *> *sources = [FuzzCorpus(skipped) filteredArrayUsingPredicate:
-                                      [NSPredicate predicateWithBlock:^BOOL(FuzzSource *source, id bindings) { return source.family == family; }]];
+    NSArray<FuzzSource *> *sources = FuzzCorpus(family, _root, skipped);
     XCTSkipIf(sources.count == 0, @"No fixtures of this family; run make test-audio (skipped: %@)", skipped);
     for (FuzzSource *source in sources) {
         [self fuzzSource:source appleMPEG:NO];
@@ -1112,9 +1149,28 @@ static FuzzDecode *FuzzDecodeURL(NSURL *url, AVAudioFramePosition budget) {
     }
 }
 
-- (void)testDrWAV { [self fuzzFamily:FuzzFamilyWAV]; }
-- (void)testDrFLAC { [self fuzzFamily:FuzzFamilyFLAC]; }
-- (void)testMPEG { [self fuzzFamily:FuzzFamilyMPEG]; }
-- (void)testCoreAudio { [self fuzzFamily:FuzzFamilyApple]; }
+@end
 
+@interface AudioFileHandleFuzzDrWAVTests : AudioFileHandleFuzzTestCase
+@end
+@implementation AudioFileHandleFuzzDrWAVTests
+- (void)testMutants { [self fuzzFamily:FuzzFamilyWAV]; }
+@end
+
+@interface AudioFileHandleFuzzDrFLACTests : AudioFileHandleFuzzTestCase
+@end
+@implementation AudioFileHandleFuzzDrFLACTests
+- (void)testMutants { [self fuzzFamily:FuzzFamilyFLAC]; }
+@end
+
+@interface AudioFileHandleFuzzMPEGTests : AudioFileHandleFuzzTestCase
+@end
+@implementation AudioFileHandleFuzzMPEGTests
+- (void)testMutants { [self fuzzFamily:FuzzFamilyMPEG]; }
+@end
+
+@interface AudioFileHandleFuzzCoreAudioTests : AudioFileHandleFuzzTestCase
+@end
+@implementation AudioFileHandleFuzzCoreAudioTests
+- (void)testMutants { [self fuzzFamily:FuzzFamilyApple]; }
 @end

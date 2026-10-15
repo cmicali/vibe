@@ -8,10 +8,13 @@
 //  bare RIFF cannot carry — a channel layout, or a codec. VibeReferenceResample
 //  is the one reference conversion. VibeFitTones is the one tone fit, with
 //  VibeFitTone and VibeDB beside it, which both quality measurements share. VibeRangedPCMFormat is a device's offered
-//  format, for the bit-perfect format rules.
+//  format, for the bit-perfect format rules. VibeToneBuffer is the one test tone, and VibeImageOfColor the one
+//  solid-color image. VibeFuzzRandom and VibeFuzzBaseSeed are the fuzz classes' generator and seed.
 //
 
 #import <AVFoundation/AVFoundation.h>
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "AudioFileHandle.h"
 #import "AudioResampler.h"
@@ -28,6 +31,69 @@ static inline AudioStreamRangedDescription VibeRangedPCMFormat(double rate, UInt
     r.mSampleRateRange.mMinimum = rate;
     r.mSampleRateRange.mMaximum = rate;
     return r;
+}
+
+// xorshift64*, chosen for being four lines rather than for its statistics.
+// A state of 0 stays 0, so a seed must be nonzero.
+typedef struct { uint64_t state; } VibeFuzzRandom;
+
+static inline uint64_t VibeFuzzNext(VibeFuzzRandom *random) {
+    uint64_t x = random->state;
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    random->state = x;
+    return x * 0x2545F4914F6CDD1DULL;
+}
+
+static inline NSUInteger VibeFuzzBelow(VibeFuzzRandom *random, NSUInteger bound) {
+    return bound ? (NSUInteger)(VibeFuzzNext(random) % bound) : 0;
+}
+
+// VIBE_FUZZ_SEED in decimal or 0x hex, else `fallback`. Fixed by default: a
+// suite that explores new inputs on every run passes and fails at random.
+static inline uint64_t VibeFuzzBaseSeed(uint64_t fallback) {
+    NSString *seed = NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_SEED"];
+    return seed ? strtoull(seed.UTF8String, NULL, 0) : fallback;
+}
+
+// `frames` of a 440 Hz tone at about -12 dBFS, every channel alike, interleaved
+// int16 or float32.
+static inline AVAudioPCMBuffer *VibeToneBuffer(AVAudioFrameCount frames, double rate, AVAudioChannelCount channels,
+                                               AVAudioCommonFormat format) {
+    AVAudioFormat *pcm = [[AVAudioFormat alloc] initWithCommonFormat:format sampleRate:rate channels:channels
+                                                         interleaved:YES];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:pcm frameCapacity:frames];
+    buffer.frameLength = frames;
+    for (AVAudioFrameCount i = 0; i < frames; i++) {
+        int16_t sample = (int16_t)(8000 * sin(2 * M_PI * 440 * i / rate));
+        for (AVAudioChannelCount c = 0; c < channels; c++) {
+            if (format == AVAudioPCMFormatInt16) buffer.int16ChannelData[0][i * channels + c] = sample;
+            else buffer.floatChannelData[0][i * channels + c] = sample / 32768.0f;
+        }
+    }
+    return buffer;
+}
+
+// A side x side image of one opaque sRGB color, PNG or JPEG.
+static inline NSData *VibeImageOfColor(size_t side, CGFloat red, CGFloat green, CGFloat blue, BOOL jpeg) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = CGBitmapContextCreate(NULL, side, side, 8, 0, space,
+                                                 (CGBitmapInfo)kCGImageAlphaNoneSkipLast);
+    CGContextSetRGBFillColor(context, red, green, blue, 1);
+    CGContextFillRect(context, CGRectMake(0, 0, side, side));
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    NSMutableData *data = [NSMutableData data];
+    CGImageDestinationRef destination = CGImageDestinationCreateWithData(
+            (__bridge CFMutableDataRef)data,
+            (__bridge CFStringRef)(jpeg ? UTTypeJPEG : UTTypePNG).identifier, 1, NULL);
+    CGImageDestinationAddImage(destination, image, NULL);
+    CGImageDestinationFinalize(destination);
+    CFRelease(destination);
+    CGImageRelease(image);
+    CGContextRelease(context);
+    CGColorSpaceRelease(space);
+    return data;
 }
 
 // A canonical 44-byte-header WAV of `bits` per sample (16 or 24 integer, 32

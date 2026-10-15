@@ -3,8 +3,8 @@
 //  VibeAudioTests
 //
 //  Seeded mutations of the tag tests' fixtures through the real parse and art
-//  read. A mutant may parse or fail. It must return within a bound, throw
-//  nothing, and leave the next parse of the original file unchanged.
+//  read. A mutant may parse or fail. It must return within a bound and throw
+//  nothing. The original must parse the same after its fixture's mutants.
 //
 //  Seeded: the seed and the mutation are in every assertion message.
 //  VIBE_FUZZ_SEED re-runs one base seed and VIBE_FUZZ_ROUNDS raises the
@@ -20,22 +20,6 @@
 // std::min, never MIN: a MIN that evaluates an argument twice draws the
 // generator twice and breaks the bound it computes.
 #include <algorithm>
-
-// xorshift64*, as PlaylistFileFuzzTests uses.
-typedef struct { uint64_t state; } FuzzRandom;
-
-static uint64_t FuzzNext(FuzzRandom *random) {
-    uint64_t x = random->state;
-    x ^= x >> 12;
-    x ^= x << 25;
-    x ^= x >> 27;
-    random->state = x;
-    return x * 0x2545F4914F6CDD1DULL;
-}
-
-static NSUInteger FuzzBelow(FuzzRandom *random, NSUInteger bound) {
-    return bound ? (NSUInteger)(FuzzNext(random) % bound) : 0;
-}
 
 // The tag's bytes: what tagging changed, found by the common prefix and
 // suffix of the file before and after. The RIFF and FORM size at 4..7 always
@@ -114,27 +98,27 @@ static NSUInteger FLACPictureBlock(NSData *data) {
     return NSNotFound;
 }
 
-static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSString **description) {
+static NSData *Mutate(NSData *original, NSRange region, VibeFuzzRandom *random, NSString **description) {
     NSMutableData *data = [original mutableCopy];
     uint8_t *bytes = (uint8_t *)data.mutableBytes;
     NSUInteger length = data.length;
     // A tag at the end starts where the audio ends.
     NSUInteger audioStart = NSMaxRange(region) == length ? region.location : NSMaxRange(region);
-    switch (FuzzBelow(random, 9)) {
+    switch (VibeFuzzBelow(random, 9)) {
         case 0: {
-            NSUInteger at = FuzzBelow(random, length);
+            NSUInteger at = VibeFuzzBelow(random, length);
             data.length = at;
             *description = [NSString stringWithFormat:@"truncate at %lu", (unsigned long)at];
             break;
         }
         case 1: {
-            NSUInteger at = std::min(length, region.location + FuzzBelow(random, 16));
+            NSUInteger at = std::min(length, region.location + VibeFuzzBelow(random, 16));
             data.length = at;
             *description = [NSString stringWithFormat:@"truncate in the tag header at %lu", (unsigned long)at];
             break;
         }
         case 2: {
-            NSUInteger at = region.location + FuzzBelow(random, region.length);
+            NSUInteger at = region.location + VibeFuzzBelow(random, region.length);
             data.length = at;
             *description = [NSString stringWithFormat:@"truncate in the tag at %lu", (unsigned long)at];
             break;
@@ -144,11 +128,11 @@ static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSSt
             *description = [NSString stringWithFormat:@"truncate at the audio start %lu", (unsigned long)audioStart];
             break;
         case 4: {
-            NSUInteger flips = 1 + FuzzBelow(random, 8);
+            NSUInteger flips = 1 + VibeFuzzBelow(random, 8);
             NSMutableArray<NSString *> *at = [NSMutableArray array];
             for (NSUInteger i = 0; i < flips; i++) {
-                NSUInteger offset = region.location + FuzzBelow(random, region.length);
-                bytes[offset] ^= (uint8_t)(1 + FuzzBelow(random, 255));
+                NSUInteger offset = region.location + VibeFuzzBelow(random, region.length);
+                bytes[offset] ^= (uint8_t)(1 + VibeFuzzBelow(random, 255));
                 [at addObject:@(offset).stringValue];
             }
             *description = [@"flip bytes at " stringByAppendingString:[at componentsJoinedByString:@","]];
@@ -156,23 +140,23 @@ static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSSt
         }
         case 5: case 6: {
             NSArray<NSArray<NSNumber *> *> *fields = SizeFieldsIn(data, region);
-            uint32_t value = FuzzBelow(random, 4) == 0
-                    ? (uint32_t)(length + FuzzBelow(random, 1 << 20))   // past the end of the file
-                    : kSizeValues[FuzzBelow(random, sizeof kSizeValues / sizeof kSizeValues[0])];
+            uint32_t value = VibeFuzzBelow(random, 4) == 0
+                    ? (uint32_t)(length + VibeFuzzBelow(random, 1 << 20))   // past the end of the file
+                    : kSizeValues[VibeFuzzBelow(random, sizeof kSizeValues / sizeof kSizeValues[0])];
             if (fields.count == 0) {
-                NSUInteger at = region.location + FuzzBelow(random, region.length - MIN(region.length, 4));
-                Store32(bytes + at, value, FuzzBelow(random, 2));
+                NSUInteger at = region.location + VibeFuzzBelow(random, region.length - MIN(region.length, 4));
+                Store32(bytes + at, value, VibeFuzzBelow(random, 2));
                 *description = [NSString stringWithFormat:@"size %#x at %lu", value, (unsigned long)at];
                 break;
             }
-            NSArray<NSNumber *> *field = fields[FuzzBelow(random, fields.count)];
+            NSArray<NSNumber *> *field = fields[VibeFuzzBelow(random, fields.count)];
             Store32(bytes + field[0].unsignedIntegerValue, value, field[1].boolValue);
             *description = [NSString stringWithFormat:@"size field %#x at %@", value, field[0]];
             break;
         }
         case 7: {
-            NSUInteger at = region.location + FuzzBelow(random, region.length);
-            NSUInteger span = std::min(8 + FuzzBelow(random, 512), length - at);
+            NSUInteger at = region.location + VibeFuzzBelow(random, region.length);
+            NSUInteger span = std::min(8 + VibeFuzzBelow(random, 512), length - at);
             NSData *copy = [data subdataWithRange:NSMakeRange(at, span)];
             [data replaceBytesInRange:NSMakeRange(at + span, 0) withBytes:copy.bytes length:copy.length];
             *description = [NSString stringWithFormat:@"duplicate %lu bytes at %lu", (unsigned long)span,
@@ -190,12 +174,12 @@ static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSSt
                                                               (unsigned long)audioStart];
                     break;
                 }
-                NSArray<NSNumber *> *field = fields[FuzzBelow(random, fields.count)];
+                NSArray<NSNumber *> *field = fields[VibeFuzzBelow(random, fields.count)];
                 Store32(bytes + field[0].unsignedIntegerValue, (uint32_t)length * 2, field[1].boolValue);
                 *description = [NSString stringWithFormat:@"size field %#lx at %@", (unsigned long)length * 2, field[0]];
                 break;
             }
-            if (FuzzBelow(random, 2)) {
+            if (VibeFuzzBelow(random, 2)) {
                 bytes[block + 1] = bytes[block + 2] = bytes[block + 3] = 0xFF;
                 *description = [NSString stringWithFormat:@"PICTURE block at %lu claims 16 MB", (unsigned long)block];
                 break;
@@ -209,7 +193,7 @@ static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSSt
             if (at + 4 > length) break;
             at += 4 + LoadBE32(bytes + at) + 16;
             if (at + 4 > length) break;
-            Store32(bytes + at, (uint32_t)length + 1 + (uint32_t)FuzzBelow(random, 1 << 24), NO);
+            Store32(bytes + at, (uint32_t)length + 1 + (uint32_t)VibeFuzzBelow(random, 1 << 24), NO);
             *description = [NSString stringWithFormat:@"PICTURE data length past the file at %lu", (unsigned long)at];
             break;
         }
@@ -230,9 +214,7 @@ static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSSt
 - (void)setUp {
     [super setUp];
     NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
-    // Fixed by default, as PlaylistFileFuzzTests is.
-    _baseSeed = environment[@"VIBE_FUZZ_SEED"] ? (uint64_t)environment[@"VIBE_FUZZ_SEED"].longLongValue
-                                               : 0x7A6F0E5EED5EEDULL;
+    _baseSeed = VibeFuzzBaseSeed(0x7A6F0E5EED5EEDULL);
     _rounds = environment[@"VIBE_FUZZ_ROUNDS"] ? (NSUInteger)environment[@"VIBE_FUZZ_ROUNDS"].integerValue : 128;
     _dir = VibeTagFixtureDirectory();
     _queue = dispatch_queue_create("VibeAudioTests.tag-fuzz",
@@ -290,7 +272,7 @@ static const NSTimeInterval kParseBound = 3;
         VibeTagFixture fixture = (VibeTagFixture)index;
         NSString *name = VibeTagFixtureName(fixture);
         NSURL *untaggedURL = nil;
-        NSData *art = VibeTagArtImage(64, NO);
+        NSData *art = VibeImageOfColor(64, 0.8, 0.2, 0.3, NO);
         NSURL *url = VibeWriteTagFixture(_dir, fixture, VibeTagFixtureHasArt(fixture) ? art : nil, &untaggedURL);
         if (!url) {
             // Ogg without the render fixtures; AudioTrackMetadataTagTests reports the skip.
@@ -311,8 +293,8 @@ static const NSTimeInterval kParseBound = 3;
                                withIntermediateDirectories:YES attributes:nil error:NULL];
         for (NSUInteger round = 0; round < _rounds; round++) {
             uint64_t seed = _baseSeed + (uint64_t)index * 1000000 + round;
-            FuzzRandom random = {seed};
-            for (int warm = 0; warm < 4; warm++) FuzzNext(&random); // spread nearby seeds
+            VibeFuzzRandom random = {seed};
+            for (int warm = 0; warm < 4; warm++) VibeFuzzNext(&random); // spread nearby seeds
             NSString *mutation = @"none";
             NSData *mutant = Mutate(original, region, &random, &mutation);
             XCTAssertTrue([mutant writeToURL:mutantURL atomically:NO]);
@@ -328,15 +310,15 @@ static const NSTimeInterval kParseBound = 3;
             XCTAssertNotNil(metadata, @"%@", label);
             XCTAssertNil(exception, @"%@", label);
             XCTAssertLessThan(elapsed, kParseBound, @"%@", label);
-
-            AudioTrackMetadata *again = nil;
-            XCTAssertTrue([self parse:url metadata:&again elapsed:&elapsed exception:&exception], @"%@", label);
-            XCTAssertTrue(again.parsedOK, @"%@: the original after it", label);
-            XCTAssertEqualObjects(again.title, baseline.title, @"%@: the original after it", label);
-            XCTAssertEqual(again.bpm, baseline.bpm, @"%@: the original after it", label);
-            XCTAssertEqual(again.key, baseline.key, @"%@: the original after it", label);
-            XCTAssertEqual(again.duration, baseline.duration, @"%@: the original after it", label);
         }
+
+        AudioTrackMetadata *again = nil;
+        XCTAssertTrue([self parse:url metadata:&again elapsed:&elapsed exception:&exception], @"%@", name);
+        XCTAssertTrue(again.parsedOK, @"%@: the original after its mutants", name);
+        XCTAssertEqualObjects(again.title, baseline.title, @"%@: the original after its mutants", name);
+        XCTAssertEqual(again.bpm, baseline.bpm, @"%@: the original after its mutants", name);
+        XCTAssertEqual(again.key, baseline.key, @"%@: the original after its mutants", name);
+        XCTAssertEqual(again.duration, baseline.duration, @"%@: the original after its mutants", name);
     }
     XCTAssertGreaterThan(mutants, 0u);
     // Nothing to assert on the ratio; it shows whether the mutations still

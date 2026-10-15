@@ -14,24 +14,8 @@
 #import "AudioTrack.h"
 #import "PlaylistFileTestCase.h"
 
-// xorshift64*, chosen for being four lines rather than for its statistics.
-typedef struct { uint64_t state; } FuzzRandom;
-
-static uint64_t FuzzNext(FuzzRandom *random) {
-    uint64_t x = random->state;
-    x ^= x >> 12;
-    x ^= x << 25;
-    x ^= x >> 27;
-    random->state = x;
-    return x * 0x2545F4914F6CDD1DULL;
-}
-
-static uint32_t FuzzBelow(FuzzRandom *random, uint32_t bound) {
-    return bound ? (uint32_t)(FuzzNext(random) % bound) : 0;
-}
-
-static BOOL FuzzChance(FuzzRandom *random, uint32_t oneIn) {
-    return FuzzBelow(random, oneIn) == 0;
+static BOOL FuzzChance(VibeFuzzRandom *random, NSUInteger oneIn) {
+    return VibeFuzzBelow(random, oneIn) == 0;
 }
 
 @interface PlaylistFileFuzzTests : XCTestCase
@@ -44,10 +28,7 @@ static BOOL FuzzChance(FuzzRandom *random, uint32_t oneIn) {
 
 - (void)setUp {
     [super setUp];
-    NSString *override = NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_SEED"];
-    // Fixed by default: a suite that explores new inputs on every run passes
-    // and fails at random, which is worse than a narrower suite that does not.
-    _baseSeed = override ? (uint64_t)override.longLongValue : 0x5EED1234ABCDEF01ULL;
+    _baseSeed = VibeFuzzBaseSeed(0x5EED1234ABCDEF01ULL);
     _root = [NSURL fileURLWithPath:[NSTemporaryDirectory()
             stringByAppendingPathComponent:[NSString stringWithFormat:@"PlaylistFuzz-%@",
                                                                       NSUUID.UUID.UUIDString]]
@@ -67,7 +48,7 @@ static BOOL FuzzChance(FuzzRandom *random, uint32_t oneIn) {
 
 // Characters a filename may plausibly carry, quotes and separators included so
 // the readers' own escaping rules get exercised rather than tiptoed around.
-static NSString *FuzzName(FuzzRandom *random) {
+static NSString *FuzzName(VibeFuzzRandom *random) {
     static NSArray<NSString *> *atoms;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -75,18 +56,18 @@ static NSString *FuzzName(FuzzRandom *random) {
                   @"&", @"'", @"é", @"ü", @"ß", @"日", @"🎧", @"—", @"+", @"#", @"%",
                   @"~", @"!", @",", @";", @"=", @"@", @"$"];
     });
-    NSUInteger length = 1 + FuzzBelow(random, 24);
+    NSUInteger length = 1 + VibeFuzzBelow(random, 24);
     NSMutableString *name = [NSMutableString stringWithCapacity:length];
     for (NSUInteger i = 0; i < length; i++) {
-        [name appendString:atoms[FuzzBelow(random, (uint32_t)atoms.count)]];
+        [name appendString:atoms[VibeFuzzBelow(random, atoms.count)]];
     }
-    [name appendString:@[@".mp3", @".flac", @".wav", @".aiff", @""][FuzzBelow(random, 5)]];
+    [name appendString:@[@".mp3", @".flac", @".wav", @".aiff", @""][VibeFuzzBelow(random, 5)]];
     return name;
 }
 
 // A name safe to put in a CUE sheet unquoted or in an M3U line: no quote, no
 // leading or trailing space, and nothing the reader is entitled to reinterpret.
-static NSString *FuzzPlainName(FuzzRandom *random) {
+static NSString *FuzzPlainName(VibeFuzzRandom *random) {
     NSString *name = FuzzName(random);
     name = [name stringByReplacingOccurrencesOfString:@"\"" withString:@"q"];
     name = [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
@@ -94,7 +75,7 @@ static NSString *FuzzPlainName(FuzzRandom *random) {
 }
 
 // Lines a reader must skip.
-static NSString *FuzzCueNoiseLine(FuzzRandom *random) {
+static NSString *FuzzCueNoiseLine(VibeFuzzRandom *random) {
     static NSArray<NSString *> *lines;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -103,10 +84,10 @@ static NSString *FuzzCueNoiseLine(FuzzRandom *random) {
                   @"REM FILE \"decoy.flac\"", @"FILENAME nope", @"", @"   ", @"\t",
                   @"CATALOG 1234567890123", @"FLAGS DCP", @"ISRC ABCDE1234567"];
     });
-    return lines[FuzzBelow(random, (uint32_t)lines.count)];
+    return lines[VibeFuzzBelow(random, lines.count)];
 }
 
-static NSString *FuzzM3UNoiseLine(FuzzRandom *random) {
+static NSString *FuzzM3UNoiseLine(VibeFuzzRandom *random) {
     static NSArray<NSString *> *lines;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -115,11 +96,11 @@ static NSString *FuzzM3UNoiseLine(FuzzRandom *random) {
                   @"http://example.com/stream.mp3", @"https://example.com/radio",
                   @"rtsp://host/path", @"mms://host"];
     });
-    return lines[FuzzBelow(random, (uint32_t)lines.count)];
+    return lines[VibeFuzzBelow(random, lines.count)];
 }
 
-static NSString *FuzzLineEnding(FuzzRandom *random) {
-    return @[@"\n", @"\r\n", @"\r"][FuzzBelow(random, 3)];
+static NSString *FuzzLineEnding(VibeFuzzRandom *random) {
+    return @[@"\n", @"\r\n", @"\r"][VibeFuzzBelow(random, 3)];
 }
 
 #pragma mark - Oracles
@@ -147,10 +128,10 @@ static NSString *NormalizedSeparators(NSString *name) {
     for (NSUInteger round = 0; round < 400; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSMutableString *sheet = [NSMutableString string];
             NSMutableArray<NSString *> *names = [NSMutableArray array];
-            NSUInteger fileLines = FuzzBelow(&random, 12);
+            NSUInteger fileLines = VibeFuzzBelow(&random, 12);
             for (NSUInteger i = 0; i < fileLines; i++) {
                 // Sometimes repeat the previous name: the single-image sheet
                 // that names its FILE before every TRACK.
@@ -158,14 +139,14 @@ static NSString *NormalizedSeparators(NSString *name) {
                         ? names.lastObject
                         : FuzzPlainName(&random);
                 [names addObject:name];
-                NSUInteger noise = FuzzBelow(&random, 3);
+                NSUInteger noise = VibeFuzzBelow(&random, 3);
                 for (NSUInteger n = 0; n < noise; n++) {
                     [sheet appendFormat:@"%@%@", FuzzCueNoiseLine(&random), FuzzLineEnding(&random)];
                 }
                 // Quoted, since an unquoted name would meet the type-keyword
                 // strip and the oracle would have to model it too.
                 NSString *indent = FuzzChance(&random, 3) ? @"  " : @"";
-                NSString *keyword = FuzzChance(&random, 2) ? @"" : @[@" WAVE", @" MP3", @" FLAC"][FuzzBelow(&random, 3)];
+                NSString *keyword = FuzzChance(&random, 2) ? @"" : @[@" WAVE", @" MP3", @" FLAC"][VibeFuzzBelow(&random, 3)];
                 NSString *file = FuzzChance(&random, 4) ? @"file" : @"FILE";
                 [sheet appendFormat:@"%@%@ \"%@\"%@%@", indent, file, name, keyword, FuzzLineEnding(&random)];
             }
@@ -181,12 +162,12 @@ static NSString *NormalizedSeparators(NSString *name) {
     for (NSUInteger round = 0; round < 400; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + 100000 + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSMutableString *list = [NSMutableString string];
             NSMutableArray<NSString *> *expected = [NSMutableArray array];
-            NSUInteger entryLines = FuzzBelow(&random, 14);
+            NSUInteger entryLines = VibeFuzzBelow(&random, 14);
             for (NSUInteger i = 0; i < entryLines; i++) {
-                NSUInteger noise = FuzzBelow(&random, 3);
+                NSUInteger noise = VibeFuzzBelow(&random, 3);
                 for (NSUInteger n = 0; n < noise; n++) {
                     [list appendFormat:@"%@%@", FuzzM3UNoiseLine(&random), FuzzLineEnding(&random)];
                 }
@@ -222,10 +203,10 @@ static NSString *NormalizedSeparators(NSString *name) {
     for (NSUInteger round = 0; round < 60; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + 200000 + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSMutableString *list = [NSMutableString string];
             NSMutableArray<NSString *> *expected = [NSMutableArray array];
-            for (NSUInteger i = 0; i < 1 + FuzzBelow(&random, 8); i++) {
+            for (NSUInteger i = 0; i < 1 + VibeFuzzBelow(&random, 8); i++) {
                 NSString *name = FuzzPlainName(&random);
                 if ([name hasPrefix:@"#"]) {
                     name = [@"x" stringByAppendingString:name];
@@ -256,24 +237,24 @@ static NSString *NormalizedSeparators(NSString *name) {
 
 #pragma mark - Corrupted bytes
 
-static NSData *FuzzCorruptData(FuzzRandom *random) {
+static NSData *FuzzCorruptData(VibeFuzzRandom *random) {
     NSMutableData *data = [NSMutableData data];
-    switch (FuzzBelow(random, 8)) {
+    switch (VibeFuzzBelow(random, 8)) {
         case 0: { // pure noise
-            NSUInteger length = FuzzBelow(random, 512);
+            NSUInteger length = VibeFuzzBelow(random, 512);
             for (NSUInteger i = 0; i < length; i++) {
-                uint8_t byte = (uint8_t)FuzzBelow(random, 256);
+                uint8_t byte = (uint8_t)VibeFuzzBelow(random, 256);
                 [data appendBytes:&byte length:1];
             }
             break;
         }
         case 1: { // a BOM over noise
             static const char *boms[] = {"\xEF\xBB\xBF", "\xFF\xFE", "\xFE\xFF"};
-            NSUInteger which = FuzzBelow(random, 3);
+            NSUInteger which = VibeFuzzBelow(random, 3);
             [data appendBytes:boms[which] length:which == 0 ? 3 : 2];
-            NSUInteger length = FuzzBelow(random, 256);
+            NSUInteger length = VibeFuzzBelow(random, 256);
             for (NSUInteger i = 0; i < length; i++) {
-                uint8_t byte = (uint8_t)FuzzBelow(random, 256);
+                uint8_t byte = (uint8_t)VibeFuzzBelow(random, 256);
                 [data appendBytes:&byte length:1];
             }
             break;
@@ -281,13 +262,13 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
         case 2: { // truncated UTF-16: an odd trailing byte
             NSString *text = @"FILE \"a.flac\" WAVE\nb.mp3\n";
             [data appendData:[text dataUsingEncoding:NSUTF16LittleEndianStringEncoding]];
-            uint8_t byte = (uint8_t)FuzzBelow(random, 256);
+            uint8_t byte = (uint8_t)VibeFuzzBelow(random, 256);
             [data appendBytes:&byte length:1];
             break;
         }
         case 3: { // NUL runs through otherwise sane text
             [data appendData:[@"FILE \"a.flac\" WAVE\n" dataUsingEncoding:NSUTF8StringEncoding]];
-            NSUInteger nuls = 1 + FuzzBelow(random, 32);
+            NSUInteger nuls = 1 + VibeFuzzBelow(random, 32);
             for (NSUInteger i = 0; i < nuls; i++) {
                 [data appendBytes:"\x00" length:1];
             }
@@ -320,7 +301,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
                           @"..", @".", @"~", @"﻿", @"🎧"];
             });
             for (NSUInteger i = 0; i < 200; i++) {
-                [soup appendString:atoms[FuzzBelow(random, (uint32_t)atoms.count)]];
+                [soup appendString:atoms[VibeFuzzBelow(random, atoms.count)]];
             }
             [data appendData:[soup dataUsingEncoding:NSUTF8StringEncoding]];
             break;
@@ -329,18 +310,18 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
             NSString *text = @"#EXTM3U\n#EXTINF:1,x\none.mp3\nsub/two.flac\n"
                               "FILE \"three.wav\" WAVE\nfile:///Users/me/four%20.mp3\n";
             NSMutableData *chewed = [[text dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
-            NSUInteger edits = 1 + FuzzBelow(random, 12);
+            NSUInteger edits = 1 + VibeFuzzBelow(random, 12);
             for (NSUInteger i = 0; i < edits && chewed.length > 1; i++) {
-                NSUInteger at = FuzzBelow(random, (uint32_t)chewed.length);
-                switch (FuzzBelow(random, 4)) {
+                NSUInteger at = VibeFuzzBelow(random, chewed.length);
+                switch (VibeFuzzBelow(random, 4)) {
                     case 0: { // flip a bit
                         uint8_t byte = ((uint8_t *)chewed.mutableBytes)[at];
-                        byte ^= (uint8_t)(1u << FuzzBelow(random, 8));
+                        byte ^= (uint8_t)(1u << VibeFuzzBelow(random, 8));
                         ((uint8_t *)chewed.mutableBytes)[at] = byte;
                         break;
                     }
                     case 1: { // splice a byte in
-                        uint8_t byte = (uint8_t)FuzzBelow(random, 256);
+                        uint8_t byte = (uint8_t)VibeFuzzBelow(random, 256);
                         [chewed replaceBytesInRange:NSMakeRange(at, 0) withBytes:&byte length:1];
                         break;
                     }
@@ -394,7 +375,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
     for (NSUInteger round = 0; round < 1200; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + 300000 + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSData *data = FuzzCorruptData(&random);
 
             NSString *text = [PlaylistFile textFromData:data];
@@ -452,9 +433,9 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
     for (NSUInteger round = 0; round < 250; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + 400000 + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSData *data = FuzzCorruptData(&random);
-            NSString *extension = @[@"cue", @"m3u", @"m3u8"][FuzzBelow(&random, 3)];
+            NSString *extension = @[@"cue", @"m3u", @"m3u8"][VibeFuzzBelow(&random, 3)];
             NSURL *playlist = [_root URLByAppendingPathComponent:
                     [NSString stringWithFormat:@"corrupt.%@", extension]];
             XCTAssertTrue([data writeToURL:playlist atomically:YES], @"seed %llu", seed);
@@ -499,15 +480,15 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
     for (NSUInteger round = 0; round < 500; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + 500000 + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSMutableData *data = [valid mutableCopy];
-            for (uint32_t edits = 1 + FuzzBelow(&random, 8); edits > 0; edits--) {
+            for (NSUInteger edits = 1 + VibeFuzzBelow(&random, 8); edits > 0; edits--) {
                 uint8_t *bytes = data.mutableBytes;
                 if (FuzzChance(&random, 6)) {
-                    data.length = FuzzBelow(&random, (uint32_t)data.length);
+                    data.length = VibeFuzzBelow(&random, data.length);
                 }
                 else if (data.length > 0) {
-                    bytes[FuzzBelow(&random, (uint32_t)data.length)] = (uint8_t)FuzzNext(&random);
+                    bytes[VibeFuzzBelow(&random, data.length)] = (uint8_t)VibeFuzzNext(&random);
                 }
             }
             XCTAssertTrue([data writeToURL:url atomically:YES], @"seed %llu", seed);
@@ -533,7 +514,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
     for (NSUInteger round = 0; round < 60; round++) {
         @autoreleasepool {
             uint64_t seed = _baseSeed + 500000 + round;
-            FuzzRandom random = {seed};
+            VibeFuzzRandom random = {seed};
             NSURL *dir = [_root URLByAppendingPathComponent:
                     [NSString stringWithFormat:@"round%lu", (unsigned long)round] isDirectory:YES];
             [NSFileManager.defaultManager createDirectoryAtURL:dir
@@ -541,7 +522,7 @@ static NSData *FuzzCorruptData(FuzzRandom *random) {
 
             NSMutableArray<NSString *> *written = [NSMutableArray array];
             NSMutableString *list = [NSMutableString string];
-            NSUInteger count = 1 + FuzzBelow(&random, 8);
+            NSUInteger count = 1 + VibeFuzzBelow(&random, 8);
             for (NSUInteger i = 0; i < count; i++) {
                 NSString *stem = [NSString stringWithFormat:@"t%lu-%@", (unsigned long)i,
                                                             FuzzPlainName(&random).lastPathComponent];

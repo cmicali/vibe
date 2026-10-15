@@ -6,6 +6,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioFixtures.h"
 #import "AudioTrackArtwork.h"
 #import "FolderArtResolverInternal.h"
 #import "NSImage+Util.h"
@@ -55,13 +56,7 @@
 // Real PNG bytes, so the class's own ImageIO decode succeeds and the result is
 // distinguishable from the folder cover by size.
 - (NSData *)embeddedArtData {
-    NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(8, 8)];
-    [image lockFocus];
-    [NSColor.blueColor setFill];
-    NSRectFill(NSMakeRect(0, 0, 8, 8));
-    [image unlockFocus];
-    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithData:image.TIFFRepresentation];
-    return [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    return VibeImageOfColor(8, 0, 0, 1, NO);
 }
 
 - (AudioTrackArtwork *)artworkWithExtractor:(AudioTrackArtworkExtractor)extractor {

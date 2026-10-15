@@ -6,6 +6,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioFixtures.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioTrackArtwork.h"
 #import "AudioWorkScheduler.h"
@@ -144,14 +145,7 @@
 }
 
 - (NSData *)embeddedArtData {
-    NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(8, 8)];
-    [image lockFocus];
-    [NSColor.blueColor setFill];
-    NSRectFill(NSMakeRect(0, 0, 8, 8));
-    [image unlockFocus];
-    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc]
-            initWithData:image.TIFFRepresentation];
-    return [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    return VibeImageOfColor(8, 0, 0, 1, NO);
 }
 
 - (AudioTrackArtwork *)unloadedArtworkAtPath:(NSString *)path
