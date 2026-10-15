@@ -162,14 +162,18 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistNumber;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistTitle;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistArtist;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistDuration;
-// The playing and selected rows' text, behind the same switches. On, a row's
-// title pair draws its title. Its artist pair draws its artist, number and
-// duration. An unset side inherits the matching label pair. Off (default), the
-// columns draw their own colors.
+// The playing and selected rows' text, one pair per column behind the same
+// switches. On, the pair draws that column of that row, an unset side
+// inheriting the column's label pair. Off (default), the column draws its own
+// color.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRowNumber;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRowTitle;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRowArtist;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRowDuration;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRowNumber;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRowTitle;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRowArtist;
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRowDuration;
 
 // The image fields. A value is "" (the factory image), "custom:<sha1>.<ext>"
 // (a picked image in the app container) or "bundled:<name>.<ext>" (shipped

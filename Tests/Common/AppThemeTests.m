@@ -45,8 +45,10 @@
     XCTAssertEqualObjects(theme.mode, @"dual");
     for (NSString *base in @[kVibeThemeColorPlaylistNumber, kVibeThemeColorPlaylistTitle,
                              kVibeThemeColorPlaylistArtist, kVibeThemeColorPlaylistDuration,
-                             kVibeThemeColorPlaylistPlayingRowTitle, kVibeThemeColorPlaylistPlayingRowArtist,
-                             kVibeThemeColorPlaylistSelectedRowTitle, kVibeThemeColorPlaylistSelectedRowArtist]) {
+                             kVibeThemeColorPlaylistPlayingRowNumber, kVibeThemeColorPlaylistPlayingRowTitle,
+                             kVibeThemeColorPlaylistPlayingRowArtist, kVibeThemeColorPlaylistPlayingRowDuration,
+                             kVibeThemeColorPlaylistSelectedRowNumber, kVibeThemeColorPlaylistSelectedRowTitle,
+                             kVibeThemeColorPlaylistSelectedRowArtist, kVibeThemeColorPlaylistSelectedRowDuration]) {
         XCTAssertFalse([theme playlistColorEnabledForBase:base], @"%@", base);
     }
     XCTAssertEqualObjects([theme fontFaceForSlot:VibeFontSlotTitle], @"");
@@ -436,16 +438,20 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
                                                   name:NULL error:NULL], record);
 }
 
-// A row's title pair inherits the title pair. Its artist pair inherits the
-// artist pair. Both travel beside the row's fill under the playlist section.
+// A row's title pair inherits the title pair. Its number, artist and duration
+// pairs inherit the artist pair, as those columns do. All travel beside the
+// row's fill under the playlist section.
 - (void)testPlaylistRowTextColorsInheritTheLabelPairs {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
     [theme setColor:VibeColorFromHexString(@"#FF0000") forBase:kVibeThemeColorTitle dark:YES];
     [theme setColor:VibeColorFromHexString(@"#0000FF") forBase:kVibeThemeColorArtist dark:YES];
     XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistPlayingRowTitle
                                                                        dark:YES]), @"#FF0000");
-    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistPlayingRowArtist
-                                                                       dark:YES]), @"#0000FF");
+    for (NSString *base in @[kVibeThemeColorPlaylistPlayingRowNumber, kVibeThemeColorPlaylistPlayingRowArtist,
+                             kVibeThemeColorPlaylistPlayingRowDuration, kVibeThemeColorPlaylistSelectedRowNumber,
+                             kVibeThemeColorPlaylistSelectedRowDuration]) {
+        XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:base dark:YES]), @"#0000FF", @"%@", base);
+    }
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistSelectedRowTitle];
     [theme setColor:VibeColorFromHexString(@"#00FF00") forBase:kVibeThemeColorPlaylistSelectedRowTitle dark:NO];
     XCTAssertEqualObjects(HexInAppearance([theme resolvedPlaylistColorForBase:kVibeThemeColorPlaylistSelectedRowTitle],
@@ -459,13 +465,17 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     NSDictionary *record = @{@"playlistSelectedRowTitleColorEnabled": @YES,
                              @"playlistSelectedRowTitleColorLight": @"#00FF00",
                              @"playlistPlayingRowArtistColorEnabled": @YES,
-                             @"playlistPlayingRowArtistColorDark": @"#123456"};
+                             @"playlistPlayingRowArtistColorDark": @"#123456",
+                             @"playlistPlayingRowNumberColorEnabled": @YES,
+                             @"playlistSelectedRowDurationColorDark": @"#654321"};
     NSDictionary *json = [NSJSONSerialization JSONObjectWithData:
             [AppTheme JSONDataForRecord:record name:@"Rows"] options:0 error:NULL];
     XCTAssertEqualObjects(json[@"playlist"], (@{@"selectedRowTitleColorEnabled": @YES,
                                                 @"selectedRowTitleColorLight": @"#00FF00",
                                                 @"playingRowArtistColorEnabled": @YES,
-                                                @"playingRowArtistColorDark": @"#123456"}));
+                                                @"playingRowArtistColorDark": @"#123456",
+                                                @"playingRowNumberColorEnabled": @YES,
+                                                @"selectedRowDurationColorDark": @"#654321"}));
     XCTAssertEqualObjects([AppTheme recordFromJSONData:[AppTheme JSONDataForRecord:record name:@"Rows"]
                                                   name:NULL error:NULL], record);
 }

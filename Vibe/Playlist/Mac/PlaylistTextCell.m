@@ -6,13 +6,12 @@
 #import "PlaylistTextCell.h"
 
 
-NSAttributedStringKey const PlaylistTitleRunAttributeName = @"VibePlaylistTitleRun";
+NSAttributedStringKey const PlaylistColumnAttributeName = @"VibePlaylistColumn";
 
 @implementation PlaylistTextCell {
     // As the controller set it, before the row colors.
     NSAttributedString *_contentString;
-    NSColor *_rowTitleColor;
-    NSColor *_rowArtistColor;
+    NSDictionary<NSString *, NSColor *> *_rowColors;
 }
 
 - (instancetype)initTextCell:(NSString *)string {
@@ -48,27 +47,26 @@ NSAttributedStringKey const PlaylistTitleRunAttributeName = @"VibePlaylistTitleR
     [super setAttributedStringValue:[self drawnString]];
 }
 
-- (void)setRowTitleColor:(NSColor *)titleColor artistColor:(NSColor *)artistColor {
-    if (titleColor == _rowTitleColor && artistColor == _rowArtistColor) {
+- (void)setRowColors:(NSDictionary<NSString *, NSColor *> *)colors {
+    if (colors == _rowColors) {
         return;
     }
-    _rowTitleColor = titleColor;
-    _rowArtistColor = artistColor;
+    _rowColors = colors;
     if (_contentString) {
         [super setAttributedStringValue:[self drawnString]];
     }
 }
 
 - (NSAttributedString *)drawnString {
-    if ((!_rowTitleColor && !_rowArtistColor) || _contentString.length == 0) {
+    if (!_rowColors || _contentString.length == 0) {
         return _contentString;
     }
     NSMutableAttributedString *drawn = [_contentString mutableCopy];
-    [_contentString enumerateAttribute:PlaylistTitleRunAttributeName
+    [_contentString enumerateAttribute:PlaylistColumnAttributeName
                                inRange:NSMakeRange(0, drawn.length)
                                options:0
-                            usingBlock:^(id title, NSRange range, BOOL *stop) {
-        NSColor *color = title ? self->_rowTitleColor : self->_rowArtistColor;
+                            usingBlock:^(NSString *column, NSRange range, BOOL *stop) {
+        NSColor *color = column ? self->_rowColors[column] : nil;
         if (color) {
             [drawn addAttribute:NSForegroundColorAttributeName value:color range:range];
         }
