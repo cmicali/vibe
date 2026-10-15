@@ -8,7 +8,6 @@
 #import "AppDelegate+Updates.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "SettingsRules.h"
 
 @implementation AppDelegate (Updates)
 
@@ -27,40 +26,30 @@ static NSString *DebugUpdateFeed(void) {
 #endif
 
 - (SPUStandardUpdaterController *)makeUpdaterController {
-#if DEBUG
-    if (!DebugUpdateFeed()) {
-        return nil;
-    }
-#endif
     return [[SPUStandardUpdaterController alloc] initWithStartingUpdater:NO
                                                          updaterDelegate:self
                                                       userDriverDelegate:nil];
 }
 
-// With no updater (a Debug build launched without --update-feed) the
-// interval lives here, so Settings > General's rows stay live to test and
-// nothing checks. Daily, as Sparkle's first launch is.
-static NSTimeInterval stubbedUpdateCheckInterval = 24 * 3600;
+// An unstarted updater still stores its settings, so Settings > General's
+// rows read and write the real ones, and a check it is asked for logs and
+// does nothing.
+- (void)startUpdaterIfConfigured {
+#if DEBUG
+    if (!DebugUpdateFeed()) {
+        return;
+    }
+#endif
+    [self.updaterController startUpdater];
+}
 
-// Any other stored interval reads as the nearest preset.
 - (NSTimeInterval)updateCheckInterval {
     SPUUpdater *updater = self.updaterController.updater;
-    if (!updater) {
-        return stubbedUpdateCheckInterval;
-    }
-    if (!updater.automaticallyChecksForUpdates) {
-        return 0;
-    }
-    return VibeNearestPreset((NSInteger)updater.updateCheckInterval,
-                             kVibeUpdateCheckIntervalPresets, kVibeUpdateCheckIntervalPresetCount);
+    return updater.automaticallyChecksForUpdates ? updater.updateCheckInterval : 0;
 }
 
 - (void)setUpdateCheckInterval:(NSTimeInterval)interval {
     SPUUpdater *updater = self.updaterController.updater;
-    if (!updater) {
-        stubbedUpdateCheckInterval = interval;
-        return;
-    }
     updater.automaticallyChecksForUpdates = interval > 0;
     if (interval > 0) {
         updater.updateCheckInterval = interval;

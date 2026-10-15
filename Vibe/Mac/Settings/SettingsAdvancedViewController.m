@@ -448,11 +448,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     _allowBitPerfectAnyDeviceSwitch.state = AppSettings.sharedInstance.allowBitPerfectOnAnyDevice
             ? NSControlStateValueOn : NSControlStateValueOff;
     [_mp3DecoderPopUp selectItemWithTag:AppSettings.sharedInstance.appleMPEGDecoder];
-    // Enabled while anything the sheet can reset differs from its default:
-    // a setting, a custom theme, or the welcome track's one-time offer.
-    [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.allSettingsAtDefaults
-            || AppSettings.sharedInstance.welcomeTrackSpent
-            || AppSettings.sharedInstance.orderedThemeIdentifiers.count > AppTheme.builtInThemeIdentifiers.count];
+    [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.atFactoryDefaults];
     _resetButton.toolTip = _resetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
     [self refreshAudioPath];
 }

@@ -593,6 +593,24 @@ static void AppendLayoutText(NSView *view, NSMutableString *signature) {
     return nil;
 }
 
++ (void)scrollCardToTop:(NSView *)card animated:(BOOL)animated {
+    NSScrollView *scroll = card.enclosingScrollView;
+    NSClipView *clip = scroll.contentView;
+    NSView *document = scroll.documentView;
+    CGFloat maxY = MAX(0, NSHeight(document.frame) - NSHeight(clip.bounds));
+    CGFloat y = MIN(NSMinY([card convertRect:card.bounds toView:document]) - kSettingsCardRevealInset, maxY);
+    if (!animated) {
+        [document scrollPoint:NSMakePoint(0, y)];
+        return;
+    }
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = 0.2;
+        [clip.animator setBoundsOrigin:NSMakePoint(0, y)];
+    } completionHandler:^{
+        [scroll reflectScrolledClipView:clip];
+    }];
+}
+
 #pragma mark - Drags
 
 static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;

@@ -136,7 +136,6 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     _showKeySwitch.state = StateForBOOL(settings.showKey);
     [self selectValue:settings.keyNotation in:_keyNotationPopUp];
     _keyColorsSwitch.state = StateForBOOL(settings.keyColorsEnabled);
-    // The refresh caller checks layout changes after these captions settle.
     [self refreshTrackInfoEnabling];
     _numberColumnSwitch.state = StateForBOOL(settings.showPlaylistNumberColumn);
     _artworkColumnSwitch.state = StateForBOOL(settings.showPlaylistArtworkColumn);

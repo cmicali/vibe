@@ -49292,7 +49292,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.reset_at_defaults_tip": {
-      "comment": "Settings, Advanced pane: tooltip on the disabled reset buttons while there is nothing to reset.",
+      "comment": "Settings, Advanced pane: tooltip on the disabled Restore Defaults… button while every setting is already at its default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -105278,7 +105278,7 @@
       "extractionState": "manual"
     },
     "settings.playback.on_end_label": {
-      "comment": "Settings, Playback pane: label beside the dropdown choosing what happens when a track finishes playing.",
+      "comment": "Settings, Playback: on the Mac, the label beside the dropdown choosing what happens when a track finishes playing. On iOS, the header of the group of rows making the same choice.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -106022,7 +106022,7 @@
       "extractionState": "manual"
     },
     "settings.playback.transitions": {
-      "comment": "Settings, Playback: heading above the On track end and Crossfade settings, on both platforms.",
+      "comment": "Settings, Playback pane on the Mac: heading above the On track end and Crossfade settings.",
       "localizations": {
         "bg": {
           "stringUnit": {

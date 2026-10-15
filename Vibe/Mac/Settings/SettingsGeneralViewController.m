@@ -67,7 +67,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_PATH value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH to:_artworkDragPopUp];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
-    NSMutableArray<SettingsSectionView *> *sections = [NSMutableArray arrayWithObjects:
+    NSMutableArray<SettingsSectionView *> *sections = [@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BEHAVIOR_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST control:_reopenPlaylistSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
@@ -79,11 +79,14 @@ static const CGFloat kGeneralPopUpWidth = 280;
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION control:_lockWindowPositionSwitch],
         ]],
-        nil];
+    ] mutableCopy];
 #if VIBE_DIRECT_DISTRIBUTION
     _updateCheckSwitch = [self switchWithAction:@selector(updateCheckChanged:)];
+    // The controller exists before any window and never changes. Unstarted
+    // (a Debug build without --update-feed) it refuses the check and logs.
     _checkNowButton = [NSButton buttonWithTitle:STR_SETTINGS_UPDATE_CHECK_NOW_BUTTON
-                                         target:nil action:@selector(checkForUpdates:)];
+                                         target:[(AppDelegate *)NSApp.delegate updaterController]
+                                         action:@selector(checkForUpdates:)];
     _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
     [sections addObject:[SettingsSectionView sectionWithHeader:STR_SETTINGS_UPDATES_SECTION rows:@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckSwitch],
@@ -102,13 +105,9 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 #if VIBE_DIRECT_DISTRIBUTION
-    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
-    // Without an updater (a Debug build launched without --update-feed) the
-    // interval is a stub and Check Now reaches nothing, so both stay live.
-    _checkNowButton.target = delegate.updaterController;
-    _updateCheckSwitch.state = delegate.updateCheckInterval > 0 ? NSControlStateValueOn : NSControlStateValueOff;
+    _updateCheckSwitch.state = StateForBOOL([(AppDelegate *)NSApp.delegate updateCheckInterval] > 0);
     // Never disabled with the automatic check off: Check Now still honors it.
-    _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates ? NSControlStateValueOn : NSControlStateValueOff;
+    _betaUpdatesSwitch.state = StateForBOOL(AppSettings.sharedInstance.receiveBetaUpdates);
 #endif
 }
 
@@ -136,13 +135,13 @@ static const CGFloat kGeneralPopUpWidth = 280;
 }
 
 #if VIBE_DIRECT_DISTRIBUTION
-// On is the first preset, daily; off is never. A weekly or monthly interval
-// Sparkle still holds from an older build reads as on and is kept.
+// On is daily; off is never. A longer interval Sparkle still holds from an
+// older build reads as on and is kept.
 - (void)updateCheckChanged:(id)sender {
     AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
     BOOL on = _updateCheckSwitch.state == NSControlStateValueOn;
     if (on && delegate.updateCheckInterval <= 0) {
-        delegate.updateCheckInterval = kVibeUpdateCheckIntervalPresets[0];
+        delegate.updateCheckInterval = kVibeUpdateCheckIntervalDefault;
     } else if (!on) {
         delegate.updateCheckInterval = 0;
     }

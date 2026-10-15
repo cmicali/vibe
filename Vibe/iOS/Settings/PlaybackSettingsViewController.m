@@ -26,7 +26,6 @@ typedef NS_ENUM(NSInteger, VibePlaybackSection) {
 static const NSInteger kOnEndRowPause    = 1;
 static const NSInteger kOnEndRowCount    = 2;
 
-static NSString *const kChoiceCellIdentifier = @"choice";
 
 @implementation PlaybackSettingsViewController {
     PlaybackController *_playback;
@@ -97,18 +96,11 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     if (indexPath.section == VibePlaybackSectionCrossfade) {
         return [self crossfadeCell];
     }
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                      reuseIdentifier:kChoiceCellIdentifier];
-    }
-    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-    content.text = indexPath.row == kOnEndRowPause ? STR_SETTINGS_ON_END_PAUSE : STR_SETTINGS_ON_END_PLAY_NEXT;
-    cell.contentConfiguration = content;
-    BOOL pause = AppSettings.sharedInstance.pauseAtTrackEnd;
-    cell.accessoryType = (indexPath.row == kOnEndRowPause) == pause ? UITableViewCellAccessoryCheckmark
-                                                                      : UITableViewCellAccessoryNone;
-    return cell;
+    BOOL pauseRow = indexPath.row == kOnEndRowPause;
+    return [SettingsChoiceViewController checkmarkCellInTableView:tableView
+                                                            title:pauseRow ? STR_SETTINGS_ON_END_PAUSE : STR_SETTINGS_ON_END_PLAY_NEXT
+                                                            image:nil
+                                                          checked:pauseRow == AppSettings.sharedInstance.pauseAtTrackEnd];
 }
 
 #pragma mark - Selection

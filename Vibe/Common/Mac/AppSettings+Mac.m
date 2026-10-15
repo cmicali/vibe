@@ -58,11 +58,6 @@ const size_t kVibeSkipBasePresetCount =
 const NSInteger kVibeUIUpdateHzCapPresets[] = {3, 30, 60};
 const size_t kVibeUIUpdateHzCapPresetCount =
         sizeof(kVibeUIUpdateHzCapPresets) / sizeof(kVibeUIUpdateHzCapPresets[0]);
-#if VIBE_DIRECT_DISTRIBUTION
-const NSInteger kVibeUpdateCheckIntervalPresets[] = {24 * 3600, 7 * 24 * 3600, 30 * 24 * 3600};
-const size_t kVibeUpdateCheckIntervalPresetCount =
-        sizeof(kVibeUpdateCheckIntervalPresets) / sizeof(kVibeUpdateCheckIntervalPresets[0]);
-#endif
 
 @implementation AppSettings (Mac)
 
@@ -132,6 +127,10 @@ const size_t kVibeUpdateCheckIntervalPresetCount =
             persistentDomainForName:NSBundle.mainBundle.bundleIdentifier];
     return VibeSettingsAreAtDefaults(stored, [self registeredSettingDefaults],
                                      [self nullableSettingKeys]);
+}
+
+- (BOOL)atFactoryDefaults {
+    return self.allSettingsAtDefaults && !self.welcomeTrackSpent && self.userThemeIdentifiers.count == 0;
 }
 
 - (void)resetToDefaults {

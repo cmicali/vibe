@@ -1001,8 +1001,7 @@ NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens) {
         return errorJSON;
     }
     NSView *card = [SettingsSectionView sectionContaining:element.view] ?: element.view;
-    NSView *document = card.enclosingScrollView.documentView;
-    [document scrollPoint:NSMakePoint(0, NSMinY([card convertRect:card.bounds toView:document]) - 12)];
+    [SettingsPaneViewController scrollCardToTop:card animated:NO];
     return VibeClickReply(element, @"revealed");
 }
 

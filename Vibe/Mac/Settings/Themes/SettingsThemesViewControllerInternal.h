@@ -30,11 +30,11 @@ static NSString *const kChoiceStandard = @"standard";
 @interface SettingsThemesViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
     NSStackView *_editorStack;
-    // The jump bar above the page: one segment per card after Name, in page
-    // order. Selection follows the scroll, and a click scrolls the card's
-    // header to the top.
+    // The jump bar above the page: one segment per card, Name first, in page
+    // order. A click scrolls the card to the top, and the selection follows
+    // every scroll.
     NSSegmentedControl *_editorJumpControl;
-    NSArray<NSView *> *_editorJumpSections;
+    NSArray<SettingsSectionView *> *_editorJumpSections;
     SettingsSectionView *_transportSection;
     NSTextField *_nameField;
     // The theme the name field was populated for. The active theme can change

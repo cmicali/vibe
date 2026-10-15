@@ -42,7 +42,6 @@ static const NSInteger kTimeRowRemaining = 1;
 static const NSInteger kTimeRowCount     = 2;
 
 static NSString *const kValueCellIdentifier  = @"value";
-static NSString *const kChoiceCellIdentifier = @"choice";
 
 @implementation AppearanceSettingsViewController {
     PlaybackController *_playback;
@@ -141,18 +140,11 @@ static NSString *const kChoiceCellIdentifier = @"choice";
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.section == VibeAppearanceSectionTimeDisplay) {
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
-        if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                          reuseIdentifier:kChoiceCellIdentifier];
-        }
-        UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-        content.text = indexPath.row == kTimeRowRemaining ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL;
-        cell.contentConfiguration = content;
-        BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
-        cell.accessoryType = (indexPath.row == kTimeRowRemaining) == remaining ? UITableViewCellAccessoryCheckmark
-                                                                                 : UITableViewCellAccessoryNone;
-        return cell;
+        BOOL remainingRow = indexPath.row == kTimeRowRemaining;
+        return [SettingsChoiceViewController checkmarkCellInTableView:tableView
+                                                                title:remainingRow ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL
+                                                                image:nil
+                                                              checked:remainingRow == AppSettings.sharedInstance.showRemainingTime];
     }
     BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
     // The Waveform and Widget groups share their rows; the widget's read and

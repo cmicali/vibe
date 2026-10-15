@@ -42,6 +42,8 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     // The list's rows: an identifier, or a group header sentinel. The user's
     // themes come first, under their header, so a new theme lands in view.
     NSArray<NSString *> *_themeRows;
+    // Read once per refresh for the active row's "(Modified)".
+    BOOL _activeThemeModified;
     NSArray<NSView *> *_listSections;
     // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
@@ -130,11 +132,6 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     for (NSView *section in _listSections) {
         section.hidden = _editorShown;
     }
-    if (_editorShown) {
-        // Showing the page scrolls nothing, so the jump bar is synced here.
-        [self.view layoutSubtreeIfNeeded];
-        [self syncEditorJumpSelection];
-    }
     [self applyEditorTitle];
 }
 
@@ -201,6 +198,11 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
         [self closeEditorPanels];
     }
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
+    if (shown) {
+        // Showing the page scrolls nothing, so the jump bar is synced here.
+        [self.view layoutSubtreeIfNeeded];
+        [self syncEditorJumpSelection];
+    }
 }
 
 // A hit only the editor holds opens it, so the row it names is on screen.
@@ -267,19 +269,19 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     AppTheme *theme = settings.currentTheme;
 
     [self selectWaveformStyle:theme.waveformStyle in:_listWaveformPopUp];
-    _revertThemeButton.hidden = !settings.currentThemeIsModified;
+    _activeThemeModified = settings.currentThemeIsModified;
+    _revertThemeButton.hidden = !_activeThemeModified;
 
     NSString *active = settings.activeThemeIdentifier;
     _themeIdentifiers = settings.orderedThemeIdentifiers;
-    NSUInteger builtIns = AppTheme.builtInThemeIdentifiers.count;
+    NSArray<NSString *> *userThemes = settings.userThemeIdentifiers;
     NSMutableArray<NSString *> *rows = [NSMutableArray array];
-    if (_themeIdentifiers.count > builtIns) {
+    if (userThemes.count) {
         [rows addObject:kThemeRowUserHeader];
-        [rows addObjectsFromArray:[_themeIdentifiers subarrayWithRange:
-                NSMakeRange(builtIns, _themeIdentifiers.count - builtIns)]];
+        [rows addObjectsFromArray:userThemes];
     }
     [rows addObject:kThemeRowBuiltInHeader];
-    [rows addObjectsFromArray:[_themeIdentifiers subarrayWithRange:NSMakeRange(0, MIN(builtIns, _themeIdentifiers.count))]];
+    [rows addObjectsFromArray:AppTheme.builtInThemeIdentifiers];
     _themeRows = rows;
     // The editor covers the list; leaving it refreshes through here again.
     if (!_editorShown) {
@@ -398,17 +400,13 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
 
 #pragma mark - Theme list
 
-static BOOL IsThemeHeaderRow(NSString *row) {
-    return row == kThemeRowUserHeader || row == kThemeRowBuiltInHeader;
-}
-
 // nil for a group header or no row, which keeps headers unselectable.
 - (nullable NSString *)identifierForRow:(NSInteger)row {
     if (row < 0 || row >= (NSInteger)_themeRows.count) {
         return nil;
     }
     NSString *entry = _themeRows[(NSUInteger)row];
-    return IsThemeHeaderRow(entry) ? nil : entry;
+    return entry == kThemeRowUserHeader || entry == kThemeRowBuiltInHeader ? nil : entry;
 }
 
 - (NSInteger)rowForIdentifier:(NSString *)identifier {
@@ -438,7 +436,7 @@ static BOOL IsThemeHeaderRow(NSString *row) {
     AppSettings *settings = AppSettings.sharedInstance;
     NSString *name = [settings displayNameForThemeIdentifier:identifier] ?: identifier;
     // A built-in that diverged says so on its own row, beside Revert.
-    BOOL modified = [identifier isEqualToString:settings.activeThemeIdentifier] && settings.currentThemeIsModified;
+    BOOL modified = _activeThemeModified && [identifier isEqualToString:settings.activeThemeIdentifier];
     cell.textField.stringValue = modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name;
     cell.imageView.image = [self swatchForThemeIdentifier:identifier dark:tableView.isDark];
     cell.toolTip = cell.textField.stringValue;

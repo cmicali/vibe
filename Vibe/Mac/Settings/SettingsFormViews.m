@@ -11,6 +11,21 @@ static const CGFloat kRowPaddingV = 8;
 static const CGFloat kRowMinHeight = 40;
 static const CGFloat kRowTitleControlGap = 8;
 static const CGFloat kCardCornerRadius = 10;
+
+// Legacy, not overlay: a list clipped at rowCount rows must show that there
+// are more without a scroll to reveal the bar. It still hides while every row
+// fits. AppKit re-sets the style through this setter on a system preference
+// change, so pinning it here needs no observer.
+@interface SettingsListScrollView : NSScrollView
+@end
+
+@implementation SettingsListScrollView
+
+- (void)setScrollerStyle:(NSScrollerStyle)scrollerStyle {
+    [super setScrollerStyle:NSScrollerStyleLegacy];
+}
+
+@end
 static const CGFloat kHeaderCardGap = 6;
 // Measured off System Settings' Sound pane device table.
 static const CGFloat kListRowHeight = 24;
@@ -351,19 +366,10 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     table.intercellSpacing = NSZeroSize;
     table.gridStyleMask = NSTableViewGridNone;
     table.backgroundColor = ListColor(0);
-    NSScrollView *scrollView = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+    NSScrollView *scrollView = [[SettingsListScrollView alloc] initWithFrame:NSZeroRect];
     scrollView.documentView = table;
     scrollView.hasVerticalScroller = YES;
     scrollView.autohidesScrollers = YES;
-    // Legacy, not overlay: a list clipped at rowCount rows must show that
-    // there are more without a scroll to reveal the bar. It still hides
-    // while every row fits. Reapplied when the system style changes, since
-    // AppKit resets it then.
-    scrollView.scrollerStyle = NSScrollerStyleLegacy;
-    [NSNotificationCenter.defaultCenter addObserverForName:NSPreferredScrollerStyleDidChangeNotification
-            object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-        scrollView.scrollerStyle = NSScrollerStyleLegacy;
-    }];
     scrollView.borderType = NSNoBorder;
     scrollView.backgroundColor = ListColor(0);
     [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight].active = YES;

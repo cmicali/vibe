@@ -37,7 +37,6 @@ static VibeFolderOpenSort FolderSortForRow(NSInteger row) {
     }
 }
 
-static NSString *const kChoiceCellIdentifier = @"choice";
 static NSString *const kActionCellIdentifier = @"action";
 static NSString *const kAccountCellIdentifier = @"account";
 static NSString *const kValueCellIdentifier = @"value";
@@ -187,17 +186,11 @@ typedef NS_ENUM(NSInteger, VibeDropboxRow) {
         cell.selectionStyle = UITableViewCellSelectionStyleDefault;
         return cell;
     }
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                      reuseIdentifier:kChoiceCellIdentifier];
-    }
-    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-    content.text = VibeFolderOpenSortDisplayName(FolderSortForRow(indexPath.row));
-    cell.contentConfiguration = content;
-    cell.accessoryType = FolderSortForRow(indexPath.row) == AppSettings.sharedInstance.folderOpenSort
-            ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
-    return cell;
+    VibeFolderOpenSort sort = FolderSortForRow(indexPath.row);
+    return [SettingsChoiceViewController checkmarkCellInTableView:tableView
+                                                            title:VibeFolderOpenSortDisplayName(sort)
+                                                            image:nil
+                                                          checked:sort == AppSettings.sharedInstance.folderOpenSort];
 }
 
 - (UITableViewCell *)dropboxCellForTableView:(UITableView *)tableView

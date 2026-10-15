@@ -261,7 +261,6 @@ static const CGFloat kImageBadgeInset = 1.5;
         [self buildVolumeSection],
         [self buildPlaylistSection],
     ];
-    NSArray<NSView *> *sections = _editorJumpSections;
     // Short labels, since eight must fit the pane's minimum width; the
     // tooltips carry the cards' full headers.
     NSArray<NSString *> *jumpLabels = @[STR_SETTINGS_THEME_JUMP_THEME, STR_SETTINGS_THEME_JUMP_ICON,
@@ -275,15 +274,13 @@ static const CGFloat kImageBadgeInset = 1.5;
     _editorJumpControl.segmentStyle = NSSegmentStyleCapsule;
     _editorJumpControl.translatesAutoresizingMaskIntoConstraints = NO;
     for (NSUInteger i = 0; i < _editorJumpSections.count; i++) {
-        // The Name card has no header.
-        [_editorJumpControl setToolTip:((SettingsSectionView *)_editorJumpSections[i]).headerLabel.stringValue
-                                       ?: STR_SETTINGS_THEME_NAME_LABEL
+        [_editorJumpControl setToolTip:_editorJumpSections[i].headerLabel.stringValue ?: STR_SETTINGS_THEME_NAME_LABEL
                             forSegment:(NSInteger)i];
     }
 
     SettingsStackView *editorStack =
             [[SettingsStackView alloc] initWithFrame:NSZeroRect];
-    for (NSView *section in sections) {
+    for (NSView *section in _editorJumpSections) {
         [editorStack addArrangedSubview:section];
     }
     _editorStack = editorStack;
@@ -292,7 +289,7 @@ static const CGFloat kImageBadgeInset = 1.5;
     _editorStack.spacing = 20;
     _editorStack.translatesAutoresizingMaskIntoConstraints = NO;
     _editorStack.wantsLayer = YES;
-    for (NSView *section in sections) {
+    for (NSView *section in _editorJumpSections) {
         [section.widthAnchor constraintEqualToAnchor:_editorStack.widthAnchor].active = YES;
     }
 
@@ -313,7 +310,8 @@ static const CGFloat kImageBadgeInset = 1.5;
     [container addSubview:scroll];
     [self.view addSubview:container];
     _detailContainer = container;
-    // The selected segment follows the scroll.
+    // The selected segment follows every scroll: by hand, a click's animation,
+    // a search reveal and settings_reveal.
     scroll.contentView.postsBoundsChangedNotifications = YES;
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(editorDidScroll:)
                                                name:NSViewBoundsDidChangeNotification
@@ -340,36 +338,21 @@ static const CGFloat kImageBadgeInset = 1.5;
 
 #pragma mark - The jump bar
 
-// The card's header lands at the top, as settings_reveal lands a row's card.
-// Clamped to the document's end, so the last cards share the last stop.
 - (void)jumpToSection:(NSSegmentedControl *)sender {
-    NSInteger index = sender.selectedSegment;
-    if (index < 0 || index >= (NSInteger)_editorJumpSections.count) {
-        return;
-    }
-    NSScrollView *scroll = _editorStack.enclosingScrollView;
-    NSClipView *clip = scroll.contentView;
-    CGFloat maxY = MAX(0, NSHeight(_editorStack.frame) - NSHeight(clip.bounds));
-    CGFloat y = MIN(NSMinY(_editorJumpSections[(NSUInteger)index].frame), maxY);
-    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
-        context.duration = 0.2;
-        [clip.animator setBoundsOrigin:NSMakePoint(0, y)];
-    } completionHandler:^{
-        [scroll reflectScrolledClipView:clip];
-    }];
+    [SettingsPaneViewController scrollCardToTop:_editorJumpSections[(NSUInteger)sender.selectedSegment]
+                                       animated:YES];
 }
 
 - (void)editorDidScroll:(NSNotification *)notification {
     [self syncEditorJumpSelection];
 }
 
-// The selected segment is the last card whose header sits at the top, with a
-// card header's worth of slack: settings_reveal and a hand scroll leave a
-// header a little under the edge. Also run when the page shows, since no
-// scroll fires then.
+// The selected segment is the last card whose header sits at the top, within
+// twice the reveal inset, which is where a reveal and a hand scroll leave it.
+// Also run when the page shows, since no scroll fires then.
 - (void)syncEditorJumpSelection {
     NSClipView *clip = _editorStack.enclosingScrollView.contentView;
-    CGFloat top = NSMinY(clip.bounds) + 24;
+    CGFloat top = NSMinY(clip.bounds) + 2 * kSettingsCardRevealInset;
     NSInteger selected = 0;
     for (NSUInteger i = 0; i < _editorJumpSections.count; i++) {
         if (NSMinY(_editorJumpSections[i].frame) <= top) {
@@ -590,11 +573,11 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_ARTWORK value:SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK to:_buttonGradientPopUp];
     [self addItem:STR_SETTINGS_THEME_BUTTON_GRADIENT_ALWAYS value:SETTINGS_VALUE_BUTTON_GRADIENT_ALWAYS to:_buttonGradientPopUp];
 
-    NSMutableArray<SettingsRowView *> *transportRows = [NSMutableArray arrayWithObjects:
+    NSMutableArray<SettingsRowView *> *transportRows = [@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_TRANSPORT_BUTTONS control:_transportButtonsSwitch],
         // Said once here, so each well's caption can be two words.
         [SettingsRowView rowWithContentView:[self wrappingLabelWithString:STR_SETTINGS_TRANSPORT_ART_EXPLAIN]],
-        nil];
+    ] mutableCopy];
     [transportRows addObjectsFromArray:playlistButtonRows];
     [transportRows addObjectsFromArray:playButtonRows];
     [transportRows addObjectsFromArray:nextButtonRows];
