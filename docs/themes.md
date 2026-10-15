@@ -31,9 +31,14 @@ Two things worth knowing:
 - **Light & Dark Modes or Single Mode.** The editor's **Theme color modes** dropdown decides whether your theme keeps separate colors for light and dark, or one set used everywhere. A Light & Dark theme follows the window's appearance. In Single Mode appearance colors show one swatch. Playback button colors keep both swatches because they follow the artwork behind them. While you edit a Light & Dark theme, the sun and moon toggle in the Settings toolbar previews either side.
 - **Every color swatch includes opacity.** Use the color panel's opacity slider to set a tint's strength, a solid background's coverage, or each waveform side's intensity. Low, Mid and High colors always draw opaque. Both 3-Band and Spectrum’s Custom palette use these wells.
 
-## Custom artwork
+## Default artwork
 
-The **Default artwork** row in Player display sets the placeholder drawn when a track has no cover art. It takes one image for dark and one for light, or a single image in Single Mode. Click a preview to choose your own image: a square JPEG or PNG, from 64 to 4096 pixels, up to 8 MB. Hover over a preview and click the **✕** to go back to the factory artwork.
+The **Default artwork** dropdown in Player display sets what shows when a track has no cover art.
+
+- **Artwork** draws a placeholder image. It takes one image for dark and one for light, or a single image in Single Mode. Click a preview to choose your own image: a square JPEG or PNG, from 64 to 4096 pixels, up to 8 MB. Hover over a preview and click the **✕** to go back to the factory artwork.
+- **Clear** draws nothing, so the window's see-through backdrop shows where the cover would be.
+- **Window** continues the play area's own background, panel and tint included, under the square.
+- **Custom color** fills the square with a color you pick.
 
 ## Sharing a theme
 

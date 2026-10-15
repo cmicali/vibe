@@ -63,6 +63,33 @@
     XCTAssertEqual([theme defaultArtworkImageForAppearance:aqua], [AppTheme imageForReference:dark]);
 }
 
+// Clear and window share one transparent square, so a mode switch between
+// them reinstalls nothing. Custom is its color pair as a square, a new
+// image per color. Neither is artwork, so Now Playing gets none.
+- (void)testDefaultArtworkModesResolveToOneSquareEach {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:nil];
+    NSImage *factory = theme.resolvedDefaultArtworkImage;
+    NSAppearance *aqua = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
+    XCTAssertNotNil([theme defaultArtworkImageForAppearance:aqua]);
+    theme.defaultArtwork = @"clear";
+    NSImage *clear = theme.resolvedDefaultArtworkImage;
+    XCTAssertNotEqual(clear, factory);
+    XCTAssertNil([theme defaultArtworkImageForAppearance:aqua]);
+    theme.defaultArtwork = @"window";
+    XCTAssertEqual(theme.resolvedDefaultArtworkImage, clear);
+    XCTAssertNil([theme defaultArtworkImageForAppearance:aqua]);
+    theme.defaultArtwork = @"custom";
+    NSImage *neutral = theme.resolvedDefaultArtworkImage;
+    XCTAssertNotEqual(neutral, clear);
+    XCTAssertNil([theme defaultArtworkImageForAppearance:aqua]);
+    [theme setColor:VibeColorFromHexString(@"#FF0000") forBase:kVibeThemeColorDefaultArtwork dark:YES];
+    NSImage *red = theme.resolvedDefaultArtworkImage;
+    XCTAssertNotEqual(red, neutral);
+    XCTAssertEqual(theme.resolvedDefaultArtworkImage, red, @"the same colors are the same image");
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtwork"], @"custom");
+    XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkColorDark"], @"#FF0000");
+}
+
 - (void)testCustomImageStoreValidatesAndRoundTripsThroughTheArchive {
     NSError *error = nil;
     NSBitmapImageRep *wide = [[NSBitmapImageRep alloc]

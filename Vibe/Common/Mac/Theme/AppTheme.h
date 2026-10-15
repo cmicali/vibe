@@ -37,6 +37,15 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID              @"solid"
 #define SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR              @"clear"
 
+// What stands where a track's cover would be when it has none: artwork (the
+// default) draws the placeholder image pair; clear draws nothing, so the
+// window's backdrop shows; window carries the header's panel and tint under
+// the square; custom fills it with the kVibeThemeColorDefaultArtwork pair.
+#define SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK              @"artwork"
+#define SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR                @"clear"
+#define SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW               @"window"
+#define SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM               @"custom"
+
 #define SETTINGS_VALUE_BUTTON_GRADIENT_NONE                 @"none"
 #define SETTINGS_VALUE_BUTTON_GRADIENT_HOVER                @"hover"
 #define SETTINGS_VALUE_BUTTON_GRADIENT_ARTWORK              @"artwork"
@@ -113,6 +122,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformHigh;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWindowTint;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistTint;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWindowBackground;
+// The custom default artwork's fill. Unset, a flat neutral square.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorDefaultArtwork;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorTitle;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorArtist;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorInfo;
@@ -228,6 +239,7 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic) double waveformBarDensity;            // multiplier of the style's designed count
 @property (nonatomic) double waveformBarWidth;              // multiplier of the style's designed thickness
 @property (nonatomic, copy) NSString *windowTint;           // mono/artwork/custom
+@property (nonatomic, copy) NSString *defaultArtwork;       // artwork (default)/clear/window/custom
 @property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/frosted/solid/clear
 @property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid/clear
@@ -277,12 +289,16 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 - (nullable NSImage *)customImageForKey:(NSString *)key;
 // Its own image, else its partner side's; nil means draw the glyph.
 - (nullable NSImage *)buttonImageForKey:(NSString *)key;
-// The placeholder pair as ONE image: when the sides differ, a cached wrapper
-// draws whichever side the drawing appearance asks for.
+// What the header and the playlist rows draw for a track without art, by
+// defaultArtwork: the placeholder pair as ONE image (when the sides differ, a
+// cached wrapper draws whichever side the drawing appearance asks for), the
+// one transparent square for clear and window, or the color pair as a square.
 @property (readonly, nonatomic) NSImage *resolvedDefaultArtworkImage;
-// One side, for a consumer rasterizing outside a view (Now Playing), where
-// the drawing appearance is the system's, not the window's.
-- (NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance;
+// One side of the placeholder pair, for a consumer rasterizing outside a
+// view (Now Playing), where the drawing appearance is the system's, not the
+// window's. nil unless defaultArtwork is artwork: a bare or colored square
+// is not artwork.
+- (nullable NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance;
 
 // Color pairs by base name. nil is unset. Alpha is meaningful throughout.
 - (nullable VibeColor *)colorForBase:(NSString *)base dark:(BOOL)isDark;

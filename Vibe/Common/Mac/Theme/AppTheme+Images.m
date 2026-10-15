@@ -8,6 +8,7 @@
 #import "PlatformImage.h"
 #import "NSView+DarkMode.h"
 #import "NSURL+Hash.h"
+#import "PlatformColor.h"
 
 @implementation AppTheme (Images)
 
@@ -256,6 +257,39 @@ static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
             return YES;
         }];
         cache[key] = image;
+        return image;
+    }
+}
+
+// One object for the app's lifetime: consumers compare identity to skip
+// reinstalling an unchanged placeholder.
++ (NSImage *)clearDefaultArtworkImage {
+    static NSImage *image;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        image = [NSImage imageWithSize:NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension)
+                               flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
+    });
+    return image;
+}
+
+// One entry, not the image cache: a well drag mints a color per tick, and
+// each color is a new image so the identity check reinstalls it.
++ (NSImage *)imageForDefaultArtworkColorDark:(NSColor *)dark light:(NSColor *)light {
+    static NSImage *image;
+    static NSString *key;
+    NSString *wanted = [NSString stringWithFormat:@"%@|%@",
+                        VibeHexStringFromColor(dark), VibeHexStringFromColor(light)];
+    @synchronized (AppTheme.class) {
+        if (![key isEqualToString:wanted]) {
+            key = wanted;
+            image = [NSImage imageWithSize:NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension)
+                                   flipped:NO drawingHandler:^BOOL(NSRect rect) {
+                [(NSAppearance.currentDrawingAppearance.isDark ? dark : light) set];
+                NSRectFillUsingOperation(rect, NSCompositingOperationCopy);
+                return YES;
+            }];
+        }
         return image;
     }
 }

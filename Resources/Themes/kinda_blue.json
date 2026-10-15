@@ -1,0 +1,69 @@
+{
+  "version": 2,
+  "name": "Kinda Blue",
+  "description": "Dark Core's layout in blue. A dark navy window with the Spectrum waveform's Blue palette.",
+  "window": {
+    "backgroundColorDark": "#1A1E24",
+    "mode": "single",
+    "tint": "custom",
+    "tintColorDark": "#1A2838"
+  },
+  "player": {
+    "artistColorDark": "#3F86B0",
+    "artistFontFace": "HelveticaNeue-Medium",
+    "artistFontSize": 18,
+    "defaultArtwork": "window",
+    "nextButtonColorDark": "#A8D8F0",
+    "nextButtonGlyph": "arrow.right.circle.fill",
+    "pauseButtonGlyph": "pause.circle.fill",
+    "playButtonColorDark": "#A8D8F0",
+    "playButtonGlyph": "play.circle.fill",
+    "playlistButtonColorDark": "#A8D8F0",
+    "playlistButtonGlyph": "music.note.list",
+    "showTransportButtons": false,
+    "titleColorDark": "#8CC4E4",
+    "titleFontFace": "HelveticaNeue-Medium",
+    "titleFontSize": 20
+  },
+  "info": {
+    "colorDark": "#00A8E8",
+    "fontFace": "HelveticaNeue",
+    "timeColorDark": "#D8EEF8"
+  },
+  "volume": {
+    "bar": "custom",
+    "barColorDark": "#3F86B0",
+    "knob": "custom",
+    "knobColorDark": "#8CC4E4",
+    "showLabels": false
+  },
+  "waveform": {
+    "spectrumPalette": "blue",
+    "style": "spectrum"
+  },
+  "playlist": {
+    "artistColorDark": "#3F86B0",
+    "artistColorEnabled": true,
+    "backgroundColorDark": "#1A1E24",
+    "durationColorEnabled": true,
+    "durationFontFace": "HelveticaNeue-Medium",
+    "durationFontSize": 14,
+    "fontFace": "HelveticaNeue",
+    "fontSize": 16,
+    "numberColorEnabled": true,
+    "playingRowArtistColorDark": "#3F86B0",
+    "playingRowArtistColorEnabled": true,
+    "playingRowColorDark": "#2A5A8040",
+    "playingRowTitleColorDark": "#8CC4E4",
+    "playingRowTitleColorEnabled": true,
+    "selectedRowArtistColorDark": "#00A8E8",
+    "selectedRowArtistColorEnabled": true,
+    "selectedRowColorDark": "#2A5A807F",
+    "selectedRowTitleColorDark": "#C8E0E8",
+    "selectedRowTitleColorEnabled": true,
+    "tint": "custom",
+    "tintColorDark": "#14202EBF",
+    "titleColorDark": "#8CC4E4",
+    "titleColorEnabled": true
+  }
+}

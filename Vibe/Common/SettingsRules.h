@@ -223,6 +223,17 @@ static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable 
             ? identifier : VibeNormalizedPlaylistBackgroundStyle(identifier);
 }
 
+// The default artwork's ladder: the placeholder images, nothing, the header's
+// own background, or a color.
+static inline NSString *VibeNormalizedDefaultArtwork(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR] ||
+        [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW] ||
+        [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK;
+}
+
 // Frosted and solid both lay the theme's color over the backdrop; solid also
 // drops the glass panes over it.
 static inline BOOL VibeWindowBackgroundTakesColor(NSString *_Nullable style) {

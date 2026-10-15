@@ -10,6 +10,8 @@ Every `<identifier>.json` in `Resources/Themes/` ships in the mac app as a read-
 4. Add the identifier to `testBuiltInIdentifiers` in `Tests/Common/AppThemeTests.m`. The order is `vibe` first, then alphabetical. The list keeps a dropped or renamed file loud.
 5. Open a pull request. CI's `make test` validates every file here.
 
+The app bundles this directory as a folder reference. Xcode's incremental build can keep a stale copy of it after a file here is added, edited or deleted. If a rebuilt Debug app does not show the change, delete `Contents/Resources/Themes` from the built app and build again.
+
 ## File format
 
 `version` is `kVibeThemeRecordVersion` (currently 2). Then come `name`, an optional `description` that the app ignores, and one object per group. The groups are `window`, `player`, `info`, `volume`, `waveform` and `playlist`, in that order. Each holds only the fields the theme changes from the factory look. A missing field or a missing group means the default.
@@ -24,6 +26,6 @@ A translated display name is optional. Add the identifier as a key in `Resources
 
 ## Default artwork
 
-`player.defaultArtworkDark` and `defaultArtworkLight` pick the placeholder drawn when a track has no artwork. A built-in may only use `bundled:<name>.<ext>`, a square JPEG or PNG beside the JSON, or `""` for the factory image. The test checks that each file resolves, is square, and stays within the pixel and byte caps.
+`player.defaultArtwork` says what shows when a track has no artwork: `artwork` (the default), `clear`, `window` or `custom` with a `defaultArtworkColorDark`/`Light` pair. Under `artwork`, `player.defaultArtworkDark` and `defaultArtworkLight` pick the placeholder image. A built-in may only use `bundled:<name>.<ext>`, a square JPEG or PNG beside the JSON, or `""` for the factory image. The test checks that each file resolves, is square, and stays within the pixel and byte caps.
 
-**Author it at 640px, and use JPEG unless it needs alpha.** `imageForReference:` decodes every theme image bounded to `kVibeArchivedDisplayArtDimension`, which is 640 on macOS. Pixels beyond that only cost bundle size. Use PNG where transparency matters: `glassy.png` is transparent by design, and its whole look depends on it.
+**Author it at 640px, and use JPEG unless it needs alpha.** `imageForReference:` decodes every theme image bounded to `kVibeArchivedDisplayArtDimension`, which is 640 on macOS. Pixels beyond that only cost bundle size. Use PNG where transparency matters. A fully transparent placeholder needs no image: that is the `clear` default artwork.

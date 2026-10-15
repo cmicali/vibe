@@ -112,6 +112,9 @@ static NSColor *HueColor(CGFloat hue, BOOL dark, CGFloat alpha) {
     if ([self.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
         self.windowTint = SETTINGS_VALUE_WINDOW_TINT_ARTWORK;
     }
+    if ([self.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM]) {
+        self.defaultArtwork = SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK;
+    }
     if ([self.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]) {
         self.playlistTint = SETTINGS_VALUE_WINDOW_TINT_MONO;
     }

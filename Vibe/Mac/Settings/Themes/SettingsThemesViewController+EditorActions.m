@@ -119,6 +119,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL single = theme.isSingleMode;
     [_windowTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                            : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
+    [_defaultArtworkDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
+                                               : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_playlistTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                              : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_volumeBarDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
@@ -154,6 +156,10 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL customTint = [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _windowTintDarkRow.hidden = !customTint;
     _windowTintLightRow.hidden = !customTint || single;
+    BOOL customArt = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM];
+    _defaultArtworkImageRow.hidden = ![theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK];
+    _defaultArtworkDarkRow.hidden = !customArt;
+    _defaultArtworkLightRow.hidden = !customArt || single;
     _backgroundColorsRow.hidden = !VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle);
     BOOL customPlaylistTint = [theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _playlistTintDarkRow.hidden = !customPlaylistTint;
@@ -207,6 +213,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     _appIconShapeSwitch.state = StateForBOOL(theme.appIconShape);
     [self selectValue:theme.windowBackgroundStyle in:_backgroundPopUp];
     [self selectValue:theme.windowTint in:_windowTintPopUp];
+    [self selectValue:theme.defaultArtwork in:_defaultArtworkPopUp];
     for (NSColorWell *well in _wellBindings) {
         NSDictionary *binding = [_wellBindings objectForKey:well];
         well.color = [theme displayColorForBase:binding[kWellBase] dark:[binding[kWellDark] boolValue]];
@@ -354,6 +361,14 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self chooseFromPopUp:_windowTintPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
                     wells:@[_windowTintDarkRow, _windowTintLightRow] effect:VibeSettingsLiveEffectWindowTint
                     write:^(AppTheme *theme, NSString *identifier) { theme.windowTint = identifier; }];
+}
+
+// Window moves the header's panel under the art, which is chrome.
+- (void)defaultArtworkChanged:(id)sender {
+    [self chooseFromPopUp:_defaultArtworkPopUp revealing:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM
+                    wells:@[_defaultArtworkDarkRow, _defaultArtworkLightRow]
+                   effect:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark) | VibeSettingsLiveEffectWindowChrome
+                    write:^(AppTheme *theme, NSString *identifier) { theme.defaultArtwork = identifier; }];
 }
 
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender {

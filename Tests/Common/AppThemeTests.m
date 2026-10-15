@@ -237,6 +237,7 @@
         @"waveformTheme": @"purple",
         @"windowTint": @"plaid",
         @"playlistTint": @"plaid",
+        @"defaultArtwork": @"vinyl",
         @"windowBackgroundStyle": @"translucent",
         // The window's alone: the playlist has no panes to keep.
         @"playlistBackgroundStyle": @"frosted",
@@ -246,6 +247,7 @@
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
+    XCTAssertEqualObjects(theme.defaultArtwork, @"artwork");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     // The third background style is a real choice on both surfaces.
@@ -764,9 +766,12 @@ static CGFloat Brightness(NSString *hex) {
     }
 }
 
-- (void)testGlassyUsesArtworkOnlyButtonGradient {
+// Clear is what makes the window one sheet: the gradient would darken the
+// bare backdrop, so it shows over a cover only.
+- (void)testGlassyIsClearWithArtworkOnlyButtonGradient {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"glassy"]];
     XCTAssertEqualObjects(theme.buttonGradient, @"artwork");
+    XCTAssertEqualObjects(theme.defaultArtwork, @"clear");
 }
 
 - (void)testHiddenControlsRoundTripWithoutLosingTheirAppearance {
@@ -815,7 +820,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"dark_wolf", @"dengine", @"field", @"glassy", @"rekord_bin",
+                          (@[@"vibe", @"cupertino", @"dark_wolf", @"dengine", @"field", @"glassy", @"kinda_blue", @"rekord_bin",
                               @"rgb", @"snake", @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 

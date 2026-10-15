@@ -373,11 +373,26 @@ static const CGFloat kImageBadgeInset = 1.5;
 }
 
 - (SettingsSectionView *)buildPlayerSection {
+    _defaultArtworkPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(defaultArtworkChanged:)];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_ARTWORK value:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_CLEAR value:SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_WINDOW value:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_CUSTOM value:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM to:_defaultArtworkPopUp];
     NSStackView *artPair = [self darkLightPairWithDark:
             [self imageClusterForKey:kVibeThemeImageDefaultArtworkDark]
             light:[self imageClusterForKey:kVibeThemeImageDefaultArtworkLight]];
-    NSMutableArray<SettingsRowView *> *rows = [NSMutableArray arrayWithObject:
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair]];
+    _defaultArtworkImageRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_IMAGE control:artPair];
+    VibeSettingsLiveEffect artEffect = VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark);
+    _defaultArtworkDarkRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL
+            control:[self wellForDark:YES base:kVibeThemeColorDefaultArtwork effect:artEffect]];
+    _defaultArtworkLightRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WINDOW_TINT_CUSTOM_LIGHT_LABEL
+            control:[self wellForDark:NO base:kVibeThemeColorDefaultArtwork effect:artEffect]];
+    NSMutableArray<SettingsRowView *> *rows = [NSMutableArray arrayWithArray:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:_defaultArtworkPopUp],
+        _defaultArtworkImageRow,
+        _defaultArtworkDarkRow,
+        _defaultArtworkLightRow,
+    ]];
     [rows addObjectsFromArray:[self buildWaveformRows]];
 
     // Title and artist paint the playlist rows too.

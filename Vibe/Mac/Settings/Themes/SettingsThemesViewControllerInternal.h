@@ -41,6 +41,8 @@ static NSString *const kChoiceStandard = @"standard";
     SettingsRowView *_backgroundColorsRow;
     NSPopUpButton *_windowTintPopUp;
     SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
+    NSPopUpButton *_defaultArtworkPopUp;
+    SettingsRowView *_defaultArtworkImageRow, *_defaultArtworkDarkRow, *_defaultArtworkLightRow;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider
     NSTextField *_cornerRadiusValue;
     VibeSwitch *_transportButtonsSwitch;
@@ -142,6 +144,7 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)colorWellChanged:(NSColorWell *)sender;
 - (void)backgroundStyleChanged:(id)sender;
 - (void)windowTintChanged:(id)sender;
+- (void)defaultArtworkChanged:(id)sender;
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender;
 - (void)cornerRadiusChanged:(id)sender;
 - (void)clearCustomImage:(NSButton *)sender;

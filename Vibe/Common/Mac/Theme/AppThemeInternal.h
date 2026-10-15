@@ -55,6 +55,10 @@ BOOL VibeIsValidImageReference(NSString *_Nullable value);
 
 // The placeholder pair as one image (resolvedDefaultArtworkImage).
 + (NSImage *)imageForDefaultArtworkDark:(NSString *)darkValue light:(NSString *)lightValue;
+// The one transparent square clear and window draw.
++ (NSImage *)clearDefaultArtworkImage;
+// The custom color pair as one square, drawn for the drawing appearance.
++ (NSImage *)imageForDefaultArtworkColorDark:(NSColor *)dark light:(NSColor *)light;
 
 @end
 
