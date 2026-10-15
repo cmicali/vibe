@@ -98,6 +98,17 @@ NS_ASSUME_NONNULL_BEGIN
 @property (weak, nullable) AudioTrack *replayResumeTrack;
 @property NSTimeInterval replayResumePosition;
 
+#pragma mark - Construction
+
+// The host-less tests' constructor. It builds no window content, collaborators
+// or OS publishers, only the playlist controller and its handlers. The
+// scheduler runs the deferred metadata load's fallback (dispatch_after on main
+// in the app).
+- (instancetype)initWithWindow:(nullable NSWindow *)window
+                   audioPlayer:(AudioPlayer *)audioPlayer
+                 metadataCache:(AudioTrackMetadataCache *)metadataCache
+             metadataScheduler:(VibeScheduler)scheduler;
+
 #pragma mark - The refresh funnel
 
 // The whole-header refresh every state change funnels through.

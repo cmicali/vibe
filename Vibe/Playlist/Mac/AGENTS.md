@@ -85,7 +85,7 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 **One drag has two destinations, chosen by the operation mask.** Each row's `NSPasteboardItem` carries the private reorder type, with the session token as payload. The first dragged row of each file also carries its file URL, so a drop outside copies each file once. The mask is `NSDragOperationMove` locally and `NSDragOperationCopy` elsewhere. So inside the table a drag reorders, and onto the Finder or another app it copies the files.
 
-**The private type plus the live token is the whole proof that a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`). A file URL alone is what an external drag carries too. The table registers only the private type, so an external file drag still falls to the window's wells. `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open.
+**The private type plus the live token is the whole proof that a drop is this table's reorder** (`draggingInfoIsLiveReorderSession:`). A file URL alone is what an external drag carries too. The table registers only the private type, so an external file drag still falls to the window's wells. `MainWindow` refuses any in-app source, so a row dragged around the window never reads as an open. `PlaylistControllerTests` covers the proof and the identity resolution below.
 
 **A remote placeholder is never dragged out** (`TrackCommands`' `handsOutURL:`). No other app could read its bytes. Its item carries only the reorder type, so its row still reorders. Copy Files skips it by the same answer.
 
