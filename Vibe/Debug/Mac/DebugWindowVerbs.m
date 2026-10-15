@@ -51,6 +51,33 @@ NSArray<NSDictionary *> *VibeDebugWindowVerbs(void) {
                         @"visible": @((BOOL)((window.occlusionState & NSWindowOcclusionStateVisible) != 0)),
                         @"displayAsleep": @((BOOL)(CGDisplayIsAsleep(CGMainDisplayID()) != 0))});
             }),
+            VibeDebugCmd(@"set_window_frame <x> <y> <width> <height> [original-screen-frame]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                double values[4] = {0};
+                if (tokens.count < 5 || tokens.count > 6) return VibeErrorJSON(@"usage: set_window_frame <x> <y> <width> <height> [original-screen-frame]");
+                for (NSUInteger i = 0; i < 4; i++) {
+                    if (!VibeParseDouble(tokens[i + 1], &values[i]) || !isfinite(values[i])) {
+                        return VibeErrorJSON(@"frame coordinates must be finite numbers");
+                    }
+                }
+                if (values[2] <= 0 || values[2] > 10000 || values[3] <= 0 || values[3] > 10000) {
+                    return VibeErrorJSON(@"frame size must be in (0, 10000]");
+                }
+                MainWindow *window = (MainWindow *)controller.window;
+                NSRect frame = NSMakeRect(values[0], values[1], values[2], values[3]);
+                BOOL onScreen = NO;
+                for (NSScreen *screen in NSScreen.screens) {
+                    if (tokens.count == 6 ? NSEqualRects(screen.frame, NSRectFromString(tokens[5]))
+                                         : NSIntersectsRect(frame, screen.visibleFrame)) onScreen = YES;
+                }
+                // Preserve the original monitor. Only a vanished display needs clamping.
+                if (!onScreen) {
+                    frame = [window constrainFrameRect:frame toScreen:window.screen ?: NSScreen.mainScreen];
+                    frame = [window frameKeptOnScreen:frame];
+                }
+                [window setFrame:frame display:YES];
+                return VibeJSONString(@{@"ok": @YES, @"frame": NSStringFromRect(window.frame),
+                        @"screenFrame": NSStringFromRect(window.screen.frame), @"clamped": @(!onScreen)});
+            }),
             VibeDebugCmd(@"set_window_width <body-points> [height-points] [seconds]", 15, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0, height = controller.window.frame.size.height, seconds = 0;
                 if (tokens.count < 2 || tokens.count > 4 || !VibeParseDouble(tokens[1], &bodyPoints)

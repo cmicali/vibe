@@ -190,6 +190,8 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
 - (NSDictionary *)debugStateDictionary {
     NSMutableDictionary *state = VibeDebugCommonStateDictionary(self);
     PlaybackController *playback = self.playback;
+    state[@"playlist"][@"structureGeneration"] = @(playback.playlist.structureGeneration);
+    state[@"playlist"][@"folder"] = playback.folderURL.path ?: @"";
     NSMutableDictionary *ui = [[self.player debugChromeDictionary] mutableCopy];
     ui[@"screenState"] = @(playback.screenState);
     ui[@"parked"] = @(playback.debugParked);

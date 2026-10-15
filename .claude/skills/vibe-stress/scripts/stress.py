@@ -88,7 +88,7 @@ file_cache file_clear_cache file_drag_drop file_drag_end file_drag_hover hang_op
 import_theme next open play_index play_pause select_rows remove_selected previous
 quiesce quit redo remove_theme reorder_begin reorder_cancel reorder_drop reorder_update
 seek set_analysis set_appearance set_audio_loading set_equalizer_mode set_fake_cloud
-set_folder_art set_pause_at_track_end set_pitch set_theme set_window_width settings_close
+set_folder_art set_pause_at_track_end set_pitch set_theme set_window_width set_window_frame settings_close
 skip_back skip_back_more skip_back_most skip_forward skip_forward_more skip_forward_most
 sleep toggle_low_kill toggle_pitch_panel toggle_size undo
 low_kill_boost_on low_kill_boost_off reverb_send_on reverb_send_off
@@ -292,13 +292,8 @@ def on_off(value):
     return "on" if value else "off"
 
 
-PITCH_PANEL_WIDTH = 96   # kPitchPanelWidth, outside set_window_width's body width
-
-
 def window_restore(before):
-    width, height = (float(n) for n in re.findall(r"-?[\d.]+", before["windowFrame"])[2:4])
-    panel = PITCH_PANEL_WIDTH if before.get("pitchPanelShown") else 0
-    return ["set_window_width", f"{width - panel:g}", f"{height:g}"]
+    return ["set_window_frame", *re.findall(r"-?[\d.]+", before["windowFrame"]), before["windowScreen"]]
 
 
 # TRAP: the store a run moves is the user's real one, since the sandbox
@@ -310,7 +305,7 @@ def window_restore(before):
 # and theme and can pin the appearance (a single-mode theme outranks
 # windowAppearance); the window's frame last, since the panels move it.
 SETTING_RESTORERS = {
-    "activeTheme": lambda b: ["set_theme", b["activeTheme"]],
+    "theme": lambda b: ["set_theme", b["theme"]["activeTheme"], json.dumps(b["theme"]["record"])],
     "windowAppearance": lambda b: ["set_appearance", b["windowAppearance"]],
     "pauseAtTrackEnd": lambda b: ["set_pause_at_track_end", on_off(b["pauseAtTrackEnd"])],
     "folderArt": lambda b: ["set_folder_art", on_off(b["folderArt"])],
@@ -324,13 +319,20 @@ SETTING_RESTORERS = {
 
 
 def current_settings(channel):
-    """dump_state.settings plus the main window's frame, which NSWindow
-    autosaves to the same store; None when the app does not answer."""
+    """Settings, full window frame, working theme and library; None if unreadable."""
     code, state, _ = channel.run(["dump_state"], timeout=20)
     if code != 0 or not isinstance(state, dict):
         return None
     settings = dict(state.get("settings") or {})
     settings["windowFrame"] = (state.get("window") or {}).get("frame")
+    settings["windowScreen"] = (state.get("window") or {}).get("screenFrame")
+    if not settings["windowFrame"] or not settings["windowScreen"]:
+        return None
+    code, theme, _ = channel.run(["dump_theme"], timeout=20)
+    if code != 0 or not isinstance(theme, dict) or not all(k in theme for k in ("activeTheme", "theme", "library")):
+        return None
+    settings["theme"] = {"activeTheme": theme["activeTheme"], "record": theme["theme"]}
+    settings["themeLibrary"] = theme["library"]
     return settings
 
 
@@ -344,14 +346,12 @@ def user_settings_restore(channel, before, imported_themes, corpus, app):
             launch(corpus, app)
             relaunched = "relaunched to restore; "
         except SystemExit as error:
-            print(f"settings: NOT restored, relaunch failed: {error}", file=sys.stderr)
-            return
+            raise Failure("cleanup", f"settings NOT restored, relaunch failed: {error}") from error
     now = current_settings(channel) if before else None
     if now is None:
-        print("settings: NOT restored — "
+        raise Failure("cleanup", "settings NOT restored — "
               + ("the app is not answering" if before else "no starting snapshot")
-              + f"; {len(imported_themes)} imported themes remain", file=sys.stderr)
-        return
+              + f"; {len(imported_themes)} imported themes remain")
     channel.run(["reorder_cancel"])
     # Imports first: each is a persisted user theme, and one left behind
     # changes the next run's theme list and so the op sequence its seed draws.
@@ -359,20 +359,38 @@ def user_settings_restore(channel, before, imported_themes, corpus, app):
     removed = sum(channel.run(["remove_theme", str(identifier)])[0] == 0
                   for identifier in imported_themes)
     restored = []
+    errors = []
     now = current_settings(channel) or now
     for key, restorer in SETTING_RESTORERS.items():
-        if before.get(key) is not None and now.get(key) != before[key]:
-            channel.run(restorer(before))
-            restored.append(f"{key}={before[key]}")
-            now = current_settings(channel) or now
+        if before.get(key) is not None and (now.get(key) != before[key]
+                or (key == "windowFrame" and now.get("windowScreen") != before.get("windowScreen"))):
+            code, reply, _ = channel.run(restorer(before))
+            if code != 0 or not reply or reply.get("error"):
+                errors.append(f"could not restore {key}: {reply}")
+            else:
+                restored.append(key)
+                if key == "windowFrame" and reply.get("clamped"):
+                    before = {**before, "windowFrame": reply["frame"], "windowScreen": reply["screenFrame"]}
+                    print(f"settings: original display unavailable; clamped frame to {reply['frame']}")
+            current = current_settings(channel)
+            if current is None:
+                errors.append(f"could not verify {key}")
+            else:
+                now = current
+    current = current_settings(channel)
+    if current is None:
+        errors.append("could not verify final settings")
+    else:
+        now = current
     left = [f"{key} {before[key]!r} -> {now.get(key)!r}"
             for key in sorted(before) if now.get(key) != before[key]]
     line = (f"settings: {relaunched}removed {removed}/{len(imported_themes)} imported themes, "
             f"restored {', '.join(restored) or 'nothing (none moved)'}")
-    if left:
-        print(f"{line}; STILL CHANGED: {'; '.join(left)}", file=sys.stderr)
-    else:
-        print(f"{line}; the store matches the start")
+    if removed != len(imported_themes):
+        errors.append("could not remove every imported theme")
+    if left or errors:
+        raise Failure("cleanup", f"{line}; STILL CHANGED: {'; '.join(left + errors)}")
+    print(f"{line}; the store matches the start")
 
 
 @contextlib.contextmanager
@@ -381,6 +399,8 @@ def user_settings_preserved(channel, corpus: Path, app: Path):
     every exit Python sees (SIGTERM and SIGHUP raise KeyboardInterrupt; see
     main). Yields the list the run appends imported theme ids to."""
     before = current_settings(channel)
+    if before is None:
+        raise Failure("setup", "could not snapshot settings and theme library")
     imported_themes = []
     try:
         yield imported_themes
@@ -1704,8 +1724,8 @@ def run(args):
             # A killed run is not a pass: SIGTERM lands here too (see main).
             print(f"\nINTERRUPTED after {executed} ops, no violations so far")
             return 130
-        print(f"\nPASSED {executed} ops, no violations, no unbounded growth")
-        return 0
+    print(f"\nPASSED {executed} ops, no violations, no unbounded growth")
+    return 0
 
 # Replay and shrink
 
@@ -1953,7 +1973,7 @@ def ios_command(env, journal, argv, phase="run", timeout=10):
     return reply
 
 
-def ios_wait(command, kind, timeout, expected_index=None):
+def ios_wait(command, kind, timeout, expected_index=None, expected_playlist=None):
     deadline = time.monotonic() + timeout
     baseline = None
     while True:
@@ -1962,9 +1982,14 @@ def ios_wait(command, kind, timeout, expected_index=None):
         output = next(s for s in path["stages"] if s["stage"] == "output")
         player = state["player"]
         if kind in ("progress", "sustained"):
-            identity = ((state.get("currentTrack") or {}).get("url"), state["playlist"]["currentIndex"])
+            playlist = state["playlist"]
+            identity = ((state.get("currentTrack") or {}).get("url"), playlist["currentIndex"],
+                        playlist.get("structureGeneration"))
+            settled = (expected_playlist is None or
+                       (playlist["structureGeneration"] > expected_playlist[0]
+                        and playlist["folder"] == expected_playlist[1]))
             position = player["position"]
-            if (player["state"] == "playing" and not player.get("buffering", False)
+            if (settled and player["state"] == "playing" and not player.get("buffering", False)
                     and identity[0] and not state.get("ui", {}).get("trackStartPending", False)
                     and (expected_index is None or identity[1] == expected_index)):
                 # Seven seconds spans the player's six-second idle stop;
@@ -2101,24 +2126,29 @@ def run_ios(args):
         with (out / "journal.ndjson").open("w") as journal, (out / "replay.ndjson").open("w") as recipe:
             command = lambda argv: ios_command(env, journal, argv)
             expected_index = None
+            expected_playlist = None
             def perform(step):
-                nonlocal expected_index
+                nonlocal expected_index, expected_playlist
                 ios_validate_step(step)
                 recipe.write(json.dumps(step) + "\n")
                 recipe.flush()
                 if "command" in step:
                     argv = step["command"]
+                    if argv[0] == "open":
+                        expected_playlist = (command(["dump_state"])["playlist"]["structureGeneration"], str(corpus))
+                        expected_index = 0
                     command([str(corpus) if a == "$CORPUS" else a for a in argv])
                     if argv[0] == "play_index":
                         expected_index = int(argv[1])
-                    elif argv[0] in ("next", "previous", "burst", "open"):
+                    elif argv[0] in ("next", "previous", "burst"):
                         expected_index = None
                 elif step["check"] == "consistency":
                     if not command(["check_consistency"])["ok"]:
                         raise Failure("consistency", "settled consistency check failed")
                 else:
                     kind = step["check"]
-                    ios_wait(command, kind, args.ios_idle_timeout if kind == "idle" else args.ios_progress_timeout, expected_index)
+                    return ios_wait(command, kind, args.ios_idle_timeout if kind == "idle" else args.ios_progress_timeout,
+                                    expected_index, expected_playlist)
             try:
                 ios_record(journal, event="run", seed=seed, simulator=args.ios, pid=pid,
                            output=args.ios_output, corpus=str(corpus), arguments=vars(args),
@@ -2147,8 +2177,7 @@ def run_ios(args):
                     for argv in (["set_repeat", "one"], ["set_shuffle", "off"],
                                  ["set_pause_at_track_end", "off"], ["open", "$CORPUS"]):
                         perform({"command": argv})
-                    perform({"check": "progress"})
-                    state = command(["dump_state"])
+                    state = perform({"check": "progress"})
                     count = state["playlist"]["count"]
                     if count < 2 or state["player"]["duration"] < 60:
                         raise Failure("setup", "use at least two tracks; row 0 must be at least 60 seconds")
@@ -2311,8 +2340,8 @@ def main():
             if violations:
                 print("FAILED: " + "; ".join(v["id"] for v in violations))
                 return 1
-            print("PASSED")
-            return 0
+        print("PASSED")
+        return 0
     return run(args)
 
 
@@ -2322,5 +2351,5 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(line_buffering=True)
     try:
         sys.exit(main())
-    except ValueError as error:
+    except (ValueError, Failure) as error:
         sys.exit(str(error))

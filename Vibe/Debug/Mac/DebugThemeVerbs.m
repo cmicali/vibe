@@ -34,15 +34,24 @@ NSArray<NSDictionary *> *VibeDebugThemeVerbs(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            VibeDebugCmd(@"set_theme <id-or-name>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: set_theme <id-or-name>");
+            VibeDebugCmd(@"set_theme <id-or-name> [working-record-json]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                if (tokens.count < 2 || tokens.count > 3) {
+                    return VibeErrorJSON(@"usage: set_theme <id-or-name> [working-record-json]");
+                }
+                NSDictionary *working = tokens.count == 3 ? [NSJSONSerialization JSONObjectWithData:
+                        [tokens[2] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:NULL] : nil;
+                if (tokens.count == 3 && ![working isKindOfClass:NSDictionary.class]) {
+                    return VibeErrorJSON(@"working record must be a JSON object");
                 }
                 NSString *match = VibeThemeIdentifierMatching(tokens[1]);
                 if (!match) {
                     return VibeErrorJSON(@"unknown theme: %@", tokens[1]);
                 }
                 [AppSettings.sharedInstance applyThemeWithIdentifier:match];
+                if (working) {
+                    [AppSettings.sharedInstance.currentTheme replaceWithRecord:working];
+                    [AppSettings.sharedInstance currentThemeDidChange];
+                }
                 [controller applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
                 return VibeJSONString(@{@"ok": @YES, @"activeTheme": match});
             }),
@@ -96,8 +105,15 @@ NSArray<NSDictionary *> *VibeDebugThemeVerbs(void) {
             }),
             VibeDebugCmd(@"dump_theme [id-or-name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
+                    NSMutableArray *library = [NSMutableArray array];
+                    for (NSString *identifier in AppSettings.sharedInstance.orderedThemeIdentifiers) {
+                        [library addObject:@{@"id": identifier,
+                                @"name": [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier],
+                                @"record": [AppSettings.sharedInstance recordForThemeIdentifier:identifier]}];
+                    }
                     return VibeJSONString(@{@"ok": @YES,
                             @"activeTheme": AppSettings.sharedInstance.activeThemeIdentifier,
+                            @"library": library,
                             @"theme": AppSettings.sharedInstance.currentTheme.dictionaryRepresentation});
                 }
                 NSString *match = VibeThemeIdentifierMatching(tokens[1]);
