@@ -132,8 +132,8 @@ static inline NSString *VibeRepeatModeIdentifier(VibeRepeatMode mode) {
     return SETTINGS_VALUE_REPEAT_MODE_OFF;
 }
 
-// The repeat control names the mode it is in — the mac's menu title, the iOS
-// button's accessibility label — and choosing it moves to the next.
+// The iOS repeat button's accessibility label names the mode it is in, and a
+// tap moves to the next.
 static inline NSString *VibeRepeatModeTitle(VibeRepeatMode mode) {
     switch (mode) {
         case VibeRepeatModeAll: return STR_TRANSPORT_REPEAT_ALL;

@@ -27,16 +27,8 @@
 #import "SymbolButton.h"
 
 // Without a tempo: fixed wall-clock distances that ignore the bar base.
-static const NSTimeInterval kSkipSeconds = 10.0;
-static const NSTimeInterval kSkipMoreSeconds = 30.0;
-static const NSTimeInterval kSkipMostSeconds = 60.0;
 
 @implementation MainPlayerController (Transport)
-
-static double SkipBaseBars(void) {
-    NSInteger base = AppSettings.sharedInstance.skipBaseBars;
-    return base > 0 ? (double)base : 8.0;
-}
 
 - (NSTimeInterval)skipFileSecondsForBars:(double)bars fallbackWallClockSeconds:(NSTimeInterval)wallSeconds {
     return VibeSkipFileSeconds(bars,
@@ -45,28 +37,35 @@ static double SkipBaseBars(void) {
                                self.playbackRate);
 }
 
+// level 0, 1 or 2: the base distance, twice it or four times it.
+- (void)skipLevel:(NSUInteger)level forward:(BOOL)forward {
+    NSTimeInterval seconds = [self skipFileSecondsForBars:VibeSkipBars(AppSettings.sharedInstance.skipBaseBars, level)
+                                 fallbackWallClockSeconds:VibeSkipWallClockSeconds(level)];
+    [self skipByFileSeconds:forward ? seconds : -seconds];
+}
+
 - (IBAction)skipForward:(nullable id)sender {
-    [self skipByFileSeconds:[self skipFileSecondsForBars:SkipBaseBars() fallbackWallClockSeconds:kSkipSeconds]];
+    [self skipLevel:0 forward:YES];
 }
 
 - (IBAction)skipForwardMore:(nullable id)sender {
-    [self skipByFileSeconds:[self skipFileSecondsForBars:SkipBaseBars() * 2 fallbackWallClockSeconds:kSkipMoreSeconds]];
+    [self skipLevel:1 forward:YES];
 }
 
 - (IBAction)skipForwardMost:(nullable id)sender {
-    [self skipByFileSeconds:[self skipFileSecondsForBars:SkipBaseBars() * 4 fallbackWallClockSeconds:kSkipMostSeconds]];
+    [self skipLevel:2 forward:YES];
 }
 
 - (IBAction)skipBack:(nullable id)sender {
-    [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() fallbackWallClockSeconds:kSkipSeconds]];
+    [self skipLevel:0 forward:NO];
 }
 
 - (IBAction)skipBackMore:(nullable id)sender {
-    [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() * 2 fallbackWallClockSeconds:kSkipMoreSeconds]];
+    [self skipLevel:1 forward:NO];
 }
 
 - (IBAction)skipBackMost:(nullable id)sender {
-    [self skipByFileSeconds:-[self skipFileSecondsForBars:SkipBaseBars() * 4 fallbackWallClockSeconds:kSkipMostSeconds]];
+    [self skipLevel:2 forward:NO];
 }
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
@@ -247,6 +246,12 @@ static double SkipBaseBars(void) {
 - (IBAction)cycleRepeatMode:(nullable id)sender {
     AppSettings *settings = AppSettings.sharedInstance;
     settings.repeatMode = VibeRepeatModeAfter(settings.repeatMode);
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+}
+
+- (IBAction)selectRepeatMode:(nullable id)sender {
+    NSString *identifier = [sender isKindOfClass:NSMenuItem.class] ? ((NSMenuItem *)sender).identifier : nil;
+    AppSettings.sharedInstance.repeatMode = VibeRepeatModeForMenuIdentifier(identifier);
     [self applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 

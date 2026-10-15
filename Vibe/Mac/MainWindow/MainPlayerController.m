@@ -740,10 +740,6 @@ static const NSTimeInterval kNoticeSeconds = 4;
     [self close];
 }
 
-- (IBAction)minimizeWindow:(id)sender {
-    [self.window miniaturize:sender];
-}
-
 // Only the Add well appends; an append to an empty playlist becomes a
 // replacing play in addTracks: anyway.
 - (BOOL)mainWindow:(MainWindow *)mainWindow dropAppendsAtLocation:(NSPoint)location {

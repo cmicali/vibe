@@ -124,12 +124,12 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuEditCopyName,      @(VibeShortcutMakeCharacter('c', cmd | NSEventModifierFlagShift))],
             @[kVibeMenuEditRemoveFromPlaylist, @(VibeShortcutMake(kVibeKeyCodeDelete, 0))],
             @[kVibeMenuConvertToFLAC,     @(kVibeShortcutNone)],
-            @[kVibeMenuConvertDeleteOriginal, @(kVibeShortcutNone)],
             // Last: a default added later loses its key to an override stored
             // before it. A duplicate resolves in table order.
-            @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('u', cmd))],
+            @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('l', cmd))],
             @[kVibeMenuEditMoveToTrash,   @(VibeShortcutMake(kVibeKeyCodeDelete, cmd))],
             @[kVibeMenuAddToPlaylist,     @(VibeShortcutMakeCharacter('o', cmd | NSEventModifierFlagShift))],
+            @[kVibeMenuShowInFinder,      @(VibeShortcutMakeCharacter('r', cmd | NSEventModifierFlagShift))],
         ];
     });
     return table;
@@ -202,7 +202,7 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
     NSEventModifierFlags cmd = NSEventModifierFlagCommand;
     if (modifiers == cmd) {
         switch (character) {
-            case ',': case 'h': case 'q': case 'w': case 'z': case 'x': case 'c': case 'v': case 'a':
+            case ',': case 'h': case 'q': case 'w': case 'z': case 'x': case 'c': case 'v': case 'a': case 'm':
                 return YES;
         }
         return NO;

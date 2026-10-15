@@ -50,8 +50,51 @@
                               kVibeMenuEditMoveToTrash]
                    classify:VibeMenuValidationDomainEdit];
 
-    [self assertIdentifiers:@[kVibeMenuConvertToFLAC, kVibeMenuConvertDeleteOriginal]
+    [self assertIdentifiers:@[kVibeMenuConvertToFLAC]
                    classify:VibeMenuValidationDomainConvert];
+
+    [self assertIdentifiers:@[kVibeMenuShuffle, kVibeMenuRepeat,
+                              VibeRepeatMenuIdentifier(VibeRepeatModeOff),
+                              VibeRepeatMenuIdentifier(VibeRepeatModeAll),
+                              VibeRepeatMenuIdentifier(VibeRepeatModeOne)]
+                   classify:VibeMenuValidationDomainPlayOrder];
+}
+
+- (void)testEachRepeatModeRoundTripsThroughItsIdentifier {
+    for (NSNumber *boxed in @[@(VibeRepeatModeOff), @(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
+        VibeRepeatMode mode = (VibeRepeatMode)boxed.integerValue;
+        XCTAssertEqual(VibeRepeatModeForMenuIdentifier(VibeRepeatMenuIdentifier(mode)), mode);
+    }
+    // The submenu's own item and a stranger name no mode.
+    XCTAssertEqual(VibeRepeatModeForMenuIdentifier(kVibeMenuRepeat), VibeRepeatModeOff);
+    XCTAssertEqual(VibeRepeatModeForMenuIdentifier(nil), VibeRepeatModeOff);
+}
+
+// The View items read Show or Hide; the window-state toggles keep a checkmark
+// and no title rule.
+- (void)testViewPanelItemsRetitleShowAndHide {
+    XCTAssertEqualObjects(VibeViewToggleTitle(kVibeMenuShowPlaylist, NO), STR_MENU_VIEW_PLAYLIST);
+    XCTAssertEqualObjects(VibeViewToggleTitle(kVibeMenuShowPlaylist, YES), STR_MENU_VIEW_HIDE_PLAYLIST);
+    XCTAssertEqualObjects(VibeViewToggleTitle(kVibeMenuShowPitch, NO), STR_MENU_VIEW_PITCH_CONTROL);
+    XCTAssertEqualObjects(VibeViewToggleTitle(kVibeMenuShowPitch, YES), STR_MENU_VIEW_HIDE_PITCH_CONTROL);
+    XCTAssertNil(VibeViewToggleTitle(kVibeMenuAlwaysOnTop, YES));
+    XCTAssertNil(VibeViewToggleTitle(kVibeMenuLockWindowPosition, NO));
+}
+
+// A skip names its distance: the base bar count, twice and four times it
+// with a tempo, else 10, 30 and 60 seconds. A base of 0 is unset and reads 8.
+- (void)testSkipItemsNameTheirDistance {
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBack, 4, YES), @"Skip Back 4 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBackMore, 4, YES), @"Skip Back 8 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBackMost, 16, YES), @"Skip Back 64 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForward, 0, YES), @"Skip Forward 8 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMore, 8, YES), @"Skip Forward 16 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMost, 8, YES), @"Skip Forward 32 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBack, 8, NO), @"Skip Back 10 Seconds");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMore, 8, NO), @"Skip Forward 30 Seconds");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMost, 8, NO), @"Skip Forward 60 Seconds");
+    XCTAssertNil(VibeSkipMenuTitle(kVibeMenuNextTrack, 8, YES));
+    XCTAssertNil(VibeSkipMenuTitle(nil, 8, NO));
 }
 
 // Matched by prefix, so a preset or theme added later is classified without
@@ -79,11 +122,14 @@
                               @"menu_fx", @"menu_edit_select_all", @"menu_next_trak",
                               kVibeMenuThemeSubmenu, @"view_size", @"", @"menu_",
                               // Nobody's: a waveform-style identifier, the app
-                              // delegate's Edit tail, and a second Convert item
+                              // delegate's Edit tail, a second Convert item
                               // (Cancel Conversion is kVibeMenuConvertToFLAC
-                              // re-aimed in validation).
+                              // re-aimed in validation), the preference that
+                              // left the menu bar for Settings > Files, and
+                              // the row menu's Play.
                               @"waveform_style_detailed", kVibeMenuEditThemes,
-                              @"menu_convert_cancel"]
+                              @"menu_convert_cancel", @"menu_convert_delete_original",
+                              @"play_clicked_track"]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }
@@ -128,7 +174,7 @@
 - (void)testFileMenuTitlesAndKeyWindowGate {
     XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuPlay, 1, YES), STR_TRANSPORT_PAUSE);
     XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuPlay, 1, NO), STR_TRANSPORT_PLAY);
-    XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuClose, 2, NO), STR_MENU_FILE_CLOSE_ALL);
+    XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuClose, 2, NO), STR_MENU_PLAYLIST_CLEAR);
     XCTAssertEqualObjects(VibeFileMenuTitle(kVibeMenuClose, 1, NO), STR_MENU_FILE_CLOSE);
     for (NSUInteger count = 0; count < 3; count++) {
         XCTAssertEqual(VibeFileMenuEnabled(kVibeMenuPlay, count, NO, NO), count > 0);

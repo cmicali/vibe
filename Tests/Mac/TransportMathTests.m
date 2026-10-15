@@ -8,6 +8,21 @@
 
 @implementation TransportMathTests
 
+#pragma mark - The three distances
+
+// Level 0, 1 and 2 double the base; an unset base of 0 reads 8.
+- (void)testTheThreeLevelsDoubleTheBaseAndAnUnsetBaseReadsEight {
+    XCTAssertEqual(VibeSkipBars(4, 0), 4);
+    XCTAssertEqual(VibeSkipBars(4, 1), 8);
+    XCTAssertEqual(VibeSkipBars(4, 2), 16);
+    XCTAssertEqual(VibeSkipBars(16, 2), 64);
+    XCTAssertEqual(VibeSkipBars(0, 0), 8);
+    XCTAssertEqual(VibeSkipBars(0, 2), 32);
+    XCTAssertEqualWithAccuracy(VibeSkipWallClockSeconds(0), 10.0, 1e-9);
+    XCTAssertEqualWithAccuracy(VibeSkipWallClockSeconds(1), 30.0, 1e-9);
+    XCTAssertEqualWithAccuracy(VibeSkipWallClockSeconds(2), 60.0, 1e-9);
+}
+
 #pragma mark - Bar-aligned
 
 - (void)testOneBarAtOneTwentyIsTwoSeconds {

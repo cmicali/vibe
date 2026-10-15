@@ -201,9 +201,6 @@
         [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
                 ? nil : [MainMenuBuilder displayStringForShortcut:open]];
     }
-    if (effects & VibeSettingsLiveEffectConvertMenu) {
-        [MainMenuBuilder applyConvertMenuVisibility];
-    }
     if (effects & (VibeSettingsLiveEffectBitPerfect | VibeSettingsLiveEffectFXControls)) {
         if (updatingOutputModes) {
             [self.audioPlayer setBitPerfectOutput:settings.bitPerfectOutput

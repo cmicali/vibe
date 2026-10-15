@@ -8,6 +8,7 @@
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+Convert.h" // the two actions the Convert item swaps between
 #import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Transport.h" // cycleRepeatMode:, the Repeat key's
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
 #import "MainMenuBuilder.h"
 #import "MenuValidationRules.h"
@@ -24,22 +25,6 @@
 #import "PlaceholderFiles.h"
 #import "VibeStrings.h"
 
-// Validation runs on every menu open and every bound keypress, a held skip
-// key's at key-repeat rate, so each symbol is built once. Its description is
-// the title it first draws beside, which the symbol alone decides.
-static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
-    static NSMutableDictionary<NSString *, NSImage *> *images;
-    if (!images) {
-        images = [NSMutableDictionary dictionary];
-    }
-    NSImage *image = images[symbol];
-    if (!image) {
-        image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:description];
-        images[symbol] = image;
-    }
-    return image;
-}
-
 @implementation MainPlayerController (Menus)
 
 - (BOOL)performMenuItem:(NSMenuItem *)item {
@@ -55,6 +40,11 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
 }
 
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
+    // Repeat is a submenu, whose own item performs nothing: its key cycles.
+    if ([identifier isEqualToString:kVibeMenuRepeat]) {
+        [self cycleRepeatMode:nil];
+        return YES;
+    }
     NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
     if (!item) {
         return NO;
@@ -111,10 +101,10 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
 - (void)applyViewToggleStateToMenuItem:(NSMenuItem *)menuItem {
     MainWindow *window = (MainWindow *)self.window;
     if ([menuItem.identifier isEqualToString:kVibeMenuShowPlaylist]) {
-        menuItem.state = StateForBOOL(window.isPlaylistShown);
+        menuItem.title = VibeViewToggleTitle(menuItem.identifier, window.isPlaylistShown);
     }
     else if ([menuItem.identifier isEqualToString:kVibeMenuShowPitch]) {
-        menuItem.state = StateForBOOL(window.isPitchPanelShown);
+        menuItem.title = VibeViewToggleTitle(menuItem.identifier, window.isPitchPanelShown);
     }
     else if ([menuItem.identifier isEqualToString:kVibeMenuAlwaysOnTop]) {
         menuItem.state = StateForBOOL(AppSettings.sharedInstance.alwaysOnTop);
@@ -165,10 +155,8 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
         menuItem.state = StateForBOOL(settings.shuffleEnabled);
         return;
     }
-    VibeRepeatMode mode = settings.repeatMode;
-    menuItem.title = VibeRepeatModeTitle(mode);
-    menuItem.state = StateForBOOL(mode != VibeRepeatModeOff);
-    menuItem.image = MenuSymbolImage(VibeRepeatModeSymbolName(mode), menuItem.title);
+    // The Repeat submenu's radio mark.
+    menuItem.state = StateForBOOL(VibeRepeatModeForMenuIdentifier(menuItem.identifier) == settings.repeatMode);
 }
 
 #pragma mark - Conditional domains
@@ -184,6 +172,10 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
 }
 
 - (BOOL)validateTransportMenuItem:(NSMenuItem *)menuItem {
+    // A skip names its distance in bars while the tempo is known.
+    NSString *title = VibeSkipMenuTitle(menuItem.identifier, AppSettings.sharedInstance.skipBaseBars,
+                                        self.playlistController.currentTrack.bpm > 0);
+    if (title) menuItem.title = title;
     return VibeTransportMenuEnabled(menuItem.identifier, self.playlistController.hasNextTrack,
             VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
                     self.playlistController.currentTrack != nil, self.audioPlayer.isStopped),
@@ -195,9 +187,6 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
     NSString *title = VibeFileMenuTitle(menuItem.identifier, self.playlistController.count,
             self.audioPlayer.isPlaying);
     if (title) menuItem.title = title;
-    if ([menuItem.identifier isEqualToString:kVibeMenuPlay]) {
-        menuItem.image = MenuSymbolImage(self.audioPlayer.isPlaying ? @"pause.fill" : @"play.fill", menuItem.title);
-    }
     return VibeFileMenuEnabled(menuItem.identifier, self.playlistController.count,
             self.window.isKeyWindow, self.playlistController.currentTrack.url != nil);
 }
@@ -219,13 +208,8 @@ static NSImage *MenuSymbolImage(NSString *symbol, NSString *description) {
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
-    // A preference, never disabled.
-    if ([menuItem.identifier isEqualToString:kVibeMenuConvertDeleteOriginal]) {
-        menuItem.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
-        return YES;
-    }
-    // Shared with the window-body context menu. Hiding it here is how the
-    // context menus follow the Convert setting live.
+    // The File item and the window-body context menu's share this. Hiding it
+    // here is how both follow the Convert setting live.
     NSString *path = self.playlistController.currentTrack.url.path;
     menuItem.hidden = VibeConvertMenuItemHidden(AppSettings.sharedInstance.convertEnabled,
                                                 path && VibePathIsUnderRemotePlaceholderRoot(path));

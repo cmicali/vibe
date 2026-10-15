@@ -294,9 +294,11 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     // Dvorak – QWERTY ⌘: the key that types r types o under Command, and is Open.
     XCTAssertNil([monitor handleKeyEvent:[self command:kKeyO typed:@"o" unmodified:@"r" modifiers:kCmd repeat:NO]
                                 inWindow:self.window]);
+    // Shift is part of the set: ⇧⌘R is Show in Finder, not Repeat.
     NSEvent *shifted = [self command:kKeyR typed:@"r" unmodified:@"R" modifiers:kCmd | NSEventModifierFlagShift repeat:NO];
-    XCTAssertEqual([monitor handleKeyEvent:shifted inWindow:self.window], shifted, @"⇧⌘R is unbound");
-    XCTAssertEqualObjects(self.commands, (@[kVibeMenuRepeat, kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen]));
+    XCTAssertNil([monitor handleKeyEvent:shifted inWindow:self.window]);
+    XCTAssertEqualObjects(self.commands, (@[kVibeMenuRepeat, kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen,
+                                            kVibeMenuShowInFinder]));
 
     // Re-recorded as a key code, Repeat holds the same way.
     [self.commands removeAllObjects];

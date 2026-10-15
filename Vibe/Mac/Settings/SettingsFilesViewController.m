@@ -286,8 +286,8 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 #pragma mark - Actions
 
 - (void)toggleConversion:(VibeSwitch *)sender {
+    // The File and context menu items hide themselves in validation.
     AppSettings.sharedInstance.convertEnabled = sender.state == NSControlStateValueOn;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectConvertMenu];
     [self refreshFromSettings];
 }
 

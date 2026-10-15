@@ -2234,7 +2234,7 @@
       "extractionState": "manual"
     },
     "a11y.window.minimize": {
-      "comment": "Accessibility label for the window's minimize button.",
+      "comment": "Window menu item that minimizes the front window to the Dock, and the accessibility label of the player window's minimize button. macOS uses this same name in every app.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -20461,6 +20461,192 @@
       },
       "extractionState": "manual"
     },
+    "menu.app.send_feedback": {
+      "comment": "App menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature. Use the wording Apple's own apps use for sending feedback. Ends with a real ellipsis character (…), not three periods.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send Feedback…"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изпращане на обратна връзка…"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odeslat zpětnou vazbu…"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send feedback…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feedback senden…"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αποστολή σχολίων…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar comentarios…"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lähetä palautetta…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envoyer des commentaires…"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pošalji povratne informacije…"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visszajelzés küldése…"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kirim Masukan…"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invia feedback…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィードバックを送信…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피드백 보내기…"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send tilbakemelding…"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stuur feedback…"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wyślij opinię…"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar Feedback…"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar comentários…"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trimiteți feedback…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отправить отзыв…"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odoslať spätnú väzbu…"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skicka feedback…"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ส่งคำติชม…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geri Bildirim Gönder…"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Надіслати відгук…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi phản hồi…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送反馈…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "傳送意見回饋…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.app.services": {
       "comment": "App menu: submenu of system Services. macOS uses this same name in every app.",
       "localizations": {
@@ -22136,7 +22322,7 @@
       "extractionState": "manual"
     },
     "menu.context.show_in_finder": {
-      "comment": "Context menu item: reveals the track's file in the Finder. Matches the Finder's own wording.",
+      "comment": "File menu and context menu item: reveals the track's file in the Finder. Matches the Finder's own wording.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22321,194 +22507,8 @@
       },
       "extractionState": "manual"
     },
-    "menu.convert": {
-      "comment": "Menu bar: the Convert menu.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Конвертиране"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Převést"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konverter"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konvertieren"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Μετατροπή"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Convert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Convertir"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muunna"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Convertir"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konverzija"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konvertálás"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konversi"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Converti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "変換"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "변환"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konverter"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Converteer"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konwersja"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Converter"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Converter"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conversie"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Конвертация"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konverzia"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konvertera"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แปลง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dönüştür"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Конвертація"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chuyển đổi"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "转换"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "轉換"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "menu.convert.cancel": {
-      "comment": "Convert menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.",
+      "comment": "File menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -22693,194 +22693,8 @@
       },
       "extractionState": "manual"
     },
-    "menu.convert.delete_original": {
-      "comment": "Convert menu item: a checkmarked preference — when on, a successful conversion moves the original file to the Trash.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Изтрий оригинала след конвертиране"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Po převodu smazat originál"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Slet originalen efter konvertering"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Original nach Konvertierung löschen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Διαγραφή πρωτότυπου μετά τη μετατροπή"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete Original After Convert"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar el original tras convertir"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poista alkuperäinen muuntamisen jälkeen"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supprimer l’original après la conversion"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Izbriši original nakon konverzije"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eredeti törlése konvertálás után"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hapus File Asli Setelah Konversi"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elimina l’originale dopo la conversione"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "変換後にオリジナルを削除"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "변환 후 원본 삭제"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Slett originalen etter konvertering"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verwijder origineel na conversie"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usuń oryginał po konwersji"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apagar Original Após a Conversão"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apagar o original após a conversão"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ștergeți originalul după conversie"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удалять оригинал после конвертации"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vymazať originál po konverzii"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Radera originalet efter konvertering"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ลบไฟล์ต้นฉบับหลังแปลง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dönüştürmeden Sonra Orijinali Sil"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Видаляти оригінал після конвертації"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xóa tệp gốc sau khi chuyển đổi"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "转换后删除原始文件"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "轉換後刪除原始檔案"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "menu.convert.flac_exists": {
-      "comment": "Convert menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.",
+      "comment": "File menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23066,7 +22880,7 @@
       "extractionState": "manual"
     },
     "menu.convert.to_flac": {
-      "comment": "Convert menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.",
+      "comment": "File menu and context menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23252,7 +23066,7 @@
       "extractionState": "manual"
     },
     "menu.edit": {
-      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist, and Select All.",
+      "comment": "Menu bar: the Edit menu. Holds Undo, Redo, Cut, Copy, Copy Name, Paste, Remove from Playlist, and Select All.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23437,8 +23251,194 @@
       },
       "extractionState": "manual"
     },
+    "menu.edit.copy": {
+      "comment": "Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Копиране"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopírovat"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopier"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αντιγραφή"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopioi"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copier"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiraj"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Másolás"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salin"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コピー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복사"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopier"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieer"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiuj"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiați"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopírovať"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopiera"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "คัดลอก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyala"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопіювати"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao chép"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷贝"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷貝"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.edit.copy_file": {
-      "comment": "Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.",
+      "comment": "Playlist row menu item: puts the clicked track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -23996,7 +23996,7 @@
       "extractionState": "manual"
     },
     "menu.edit.move_to_trash": {
-      "comment": "Edit menu and playlist row menu item: moves the selected tracks' audio files to the Trash and removes their rows. Use the Finder's own File > Move to Trash wording in your language.",
+      "comment": "File menu and playlist row menu item: moves the selected tracks' audio files to the Trash and removes their rows. Use the Finder's own File > Move to Trash wording in your language.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25670,7 +25670,7 @@
       "extractionState": "manual"
     },
     "menu.file.close": {
-      "comment": "File menu item: unloads the current track. Becomes 'Close All Files' when more than one is loaded — two independent strings, not a plural; the count is never shown.",
+      "comment": "File menu item: unloads the current track. Becomes 'Clear Playlist' when more than one is loaded — two independent strings, not a plural; the count is never shown.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -25850,192 +25850,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "關閉檔案"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "menu.file.close_all": {
-      "comment": "File menu item: unloads the whole playlist. Replaces 'Close File' when more than one track is loaded.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Затвори всички файлове"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zavřít všechny soubory"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Luk alle filer"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alle Dateien schließen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Κλείσιμο όλων των αρχείων"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close All Files"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cerrar todos los archivos"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sulje kaikki tiedostot"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fermer tous les fichiers"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zatvori sve datoteke"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Az összes fájl bezárása"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tutup Semua File"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chiudi tutti i file"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべてのファイルを閉じる"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "모든 파일 닫기"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lukk alle filer"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sluit alle bestanden"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zamknij wszystkie pliki"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fechar Todos os Arquivos"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fechar todos os ficheiros"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Închideți toate fișierele"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закрыть все файлы"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zavrieť všetky súbory"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stäng alla filer"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ปิดไฟล์ทั้งหมด"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tüm Dosyaları Kapat"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закрити всі файли"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đóng tất cả tệp"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关闭所有文件"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "關閉所有檔案"
           }
         }
       },
@@ -26600,186 +26414,186 @@
       "extractionState": "manual"
     },
     "menu.file.open_url": {
-      "comment": "File menu item: asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.",
+      "comment": "File menu item: asks for the web address of an audio file, then plays it. Use the wording of QuickTime Player's and Safari's File > Open Location… in your language. Ends with a real ellipsis character (…), not three periods.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отвори URL…"
+            "value": "Отваряне на адрес…"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Otevřít URL…"
+            "value": "Otevřít adresu…"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Åbn URL…"
+            "value": "Åbn adresse…"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "URL öffnen…"
+            "value": "Adresse öffnen…"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Άνοιγμα URL…"
+            "value": "Άνοιγμα τοποθεσίας…"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open URL…"
+            "value": "Open Location…"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir URL…"
+            "value": "Abrir ubicación…"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avaa URL…"
+            "value": "Avaa sijainti…"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouvrir l’URL…"
+            "value": "Ouvrir l’adresse…"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Otvori URL…"
+            "value": "Otvori lokaciju…"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "URL megnyitása…"
+            "value": "Hely megnyitása…"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buka URL…"
+            "value": "Buka Lokasi…"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apri URL…"
+            "value": "Apri posizione…"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "URLを開く…"
+            "value": "場所を開く…"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "URL 열기…"
+            "value": "위치 열기…"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Åpne URL…"
+            "value": "Åpne adresse…"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open URL…"
+            "value": "Open locatie…"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Otwórz URL…"
+            "value": "Otwórz adres…"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir URL…"
+            "value": "Abrir Localização…"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir URL…"
+            "value": "Abrir localização…"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deschideți URL…"
+            "value": "Deschideți locația…"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Открыть URL…"
+            "value": "Открыть адрес…"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Otvoriť URL…"
+            "value": "Otvoriť adresu…"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öppna URL…"
+            "value": "Öppna plats…"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เปิด URL…"
+            "value": "เปิดตำแหน่ง…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "URL’yi Aç…"
+            "value": "Konumu Aç…"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Відкрити URL…"
+            "value": "Відкрити адресу…"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mở URL…"
+            "value": "Mở vị trí…"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "打开 URL…"
+            "value": "打开位置…"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "打開 URL…"
+            "value": "打開位置…"
           }
         }
       },
@@ -28087,566 +27901,8 @@
       },
       "extractionState": "manual"
     },
-    "menu.help": {
-      "comment": "Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Помощ"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nápověda"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hjælp"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hilfe"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Βοήθεια"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Help"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ayuda"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ohjeet"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aide"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pomoć"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Súgó"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bantuan"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aiuto"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ヘルプ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "도움말"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hjelp"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Help"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pomoc"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajuda"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajuda"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajutor"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Справка"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pomocník"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hjälp"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ความช่วยเหลือ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yardım"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Довідка"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trợ giúp"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "帮助"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輔助說明"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "menu.help.support": {
-      "comment": "Help menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Съобщи за проблем или предложи функция"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nahlásit problém nebo navrhnout funkci"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rapporter et problem eller foreslå en funktion"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Problem melden oder Funktion vorschlagen"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Αναφορά προβλήματος ή αίτημα δυνατότητας"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Report Issue or Feature Request"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Informar de un problema o solicitar una función"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ilmoita ongelmasta tai ehdota ominaisuutta"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signaler un problème ou suggérer une fonctionnalité"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prijavi problem ili predloži značajku"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hiba jelentése vagy funkció kérése"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Laporkan Masalah atau Minta Fitur"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Segnala un problema o richiedi una funzionalità"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "問題の報告または機能のリクエスト"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "문제 신고 또는 기능 요청"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rapporter et problem eller foreslå en funksjon"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meld een probleem of vraag een functie aan"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zgłoś problem lub zaproponuj funkcję"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relatar um problema ou sugerir um recurso"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comunicar um problema ou sugerir uma funcionalidade"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Raportați o problemă sau solicitați o funcționalitate"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сообщить о проблеме или предложить функцию"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nahlásiť problém alebo navrhnúť funkciu"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rapportera ett problem eller föreslå en funktion"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "รายงานปัญหาหรือขอคุณสมบัติใหม่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sorun Bildir veya Özellik İste"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Повідомити про проблему або запропонувати функцію"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Báo cáo sự cố hoặc yêu cầu tính năng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "报告问题或提出功能请求"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回報問題或提出功能要求"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "menu.output": {
-      "comment": "Menu bar: the menu selecting the audio output device.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Аудиоизход"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Výstup"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Output"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ausgabe"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Έξοδος"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Output"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Salida"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ulostulo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sortie"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Izlaz"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kimenet"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Output"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uscita"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "出力"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "출력"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utgang"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uitvoer"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wyjście"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saída"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Saída"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ieșire"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вывод"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Výstup"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utmatning"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เอาต์พุต"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çıkış"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вихід"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đầu ra"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "输出"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "輸出"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
     "menu.output.system": {
-      "comment": "Output menu item: follow the system's default output device, used when its name is unknown.",
+      "comment": "Playback > Audio Output submenu item: follow the system's default output device, used when its name is unknown.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -28832,7 +28088,7 @@
       "extractionState": "manual"
     },
     "menu.output.system_named": {
-      "comment": "Output menu item: follow the system's default output device. %@ is that device's name.",
+      "comment": "Playback > Audio Output submenu item: follow the system's default output device. %@ is that device's name.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -29390,372 +28646,372 @@
       "extractionState": "manual"
     },
     "menu.playback.pitch_range.16": {
-      "comment": "Pitch Range submenu item: a ±16% fader range. Matches the printed scale on the fader itself.",
+      "comment": "Pitch Range submenu item: a fader range of 16% above and below. Keep the ± sign.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "16 %"
+            "value": "±16 %"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "16%"
+            "value": "±16%"
           }
         }
       },
       "extractionState": "manual"
     },
     "menu.playback.pitch_range.8": {
-      "comment": "Pitch Range submenu item: a ±8% fader range. Matches the printed scale on the fader itself.",
+      "comment": "Pitch Range submenu item: a fader range of 8% above and below. Keep the ± sign.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "8 %"
+            "value": "±8 %"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "8%"
+            "value": "±8%"
           }
         }
       },
@@ -29947,1124 +29203,1310 @@
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_back": {
-      "comment": "Playback menu item: seek backward a short step.",
+    "menu.playback.repeat.all": {
+      "comment": "Repeat submenu item: after the last track the playlist plays again from the start.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти назад"
+            "value": "Всички"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit zpět"
+            "value": "Vše"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop tilbage"
+            "value": "Alle"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zurückspringen"
+            "value": "Alle"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πίσω"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Back"
+            "value": "Όλα"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder"
+            "value": "Todo"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää taaksepäin"
+            "value": "Kaikki"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reculer"
+            "value": "Tout"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči natrag"
+            "value": "Sve"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás vissza"
+            "value": "Mind"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Mundur"
+            "value": "Semua"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indietro"
+            "value": "Tutto"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "少し戻る"
+            "value": "すべて"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "조금 뒤로 이동"
+            "value": "전체"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp bakover"
+            "value": "Alle"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring terug"
+            "value": "Alles"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń do tyłu"
+            "value": "Wszystkie"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder"
+            "value": "Tudo"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder"
+            "value": "Tudo"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înapoi"
+            "value": "Toate"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать назад"
+            "value": "Все"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť dozadu"
+            "value": "Všetko"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa bakåt"
+            "value": "Alla"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอกลับ"
+            "value": "ทั้งหมด"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geri Atla"
+            "value": "Tümü"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати назад"
+            "value": "Усі"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua lùi"
+            "value": "Tất cả"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "后退一小段"
+            "value": "全部"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "倒退一小段"
+            "value": "全部"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_back_more": {
-      "comment": "Playback menu item: seek backward a medium step, larger than 'Skip Back'.",
+    "menu.playback.repeat.off": {
+      "comment": "Repeat submenu item: playback stops at the end of the playlist.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти още назад"
+            "value": "Изключено"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit dále zpět"
+            "value": "Vypnuto"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop længere tilbage"
+            "value": "Fra"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Weiter zurückspringen"
+            "value": "Aus"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πιο πίσω"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Back More"
+            "value": "Ανενεργή"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder más"
+            "value": "No"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää kauemmas taaksepäin"
+            "value": "Pois"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reculer davantage"
+            "value": "Non"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči natrag više"
+            "value": "Isključeno"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nagyobb ugrás vissza"
+            "value": "Ki"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Mundur Lebih Jauh"
+            "value": "Mati"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indietro di più"
+            "value": "No"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "もっと戻る"
+            "value": "オフ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "더 뒤로 이동"
+            "value": "끔"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp lenger bakover"
+            "value": "Av"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring verder terug"
+            "value": "Uit"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń dalej do tyłu"
+            "value": "Wyłączone"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder Mais"
+            "value": "Desativado"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder mais"
+            "value": "Desativado"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înapoi mai mult"
+            "value": "Dezactivată"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать дальше назад"
+            "value": "Выключен"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť ďalej dozadu"
+            "value": "Vypnuté"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa längre bakåt"
+            "value": "Av"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอกลับมากขึ้น"
+            "value": "ปิด"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Daha Geri Atla"
+            "value": "Kapalı"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати далі назад"
+            "value": "Вимкнено"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua lùi xa hơn"
+            "value": "Tắt"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "后退一段"
+            "value": "关闭"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "倒退一段"
+            "value": "關閉"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_back_most": {
-      "comment": "Playback menu item: seek backward the largest step.",
+    "menu.playback.repeat.one": {
+      "comment": "Repeat submenu item: the current track replays when it ends.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти много назад"
+            "value": "Една"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit nejdále zpět"
+            "value": "Jednu"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop endnu længere tilbage"
+            "value": "Én"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ganz weit zurückspringen"
+            "value": "Eins"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πολύ πίσω"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Back Most"
+            "value": "Ένα"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder al máximo"
+            "value": "Una"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää kauimmas taaksepäin"
+            "value": "Yksi"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reculer au maximum"
+            "value": "Un"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči natrag najviše"
+            "value": "Jedna"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Legnagyobb ugrás vissza"
+            "value": "Egy"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Mundur Paling Jauh"
+            "value": "Satu"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indietro al massimo"
+            "value": "Uno"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "大きく戻る"
+            "value": "1曲"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "크게 뒤로 이동"
+            "value": "한 곡"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp enda lenger bakover"
+            "value": "Én"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring het verst terug"
+            "value": "Eén"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń najdalej do tyłu"
+            "value": "Jeden"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder Ainda Mais"
+            "value": "Uma"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder ainda mais"
+            "value": "Uma"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înapoi foarte mult"
+            "value": "Una"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать далеко назад"
+            "value": "Одна"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť najďalej dozadu"
+            "value": "Jednu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa ännu längre bakåt"
+            "value": "En"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอกลับมากที่สุด"
+            "value": "หนึ่งเพลง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çok Daha Geri Atla"
+            "value": "Bir"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати далеко назад"
+            "value": "Одна"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua lùi xa nhất"
+            "value": "Một"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "后退一大段"
+            "value": "单曲"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "倒退一大段"
+            "value": "單曲"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_forward": {
-      "comment": "Playback menu item: seek forward a short step.",
+    "menu.playback.skip_back_bars": {
+      "comment": "Playback menu item: seek backward a whole number of musical bars. %ld is the count, 4 to 64, never 1.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Back %ld Bars"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти напред"
+            "value": "Превърти назад %ld такта"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit vpřed"
+            "value": "Skočit zpět o %ld taktů"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop frem"
+            "value": "Hop %ld takter tilbage"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vorspringen"
+            "value": "%ld Takte zurückspringen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση εμπρός"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Forward"
+            "value": "Μεταπήδηση πίσω %ld μέτρα"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanzar"
+            "value": "Retroceder %ld compases"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää eteenpäin"
+            "value": "Hyppää %ld tahtia taaksepäin"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avancer"
+            "value": "Reculer de %ld mesures"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči naprijed"
+            "value": "Preskoči %ld taktova natrag"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás előre"
+            "value": "Ugrás vissza %ld ütemet"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Maju"
+            "value": "Lompat Mundur %ld Bar"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanti"
+            "value": "Indietro di %ld battute"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "少し進む"
+            "value": "%ld小節戻る"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "조금 앞으로 이동"
+            "value": "%ld마디 뒤로 이동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp fremover"
+            "value": "Hopp %ld takter bakover"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring vooruit"
+            "value": "Spring %ld maten terug"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń do przodu"
+            "value": "Przewiń do tyłu o %ld taktów"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar"
+            "value": "Retroceder %ld Compassos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar"
+            "value": "Retroceder %ld compassos"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înainte"
+            "value": "Săriți înapoi %ld măsuri"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать вперед"
+            "value": "Перемотать назад на %ld тактов"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť dopredu"
+            "value": "Skočiť dozadu o %ld taktov"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa framåt"
+            "value": "Hoppa %ld takter bakåt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอไปข้างหน้า"
+            "value": "กรอกลับ %ld ห้อง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İleri Atla"
+            "value": "%ld Ölçü Geri Atla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати вперед"
+            "value": "Перемотати назад на %ld тактів"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua tới"
+            "value": "Tua lùi %ld ô nhịp"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "前进一小段"
+            "value": "后退 %ld 小节"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "前進一小段"
+            "value": "倒退 %ld 小節"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_forward_more": {
-      "comment": "Playback menu item: seek forward a medium step, larger than 'Skip Forward'.",
+    "menu.playback.skip_back_seconds": {
+      "comment": "Playback menu item: seek backward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Back %ld Seconds"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти още напред"
+            "value": "Превърти назад %ld секунди"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit dále vpřed"
+            "value": "Skočit zpět o %ld sekund"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop længere frem"
+            "value": "Hop %ld sekunder tilbage"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Weiter vorspringen"
+            "value": "%ld Sekunden zurückspringen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πιο εμπρός"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Forward More"
+            "value": "Μεταπήδηση πίσω %ld δευτερόλεπτα"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanzar más"
+            "value": "Retroceder %ld segundos"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää kauemmas eteenpäin"
+            "value": "Hyppää %ld sekuntia taaksepäin"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avancer davantage"
+            "value": "Reculer de %ld secondes"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči naprijed više"
+            "value": "Preskoči %ld sekundi natrag"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nagyobb ugrás előre"
+            "value": "Ugrás vissza %ld másodpercet"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Maju Lebih Jauh"
+            "value": "Lompat Mundur %ld Detik"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanti di più"
+            "value": "Indietro di %ld secondi"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "もっと進む"
+            "value": "%ld秒戻る"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "더 앞으로 이동"
+            "value": "%ld초 뒤로 이동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp lenger fremover"
+            "value": "Hopp %ld sekunder bakover"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring verder vooruit"
+            "value": "Spring %ld seconden terug"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń dalej do przodu"
+            "value": "Przewiń do tyłu o %ld sekund"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar Mais"
+            "value": "Retroceder %ld Segundos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar mais"
+            "value": "Retroceder %ld segundos"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înainte mai mult"
+            "value": "Săriți înapoi %ld secunde"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать дальше вперед"
+            "value": "Перемотать назад на %ld секунд"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť ďalej dopredu"
+            "value": "Skočiť dozadu o %ld sekúnd"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa längre framåt"
+            "value": "Hoppa %ld sekunder bakåt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอไปข้างหน้ามากขึ้น"
+            "value": "กรอกลับ %ld วินาที"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Daha İleri Atla"
+            "value": "%ld Saniye Geri Atla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати далі вперед"
+            "value": "Перемотати назад на %ld секунд"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua tới xa hơn"
+            "value": "Tua lùi %ld giây"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "前进一段"
+            "value": "后退 %ld 秒"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "前進一段"
+            "value": "倒退 %ld 秒"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_forward_most": {
-      "comment": "Playback menu item: seek forward the largest step.",
+    "menu.playback.skip_forward_bars": {
+      "comment": "Playback menu item: seek forward a whole number of musical bars. %ld is the count, 4 to 64, never 1.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Forward %ld Bars"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти много напред"
+            "value": "Превърти напред %ld такта"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit nejdále vpřed"
+            "value": "Skočit vpřed o %ld taktů"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop endnu længere frem"
+            "value": "Hop %ld takter frem"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ganz weit vorspringen"
+            "value": "%ld Takte vorspringen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πολύ εμπρός"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Skip Forward Most"
+            "value": "Μεταπήδηση εμπρός %ld μέτρα"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanzar al máximo"
+            "value": "Avanzar %ld compases"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää kauimmas eteenpäin"
+            "value": "Hyppää %ld tahtia eteenpäin"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avancer au maximum"
+            "value": "Avancer de %ld mesures"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči naprijed najviše"
+            "value": "Preskoči %ld taktova naprijed"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Legnagyobb ugrás előre"
+            "value": "Ugrás előre %ld ütemet"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Maju Paling Jauh"
+            "value": "Lompat Maju %ld Bar"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanti al massimo"
+            "value": "Avanti di %ld battute"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "大きく進む"
+            "value": "%ld小節進む"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "크게 앞으로 이동"
+            "value": "%ld마디 앞으로 이동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp enda lenger fremover"
+            "value": "Hopp %ld takter fremover"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring het verst vooruit"
+            "value": "Spring %ld maten vooruit"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń najdalej do przodu"
+            "value": "Przewiń do przodu o %ld taktów"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar Ainda Mais"
+            "value": "Avançar %ld Compassos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar ainda mais"
+            "value": "Avançar %ld compassos"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înainte foarte mult"
+            "value": "Săriți înainte %ld măsuri"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать далеко вперед"
+            "value": "Перемотать вперед на %ld тактов"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť najďalej dopredu"
+            "value": "Skočiť dopredu o %ld taktov"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa ännu längre framåt"
+            "value": "Hoppa %ld takter framåt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอไปข้างหน้ามากที่สุด"
+            "value": "กรอไปข้างหน้า %ld ห้อง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çok Daha İleri Atla"
+            "value": "%ld Ölçü İleri Atla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати далеко вперед"
+            "value": "Перемотати вперед на %ld тактів"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua tới xa nhất"
+            "value": "Tua tới %ld ô nhịp"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "前进一大段"
+            "value": "前进 %ld 小节"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "前進一大段"
+            "value": "前進 %ld 小節"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.playback.skip_forward_seconds": {
+      "comment": "Playback menu item: seek forward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip Forward %ld Seconds"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Превърти напред %ld секунди"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skočit vpřed o %ld sekund"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hop %ld sekunder frem"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld Sekunden vorspringen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μεταπήδηση εμπρός %ld δευτερόλεπτα"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avanzar %ld segundos"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hyppää %ld sekuntia eteenpäin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avancer de %ld secondes"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preskoči %ld sekundi naprijed"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ugrás előre %ld másodpercet"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lompat Maju %ld Detik"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avanti di %ld secondi"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld秒進む"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld초 앞으로 이동"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hopp %ld sekunder fremover"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spring %ld seconden vooruit"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przewiń do przodu o %ld sekund"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avançar %ld Segundos"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avançar %ld segundos"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Săriți înainte %ld secunde"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перемотать вперед на %ld секунд"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skočiť dopredu o %ld sekúnd"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoppa %ld sekunder framåt"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "กรอไปข้างหน้า %ld วินาที"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%ld Saniye İleri Atla"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перемотати вперед на %ld секунд"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tua tới %ld giây"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前进 %ld 秒"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前進 %ld 秒"
           }
         }
       },
       "extractionState": "manual"
     },
     "menu.playlist.clear": {
-      "comment": "iOS: destructive menu item on the playlist screen's bar button; empties the playlist and stops playback. It deletes no files — it only unloads what is queued — so the wording says Clear rather than Delete.",
+      "comment": "Empties the playlist and stops playback. On iOS a destructive menu item on the playlist screen's bar button; on the mac the File menu item that replaces 'Close File' when more than one track is loaded. It deletes no files — it only unloads what is queued — so the wording says Clear rather than Delete.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -31436,7 +30878,7 @@
       "extractionState": "manual"
     },
     "menu.view.always_on_top": {
-      "comment": "View menu item: checkmarked toggle that keeps the player window above all other apps' windows.",
+      "comment": "Window menu item: checkmarked toggle that keeps the player window above all other apps' windows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32366,7 +31808,7 @@
       "extractionState": "manual"
     },
     "menu.view.lock_window_position": {
-      "comment": "View menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.",
+      "comment": "Window menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32552,7 +31994,7 @@
       "extractionState": "manual"
     },
     "menu.view.pitch_control": {
-      "comment": "View menu item: shows the pitch fader panel.",
+      "comment": "View menu item: shows the pitch fader panel. Reads 'Hide Pitch Control' while it is shown.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32737,8 +32179,194 @@
       },
       "extractionState": "manual"
     },
+    "menu.view.pitch_control.hide": {
+      "comment": "View menu item: hides the pitch fader panel. Replaces 'Show Pitch Control' while the panel is shown.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Pitch Control"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрий регулатора за питч"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skrýt posuvník pitche"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skjul pitchkontrol"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temporegler ausblenden"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Απόκρυψη ρυθμιστικού pitch"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar control de pitch"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kätke pitch-säädin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Masquer le contrôle de pitch"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sakrij kontrolu pitcha"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pitch-csúszka elrejtése"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sembunyikan Kontrol Pitch"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nascondi controllo pitch"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピッチコントロールを非表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "피치 컨트롤 가리기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skjul pitchkontroll"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verberg pitchregelaar"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ukryj suwak pitcha"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar Controle de Pitch"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar controlo de pitch"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ascundeți controlul de pitch"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скрыть регулятор питча"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skryť posuvník pitchu"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Göm pitchreglage"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ซ่อนตัวควบคุม Pitch"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pitch Denetimini Gizle"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сховати регулятор пітчу"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn điều khiển pitch"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏音高控制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱藏音高控制"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "menu.view.playlist": {
-      "comment": "View menu item: expands the window to show the playlist.",
+      "comment": "View menu item: expands the window to show the playlist. Reads 'Hide Playlist' while it is shown.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -32923,194 +32551,380 @@
       },
       "extractionState": "manual"
     },
-    "menu.view.size": {
-      "comment": "View menu: submenu choosing the window's width preset (Small, Default, Large). The window's horizontal extent, not its overall size.",
+    "menu.view.playlist.hide": {
+      "comment": "View menu item: collapses the playlist. Replaces 'Show Playlist' while the playlist is shown.",
       "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Playlist"
+          }
+        },
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ширина"
+            "value": "Скрий плейлиста"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Šířka"
+            "value": "Skrýt playlist"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bredde"
+            "value": "Skjul spilleliste"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Breite"
+            "value": "Wiedergabeliste ausblenden"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Πλάτος"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Width"
+            "value": "Απόκρυψη λίστας αναπαραγωγής"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anchura"
+            "value": "Ocultar lista de reproducción"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leveys"
+            "value": "Kätke soittolista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Largeur"
+            "value": "Masquer la liste de lecture"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Širina"
+            "value": "Sakrij popis pjesama"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Szélesség"
+            "value": "Lejátszási lista elrejtése"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lebar"
+            "value": "Sembunyikan Playlist"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Larghezza"
+            "value": "Nascondi playlist"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "幅"
+            "value": "プレイリストを非表示"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "너비"
+            "value": "재생목록 가리기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bredde"
+            "value": "Skjul spilleliste"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Breedte"
+            "value": "Verberg afspeellijst"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Szerokość"
+            "value": "Ukryj playlistę"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Largura"
+            "value": "Ocultar Playlist"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Largura"
+            "value": "Ocultar lista de reprodução"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lățime"
+            "value": "Ascundeți playlistul"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ширина"
+            "value": "Скрыть плейлист"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Šírka"
+            "value": "Skryť playlist"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bredd"
+            "value": "Göm spellista"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ความกว้าง"
+            "value": "ซ่อนเพลย์ลิสต์"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Genişlik"
+            "value": "Çalma Listesini Gizle"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ширина"
+            "value": "Сховати плейлист"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chiều rộng"
+            "value": "Ẩn danh sách phát"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "宽度"
+            "value": "隐藏播放列表"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "寬度"
+            "value": "隱藏播放列表"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.view.size": {
+      "comment": "Window menu: submenu choosing the window's width preset (Small, Default, Large). The window's horizontal extent, not its overall size.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ширина на прозореца"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šířka okna"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vinduesbredde"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fensterbreite"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Πλάτος παραθύρου"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window Width"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ancho de la ventana"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ikkunan leveys"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Largeur de la fenêtre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Širina prozora"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablakszélesség"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lebar Jendela"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Larghezza finestra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウの幅"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우 너비"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindusbredde"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vensterbreedte"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Szerokość okna"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Largura da Janela"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Largura da janela"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lățimea ferestrei"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ширина окна"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šírka okna"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fönsterbredd"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ความกว้างหน้าต่าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencere Genişliği"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ширина вікна"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chiều rộng cửa sổ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口宽度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "視窗寬度"
           }
         }
       },
       "extractionState": "manual"
     },
     "menu.view.size.default": {
-      "comment": "Width menu item: the standard window width.",
+      "comment": "Window Width menu item: the standard window width.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33296,7 +33110,7 @@
       "extractionState": "manual"
     },
     "menu.view.size.large": {
-      "comment": "Width menu item: the widest window width preset.",
+      "comment": "Window Width menu item: the widest window width preset.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -33482,7 +33296,7 @@
       "extractionState": "manual"
     },
     "menu.view.size.small": {
-      "comment": "Width menu item: the narrowest window width.",
+      "comment": "Window Width menu item: the narrowest window width.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -34034,6 +33848,378 @@
           "stringUnit": {
             "state": "translated",
             "value": "編輯主題…"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.window": {
+      "comment": "Menu bar: the Window menu. macOS uses this same name in every app.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Window"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прозорец"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindue"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Παράθυρο"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ventana"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ikkuna"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenêtre"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prozor"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ablak"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jendela"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finestra"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウインドウ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "윈도우"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vindu"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Venster"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Janela"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Janela"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fereastră"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Окно"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okno"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fönster"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "หน้าต่าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pencere"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вікно"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cửa sổ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "視窗"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.window.bring_all_to_front": {
+      "comment": "Window menu item: brings every window of the app in front of other apps' windows. macOS uses this same name in every app.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bring All to Front"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изведи всички отпред"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Přenést vše do popředí"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anbring alle forrest"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle nach vorne bringen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μεταφορά όλων σε πρώτο πλάνο"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traer todo al frente"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tuo kaikki eteen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tout ramener au premier plan"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prikaži sve naprijed"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Összes előrehozása"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bawa Semua ke Depan"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Porta tutto in primo piano"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてを手前に移動"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "모두 앞으로 가져오기"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legg alle fremst"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alles naar voren"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wszystkie na wierzch"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trazer Tudo para Frente"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trazer tudo para a frente"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aduceți toate în prim-plan"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Все окна на передний план"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preniesť všetko do popredia"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lägg alla överst"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "นำทั้งหมดมาด้านหน้า"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tümünü Öne Getir"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Усі вікна на передній план"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đưa tất cả lên trước"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前置全部窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將全部視窗移至最前"
           }
         }
       },
@@ -84074,7 +84260,7 @@
       "extractionState": "manual"
     },
     "settings.convert.delete_original": {
-      "comment": "Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Delete Original After Convert' item, in sentence case per checkbox convention.",
+      "comment": "Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -85004,186 +85190,186 @@
       "extractionState": "manual"
     },
     "settings.convert.enabled": {
-      "comment": "Settings, Files pane, FLAC conversion group: switch showing or hiding the whole Convert feature: off removes the Convert menu from the menu bar and the Convert to FLAC item from the context menus.",
+      "comment": "Settings, Files pane, FLAC conversion group: switch showing or hiding the whole Convert feature: off removes the Convert to FLAC item from the File menu and the context menus. FLAC is a format name — keep it.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Меню „Конвертиране“"
+            "value": "Конвертирай във FLAC"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nabídka Převést"
+            "value": "Převést do FLAC"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menuen Konverter"
+            "value": "Konverter til FLAC"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menü „Konvertieren“"
+            "value": "In FLAC konvertieren"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μενού «Μετατροπή»"
+            "value": "Μετατροπή σε FLAC"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Convert menu"
+            "value": "Convert to FLAC"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menú Convertir"
+            "value": "Convertir a FLAC"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muunna-valikko"
+            "value": "Muunna FLAC-muotoon"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Convertir"
+            "value": "Convertir en FLAC"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Izbornik „Konverzija”"
+            "value": "Konvertiraj u FLAC"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konvertálás menü"
+            "value": "Konvertálás FLAC formátumba"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Konversi"
+            "value": "Konversi ke FLAC"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Converti"
+            "value": "Converti in FLAC"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「変換」メニュー"
+            "value": "FLACに変換"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "변환 메뉴"
+            "value": "FLAC으로 변환"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konverter-menyen"
+            "value": "Konverter til FLAC"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Converteer"
+            "value": "Converteer naar FLAC"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Konwersja"
+            "value": "Konwertuj do FLAC"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Converter"
+            "value": "Converter para FLAC"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Converter"
+            "value": "Converter para FLAC"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meniul „Conversie”"
+            "value": "Convertiți în FLAC"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Меню «Конвертация»"
+            "value": "Конвертировать в FLAC"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ponuka Konverzia"
+            "value": "Konvertovať do FLAC"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menyn Konvertera"
+            "value": "Konvertera till FLAC"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เมนูแปลง"
+            "value": "แปลงเป็น FLAC"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dönüştür menüsü"
+            "value": "FLAC Biçimine Dönüştür"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Меню «Конвертація»"
+            "value": "Конвертувати у FLAC"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menu Chuyển đổi"
+            "value": "Chuyển đổi sang FLAC"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "“转换”菜单"
+            "value": "转换为 FLAC"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "「轉換」選單"
+            "value": "轉換為 FLAC"
           }
         }
       },
@@ -109928,7 +110114,7 @@
       "extractionState": "manual"
     },
     "settings.shortcuts.repeat": {
-      "comment": "Settings, Keyboard Shortcuts pane: the list's name for the command whose menu item reads 'Repeat: Off', 'Repeat: All' or 'Repeat: One' and moves to the next mode.",
+      "comment": "Playback menu: submenu choosing the repeat mode (Off, All, One). Also the Keyboard Shortcuts pane's name for the key that moves to the next mode.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -110672,7 +110858,7 @@
       "extractionState": "manual"
     },
     "settings.shortcuts.submenu_item": {
-      "comment": "Keyboard Shortcuts pane: a command inside a submenu, such as 'Width: Small'. %1$@ is the submenu title. %2$@ is the item title.",
+      "comment": "Keyboard Shortcuts pane: a command inside a submenu, such as 'Window Width: Small'. %1$@ is the submenu title. %2$@ is the item title.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -113462,7 +113648,7 @@
       "extractionState": "manual"
     },
     "transport.repeat.all": {
-      "comment": "Repeat mode, all: after the last track the playlist plays again from the start. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.",
+      "comment": "Repeat mode, all: after the last track the playlist plays again from the start. Transport button whose title names the current mode; pressing it moves to the next mode.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -113648,7 +113834,7 @@
       "extractionState": "manual"
     },
     "transport.repeat.off": {
-      "comment": "Repeat mode, off: playback stops at the end of the playlist. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.",
+      "comment": "Repeat mode, off: playback stops at the end of the playlist. Transport button whose title names the current mode; pressing it moves to the next mode.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -113834,7 +114020,7 @@
       "extractionState": "manual"
     },
     "transport.repeat.one": {
-      "comment": "Repeat mode, one: the current track replays when it ends. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.",
+      "comment": "Repeat mode, one: the current track replays when it ends. Transport button whose title names the current mode; pressing it moves to the next mode.",
       "localizations": {
         "bg": {
           "stringUnit": {

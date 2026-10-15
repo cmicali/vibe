@@ -172,9 +172,9 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
                                NSMakeRect(kCloseButtonX + kTrafficLightSpacing, kTrafficLightY,
                                           kTrafficLightSize, kTrafficLightSize)
                                                            symbolName:@"circle.fill"
-                                                                label:STR_A11Y_WINDOW_MINIMIZE
-                                                               action:@selector(minimizeWindow:)
-                                                               target:target];
+                                                                label:STR_WINDOW_MINIMIZE
+                                                               action:@selector(performMiniaturize:)
+                                                               target:nil]; // the window's, up the chain
     _minimizeButton.alphaValue = 0.0;
     _minimizeButton.symbolPointSize = kTrafficLightSymbolSize; // same dot as close
     _minimizeButton.symbolNormalColor = [NSColor colorWithSRGBRed:0.988 green:0.741 blue:0.180 alpha:0.64];

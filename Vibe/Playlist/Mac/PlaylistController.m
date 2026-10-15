@@ -94,10 +94,16 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     _tableView.delegate = self;
     _tableView.dataSource = self;
     [_tableView setTarget:self];
-    [_tableView setDoubleAction:@selector(doubleClick:)];
+    [_tableView setDoubleAction:@selector(playClickedTrack:)];
     // Shadows the window-wide menu: these items act on the CLICKED row, not
     // the current track, so they carry their own selectors and identifiers.
     NSMenu *menu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Playlist Menu")];
+    [menu addItem:[MainMenuBuilder symbolItemWithTitle:STR_TRANSPORT_PLAY
+                                            symbolName:@"play.fill"
+                                                action:@selector(playClickedTrack:)
+                                                target:self
+                                            identifier:@"play_clicked_track"]];
+    [menu addItem:[NSMenuItem separatorItem]];
     [menu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_SHOW_IN_FINDER
                                             symbolName:@"folder"
                                                 action:@selector(showClickedTrackInFinder:)
@@ -712,7 +718,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     [scrollView reflectScrolledClipView:clip];
 }
 
-- (void)doubleClick:(id)sender {
+// The double-click and the row menu's Play.
+- (IBAction)playClickedTrack:(id)sender {
     if ([_tableView clickedRow] < 0) {
         return;
     }
@@ -756,7 +763,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     if (row < 0) {
         return;
     }
-    // doubleClick:'s two steps.
+    // playClickedTrack:'s two steps.
     self.currentIndex = (NSUInteger)row;
     [self play];
 }
@@ -819,7 +826,8 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 }
 
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
-    if ([menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"] ||
+    if ([menuItem.identifier isEqualToString:@"play_clicked_track"] ||
+        [menuItem.identifier isEqualToString:@"show_clicked_track_in_finder"] ||
         [menuItem.identifier isEqualToString:@"copy_clicked_track_file"] ||
         [menuItem.identifier isEqualToString:@"copy_clicked_track_name"]) {
         // A right-click on empty table area opens the menu with clickedRow -1.

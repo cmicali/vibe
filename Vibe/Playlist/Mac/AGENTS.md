@@ -48,7 +48,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## Wiring, the row menu and the keyboard
 
-**`setTableView:` wires the delegate, data source, double-click, drag masks and the row menu.** The row menu is Show in Finder, then Copy Name and Copy File, then Remove from Playlist and Move to Trash. Remove uses `minus.circle`, not `trash`, because the files stay on disk. Convert to FLAC is not a row action. It acts on the *current* track from `MainPlayerController`.
+**`setTableView:` wires the delegate, data source, double-click, drag masks and the row menu.** The row menu is Play, then Show in Finder, then Copy Name and Copy File, then Remove from Playlist and Move to Trash. Play is the double-click's action (`playClickedTrack:`). Remove uses `minus.circle`, not `trash`, because the files stay on disk. Convert to FLAC is not a row action. It acts on the *current* track from `MainPlayerController`.
 
 **A click inside the selection acts on the whole selection. A click outside it acts on that row alone** (`clickedTargetTracks`). The three content commands read their targets at action time. Removal is structural and captures them instead:
 
@@ -97,4 +97,4 @@ Every edit ends with `refreshRowViewPlayingStates` and then `reconfigureVisibleN
 
 ## Track commands
 
-**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `FolderWalkTests`). Menu validation reads no file, so Copy File stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.
+**`TrackCommands`**: reveal in Finder, copy the files, and copy the names, over an array of tracks. Copying the files skips a remote placeholder, whose bytes no other app could read (`handsOutURL:`, tested in `FolderWalkTests`). Menu validation reads no file, so Copy stays enabled over a placeholder. When nothing is left to copy, it beeps. The playlist's drag out asks `handsOutURL:` too.

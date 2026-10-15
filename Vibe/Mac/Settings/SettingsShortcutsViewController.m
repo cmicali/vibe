@@ -107,25 +107,28 @@ static const CGFloat kShortcutColumnWidth = 120;
 
 - (void)collectCommandsIn:(NSMenu *)menu into:(NSMutableArray<NSString *> *)commands {
     for (NSMenuItem *item in menu.itemArray) {
+        // Repeat is a submenu whose own item is the cycling command.
+        if (item.identifier && [VibeShortcutIdentifiers() containsObject:item.identifier]) {
+            [commands addObject:item.identifier];
+        }
         if (item.submenu) {
             [self collectCommandsIn:item.submenu into:commands];
-        }
-        else if (item.identifier && [VibeShortcutIdentifiers() containsObject:item.identifier]) {
-            [commands addObject:item.identifier];
         }
     }
 }
 
-// Validation retitles three items, so those take their stable names.
+// Validation retitles some items, so those take their stable names: the
+// skips in their bars form, whatever the current track's tempo.
 - (NSString *)labelForCommand:(NSString *)identifier {
     if ([identifier isEqualToString:kVibeMenuPlay]) {
         return STR_SETTINGS_SHORTCUTS_PLAY_PAUSE;
     }
-    if ([identifier isEqualToString:kVibeMenuRepeat]) {
-        return STR_SETTINGS_SHORTCUTS_REPEAT;
-    }
     if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
         return VibeConvertMenuTitle(NO);
+    }
+    NSString *skip = VibeSkipMenuTitle(identifier, AppSettings.sharedInstance.skipBaseBars, YES);
+    if (skip) {
+        return skip;
     }
     NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
     NSMenu *parent = item.menu.supermenu;
