@@ -832,25 +832,9 @@ targets:
       - path: Vibe/Debug/Seams/AudioTrackMetadataLoader+Debug.m   # the lane state the tests read
       - path: Vibe/Audio/Metadata/MetadataScanEntry.m
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
-      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
-      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
-      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
-      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
-      - path: Vibe/Common/AppSettings.m
-      - path: Vibe/Common/Mac/AppSettings+Mac.m
-      - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
-      - path: Vibe/Common/Mac/Theme/AppTheme.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+Dice.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: Vibe/Mac/Controls/CrossfadingImageView.m
-      - path: Vibe/Mac/App/FolderAccessManager.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
@@ -898,10 +882,6 @@ targets:
       - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
-      - path: Vibe/Common/PlatformImage.m
-      - path: Vibe/Common/PlatformColor.m
-      - path: Vibe/Util/Mac/NSImage+Util.m
-      - path: Vibe/Util/Mac/NSView+DarkMode.m  # AppTheme's dynamic colors resolve through its appearance fold
       - path: Vibe/WaveformUI/WaveformTheme.m
       - path: Vibe/WaveformUI/Renderers/WaveformMorphEngine.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRenderer.mm
@@ -1017,26 +997,6 @@ targets:
       - path: Tests/Audio/Metadata/AudioTrackMetadataFuzzTests.mm
       - path: Vibe/Audio/Metadata/AudioTrackMetadata.mm
       - path: Vibe/Audio/Metadata/TagLibAudioFile.mm
-      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
-      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
-      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
-      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
-      - path: Vibe/Common/AppSettings.m       # the folder-art resolver reads its setting and grants
-      - path: Vibe/Common/Mac/AppSettings+Mac.m
-      - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
-      - path: Vibe/Common/Mac/Theme/AppTheme.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+Dice.m
-      - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
-      - path: Vibe/Common/PlatformColor.m
-      - path: Vibe/Util/Mac/NSImage+Util.m
-      - path: Vibe/Util/Mac/NSView+DarkMode.m
-      - path: Vibe/Mac/App/FolderAccessManager.m
-      - path: Vibe/Common/PlatformImage.m
       - path: Vibe/Util/Categories/NSString+CPPStrings.mm
       - path: Vibe/ThirdParty/taglib
         excludes: ["**/.DS_Store", "**/*.md", "**/LICENSE.MPL"]
@@ -1131,6 +1091,28 @@ targetTemplates:
       - path: Vibe/Util/Categories/NSURL+Hash.m
       - path: Vibe/Util/Categories/NSURL+Emptiness.m
       - path: Vibe/Debug/Oracles/VibeWorkTally.m
+      # The artwork, settings and theme files the tag parse (VibeAudioTests) and
+      # the shell (VibeTests) both reach.
+      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
+      - path: Vibe/Common/AppSettings.m
+      - path: Vibe/Common/Mac/AppSettings+Mac.m
+      - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Dice.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
+      - path: Vibe/Common/Mac/Theme/AppTheme.m
+      - path: Vibe/Common/PlatformColor.m
+      - path: Vibe/Common/PlatformImage.m
+      - path: Vibe/Mac/App/FolderAccessManager.m
+      - path: Vibe/Util/Mac/NSImage+Util.m
+      - path: Vibe/Util/Mac/NSView+DarkMode.m
 
 schemes:
   VibeAudioTests:
