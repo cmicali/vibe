@@ -266,7 +266,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
                   @selector(removeSelectedPlaylistTracks:), player, @"", 0,
                   kVibeMenuEditRemoveFromPlaylist);
     AddSymbolItem(editMenu, STR_MENU_EDIT_MOVE_TO_TRASH, @"trash",
-                  @selector(moveSelectedPlaylistTracksToTrash:), player, @"", 0,
+                  @selector(moveToTrash:), player, @"", 0,
                   kVibeMenuEditMoveToTrash);
 
     AddSeparator(editMenu).identifier = @"menu_edit_separator_select";

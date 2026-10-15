@@ -298,8 +298,13 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 #pragma mark - Move to Trash
 
-- (IBAction)moveSelectedPlaylistTracksToTrash:(nullable id)sender {
-    [self trashPlaylistTracks:self.playlistController.selectedTracks];
+// The targets VibeMenuHasTrashTarget validates: the selection, or the loaded
+// track while the playlist is collapsed.
+- (IBAction)moveToTrash:(nullable id)sender {
+    PlaylistController *playlist = self.playlistController;
+    AudioTrack *current = playlist.currentTrack;
+    BOOL shown = ((MainWindow *)self.window).isPlaylistShown;
+    [self trashPlaylistTracks:shown ? playlist.selectedTracks : (current ? @[current] : @[])];
 }
 
 - (void)trashPlaylistTracks:(NSArray<AudioTrack *> *)tracks {
