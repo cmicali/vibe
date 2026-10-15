@@ -13,7 +13,6 @@
 #import "RootViewController.h"
 #import "DebugPlayerSurface.h"
 #import "FilesRootViewController.h"   // the categories below need the classes
-#import "FolderViewController.h"
 #import "FavoritesViewController.h"
 #import "PlaylistViewController.h"
 #import "SearchViewController.h"
@@ -71,11 +70,6 @@
 
 @interface FilesRootViewController (DebugSurface)
 - (void)presentLinkSheet;
-@end
-
-@interface FolderViewController (DebugSurface)
-- (NSURL *)itemAtIndexPath:(NSIndexPath *)indexPath;
-- (void)openDirectory;
 @end
 
 @interface FilesRootViewController (Debug)

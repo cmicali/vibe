@@ -4,14 +4,11 @@
 //
 //  The player screen's display state, tested from the macOS suite. Separate
 //  from the mac's TrackDisplayRules.h: no launch grace here, and parked tracks
-//  the mac has no equivalent of. Also the card's pager, a scrub's action, and
-//  the widget's publish decision, which describe the same playback.
+//  the mac has no equivalent of. Also the card's pager and a scrub's action.
 //
 
 #import <Foundation/Foundation.h>
 
-#import "NowPlayingRules.h"     // the lock screen's tests, which the widget shares
-#import "VibeWidgetState.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -127,56 +124,6 @@ static inline NSRange VibePlayerPageWindow(NSUInteger count, NSUInteger currentI
     NSUInteger first = current > radius ? current - radius : 0;
     NSUInteger last = MIN(current + radius, count - 1);
     return NSMakeRange(first, last - first + 1);
-}
-
-#pragma mark - The widget
-
-// A seek detector against the widget's own extrapolation. Looser than the
-// lock screen's, since a widget entry spans seconds.
-static const NSTimeInterval kVibeWidgetPositionTolerance = 2.0;
-
-// Whether a tick publishes a new snapshot. The widget extrapolates steady
-// playback. So only a new track, a play or pause, a changed duration or line,
-// or a jump past the tolerance publishes. Tags landing after the start change
-// the lines, not the identity. While the open runs the playhead is pinned at
-// 0, so the position alone publishes nothing.
-static inline BOOL VibeWidgetNeedsPublish(VibeWidgetState *_Nullable last,
-                                          BOOL sameTrack,
-                                          BOOL hasTrack,
-                                          NSString *_Nullable title,
-                                          NSString *_Nullable artist,
-                                          BOOL playing,
-                                          NSTimeInterval duration,
-                                          NSTimeInterval position,
-                                          BOOL startPending,
-                                          CFAbsoluteTime now) {
-    if (!last || !sameTrack) {
-        return YES;
-    }
-    if (last.hasTrack != hasTrack || last.playing != playing) {
-        return YES;
-    }
-    if (fabs(last.duration - duration) > 0.5) {
-        return YES;
-    }
-    if (!VibeNowPlayingStringsEqual(last.title, title) || !VibeNowPlayingStringsEqual(last.artist, artist)) {
-        return YES;
-    }
-    if (startPending) {
-        return NO;
-    }
-    return VibeNowPlayingPositionIsDirty(last.position,
-                                         CFDateGetAbsoluteTime((__bridge CFDateRef)last.positionDate),
-                                         1.0, last.playing, position, now, kVibeWidgetPositionTolerance);
-}
-
-// Whether a tick writes the artwork file, which only a placed widget reads. A
-// new track writes even with no art yet, which removes the old track's file.
-// Art that decodes after its track changed writes once, on the first tick
-// that has it.
-static inline BOOL VibeWidgetWritesArtwork(BOOL placed, BOOL trackChanged, BOOL hasArtwork,
-                                           BOOL artworkOnDisk) {
-    return placed && (trackChanged || (hasArtwork && !artworkOnDisk));
 }
 
 NS_ASSUME_NONNULL_END

@@ -107,7 +107,7 @@ static void Flip(UISwitch *toggle) {
         SettingsViewController *top = (SettingsViewController *)[self show:
                 [[SettingsViewController alloc] initWithPlayback:_playback.asPlayback]];
         UINavigationController *stack = top.navigationController;
-        XCTAssertTrue([self waitUntil:^BOOL { return stack.transitionCoordinator == nil; }]);
+        XCTAssertTrue([self eventually:^BOOL { return stack.transitionCoordinator == nil; }]);
         [top tableView:top.tableView didSelectRowAtIndexPath:rows[i]];
         XCTAssertTrue([stack.topViewController isKindOfClass:pushed[i]], @"%@", rows[i]);
     }

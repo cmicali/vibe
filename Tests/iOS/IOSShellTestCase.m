@@ -12,19 +12,15 @@
 #import "DropboxStubProtocol.h"
 #import "FavoritesStore.h"
 #import "FolderSession.h"
-#import "LinkClient.h"
-#import "LinkStore.h"
 #import "LocationStore.h"
 #import "RecentsStore.h"
+#import "TestFilesystemGuard.h"
 
-static LinkStore *sLinkStore;
-
-// Each in the guard's per-pid root (TestFilesystemGuard.m), which goes at exit.
+// In the guard's per-pid root (TestFilesystemGuard.m), which goes at exit.
+// The guard redirects LinkStore.shared for every class.
 static void VibeInstallShellSingletons(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        NSString *processRoot = [NSTemporaryDirectory() stringByAppendingPathComponent:
-                [NSString stringWithFormat:@"VibeTests-%d", getpid()]];
         NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
         configuration.protocolClasses = @[DropboxStubProtocol.class];
         // No keychain service: the account lives in memory, and none is adopted.
@@ -32,28 +28,15 @@ static void VibeInstallShellSingletons(void) {
                                                         configuration:configuration];
         DropboxMirror *mirror = [[DropboxMirror alloc]
                 initWithClient:client
-                       rootURL:[NSURL fileURLWithPath:[processRoot stringByAppendingPathComponent:@"Dropbox"]
+                       rootURL:[NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:@"Dropbox"]
                                           isDirectory:YES]
                 downloadBudget:8];
-        LinkClient *linkClient = [[LinkClient alloc] initWithConfiguration:configuration];
-        sLinkStore = [[LinkStore alloc]
-                initWithClient:linkClient
-                       rootURL:[NSURL fileURLWithPath:[processRoot stringByAppendingPathComponent:@"Links"]
-                                          isDirectory:YES]];
-        LinkStore *links = sLinkStore;
         method_setImplementation(class_getClassMethod(DropboxMirror.class, @selector(shared)),
                                  imp_implementationWithBlock(^DropboxMirror *(id self) { return mirror; }));
-        method_setImplementation(class_getClassMethod(LinkStore.class, @selector(shared)),
-                                 imp_implementationWithBlock(^LinkStore *(id self) { return links; }));
     });
 }
 
 @implementation IOSShellTestCase
-
-+ (LinkStore *)linkStore {
-    VibeInstallShellSingletons();
-    return sLinkStore;
-}
 
 - (void)setUp {
     [super setUp];
@@ -79,8 +62,8 @@ static void VibeInstallShellSingletons(void) {
 }
 
 - (void)tearDown {
-    // Lets a mint or a landing posted to main finish before its folder goes.
-    [self settle];
+    // Delivers what is already queued on main before its folder goes.
+    VibeSpinFor(0);
     [NSFileManager.defaultManager removeItemAtURL:_root error:NULL];
     [super tearDown];
 }
@@ -101,15 +84,11 @@ static void VibeInstallShellSingletons(void) {
 }
 
 - (BOOL)eventually:(BOOL (^)(void))condition {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while (!condition() && deadline.timeIntervalSinceNow > 0) {
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
-    return condition();
+    return VibeSpinUntil(condition);
 }
 
 - (void)settle {
-    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+    VibeSpinFor(kVibeTestNegativeWindow);
 }
 
 @end

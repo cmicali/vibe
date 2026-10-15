@@ -4,6 +4,8 @@
 #import <UIKit/UIKit.h>
 
 #import "EqualizerLevelSource.h"
+#import "FakeTrackMetadata.h"
+#import "TestFilesystemGuard.h"
 #import "OutputRouteRules.h"
 #import "PlayerScreenRules.h"
 
@@ -12,20 +14,6 @@
 @class Playlist;
 
 NS_ASSUME_NONNULL_BEGIN
-
-// AudioTrack's metadata, duck-typed (Tests/AGENTS.md). AudioTrack only sends
-// it messages, so the real TagLib parser never runs.
-@interface FakeTrackMetadata : NSObject
-@property (nonatomic, copy, nullable) NSString *title;
-@property (nonatomic, copy, nullable) NSString *artist;
-@property (nonatomic) float bpm;
-@property (nonatomic) NSInteger key;
-@property (nonatomic) NSTimeInterval duration;
-@property (nonatomic, strong, nullable) UIImage *cachedArt;
-@property (nonatomic, strong, nullable) UIImage *cachedThumbnail;
-@property (nonatomic) BOOL parsedOK;
-@property (nonatomic, copy) NSString *fileInfoLine;
-@end
 
 // PlaybackController, duck-typed, so no second AudioPlayer joins the host's
 // one. The screens read the properties below. Any other selector
@@ -78,9 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
                   duration:(NSTimeInterval)duration;
 
 // Spins main until the condition holds, up to VIBE_TEST_HANG_TIMEOUT.
-- (BOOL)waitUntil:(BOOL (^)(void))condition;
-// Lets queued main-thread work run.
-- (void)spin;
+- (BOOL)eventually:(BOOL (^)(void))condition;
 
 @end
 

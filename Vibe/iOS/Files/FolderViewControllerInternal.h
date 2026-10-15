@@ -4,7 +4,7 @@
 //
 //  The private surface FolderViewController.m and its +Art and +Actions
 //  categories share: the screen's state and the methods each side calls on
-//  the other. No other file imports it.
+//  the other. The debug channel's browse verb also reads the rows through it.
 //
 
 #import "FolderViewController.h"

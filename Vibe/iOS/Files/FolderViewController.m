@@ -34,6 +34,13 @@ static const CFTimeInterval kRelistInterval = 60;
 static const NSUInteger kMaximumLiftedRows = 6;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
+// Play with Subfolders stops after this many listed audio entries or visited
+// folders. Whole folders can exceed the entry limit. CUE expansion adds more rows.
+static const NSUInteger kMaximumSubfolderTracks = 2000;
+static const NSUInteger kMaximumSubfolders = 500;
+// A listing at least this long gets the filter field. A short one is read at
+// a glance, and the field would only cost its height.
+static const NSUInteger kFilterThreshold = 12;
 
 @implementation FolderViewController
 
@@ -312,9 +319,10 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 
 #pragma mark - The filter field
 
+// Installed, never removed: a folder that shrinks below the threshold keeps
+// a field the user may be typing in.
 - (void)showFilterIfNeeded {
-    if (VibeBrowserFolderWantsFilter(_allFolders.count + _allFiles.count,
-                                     self.navigationItem.searchController != nil)) {
+    if (!self.navigationItem.searchController && _allFolders.count + _allFiles.count >= kFilterThreshold) {
         self.navigationItem.searchController = _filter;
     }
 }
@@ -451,7 +459,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
         UIAlertController *alert = [UIAlertController
                 alertControllerWithTitle:strongSelf->_title
                                  message:[NSString stringWithFormat:STR_BROWSER_SUBFOLDERS_CAPPED,
-                                                  (unsigned long)kVibeBrowserMaximumSubfolderTracks]
+                                                  (unsigned long)kMaximumSubfolderTracks]
                           preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault
                                                 handler:^(UIAlertAction *action) { open(); }]];
@@ -467,7 +475,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
                 tracks:(NSUInteger)tracks
                visited:(NSUInteger)visited
             completion:(void (^)(NSArray<NSURL *> *folders, BOOL capped))completion {
-    if (VibeBrowserSubfolderWalkStops(pending.count, tracks, visited)) {
+    if (pending.count == 0 || tracks >= kMaximumSubfolderTracks || visited >= kMaximumSubfolders) {
         completion(found, pending.count > 0);
         return;
     }

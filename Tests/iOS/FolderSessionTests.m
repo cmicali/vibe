@@ -14,6 +14,7 @@
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "RecentsStore.h"
+#import "TestFilesystemGuard.h"
 
 @interface FolderSessionRecorder : NSObject <FolderSessionDelegate>
 // Each event as {kind, names, folder, selected, restored}.
@@ -69,6 +70,20 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
 
 @end
 
+@interface FolderSession (TestDrain)
+- (void)drainQueues;
+@end
+
+@implementation FolderSession (TestDrain)
+
+// Every work item submitted so far has finished, and with it its post to main.
+- (void)drainQueues {
+    dispatch_barrier_sync(_workQueue, ^{});
+    dispatch_sync(_appendQueue, ^{});
+}
+
+@end
+
 @interface FolderSessionTests : IOSShellTestCase
 @end
 
@@ -94,8 +109,16 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
 }
 
 - (void)tearDown {
+    [self drain];
     [_session clearSession];
     [super tearDown];
+}
+
+// Runs what the session's queues hold and then the landings they posted, so
+// a negative check needs no fixed window.
+- (void)drain {
+    [_session drainQueues];
+    VibeSpinFor(0);
 }
 
 - (FolderSession *)newSession {
@@ -156,7 +179,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [_session openURLs:@[_albumA] openInPlace:YES];
     [_session openURLs:@[_albumB] openInPlace:YES];
     XCTAssertEqualObjects([self waitForEvent:0][@"folder"], @"B");
-    [self settle];
+    [self drain];
     XCTAssertEqual(_recorder.events.count, 1u, @"%@", _recorder.events);
     XCTAssertEqualObjects(_session.folderURL.lastPathComponent, @"B");
 }
@@ -288,7 +311,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [_session openURLs:@[_albumB] openInPlace:YES];
     [_session addURLs:@[_albumC] token:token];
     XCTAssertEqualObjects([self waitForEvent:1][@"folder"], @"B");
-    [self settle];
+    [self drain];
     XCTAssertEqual(_recorder.events.count, 2u, @"%@", _recorder.events);
     XCTAssertFalse(_session.hasAdditions);
 }
@@ -301,7 +324,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     NSDictionary *event = [self waitForEvent:1];
     XCTAssertEqualObjects(event[@"kind"], @"append");
     XCTAssertEqualObjects(event[@"names"], (@[@"B1.mp3", @"B2.mp3"]));
-    [self settle];
+    [self drain];
     XCTAssertEqual(_recorder.events.count, 2u, @"the superseded promotion never lands: %@", _recorder.events);
 }
 
@@ -326,7 +349,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
     [self land:_albumA];
     [_session openURLs:@[_albumB] openInPlace:YES];
     [_session cancelOpen];
-    [self settle];
+    [self drain];
     XCTAssertEqual(_recorder.events.count, 1u, @"%@", _recorder.events);
     XCTAssertEqualObjects(_session.folderURL.lastPathComponent, @"A");
     [_session addURLs:@[_albumC]];
@@ -428,7 +451,7 @@ static NSArray<NSString *> *VibeRowNames(NSArray<AudioTrack *> *rows) {
 
 - (void)testALinkOpenedAloneIsPersistedAsAOneFileBase {
     [self land:_albumA];
-    NSURL *links = IOSShellTestCase.linkStore.rootURL;
+    NSURL *links = LinkStore.shared.rootURL;
     NSURL *link = [links URLByAppendingPathComponent:@"hash/Stream.mp3"];
     [NSFileManager.defaultManager createDirectoryAtURL:link.URLByDeletingLastPathComponent
                            withIntermediateDirectories:YES attributes:nil error:NULL];
