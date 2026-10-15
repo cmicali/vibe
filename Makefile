@@ -99,6 +99,7 @@ compile-commands: project
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
 # `make -j3 test test-audio` runs both suites at once: test-audio has its own
 # derived data, since two xcodebuilds cannot share one.
+# ARGS='-only-testing:VibeTests/<Class>' narrows a run.
 test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
@@ -108,7 +109,7 @@ test: project check-cloud-scenarios
 	    -derivedDataPath build/DerivedData \
 	    -resultBundlePath $(RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
-	    test
+	    $(ARGS) test
 
 # One compiled PCM verifier shared by hardware and device-free audio tests.
 build/verify-bit-perfect: scripts/test/verify-bit-perfect.swift

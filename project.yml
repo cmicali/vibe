@@ -819,6 +819,22 @@ targets:
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController.m   # injected constructor; ShellTestFakes stand in for the rest
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController+NowPlaying.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Settings.m
+      - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
+      - path: Vibe/Playlist/Mac/PlaylistController.m
+      - path: Vibe/Playlist/Mac/PlaylistTableView.m
+      - path: Vibe/Playlist/Mac/PlaylistRowView.m
+      - path: Vibe/Playlist/Mac/PlaylistTextCell.m
+      - path: Vibe/Playlist/Mac/PlaylistCoverImageView.m
+      - path: Vibe/Common/Mac/Theme/Fonts.m
+      - path: Vibe/Controls/EqualizerIndicatorView.m
+      - path: Vibe/Controls/LoadingIndicatorView.m
+      - path: Vibe/Controls/LoadingIndicator.m
+      - path: Vibe/Mac/Controls/ScaledImageView.m
+      - path: Vibe/Util/VibeWeakProxy.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
