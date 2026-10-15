@@ -126,16 +126,28 @@ static void VibeEqualizerDebugDisplayLinkStopped(void) {
 }
 
 - (void)setBarColor:(VibeColor *)barColor {
+    if (barColor == _barColor) {
+        return;
+    }
     _barColor = barColor;
     [self applyAppearanceColor];
 }
 
 - (void)applyAppearanceColor {
-    VibeColor *fallback = self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor];
-    CGColorRef color = (_barColor ?: fallback).CGColor;
-    for (CALayer *bar in _bars) {
-        bar.backgroundColor = color;
-    }
+    VibeColor *color = _barColor ?: (self.isDark ? [VibeColor whiteColor] : [VibeColor blackColor]);
+    void (^apply)(void) = ^{
+        CGColorRef cgColor = color.CGColor;
+        for (CALayer *bar in self->_bars) {
+            bar.backgroundColor = cgColor;
+        }
+    };
+#if TARGET_OS_OSX
+    // A dynamic color's CGColor resolves under the current drawing appearance,
+    // which outside a draw is the app's, not this window's forced one.
+    [self.effectiveAppearance performAsCurrentDrawingAppearance:apply];
+#else
+    apply();
+#endif
 }
 
 #if TARGET_OS_OSX

@@ -6,6 +6,7 @@
 #import "PlaylistRowView.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "EqualizerIndicatorView.h"
 #import "NSView+DarkMode.h"
 #import "PlaylistTableView.h"
 #import "PlaylistTextCell.h"
@@ -45,10 +46,12 @@
 
 - (void)applyTextColor {
     NSDictionary *colors = [PlaylistTableView textColorsForRowSelected:self.selected playing:_playingRow];
+    NSColor *equalizer = PlaylistTableView.equalizerBarColor;
     for (NSView *subview in self.subviews) {
         if (![subview isKindOfClass:NSTableCellView.class]) {
             continue;
         }
+        [PlaylistTableView equalizerViewInCell:(NSTableCellView *)subview].barColor = equalizer;
         NSCell *cell = ((NSTableCellView *)subview).textField.cell;
         if ([cell isKindOfClass:PlaylistTextCell.class]) {
             [(PlaylistTextCell *)cell setRowColors:colors];

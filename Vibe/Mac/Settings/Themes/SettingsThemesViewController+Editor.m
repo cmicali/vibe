@@ -755,6 +755,9 @@ static const CGFloat kImageBadgeInset = 1.5;
                                         title:STR_SETTINGS_THEME_PLAYING_ROW_ARTIST],
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistPlayingRowDuration
                                         title:STR_SETTINGS_THEME_PLAYING_ROW_DURATION],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW_EQUALIZER
+                control:[self darkLightPairForBase:kVibeThemeColorPlaylistEqualizer
+                                            effect:VibeSettingsLiveEffectPlaylistRowColors]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
                 control:[self darkLightPairForBase:kVibeThemeColorPlaylistSelectedRow
                                             effect:VibeSettingsLiveEffectPlaylistRowColors]],

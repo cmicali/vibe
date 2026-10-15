@@ -45,8 +45,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL audioOutputActive;
 @property (nonatomic) BOOL presentationVisible;
 
-// Overrides the appearance-derived bar color. nil returns to the white or
-// black default.
+// Overrides the appearance-derived bar color. A dynamic color resolves under
+// this view's appearance and re-resolves when it changes. nil returns to the
+// white or black default.
 @property (nonatomic, strong, nullable) VibeColor *barColor;
 
 // Both platforms set this to the model that owns their player. A missing source
