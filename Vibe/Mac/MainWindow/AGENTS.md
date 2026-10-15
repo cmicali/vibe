@@ -60,7 +60,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 
 - `saveLastPlaylist` writes absolute paths and never touches Open Recent. The current row goes in the `VibeLastPlaylistCurrentIndex` defaults key. It is state, not a preference, so a reset leaves it. The mirror is deleted when the setting is off or the playlist is empty. Turning the setting off deletes it at once (`applyReopenLastPlaylist`).
 - `restoreLastPlaylist` lands **parked**, through `loadTracks:selectingIndex:startPaused:YES`. Every row comes back, readable or not, and a cue row keeps its window and names. The mirror is read through `PlaylistFile.rowsInM3UData:`, not the open funnel. Nothing is stat'd, not even a cue row's sheet, and no grant panel is raised.
-- When the restore finds nothing, `loadWelcomeTrack` parks the bundled `vibe-theme.mp3` on the first launch only. `AppDelegate` sets `AppSettings.welcomeTrackLoaded` at that launch, even when an open pre-empts the track. Only Factory reset clears it.
+- When the restore finds nothing, `loadWelcomeTrack` parks the bundled `vibe-theme.mp3` until the user has played or opened something. `spendWelcomeTrack` sets `AppSettings.welcomeTrackSpent` from every open's token minting (`AppDelegate.beginOpenRequestAppending:fromURLs:`, files and Open URL… alike) and from the first start or resume that sounds, never from the park or the restore. Reopen is off by default, so a user who updates before doing either finds the track again after the relaunch. Only Factory reset clears it.
 
 `AppDelegate` calls these only after grants restore, and only when no launch-time open drained (`Mac/App/AGENTS.md`). Every quit must reach `applicationWillTerminate:` for the write, so the app does not opt into sudden termination.
 
@@ -80,6 +80,8 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 ## Move to Trash
 
 File > Move to Trash (⌘⌫) and the row menu's item move each target row's file to the Trash. Every row of each file goes, found by URL, on the first trash and on every redo. So one cue row takes all of its image's rows, and a duplicate row goes with its file. A cue sheet beside the image stays. The bundled welcome track and an Open Location link's file are not trashable, because the app owns them.
+
+**With the playlist collapsed, the File item and ⌘⌫ move the loaded track's file.** No selection shows then. The trash runs as it would on the current row with the playlist showing. So a lone track empties the list, and otherwise the removal funnel decides what plays. `VibeMenuHasTrashTarget` is the validation, and `moveToTrash:` takes the same targets. Both need the player window key, so a ⌘⌫ falling through from Settings trashes nothing.
 
 **The rows go at once and the files follow.** The rows leave through the funnel, so the player lets go of a removed current file before it moves. The files move on the converter's dispose queue (`AudioFileConverter.trashItemAtURL:completion:`), coordinated and off main. A file that fails to move raises an alert naming it. Its row is already gone, and Undo brings it back. A trash that removes every row empties the list as an edit, so its undo restores every row and keeps the older history. Rows put back into an emptied list park on the cursor's row, as a removal parks.
 

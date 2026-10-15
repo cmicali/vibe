@@ -152,8 +152,19 @@
             BOOL visible = VibeMenuHasVisibleSelection(key, shown, row);
             XCTAssertEqual(visible, key && shown && row >= 0);
             XCTAssertEqual(VibeTransportMenuEnabled(kVibeMenuPlaySelected, YES, YES, visible, YES, NO), visible);
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, YES, YES, visible, YES, YES, NO), visible);
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, YES, YES, visible, YES, YES, NO), visible);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, YES, YES, visible, YES, YES, YES, NO), visible);
+        }
+    }
+}
+
+// Collapsed, no selection shows, so Move to Trash takes the loaded track.
+// Remove has no such stand-in.
+- (void)testMoveToTrashTakesTheLoadedTrackWhileCollapsed {
+    for (NSInteger key = 0; key < 2; key++) for (NSInteger shown = 0; shown < 2; shown++) {
+        for (NSInteger row = -1; row < 2; row++) for (NSInteger track = 0; track < 2; track++) {
+            BOOL target = VibeMenuHasTrashTarget(key, shown, row, track);
+            XCTAssertEqual(target, key && (shown ? row >= 0 : track));
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, YES, YES, NO, target, YES, YES, NO), target);
         }
     }
 }
@@ -190,29 +201,29 @@
 - (void)testUndoRedoAvailabilityAndCopyHaveIndependentInputs {
     for (NSInteger busy = 0; busy < 2; busy++) for (NSInteger undo = 0; undo < 2; undo++) {
         for (NSInteger redo = 0; redo < 2; redo++) {
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditUndo, busy, undo, redo, NO, NO, NO, NO), !busy && undo);
-            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRedo, busy, undo, redo, NO, NO, NO, NO), !busy && redo);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditUndo, busy, undo, redo, NO, NO, NO, NO, NO), !busy && undo);
+            XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditRedo, busy, undo, redo, NO, NO, NO, NO, NO), !busy && redo);
         }
     }
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, YES, YES, YES, YES, NO, NO));
-    XCTAssertTrue(VibeEditMenuEnabled(kVibeMenuEditCopyName, YES, NO, NO, NO, YES, NO, NO));
-    XCTAssertFalse(VibeEditMenuEnabled(@"unknown", NO, YES, YES, YES, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, YES, YES, YES, YES, YES, NO, NO));
+    XCTAssertTrue(VibeEditMenuEnabled(kVibeMenuEditCopyName, YES, NO, NO, NO, NO, YES, NO, NO));
+    XCTAssertFalse(VibeEditMenuEnabled(@"unknown", NO, YES, YES, YES, YES, YES, YES, YES));
 }
 
 // ⌘C is Copy File's. With a text field focused it copies the text, so it is
 // enabled with no track; nothing else in Edit follows the focus.
 - (void)testCopyFileIsEnabledForAFocusedTextFieldWithoutATrack {
     for (NSInteger url = 0; url < 2; url++) for (NSInteger text = 0; text < 2; text++) {
-        XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, NO, NO, NO, url, url, text), url || text);
+        XCTAssertEqual(VibeEditMenuEnabled(kVibeMenuEditCopyFile, NO, NO, NO, NO, NO, url, url, text), url || text);
     }
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyName, NO, NO, NO, NO, NO, NO, YES));
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, NO, NO, NO, YES, YES, YES));
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, NO, NO, NO, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditCopyName, NO, NO, NO, NO, NO, NO, NO, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditRemoveFromPlaylist, NO, NO, NO, NO, YES, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditMoveToTrash, NO, NO, NO, YES, NO, YES, YES, YES));
     for (NSString *identifier in @[kVibeMenuEditRemoveFromPlaylist, kVibeMenuEditMoveToTrash]) {
-        XCTAssertFalse(VibeEditMenuEnabled(identifier, YES, YES, YES, YES, YES, YES, NO),
+        XCTAssertFalse(VibeEditMenuEnabled(identifier, YES, YES, YES, YES, YES, YES, YES, NO),
                        @"%@ while a trash still moves its files", identifier);
     }
-    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditUndo, NO, NO, NO, NO, YES, YES, YES));
+    XCTAssertFalse(VibeEditMenuEnabled(kVibeMenuEditUndo, NO, NO, NO, NO, NO, YES, YES, YES));
 }
 
 // Cut and Paste are nil-targeted, so the player never validates them. They

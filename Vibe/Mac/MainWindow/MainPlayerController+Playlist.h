@@ -26,7 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 // YES when the mirror came back, parked on its last current row; NO when the
 // setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).
 - (BOOL)restoreLastPlaylist;
+// Parks the bundled vibe-theme.mp3 until it has been played once.
 - (BOOL)loadWelcomeTrack;
+// From every open, and from the two deliveries that mean sound: a playing
+// start and a resume.
+- (void)spendWelcomeTrack;
 // Quit-time: writes the mirror, or deletes it when off or empty.
 - (void)saveLastPlaylist;
 - (void)applyReopenLastPlaylist;
@@ -36,9 +40,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks;
 // Moves every selected row's file to the Trash and removes every row of each
-// file: all of a cue sheet's rows, and any duplicate. Undo puts the files
-// back and restores the rows; redo trashes them again.
-- (IBAction)moveSelectedPlaylistTracksToTrash:(nullable id)sender;
+// file: all of a cue sheet's rows, and any duplicate. With the playlist
+// collapsed, it moves the loaded track's file. Undo puts the files back and
+// restores the rows; redo trashes them again.
+- (IBAction)moveToTrash:(nullable id)sender;
 - (void)trashPlaylistTracks:(NSArray<AudioTrack *> *)tracks;
 - (void)movePlaylistTracksFromIndexes:(NSIndexSet *)sourceIndexes
                             toIndexes:(NSIndexSet *)destinationIndexes

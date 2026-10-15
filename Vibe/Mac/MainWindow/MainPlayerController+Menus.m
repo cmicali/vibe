@@ -196,10 +196,13 @@
     NSUndoManager *manager = self.window.undoManager;
     if ([menuItem.identifier isEqualToString:kVibeMenuEditUndo]) menuItem.title = manager.undoMenuItemTitle;
     if ([menuItem.identifier isEqualToString:kVibeMenuEditRedo]) menuItem.title = manager.redoMenuItemTitle;
+    MainWindow *window = (MainWindow *)self.window;
+    BOOL hasTrack = self.playlistController.currentTrack != nil;
     return VibeEditMenuEnabled(menuItem.identifier, self.isFileMoveInFlight,
             manager.canUndo, manager.canRedo, [self hasVisiblePlaylistSelection],
-            self.playlistController.currentTrack != nil, self.playlistController.currentTrack.url != nil,
-            [self focusedTextView] != nil);
+            VibeMenuHasTrashTarget(window.isKeyWindow, window.isPlaylistShown,
+                    self.playlistController.selectedRow, hasTrack),
+            hasTrack, self.playlistController.currentTrack.url != nil, [self focusedTextView] != nil);
 }
 
 - (nullable NSTextView *)focusedTextView {

@@ -6,6 +6,7 @@
 #import "MainPlayerController+PlayerEvents.h"
 #import "MainPlayerControllerInternal.h"
 #import "MainPlayerController+NowPlaying.h"
+#import "MainPlayerController+Playlist.h"
 
 #import "AppDelegate.h"
 #import "AppSettings.h"
@@ -168,6 +169,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // didPausePlaying: follows to stop the tick.
     if (!self.audioPlayer.isPlaying) {
         [self pauseUIUpdateTimer];
+    } else {
+        [self spendWelcomeTrack];
     }
 }
 
@@ -187,6 +190,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     // mask wrong.
     [self clearErrorMask];
     [self resumeUIUpdateTimer];
+    [self spendWelcomeTrack];
 }
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track {

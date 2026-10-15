@@ -33,6 +33,8 @@ It fades to its highlight color on hover, dims to half that while pressed, track
 
 Both delegates fire `…DidEndAdjusting:` **once** when a pitch gesture ends: on the mouse-up after a click or drag, on a double-click reset, or after an accessibility step. That is the hook for work too heavy for every drag tick. The per-tick callback is `didChangePitch:`.
 
+**A click on the panel's title or readout reports `pitchControlPanelDidClickHeader:`, and the controller switches the range between 8% and 16%.** The labels pass clicks through to the panel. The panel refuses the window drag so that click is its own, and drags the window itself from everywhere else. The faded header of a collapsed playlist is not a target.
+
 `VibeQuartzLockGreen(a)` is the green shared by the fader's zero LED and the panel's readout. It takes an alpha, so the LED glow can use a faint variant.
 
 **The fader is an accessibility slider** (`NSAccessibilitySliderRole`, `STR_A11Y_PITCH_FADER`, the same signed reading the panel draws). It is a custom `NSView` with no control to inherit from, and without this pitch is unreachable with VoiceOver. Its step is **0.5%, not the 0.1% a drag quantizes to.** Stepping at 0.1% would take 160 presses to cross the range. Half a percent divides both ranges (8 and 16) evenly, so stepping always lands back on exactly 0. An adjustment goes through `userSetPitch:`, so it gets the detent, the rounding and `didChangePitch:` a drag gets. It then fires `…DidEndAdjusting:`, since one press is the whole gesture.

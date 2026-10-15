@@ -123,9 +123,17 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (BOOL)loadWelcomeTrack {
     NSURL *url = [NSBundle.mainBundle URLForResource:@"vibe-theme" withExtension:@"mp3"];
-    if (!url) return NO;
+    if (!url || AppSettings.sharedInstance.welcomeTrackSpent) return NO;
     [self loadTracks:@[[[AudioTrack alloc] initWithURL:url]] selectingIndex:0 startPaused:YES];
     return YES;
+}
+
+// Spent by the user's first play or open, not by the park: a user who updates
+// before doing either would otherwise lose the track to the relaunch.
+- (void)spendWelcomeTrack {
+    if (!AppSettings.sharedInstance.welcomeTrackSpent) {
+        AppSettings.sharedInstance.welcomeTrackSpent = YES;
+    }
 }
 
 - (void)applyReopenLastPlaylist {
@@ -298,8 +306,13 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 #pragma mark - Move to Trash
 
-- (IBAction)moveSelectedPlaylistTracksToTrash:(nullable id)sender {
-    [self trashPlaylistTracks:self.playlistController.selectedTracks];
+// The targets VibeMenuHasTrashTarget validates: the selection, or the loaded
+// track while the playlist is collapsed.
+- (IBAction)moveToTrash:(nullable id)sender {
+    PlaylistController *playlist = self.playlistController;
+    AudioTrack *current = playlist.currentTrack;
+    BOOL shown = ((MainWindow *)self.window).isPlaylistShown;
+    [self trashPlaylistTracks:shown ? playlist.selectedTracks : (current ? @[current] : @[])];
 }
 
 - (void)trashPlaylistTracks:(NSArray<AudioTrack *> *)tracks {

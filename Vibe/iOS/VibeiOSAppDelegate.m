@@ -38,10 +38,10 @@
 
 // Once per install, so a user who deletes it from On My iPhone keeps it gone.
 - (void)copyWelcomeTrackIfFirstLaunch {
-    if (AppSettings.sharedInstance.welcomeTrackLoaded) {
+    if (AppSettings.sharedInstance.welcomeTrackSpent) {
         return;
     }
-    AppSettings.sharedInstance.welcomeTrackLoaded = YES;
+    AppSettings.sharedInstance.welcomeTrackSpent = YES;
     NSURL *source = [NSBundle.mainBundle URLForResource:@"vibe-theme" withExtension:@"mp3"];
     NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory
                                                             inDomains:NSUserDomainMask].firstObject;

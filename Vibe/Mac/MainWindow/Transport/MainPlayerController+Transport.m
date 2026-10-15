@@ -320,6 +320,12 @@
     [self updateNowPlaying];
 }
 
+- (void)pitchControlPanelDidClickHeader:(PitchControlPanel *)panel {
+    AppSettings *settings = AppSettings.sharedInstance;
+    settings.pitchRange = settings.pitchRange == 16 ? 8 : 16;
+    [self applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
+}
+
 // Every tick of a drag, and once at the release. The slider moved itself and
 // the control is on. So the player, the percentage and the drag's hover hold
 // are all that follow.

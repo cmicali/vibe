@@ -233,6 +233,12 @@ static inline BOOL VibeMenuHasVisibleSelection(BOOL keyWindow, BOOL playlistShow
     return keyWindow && playlistShown && selectedRow >= 0;
 }
 
+// Move to Trash acts on the visible selection. With the playlist collapsed,
+// no selection shows, so it acts on the loaded track instead.
+static inline BOOL VibeMenuHasTrashTarget(BOOL keyWindow, BOOL playlistShown, NSInteger selectedRow, BOOL hasTrack) {
+    return keyWindow && (playlistShown ? selectedRow >= 0 : hasTrack);
+}
+
 static inline BOOL VibeTransportMenuEnabled(NSString *identifier, BOOL hasNext, BOOL hasPrevious,
         BOOL visibleSelection, BOOL hasTrack, BOOL stopped) {
     if ([identifier isEqualToString:kVibeMenuNextTrack]) return hasNext;
@@ -253,11 +259,12 @@ static inline BOOL VibeFileMenuEnabled(NSString *identifier, NSUInteger count, B
 // file, and must be enabled to. fileMoveInFlight: an undoable file move has
 // not landed, so Undo, Redo, Remove and Move to Trash wait for it.
 static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL fileMoveInFlight,
-        BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL hasTrack, BOOL hasURL, BOOL textFocused) {
+        BOOL canUndo, BOOL canRedo, BOOL visibleSelection, BOOL trashTarget, BOOL hasTrack, BOOL hasURL,
+        BOOL textFocused) {
     if ([identifier isEqualToString:kVibeMenuEditUndo]) return !fileMoveInFlight && canUndo;
     if ([identifier isEqualToString:kVibeMenuEditRedo]) return !fileMoveInFlight && canRedo;
-    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]
-            || [identifier isEqualToString:kVibeMenuEditMoveToTrash]) return !fileMoveInFlight && visibleSelection;
+    if ([identifier isEqualToString:kVibeMenuEditRemoveFromPlaylist]) return !fileMoveInFlight && visibleSelection;
+    if ([identifier isEqualToString:kVibeMenuEditMoveToTrash]) return !fileMoveInFlight && trashTarget;
     if ([identifier isEqualToString:kVibeMenuEditCopyFile]) return textFocused || hasURL;
     return [identifier isEqualToString:kVibeMenuEditCopyName] && hasTrack;
 }

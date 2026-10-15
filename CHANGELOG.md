@@ -7,19 +7,20 @@
 * Changed Previous on the first song to restart it
 * Improved network share playback: a dropped connection pauses with "Connection lost", and a slow server no longer stalls track changes
 * Improved hi-res playback from slow network shares
-* Added the vibe theme track, which loads on the first launch
+* Added the vibe theme track, which loads on launch until you play or open something
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
 * mac: Added a Window menu with Minimize (⌘M), Window Width, Always on Top, and Lock Window Position
 * mac: Added Show in Finder (⇧⌘R) and Play to the menus
 * mac: Changed the menus to follow macOS conventions: Edit > Copy, Open Location… (⌘L), a Repeat submenu, Audio Output under Playback, and Convert to FLAC under File
 * mac: Changed the skip items to show their distance in bars or seconds
-* mac: Added Move to Trash (⌘⌫) to delete a song's file from the playlist, with Undo
+* mac: Added Move to Trash (⌘⌫) to delete the selected or playing song's file, with Undo
 * mac: Added automatic updates to the non-appstore version
 * mac: Added the RGB theme
 * mac: Added the Dark Core theme and its app icon, contributed by JohnnyFireOne
 * mac: Added theme colors for the title and artist text of the playing row and selected rows
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
+* mac: Added clicking the pitch panel's header to switch the range between 8% and 16%
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme

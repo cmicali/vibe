@@ -181,7 +181,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // The file commands, in the Finder's order. Show in Finder and Convert
     // act on the current track; Move to Trash on the selected rows.
     AddItem(fileMenu, STR_MENU_SHOW_IN_FINDER, @selector(showInFinder:), player, @"", 0, kVibeMenuShowInFinder);
-    AddItem(fileMenu, STR_MENU_EDIT_MOVE_TO_TRASH, @selector(moveSelectedPlaylistTracksToTrash:), player, @"", 0,
+    AddItem(fileMenu, STR_MENU_EDIT_MOVE_TO_TRASH, @selector(moveToTrash:), player, @"", 0,
             kVibeMenuEditMoveToTrash);
     // Validation hides it while Convert is off (Settings > Files) and for a
     // file under a remote root, as it does the window-body item's.
