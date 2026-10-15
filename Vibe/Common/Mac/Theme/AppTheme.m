@@ -601,7 +601,7 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
     }
     if ([base isEqualToString:kVibeThemeColorPlaylistEqualizer]) {
-        return NSColor.whiteColor;
+        return isDark ? NSColor.whiteColor : NSColor.blackColor;
     }
     // 0.55 is SymbolButton's resting strength.
     if (VibeIsArtKeyedColorBase(base) || [base isEqualToString:kVibeThemeColorDefaultArtworkGlyph]) {
