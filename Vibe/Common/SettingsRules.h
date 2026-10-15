@@ -273,10 +273,16 @@ static inline NSArray<NSString *> *VibePlaylistButtonGlyphs(void) {
              @"tablecells", @"sidebar.left", @"chevron.up.chevron.down"];
 }
 
-// The glyph default artwork's menu.
+// The glyph default artwork's menu: the music and audio symbols macOS 13
+// carries. Apple's device symbols (AirPods, Beats, HomePod, Apple TV) are
+// restricted to Apple's own use and stay out. Any other name goes in the
+// editor's Symbol name field.
 static inline NSArray<NSString *> *VibeDefaultArtworkGlyphs(void) {
-    return @[kVibeThemeDefaultArtworkGlyphDefault, @"music.note", @"music.note.list", @"music.mic",
-             @"waveform", @"headphones", @"hifispeaker", @"opticaldisc", @"record.circle",
+    return @[kVibeThemeDefaultArtworkGlyphDefault, @"music.note", @"music.note.list",
+             @"music.note.house", @"music.note.tv", @"music.mic", @"mic",
+             @"guitars", @"pianokeys", @"metronome", @"tuningfork", @"amplifier",
+             @"headphones", @"hifispeaker", @"hifispeaker.2", @"hifireceiver", @"speaker.wave.2", @"radio",
+             @"recordingtape", @"record.circle", @"opticaldisc", @"waveform", @"waveform.circle", @"waveform.path",
              @"photo", @"star", @"heart", @"questionmark"];
 }
 

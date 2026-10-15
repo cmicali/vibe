@@ -51,6 +51,9 @@ static NSString *const kChoiceStandard = @"standard";
     NSPopUpButton *_defaultArtworkPopUp, *_defaultArtworkGlyphPopUp;
     NSStackView *_defaultArtworkColorsPair, *_defaultArtworkGlyphColorsPair;
     SettingsRowView *_defaultArtworkImageRow, *_defaultArtworkGlyphRow, *_defaultArtworkGlyphSizeRow;
+    // Any SF Symbol by name, for the ones the menu does not list.
+    NSTextField *_defaultArtworkGlyphNameField;
+    SettingsRowView *_defaultArtworkGlyphNameRow;
     NSSlider *_defaultArtworkGlyphSizeSlider; // a VibeDetentSlider
     NSTextField *_defaultArtworkGlyphSizeValue;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider

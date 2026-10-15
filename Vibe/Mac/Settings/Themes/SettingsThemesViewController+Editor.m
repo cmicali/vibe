@@ -444,6 +444,12 @@ static const CGFloat kImageBadgeInset = 1.5;
     _defaultArtworkGlyphColorsPair = [self darkLightPairForBase:kVibeThemeColorDefaultArtworkGlyph effect:artEffect];
     _defaultArtworkGlyphRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH
                                                    controls:@[_defaultArtworkGlyphColorsPair, _defaultArtworkGlyphPopUp]];
+    _defaultArtworkGlyphNameField = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    _defaultArtworkGlyphNameField.delegate = self;
+    _defaultArtworkGlyphNameField.placeholderString = VibeNotLocalized(kVibeThemeDefaultArtworkGlyphDefault);
+    [_defaultArtworkGlyphNameField.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    _defaultArtworkGlyphNameRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_NAME
+                                                        control:_defaultArtworkGlyphNameField];
     NSStackView *glyphSizeCluster = [self detentSliderClusterWithDetent:kVibeThemeDefaultArtworkGlyphSizeDefault
             min:kVibeThemeDefaultArtworkGlyphSizeMin max:kVibeThemeDefaultArtworkGlyphSizeMax
             action:@selector(defaultArtworkGlyphSizeChanged:)
@@ -455,6 +461,7 @@ static const CGFloat kImageBadgeInset = 1.5;
                              controls:@[_defaultArtworkColorsPair, _defaultArtworkPopUp]],
         _defaultArtworkImageRow,
         _defaultArtworkGlyphRow,
+        _defaultArtworkGlyphNameRow,
         _defaultArtworkGlyphSizeRow,
     ]];
     [rows addObjectsFromArray:[self buildWaveformRows]];

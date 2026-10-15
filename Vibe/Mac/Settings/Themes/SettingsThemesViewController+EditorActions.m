@@ -156,6 +156,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _defaultArtworkColorsPair.hidden = ![theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM];
     _defaultArtworkImageRow.hidden = ![theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK];
     _defaultArtworkGlyphRow.hidden = !glyphArt;
+    _defaultArtworkGlyphNameRow.hidden = !glyphArt;
     _defaultArtworkGlyphSizeRow.hidden = !glyphArt;
     _playlistTintPair.hidden = ![theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _playlistBackgroundColorsPair.hidden = ![theme.playlistBackgroundStyle
@@ -205,6 +206,14 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectValue:theme.windowTint in:_windowTintPopUp];
     [self selectValue:theme.defaultArtwork in:_defaultArtworkPopUp];
     [self selectGlyph:theme.defaultArtworkGlyph in:_defaultArtworkGlyphPopUp];
+    if (_defaultArtworkGlyphNameField.currentEditor == nil) {
+        _defaultArtworkGlyphNameField.stringValue = theme.defaultArtworkGlyph;
+    }
+    // The record keeps the name; the draw site falls back to the factory
+    // glyph, and the caption says so.
+    [_defaultArtworkGlyphNameRow setCaption:
+            [NSImage imageWithSystemSymbolName:theme.defaultArtworkGlyph accessibilityDescription:nil]
+                    ? nil : STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_MISSING];
     [self refreshDefaultArtworkGlyphSize];
     for (NSColorWell *well in _wellBindings) {
         NSDictionary *binding = [_wellBindings objectForKey:well];
@@ -616,10 +625,10 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 // and would eat the font panel's sends; editing the name closes the panel
 // (selectFont: guards the other direction).
 - (void)controlTextDidBeginEditing:(NSNotification *)notification {
-    if (notification.object != _nameField) {
+    if (notification.object != _nameField && notification.object != _defaultArtworkGlyphNameField) {
         return;
     }
-    [(NSTextView *)_nameField.currentEditor setAllowsUndo:YES];
+    [(NSTextView *)[notification.object currentEditor] setAllowsUndo:YES];
     _fontEditingSlot = VibeFontSlotNone;
     if (NSFontPanel.sharedFontPanelExists) {
         [NSFontPanel.sharedFontPanel orderOut:nil];
@@ -633,6 +642,14 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 }
 
 - (void)controlTextDidEndEditing:(NSNotification *)notification {
+    if (notification.object == _defaultArtworkGlyphNameField) {
+        // Free text: the gate keeps the symbol-name shape and snaps the rest
+        // to the factory glyph, which the refresh then shows.
+        AppSettings.sharedInstance.currentTheme.defaultArtworkGlyph = _defaultArtworkGlyphNameField.stringValue;
+        [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark)];
+        [self refreshFromSettings];
+        return;
+    }
     if (notification.object != _nameField) {
         return;
     }
