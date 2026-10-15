@@ -233,14 +233,44 @@ static inline NSData *VibeMP3WithoutVBRHeader(uint32_t frames, uint32_t rate, ui
     return bytes;
 }
 
+// VibeMP3WithoutVBRHeader's frames at 44.1 kHz behind a 128 kbps Xing frame.
+// The Xing frame counts the frames and bytes and carries a 100-entry seek
+// TOC. That is the VBR header LAME writes, without its LAME extension.
+static inline NSData *VibeMP3WithXingFrame(uint32_t frames, uint8_t (^index)(uint32_t frame)) {
+    static const uint32_t kbps[15] = {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320};
+    NSData *body = VibeMP3WithoutVBRHeader(frames, 44100, index);
+    NSMutableData *bytes = [NSMutableData dataWithLength:417];
+    uint8_t *out = (uint8_t *)bytes.mutableBytes;
+    const uint8_t header[4] = {0xFF, 0xFB, 0x90, 0x00};
+    memcpy(out, header, sizeof(header));
+    memcpy(out + 36, "Xing", 4);
+    const uint32_t fields[3] = {CFSwapInt32HostToBig(7), CFSwapInt32HostToBig(frames + 1),
+                                CFSwapInt32HostToBig((uint32_t)(417 + body.length))};
+    memcpy(out + 40, fields, sizeof(fields));
+    // Entry i is where i percent of the frames starts, in 256ths of the audio.
+    uint64_t offset = 0;
+    uint32_t frame = 0;
+    for (uint32_t i = 0; i < 100; i++) {
+        for (; frame < (uint64_t)frames * i / 100; frame++) {
+            offset += 144 * kbps[index(frame)] * 1000 / 44100;
+        }
+        out[52 + i] = (uint8_t)MIN((uint64_t)255, offset * 256 / body.length);
+    }
+    [bytes appendData:body];
+    return bytes;
+}
+
 // Writes `buffer` as the container its name says — WAV, AIFC for .aif, W64
 // for .w64, CAF for .caf — in the buffer's own sample format, interleaved,
-// with its channel layout.
+// with its channel layout. A .flac is Apple's encode, as afconvert writes it,
+// with no seek table: 16-bit from an int16 buffer, else 24-bit.
 static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
     AVAudioFormat *format = buffer.format;
     NSString *extension = url.pathExtension.lowercaseString;
     BOOL aiff = [extension hasPrefix:@"aif"];
+    BOOL flac = [extension isEqualToString:@"flac"];
     AudioFileTypeID type = aiff ? kAudioFileAIFCType
+            : flac ? kAudioFileFLACType
             : [extension isEqualToString:@"w64"] ? kAudioFileWave64Type
             : [extension isEqualToString:@"caf"] ? kAudioFileCAFType
             : kAudioFileWAVEType;
@@ -248,6 +278,13 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
     file.mFormatFlags = (file.mFormatFlags & ~(UInt32)kAudioFormatFlagIsNonInterleaved) | (aiff ? kAudioFormatFlagIsBigEndian : 0);
     file.mBytesPerFrame = file.mBitsPerChannel / 8 * file.mChannelsPerFrame;
     file.mBytesPerPacket = file.mBytesPerFrame;
+    if (flac) {
+        file = (AudioStreamBasicDescription){
+            .mSampleRate = format.sampleRate, .mFormatID = kAudioFormatFLAC,
+            .mFormatFlags = format.commonFormat == AVAudioPCMFormatInt16 ? kAppleLosslessFormatFlag_16BitSourceData
+                                                                         : kAppleLosslessFormatFlag_24BitSourceData,
+            .mChannelsPerFrame = format.channelCount};
+    }
     AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&file channelLayout:format.channelLayout];
     AudioFileHandle *handle = [[AudioFileHandle alloc] initForWriting:url fileType:type
                                                            fileFormat:fileFormat processingFormat:format error:error];

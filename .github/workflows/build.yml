@@ -146,7 +146,7 @@ jobs:
 
       - name: Run unit and audio tests
         if: ${{ !cancelled() }}
-        run: make -k -j3 test test-audio
+        run: make -k -j3 test test-audio COVERAGE=1
 
       - name: Test summary
         if: always()

@@ -367,32 +367,27 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
         state = state * 1664525u + 1013904223u;
         out[i] = (int16_t)(sin((double)i * 0.0123) * 12000.0 + (double)(int16_t)(state >> 16) * 0.5);
     }
-    NSMutableArray<NSURL *> *files = [NSMutableArray array];
     NSURL *wav = VibeWriteWAV([sources URLByAppendingPathComponent:@"noise.wav"], samples, 44100, 2, 16,
                               (uint32_t)samples.length);
+    // The same noise as Apple's FLAC encode, which a noise source keeps past
+    // the readable mark.
+    AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16 sampleRate:44100
+                                                               channels:2 interleaved:YES];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:(AVAudioFrameCount)frames];
+    buffer.frameLength = (AVAudioFrameCount)frames;
+    memcpy(buffer.int16ChannelData[0], samples.bytes, samples.length);
+    NSError *flacError = nil;
+    NSURL *flac = VibeWriteFixture([sources URLByAppendingPathComponent:@"noise.flac"], buffer, &flacError);
     XCTAssertNotNil(wav);
-    if (wav) {
-        [files addObject:wav];
-    }
-    // The real encode with a seek table, from the gitignored corpus. CI has no
-    // corpus, so the case is optional there. Anywhere else its absence is a
-    // skip, never a quiet pass.
-    NSString *tone = [[NSString stringWithUTF8String:__FILE__].stringByDeletingLastPathComponent
-            stringByAppendingPathComponent:@"../../../../Assets/test_audio_files/tone.flac"].stringByStandardizingPath;
-    if ([NSFileManager.defaultManager fileExistsAtPath:tone]) {
-        [files addObject:[NSURL fileURLWithPath:tone]];
-    } else {
-        XCTSkipIf(!getenv("CI"), @"%@ is missing; run scripts/test/generate-test-audio.sh", tone);
-    }
+    XCTAssertNotNil(flac, @"%@", flacError);
 
     const NSUInteger chunk = 32 * 1024;
-    NSUInteger streamed = 0;
-    for (NSURL *source in files) {
+    for (NSURL *source in wav && flac ? @[wav, flac] : @[]) {
         NSData *bytes = [NSData dataWithContentsOfURL:source];
+        XCTAssertGreaterThanOrEqual(bytes.length, 2 * kReadableBytes, @"%@", source.lastPathComponent);
         if (bytes.length < 2 * kReadableBytes) {
             continue;
         }
-        streamed++;
         NSError *error = nil;
         AudioFileHandle *whole = [[AudioFileHandle alloc] initForReading:source error:&error];
         NSData *reference = whole ? DecodeAll(whole, &error) : nil;
@@ -442,7 +437,6 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
         XCTAssertTrue([pcm isEqualToData:reference], @"%@: the streamed decode differs", source.lastPathComponent);
         [self assertFinishedOnce:availability error:nil];
     }
-    XCTAssertGreaterThan(streamed, 0u);
     [NSFileManager.defaultManager removeItemAtURL:sources error:NULL];
 }
 
