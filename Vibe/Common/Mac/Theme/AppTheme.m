@@ -103,10 +103,14 @@ NSString *const kVibeThemeColorPlaylistNumber = @"playlistNumberColor";
 NSString *const kVibeThemeColorPlaylistTitle = @"playlistTitleColor";
 NSString *const kVibeThemeColorPlaylistArtist = @"playlistArtistColor";
 NSString *const kVibeThemeColorPlaylistDuration = @"playlistDurationColor";
+NSString *const kVibeThemeColorPlaylistPlayingRowNumber = @"playlistPlayingRowNumberColor";
 NSString *const kVibeThemeColorPlaylistPlayingRowTitle = @"playlistPlayingRowTitleColor";
 NSString *const kVibeThemeColorPlaylistPlayingRowArtist = @"playlistPlayingRowArtistColor";
+NSString *const kVibeThemeColorPlaylistPlayingRowDuration = @"playlistPlayingRowDurationColor";
+NSString *const kVibeThemeColorPlaylistSelectedRowNumber = @"playlistSelectedRowNumberColor";
 NSString *const kVibeThemeColorPlaylistSelectedRowTitle = @"playlistSelectedRowTitleColor";
 NSString *const kVibeThemeColorPlaylistSelectedRowArtist = @"playlistSelectedRowArtistColor";
+NSString *const kVibeThemeColorPlaylistSelectedRowDuration = @"playlistSelectedRowDurationColor";
 
 // The switch's key beside a switched pair: playlistNumberColorEnabled in
 // the record, numberColorEnabled in the JSON.
@@ -422,14 +426,22 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistArtist, playlist, @"artistColor", kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistDuration, playlist, @"durationColor", kVibeThemeColorArtist);
         AddColorPair(rows, kVibeThemeColorPlaylistPlayingRow, playlist, @"playingRowColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowNumber, playlist, @"playingRowNumberColor",
+                             kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowTitle, playlist, @"playingRowTitleColor",
                              kVibeThemeColorTitle);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowArtist, playlist, @"playingRowArtistColor",
                              kVibeThemeColorArtist);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowDuration, playlist, @"playingRowDurationColor",
+                             kVibeThemeColorArtist);
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowNumber, playlist, @"selectedRowNumberColor",
+                             kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowTitle, playlist, @"selectedRowTitleColor",
                              kVibeThemeColorTitle);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowArtist, playlist, @"selectedRowArtistColor",
+                             kVibeThemeColorArtist);
+        AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowDuration, playlist, @"selectedRowDurationColor",
                              kVibeThemeColorArtist);
         specs = [rows copy];
     });

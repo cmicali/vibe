@@ -9,6 +9,7 @@
 #import "PlatformColor.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "AppThemeInternal.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "AudioPlayer+Devices.h"
 #import "CoreAudioUtil.h"
@@ -259,18 +260,6 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"appIconShape": @(theme.appIconShape),
             @"appIcon": [theme imageReferenceForKey:kVibeThemeImageAppIcon],
             @"buttonGradient": theme.buttonGradient,
-            @"playlistNumberColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistNumber]),
-            @"playlistTitleColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]),
-            @"playlistArtistColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistArtist]),
-            @"playlistDurationColorEnabled": @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistDuration]),
-            @"playlistPlayingRowTitleColorEnabled":
-                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowTitle]),
-            @"playlistPlayingRowArtistColorEnabled":
-                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistPlayingRowArtist]),
-            @"playlistSelectedRowTitleColorEnabled":
-                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowTitle]),
-            @"playlistSelectedRowArtistColorEnabled":
-                    @([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistSelectedRowArtist]),
             @"playlistButtonGlyph": theme.playlistButtonGlyph,
             @"playButtonGlyph": theme.playButtonGlyph,
             @"pauseButtonGlyph": theme.pauseButtonGlyph,
@@ -288,6 +277,12 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
                     [theme fontSizeForSlot:VibeFontSlotPlaylist]],
         },
     }];
+    // Every switched playlist pair's switch, under its base.
+    NSMutableDictionary *settings = [state[@"settings"] mutableCopy];
+    for (NSString *base in VibeThemePlaylistColorFallbackBases()) {
+        settings[[base stringByAppendingString:@"Enabled"]] = @([theme playlistColorEnabledForBase:base]);
+    }
+    state[@"settings"] = settings;
     return state;
 }
 

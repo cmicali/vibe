@@ -743,21 +743,29 @@ static const CGFloat kImageBadgeInset = 1.5;
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistArtist title:STR_SETTINGS_THEME_COLOR_ARTIST],
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistDuration
                                         title:STR_SETTINGS_THEME_PLAYLIST_DURATION_COLOR],
-        // Each row fill, then the text drawn over it.
+        // Each row fill, then its columns' text in the columns' order.
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_PLAYING_ROW
                 control:[self darkLightPairForBase:kVibeThemeColorPlaylistPlayingRow
                                             effect:VibeSettingsLiveEffectPlaylistRowColors]],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistPlayingRowNumber
+                                        title:STR_SETTINGS_THEME_PLAYING_ROW_NUMBER],
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistPlayingRowTitle
                                         title:STR_SETTINGS_THEME_PLAYING_ROW_TITLE],
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistPlayingRowArtist
                                         title:STR_SETTINGS_THEME_PLAYING_ROW_ARTIST],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistPlayingRowDuration
+                                        title:STR_SETTINGS_THEME_PLAYING_ROW_DURATION],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SELECTED_ROW
                 control:[self darkLightPairForBase:kVibeThemeColorPlaylistSelectedRow
                                             effect:VibeSettingsLiveEffectPlaylistRowColors]],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistSelectedRowNumber
+                                        title:STR_SETTINGS_THEME_SELECTED_ROW_NUMBER],
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistSelectedRowTitle
                                         title:STR_SETTINGS_THEME_SELECTED_ROW_TITLE],
         [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistSelectedRowArtist
                                         title:STR_SETTINGS_THEME_SELECTED_ROW_ARTIST],
+        [self switchedPlaylistColorRowForBase:kVibeThemeColorPlaylistSelectedRowDuration
+                                        title:STR_SETTINGS_THEME_SELECTED_ROW_DURATION],
     ]];
 }
 

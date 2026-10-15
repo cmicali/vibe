@@ -44,15 +44,14 @@
 }
 
 - (void)applyTextColor {
-    NSColor *title = [PlaylistTableView textColorForRowSelected:self.selected playing:_playingRow title:YES];
-    NSColor *artist = [PlaylistTableView textColorForRowSelected:self.selected playing:_playingRow title:NO];
+    NSDictionary *colors = [PlaylistTableView textColorsForRowSelected:self.selected playing:_playingRow];
     for (NSView *subview in self.subviews) {
         if (![subview isKindOfClass:NSTableCellView.class]) {
             continue;
         }
         NSCell *cell = ((NSTableCellView *)subview).textField.cell;
         if ([cell isKindOfClass:PlaylistTextCell.class]) {
-            [(PlaylistTextCell *)cell setRowTitleColor:title artistColor:artist];
+            [(PlaylistTextCell *)cell setRowColors:colors];
         }
     }
 }
