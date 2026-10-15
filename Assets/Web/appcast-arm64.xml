@@ -7,6 +7,19 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta10</title>
+<pubDate>Thu, 15 Oct 2026 22:46:04 +0000</pubDate>
+<sparkle:version>317</sparkle:version>
+<sparkle:shortVersionString>1.16-beta10</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* New: a theme color for the playing row's equalizer bars
+* Changed the playing row's equalizer bars to black in light mode
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta10/Vibe-macOS-arm64-1.16-beta10.zip" length="8735604" type="application/octet-stream" sparkle:edSignature="Srqv0tJ0lmmAVkpJBr4CiH68e1VfpobUMMU2Z60/2sNQUNDxEbaOqMXhosN0eJir0YbsDkY9jTsBvP4k0UHbDQ=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta9</title>
 <pubDate>Thu, 15 Oct 2026 17:33:01 +0000</pubDate>
 <sparkle:version>316</sparkle:version>
