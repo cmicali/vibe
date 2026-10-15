@@ -13,13 +13,13 @@ This directory holds the tests of the three test targets, `VibeTests`, `VibeAudi
 `Support/` holds the shared helpers. None of them runs a test.
 
 - `AudioFixtures.h`: the fixture writers and the reference conversion (`VibeReferenceResample`). Both targets use it.
-- `DrawnViewTestSupport.h`: renders a view or a layer tree into a 1x bitmap and reads a pixel by view coordinates. It also makes the deferred window the view tests attach to.
+- `DrawnViewTestSupport.h`: renders a view or a layer tree into a 1x bitmap and reads a pixel by view coordinates. It also makes the deferred window that the view tests attach to and that `MainPlayerControllerTests` takes its undo manager from.
 - `DropboxStubProtocol.h` and `.m`: the Dropbox tests' `NSURLProtocol`. One handler the test installs answers every request.
 - `HTTPStub.h` and `.m`: a scripted HTTP host per instance, over the debug fake's serving engine. Both targets compile it.
 - `LinkStoreTestCase.h` and `.m`: the base class of each link host's store tests.
 - `MaterializationTestFakes.h` and `.m`: the gated dataless probe and the hand-completed provider operations of the stage-1 coordinator tests (`AudioFileMaterializationCoordinatorTestCase`).
 - `MetadataLoaderTestFakes.h` and `.m`: the metadata loader tests' fakes, and the suite's `AudioTrackMetadata` decoy.
-- `ShellTestFakes.h` and `.m`: the mac shell's duck-typed player and metadata scan, the window's occlusion answer, and the shell's decoys.
+- `ShellTestFakes.h` and `.m`: the mac shell's duck-typed player and metadata scan, the window's occlusion answer, and the partial `MainMenuBuilder` decoy.
 - `TestFilesystemGuard.h` and `.m`: the per-process temp root and in-memory defaults, installed at image load. All three targets compile it.
 - `VibeReadAheadScript.h` and `.m`: forces the network-mount rule and scripts each read. Both targets compile it.
 
@@ -61,7 +61,7 @@ Anything that needs the app running belongs in the `vibe-debug` skill's command 
 
 OS provider state, shell routing, remote-command registration, output rebinding, device property I/O and hardware settlement remain live tests.
 
-**The suite links an incomplete `AudioTrackMetadata` decoy** (`Support/MetadataLoaderTestFakes.m`), because the real one is ObjC++ and TagLib. The real parse is tested in `VibeAudioTests` (below). Its parser constructor raises. Loader fixtures use the copy-capable duck fake, and a newly required selector is added deliberately. `ShellTestFakes.m` holds the shell's decoys. `AudioPlayer`, `AudioTrackMetadataCache`, `OutputDevicesMenuController` and `MainWindow` only satisfy the window constructor's class references. `MainMenuBuilder` answers only the row menu's items. The suite compiles `MainPlayerController.m`, `+Playlist`, `+Transport`, `+Settings` and `+NowPlaying`. A tested path that reaches another category fails loudly, except `+Window`'s `isWindowVisible`, which the fakes answer.
+**The suite links an incomplete `AudioTrackMetadata` decoy** (`Support/MetadataLoaderTestFakes.m`), because the real one is ObjC++ and TagLib. The real parse is tested in `VibeAudioTests` (below). Its parser constructor raises. Loader fixtures use the copy-capable duck fake, and a newly required selector is added deliberately. `ShellTestFakes.m` holds the shell's one decoy. `MainMenuBuilder` answers only the row menu's items. The suite compiles `MainPlayerController.m`, `+Playlist`, `+Transport`, `+Settings` and `+NowPlaying`. It leaves out `+Construction`, the app's construction road, so the suite needs no decoy for the classes that road builds. A tested path that reaches another category fails loudly, except `+Window`'s `isWindowVisible`, which the fakes answer.
 
 ## Rendered audio
 

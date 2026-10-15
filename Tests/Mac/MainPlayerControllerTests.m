@@ -10,6 +10,7 @@
 #import <XCTest/XCTest.h>
 
 #import "ShellTestFakes.h"
+#import "DrawnViewTestSupport.h"
 #import "PlaylistTestSupport.h"
 #import "AppSettings.h"
 #import "MainPlayerController+NowPlaying.h"
@@ -50,12 +51,13 @@
     _cache = [VibeShellTestMetadataCache new];
     _timers = [NSMutableArray array];
     NSMutableArray<dispatch_block_t> *timers = _timers;
-    _controller = [[MainPlayerController alloc] initWithWindow:VibeShellTestWindow()
+    _controller = [[MainPlayerController alloc] initWithWindow:VibeOffscreenWindow(NSMakeSize(100, 100))
                                                    audioPlayer:(AudioPlayer *)_player
                                                  metadataCache:(AudioTrackMetadataCache *)_cache
                                              metadataScheduler:^(NSTimeInterval delay, dispatch_block_t block) {
         [timers addObject:block];
     }];
+    [_controller buildPlaylistController];
     [_controller pushTransportModesToPlaylist];
     _undo = _controller.window.undoManager;
     _undo.groupsByEvent = NO;
@@ -71,22 +73,6 @@
 }
 
 #pragma mark - Helpers
-
-static NSArray<AudioTrack *> *TracksNamed(NSString *names) {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (NSString *name in [names componentsSeparatedByString:@" "]) {
-        [urls addObject:URLNamed([name stringByAppendingString:@".mp3"])];
-    }
-    return Rows(urls);
-}
-
-static NSString *NamesOf(NSArray<AudioTrack *> *tracks) {
-    NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (AudioTrack *track in tracks) {
-        [names addObject:track.url.lastPathComponent.stringByDeletingPathExtension];
-    }
-    return [names componentsJoinedByString:@" "];
-}
 
 - (PlaylistController *)playlist {
     return _controller.playlistController;

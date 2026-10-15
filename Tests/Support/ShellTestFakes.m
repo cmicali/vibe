@@ -7,40 +7,11 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "AudioTrack.h"
-#import "AudioTrackMetadataCache.h"
 #import "MainMenuBuilder.h"
-#import "MainWindow.h"
-#import "OutputDevicesMenuController.h"
+#import "PlaylistTestSupport.h"
 
-// MainPlayerController's window constructor names these classes, so the
-// target must define them. The suite never builds that way, so these
-// definitions only satisfy the link. The tests hand the injected constructor
-// the duck-typed fakes below.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
-#pragma clang diagnostic ignored "-Wobjc-designated-initializers"
-@implementation AudioPlayer
-- (instancetype)initWithDeviceUID:(NSString *)deviceUID modelUID:(NSString *)modelUID
-                             name:(NSString *)deviceName enableFX:(BOOL)enableFX
-                         delegate:(id<AudioPlayerDelegate>)delegate {
-    [NSException raise:NSInternalInconsistencyException format:@"The real player is not in this suite"];
-    return nil;
-}
-@end
-
-@implementation AudioTrackMetadataCache
-- (instancetype)init {
-    [NSException raise:NSInternalInconsistencyException format:@"The real scan is not in this suite"];
-    return nil;
-}
-@end
-
-@implementation OutputDevicesMenuController
-@end
-
-@implementation MainWindow
-@end
-
 // PlaylistController's row menu is the one part of MainMenuBuilder it uses.
 @implementation MainMenuBuilder
 + (NSMenuItem *)symbolItemWithTitle:(NSString *)title
@@ -57,7 +28,7 @@
 #pragma clang diagnostic pop
 
 static NSString *NameOf(AudioTrack *_Nullable track) {
-    return track ? track.url.lastPathComponent.stringByDeletingPathExtension : @"nil";
+    return track ? NamesOf(@[track]) : @"nil";
 }
 
 @implementation VibeShellTestPlayer {
@@ -209,10 +180,3 @@ static BOOL gTestWindowVisible = YES;
 }
 
 @end
-
-NSWindow *VibeShellTestWindow(void) {
-    return [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
-                                       styleMask:NSWindowStyleMaskBorderless
-                                         backing:NSBackingStoreBuffered
-                                           defer:YES];
-}

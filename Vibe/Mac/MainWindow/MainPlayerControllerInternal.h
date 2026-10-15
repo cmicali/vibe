@@ -22,6 +22,7 @@
 @class NowPlayingController;
 @class PlaylistTableView;
 @class SymbolButton;
+@class TransportKeyMonitor;
 @class UIUpdateTimer;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -56,6 +57,7 @@ NS_ASSUME_NONNULL_BEGIN
     // set again.
     BOOL                        _emptyStateSuppressed;
     BOOL                        _folderArtRefreshScheduled;
+    TransportKeyMonitor*        _keyMonitor;
 }
 
 @property (readwrite, strong) OutputDevicesMenuController *devicesMenuController;
@@ -100,14 +102,19 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Construction
 
-// The host-less tests' constructor. It builds no window content, collaborators
-// or OS publishers, only the playlist controller and its handlers. The
-// scheduler runs the deferred metadata load's fallback (dispatch_after on main
-// in the app).
+// The one constructor road. It stores what it is handed and builds nothing.
+// The app's init (+Construction) passes a nil player and cache, then builds
+// the window, the collaborators and the OS publishers. The host-less tests
+// pass fakes and call buildPlaylistController. The scheduler runs the
+// deferred metadata load's fallback (dispatch_after on main in the app).
 - (instancetype)initWithWindow:(nullable NSWindow *)window
-                   audioPlayer:(AudioPlayer *)audioPlayer
-                 metadataCache:(AudioTrackMetadataCache *)metadataCache
+                   audioPlayer:(nullable AudioPlayer *)audioPlayer
+                 metadataCache:(nullable AudioTrackMetadataCache *)metadataCache
              metadataScheduler:(VibeScheduler)scheduler;
+// The playlist controller and the four handlers that make the shell its
+// follow-up. It reads the player and the table, so the app runs it after it
+// builds both.
+- (void)buildPlaylistController;
 
 #pragma mark - The refresh funnel
 

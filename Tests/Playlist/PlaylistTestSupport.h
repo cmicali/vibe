@@ -30,6 +30,24 @@ static inline NSArray<AudioTrack *> *Rows(NSArray<NSURL *> *urls) {
     return rows;
 }
 
+// "a b c" as three rows, a.mp3, b.mp3 and c.mp3.
+static inline NSArray<AudioTrack *> *TracksNamed(NSString *names) {
+    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    for (NSString *name in [names componentsSeparatedByString:@" "]) {
+        [urls addObject:URLNamed([name stringByAppendingString:@".mp3"])];
+    }
+    return Rows(urls);
+}
+
+// The rows' file stems, space-separated: "a b c".
+static inline NSString *NamesOf(NSArray<AudioTrack *> *tracks) {
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    for (AudioTrack *track in tracks) {
+        [names addObject:track.url.lastPathComponent.stringByDeletingPathExtension];
+    }
+    return [names componentsJoinedByString:@" "];
+}
+
 static inline NSIndexSet *RowSet(NSUInteger index) {
     return [NSIndexSet indexSetWithIndex:index];
 }

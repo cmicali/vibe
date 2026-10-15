@@ -47,7 +47,4 @@ typedef NS_ENUM(NSInteger, VibeShellTestPlayerState) {
 @property (class, nonatomic) BOOL testWindowVisible;
 @end
 
-// A deferred window that never orders front, for its undo manager.
-NSWindow *VibeShellTestWindow(void);
-
 NS_ASSUME_NONNULL_END
