@@ -25,17 +25,29 @@ Only an ExpectedGap carrying its documented defect is XFAIL; any other failure
 is FAIL, and a pass is XPASS, which needs review. No scenario is expected-fail
 today; the mark is how a scenario lands ahead of its fix.
 
+`--provider real` drops the fake and runs against a real File Provider
+folder. See REAL PROVIDER below and references/cloud-scenarios.md.
+
     cloud-scenarios.py --corpus build/cloud-scenarios-corpus
     cloud-scenarios.py --corpus <dir> --only S4b,S7 --verbose
+    cloud-scenarios.py --provider real --folder <iCloud Drive folder>
 """
 
 import argparse
+import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from stress import AUDIO_SUFFIXES, DEFAULT_APP, Channel, launch  # noqa: E402
+from stress import (AUDIO_SUFFIXES, COMMAND_VERBS, DEFAULT_APP,  # noqa: E402
+                    Channel, launch)
+
+# Read-only measurement verbs that only this runner sends. They join the gate
+# here, not in stress.py, so random stress never reaches them.
+COMMAND_VERBS.update({"set_dataless_diag", "dump_dataless_diag"})
 
 # Seconds. Long enough to observe a transfer mid-flight across channel round
 # trips, short enough that a dozen do not make the suite a soak.
@@ -66,11 +78,23 @@ class ExpectedGap(Failed):
     """The documented defect an expected-fail scenario exists to record."""
 
 
+class NotStaged(Exception):
+    """A real-provider precondition did not hold, so nothing was tested.
+
+    Reported ERROR with the reason, never PASS: a file that would not evict,
+    or a real transfer that ended before the scenario could act on it.
+    """
+
+
 class Ctx:
-    def __init__(self, channel, corpus, verbose):
+    def __init__(self, channel, corpus, verbose, real=False, wait_scale=1.0):
         self.channel = channel
         self.corpus = corpus
         self.verbose = verbose
+        self.real = real
+        self.wait_scale = wait_scale
+        # Real mode's registry log: one entry per sample().
+        self.samples = []
         self.folders = sorted(p for p in corpus.iterdir() if p.is_dir())
         if len(self.folders) < 2:
             sys.exit(f"{corpus} needs at least two subfolders — see make-cloud-corpus.py")
@@ -184,6 +208,35 @@ class Ctx:
     def settle(self, seconds):
         """Let the app run. `sleep` is a client-side pause; the app is not blocked."""
         self.cmd("sleep", f"{seconds}")
+
+    # -- real provider ----------------------------------------------------
+
+    def sample(self):
+        """Append one registry sample to the log and return it.
+
+        A real transfer leaves no trace, so the registry, sampled, is the
+        event source. The hold is read after the registry: a file that
+        appears between two held samples began under the hold.
+        """
+        rows = self.cmd("dump_row_loading")
+        held = bool(self.materialization().get("foregroundTransferActive"))
+        entry = {"n": len(self.samples), "held": held,
+                 "files": sorted(item.get("file", "")
+                                 for item in rows.get("transfers", [])),
+                 "rows": rows}
+        self.samples.append(entry)
+        return entry
+
+    def watch(self, describe, predicate, seconds):
+        """Sample until predicate(sample) holds, within seconds * --wait-scale."""
+        deadline = time.monotonic() + seconds * self.wait_scale
+        while time.monotonic() < deadline:
+            entry = self.sample()
+            if predicate(entry):
+                return entry
+            time.sleep(POLL)
+        raise Failed(f"timed out after {seconds * self.wait_scale:.0f}s waiting "
+                     f"for {describe}")
 
 
 # -- trace helpers ---------------------------------------------------------
@@ -557,7 +610,7 @@ def loading_residue(ctx):
             if materialization.get(key, 0)}
     priority = health.get("priorityLane", {})
     scan = health.get("scanLane", {})
-    fake = ctx.stats()
+    fake = {} if ctx.real else ctx.stats()
     rows = ctx.cmd("dump_row_loading")
     residue = {}
     if health.get("cloudLaneHeld") or health.get("cloudParsesPending"):
@@ -2018,42 +2071,709 @@ def s21_the_library_converges(ctx):
                  f"opens in flight {materialization.get('handleOpensInFlight')})")
 
 
+# Real provider
+#
+# REAL PROVIDER: NO FAKE, SO NO TRACE. The transfer registry
+# (dump_row_loading), sampled, stands in for the provider's edges. A file's
+# arrival in a sample replaces `requested` and `started`, and the sample index
+# replaces the trace sequence. The coordinator's cumulative counters give the
+# rest of the order, and they never go backwards. The file's own SF_DATALESS
+# says whether its bytes arrived.
+#
+# A sample can miss a transfer shorter than one poll. Every real assertion is
+# therefore stated over what was observed. A step that needed to see a
+# transfer and did not is NotStaged (ERROR), never a pass.
+
+SF_DATALESS = 0x40000000  # <sys/stat.h>
+
+# Seconds, before --wait-scale. One small file's real download, with room for
+# the provider's own queueing.
+REAL_TRANSFER = 60.0
+# brctl evict returns before the file is dataless.
+REAL_EVICT = 30.0
+# A cancelled or closed claim leaving the registry, and a player landing.
+REAL_SETTLE = 10.0
+# Small files keep a run short. A file under about 100 KB can download inside
+# one poll, where no scenario sees it.
+REAL_MAX_FILE_BYTES = 4 * 1024 * 1024
+
+# Cumulative coordinator counters (dump_cloud_health's materialization).
+REAL_COUNTERS = ("handleOpensStarted", "handleOpensCompleted", "requestsReady",
+                 "requestsFailed", "requestsYielded", "requestsAdmissionExhausted")
+
+
+def file_is_dataless(path):
+    return bool(os.stat(path).st_flags & SF_DATALESS)
+
+
+def eviction_error(flags):
+    """flags maps each basename to its st_flags, or None when the stat failed."""
+    if not flags:
+        return "no audio files to evict"
+    unreadable = sorted(name for name, value in flags.items() if value is None)
+    if unreadable:
+        return f"could not stat {unreadable[:5]}"
+    local = sorted(name for name, value in flags.items() if not value & SF_DATALESS)
+    if local:
+        return f"{len(local)} file(s) still local after eviction: {local[:5]}"
+    return None
+
+
+def app_dataless_error(diag, folders):
+    """The app's own dataless test must have answered dataless in a scenario
+    folder. Otherwise the scenario met only local files and proved nothing."""
+    if not diag.get("enabled"):
+        return "the app's dataless diagnostics were not enabled"
+    wanted = {str(Path(folder).resolve()) for folder in folders}
+    seen = {directory: entry
+            for directory, entry in diag.get("directories", {}).items()
+            if str(Path(directory).resolve()) in wanted}
+    if not any(entry.get("dataless", 0) for entry in seen.values()):
+        return (f"the app's dataless test never answered dataless in "
+                f"{sorted(Path(folder).name for folder in folders)}: "
+                f"{seen or diag.get('directories', {})}")
+    return None
+
+
+def registry_arrivals(samples):
+    """[(sample index, file)]: each file's arrival in the registry, in order.
+    A file that leaves and comes back arrives twice."""
+    arrivals, before = [], set()
+    for entry in samples:
+        now = set(entry["files"])
+        arrivals.extend((entry["n"], name) for name in sorted(now - before))
+        before = now
+    return arrivals
+
+
+def arrival_order(samples, since=0):
+    return [name for n, name in registry_arrivals(samples) if n >= since]
+
+
+def arrived_under_hold(samples, allowed):
+    """Files that arrived between two samples that both read the hold, other
+    than the foreground's own.
+
+    The sampled form of foreground contention. A background transfer that
+    began before the hold rose arrives in a sample whose predecessor read no
+    hold, so it is not counted. A hold that fell and rose again between two
+    samples hides an arrival. So this can miss contention, but it never
+    invents it.
+    """
+    hits = []
+    for before, after in zip(samples, samples[1:]):
+        if before["held"] and after["held"]:
+            hits.extend(name for name in sorted(set(after["files"]) - set(before["files"]))
+                        if name not in allowed)
+    return hits
+
+
+def counter_regressions(before, after):
+    return {key: (before.get(key, 0), after.get(key, 0)) for key in REAL_COUNTERS
+            if after.get(key, 0) < before.get(key, 0)}
+
+
+def cloud_violations(reply):
+    return [violation for violation in reply.get("violations", [])
+            if str(violation.get("id", "")).startswith("cloud.")]
+
+
+def fmt_samples(samples, limit=40):
+    lines = [f"  {entry['n']:>4} {'held' if entry['held'] else '    '} "
+             f"{', '.join(entry['files']) or '-'}" for entry in samples[-limit:]]
+    return "\n".join(lines) or "  (no samples)"
+
+
+def real_audio_files(folders):
+    return sorted(path for folder in folders for path in folder.iterdir()
+                  if path.is_file() and path.suffix.lower() in AUDIO_SUFFIXES)
+
+
+def real_folder_error(folder, which=shutil.which):
+    """What makes a folder unfit for --provider real, or None."""
+    if not which("brctl"):
+        return "brctl not found; the real mode evicts with iCloud Drive's brctl"
+    folders = sorted(path for path in folder.iterdir() if path.is_dir())[:2]
+    stubs = sorted(path.name for sub in folders for path in sub.iterdir()
+                   if path.name.endswith(".icloud"))
+    if stubs:
+        return (f"{len(stubs)} legacy .icloud stub(s), e.g. {stubs[:3]}. The real "
+                "mode needs File Provider placeholders, which keep their names")
+    large = sorted(path.name for path in real_audio_files(folders)
+                   if path.stat().st_size > REAL_MAX_FILE_BYTES)
+    if large:
+        return (f"{len(large)} file(s) over {REAL_MAX_FILE_BYTES // (1024 * 1024)} MB, "
+                f"e.g. {large[:3]}. Use small files")
+    return None
+
+
+def evict_and_verify(ctx):
+    files = real_audio_files(ctx.folders[:2])
+    for path in files:
+        if file_is_dataless(path):
+            continue
+        result = subprocess.run(["brctl", "evict", str(path)],
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            raise NotStaged(f"brctl evict {path.name} failed: "
+                            f"{(result.stderr or result.stdout).strip()}")
+    deadline = time.monotonic() + REAL_EVICT * ctx.wait_scale
+    while True:
+        flags = {}
+        for path in files:
+            try:
+                flags[path.name] = os.stat(path).st_flags
+            except OSError:
+                flags[path.name] = None
+        error = eviction_error(flags)
+        if not error:
+            return len(files)
+        if time.monotonic() > deadline:
+            raise NotStaged(f"eviction did not land: {error}")
+        time.sleep(0.5)
+
+
+def prepare_real(ctx):
+    """Evict, verify, and arm the app's dataless record. Returns the counters."""
+    if ctx.stats().get("installed"):
+        raise NotStaged("the fake provider is installed. The real mode never arms it")
+    evict_and_verify(ctx)
+    ctx.cmd("set_dataless_diag", "on")
+    return ctx.materialization()
+
+
+def finish_real(ctx, counters_before):
+    """The checks every real scenario owes after its own assertions."""
+    ctx.quiesce()
+    regressed = counter_regressions(counters_before, ctx.materialization())
+    if regressed:
+        raise Failed(f"cumulative coordinator counters went backwards: {regressed}")
+    violations = cloud_violations(ctx.cmd("check_consistency"))
+    if violations:
+        # The player settles on its queue. A hold or stranded-open reading
+        # must survive a second sample.
+        ctx.settle(0.35)
+        violations = cloud_violations(ctx.cmd("check_consistency"))
+        if violations:
+            raise Failed(f"cloud consistency violations at rest: {violations}")
+    error = app_dataless_error(ctx.cmd("dump_dataless_diag"), ctx.folders[:2])
+    ctx.cmd("set_dataless_diag", "off")
+    if error:
+        raise NotStaged(error)
+
+
+def real_path(ctx, name):
+    for path in real_audio_files(ctx.folders):
+        if path.name == name:
+            return path
+    raise Failed(f"{name} is not a corpus file")
+
+
+def current_name(ctx):
+    return Path((ctx.state().get("currentTrack") or {}).get("url", "")).name
+
+
+def real_pick(ctx):
+    """(rows, picked) once the open has listed its rows and picked one."""
+    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
+    playlist = {}
+    while time.monotonic() < deadline:
+        playlist = ctx.playlist()
+        rows, index = playlist.get("files", []), playlist.get("currentIndex")
+        if rows and isinstance(index, int) and 0 <= index < len(rows):
+            return rows, rows[index]
+        time.sleep(POLL)
+    raise Failed(f"the open never listed and picked a row: {playlist}")
+
+
+def watch_live(ctx, name, describe):
+    """Sample until name is on the wire. NotStaged if its bytes landed unseen."""
+    path = real_path(ctx, name)
+    entry = ctx.watch(describe, lambda s: name in s["files"]
+                      or not file_is_dataless(path), REAL_TRANSFER)
+    if name not in entry["files"]:
+        raise NotStaged(f"{name} downloaded between two samples. Use larger files")
+    return entry
+
+
+def wait_landed(ctx, name, describe):
+    """Sample until name is off the wire and local on disk."""
+    path = real_path(ctx, name)
+    return ctx.watch(describe, lambda s: name not in s["files"]
+                     and not file_is_dataless(path), REAL_TRANSFER)
+
+
+def wait_player(ctx, name, states):
+    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
+    state = {}
+    while time.monotonic() < deadline:
+        state = ctx.state()
+        if (current_name(ctx) == name
+                and state.get("player", {}).get("state") in states):
+            return state
+        time.sleep(POLL)
+    raise Failed(f"the player never landed {'/'.join(states)} on {name}: "
+                 f"{state.get('player')}")
+
+
+def real_park(ctx, name):
+    """Pause a landed play, so it mints no more foreground work."""
+    if ctx.state().get("player", {}).get("state") == "playing":
+        ctx.cmd("play_pause")
+    return wait_player(ctx, name, ("paused", "stopped"))
+
+
+def assert_no_sampled_contention(ctx, allowed):
+    hits = arrived_under_hold(ctx.samples, set(allowed))
+    if hits:
+        raise Failed(f"background transfer(s) arrived under the foreground hold: {hits}")
+
+
+def watch_resolution(ctx, rows):
+    seconds = max(REAL_TRANSFER, len(rows) * 5)
+    ctx.watch(f"all {len(rows)} rows to resolve",
+              lambda s: ctx.playlist().get("resolvedRows", 0) >= len(rows), seconds)
+    wait_for_loading_settlement(ctx, timeout=REAL_SETTLE * ctx.wait_scale)
+
+
+def watch_projection(ctx, name, index):
+    """While name is on the wire, it must project as the sole loading row."""
+    watch_live(ctx, name, f"{name} on the wire")
+    entry = ctx.watch(f"{name} projected as the sole loading row",
+                      lambda s: name not in s["files"]
+                      or row_loading_projection_error(s["rows"], name, index) is None,
+                      REAL_TRANSFER)
+    if name not in entry["files"]:
+        live = [s["rows"] for s in ctx.samples if name in s["files"]]
+        raise Failed(f"{name} was on the wire but never projected as the sole "
+                     f"loading row: {live[-1] if live else entry['rows']}")
+
+
+# Each real scenario states its fake twin's claim over the signals above.
+
+
+def r1_replacement_retires_the_old_folder(ctx):
+    a, b = ctx.folders[0], ctx.folders[1]
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(a))
+    a_rows, a_picked = real_pick(ctx)
+    a_names = set(a_rows)
+    ctx.watch("an A scan transfer on the wire",
+              lambda s: any(name in a_names and name != a_picked for name in s["files"]),
+              REAL_TRANSFER)
+    b_names = {path.name for path in real_audio_files([b])}
+    ctx.cmd("open", str(b))
+    arrived = ctx.watch("B's playback transfer on the wire",
+                        lambda s: set(s["files"]) & b_names, REAL_TRANSFER)
+    b_picked = sorted(set(arrived["files"]) & b_names)[0]
+    ctx.watch("every A transfer to leave the registry",
+              lambda s: not set(s["files"]) & a_names, REAL_SETTLE)
+    late = [name for n, name in registry_arrivals(ctx.samples)
+            if n > arrived["n"] and name in a_names]
+    if late:
+        raise Failed(f"the replaced folder started transfers after B's open: {late}")
+    assert_no_sampled_contention(ctx, {a_picked, b_picked})
+    return f"A's transfers left the registry after B's {b_picked} arrived. None returned"
+
+
+def r2_foreground_excludes_background(ctx):
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, first = real_pick(ctx)
+    if len(rows) < 6:
+        raise Failed(f"needs at least six rows: {rows}")
+    target = rows[5]
+    ctx.cmd("play_index", 5)
+    watch_live(ctx, target, f"the picked {target} on the wire")
+    if not ctx.materialization().get("foregroundTransferActive"):
+        raise Failed(f"no foreground hold while {target} downloads")
+    wait_landed(ctx, target, f"{target} to land")
+    real_park(ctx, target)
+    others = [real_path(ctx, name) for name in rows if name not in (first, target)]
+    ctx.watch("two background files to land",
+              lambda s: sum(not file_is_dataless(path) for path in others) >= 2,
+              REAL_TRANSFER * 2)
+    assert_no_sampled_contention(ctx, {first, target})
+    progress = ctx.cmd("dump_metadata_progress")
+    if progress.get("attempted", 0) == 0:
+        raise Failed("no row had metadata attempted at all. The sweep never ran")
+    return (f"no background arrival under {target}'s hold, "
+            f"{progress['attempted']}/{progress.get('total', '?')} rows attempted")
+
+
+def r3_successor_materializes_once(ctx):
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, _ = real_pick(ctx)
+    if len(rows) < 5:
+        raise Failed(f"needs at least five rows: {rows}")
+    successor = rows[4]
+    ctx.cmd("play_index", 3)
+    path = real_path(ctx, successor)
+    ctx.watch(f"the successor {successor} to land",
+              lambda s: not file_is_dataless(path), REAL_TRANSFER * 2)
+    watch_resolution(ctx, rows)
+    arrivals = [name for _, name in registry_arrivals(ctx.samples) if name == successor]
+    if len(arrivals) > 1:
+        raise Failed(f"{successor} went on the wire {len(arrivals)} times")
+    return f"successor {successor} landed with {len(arrivals)} observed transfer(s)"
+
+
+def r4a_rapid_next_keeps_the_hold(ctx):
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, first = real_pick(ctx)
+    watch_live(ctx, first, f"the first open of {first} on the wire")
+    start = rows.index(first)
+    moves = min(8, len(rows) - start - 1)
+    for _ in range(8):
+        ctx.cmd("next")
+    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
+    index = None
+    while time.monotonic() < deadline:
+        index = ctx.playlist().get("currentIndex")
+        if index == start + moves:
+            break
+        time.sleep(POLL)
+    else:
+        raise Failed(f"rapid next landed index {index}. Expected {start + moves}")
+    final = rows[index]
+    wait_landed(ctx, final, f"the final pick {final} to land")
+    superseded = set(rows[start:index])
+    ctx.watch("the superseded opens to leave the registry",
+              lambda s: not set(s["files"]) & superseded, REAL_SETTLE)
+    assert_no_sampled_contention(ctx, set(rows[start:index + 2]))
+    return (f"{moves} rapid moves settled on {final}, with no background arrival "
+            "under the hold")
+
+
+def r5_lane_follows_rank_then_index(ctx):
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, played = real_pick(ctx)
+    wait_landed(ctx, played, f"{played} to land")
+    real_park(ctx, played)
+    mark = len(ctx.samples)
+    watch_resolution(ctx, rows)
+    order = arrival_order(ctx.samples, mark)
+    duplicate = duplicate_order_error(order)
+    if duplicate:
+        raise Failed(duplicate)
+    if len(order) < 2:
+        raise NotStaged(f"only {len(order)} scan transfer(s) were observed")
+    expected = expected_scan_order(rows, played, order)
+    if order != expected:
+        raise Failed(f"scan order is not rank-then-index: got {order}, expected {expected}")
+    return (f"{len(order)} of {len(rows) - 1} scan transfers observed, "
+            "in rank-then-index order")
+
+
+def r6_first_scan_pick_is_neighborhood_ranked(ctx):
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, _ = real_pick(ctx)
+    if len(rows) < 4:
+        raise Failed(f"needs at least four rows: {rows}")
+    played = rows[2]
+    ctx.cmd("play_index", 2)
+    wait_landed(ctx, played, f"{played} to land")
+    real_park(ctx, played)
+    mark = len(ctx.samples)
+    ctx.watch("the first scan transfer", lambda s: arrival_order(ctx.samples, mark),
+              REAL_TRANSFER)
+    first = arrival_order(ctx.samples, mark)[0]
+    neighborhood = {rows[i] for i in (3, 4, 1) if i < len(rows)}
+    if first not in neighborhood:
+        raise Failed(f"the first scan pick was {first}, outside {sorted(neighborhood)}")
+    return f"first pick {first} was in the neighborhood of {played}"
+
+
+def r7_play_joins_the_live_scan(ctx):
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, first = real_pick(ctx)
+    played = rows[1]
+    ctx.cmd("play_index", 1)
+    wait_landed(ctx, played, f"{played} to land")
+    real_park(ctx, played)
+    mark = len(ctx.samples)
+    live = ctx.watch("a scan transfer on the wire",
+                     lambda s: [name for name in s["files"] if name != played],
+                     REAL_TRANSFER)
+    target = [name for name in live["files"] if name != played][0]
+    yielded = ctx.materialization().get("requestsYielded", 0)
+    ctx.cmd("play_index", rows.index(target))
+    if target not in ctx.sample()["files"]:
+        raise NotStaged(f"the scan of {target} finished before playback could join it")
+    wait_landed(ctx, target, f"the joined {target} to land")
+    real_park(ctx, target)
+    arrivals = [name for n, name in registry_arrivals(ctx.samples)
+                if n >= mark and name == target]
+    if len(arrivals) != 1:
+        raise Failed(f"{target} went on the wire {len(arrivals)} times. The play "
+                     "did not join the scan's claim")
+    if ctx.materialization().get("requestsYielded", 0) != yielded:
+        raise Failed(f"joining {target} yielded a claim instead of sharing it")
+    watch_resolution(ctx, rows)
+    assert_no_sampled_contention(ctx, {first, played, target})
+    return f"play joined the live scan of {target}, and all {len(rows)} rows resolved"
+
+
+def r11_append_preserves_and_fast_path(ctx):
+    files = real_audio_files([ctx.folders[0]])[:4]
+    names = [path.name for path in files]
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(files[0]))
+    watch_live(ctx, names[0], f"{names[0]} on the wire")
+    for path in files[1:]:
+        ctx.cmd("append", str(path))
+    if names[0] not in ctx.sample()["files"]:
+        raise NotStaged(f"{names[0]} landed before the appends finished")
+    wait_landed(ctx, names[0], f"{names[0]} to land")
+    real_park(ctx, names[0])
+    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
+    while time.monotonic() < deadline and ctx.playlist().get("count") != 4:
+        time.sleep(POLL)
+    error = exact_playlist_error(ctx.playlist().get("files"), names)
+    if error:
+        raise Failed(error)
+    ctx.watch("an appended file to land on disk",
+              lambda s: any(not file_is_dataless(path) and path.name not in s["files"]
+                            for path in files[1:]), REAL_TRANSFER)
+    target = [path.name for path in files[1:] if not file_is_dataless(path)][0]
+    mark = len(ctx.samples)
+    ctx.cmd("play_index", names.index(target))
+    ctx.cmd("play_pause")
+    wait_player(ctx, target, ("paused",))
+    deadline = time.monotonic() + 1.0 * ctx.wait_scale
+    while time.monotonic() < deadline:
+        ctx.sample()
+    if target in arrival_order(ctx.samples, mark):
+        raise Failed(f"replaying the local {target} went on the wire")
+    return f"three appends preserved {names[0]}, and replaying {target} cost no transfer"
+
+
+def r14_storm_then_close_drains(ctx):
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, first = real_pick(ctx)
+    watch_live(ctx, first, f"{first} on the wire")
+    for index in range(min(10, len(rows))):
+        ctx.cmd("play_index", index)
+    b_names = {path.name for path in real_audio_files([ctx.folders[1]])}
+    ctx.cmd("open", str(ctx.folders[1]))
+    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
+    b_rows = []
+    while time.monotonic() < deadline:
+        b_rows = ctx.playlist().get("files", [])
+        if playlist_belongs_to_folder(b_rows, b_names):
+            break
+        time.sleep(POLL)
+    else:
+        raise Failed(f"the replacement playlist never became folder B: {b_rows}")
+    for index in range(min(6, len(b_rows))):
+        ctx.cmd("play_index", index)
+    ctx.sample()
+    ctx.quiesce()
+    residue = loading_residue(ctx)
+    if residue:
+        raise Failed(f"Close after the storms left work behind: {residue}")
+    return "two play storms across a replacement, then Close, drained to zero"
+
+
+def r16_close_during_a_live_transfer_starts_nothing(ctx):
+    ctx.cmd("open", str(ctx.folders[0]))
+    _, picked = real_pick(ctx)
+    watch_live(ctx, picked, f"{picked} on the wire")
+    ctx.quiesce()
+    mark = len(ctx.samples)
+    deadline = time.monotonic() + 3.0 * ctx.wait_scale
+    while time.monotonic() < deadline:
+        ctx.sample()
+        time.sleep(POLL)
+    seen = sorted({name for entry in ctx.samples[mark:] for name in entry["files"]})
+    if seen:
+        raise Failed(f"transfers were on the wire after Close: {seen}")
+    residue = loading_residue(ctx)
+    if residue:
+        raise Failed(f"Close left cloud state behind: {residue}")
+    return f"Close ended {picked}'s transfer, and nothing went on the wire after it"
+
+
+def r17_play_pause_during_loading_lands_parked(ctx):
+    ctx.cmd("open", str(ctx.folders[0]))
+    _, picked = real_pick(ctx)
+    watch_live(ctx, picked, f"{picked} on the wire")
+    state = ctx.state().get("player", {}).get("state")
+    if state != "playing":
+        raise Failed(f"expected the pending intent to read playing, got {state}")
+    ctx.cmd("play_pause")
+    wait_landed(ctx, picked, f"{picked} to land after the toggle")
+    wait_player(ctx, picked, ("paused",))
+    arrivals = [name for _, name in registry_arrivals(ctx.samples) if name == picked]
+    if len(arrivals) != 1:
+        raise Failed(f"{picked} went on the wire {len(arrivals)} times")
+    return f"{picked} landed parked, and its one transfer ran to term"
+
+
+def r19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, _ = real_pick(ctx)
+    if len(rows) < 4:
+        raise Failed(f"needs at least four rows: {rows}")
+    ctx.cmd("hang_open", rows[1])
+    mark = len(ctx.samples)
+    try:
+        ctx.wait_for_hung_open(rows[1], "the successor's handle open to wedge",
+                               timeout=REAL_TRANSFER * 2 * ctx.wait_scale)
+        # Paused, so the wedged successor never becomes the playing open.
+        if ctx.state().get("player", {}).get("state") == "playing":
+            ctx.cmd("play_pause")
+        resolved_before = ctx.playlist().get("resolvedRows", 0)
+        mark = len(ctx.samples)
+        try:
+            ctx.watch("the sweep to move past the wedged open",
+                      lambda s: len(set(arrival_order(ctx.samples, mark))) >= 2
+                      and ctx.playlist().get("resolvedRows", 0) > resolved_before,
+                      REAL_TRANSFER)
+        except Failed:
+            materialization = ctx.materialization()
+            if materialization.get("foregroundTransferActive"):
+                raise Failed("the foreground rule was still in force, so this "
+                             "scenario proves nothing")
+            raise Failed(f"only {len(set(arrival_order(ctx.samples, mark)))} scan "
+                         f"transfer(s) arrived, and resolved rows stayed at "
+                         f"{resolved_before}. The wedged open "
+                         f"({materialization.get('handleOpensInFlight')} in flight) "
+                         "is holding admission")
+        if ctx.cmd("hang_open", rows[1]).get("hungOpens", 0) < 1:
+            raise Failed("the successor open was no longer wedged at the sample")
+    finally:
+        ctx.cmd("hang_open", "release")
+    return (f"{len(set(arrival_order(ctx.samples, mark)))} scan transfers moved "
+            "the sweep while the successor open stayed wedged")
+
+
+def r20_row_loading_tracks_live_transfers(ctx):
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, picked = real_pick(ctx)
+    watch_projection(ctx, picked, rows.index(picked))
+    wait_landed(ctx, picked, f"{picked} to land")
+    real_park(ctx, picked)
+    live = ctx.watch("a scan transfer on the wire",
+                     lambda s: [name for name in s["files"] if name != picked],
+                     REAL_TRANSFER)
+    scan = [name for name in live["files"] if name != picked][0]
+    watch_projection(ctx, scan, rows.index(scan))
+    ctx.quiesce()
+    if ctx.sample()["files"]:
+        raise Failed(f"loading publication survived settlement: {ctx.samples[-1]['rows']}")
+    return f"playback {picked} and scan {scan} each projected as the sole live row"
+
+
+def r21_the_library_converges(ctx):
+    suppress_setup_prefetch(ctx)
+    ctx.cmd("open", str(ctx.folders[0]))
+    rows, _ = real_pick(ctx)
+    ctx.cmd("play_pause")
+    if len(rows) < 6:
+        raise Failed(f"convergence needs at least six rows: {rows}")
+    watch_resolution(ctx, rows)
+    if not registry_arrivals(ctx.samples):
+        raise NotStaged("every row resolved with no transfer observed")
+    dataless = [name for name in rows if file_is_dataless(real_path(ctx, name))]
+    if dataless:
+        raise Failed(f"rows resolved, but their files are still dataless: {dataless[:5]}")
+    return f"all {len(rows)} rows resolved, and every file is local"
+
+
+# The fourth field is the real mode: its scenario, or why it is fake-only.
 SCENARIOS = [
-    ("S1", s1_replacement_cancels_the_old_scan, False),
-    ("S2", s2_foreground_request_excludes_background_provider_work, False),
-    ("S3", s3_successor_materializes_once, False),
-    ("S4a", s4a_rapid_next_keeps_the_hold, False),
-    ("S4b", s4b_replay_stays_out_of_error_while_its_transfer_is_live, False),
-    ("S5", s5_lane_follows_rank_then_index, False),
-    ("S6", s6_first_scan_pick_is_neighborhood_ranked, False),
-    ("S7", s7_stand_aside_and_no_stranding, False),
-    ("S8a", s8a_no_progress_times_out, False),
-    ("S8b", s8b_subpercent_progress_survives, False),
-    ("S8c", s8c_a_stall_after_progress_times_out, False),
-    ("S10", s10_provider_failure_then_close_settles_clean, False),
-    ("S11", s11_append_preserves_and_fast_path, False),
-    ("S12a", s12a_a_dead_timeout_is_not_chased, False),
-    ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False),
-    ("S13", s13_one_download_per_claimed_file, False),
-    ("S14", s14_storm_then_close_drains_loading_state, False),
-    ("S15", s15_a_failing_file_spends_its_budget_and_stops, False),
-    ("S16", s16_close_during_a_live_transfer_starts_nothing, False),
-    ("S17", s17_play_pause_during_loading_lands_parked, False),
-    ("S18", s18_a_wedged_open_still_starts_the_sweep, False),
-    ("S19", s19_a_wedged_successor_open_does_not_starve_the_sweep, False),
-    ("S20", s20_row_loading_tracks_live_provider_transfers, False),
-    ("S21", s21_the_library_converges, False),
+    ("S1", s1_replacement_cancels_the_old_scan, False,
+     r1_replacement_retires_the_old_folder),
+    ("S2", s2_foreground_request_excludes_background_provider_work, False,
+     r2_foreground_excludes_background),
+    ("S3", s3_successor_materializes_once, False, r3_successor_materializes_once),
+    ("S4a", s4a_rapid_next_keeps_the_hold, False, r4a_rapid_next_keeps_the_hold),
+    ("S4b", s4b_replay_stays_out_of_error_while_its_transfer_is_live, False,
+     "every replay must pay a fresh transfer of a known length (sticky)"),
+    ("S5", s5_lane_follows_rank_then_index, False, r5_lane_follows_rank_then_index),
+    ("S6", s6_first_scan_pick_is_neighborhood_ranked, False,
+     r6_first_scan_pick_is_neighborhood_ranked),
+    ("S7", s7_stand_aside_and_no_stranding, False, r7_play_joins_the_live_scan),
+    ("S8a", s8a_no_progress_times_out, False,
+     "needs a transfer that reports no progress (progress=none)"),
+    ("S8b", s8b_subpercent_progress_survives, False,
+     "needs a 600 s transfer that moves under 1% a second (progress=linear)"),
+    ("S8c", s8c_a_stall_after_progress_times_out, False,
+     "needs a transfer that stalls at 40% (progress=stall)"),
+    ("S10", s10_provider_failure_then_close_settles_clean, False,
+     "needs a scripted provider failure (fail=)"),
+    ("S11", s11_append_preserves_and_fast_path, False,
+     r11_append_preserves_and_fast_path),
+    ("S12a", s12a_a_dead_timeout_is_not_chased, False,
+     "needs an open that times out with no progress (progress=none)"),
+    ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False,
+     "needs an open that stalls at 40% and times out (progress=stall)"),
+    ("S13", s13_one_download_per_claimed_file, False,
+     "its ground truth is the fake's overlap count. S7 owns the observable join"),
+    ("S14", s14_storm_then_close_drains_loading_state, False,
+     r14_storm_then_close_drains),
+    ("S15", s15_a_failing_file_spends_its_budget_and_stops, False,
+     "needs a file whose every transfer fails (fail=)"),
+    ("S16", s16_close_during_a_live_transfer_starts_nothing, False,
+     r16_close_during_a_live_transfer_starts_nothing),
+    ("S17", s17_play_pause_during_loading_lands_parked, False,
+     r17_play_pause_during_loading_lands_parked),
+    ("S18", s18_a_wedged_open_still_starts_the_sweep, False,
+     "needs a transfer that never ends (300 s, progress=stall)"),
+    ("S19", s19_a_wedged_successor_open_does_not_starve_the_sweep, False,
+     r19_a_wedged_successor_open_does_not_starve_the_sweep),
+    ("S20", s20_row_loading_tracks_live_provider_transfers, False,
+     r20_row_loading_tracks_live_transfers),
+    ("S21", s21_the_library_converges, False, r21_the_library_converges),
 ]
 
 
+def scenario_plan(wanted, provider="fake"):
+    """[(ident, label, run, expected_fail, skip_reason)] in registry order.
 
-def scenario_plan(wanted):
-    known = {ident for ident, _, _ in SCENARIOS}
+    A fake-only scenario is planned with run None and its reason, so the
+    real mode reports it SKIP. Expected-fail marks the fake's documented
+    defect, so the real mode never carries it.
+    """
+    known = {entry[0] for entry in SCENARIOS}
     unknown = sorted((wanted or set()) - known)
     if unknown:
         raise ValueError(f"unknown --only id(s) {unknown}; ids are {sorted(known)}")
-    return [(ident, fn, expected_fail) for ident, fn, expected_fail in SCENARIOS
-            if wanted is None or ident in wanted]
+    plan = []
+    for ident, fn, expected_fail, real in SCENARIOS:
+        if wanted is not None and ident not in wanted:
+            continue
+        label = f"{ident} {fn.__name__.split('_', 1)[1].replace('_', ' ')}"
+        if provider == "fake":
+            plan.append((ident, label, fn, expected_fail, None))
+        elif callable(real):
+            plan.append((ident, label, real, False, None))
+        else:
+            plan.append((ident, label, None, False, f"fake-only: {real}"))
+    return plan
+
+
+def provider_args_error(args):
+    if args.provider == "real":
+        if not args.folder:
+            return "--provider real needs --folder"
+        if args.corpus:
+            return "--provider real takes --folder, not --corpus"
+    else:
+        if not args.corpus:
+            return "--provider fake needs --corpus"
+        if args.folder:
+            return "--folder needs --provider real"
+        if args.wait_scale != 1.0:
+            return "--wait-scale applies only to --provider real"
+    if args.wait_scale < 1.0:
+        return "--wait-scale widens the real waits, so it must be at least 1"
+    return None
 
 
 def result_exit_code(counts):
@@ -2148,39 +2868,93 @@ def check_corpus_shape(corpus: Path):
                  f"outlive scenario bounds or rotate the trace ring; got {oversized}")
 
 
+def run_scenario(ctx, run, expect_fail):
+    """(outcome, detail) for one planned scenario, on a fresh launch."""
+    try:
+        # launch() opens the corpus for its sandbox grant, which also starts
+        # playback and a scan. Quiesce before arming the fake or evicting, or
+        # their late work contaminates the trace, the cache and the files.
+        ctx.quiesce()
+        ctx.cmd("clear_caches", timeout=60)
+        set_pause_at_track_end(ctx, False)
+        counters = prepare_real(ctx) if ctx.real else None
+        note = run(ctx)
+        if ctx.real:
+            finish_real(ctx, counters)
+        return ("XPASS" if expect_fail else "PASS"), note
+    except NotStaged as exc:
+        return "ERROR", f"not staged: {exc}"
+    except Failed as exc:
+        return failure_outcome(exc, expect_fail), str(exc)
+    except Exception as exc:  # harness fault, not the app's
+        return "ERROR", f"{type(exc).__name__}: {exc}"
+
+
+def scenario_dump(ctx):
+    """The evidence printed beside a failure: the registry log or the trace."""
+    if ctx.real:
+        return fmt_samples(ctx.samples)
+    try:
+        return fmt_trace(ctx.trace(), limit=40)
+    except Exception:
+        return ""
+
+
 def main():
     # Line-buffered even into a file, so a tailed log shows each outcome as it
     # lands.
     sys.stdout.reconfigure(line_buffering=True)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--corpus", required=True,
-                        help="folder of folders, from make-cloud-corpus.py")
+    parser = argparse.ArgumentParser(
+        epilog="--provider real: the folder holds at least two subfolders of "
+               f"{MIN_SCENARIO_ROWS}-{MAX_SCENARIO_ROWS} small audio files each "
+               f"(100 KB to {REAL_MAX_FILE_BYTES // (1024 * 1024)} MB), in iCloud "
+               "Drive, opened once in the app to grant it. A clean run reads "
+               "PASS=14  SKIP=10. See references/cloud-scenarios.md.")
+    parser.add_argument("--corpus",
+                        help="folder of folders, from make-cloud-corpus.py (fake provider)")
+    parser.add_argument("--provider", choices=("fake", "real"), default="fake",
+                        help="fake: VibeFakeCloud (default). real: a File Provider folder")
+    parser.add_argument("--folder",
+                        help="the real provider's folder of folders (--provider real)")
+    parser.add_argument("--wait-scale", type=float, default=1.0,
+                        help="multiply every real-provider wait (default 1: "
+                             f"{REAL_TRANSFER:.0f}s per transfer, {REAL_EVICT:.0f}s "
+                             f"per eviction, {REAL_SETTLE:.0f}s per settle)")
     parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
     parser.add_argument("--only", help="comma-separated scenario ids to run")
     parser.add_argument("--verbose", action="store_true",
                         help="echo every channel command with its exit code and reply")
     args = parser.parse_args()
+    error = provider_args_error(args)
+    if error:
+        parser.error(error)
+    real = args.provider == "real"
 
-    corpus = Path(args.corpus).resolve()
+    corpus = Path(args.folder if real else args.corpus).resolve()
     if not corpus.is_dir():
-        sys.exit(f"no corpus at {corpus}")
+        sys.exit(f"no {'folder' if real else 'corpus'} at {corpus}")
     check_unique_basenames(corpus)
     check_corpus_shape(corpus)
+    if real:
+        error = real_folder_error(corpus)
+        if error:
+            sys.exit(error)
     app = Path(args.app).resolve() if args.app else DEFAULT_APP.resolve()
 
     wanted = {s.strip() for s in args.only.split(",")} if args.only else None
     try:
-        plan = scenario_plan(wanted)
+        plan = scenario_plan(wanted, args.provider)
     except ValueError as error:
         sys.exit(str(error))
     if not plan:
-        sys.exit(f"--only matched nothing; ids are {[i for i, _, _ in SCENARIOS]}")
+        sys.exit(f"--only matched nothing; ids are {[entry[0] for entry in SCENARIOS]}")
 
     channel = Channel(app, verbose=args.verbose)
     results = []
     folders = [p for p in corpus.iterdir() if p.is_dir()]
-    print(f"corpus: {corpus}  ({len(folders)} folders, "
+    print(f"{'folder' if real else 'corpus'}: {corpus}  ({len(folders)} folders, "
           f"{sum(1 for _ in corpus.rglob('*') if _.is_file())} files)")
+    print(f"provider: {args.provider}")
     print(f"app:    {app}\n")
 
     try:
@@ -2192,39 +2966,23 @@ def main():
     suite_cleanup_error = None
     completed_plan = False
     try:
-        for ident, fn, expect_fail in plan:
-            label = f"{ident} {fn.__name__.split('_', 1)[1].replace('_', ' ')}"
+        for ident, label, run, expect_fail, skip in plan:
             print(f"{label} ... ", end="", flush=True)
+            if skip:
+                results.append((ident, label, "SKIP", skip, 0, ""))
+                print("SKIP")
+                continue
             launch(corpus, app)
-            ctx = Ctx(channel, corpus, args.verbose)
+            ctx = Ctx(channel, corpus, args.verbose, real, args.wait_scale)
             started = time.monotonic()
-            try:
-                # launch() opens the corpus for its sandbox grant, which also
-                # starts playback and a scan; quiesce before arming the fake or
-                # their late work contaminates the trace and cache.
-                ctx.quiesce()
-                ctx.cmd("clear_caches", timeout=60)
-                set_pause_at_track_end(ctx, False)
-                note = fn(ctx)
-                outcome = "XPASS" if expect_fail else "PASS"
-                detail = note
-            except Failed as exc:
-                outcome = failure_outcome(exc, expect_fail)
-                detail = str(exc)
-            except Exception as exc:  # harness fault, not the app's
-                outcome, detail = "ERROR", f"{type(exc).__name__}: {exc}"
+            outcome, detail = run_scenario(ctx, run, expect_fail)
             try:
                 set_pause_at_track_end(ctx, original_pause_at_end)
             except Exception as exc:
                 outcome, detail = cleanup_failure_outcome(outcome, detail, exc)
             elapsed = time.monotonic() - started
-            trace = []
-            if outcome in ("FAIL", "XFAIL", "XPASS", "ERROR"):
-                try:
-                    trace = ctx.trace()
-                except Exception:
-                    pass
-            results.append((ident, label, outcome, detail, elapsed, trace))
+            dump = scenario_dump(ctx) if outcome in ("FAIL", "XFAIL", "XPASS", "ERROR") else ""
+            results.append((ident, label, outcome, detail, elapsed, dump))
             print(f"{outcome}  ({elapsed:.0f}s)")
             if outcome in ("FAIL", "ERROR"):
                 print(f"    {detail}")
@@ -2242,14 +3000,14 @@ def main():
 
     if suite_cleanup_error:
         results.append(("cleanup", "suite On track end restoration", "ERROR",
-                        suite_cleanup_error, 0, []))
+                        suite_cleanup_error, 0, ""))
 
     print("\n" + "=" * 78)
-    for ident, label, outcome, detail, elapsed, trace in results:
+    for ident, label, outcome, detail, elapsed, dump in results:
         print(f"{outcome:<6} {label}  ({elapsed:.0f}s)")
         print(f"       {detail}")
-        if outcome in ("FAIL", "XFAIL", "XPASS", "ERROR") and trace:
-            print(fmt_trace(trace, limit=40))
+        if dump:
+            print(dump)
     print("=" * 78)
 
     counts = {}

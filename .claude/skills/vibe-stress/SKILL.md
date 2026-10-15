@@ -74,6 +74,8 @@ make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40 --seed N"
 
 The first two corpus folders must each hold 6–40 playable files. A clean report is **`PASS=24`** with no `FAIL` or `ERROR`. `XFAIL` does not fail the run. `XPASS`, `FAIL` and `ERROR` do, and an `XPASS` is a finding: the gap closed or the scenario stopped reaching it. The rules, the registry and the `block_main` instrument are in `references/cloud-scenarios.md`.
 
+`--provider real --folder <iCloud Drive folder>` runs 14 of the scenarios against a real provider, with no fake. Its folder preparation, assertions, limits and clean result (`PASS=14  SKIP=10`) are in that reference's "Real provider" section.
+
 The suite takes about ten minutes, and silence reads as stalled. Run it with its output in a file under a Monitor tailing that file (`tail -f <log> | grep -E --line-buffered ' \.\.\. .*(PASS|FAIL|ERROR)|PASS=|Traceback'`), and relay each scenario's outcome as it arrives. A busy check with `pgrep -f` matches the Monitor's own command line, so match `[Pp]ython[0-9]* .*cloud-scenarios\.py` instead.
 
 **Device flap.** Does playback survive the output device going away and coming back? `--mode vanish` builds a public aggregate over a real device, makes it the system default and destroys it, so the default device ceases to exist, as a sleeping USB DAC does. `--mode move` only reassigns the default between two devices that both persist, a weaker stimulus. Each flap checks playback state and a moving position, `check_consistency` and that the app is alive. `dump_health` is sampled every `--health-every` flaps, and any rise in `outputDropouts` or `renderRefusals` fails. A closing `quiesce` must find every `pending` counter at zero.
