@@ -25,10 +25,24 @@
     // NSDocumentController always responds to clearRecentDocuments:.
     menu.autoenablesItems = NO;
     NSArray<NSURL *> *urls = [[NSDocumentController sharedDocumentController] recentDocumentURLs];
+    // As every Open Recent: the file's icon, and a name two entries share
+    // followed by its folder.
+    NSCountedSet<NSString *> *names = [NSCountedSet set];
     for (NSURL *url in urls) {
-        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:url.lastPathComponent
+        [names addObject:url.lastPathComponent];
+    }
+    for (NSURL *url in urls) {
+        NSString *name = url.lastPathComponent;
+        if ([names countForObject:name] > 1) {
+            name = [NSString stringWithFormat:VibeNotLocalized(@"%@ — %@"), name,
+                                              url.URLByDeletingLastPathComponent.lastPathComponent];
+        }
+        NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:name
                                                       action:@selector(openRecentDocument:)
                                                keyEquivalent:@""];
+        NSImage *icon = [NSWorkspace.sharedWorkspace iconForFile:url.path];
+        icon.size = NSMakeSize(16, 16);
+        item.image = icon;
         item.target = _appDelegate;
         item.representedObject = url;
         [menu addItem:item];

@@ -142,6 +142,12 @@ static NSString *const kFrameAutosaveName = @"VibeMainWindow";
     return YES;
 }
 
+// Window > Minimize and the body's own button. A borderless window has no
+// button for the default implementation to press, so it beeps instead.
+- (void)performMiniaturize:(nullable id)sender {
+    [self miniaturize:sender];
+}
+
 #pragma mark - Position lock
 
 // TRAP: from macOS 26 this ignores isMovable, so the waveform's handoff would

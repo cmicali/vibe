@@ -4,6 +4,8 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "SettingsRules.h" // the repeat mode's stored value, the Repeat submenu's identifiers
+#import "TransportMath.h" // the skip distances, the skip items' titles
 #import "VibeStrings.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -20,8 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // Not this controller's to validate.
     VibeMenuValidationDomainUnknown = 0,
-    // Checkmarks, never disabled except Show Pitch Control under bit-perfect
-    // output, which has no varispeed.
+    // Show/Hide titles and checkmarks, never disabled except Show Pitch
+    // Control under bit-perfect output, which has no varispeed.
     VibeMenuValidationDomainViewToggle,
     VibeMenuValidationDomainWindowSize,
     // Unavailable at the playlist's ends, with nothing loaded, or Stopped.
@@ -30,7 +32,7 @@ typedef NS_ENUM(NSInteger, VibeMenuValidationDomain) {
     // AppSettings.audioFXAllowed is off.
     VibeMenuValidationDomainFX,
     VibeMenuValidationDomainPitchRange,
-    // Shuffle's checkmark and Repeat's mode-naming title; never disabled.
+    // Shuffle's checkmark and the Repeat submenu's radio marks; never disabled.
     VibeMenuValidationDomainPlayOrder,
     VibeMenuValidationDomainFile,
     VibeMenuValidationDomainEdit,
@@ -103,6 +105,25 @@ static NSString *const kVibeMenuEditPaste = @"menu_edit_paste";
 // there is deliberately no menu_convert_cancel.
 static NSString *const kVibeMenuConvertToFLAC = @"menu_convert_to_flac";
 static NSString *const kVibeMenuConvertDeleteOriginal = @"menu_convert_delete_original";
+
+// The Repeat submenu's three modes. kVibeMenuRepeat is the submenu's own
+// item, the home of the cycling ⌘R.
+static NSString *const kVibeMenuRepeatModePrefix = @"menu_repeat_";
+
+static inline NSString *VibeRepeatMenuIdentifier(VibeRepeatMode mode) {
+    return [kVibeMenuRepeatModePrefix stringByAppendingString:VibeRepeatModeIdentifier(mode)];
+}
+
+// Off for an identifier naming no mode.
+static inline VibeRepeatMode VibeRepeatModeForMenuIdentifier(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:VibeRepeatMenuIdentifier(VibeRepeatModeAll)]) {
+        return VibeRepeatModeAll;
+    }
+    if ([identifier isEqualToString:VibeRepeatMenuIdentifier(VibeRepeatModeOne)]) {
+        return VibeRepeatModeOne;
+    }
+    return VibeRepeatModeOff;
+}
 
 // The Theme submenu; its items carry the prefix, and its Edit tail is the app
 // delegate's.
@@ -177,8 +198,9 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
             || [identifier isEqualToString:kVibeMenuPitchRange16]) {
         return VibeMenuValidationDomainPitchRange;
     }
-    if ([identifier isEqualToString:kVibeMenuShuffle]
-            || [identifier isEqualToString:kVibeMenuRepeat]) {
+    // kVibeMenuRepeat names the submenu's own item, which nothing validates.
+    if ([identifier isEqualToString:kVibeMenuShuffle] || [identifier isEqualToString:kVibeMenuRepeat]
+            || [identifier hasPrefix:kVibeMenuRepeatModePrefix]) {
         return VibeMenuValidationDomainPlayOrder;
     }
     if ([identifier isEqualToString:kVibeMenuPlay]
@@ -251,8 +273,44 @@ static inline BOOL VibeEditMenuEnabled(NSString *identifier, BOOL fileMoveInFlig
 
 static inline NSString *_Nullable VibeFileMenuTitle(NSString *identifier, NSUInteger count, BOOL playing) {
     if ([identifier isEqualToString:kVibeMenuPlay]) return playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
-    if ([identifier isEqualToString:kVibeMenuClose]) return count > 1 ? STR_MENU_FILE_CLOSE_ALL : STR_MENU_FILE_CLOSE;
+    if ([identifier isEqualToString:kVibeMenuClose]) return count > 1 ? STR_MENU_PLAYLIST_CLEAR : STR_MENU_FILE_CLOSE;
     return nil;
+}
+
+// Show Playlist and Show Pitch Control retitle to Hide while shown, as every
+// View menu's panel item does; the window-state toggles keep a checkmark.
+static inline NSString *_Nullable VibeViewToggleTitle(NSString *identifier, BOOL shown) {
+    if ([identifier isEqualToString:kVibeMenuShowPlaylist]) return shown ? STR_MENU_VIEW_HIDE_PLAYLIST : STR_MENU_VIEW_PLAYLIST;
+    if ([identifier isEqualToString:kVibeMenuShowPitch]) return shown ? STR_MENU_VIEW_HIDE_PITCH_CONTROL : STR_MENU_VIEW_PITCH_CONTROL;
+    return nil;
+}
+
+// The skip items in menu order, back before forward, each three levels deep.
+static inline NSInteger VibeSkipMenuLevel(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:kVibeMenuSkipBack] || [identifier isEqualToString:kVibeMenuSkipForward]) return 0;
+    if ([identifier isEqualToString:kVibeMenuSkipBackMore] || [identifier isEqualToString:kVibeMenuSkipForwardMore]) return 1;
+    if ([identifier isEqualToString:kVibeMenuSkipBackMost] || [identifier isEqualToString:kVibeMenuSkipForwardMost]) return 2;
+    return -1;
+}
+
+static inline BOOL VibeSkipMenuIsForward(NSString *_Nullable identifier) {
+    return [identifier hasPrefix:kVibeMenuSkipForward];
+}
+
+// A skip item names its distance: bars while the track's tempo is known,
+// else seconds. nil for any other identifier.
+static inline NSString *_Nullable VibeSkipMenuTitle(NSString *_Nullable identifier, NSInteger baseBars, BOOL tempoKnown) {
+    NSInteger level = VibeSkipMenuLevel(identifier);
+    if (level < 0) {
+        return nil;
+    }
+    BOOL forward = VibeSkipMenuIsForward(identifier);
+    if (tempoKnown) {
+        return [NSString stringWithFormat:forward ? STR_MENU_SKIP_FORWARD_BARS : STR_MENU_SKIP_BACK_BARS,
+                                          (long)VibeSkipBars(baseBars, (NSUInteger)level)];
+    }
+    return [NSString stringWithFormat:forward ? STR_MENU_SKIP_FORWARD_SECONDS : STR_MENU_SKIP_BACK_SECONDS,
+                                      (long)VibeSkipWallClockSeconds((NSUInteger)level)];
 }
 
 // Convert to FLAC shows only with Convert switched on, and never for a file

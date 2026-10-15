@@ -52,6 +52,7 @@ static inline NSString *VibeAppName(void) {
 
 #define STR_MENU_APP_ABOUT       NSLS(@"menu.app.about",       @"About %@",    @"App menu item: opens the About window. %@ is the app name. Also the About window's title.")
 #define STR_MENU_APP_CHECK_FOR_UPDATES NSLS(@"menu.app.check_for_updates", @"Check for Updates…", @"App menu item: checks the internet for a newer version of the app and offers to install it. Ends with a real ellipsis character (…), not three periods.")
+#define STR_MENU_APP_SEND_FEEDBACK NSLS(@"menu.app.send_feedback", @"Send Feedback…", @"App menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature. Use the wording Apple's own apps use for sending feedback. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_APP_SETTINGS    NSLS(@"menu.app.settings",    @"Settings…",   @"App menu item: opens the Settings window. macOS uses this same name in every app. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_APP_SERVICES    NSLS(@"menu.app.services",    @"Services",    @"App menu: submenu of system Services. macOS uses this same name in every app.")
 #define STR_MENU_APP_HIDE        NSLS(@"menu.app.hide",        @"Hide %@",     @"App menu item: hides the app. %@ is the app name.")
@@ -64,24 +65,24 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_FILE                   NSLS(@"menu.file",                   @"File",            @"Menu bar: the File menu.")
 #define STR_MENU_FILE_OPEN              NSLS(@"menu.file.open",              @"Open…",           @"File menu item: shows the open panel. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_FILE_ADD_TO_PLAYLIST   NSLS(@"menu.file.add_to_playlist",   @"Add to Playlist…", @"File menu item: shows the open panel, then adds the chosen files and folders to the end of the playlist. Playback is not interrupted. Ends with a real ellipsis character (…), not three periods.")
-#define STR_MENU_FILE_OPEN_URL          NSLS(@"menu.file.open_url",          @"Open URL…",       @"File menu item: asks for the web address of an audio file, then plays it. URL is the usual term for a web address; keep it if this language's apps do. Ends with a real ellipsis character (…), not three periods.")
+#define STR_MENU_FILE_OPEN_LOCATION     NSLS(@"menu.file.open_url",          @"Open Location…",  @"File menu item: asks for the web address of an audio file, then plays it. Use the wording of QuickTime Player's and Safari's File > Open Location… in your language. Ends with a real ellipsis character (…), not three periods.")
 #define STR_MENU_FILE_OPEN_RECENT       NSLS(@"menu.file.open_recent",       @"Open Recent",     @"File menu: submenu listing recently opened files.")
 #define STR_MENU_FILE_OPEN_RECENT_CLEAR NSLS(@"menu.file.open_recent.clear", @"Clear Menu",      @"Open Recent submenu: empties the list of recent files.")
-#define STR_MENU_FILE_CLOSE             NSLS(@"menu.file.close",             @"Close File",      @"File menu item: unloads the current track. Becomes 'Close All Files' when more than one is loaded — two independent strings, not a plural; the count is never shown.")
-#define STR_MENU_FILE_CLOSE_ALL         NSLS(@"menu.file.close_all",         @"Close All Files", @"File menu item: unloads the whole playlist. Replaces 'Close File' when more than one track is loaded.")
+#define STR_MENU_FILE_CLOSE             NSLS(@"menu.file.close",             @"Close File",      @"File menu item: unloads the current track. Becomes 'Clear Playlist' when more than one is loaded — two independent strings, not a plural; the count is never shown.")
 #define STR_MENU_FILE_SAVE_PLAYLIST     NSLS(@"menu.file.save_playlist",     @"Save Playlist…",  @"File menu item: shows the save panel that writes the current playlist as an M3U file. Use the system's own word for Save. Ends with a real ellipsis character (…), not three periods.")
 
 #pragma mark - Edit menu
 
-#define STR_MENU_EDIT                      NSLS(@"menu.edit",                      @"Edit",                 @"Menu bar: the Edit menu. Holds Undo, Redo, Cut, the two Copy items, Paste, Remove from Playlist, and Select All.")
+#define STR_MENU_EDIT                      NSLS(@"menu.edit",                      @"Edit",                 @"Menu bar: the Edit menu. Holds Undo, Redo, Cut, Copy, Copy Name, Paste, Remove from Playlist, and Select All.")
 #define STR_MENU_EDIT_UNDO                 NSLS(@"menu.edit.undo",                 @"Undo",                 @"Edit menu item: undoes the last action. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_REDO                 NSLS(@"menu.edit.redo",                 @"Redo",                 @"Edit menu item: redoes the last undone action. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_CUT                  NSLS(@"menu.edit.cut",                  @"Cut",                  @"Edit menu item: cuts the selected text in a text field, such as the Open URL address. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_PASTE                NSLS(@"menu.edit.paste",                @"Paste",                @"Edit menu item: pastes text into a text field, such as the Open URL address. macOS uses this same name in every app.")
-#define STR_MENU_EDIT_COPY_FILE            NSLS(@"menu.edit.copy_file",            @"Copy File",            @"Edit menu item: puts the current track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
+#define STR_MENU_EDIT_COPY                 NSLS(@"menu.edit.copy",                 @"Copy",                 @"Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.")
+#define STR_MENU_EDIT_COPY_FILE            NSLS(@"menu.edit.copy_file",            @"Copy File",            @"Playlist row menu item: puts the clicked track's audio file on the clipboard, ready to paste in the Finder. Use the same verb as the system's Edit > Copy.")
 #define STR_MENU_EDIT_COPY_NAME            NSLS(@"menu.edit.copy_name",            @"Copy Name",            @"Edit menu item: copies the current track's display name — 'Artist - Title' — as text. Use the same verb as the system's Edit > Copy.")
 #define STR_MENU_EDIT_REMOVE_FROM_PLAYLIST NSLS(@"menu.edit.remove_from_playlist", @"Remove from Playlist", @"Removes selected playlist rows without deleting their files. Use the term for taking an item off a list.")
-#define STR_MENU_EDIT_MOVE_TO_TRASH        NSLS(@"menu.edit.move_to_trash",        @"Move to Trash",        @"Edit menu and playlist row menu item: moves the selected tracks' audio files to the Trash and removes their rows. Use the Finder's own File > Move to Trash wording in your language.")
+#define STR_MENU_EDIT_MOVE_TO_TRASH        NSLS(@"menu.edit.move_to_trash",        @"Move to Trash",        @"File menu and playlist row menu item: moves the selected tracks' audio files to the Trash and removes their rows. Use the Finder's own File > Move to Trash wording in your language.")
 #define STR_MENU_EDIT_SELECT_ALL           NSLS(@"menu.edit.select_all",           @"Select All",           @"Edit menu item: selects every row of the list that has keyboard focus — the playlist, or the granted-folder list in Settings > Files. macOS uses this same name in every app.")
 #define STR_MENU_EDIT_REORDER              NSLS(@"menu.edit.reorder",              @"Reorder",              @"Undo action name for dragging playlist rows to a new position; it appears only composed into the Edit menu's Undo/Redo titles, as 'Undo Reorder' / 'Redo Reorder'. Use a noun or noun-like form that reads naturally after the system's own Undo/Redo verb in your language.")
 
@@ -95,27 +96,29 @@ static inline NSString *VibeAppName(void) {
 #define STR_TRANSPORT_NEXT     NSLS(@"transport.next",     @"Next Track",     @"Jumps to the next track. Menu item and transport button.")
 #define STR_TRANSPORT_PREVIOUS NSLS(@"transport.previous", @"Previous Track", @"Jumps to the previous track.")
 #define STR_TRANSPORT_SHUFFLE    NSLS(@"transport.shuffle",    @"Shuffle",     @"Plays every track of the playlist once, in a random order, without reordering the list. Checkmarked menu item and an on/off transport button.")
-#define STR_TRANSPORT_REPEAT_OFF NSLS(@"transport.repeat.off", @"Repeat: Off", @"Repeat mode, off: playback stops at the end of the playlist. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.")
-#define STR_TRANSPORT_REPEAT_ALL NSLS(@"transport.repeat.all", @"Repeat: All", @"Repeat mode, all: after the last track the playlist plays again from the start. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.")
-#define STR_TRANSPORT_REPEAT_ONE NSLS(@"transport.repeat.one", @"Repeat: One", @"Repeat mode, one: the current track replays when it ends. Menu item and transport button whose title names the current mode; choosing it moves to the next mode.")
+#define STR_TRANSPORT_REPEAT_OFF NSLS(@"transport.repeat.off", @"Repeat: Off", @"Repeat mode, off: playback stops at the end of the playlist. Transport button whose title names the current mode; pressing it moves to the next mode.")
+#define STR_TRANSPORT_REPEAT_ALL NSLS(@"transport.repeat.all", @"Repeat: All", @"Repeat mode, all: after the last track the playlist plays again from the start. Transport button whose title names the current mode; pressing it moves to the next mode.")
+#define STR_TRANSPORT_REPEAT_ONE NSLS(@"transport.repeat.one", @"Repeat: One", @"Repeat mode, one: the current track replays when it ends. Transport button whose title names the current mode; pressing it moves to the next mode.")
 
 #pragma mark - Playback menu
 
-// "More"/"Most" are progressively larger jumps (the base bar count, twice and
-// four times it, or 10/30/60 seconds when the tempo is unknown) — not
-// comparatives of a quantity.
+// A skip item names its distance: whole bars when the track's tempo is known,
+// else wall-clock seconds. The counts are 4 to 64 bars and 10, 30 or 60
+// seconds, never 1.
 
 #define STR_MENU_PLAYBACK          NSLS(@"menu.playback",                   @"Playback",          @"Menu bar: the Playback menu; also the Playback pane's sidebar item in the macOS Settings window, and the Playback row and screen title on iOS settings.")
 #define STR_MENU_PLAY_SELECTED     NSLS(@"menu.playback.play_selected",     @"Play Selected Track", @"Playback menu item: play the playlist row the user has selected, rather than the one already playing.")
-#define STR_MENU_SKIP_FORWARD      NSLS(@"menu.playback.skip_forward",      @"Skip Forward",      @"Playback menu item: seek forward a short step.")
-#define STR_MENU_SKIP_FORWARD_MORE NSLS(@"menu.playback.skip_forward_more", @"Skip Forward More", @"Playback menu item: seek forward a medium step, larger than 'Skip Forward'.")
-#define STR_MENU_SKIP_FORWARD_MOST NSLS(@"menu.playback.skip_forward_most", @"Skip Forward Most", @"Playback menu item: seek forward the largest step.")
-#define STR_MENU_SKIP_BACK         NSLS(@"menu.playback.skip_back",         @"Skip Back",         @"Playback menu item: seek backward a short step.")
-#define STR_MENU_SKIP_BACK_MORE    NSLS(@"menu.playback.skip_back_more",    @"Skip Back More",    @"Playback menu item: seek backward a medium step, larger than 'Skip Back'.")
-#define STR_MENU_SKIP_BACK_MOST    NSLS(@"menu.playback.skip_back_most",    @"Skip Back Most",    @"Playback menu item: seek backward the largest step.")
+#define STR_MENU_REPEAT            NSLS(@"settings.shortcuts.repeat",       @"Repeat",            @"Playback menu: submenu choosing the repeat mode (Off, All, One). Also the Keyboard Shortcuts pane's name for the key that moves to the next mode.")
+#define STR_MENU_REPEAT_OFF        NSLS(@"menu.playback.repeat.off",        @"Off",               @"Repeat submenu item: playback stops at the end of the playlist.")
+#define STR_MENU_REPEAT_ALL        NSLS(@"menu.playback.repeat.all",        @"All",               @"Repeat submenu item: after the last track the playlist plays again from the start.")
+#define STR_MENU_REPEAT_ONE        NSLS(@"menu.playback.repeat.one",        @"One",               @"Repeat submenu item: the current track replays when it ends.")
+#define STR_MENU_SKIP_BACK_BARS       NSLS(@"menu.playback.skip_back_bars",       @"Skip Back %ld Bars",       @"Playback menu item: seek backward a whole number of musical bars. %ld is the count, 4 to 64, never 1.")
+#define STR_MENU_SKIP_BACK_SECONDS    NSLS(@"menu.playback.skip_back_seconds",    @"Skip Back %ld Seconds",    @"Playback menu item: seek backward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.")
+#define STR_MENU_SKIP_FORWARD_BARS    NSLS(@"menu.playback.skip_forward_bars",    @"Skip Forward %ld Bars",    @"Playback menu item: seek forward a whole number of musical bars. %ld is the count, 4 to 64, never 1.")
+#define STR_MENU_SKIP_FORWARD_SECONDS NSLS(@"menu.playback.skip_forward_seconds", @"Skip Forward %ld Seconds", @"Playback menu item: seek forward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.")
 #define STR_MENU_PITCH_RANGE       NSLS(@"menu.playback.pitch_range",       @"Pitch Range",       @"Playback menu: submenu selecting the pitch fader's range (±8% or ±16%).")
-#define STR_MENU_PITCH_RANGE_8     NSLS(@"menu.playback.pitch_range.8",     @"8%",                @"Pitch Range submenu item: a ±8% fader range. Matches the printed scale on the fader itself.")
-#define STR_MENU_PITCH_RANGE_16    NSLS(@"menu.playback.pitch_range.16",    @"16%",               @"Pitch Range submenu item: a ±16% fader range. Matches the printed scale on the fader itself.")
+#define STR_MENU_PITCH_RANGE_8     NSLS(@"menu.playback.pitch_range.8",     @"±8%",               @"Pitch Range submenu item: a fader range of 8% above and below. Keep the ± sign.")
+#define STR_MENU_PITCH_RANGE_16    NSLS(@"menu.playback.pitch_range.16",    @"±16%",              @"Pitch Range submenu item: a fader range of 16% above and below. Keep the ± sign.")
 
 #pragma mark - FX menu
 
@@ -129,20 +132,28 @@ static inline NSString *VibeAppName(void) {
 #pragma mark - View menu
 
 #define STR_MENU_VIEW               NSLS(@"menu.view",                   @"View",               @"Menu bar: the View menu.")
-#define STR_MENU_VIEW_PLAYLIST      NSLS(@"menu.view.playlist",          @"Show Playlist",      @"View menu item: expands the window to show the playlist.")
-#define STR_MENU_VIEW_PITCH_CONTROL NSLS(@"menu.view.pitch_control",     @"Show Pitch Control", @"View menu item: shows the pitch fader panel.")
-#define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"View menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
-#define STR_MENU_VIEW_LOCK_WINDOW_POSITION NSLS(@"menu.view.lock_window_position", @"Lock Window Position", @"View menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.")
+#define STR_MENU_VIEW_PLAYLIST      NSLS(@"menu.view.playlist",          @"Show Playlist",      @"View menu item: expands the window to show the playlist. Reads 'Hide Playlist' while it is shown.")
+#define STR_MENU_VIEW_HIDE_PLAYLIST NSLS(@"menu.view.playlist.hide",     @"Hide Playlist",      @"View menu item: collapses the playlist. Replaces 'Show Playlist' while the playlist is shown.")
+#define STR_MENU_VIEW_PITCH_CONTROL NSLS(@"menu.view.pitch_control",     @"Show Pitch Control", @"View menu item: shows the pitch fader panel. Reads 'Hide Pitch Control' while it is shown.")
+#define STR_MENU_VIEW_HIDE_PITCH_CONTROL NSLS(@"menu.view.pitch_control.hide", @"Hide Pitch Control", @"View menu item: hides the pitch fader panel. Replaces 'Show Pitch Control' while the panel is shown.")
 #define STR_MENU_VIEW_APPEARANCE    NSLS(@"menu.view.appearance",        @"Appearance",         @"The Appearance pane's label in the mac Settings window and the Appearance row on the iOS settings screen. One word for both.")
 #define STR_MENU_APPEARANCE_SYSTEM  NSLS(@"menu.view.appearance.system", @"Follow System",               @"Appearance choice in Settings: follow the system's light/dark setting. Shown beside Light and Dark.")
 #define STR_MENU_APPEARANCE_LIGHT   NSLS(@"menu.view.appearance.light",  @"Light",              @"Appearance choice in Settings: always use the light appearance.")
 #define STR_MENU_APPEARANCE_DARK    NSLS(@"menu.view.appearance.dark",   @"Dark",               @"Appearance choice in Settings: always use the dark appearance.")
 #define STR_MENU_VIEW_THEME         NSLS(@"menu.view.theme",             @"Theme",              @"View menu: submenu selecting the appearance theme; checkmarks the active one.")
 #define STR_MENU_VIEW_EDIT_THEMES   NSLS(@"menu.view.theme.edit",        @"Edit Themes…",       @"Theme submenu item: opens the Themes pane in Settings. Ends with an ellipsis.")
-#define STR_MENU_VIEW_SIZE          NSLS(@"menu.view.size",              @"Width",              @"View menu: submenu choosing the window's width preset (Small, Default, Large). The window's horizontal extent, not its overall size.")
-#define STR_MENU_SIZE_SMALL         NSLS(@"menu.view.size.small",        @"Small",              @"Width menu item: the narrowest window width.")
-#define STR_MENU_SIZE_DEFAULT       NSLS(@"menu.view.size.default",      @"Default",            @"Width menu item: the standard window width.")
-#define STR_MENU_SIZE_LARGE         NSLS(@"menu.view.size.large",        @"Large",              @"Width menu item: the widest window width preset.")
+
+#pragma mark - Window menu
+
+#define STR_MENU_WINDOW             NSLS(@"menu.window",                 @"Window",             @"Menu bar: the Window menu. macOS uses this same name in every app.")
+#define STR_WINDOW_MINIMIZE         NSLS(@"a11y.window.minimize",        @"Minimize",           @"Window menu item that minimizes the front window to the Dock, and the accessibility label of the player window's minimize button. macOS uses this same name in every app.")
+#define STR_MENU_WINDOW_BRING_ALL_TO_FRONT NSLS(@"menu.window.bring_all_to_front", @"Bring All to Front", @"Window menu item: brings every window of the app in front of other apps' windows. macOS uses this same name in every app.")
+#define STR_MENU_VIEW_SIZE          NSLS(@"menu.view.size",              @"Window Width",       @"Window menu: submenu choosing the window's width preset (Small, Default, Large). The window's horizontal extent, not its overall size.")
+#define STR_MENU_SIZE_SMALL         NSLS(@"menu.view.size.small",        @"Small",              @"Window Width menu item: the narrowest window width.")
+#define STR_MENU_SIZE_DEFAULT       NSLS(@"menu.view.size.default",      @"Default",            @"Window Width menu item: the standard window width.")
+#define STR_MENU_SIZE_LARGE         NSLS(@"menu.view.size.large",        @"Large",              @"Window Width menu item: the widest window width preset.")
+#define STR_MENU_VIEW_ALWAYS_ON_TOP NSLS(@"menu.view.always_on_top",     @"Always on Top",      @"Window menu item: checkmarked toggle that keeps the player window above all other apps' windows.")
+#define STR_MENU_VIEW_LOCK_WINDOW_POSITION NSLS(@"menu.view.lock_window_position", @"Lock Window Position", @"Window menu item: checkmarked toggle that stops the player window from being moved by dragging it. The same setting as Settings > General's 'Lock window position' switch, in title case per menu convention.")
 
 #pragma mark - Convert menu
 
@@ -151,10 +162,10 @@ static inline NSString *VibeAppName(void) {
 // action, so one name everywhere it appears.
 
 #define STR_MENU_CONVERT                 NSLS(@"menu.convert",                 @"Convert",                       @"Menu bar: the Convert menu.")
-#define STR_MENU_CONVERT_TO_FLAC         NSLS(@"menu.convert.to_flac",         @"Convert to FLAC",               @"Convert menu item: converts the current uncompressed track to FLAC. Also the save panel's title and the undo action's name. FLAC is a format name — keep it.")
+#define STR_MENU_CONVERT_TO_FLAC         NSLS(@"menu.convert.to_flac",         @"Convert to FLAC",               @"Convert menu item: converts the current uncompressed track to FLAC. Also the context-menu item, the save panel's title and the undo action's name. FLAC is a format name — keep it.")
 #define STR_MENU_CONVERT_CANCEL          NSLS(@"menu.convert.cancel",          @"Cancel Conversion",             @"Convert menu item: replaces 'Convert to FLAC' while a conversion is running; stops it and discards the partial output, leaving the original untouched.")
 #define STR_MENU_CONVERT_FLAC_EXISTS     NSLS(@"menu.convert.flac_exists",     @"FLAC Already Exists",           @"Convert menu item, disabled: replaces 'Convert to FLAC' when a FLAC of the same name already sits beside the source file.")
-#define STR_MENU_CONVERT_DELETE_ORIGINAL NSLS(@"menu.convert.delete_original", @"Delete Original After Convert", @"Convert menu item: a checkmarked preference — when on, a successful conversion moves the original file to the Trash.")
+#define STR_MENU_CONVERT_TRASH_ORIGINAL  NSLS(@"menu.convert.delete_original", @"Move Original to Trash After Conversion", @"Convert menu item: a checkmarked preference — when on, a successful conversion moves the original file to the Trash. The same setting as Settings > Files' 'Move original to Trash after conversion' switch, in title case per menu convention.")
 
 #define STR_LABEL_CONVERT_SAVE_MESSAGE NSLS(@"label.convert.save_message", @"Choose where to save the converted FLAC.", @"Message atop the save panel for the converted FLAC. The panel can be requested by the save-location setting or a failed move beside the source.")
 
@@ -164,14 +175,9 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_OUTPUT_SYSTEM_NAMED NSLS(@"menu.output.system_named", @"System Output (%@)", @"Output menu item: follow the system's default output device. %@ is that device's name.")
 #define STR_MENU_OUTPUT_SYSTEM       NSLS(@"menu.output.system",       @"System Output",      @"Output menu item: follow the system's default output device, used when its name is unknown.")
 
-#pragma mark - Help menu
-
-#define STR_MENU_HELP         NSLS(@"menu.help",         @"Help",                            @"Menu bar: the Help menu, the rightmost one. macOS uses this same name in every app.")
-#define STR_MENU_HELP_SUPPORT NSLS(@"menu.help.support", @"Report Issue or Feature Request", @"Help menu item: opens the app's support page in the browser, where a user reports a problem or requests a feature.")
-
 #pragma mark - Context menus
 
-#define STR_MENU_SHOW_IN_FINDER NSLS(@"menu.context.show_in_finder", @"Show in Finder", @"Context menu item: reveals the track's file in the Finder. Matches the Finder's own wording.")
+#define STR_MENU_SHOW_IN_FINDER NSLS(@"menu.context.show_in_finder", @"Show in Finder", @"File menu and context menu item: reveals the track's file in the Finder. Matches the Finder's own wording.")
 
 #pragma mark - Waveform styles
 
@@ -276,9 +282,8 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_SHORTCUTS_RESERVED         NSLS(@"settings.shortcuts.reserved",         @"%@ is reserved and can’t be assigned.", @"Settings, Keyboard Shortcuts pane: caption after a refused recording. %@ is the key combination as glyphs, such as ⌘Q.")
 #define STR_SETTINGS_SHORTCUTS_UNUSABLE         NSLS(@"settings.shortcuts.unusable",         @"That key can’t be used for a shortcut.", @"Settings, Keyboard Shortcuts pane: caption after a recording of a key the app cannot name or draw in a menu.")
 #define STR_SETTINGS_SHORTCUTS_REASSIGNED       NSLS(@"settings.shortcuts.reassigned",       @"%1$@ now belongs to %2$@. %3$@ has no shortcut.", @"Settings, Keyboard Shortcuts pane: caption after recording a combination another command had. %1$@ is the combination as glyphs, %2$@ the command that took it, %3$@ the command that lost it.")
-#define STR_SETTINGS_SHORTCUTS_REPEAT           NSLS(@"settings.shortcuts.repeat",           @"Repeat",                      @"Settings, Keyboard Shortcuts pane: the list's name for the command whose menu item reads 'Repeat: Off', 'Repeat: All' or 'Repeat: One' and moves to the next mode.")
 #define STR_SETTINGS_SHORTCUTS_PLAY_PAUSE       NSLS(@"settings.shortcuts.play_pause",       @"Play / Pause",                @"Settings, Keyboard Shortcuts pane: the list's name for the one command whose menu item reads Play or Pause depending on the player.")
-#define STR_SETTINGS_SHORTCUTS_SUBMENU_ITEM     NSLS(@"settings.shortcuts.submenu_item",     @"%1$@: %2$@",                  @"Keyboard Shortcuts pane: a command inside a submenu, such as 'Width: Small'. %1$@ is the submenu title. %2$@ is the item title.")
+#define STR_SETTINGS_SHORTCUTS_SUBMENU_ITEM     NSLS(@"settings.shortcuts.submenu_item",     @"%1$@: %2$@",                  @"Keyboard Shortcuts pane: a command inside a submenu, such as 'Window Width: Small'. %1$@ is the submenu title. %2$@ is the item title.")
 #define STR_SETTINGS_SHORTCUTS_KEY_SPACE        NSLS(@"settings.shortcuts.key.space",        @"Space",                       @"The space bar's name as part of a shortcut, after any modifier glyphs, such as '⌥Space'. Shown in the menus and the Keyboard Shortcuts pane.")
 #define STR_SETTINGS_SHORTCUTS_KEY_UNKNOWN      NSLS(@"settings.shortcuts.key.unknown",      @"Key %ld",                     @"A key with no printable name in the current keyboard layout, as part of a shortcut. %ld is the key's hardware code.")
 #define STR_SETTINGS_SHORTCUTS_KEY_KEYPAD       NSLS(@"settings.shortcuts.key.keypad",       @"Keypad %@",                   @"A key on the numeric keypad, as part of a shortcut after any modifier glyphs, such as 'Keypad 1' or '⌥Keypad *'. %@ is the character the key types. Shown when the key is refused as reserved.")
@@ -494,7 +499,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_SETTINGS_CONVERT_DEST_LABEL  NSLS(@"settings.convert.destination_label",            @"Save converted files:",    @"Settings, Files pane, FLAC conversion group: label beside the dropdown choosing where Convert to FLAC writes its output. Ends with a colon.")
 #define STR_SETTINGS_CONVERT_DEST_BESIDE NSLS(@"settings.convert.destination.beside",           @"Next to original",         @"Files pane, FLAC conversion: tries to save beside the source. The default.")
 #define STR_SETTINGS_CONVERT_DEST_ASK    NSLS(@"settings.convert.destination.ask",              @"Ask where to save",        @"Files pane, FLAC conversion: asks for a save location for each conversion.")
-#define STR_SETTINGS_DELETE_ORIGINAL     NSLS(@"settings.convert.delete_original",              @"Move original to Trash after conversion", @"Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Delete Original After Convert' item, in sentence case per checkbox convention.")
+#define STR_SETTINGS_DELETE_ORIGINAL     NSLS(@"settings.convert.delete_original",              @"Move original to Trash after conversion", @"Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Move Original to Trash After Conversion' item, in sentence case per checkbox convention.")
 #define STR_SETTINGS_DELETE_ORIGINAL_CAPTION NSLS(@"settings.convert.delete_original.caption", @"Once its FLAC is saved, the original goes to the Trash", @"Settings, Files pane: caption under 'Move original to Trash after conversion'. The original file is moved, not deleted, so it can be restored from the Trash.")
 
 #define STR_SETTINGS_FILES                NSLS(@"settings.files",                               @"Files",                    @"Settings window: the Files pane's sidebar item, and the window's title while that pane is selected; also the Files row on the iOS settings screen. The pane covers where the app looks for album art and which folders it keeps access to.")
@@ -618,7 +623,6 @@ static inline NSString *VibeAppName(void) {
 #define STR_A11Y_TOGGLE_PLAYLIST NSLS(@"a11y.playlist.toggle", @"Toggle Playlist",      @"Accessibility label for the button that shows and hides the playlist.")
 #define STR_A11Y_PLAYLIST_OPEN   NSLS(@"a11y.playlist.open",   @"Open tracks or folders", @"Accessibility label for the empty playlist pane's drop well, which opens the file picker when pressed.")
 #define STR_A11Y_WINDOW_CLOSE    NSLS(@"a11y.window.close",    @"Close",           @"Accessibility label for the window's close button.")
-#define STR_A11Y_WINDOW_MINIMIZE NSLS(@"a11y.window.minimize", @"Minimize",        @"Accessibility label for the window's minimize button.")
 #define STR_A11Y_WAVEFORM        NSLS(@"a11y.waveform",        @"Playback Position", @"Accessibility label for the waveform, which is a slider: it shows where playback has reached in the track and seeks when adjusted. Read aloud by a screen reader, never drawn on screen. Both platforms.")
 #define STR_A11Y_VOLUME         NSLS(@"a11y.volume",          @"Volume",          @"Accessibility label for the player window's volume slider. Read aloud by a screen reader, never drawn on screen.")
 #define STR_A11Y_PITCH_FADER     NSLS(@"a11y.pitch_fader",     @"Pitch",           @"Accessibility label for the pitch fader, the slider that speeds the track up or slows it down like a turntable's. Read aloud by a screen reader, never drawn on screen; the drawn legend is the separate upper-case 'PITCH'.")
@@ -778,7 +782,7 @@ static inline NSString *VibeAppName(void) {
 #define STR_LABEL_FAVORITES_EMPTY_MESSAGE NSLS(@"label.favorites.empty.message", @"Add a folder from the Files tab, or star the one you have open, to keep it here.", @"iOS: explanatory line under the empty favorites headline. It names both ways to make a favorite, each in the words its own screen uses: the Files tab's long-press menu item says 'Add to Favorites', while the playlist screen's control is a star. 'Here' is the Favorites tab the line is shown on.")
 #define STR_ERROR_FAVORITE_UNAVAILABLE    NSLS(@"error.favorite.unavailable",    @"This folder can’t be opened right now. It may have been moved or deleted, or its cloud service may be signed out.", @"iOS: alert message shown when tapping a favorite whose folder could not be found. The alert’s title is the folder’s name. Uses a curly apostrophe (’).")
 
-#define STR_MENU_PLAYLIST_CLEAR          NSLS(@"menu.playlist.clear",          @"Clear Playlist",        @"iOS: destructive menu item on the playlist screen's bar button; empties the playlist and stops playback. It deletes no files — it only unloads what is queued — so the wording says Clear rather than Delete.")
+#define STR_MENU_PLAYLIST_CLEAR          NSLS(@"menu.playlist.clear",          @"Clear Playlist",        @"Empties the playlist and stops playback. On iOS a destructive menu item on the playlist screen's bar button; on the mac the File menu item that replaces 'Close File' when more than one track is loaded. It deletes no files — it only unloads what is queued — so the wording says Clear rather than Delete.")
 
 #define STR_MENU_CONTEXT_PLAY            NSLS(@"menu.context.play",            @"Play",                  @"iOS: long-press menu item on a Favorites row, where it opens the starred folder as the playlist and starts playing it, and on a file in the search results, where it plays that one file alone. Either way it replaces whatever was queued — the same as tapping the row.")
 #define STR_MENU_CONTEXT_OPEN_FOLDER     NSLS(@"menu.context.open_folder",     @"Open Folder",           @"iOS: long-press menu item on a search result or a Recents row. Shows the folder in the Files tab — the folder holding a file, or the folder itself — without playing anything.")

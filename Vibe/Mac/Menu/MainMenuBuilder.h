@@ -21,19 +21,13 @@ NS_ASSUME_NONNULL_BEGIN
                       playerController:(MainPlayerController *)playerController
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController;
 
-// The main menu's item style, with no key equivalent, for context menus.
+// A context menu's item: a title, an SF Symbol and no key equivalent. The
+// menu bar carries no images, as Apple's own menus do not.
 + (NSMenuItem *)symbolItemWithTitle:(NSString *)title
                          symbolName:(NSString *)symbolName
                              action:(SEL)action
                              target:(nullable id)target
                          identifier:(nullable NSString *)identifier;
-
-// Shared with the window-body context menu, so each identifier, symbol and
-// validation branch lives in one place. No key equivalent: the menu bar adds
-// its own.
-+ (NSMenuItem *)copyNameItemWithTarget:(nullable id)target;
-+ (NSMenuItem *)copyFileItemWithTarget:(nullable id)target;
-+ (NSMenuItem *)convertToFLACItemWithTarget:(nullable id)target;
 
 // The ConvertMenu and FX settings effects' hooks. Each menu is always built
 // and hidden in place, and each call re-applies the shortcuts, which a

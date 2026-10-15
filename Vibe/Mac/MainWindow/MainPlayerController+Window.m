@@ -13,7 +13,8 @@
 #import "ArtworkDisplayController.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
-#import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
+#import "MainMenuBuilder.h" // the context menu's symbol items
+#import "MainPlayerController+Convert.h" // convertCurrentTrackToFLAC:, the context menu's
 #import "MainPlayerContentView.h"
 #import "MainWindow.h"
 #import "MenuValidationRules.h"
@@ -89,8 +90,8 @@
     [content.totalTimeTextField addGestureRecognizer:timeModeClick];
 
     // On the content view, so it covers the pitch panel too; the playlist
-    // table's row menu shadows it. The vended items share the main menu's
-    // validation. The title is never drawn.
+    // table's row menu shadows it. Each item shares its identifier, and so
+    // its validation, with the menu bar's. The title is never drawn.
     NSMenu *contextMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Popup Menu")];
     [contextMenu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_SHOW_IN_FINDER
                                                    symbolName:@"folder"
@@ -98,10 +99,22 @@
                                                        target:self
                                                    identifier:kVibeMenuShowInFinder]];
     [contextMenu addItem:[NSMenuItem separatorItem]];
-    [contextMenu addItem:[MainMenuBuilder copyNameItemWithTarget:self]];
-    [contextMenu addItem:[MainMenuBuilder copyFileItemWithTarget:self]];
+    [contextMenu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_EDIT_COPY_NAME
+                                                   symbolName:@"textformat"
+                                                       action:@selector(copyName:)
+                                                       target:self
+                                                   identifier:kVibeMenuEditCopyName]];
+    [contextMenu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_EDIT_COPY_FILE
+                                                   symbolName:@"doc.on.doc"
+                                                       action:@selector(copyFile:)
+                                                       target:self
+                                                   identifier:kVibeMenuEditCopyFile]];
     [contextMenu addItem:[NSMenuItem separatorItem]];
-    [contextMenu addItem:[MainMenuBuilder convertToFLACItemWithTarget:self]];
+    [contextMenu addItem:[MainMenuBuilder symbolItemWithTitle:STR_MENU_CONVERT_TO_FLAC
+                                                   symbolName:@"arrow.triangle.2.circlepath"
+                                                       action:@selector(convertCurrentTrackToFLAC:)
+                                                       target:self
+                                                   identifier:kVibeMenuConvertToFLAC]];
     contentView.menu = contextMenu;
 }
 

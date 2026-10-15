@@ -66,8 +66,8 @@ NSArray<NSDictionary *> *VibeDebugConvertVerbs(void) {
     dispatch_once(&once, ^{
         table = @[
             // The whole Convert to FLAC path on the current track, swap and
-            // disposal included. keep|delete writes Delete Original After
-            // Convert, as the menu item does, and leaves it written.
+            // disposal included. keep|delete writes Move Original to Trash
+            // After Conversion, as the menu item does, and leaves it written.
             // omit-trash-url is a one-shot fault for the ambiguous successful
             // Trash result, armed only once the command will convert.
             VibeDebugCmd(@"convert_to_flac [keep|delete] [omit-trash-url]", 120, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {

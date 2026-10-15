@@ -43,7 +43,7 @@ A crash or kill can leave `vibe-convert-<uuid>.flac` in the container's tmp. `in
 
 ## Tags, progress and disposal
 
-`FLACTagCopier` copies TagLib's supported scalar properties to Vorbis comments and copies one picture. It prefers the front cover and otherwise keeps the first nonempty picture. Unsupported tag fields are omitted. It opens the header-sniffed container rather than trusting the extension or cached metadata. A failure is fatal to the conversion: the temp is removed and the original stays, so Delete Original can never turn a tag-copy failure into metadata loss.
+`FLACTagCopier` copies TagLib's supported scalar properties to Vorbis comments and copies one picture. It prefers the front cover and otherwise keeps the first nonempty picture. Unsupported tag fields are omitted. It opens the header-sniffed container rather than trusting the extension or cached metadata. A failure is fatal to the conversion: the temp is removed and the original stays, so the Trash move can never turn a tag-copy failure into metadata loss.
 
 The encode must reach the source's declared frame count, and the finished FLAC must reopen with that count, before tags or placement. A zero-frame read before the declared end is truncation, not EOF. The temp is removed and the source is untouched.
 
@@ -53,7 +53,7 @@ Placement gets one final positive validation before success reaches the controll
 
 `AudioFileConverter+Disposal` holds the source's trash, undo and redo, and the trash, restore and verify primitives under them. It shares its ivars with the core through `AudioFileConverterInternal.h`.
 
-`trashSourceIfEnabled:convertedTo:` acts on Convert > Delete Original After Convert (also Settings > Files), off by default and **snapshotted when the conversion is accepted**. It trashes rather than unlinks, so it is undoable. It refuses when the output resolves to the source. A failure is logged and otherwise ignored. Its completion carries a `VibeTrashOutcome` apart from the optional Trash URL: a move with no returned location is still moved. **Who calls it, and when, is the controller's**, since the player holds the source open until the swap.
+`trashSourceIfEnabled:convertedTo:` acts on Convert > Move Original to Trash After Conversion (also Settings > Files), off by default and **snapshotted when the conversion is accepted**. It trashes rather than unlinks, so it is undoable. It refuses when the output resolves to the source. A failure is logged and otherwise ignored. Its completion carries a `VibeTrashOutcome` apart from the optional Trash URL: a move with no returned location is still moved. **Who calls it, and when, is the controller's**, since the player holds the source open until the swap.
 
 `trashItemAtURL:completion:` and `restoreTrashedItemAtURL:toURL:completion:` also serve the playlist's Move to Trash (`Mac/MainWindow/AGENTS.md`). The dispose queue runs at user-initiated QoS, because the user waits on every move.
 

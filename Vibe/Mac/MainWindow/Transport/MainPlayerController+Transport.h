@@ -62,6 +62,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (IBAction)toggleShuffle:(nullable id)sender;
 // Off, All, One, Off.
 - (IBAction)cycleRepeatMode:(nullable id)sender;
+// The Repeat submenu's items; the sender's identifier names the mode.
+- (IBAction)selectRepeatMode:(nullable id)sender;
 
 // Re-parks the playlist's trackEndSuccessor, except while Stopped. Every site
 // but a track start goes through this.

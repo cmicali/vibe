@@ -69,7 +69,8 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
     // Shift is part of the set, against every character default.
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kShift), 's', nil, nil));
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kOption | kShift), 's', nil, nil));
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(15, kCmd | kShift), 'r', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, kCmd | kShift), 'r', nil, nil), kVibeMenuShowInFinder,
+                          @"⇧⌘R is Show in Finder, never Repeat");
     XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(31, kCmd | kShift), 'o', nil, nil), kVibeMenuAddToPlaylist);
     XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(8, kShift), 'c', nil, nil));
     XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, 0), 'r', nil, nil), kVibeMenuFXDelay,
@@ -103,7 +104,7 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 }
 
 - (void)testReservedShortcutsAreTheSystemOnesTheArrowsEscapeAndTheKeypad {
-    for (NSString *key in @[@",", @"h", @"q", @"w", @"z", @"x", @"c", @"v", @"a"]) {
+    for (NSString *key in @[@",", @"h", @"q", @"w", @"z", @"x", @"c", @"v", @"a", @"m"]) {
         XCTAssertTrue(VibeShortcutIsReserved(0, [key characterAtIndex:0], kCmd), @"⌘%@", key);
     }
     XCTAssertTrue(VibeShortcutIsReserved(4, 'h', kCmd | NSEventModifierFlagOption));
@@ -122,7 +123,7 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
     XCTAssertFalse(VibeShortcutIsReserved(12, 'q', 0));
     XCTAssertFalse(VibeShortcutIsReserved(12, 'q', kCmd | kShift));
     XCTAssertFalse(VibeShortcutIsReserved(0, 0x0444, kCmd), @"a Cyrillic ⌘ф is free");
-    XCTAssertFalse(VibeShortcutIsReserved(46, 'm', 0), @"M is an ordinary key");
+    XCTAssertFalse(VibeShortcutIsReserved(46, 'm', 0), @"bare M is an ordinary key; ⌘M is Window > Minimize");
 }
 
 // Cut and Paste own ⌘X and ⌘V. Neither can be recorded, and an override
@@ -175,40 +176,51 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
     XCTAssertEqual(MenuItemForKey(kVibeMenuEditMoveToTrash, commandDelete, 0, overrides), kVibeShortcutNone);
 }
 
-- (void)testOpenURLIsCommandUByItsLetter {
-    VibeShortcut commandU = VibeShortcutMakeCharacter('u', kCmd);
-    XCTAssertEqual(VibeShortcutDefault(kVibeMenuOpenLink), commandU);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(32, kCmd, 'u', 'u', nil), kVibeMenuOpenLink);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(3, kCmd, 'u', 'u', nil), kVibeMenuOpenLink,
-                          @"Dvorak types u on QWERTY's F key");
-    XCTAssertNil(VibeShortcutCommandForPress(32, kCmd | kShift, 'u', 'u', nil));
-    XCTAssertNil(VibeShortcutCommandForPress(32, 0, 0, 'u', nil), @"bare U is unbound");
+// QuickTime Player's and Safari's key for it.
+- (void)testOpenLocationIsCommandLByItsLetter {
+    VibeShortcut commandL = VibeShortcutMakeCharacter('l', kCmd);
+    XCTAssertEqual(VibeShortcutDefault(kVibeMenuOpenLink), commandL);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(37, kCmd, 'l', 'l', nil), kVibeMenuOpenLink);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(35, kCmd, 'l', 'l', nil), kVibeMenuOpenLink,
+                          @"Dvorak types l on QWERTY's P key");
+    XCTAssertNil(VibeShortcutCommandForPress(37, kCmd | kShift, 'l', 'l', nil));
+    XCTAssertNil(VibeShortcutCommandForPress(37, 0, 0, 'l', nil), @"bare L is unbound");
     XCTAssertFalse(VibeShortcutCommandRepeats(kVibeMenuOpenLink));
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, commandU, 32, 0, nil), commandU);
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, commandU, kVibeShortcutKeyMask, 0, nil), commandU,
-                   @"a layout with no U still draws ⌘U");
+    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, commandL, 37, 0, nil), commandL);
+    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, commandL, kVibeShortcutKeyMask, 0, nil), commandL,
+                   @"a layout with no L still draws ⌘L");
 }
 
-// An override stored on ⌘U before Open URL existed keeps the key: its press
-// and its menu item. Open URL's item carries nothing, and the recording that
-// gave the key away again hands it back.
-- (void)testAnOverrideAlreadyOnCommandUOutranksOpenURL {
-    VibeShortcut commandU = VibeShortcutMake(32, kCmd);
-    VibeShortcut openURL = VibeShortcutDefault(kVibeMenuOpenLink);
-    NSDictionary *overrides = @{kVibeMenuAlwaysOnTop: @(commandU)};
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(32, kCmd, 'u', 'u', overrides), kVibeMenuAlwaysOnTop);
-    XCTAssertEqual(MenuItemForKey(kVibeMenuAlwaysOnTop, commandU, 'u', overrides), commandU);
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, openURL, 32, 0, overrides), kVibeShortcutNone);
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpenLink, overrides), openURL, @"still its default");
+// Music's key for it, last in the table so an older override keeps the key.
+- (void)testShowInFinderIsShiftCommandR {
+    VibeShortcut shiftCommandR = VibeShortcutMakeCharacter('r', kCmd | kShift);
+    XCTAssertEqual(VibeShortcutDefault(kVibeMenuShowInFinder), shiftCommandR);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(15, kCmd | kShift, 'r', 'r', nil), kVibeMenuShowInFinder);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(15, kCmd, 'r', 'r', nil), kVibeMenuRepeat,
+                          @"⌘R stays Repeat");
+    XCTAssertEqualObjects(VibeShortcutIdentifiers().lastObject, kVibeMenuShowInFinder);
+}
 
-    // Dvorak types g on that key and u on QWERTY's F: each keeps its own.
-    XCTAssertEqual(MenuItemForKey(kVibeMenuAlwaysOnTop, commandU, 'g', overrides), commandU);
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, openURL, 3, 0, overrides), openURL);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(3, kCmd, 'u', 'u', overrides), kVibeMenuOpenLink);
+// An override stored on ⌘L before Open Location existed keeps the key: its
+// press and its menu item. Open Location's item carries nothing, and the
+// recording that gave the key away again hands it back.
+- (void)testAnOverrideAlreadyOnCommandLOutranksOpenLocation {
+    VibeShortcut commandL = VibeShortcutMake(37, kCmd);
+    VibeShortcut openLocation = VibeShortcutDefault(kVibeMenuOpenLink);
+    NSDictionary *overrides = @{kVibeMenuAlwaysOnTop: @(commandL)};
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(37, kCmd, 'l', 'l', overrides), kVibeMenuAlwaysOnTop);
+    XCTAssertEqual(MenuItemForKey(kVibeMenuAlwaysOnTop, commandL, 'l', overrides), commandL);
+    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, openLocation, 37, 0, overrides), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpenLink, overrides), openLocation, @"still its default");
 
-    // Recording ⌘U now takes it from Open URL, as from any default.
+    // Dvorak types n on that key and l on QWERTY's P: each keeps its own.
+    XCTAssertEqual(MenuItemForKey(kVibeMenuAlwaysOnTop, commandL, 'n', overrides), commandL);
+    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, openLocation, 35, 0, overrides), openLocation);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(35, kCmd, 'l', 'l', overrides), kVibeMenuOpenLink);
+
+    // Recording ⌘L now takes it from Open Location, as from any default.
     NSString *loser = nil;
-    NSDictionary *recorded = VibeShortcutOverridesByAssigning(nil, kVibeMenuAlwaysOnTop, commandU, 'u', &loser);
+    NSDictionary *recorded = VibeShortcutOverridesByAssigning(nil, kVibeMenuAlwaysOnTop, commandL, 'l', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuOpenLink);
     XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpenLink, recorded), kVibeShortcutNone);
 }

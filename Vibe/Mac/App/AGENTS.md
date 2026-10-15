@@ -23,7 +23,7 @@ The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable
 
 ## Open URL and links
 
-**Open URL (⌘U, `openLink:`) is an `NSPanel` that `OpenLinkWindowController` builds.** `AppDelegate` owns the controller for the app's life. The controller builds the panel at each show and releases it at each close. The panel is not a sheet, so the player keeps working while it is up. It stays up when Vibe is not active (`hidesOnDeactivate` off), since a link is often copied from a browser. It takes the level of the About and Settings windows (`applyAuxiliaryWindowLevels`). Open is disabled while the field is blank (`VibeLinkTextIsBlank`). Return presses Open and never breaks the line. Nothing reads the pasteboard unless the user pastes.
+**Open URL (File > Open Location…, ⌘L, `openLink:`) is an `NSPanel` that `OpenLinkWindowController` builds.** `AppDelegate` owns the controller for the app's life. The controller builds the panel at each show and releases it at each close. The panel is not a sheet, so the player keeps working while it is up. It stays up when Vibe is not active (`hidesOnDeactivate` off), since a link is often copied from a browser. It takes the level of the About and Settings windows (`applyAuxiliaryWindowLevels`). Open is disabled while the field is blank (`VibeLinkTextIsBlank`). Return presses Open and never breaks the line. Nothing reads the pasteboard unless the user pastes.
 
 **⌘W reaches the panel because the controller, its delegate, answers `closeFile:` ahead of the player.** The player's `closeFile:` would clear the playlist. `AppDelegate` forwards `closeFile:` and Close's validation to the controller when no window takes them. Every close ends in `windowWillClose:`, which cancels a resolve still running.
 

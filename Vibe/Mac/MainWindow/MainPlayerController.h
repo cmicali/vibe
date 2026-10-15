@@ -59,7 +59,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)endNotice;
 
 - (IBAction)closeApp:(id)sender;
-- (IBAction)minimizeWindow:(id)sender;
 
 - (IBAction)playPause:(nullable id)sender;
 - (IBAction)next:(nullable id)sender;

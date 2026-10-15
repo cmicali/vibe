@@ -9,6 +9,10 @@
 * Improved hi-res playback from slow network shares
 * Added the vibe theme track, which loads on launch until you play or open something
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
+* mac: Added a Window menu with Minimize (⌘M), Window Width, Always on Top, and Lock Window Position
+* mac: Added Show in Finder (⇧⌘R) and Play to the menus
+* mac: Changed the menus to follow macOS conventions: Edit > Copy, Open Location… (⌘L), and a Repeat submenu
+* mac: Changed the skip items to show their distance in bars or seconds
 * mac: Added Move to Trash (⌘⌫) to delete the selected or playing song's file, with Undo
 * mac: Added automatic updates to the non-appstore version
 * mac: Added the RGB theme
