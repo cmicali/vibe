@@ -200,4 +200,8 @@
     });
 }
 
+- (IBAction)toggleDeleteOriginalAfterConvert:(id)sender {
+    AppSettings.sharedInstance.deleteOriginalAfterConvert = !AppSettings.sharedInstance.deleteOriginalAfterConvert;
+}
+
 @end

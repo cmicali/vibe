@@ -124,6 +124,7 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuEditCopyName,      @(VibeShortcutMakeCharacter('c', cmd | NSEventModifierFlagShift))],
             @[kVibeMenuEditRemoveFromPlaylist, @(VibeShortcutMake(kVibeKeyCodeDelete, 0))],
             @[kVibeMenuConvertToFLAC,     @(kVibeShortcutNone)],
+            @[kVibeMenuConvertDeleteOriginal, @(kVibeShortcutNone)],
             // Last: a default added later loses its key to an override stored
             // before it. A duplicate resolves in table order.
             @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('l', cmd))],

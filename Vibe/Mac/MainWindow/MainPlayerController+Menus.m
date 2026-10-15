@@ -211,6 +211,11 @@
 }
 
 - (BOOL)validateConvertMenuItem:(NSMenuItem *)menuItem {
+    // A preference, never disabled.
+    if ([menuItem.identifier isEqualToString:kVibeMenuConvertDeleteOriginal]) {
+        menuItem.state = StateForBOOL(AppSettings.sharedInstance.deleteOriginalAfterConvert);
+        return YES;
+    }
     // Shared with the window-body context menu. Hiding it here is how the
     // context menus follow the Convert setting live.
     NSString *path = self.playlistController.currentTrack.url.path;

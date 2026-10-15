@@ -324,6 +324,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     convertItem.identifier = @"menu_convert";
     AddItem(convertItem.submenu, STR_MENU_CONVERT_TO_FLAC, @selector(convertCurrentTrackToFLAC:), player, @"", 0,
             kVibeMenuConvertToFLAC);
+    AddSeparator(convertItem.submenu);
+    AddItem(convertItem.submenu, STR_MENU_CONVERT_TRASH_ORIGINAL, @selector(toggleDeleteOriginalAfterConvert:), player,
+            @"", 0, kVibeMenuConvertDeleteOriginal);
     convertItem.hidden = !AppSettings.sharedInstance.convertEnabled;
 }
 

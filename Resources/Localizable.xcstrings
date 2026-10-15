@@ -22510,12 +22510,6 @@
     "menu.convert": {
       "comment": "Menu bar: the Convert menu.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Convert"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -22544,6 +22538,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Μετατροπή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert"
           }
         },
         "es": {
@@ -22874,6 +22874,192 @@
           "stringUnit": {
             "state": "translated",
             "value": "取消轉換"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "menu.convert.delete_original": {
+      "comment": "Convert menu item: a checkmarked preference — when on, a successful conversion moves the original file to the Trash. The same setting as Settings > Files' 'Move original to Trash after conversion' switch, in title case per menu convention.",
+      "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Преместване на оригинала в Кошчето след конвертиране"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Po převodu přesunout originál do koše"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flyt originalen til papirkurven efter konvertering"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original nach der Konvertierung in den Papierkorb bewegen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Μετακίνηση του πρωτοτύπου στον Κάδο μετά τη μετατροπή"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move Original to Trash After Conversion"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover el original a la Papelera tras la conversión"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siirrä alkuperäinen roskakoriin muunnoksen jälkeen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Placer l’original dans la Corbeille après conversion"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premjesti izvornik u Smeće nakon pretvorbe"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eredeti áthelyezése a Kukába a konvertálás után"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pindahkan File Asli ke Tong Sampah Setelah Konversi"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sposta l’originale nel Cestino dopo la conversione"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変換後に元のファイルをゴミ箱に入れる"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "변환 후 원본을 휴지통으로 이동"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flytt originalen til papirkurven etter konvertering"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verplaats origineel naar prullenmand na conversie"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Przenieś oryginał do Kosza po konwersji"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover o Original para o Lixo Após a Conversão"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover o original para o Lixo após a conversão"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mută originalul în Coș după conversie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перемещать оригинал в Корзину после конвертации"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Po konverzii presunúť originál do koša"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Flytta originalet till papperskorgen efter konvertering"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ย้ายต้นฉบับไปที่ถังขยะหลังการแปลง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dönüştürmeden Sonra Özgün Dosyayı Çöp Sepeti’ne Taşı"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переміщувати оригінал у Смітник після конвертації"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển tệp gốc vào Thùng rác sau khi chuyển đổi"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "转换后将原文件移到废纸篓"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轉換後將原始檔案移到垃圾桶"
           }
         }
       },
@@ -28090,12 +28276,6 @@
     "menu.output": {
       "comment": "Menu bar: the menu selecting the audio output device.",
       "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Output"
-          }
-        },
         "bg": {
           "stringUnit": {
             "state": "translated",
@@ -28124,6 +28304,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Έξοδος"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Output"
           }
         },
         "es": {
@@ -84632,7 +84818,7 @@
       "extractionState": "manual"
     },
     "settings.convert.delete_original": {
-      "comment": "Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash.",
+      "comment": "Settings, Files pane, FLAC conversion group: checkbox — when on, a successful conversion moves the original file to the Trash. The same setting as the Convert menu's 'Move Original to Trash After Conversion' item, in sentence case per checkbox convention.",
       "localizations": {
         "bg": {
           "stringUnit": {

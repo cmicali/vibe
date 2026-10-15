@@ -41,7 +41,7 @@ typedef NSURL *_Nullable (^VibeSourceTrashResultingURLFilter)(
     void (^_restore)(NSURL *, NSURL *, void (^)(BOOL, NSError *));
     void (^_verify)(NSURL *, void (^)(BOOL, NSError *));
     void (^_trash)(NSURL *, void (^)(VibeTrashOutcome, NSURL *, NSError *));
-    // Convert > Delete Original as it stood at accept. trashSourceIfEnabled:
+    // Convert > Move Original to Trash as it stood at accept. trashSourceIfEnabled:
     // consumes this, not the live setting, so a mid-encode toggle applies to
     // the next conversion, never the one in flight. Main-thread confined.
     BOOL _deleteOriginalAtAccept;

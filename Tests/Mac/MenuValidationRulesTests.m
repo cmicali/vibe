@@ -50,7 +50,7 @@
                               kVibeMenuEditMoveToTrash]
                    classify:VibeMenuValidationDomainEdit];
 
-    [self assertIdentifiers:@[kVibeMenuConvertToFLAC]
+    [self assertIdentifiers:@[kVibeMenuConvertToFLAC, kVibeMenuConvertDeleteOriginal]
                    classify:VibeMenuValidationDomainConvert];
 
     [self assertIdentifiers:@[kVibeMenuShuffle, kVibeMenuRepeat,
@@ -124,12 +124,10 @@
                               // Nobody's: a waveform-style identifier, the app
                               // delegate's Edit tail, a second Convert item
                               // (Cancel Conversion is kVibeMenuConvertToFLAC
-                              // re-aimed in validation), the preference that
-                              // left the menu bar for Settings > Files, and
-                              // the row menu's Play.
+                              // re-aimed in validation), and the row menu's
+                              // Play.
                               @"waveform_style_detailed", kVibeMenuEditThemes,
-                              @"menu_convert_cancel", @"menu_convert_delete_original",
-                              @"play_clicked_track"]
+                              @"menu_convert_cancel", @"play_clicked_track"]
                    classify:VibeMenuValidationDomainUnknown];
     XCTAssertEqual(VibeMenuValidationDomainForIdentifier(nil), VibeMenuValidationDomainUnknown);
 }

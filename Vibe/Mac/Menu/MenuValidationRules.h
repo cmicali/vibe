@@ -104,6 +104,7 @@ static NSString *const kVibeMenuEditPaste = @"menu_edit_paste";
 // Also Cancel Conversion, swapped in validation as menu_play swaps to Pause;
 // there is deliberately no menu_convert_cancel.
 static NSString *const kVibeMenuConvertToFLAC = @"menu_convert_to_flac";
+static NSString *const kVibeMenuConvertDeleteOriginal = @"menu_convert_delete_original";
 
 // The Repeat submenu's three modes. kVibeMenuRepeat is the submenu's own
 // item, the home of the cycling ⌘R.
@@ -216,7 +217,8 @@ static inline VibeMenuValidationDomain VibeMenuValidationDomainForIdentifier(NSS
             || [identifier isEqualToString:kVibeMenuEditMoveToTrash]) {
         return VibeMenuValidationDomainEdit;
     }
-    if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
+    if ([identifier isEqualToString:kVibeMenuConvertToFLAC]
+            || [identifier isEqualToString:kVibeMenuConvertDeleteOriginal]) {
         return VibeMenuValidationDomainConvert;
     }
     return VibeMenuValidationDomainUnknown;

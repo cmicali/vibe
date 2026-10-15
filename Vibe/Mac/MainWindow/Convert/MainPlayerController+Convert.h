@@ -22,6 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 // conversion settles does nothing.
 - (IBAction)cancelConversion:(nullable id)sender;
 
+// A running conversion keeps the value it was accepted with.
+- (IBAction)toggleDeleteOriginalAfterConvert:(nullable id)sender;
+
 // completion runs after the swap and the disposal settle, reporting what the
 // disposal did, so the convert_to_flac verb does not race the Trash.
 - (void)convertTrackToFLAC:(AudioTrack *)track
