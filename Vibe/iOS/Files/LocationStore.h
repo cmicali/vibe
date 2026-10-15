@@ -30,6 +30,11 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 // The Locations rows, in order; grows as launch restorations settle.
 @property (nonatomic, readonly) NSArray<NSURL *> *folderURLs;
 
+// The device's model name as iOS gives it (iPhone, iPad), for Documents'
+// "On My iPhone". The app delegate sets it from UIDevice at launch, so this
+// store needs no UIKit. Main thread only.
+@property (class, nonatomic, copy) NSString *deviceModelName;
+
 // The app's own Documents directory, readable with no grant.
 @property (class, nonatomic, readonly) NSURL *containerDocumentsURL;
 

@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 
-#import "FavoritesStore.h"
+#import "FavoritesStoreInternal.h"
 
 #import "FilePaths.h"
 #import "FileSearchRules.h"
@@ -39,10 +39,6 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
                     bookmark:(NSData *)bookmark;
 - (NSDictionary *)persistentRepresentation;
 + (nullable FavoriteFolder *)folderFromPersistentRepresentation:(id)value;
-@end
-
-@interface FavoritesStore ()
-- (instancetype)initPrivate;
 @end
 
 @implementation FavoriteFolder

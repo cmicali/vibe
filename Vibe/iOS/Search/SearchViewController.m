@@ -7,6 +7,7 @@
 
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
+#import "BrowserRules.h"
 #import "DropboxMirror.h"
 #import "DropboxRules.h"
 #import "DropboxSearch.h"
@@ -29,13 +30,6 @@ static const NSTimeInterval kRefilterCoalesceInterval = 0.25;
 // Uncapped, a one-letter query reloads thousands of rows per keystroke. The
 // playlist section is uncapped: it doubles as the browse list.
 static const NSUInteger kMaxFileResults = 200;
-
-typedef NS_ENUM(NSInteger, VibeSearchSection) {
-    VibeSearchSectionPlaylist = 0,
-    VibeSearchSectionFiles,
-    VibeSearchSectionDropbox,
-    VibeSearchSectionCount
-};
 
 @interface SearchViewController () <UISearchResultsUpdating, UISearchBarDelegate, PlaybackObserver,
                                     FileSearchIndexDelegate>
@@ -259,10 +253,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 // "No Results" once every half in scope has answered with nothing. A half
 // still asking, or a Dropbox failure, which says so itself, is not that.
 - (void)refreshEmptyState {
-    // By the predicates the table draws its sections with, so a half out of
-    // scope, whose answer is kept but not drawn, cannot hold No Results off.
-    BOOL settledEmpty = [self currentQuery].length > 0 && _matches.count == 0 && !_fileHitsPending
-            && ![self showsFilesSection] && ![self showsDropboxSection];
+    BOOL settledEmpty = VibeSearchSettledEmpty([self currentQuery].length > 0, _matches.count,
+                                               _fileHitsPending, [self showsFilesSection],
+                                               [self showsDropboxSection]);
     self.contentUnavailableConfiguration = settledEmpty
             ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
 }
@@ -286,15 +279,11 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 #pragma mark - Scope
 
 - (BOOL)scopeIncludes:(VibeSearchSection)section {
-    return _scope == VibeSearchSectionCount || _scope == section;
+    return VibeSearchScopeIncludes(_scope, section);
 }
 
-// The buttons in the order the sections are drawn: All, Playlist, Local,
-// Dropbox while linked.
 - (NSArray<NSNumber *> *)scopeSections {
-    return DropboxMirror.shared.client.isLinked
-            ? @[@(VibeSearchSectionCount), @(VibeSearchSectionPlaylist), @(VibeSearchSectionFiles), @(VibeSearchSectionDropbox)]
-            : @[@(VibeSearchSectionCount), @(VibeSearchSectionPlaylist), @(VibeSearchSectionFiles)];
+    return VibeSearchScopeSections(DropboxMirror.shared.client.isLinked);
 }
 
 // A Dropbox scope that lost its account falls back to All.
@@ -444,10 +433,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     return VibeSearchSectionCount;
 }
 
-// An empty section draws no header, except while the walk runs.
 - (BOOL)showsFilesSection {
-    return [self currentQuery].length > 0 && [self scopeIncludes:VibeSearchSectionFiles]
-            && (_fileHits.count > 0 || _fileIndex.isBuilding);
+    return VibeSearchShowsFilesSection([self currentQuery].length > 0, _scope, _fileHits.count,
+                                       _fileIndex.isBuilding);
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -461,8 +449,9 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
 }
 
 - (BOOL)showsDropboxSection {
-    return [self searchesDropbox] && [self scopeIncludes:VibeSearchSectionDropbox]
-            && (_dropboxSearch.hits.count > 0 || _dropboxSearch.searching || _dropboxSearch.failed);
+    return VibeSearchShowsDropboxSection(DropboxMirror.shared.client.isLinked, [self currentQuery].length > 0,
+                                         _scope, _dropboxSearch.hits.count, _dropboxSearch.searching,
+                                         _dropboxSearch.failed);
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -669,25 +658,40 @@ typedef NS_ENUM(NSInteger, VibeSearchSection) {
     id hit = [self hitAtIndexPath:indexPath];
     BOOL folder = [hit isKindOfClass:NSDictionary.class]
             && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
+    NSArray<NSNumber *> *actions = VibeBrowserRowActions(folder, NO, NO, YES);
     __weak SearchViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-            [weakSelf openHit:hit inFolder:NO];
-        })];
-        if (!folder) {
-            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                [weakSelf openHit:hit inFolder:YES];
-            })];
+        for (NSNumber *action in actions) {
+            switch ((VibeBrowserRowAction)action.integerValue) {
+                case VibeBrowserRowActionPlay: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
+                        [weakSelf openHit:hit inFolder:NO];
+                    })];
+                    break;
+                }
+                case VibeBrowserRowActionPlayInFolder: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
+                        [weakSelf openHit:hit inFolder:YES];
+                    })];
+                    break;
+                }
+                case VibeBrowserRowActionAddToPlaylist: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+                        [weakSelf addHit:hit];
+                    })];
+                    break;
+                }
+                case VibeBrowserRowActionOpenFolder: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+                        [weakSelf showFolderOfHit:hit];
+                    })];
+                    break;
+                }
+            }
         }
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
-            [weakSelf addHit:hit];
-        })];
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
-            [weakSelf showFolderOfHit:hit];
-        })];
         return [UIMenu menuWithChildren:items];
     }];
 }

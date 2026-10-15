@@ -4,13 +4,13 @@ What each profile and phase weights, why, and what none can reach. Read when cho
 
 ## `stress.py` profiles
 
-**`base`** mixes all command-only operations.
+**`base`** mixes all command-only operations. It weights `link` lightly, so every profile that inherits it opens a link now and then. A link is an open through the shell's Open URL road and the Links client's stream, a road no file open reaches. `cloud` and `ui` set it to 0: `cloud` keeps its opens sparing, and `ui` opens nothing.
 
-**`loading`** weights the open path and the async deliveries that race it (waveform, BPM, key, metadata landing after the track has changed), including `open_burst`: two to four opens on top of each other with no settle.
+**`loading`** weights the open path and the async deliveries that race it (waveform, BPM, key, metadata landing after the track has changed), including `open_burst`: two to four opens on top of each other with no settle. It adds `slow_volume` and `stall`. A file read as if on a share that throttles, stalls or fails is the open path's slowest road. A held render, decoder or player queue is the delay every async delivery must survive.
 
-**`hammer`** is `loading` with the throttles off: `burst` moves the track-change loop inside the app, where a jump lands every main-queue turn, and `settle` drops to a token weight so an open almost never finishes before the next lands. Aim it at a big *local* library: every open is a real decode, tag parse and art extraction racing the next track change. Structural edits stay in the mix because a removal whose replacement play is still settling when the next open lands is a shape neither profile reaches alone.
+**`hammer`** is `loading` with the throttles off: `burst` moves the track-change loop inside the app, where a jump lands every main-queue turn, and `settle` drops to a token weight so an open almost never finishes before the next lands. Aim it at a big *local* library: every open is a real decode, tag parse and art extraction racing the next track change. Structural edits stay in the mix because a removal whose replacement play is still settling when the next open lands is a shape neither profile reaches alone. `slow_volume` and `stall` weigh more than in `loading`, because a held queue under a track change every turn is the shape they exist for.
 
-**`ui`** loads no files: controller actions for transport, seeks, pitch, FX, layout and allowed menus against whatever is loaded. It does not test hit targets or event routing.
+**`ui`** loads no files: controller actions for transport, seeks, pitch, FX, layout and allowed menus against whatever is loaded. It does not test hit targets or event routing. It is the one profile that walks Settings (`settings`), because a pane is UI with no file behind it. The channel refreshes the selected pane after every verb, so a pane left open is refreshed under every later op, including the transport ones.
 
 **`cloud`** puts the corpus behind the fake file provider, so an open *is* a download and the serial cloud lane, the foreground hold, the neighborhood re-ranking and the abandoned play/prefetch opens are all live at once. Rules:
 
@@ -29,7 +29,7 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 
 **`playlist`** drives structural edits under enough transport to make them dangerous: the shell funnel owning the unload, the successor re-prefetch, the replacement play and the undo registration has no interesting branch unless something is playing. Opens stay in the mix: a replacement playlist is what makes a registered undo stale, reachable only by edit, open, undo.
 
-**Expect `playlist` to fail at-rest mach ports on a long run, and pass `--ignore-metric machPorts` once you have checked that is the cause.** Its back-to-back reorders and undos strand row views in AppKit's `NSTableRowData._rowViewPurgatory` (`Playlist/Mac/AGENTS.md`), each holding its cells and layers — about a hundred in ten minutes, growing the live heap and the resting port count together. Confirm with `heap <pid> | grep PlaylistRowView` after a `quiesce` (nonzero with an empty playlist) and `leaks --traceTree=<address> <pid>` ending in `_rowViewPurgatory` before standing the metric down; anything else growing is a new finding.
+**Expect `playlist` to fail at-rest mach ports on a long run.** Its back-to-back reorders and undos strand row views in AppKit's `NSTableRowData._rowViewPurgatory` (`Playlist/Mac/AGENTS.md`), each holding its cells and layers. That is about a hundred in ten minutes, growing the live heap and the resting port count together. The driver reads `heap <pid>` at the failure and says which it is. A count of `PlaylistRowView` instances at rest, with an empty playlist, names the purgatory. None names a new finding. Confirm the purgatory with `leaks --traceTree=<address> <pid>` ending in `_rowViewPurgatory`. Only then pass `--ignore-metric machPorts`. Anything else growing is a new finding.
 
 **Playlist editing needs no pointer or focus.** `select_rows all|none|<row|current> [row|current ...]` updates the actual table selection; row numbers outside the current list are ignored, so a list emptied by an earlier operation deselects. Numbered selections span the observed playlist, and `current` resolves inside the app at execution time, so a jump earlier in the batch still exercises current-row removal. `remove_selected` invokes the shell's existing selection-removal action, which owns transport and undo. Both work while the pane is closed or the window is inactive. Host-less tests drive the real `TransportKeyMonitor` handler for tap/hold, lost releases and Delete-repeat suppression without posting events. Native focus and table keyboard dispatch remain separate gesture tests.
 
@@ -47,8 +47,12 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 - `folder_art` — flips `set_folder_art`, the one change that drops every answer the resolver holds, onto resolves and decodes in flight. Emits `off`/`on` as a pair.
 - `reorder_begin` / `reorder_finish` — opens a synthetic row-reorder drag and deliberately leaves it live so whatever the scheduler deals next (a replacing open, a removal, a burst) lands inside the session; `finish` later probes a slot and drops or cancels. That is the mid-drag race family (stale-drop rejection, a dragged row departing) no pointer can stage. A finish with no session live is a tolerated refusal. Reorder undo registrations feed the `undo` op's stack.
 - `block_main` — `references/cloud-scenarios.md`.
+- `link` — arms `set_fake_http` over the corpus root and opens one file through `open_url` at the fake host. A third of the time it scripts a fault a real server produces, then clears it. Installing again clears the last op's faults, so each op stands alone in a replay. Each accepted link leaves its download in the Links store, inside the container, up to the store's budget. Teardown disarms the server.
+- `slow_volume` — installs a throttle, a stall or a failure with `set_slow_volume`, opens a file under it, and clears it within two seconds. A file already open keeps its road, so the open comes after the install. Teardown clears it again.
+- `stall` — `block_render`, `block_decoder` or `block_player`, held within the verb's range, with a `dump_state` while the hold is in force and another after it lifts. `dump_state` reads intent no queue owns, so a slow answer under `block_player` is main waiting on the player queue. `block_player` is held under 4 s for that reason: a longer hold reads as a slow verb.
+- `settings` — opens a pane, dumps it, flips one to three allowlisted switches there and back, and closes the window seven times in ten. Every pane may be walked. Only `SETTINGS_SWITCHES` may be clicked, and each has a restorer. Flipping back keeps the coverage the store had, as `folder_art` does.
 
-**Watch for a tolerated error over a dead op.** The tolerated-error list swallows refusals such as "no menu item", so an op whose target moved scores a clean run while doing nothing. There is no `waveform_style` op for this reason: the style is a theme field, and `theme` swaps the renderer anyway.
+**Watch for a tolerated error over a dead op.** The tolerated-error list swallows refusals such as "no menu item", so an op whose target moved scores a clean run while doing nothing. There is no `waveform_style` op for this reason: the style is a theme field, and `theme` swaps the renderer anyway. For `link`, `slow_volume`, `stall` and `settings` the driver checks the journal at the end (`OP_PROOFS`). A weighted kind whose proof verb never answered with exit 0 and no `ok: false` prints a `WARNING` naming it. A short run can draw a kind too rarely to prove it, so read the warning against the run's length.
 
 ## Unreachable from this driver
 
@@ -56,7 +60,7 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 
 ## `torture.py` phases
 
-No deliberate settle inside transport bursts. The seed repeats choices only when the observed playlist and position agree.
+No deliberate settle inside transport bursts. The seed repeats choices only when the observed playlist and position agree. Every checkpoint requires a playing track's position to advance across 0.6 s, and fails as `stalled` when it holds. A burst can end mid-open, so the checkpoint first waits up to 5 s for the player to stop loading and buffering. A pause, a stop, a track change or an open that never settles is not scored.
 
 - `skip` — next/previous storm; a prefetched successor can reuse its open handle.
 - `seek` — including out-of-range and past-the-end values; escaping the clamp is the finding.

@@ -456,9 +456,9 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 // The page's own index, so the last page arrives dimmed; under Repeat All
 // nothing is last, and under shuffle only the current page knows its next.
 - (void)applyPlayOrderToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    BOOL nextEnabled = index == _playlist.currentIndex ? _playlist.hasNextTrack
-            : (index + 1 < _playlist.count || _playlist.repeatMode == VibeRepeatModeAll);
-    [cell setNextEnabled:nextEnabled];
+    [cell setNextEnabled:VibePlayerPageNextEnabled(index, _playlist.currentIndex, _playlist.count,
+                                                   _playlist.hasNextTrack,
+                                                   _playlist.repeatMode == VibeRepeatModeAll)];
     [cell setShuffleEnabled:_playlist.shuffleEnabled repeatMode:_playlist.repeatMode];
 }
 
@@ -485,14 +485,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 #pragma mark - The art window
 
 - (NSRange)pageWindowWithRadius:(NSUInteger)radius {
-    NSUInteger count = _playlist.count;
-    if (count == 0) {
-        return NSMakeRange(0, 0);
-    }
-    NSUInteger current = MIN(_playlist.currentIndex, count - 1);
-    NSUInteger first = current > radius ? current - radius : 0;
-    NSUInteger last = MIN(current + radius, count - 1);
-    return NSMakeRange(first, last - first + 1);
+    return VibePlayerPageWindow(_playlist.count, _playlist.currentIndex, radius);
 }
 
 - (NSRange)artWindow {

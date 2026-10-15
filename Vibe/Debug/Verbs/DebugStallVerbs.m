@@ -128,7 +128,8 @@ static NSDictionary *VibeSlowVolumeReply(NSNumber *released) {
     }
     if (sSlowVolumeErrno) {
         reply[@"errno"] = @(sSlowVolumeErrno);
-        reply[@"error"] = @(strerror(sSlowVolumeErrno));
+        // Not `error`: the client reads that key as the verb failing.
+        reply[@"errnoName"] = @(strerror(sSlowVolumeErrno));
     }
     [condition unlock];
     if (released) {

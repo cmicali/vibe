@@ -18,6 +18,8 @@ This directory holds the main window and its controller, `MainPlayerController`,
 - `+NowPlaying`: the system's Now Playing info and remote commands.
 - `+Convert` (`Convert/`): Convert to FLAC's swap and its undo.
 
+**The host-less suite builds the controller through `initWithWindow:audioPlayer:metadataCache:metadataScheduler:`** (`MainPlayerControllerInternal.h`). It builds only the playlist controller and its handlers (`buildPlaylistController`), so `MainPlayerControllerTests` runs those handlers as shipped. The scheduler runs the deferred metadata load's fallback. The app's `init` passes `dispatch_after` on main.
+
 **A method a category implements is declared in that category's header.** It is never declared in `MainPlayerController.h` or in `MainPlayerControllerInternal.h` (the shared class extension: outlets, collaborators, the ivars a category touches), or the compiler cannot check either side. `+Debug` is declared under `Vibe/Debug/Mac/Seams/`.
 
 **`+PlayerEvents` and `+Delivery` carry the root doc's staleness guarantee.** Track callbacks can be stale. Waveforms match the current source window. Tempo and key stamp all matching windows in the playlist. Playback callbacks check the current track. The player also guards play settlement by submission identity. The decisions are tested seams: `PlaybackDeliveryRules.h` (track-end advance, seek settlement, the deferred-metadata gate) and `AudioErrorRules.h` (benign and wrong-URL errors).

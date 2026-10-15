@@ -2,9 +2,9 @@
 //  FolderSessionRules.h
 //  Vibe (iOS)
 //
-//  FolderSession's decisions: which open the next launch restores, and whether
-//  an Add may still land. Header-only and Foundation-only so the macOS suite
-//  can test it.
+//  FolderSession's decisions: which open the next launch restores, the row it
+//  parks on, and whether an Add may still land. Header-only and
+//  Foundation-only so the macOS suite can test it.
 //
 
 #ifndef FolderSessionRules_h
@@ -30,6 +30,31 @@ static inline BOOL VibeFolderSessionPersistsBase(BOOL keepsSessionBookmark,
         return NO;
     }
     return openedFolder || baseIsLink || !persistedBaseIsFolder;
+}
+
+// The row a restore parks on: the remembered key (AudioTrack's
+// standardizedSourceKey, a path plus a cue row's window) or NSNotFound.
+// TRAP: the path alone is not enough. A provider can hand the file back under
+// a different path, and the simulator's container UUID rotates on reinstall.
+// So the filename is the fallback tier, and its first hit wins. An exact hit
+// anywhere outranks it, since the playlist spans folders. A cue row's window
+// rides on both, so the row comes back, not the file's first.
+static inline NSUInteger VibeFolderSessionRememberedIndex(NSArray<NSString *> *keys,
+                                                          NSString *_Nullable remembered) {
+    if (remembered.length == 0) {
+        return NSNotFound;
+    }
+    NSString *rememberedName = remembered.lastPathComponent;
+    NSUInteger byName = NSNotFound;
+    for (NSUInteger i = 0; i < keys.count; i++) {
+        if ([keys[i] isEqualToString:remembered]) {
+            return i;
+        }
+        if (byName == NSNotFound && [keys[i].lastPathComponent isEqualToString:rememberedName]) {
+            byName = i;
+        }
+    }
+    return byName;
 }
 
 #pragma mark - The open intent

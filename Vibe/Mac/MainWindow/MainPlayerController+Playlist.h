@@ -39,6 +39,10 @@ NS_ASSUME_NONNULL_BEGIN
 // play intent to its forward successor, or parks on the row before.
 - (IBAction)removeSelectedPlaylistTracks:(nullable id)sender;
 - (void)removePlaylistTracks:(NSArray<AudioTrack *> *)tracks;
+// The one removal funnel: the model edit and its transport decision. It
+// registers no undo; each caller registers its own. Answers the removed tracks
+// in row order.
+- (NSArray<AudioTrack *> *)removePlaylistRows:(NSIndexSet *)rows;
 // Moves every selected row's file to the Trash and removes every row of each
 // file: all of a cue sheet's rows, and any duplicate. With the playlist
 // collapsed, it moves the loaded track's file. Undo puts the files back and

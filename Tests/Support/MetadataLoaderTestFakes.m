@@ -33,6 +33,10 @@
 @end
 #pragma clang diagnostic pop
 
+// PlaylistController observes it. The real definition is in the ObjC++ file.
+NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
+        @"AudioTrackMetadataThumbnailDidLoadNotification";
+
 @implementation VibeLoaderTestMetadata
 // None: a parse of a file that exists has a cache key, and its cache write
 // asks after the art.
