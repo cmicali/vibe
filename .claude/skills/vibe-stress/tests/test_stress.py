@@ -296,19 +296,21 @@ class PurgatoryTests(unittest.TestCase):
 """
 
     def test_names_the_known_cause_with_heap_evidence(self):
-        note = stress.purgatory_note("playlist", "at rest: resting mach ports grew", self.LISTING)
+        note = stress.purgatory_note("playlist", "at rest: resting mach ports grew", lambda: self.LISTING)
         self.assertIn("96 PlaylistRowView", note)
 
     def test_absent_row_views_say_it_is_new(self):
-        note = stress.purgatory_note("playlist", "resting mach ports grew", "   1 2 3 NSView ObjC AppKit")
+        note = stress.purgatory_note("playlist", "resting mach ports grew", lambda: "   1 2 3 NSView ObjC AppKit")
         self.assertIn("NOT the known", note)
 
     def test_unreadable_heap_names_the_suspect(self):
-        self.assertIn("suspected cause", stress.purgatory_note("playlist", "resting mach ports", None))
+        self.assertIn("suspected cause", stress.purgatory_note("playlist", "resting mach ports", lambda: None))
 
-    def test_other_profiles_and_metrics_get_no_note(self):
-        self.assertIsNone(stress.purgatory_note("base", "resting mach ports", self.LISTING))
-        self.assertIsNone(stress.purgatory_note("playlist", "resting views", self.LISTING))
+    def test_other_profiles_and_metrics_get_no_note_and_no_heap_read(self):
+        def unread():
+            raise AssertionError("heap read for a failure of another shape")
+        self.assertIsNone(stress.purgatory_note("base", "resting mach ports", unread))
+        self.assertIsNone(stress.purgatory_note("playlist", "resting views", unread))
 
 
 class TsanReplayTests(unittest.TestCase):
@@ -420,13 +422,14 @@ def commands(steps):
 
 class IosOperationTests(unittest.TestCase):
     def test_the_table_is_whole(self):
-        self.assertEqual(set(stress.IOS_OPS), set(stress.IOS_WEIGHTS))
+        self.assertTrue(all(callable(getattr(stress, f"ios_op_{kind}", None)) for kind in stress.IOS_WEIGHTS))
         self.assertEqual(set(stress.IOS_OP_PROOFS),
                          set(stress.IOS_WEIGHTS) - {"transport", "burst", "fx"})
         self.assertTrue(all(stress.IOS_WEIGHTS[kind] > 0 for kind in stress.IOS_OP_PROOFS))
 
     def test_every_op_passes_the_gate_and_emits_its_proof_verb(self):
-        for kind, op in stress.IOS_OPS.items():
+        for kind in stress.IOS_WEIGHTS:
+            op = getattr(stress, f"ios_op_{kind}")
             verbs = set()
             for seed in range(40):
                 rng, run, steps = ios_run(seed)
@@ -617,12 +620,12 @@ class IosRestorerTests(unittest.TestCase):
 
     def test_fakes_disarm_only_what_the_run_armed(self):
         sent = []
-        stress.ios_restore_fakes(ios_command_stub({"dump_dropbox": {"fake": True}}, sent), self.before())
+        stress.ios_restore_fakes(ios_command_stub({"dump_dropbox": {"fake": True}}, sent), self.before(), 1)
         self.assertIn(["set_fake_dropbox", "off"], sent)
         self.assertIn(["set_fake_http", "off"], sent)
         sent = []
         stress.ios_restore_fakes(ios_command_stub({"dump_dropbox": {"fake": True}}, sent),
-                                 self.before(dropbox={"fake": True}))
+                                 self.before(dropbox={"fake": True}), 1)
         self.assertNotIn(["set_fake_dropbox", "off"], sent)
 
     def test_favorites_unstar_what_the_run_added_and_report_a_loss(self):
@@ -641,7 +644,7 @@ class IosRestorerTests(unittest.TestCase):
             }
             errors = stress.ios_restore_favorites(
                 ios_command_stub(replies, sent),
-                self.before(favorites=[{"path": str(kept)}, {"path": str(lost)}]))
+                self.before(favorites=[{"path": str(kept)}, {"path": str(lost)}]), 1)
         self.assertIn(["open", str(added.resolve())], sent)
         self.assertEqual(sent.count(["tap_favorite_star"]), 1)
         self.assertEqual(len(errors), 1)
@@ -650,17 +653,17 @@ class IosRestorerTests(unittest.TestCase):
     def test_chrome_puts_back_the_tab_the_card_and_the_models_route(self):
         sent = []
         stress.ios_restore_chrome(ios_command_stub(
-            {"dump_state": {"ui": {"outputRoute": {"kind": 1, "name": "Speaker"}}}}, sent), self.before())
+            {"dump_state": {"ui": {"outputRoute": {"kind": 1, "name": "Speaker"}}}}, sent), self.before(), 1)
         self.assertEqual(sent, [["select_tab", "files"], ["minimize_player"], ["dump_state"],
                                 ["set_output_route", "speaker", "Speaker"]])
 
     def test_recents_restore_and_verify(self):
         sent = []
         ok = stress.ios_restore_recents(ios_command_stub(
-            {"recents": {"items": [{"path": "/a"}]}}, sent), self.before())
-        self.assertEqual((sent, ok), ([["recents", "restore"]], []))
+            {"recents": {"items": [{"path": "/a"}]}}, sent), self.before(), 1)
+        self.assertEqual((sent, ok), ([["recents", "restore"]], None))
         self.assertTrue(stress.ios_restore_recents(ios_command_stub(
-            {"recents": {"items": [{"path": "/b"}]}}, []), self.before()))
+            {"recents": {"items": [{"path": "/b"}]}}, []), self.before(), 1))
 
     def test_restore_runs_every_restorer_with_recents_last(self):
         sent = []
@@ -677,12 +680,14 @@ class IosRestorerTests(unittest.TestCase):
                      ["set_repeat", "off"], ["select_tab", "files"], ["set_output_route", "none"]):
             self.assertIn(argv, sent)
 
-    def test_a_restorer_without_its_snapshot_sends_nothing(self):
-        for restorer in (stress.ios_restore_favorites, stress.ios_restore_chrome,
-                         stress.ios_restore_recents):
-            sent = []
-            self.assertEqual(restorer(ios_command_stub({}, sent), {}), [])
-            self.assertEqual(sent, [])
+    def test_a_restorer_without_its_snapshot_is_skipped(self):
+        sent = []
+        replies = {"dump_dropbox": {"fake": False}, "dump_state": {"player": {"state": "paused"}}}
+        with mock.patch.object(stress, "ios_wait"):
+            errors = stress.ios_restore(ios_command_stub(replies, sent), {}, 1)
+        self.assertEqual(errors, [])
+        self.assertEqual(sent, [["dump_dropbox"], ["set_fake_http", "off"], ["set_fx_pad", "off"],
+                                ["dump_state"]])
 
     def test_a_failing_restorer_does_not_stop_the_rest(self):
         def broken(argv):
@@ -696,26 +701,38 @@ class IosRestorerTests(unittest.TestCase):
 
 
 class IosDeadOpTests(unittest.TestCase):
-    def test_journal_replies_feed_the_dead_op_warning(self):
-        with tempfile.TemporaryDirectory() as directory:
-            journal = Path(directory) / "journal.ndjson"
-            records = [
-                {"event": "begin", "op": "search", "command": ["search", "x"]},
-                {"event": "reply", "op": "search", "command": ["search", "x"], "code": 0,
-                 "reply": {"ok": True}},
-                {"event": "reply", "op": "link", "command": ["open_url", "https://fake.vibe.test/a"],
-                 "code": 0, "reply": {"ok": False}},
-                {"event": "reply", "op": "browse", "command": ["browse", "tap", "a"], "code": 0,
-                 "reply": {"ok": True}},
-                {"event": "reply", "phase": "cleanup", "command": ["set_fake_http", "off"], "code": 0},
-            ]
-            journal.write_text("".join(json.dumps(r) + "\n" for r in records))
-            entries = stress.ios_journal_proof_entries(journal)
-        self.assertEqual(len(entries), 3)
+    def test_the_journal_ios_command_writes_feeds_the_dead_op_warning(self):
+        journal = io.StringIO()
+        for op, argv, reply in ((None, ["set_fake_http", "off"], {"ok": True}),
+                                ("search", ["search", "x"], {"ok": True}),
+                                ("link", ["open_url", "https://fake.vibe.test/a"], {"ok": False}),
+                                ("browse", ["browse", "tap", "a"], {"ok": True})):
+            proc = mock.Mock(pid=1, returncode=0)
+            proc.communicate.return_value = (json.dumps(reply), "")
+            with mock.patch.object(stress.subprocess, "Popen", return_value=proc):
+                stress.ios_command({}, journal, argv, op=op)
+        entries = [json.loads(line) for line in journal.getvalue().splitlines()]
         warnings = "\n".join(stress.dead_op_warnings(entries, stress.IOS_WEIGHTS, stress.IOS_OP_PROOFS))
         for kind in ("search", "link", "tab", "favorite"):
             self.assertIn(f"`{kind}`", warnings)
         self.assertNotIn("`browse`", warnings)
+
+
+class EqualizerProbeTests(unittest.TestCase):
+    def test_polls_before_sleeping_and_batches_each_samples_dumps(self):
+        playing = {"player": {"state": "playing", "duration": 1}}
+        channel = mock.Mock()
+        channel.run.side_effect = lambda argv, timeout=None: (0, playing, "")
+        channel.run_batch.return_value = [(0, playing)]
+        with mock.patch.object(stress.time, "sleep") as sleep, \
+                mock.patch.object(stress, "equalizer_finding", return_value=(False, None)) as finding:
+            stress.equalizer_probe(channel, Path("/c/a.wav"))
+        self.assertEqual([c.args[0] for c in channel.run.call_args_list],
+                         [["open", "/c/a.wav"], ["dump_state"]])
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [0.6, 0.8])
+        self.assertEqual(channel.run_batch.call_count, 2)
+        # The short batch is padded, so the finding still gets four samples.
+        self.assertEqual(finding.call_args.args, (playing, None, playing, None))
 
 
 if __name__ == "__main__":

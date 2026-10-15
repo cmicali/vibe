@@ -46,6 +46,7 @@ the original, and the corpus is the user's real music.
 
 import argparse
 import contextlib
+import functools
 import json
 import os
 import random
@@ -1467,12 +1468,13 @@ def resting_slope_findings(samples, limits=SLOPE_LIMITS):
 PURGATORY_CLASS = "PlaylistRowView"
 
 
-def purgatory_note(profile, detail, listing):
+def purgatory_note(profile, detail, read_heap):
     """Evidence for the known row-view purgatory, or None when the failure is
-    not that shape. listing is `heap <pid>` output, or None when it could not
-    be read."""
+    not that shape. read_heap returns `heap <pid>` output, or None when it
+    could not be read. It runs only for that shape, since heap is slow."""
     if profile != "playlist" or "mach ports" not in detail:
         return None
+    listing = read_heap()
     if listing is None:
         return (f"suspected cause: AppKit's _rowViewPurgatory holding {PURGATORY_CLASS}s "
                 f"(references/profiles.md); `heap <pid>` could not be read, so confirm by hand")
@@ -1591,20 +1593,20 @@ def equalizer_probe(channel, reference):
     """Play the reference past any quiet intro, then score two samples.
     Returns (scored, finding)."""
     channel.run(["open", str(reference)])
-    state = None
     for _ in range(20):
-        time.sleep(0.25)
         code, state, _ = channel.run(["dump_state"], timeout=20)
         if code == 0 and ((state or {}).get("player") or {}).get("state") == "playing":
             break
+        time.sleep(0.25)
     duration = ((state or {}).get("player") or {}).get("duration") or 0
     if duration > 2:
         channel.run(["seek", f"{duration * 0.4:.2f}"])
     samples = []
     for pause in (0.6, 0.8):
         time.sleep(pause)
-        samples.append(channel.run(["dump_state"], timeout=20)[1])
-        samples.append(channel.run(["dump_equalizer"], timeout=20)[1])
+        # One client for both dumps. A short batch leaves the rest None.
+        batch = channel.run_batch([["dump_state"], ["dump_equalizer"]], timeout=20) or []
+        samples += ([payload for _, payload in batch] + [None, None])[:2]
     return equalizer_finding(*samples)
 
 
@@ -2038,10 +2040,8 @@ def run(args):
                             executed, args.verbose)
                         if failure:
                             if failure.kind == "resource":
-                                suspect = (args.profile == "playlist"
-                                           and "mach ports" in failure.detail)
                                 note = purgatory_note(args.profile, failure.detail,
-                                                      heap_listing(app_pid()) if suspect else None)
+                                                      lambda: heap_listing(app_pid()))
                                 if note:
                                     failure.detail += f"; {note}"
                             break
@@ -2074,12 +2074,12 @@ def run(args):
 
         print(f"journal: {journal_path}")
         print(f"exercised: {describe_materialization_coverage(channel)}")
+        note = ""
+        if equalizer["probes"] and not equalizer["scored"]:
+            note = (" — off the audio hardware the bars never poll; VIBE_AUDIBLE=silent scores it"
+                    if os.environ.get("VIBE_AUDIBLE") is None else " — WARNING: the check never applied")
         print(f"equalizer: {equalizer['scored']} of {equalizer['probes']} probes scored"
-              + (f" on {reference.name}" if reference else " (no file with sound in the corpus)")
-              + (" — off the audio hardware the bars never poll; VIBE_AUDIBLE=silent scores it"
-                 if equalizer["probes"] and not equalizer["scored"] and os.environ.get("VIBE_AUDIBLE") is None
-                 else " — WARNING: the check never applied" if equalizer["probes"]
-                 and not equalizer["scored"] else ""))
+              + (f" on {reference.name}" if reference else " (no file with sound in the corpus)") + note)
         entries = [json.loads(line) for line in journal_path.read_text().splitlines()]
         for warning in dead_op_warnings(entries, generator.weights):
             print(warning, file=sys.stderr)
@@ -2488,7 +2488,7 @@ def ios_command(env, journal, argv, phase="run", timeout=10, op=None):
     # must survive even when no subsequent command can answer.
     timeout = max(timeout, IOS_VERB_TIMEOUTS.get(argv[0], 0))
     labels = {"phase": phase, **({"op": op} if op else {})}
-    ios_record(journal, event="begin", command=argv, **labels)
+    ios_record(journal, event="begin", argv=argv, **labels)
     started = time.monotonic()
     try:
         proc = subprocess.Popen([str(LAUNCH_SH.with_name("debug-ios.sh")), *argv],
@@ -2496,7 +2496,7 @@ def ios_command(env, journal, argv, phase="run", timeout=10, op=None):
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                 start_new_session=True)
     except OSError as error:
-        ios_record(journal, event="reply", command=argv, code=127, stderr=str(error), **labels)
+        ios_record(journal, event="reply", argv=argv, exit=127, stderr=str(error), **labels)
         raise Failure("harness", str(error), argv) from error
     interrupted = False
     try:
@@ -2518,7 +2518,9 @@ def ios_command(env, journal, argv, phase="run", timeout=10, op=None):
         reply = json.loads(raw)
     except (ValueError, TypeError):
         reply = None
-    ios_record(journal, event="reply", command=argv, code=code,
+    # The mac journal's keys, so dead_op_warnings reads either journal.
+    ios_record(journal, event="reply", argv=argv, exit=code,
+               replyOk=reply.get("ok", True) if isinstance(reply, dict) else True,
                elapsed=time.monotonic() - started, reply=reply, stdout=raw, stderr=stderr, **labels)
     if interrupted:
         raise KeyboardInterrupt
@@ -2676,8 +2678,9 @@ def ios_op_card(rng, run):
     at rest before and after. A moved anchor is the backdrop TRAP."""
     count = ios_count(run)
     change = rng.choice([["next"], ["previous"]] + ([["play_index", str(rng.randrange(count))]] if count else []))
-    for step in (["minimize_player"], "anchors", ["expand_player"], change, ["minimize_player"], "anchors"):
-        run.perform({"check": step} if isinstance(step, str) else {"command": step})
+    for step in ({"command": ["minimize_player"]}, {"check": "anchors"}, {"command": ["expand_player"]},
+                 {"command": change}, {"command": ["minimize_player"]}, {"check": "anchors"}):
+        run.perform(step)
     if rng.random() < 0.5:
         run.perform({"command": ["expand_player"]})
 
@@ -2815,12 +2818,7 @@ def ios_op_link(rng, run):
         run.perform({"command": ["fake_http_fault", "off"]})
 
 
-IOS_OPS = {
-    "transport": ios_op_transport, "burst": ios_op_burst, "fx": ios_op_fx,
-    "tab": ios_op_tab, "card": ios_op_card, "browse": ios_op_browse,
-    "search": ios_op_search, "favorite": ios_op_favorite, "route": ios_op_route,
-    "page": ios_op_page, "fake_dropbox": ios_op_fake_dropbox, "link": ios_op_link,
-}
+# Each kind's op is ios_op_<kind>, as OpGenerator's are op_<kind>.
 IOS_WEIGHTS = {
     "transport": 10, "burst": 2, "fx": 4, "tab": 3, "card": 3, "browse": 3,
     "search": 2, "favorite": 2, "route": 2, "page": 3, "fake_dropbox": 1, "link": 1,
@@ -2836,112 +2834,92 @@ IOS_OP_PROOFS = {
 }
 
 
-def ios_journal_proof_entries(path):
-    """The journal's op replies in dead_op_warnings' shape."""
-    entries = []
-    for line in Path(path).read_text().splitlines():
-        record = json.loads(line)
-        if record.get("event") == "reply" and record.get("op"):
-            entries.append({"op": record["op"], "argv": record["command"], "exit": record["code"],
-                            "replyOk": (record.get("reply") or {}).get("ok", True)})
-    return entries
-
-
 # Each restorer puts back one thing a run moves, from `before` (the starting
-# dump_state plus favorites, dropbox and recents), and returns its errors. One
-# whose snapshot `before` lacks has nothing to put back. They run in this order
-# on every exit but SIGKILL. The favorites open a folder before the pause, and
+# dump_state plus favorites, dropbox and recents). It raises on a failed
+# command and returns any other errors. IOS_RESTORERS skips one whose key
+# `before` lacks, since it has nothing to put back. They run in this order on
+# every exit but SIGKILL. The favorites open a folder before the pause, and
 # the recents go last, since every open records one.
 
-def ios_restore_fakes(command, before):
-    errors = []
-    try:
-        if command(["dump_dropbox"]).get("fake") and not before.get("dropbox", {}).get("fake"):
-            command(["set_fake_dropbox", "off"])
-        command(["set_fake_http", "off"])
-    except (Failure, KeyError) as error:
-        errors.append(str(error))
-    return errors
+def ios_restore_fakes(command, before, idle_timeout):
+    if command(["dump_dropbox"]).get("fake") and not before.get("dropbox", {}).get("fake"):
+        command(["set_fake_dropbox", "off"])
+    command(["set_fake_http", "off"])
 
 
-def ios_restore_favorites(command, before):
-    errors = []
-    if "favorites" not in before:
-        return errors
-    try:
-        kept = {Path(f["path"]).resolve() for f in before["favorites"]}
-        now = command(["dump_favorites"])["favorites"]
-        for favorite in now:
-            folder = Path(favorite["path"]).resolve()
-            if folder in kept:
-                continue
-            command(["open", str(folder)])
-            ios_poll(command, ["dump_state"], lambda s: ios_landed(s, folder), 10,
-                     "cleanup", f"open of {folder.name} did not land")
-            command(["tap_favorite_star"])
-            ios_poll(command, ["dump_favorites"],
-                     lambda r: all(Path(f["path"]).resolve() != folder for f in r["favorites"]), 10,
-                     "cleanup", f"favorite {folder.name} was not removed")
-        lost = kept - {Path(f["path"]).resolve() for f in command(["dump_favorites"])["favorites"]}
-        errors += [f"favorite {p.name} is gone and cannot come back without its bookmark" for p in lost]
-    except (Failure, KeyError) as error:
-        errors.append(str(error))
-    return errors
+def ios_restore_favorites(command, before, idle_timeout):
+    kept = {Path(f["path"]).resolve() for f in before["favorites"]}
+    for favorite in command(["dump_favorites"])["favorites"]:
+        folder = Path(favorite["path"]).resolve()
+        if folder in kept:
+            continue
+        command(["open", str(folder)])
+        ios_poll(command, ["dump_state"], lambda s: ios_landed(s, folder), 10,
+                 "cleanup", f"open of {folder.name} did not land")
+        command(["tap_favorite_star"])
+        ios_poll(command, ["dump_favorites"],
+                 lambda r: all(Path(f["path"]).resolve() != folder for f in r["favorites"]), 10,
+                 "cleanup", f"favorite {folder.name} was not removed")
+    lost = kept - {Path(f["path"]).resolve() for f in command(["dump_favorites"])["favorites"]}
+    return [f"favorite {p.name} is gone and cannot come back without its bookmark" for p in lost]
 
 
-def ios_restore_chrome(command, before):
+def ios_restore_output(command, before, idle_timeout):
+    command(["set_fx_pad", "off"])
+    if command(["dump_state"])["player"]["state"] == "playing":
+        command(["play_pause"])
+    ios_wait(command, "idle", idle_timeout)
+
+
+def ios_restore_setting(verb, key, command, before, idle_timeout):
+    value = before["settings"][key]
+    command([verb, on_off(value) if isinstance(value, bool) else str(value)])
+    if command(["dump_state"])["settings"][key] != value:
+        return [f"failed to restore {key}"]
+
+
+def ios_restore_chrome(command, before, idle_timeout):
     """The tab, the card and the route indicator. None is persisted, but a
     run should leave the screen as it found it."""
-    errors = []
-    if "ui" not in before:
-        return errors
-    try:
-        ui = before["ui"]
-        if ui.get("selectedTab") in IOS_TABS:
-            command(["select_tab", ui["selectedTab"]])
-        command(["expand_player" if ui.get("playerPresentation") == "full" else "minimize_player"])
-        # The model is untouched by set_output_route, so drawing it is the truth.
-        route = command(["dump_state"])["ui"].get("outputRoute") or {}
-        kind = route.get("kind", 0)
-        command(["set_output_route", IOS_ROUTES[kind if 0 <= kind < len(IOS_ROUTES) else 0],
-                 *([route["name"]] if route.get("name") else [])])
-    except (Failure, KeyError) as error:
-        errors.append(str(error))
-    return errors
+    ui = before["ui"]
+    if ui.get("selectedTab") in IOS_TABS:
+        command(["select_tab", ui["selectedTab"]])
+    command(["expand_player" if ui.get("playerPresentation") == "full" else "minimize_player"])
+    # The model is untouched by set_output_route, so drawing it is the truth.
+    route = command(["dump_state"])["ui"].get("outputRoute") or {}
+    kind = route.get("kind", 0)
+    command(["set_output_route", IOS_ROUTES[kind if 0 <= kind < len(IOS_ROUTES) else 0],
+             *([route["name"]] if route.get("name") else [])])
 
 
-def ios_restore_recents(command, before):
-    errors = []
-    if "recents" not in before:
-        return errors
-    try:
-        if [i["path"] for i in command(["recents", "restore"])["items"]] != before["recents"]:
-            errors.append("recents differ from the run's start")
-    except (Failure, KeyError) as error:
-        errors.append(str(error))
-    return errors
+def ios_restore_recents(command, before, idle_timeout):
+    if [i["path"] for i in command(["recents", "restore"])["items"]] != before["recents"]:
+        return ["recents differ from the run's start"]
+
+
+IOS_RESTORERS = (
+    (None, ios_restore_fakes),
+    ("favorites", ios_restore_favorites),
+    (None, ios_restore_output),
+    *(("settings", functools.partial(ios_restore_setting, verb, key))
+      for verb, key in (("set_repeat", "repeatMode"), ("set_shuffle", "shuffleEnabled"),
+                        ("set_pause_at_track_end", "pauseAtTrackEnd"))),
+    ("ui", ios_restore_chrome),
+    ("recents", ios_restore_recents),
+)
 
 
 def ios_restore(command, before, idle_timeout):
-    errors = ios_restore_fakes(command, before) + ios_restore_favorites(command, before)
-    try:
-        command(["set_fx_pad", "off"])
-        if command(["dump_state"])["player"]["state"] == "playing":
-            command(["play_pause"])
-        ios_wait(command, "idle", idle_timeout)
-    except (Failure, KeyError, StopIteration) as error:
-        errors.append(str(error))
-    # Restoration must continue even if stopping output or one write failed.
-    for verb, key in (("set_repeat", "repeatMode"), ("set_shuffle", "shuffleEnabled"),
-                      ("set_pause_at_track_end", "pauseAtTrackEnd")):
+    # Restoration continues past a failed restorer.
+    errors = []
+    for key, restorer in IOS_RESTORERS:
+        if key and key not in before:
+            continue
         try:
-            value = before["settings"][key]
-            command([verb, on_off(value) if isinstance(value, bool) else str(value)])
-            if command(["dump_state"])["settings"][key] != value:
-                errors.append(f"failed to restore {key}")
-        except (Failure, KeyError) as error:
+            errors += restorer(command, before, idle_timeout) or []
+        except (Failure, KeyError, StopIteration) as error:
             errors.append(str(error))
-    return errors + ios_restore_chrome(command, before) + ios_restore_recents(command, before)
+    return errors
 
 
 def run_ios(args):
@@ -3133,7 +3111,7 @@ def run_ios(args):
                             break
                         current_op = rng.choices(kinds, [IOS_WEIGHTS[k] for k in kinds])[0]
                         draws[current_op] = draws.get(current_op, 0) + 1
-                        IOS_OPS[current_op](rng, run)
+                        globals()[f"ios_op_{current_op}"](rng, run)
                         current_op = None
                         if (index + 1) % args.batch == 0:
                             # Probe the selected track before replacing it: restarting
@@ -3181,8 +3159,8 @@ def run_ios(args):
                 ios_record(journal, event="result", failure=failure, kind=failure_kind, cleanupErrors=cleanup)
         if draws:
             print("ops: " + " ".join(f"{kind}={n}" for kind, n in sorted(draws.items())))
-            for warning in dead_op_warnings(ios_journal_proof_entries(out / "journal.ndjson"),
-                                            IOS_WEIGHTS, IOS_OP_PROOFS):
+            journaled = [json.loads(line) for line in (out / "journal.ndjson").read_text().splitlines()]
+            for warning in dead_op_warnings(journaled, IOS_WEIGHTS, IOS_OP_PROOFS):
                 print(warning)
         (out / "result.json").write_text(json.dumps({"failure": failure, "kind": failure_kind, "cleanupErrors": cleanup}, indent=2))
         print(f"{'FAILED' if failure or cleanup else 'PASSED'}: {out}")
