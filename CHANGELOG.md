@@ -12,7 +12,7 @@
 * mac: Added Move to Trash (⌘⌫) to delete a song's file from the playlist, with Undo
 * mac: Added automatic updates to the non-appstore version
 * mac: Added the RGB theme
-* mac: Added the Dark Wolf theme and its app icon, contributed by JohnnyFireOne
+* mac: Added the Dark Core theme and its app icon, contributed by JohnnyFireOne
 * mac: Added theme colors for the title and artist text of the playing row and selected rows
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
