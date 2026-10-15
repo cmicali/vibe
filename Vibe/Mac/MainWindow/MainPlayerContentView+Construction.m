@@ -155,8 +155,8 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
             NSMakeRect(0, kPlaylistHeight, kArtSize, kArtSize)];
     CAGradientLayer *artGradient = [[CAGradientLayer alloc] init];
     artGradient.colors = @[
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.96].CGColor,
-            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.55].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.82].CGColor,
+            (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0.47].CGColor,
             (id)[NSColor colorWithRed:0 green:0 blue:0 alpha:0].CGColor
     ];
     artGradient.locations = @[@0.0, @0.35, @0.62];

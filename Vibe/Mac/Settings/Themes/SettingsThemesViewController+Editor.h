@@ -19,6 +19,9 @@ NS_ASSUME_NONNULL_BEGIN
 // A hidden sibling of the section stack. Runs after loadPaneWithSections:.
 - (void)buildEditorPage;
 
+// Selects the jump bar's segment for the card at the top of the page.
+- (void)syncEditorJumpSelection;
+
 @end
 
 static inline VibeSettingsLiveEffect VibeThemeImageEditEffect(NSString *key) {

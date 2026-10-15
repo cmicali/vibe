@@ -61,7 +61,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
         [self addItem:VibeFolderOpenSortDisplayName(sort) value:@(sort) to:_folderSortPopUp];
     }
 
-    _albumArtPopUp = [self popUpButtonWithWidth:260 action:@selector(albumArtSourceChanged:)];
+    _albumArtPopUp = [self popUpButtonWithWidth:320 action:@selector(albumArtSourceChanged:)];
     [self addItem:STR_SETTINGS_ALBUM_ART_FILE_ONLY value:kAlbumArtFileOnly to:_albumArtPopUp];
     [self addItem:STR_SETTINGS_ALBUM_ART_FOLDER value:kAlbumArtFolder to:_albumArtPopUp];
     NSTextField *explainLabel = [self wrappingLabelWithString:STR_SETTINGS_PERMISSIONS_EXPLAIN];
@@ -94,8 +94,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OPENING_FILES_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL control:_folderSortPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL
-                                  caption:STR_SETTINGS_ALBUM_ART_CAPTION control:_albumArtPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_ALBUM_ART_LABEL control:_albumArtPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_PERMISSIONS_LABEL rows:@[
             [SettingsRowView rowWithContentView:explainLabel],
@@ -103,11 +102,9 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
             buttonRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_CONVERT_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_ENABLED
-                                  caption:STR_SETTINGS_CONVERT_ENABLED_CAPTION control:_convertEnabledSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_ENABLED control:_convertEnabledSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_CONVERT_DEST_LABEL control:_convertDestinationPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DELETE_ORIGINAL
-                                  caption:STR_SETTINGS_DELETE_ORIGINAL_CAPTION control:_deleteOriginalSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DELETE_ORIGINAL control:_deleteOriginalSwitch],
         ]],
     ]];
     // The list is its own divider; the section's hairlines would double it.

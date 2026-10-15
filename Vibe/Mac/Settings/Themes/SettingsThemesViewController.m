@@ -29,16 +29,24 @@
 static const NSUInteger kThemeListRowCount = 10;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
+// Header rows in _themeRows. Not identifiers: built-ins are plain names and
+// user themes are UUIDs, so neither can collide.
+static NSString *const kThemeRowUserHeader = @"//user";
+static NSString *const kThemeRowBuiltInHeader = @"//built-in";
 
 @implementation SettingsThemesViewController {
     NSTableView *_themeTable;
     NSButton *_removeThemeButton;
-    // Store order, built-ins first. Rows include group headers (identifierForRow:).
+    // Store order, built-ins first.
     NSArray<NSString *> *_themeIdentifiers;
+    // The list's rows: an identifier, or a group header sentinel. The user's
+    // themes come first, under their header, so a new theme lands in view.
+    NSArray<NSString *> *_themeRows;
+    // Read once per refresh for the active row's "(Modified)".
+    BOOL _activeThemeModified;
     NSArray<NSView *> *_listSections;
     // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
-    SettingsRowView *_currentThemeRow;
     NSButton *_editThemeButton, *_revertThemeButton;
     NSMutableArray<NSImageView *> *_waveformPreviews;
     NSArray *_waveformPreviewKey;
@@ -87,30 +95,28 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
                                         target:self action:@selector(editTheme:)];
     NSButton *exportButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EXPORT
                                                 target:self action:@selector(exportTheme:)];
+    _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
+            target:self action:@selector(revertTheme:)];
+    // The library's buttons lead; the selected theme's own, Revert and
+    // Customize…, trail, since the selected row is the current theme.
     NSStackView *buttons = [NSStackView stackViewWithViews:
             @[addButton, _removeThemeButton, exportButton]];
+    [buttons addView:_revertThemeButton inGravity:NSStackViewGravityTrailing];
+    [buttons addView:_editThemeButton inGravity:NSStackViewGravityTrailing];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
     // A THEME field: over a built-in, an edit lands in the divergence key.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
-    _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
-            target:self action:@selector(revertTheme:)];
-    NSStackView *themeActions = [NSStackView stackViewWithViews:@[_revertThemeButton, _editThemeButton]];
-    themeActions.spacing = 8;
-    _currentThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CURRENT
-            control:themeActions];
-
     _listSections = @[
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_CURRENT rows:@[
-            _currentThemeRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_listWaveformPopUp],
-            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
-        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             listRow,
             buttonRow,
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_listWaveformPopUp],
+            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
         ]],
     ];
     // The list is its own divider; the section's hairline would double it.
@@ -192,6 +198,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
         [self closeEditorPanels];
     }
     [self refreshFromSettings]; // reaches applyEditorVisibility via the resolver
+    if (shown) {
+        // Showing the page scrolls nothing, so the jump bar is synced here.
+        [self.view layoutSubtreeIfNeeded];
+        [self syncEditorJumpSelection];
+    }
 }
 
 // A hit only the editor holds opens it, so the row it names is on screen.
@@ -258,13 +269,20 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     AppTheme *theme = settings.currentTheme;
 
     [self selectWaveformStyle:theme.waveformStyle in:_listWaveformPopUp];
-    NSString *name = [settings displayNameForThemeIdentifier:settings.activeThemeIdentifier];
-    BOOL modified = settings.currentThemeIsModified;
-    [_currentThemeRow setRowTitle:modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
-    _revertThemeButton.hidden = !modified;
+    _activeThemeModified = settings.currentThemeIsModified;
+    _revertThemeButton.hidden = !_activeThemeModified;
 
     NSString *active = settings.activeThemeIdentifier;
     _themeIdentifiers = settings.orderedThemeIdentifiers;
+    NSArray<NSString *> *userThemes = settings.userThemeIdentifiers;
+    NSMutableArray<NSString *> *rows = [NSMutableArray array];
+    if (userThemes.count) {
+        [rows addObject:kThemeRowUserHeader];
+        [rows addObjectsFromArray:userThemes];
+    }
+    [rows addObject:kThemeRowBuiltInHeader];
+    [rows addObjectsFromArray:AppTheme.builtInThemeIdentifiers];
+    _themeRows = rows;
     // The editor covers the list; leaving it refreshes through here again.
     if (!_editorShown) {
         _refreshingThemeList = YES;
@@ -382,35 +400,22 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
 #pragma mark - Theme list
 
-// Row 0 is the Built-in header and the User header sits one past the last
-// built-in; row-to-theme is arithmetic over the built-in count.
-
-// -1 while the user has no themes: the group is omitted, not empty.
-- (NSInteger)userGroupRow {
-    NSInteger builtIns = (NSInteger)AppTheme.builtInThemeIdentifiers.count;
-    return (NSInteger)_themeIdentifiers.count > builtIns ? builtIns + 1 : -1;
-}
-
 // nil for a group header or no row, which keeps headers unselectable.
 - (nullable NSString *)identifierForRow:(NSInteger)row {
-    NSInteger userHeader = [self userGroupRow];
-    if (row <= 0 || row == userHeader) {
+    if (row < 0 || row >= (NSInteger)_themeRows.count) {
         return nil;
     }
-    NSInteger index = (userHeader >= 0 && row > userHeader) ? row - 2 : row - 1;
-    return index < (NSInteger)_themeIdentifiers.count ? _themeIdentifiers[(NSUInteger)index] : nil;
+    NSString *entry = _themeRows[(NSUInteger)row];
+    return entry == kThemeRowUserHeader || entry == kThemeRowBuiltInHeader ? nil : entry;
 }
 
 - (NSInteger)rowForIdentifier:(NSString *)identifier {
-    NSUInteger index = [_themeIdentifiers indexOfObject:identifier];
-    if (index == NSNotFound) {
-        return -1;
-    }
-    return (NSInteger)index + (index >= AppTheme.builtInThemeIdentifiers.count ? 2 : 1);
+    NSUInteger row = [_themeRows indexOfObject:identifier];
+    return row == NSNotFound ? -1 : (NSInteger)row;
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)_themeIdentifiers.count + ([self userGroupRow] >= 0 ? 2 : 1);
+    return (NSInteger)_themeRows.count;
 }
 
 // Not an AppKit group row: that style adds a gap and its own row height to a
@@ -423,12 +428,16 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSString *identifier = [self identifierForRow:row];
     if (!identifier) {
         return [SettingsRowView listGroupCellWithIdentifier:kThemeGroupCellIdentifier inTableView:tableView title:
-                (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
+                (_themeRows[(NSUInteger)row] == kThemeRowUserHeader ? STR_SETTINGS_THEME_GROUP_USER
+                                                                     : STR_SETTINGS_THEME_GROUP_BUILT_IN)];
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
                                                         inTableView:tableView imagePosition:NSImageLeft];
-    cell.textField.stringValue =
-            [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *name = [settings displayNameForThemeIdentifier:identifier] ?: identifier;
+    // A built-in that diverged says so on its own row, beside Revert.
+    BOOL modified = _activeThemeModified && [identifier isEqualToString:settings.activeThemeIdentifier];
+    cell.textField.stringValue = modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name;
     cell.imageView.image = [self swatchForThemeIdentifier:identifier dark:tableView.isDark];
     cell.toolTip = cell.textField.stringValue;
     return cell;

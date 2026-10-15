@@ -25,6 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Built-ins first, then the user themes in creation order.
 - (NSArray<NSString *> *)orderedThemeIdentifiers;
+// The user's own, in store order: what orderedThemeIdentifiers holds after
+// the built-ins.
+- (NSArray<NSString *> *)userThemeIdentifiers;
 
 // A user theme's stored name; the built-ins' localized names. nil for an
 // identifier that names nothing.

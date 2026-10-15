@@ -39,6 +39,23 @@ static NSString *const kSwitchCellIdentifier = @"switch";
     return cell;
 }
 
++ (UITableViewCell *)checkmarkCellInTableView:(UITableView *)tableView
+                                        title:(NSString *)title
+                                        image:(nullable UIImage *)image
+                                      checked:(BOOL)checked {
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                      reuseIdentifier:kChoiceCellIdentifier];
+    }
+    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
+    content.text = title;
+    content.image = image;
+    cell.contentConfiguration = content;
+    cell.accessoryType = checked ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
+    return cell;
+}
+
 - (instancetype)initWithTitle:(NSString *)title
                       choices:(NSArray<NSString *> *)choices
                 selectedIndex:(NSInteger)selectedIndex
@@ -59,17 +76,10 @@ static NSString *const kSwitchCellIdentifier = @"switch";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                      reuseIdentifier:kChoiceCellIdentifier];
-    }
-    UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
-    content.text = _choices[(NSUInteger)indexPath.row];
-    cell.contentConfiguration = content;
-    cell.accessoryType = indexPath.row == _selectedIndex ? UITableViewCellAccessoryCheckmark
-                                                         : UITableViewCellAccessoryNone;
-    return cell;
+    return [SettingsChoiceViewController checkmarkCellInTableView:tableView
+                                                            title:_choices[(NSUInteger)indexPath.row]
+                                                            image:nil
+                                                          checked:indexPath.row == _selectedIndex];
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {

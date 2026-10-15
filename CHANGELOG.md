@@ -25,12 +25,15 @@
 * mac: Added clicking the pitch panel's header to switch the range between 8% and 16%
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
+* mac: Improved the Settings window: clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor
+* Changed the Cupertino theme to darken only cover art behind the playback buttons, and lightened that gradient on both platforms
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
 * ios: Added a full-bleed artwork widget with the mac's playlist, play, and next buttons
 * ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors
 * ios: Added album art for iCloud and Dropbox songs that aren't downloaded
 * ios: Added ability to play Dropbox, Google Drive, and iCloud drive share link URLs directly
 * ios: Improved the Files tab: places are grouped under Locations, and a copied link plays from it
+* ios: Improved Settings: On track end and Time display choose in place, and the 3-Band palettes are named by their colors
 
 # v1.15
 

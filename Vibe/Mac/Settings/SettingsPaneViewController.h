@@ -29,6 +29,9 @@ static const CGFloat kSettingsPaneMaxHeight = 620;
 // Shared by the section stack and the Themes pane's editor page.
 static const CGFloat kPanePadding = 20;
 
+// How far under the top a revealed card's header lands.
+static const CGFloat kSettingsCardRevealInset = 12;
+
 // The tab controller. A pane carries no size constraints
 // (loadPaneWithSections:), so this is the only way its size reaches the window.
 @protocol SettingsPaneSizeHost <NSObject>
@@ -116,6 +119,11 @@ static const CGFloat kPanePadding = 20;
 @property (readonly, nonatomic, copy, nullable) NSString *searchQuery;
 // Scrolls the first marked row into view; the pane's appearance repeats it.
 - (void)revealSearchHits;
+
+// Lands a card (or any view in a pane's scroll view) kSettingsCardRevealInset
+// under the top, clamped to the document's end. The theme editor's jump bar
+// and the debug channel's settings_reveal share it.
++ (void)scrollCardToTop:(NSView *)card animated:(BOOL)animated;
 
 // A drag's live work at a steady cadence: each tick, having written its value,
 // ORs in the effects it needs, and they apply at most every 1/30 s, so a 120 Hz

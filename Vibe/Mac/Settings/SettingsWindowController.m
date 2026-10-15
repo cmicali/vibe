@@ -41,6 +41,8 @@ static NSString *const kEditorLocation = @"themes/editor";
     BOOL _restoringLocation;
     NSSegmentedControl *_appearanceToggle;
     NSSegmentedControl *_randomizeControl;
+    // Undo and redo, apart from the dice: a missed undo must not reroll the theme.
+    NSSegmentedControl *_historyControl;
 }
 @end
 
@@ -375,10 +377,11 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
 static NSToolbarItemIdentifier const kNavigationItemIdentifier = @"navigation";
 static NSToolbarItemIdentifier const kAppearanceToggleItemIdentifier = @"appearance_toggle";
 static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomize";
+static NSToolbarItemIdentifier const kHistoryItemIdentifier = @"theme_history";
 
 - (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
     return @[NSToolbarSidebarTrackingSeparatorItemIdentifier, kNavigationItemIdentifier,
-             NSToolbarFlexibleSpaceItemIdentifier, kRandomizeItemIdentifier,
+             NSToolbarFlexibleSpaceItemIdentifier, kRandomizeItemIdentifier, kHistoryItemIdentifier,
              kAppearanceToggleItemIdentifier];
 }
 
@@ -395,21 +398,31 @@ static NSToolbarItemIdentifier const kRandomizeItemIdentifier = @"theme_randomiz
                 [NSImage imageWithSystemSymbolName:@"dice"
                           accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS],
                 [NSImage imageWithSystemSymbolName:@"paintpalette"
-                          accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_COLORS],
+                          accessibilityDescription:STR_SETTINGS_THEME_RANDOMIZE_COLORS]]
+                trackingMode:NSSegmentSwitchTrackingMomentary
+                      target:self action:@selector(randomizeTheme:)];
+        [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS forSegment:0];
+        [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_COLORS forSegment:1];
+        _randomizeControl = control;
+        NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
+        item.view = control;
+        item.label = STR_SETTINGS_THEME_RANDOMIZE;
+        return item;
+    }
+    if ([itemIdentifier isEqualToString:kHistoryItemIdentifier]) {
+        NSSegmentedControl *control = [NSSegmentedControl segmentedControlWithImages:@[
                 [NSImage imageWithSystemSymbolName:@"arrow.uturn.backward"
                           accessibilityDescription:STR_MENU_EDIT_UNDO],
                 [NSImage imageWithSystemSymbolName:@"arrow.uturn.forward"
                           accessibilityDescription:STR_MENU_EDIT_REDO]]
                 trackingMode:NSSegmentSwitchTrackingMomentary
-                      target:self action:@selector(randomizeTheme:)];
-        [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_SETTINGS forSegment:0];
-        [control setToolTip:STR_SETTINGS_THEME_RANDOMIZE_COLORS forSegment:1];
-        [control setToolTip:STR_MENU_EDIT_UNDO forSegment:2];
-        [control setToolTip:STR_MENU_EDIT_REDO forSegment:3];
-        _randomizeControl = control;
+                      target:self action:@selector(restoreThemeHistory:)];
+        [control setToolTip:STR_MENU_EDIT_UNDO forSegment:0];
+        [control setToolTip:STR_MENU_EDIT_REDO forSegment:1];
+        _historyControl = control;
         NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
         item.view = control;
-        item.label = STR_SETTINGS_THEME_RANDOMIZE;
+        item.label = STR_MENU_EDIT_UNDO;
         return item;
     }
     if ([itemIdentifier isEqualToString:kAppearanceToggleItemIdentifier]) {
@@ -610,7 +623,8 @@ static const NSUInteger kNavigationHistoryLimit = 50;
     // and the delegate vends non-inserted copies during enumeration, so a
     // stored item is not reliably the one on screen.
     NSToolbar *toolbar = self.window.toolbar;
-    for (NSToolbarItemIdentifier identifier in @[kRandomizeItemIdentifier, kAppearanceToggleItemIdentifier]) {
+    for (NSToolbarItemIdentifier identifier in @[kRandomizeItemIdentifier, kHistoryItemIdentifier,
+                                                 kAppearanceToggleItemIdentifier]) {
         NSUInteger index = [toolbar.items indexOfObjectPassingTest:
                 ^BOOL(NSToolbarItem *item, NSUInteger i, BOOL *stop) {
             return [item.itemIdentifier isEqualToString:identifier];
@@ -624,10 +638,10 @@ static const NSUInteger kNavigationHistoryLimit = 50;
     BOOL canRandomize = selected && pane.editorShown;
     [_randomizeControl setEnabled:canRandomize forSegment:0];
     [_randomizeControl setEnabled:canRandomize forSegment:1];
-    [_randomizeControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:NO]) forSegment:2];
-    [_randomizeControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:YES]) forSegment:3];
-    [_randomizeControl setToolTip:ThemeHistoryTitle(NO) forSegment:2];
-    [_randomizeControl setToolTip:ThemeHistoryTitle(YES) forSegment:3];
+    [_historyControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:NO]) forSegment:0];
+    [_historyControl setEnabled:(selected && [pane canRestoreThemeHistoryForward:YES]) forSegment:1];
+    [_historyControl setToolTip:ThemeHistoryTitle(NO) forSegment:0];
+    [_historyControl setToolTip:ThemeHistoryTitle(YES) forSegment:1];
     // windowAppearance folds in the preview and a single-mode pin; nil is Auto.
     NSAppearance *appearance =
             AppSettings.sharedInstance.windowAppearance ?: NSApp.effectiveAppearance;
@@ -649,12 +663,12 @@ static const NSUInteger kNavigationHistoryLimit = 50;
 
 - (void)randomizeTheme:(NSSegmentedControl *)sender {
     SettingsThemesViewController *pane = [self themesPane];
-    switch (sender.selectedSegment) {
-        case 0: [pane randomizeThemeSettings]; break;
-        case 1: [pane randomizeThemeColors]; break;
-        case 2: [pane restoreThemeHistoryForward:NO]; break;
-        case 3: [pane restoreThemeHistoryForward:YES]; break;
-    }
+    if (sender.selectedSegment == 0) [pane randomizeThemeSettings];
+    else [pane randomizeThemeColors];
+}
+
+- (void)restoreThemeHistory:(NSSegmentedControl *)sender {
+    [[self themesPane] restoreThemeHistoryForward:sender.selectedSegment == 1];
 }
 
 // Catches the nil-targeted ⌘W ahead of the player's, which clears the playlist.

@@ -30,6 +30,11 @@ static NSString *const kChoiceStandard = @"standard";
 @interface SettingsThemesViewController () <NSTableViewDataSource, NSTableViewDelegate> {
     NSView *_detailContainer;
     NSStackView *_editorStack;
+    // The jump bar above the page: one segment per card, Name first, in page
+    // order. A click scrolls the card to the top, and the selection follows
+    // every scroll.
+    NSSegmentedControl *_editorJumpControl;
+    NSArray<SettingsSectionView *> *_editorJumpSections;
     SettingsSectionView *_transportSection;
     NSTextField *_nameField;
     // The theme the name field was populated for. The active theme can change
@@ -37,15 +42,15 @@ static NSString *const kChoiceStandard = @"standard";
     // rename the new one with the old one's half-typed text.
     NSString *_nameFieldThemeIdentifier;
     SettingsRowView *_nameRow;
+    // A choice with colors keeps its wells beside the popup, in one row; the
+    // pair hides while the choice takes no color.
     NSPopUpButton *_backgroundPopUp;
-    SettingsRowView *_backgroundColorsRow;
+    NSStackView *_backgroundColorsPair;
     NSPopUpButton *_windowTintPopUp;
-    SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
-    NSPopUpButton *_defaultArtworkPopUp;
-    SettingsRowView *_defaultArtworkImageRow, *_defaultArtworkDarkRow, *_defaultArtworkLightRow;
-    NSPopUpButton *_defaultArtworkGlyphPopUp;
-    SettingsRowView *_defaultArtworkGlyphRow, *_defaultArtworkGlyphSizeRow;
-    SettingsRowView *_defaultArtworkGlyphDarkRow, *_defaultArtworkGlyphLightRow;
+    NSStackView *_windowTintPair;
+    NSPopUpButton *_defaultArtworkPopUp, *_defaultArtworkGlyphPopUp;
+    NSStackView *_defaultArtworkColorsPair, *_defaultArtworkGlyphColorsPair;
+    SettingsRowView *_defaultArtworkImageRow, *_defaultArtworkGlyphRow, *_defaultArtworkGlyphSizeRow;
     NSSlider *_defaultArtworkGlyphSizeSlider; // a VibeDetentSlider
     NSTextField *_defaultArtworkGlyphSizeValue;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider
@@ -91,13 +96,12 @@ static NSString *const kChoiceStandard = @"standard";
     SettingsRowView *_bandsDarkRow, *_bandsLightRow, *_shadeOverlapsRow;
     SettingsRowView *_playheadColorsRow;
     NSPopUpButton *_playlistBackgroundPopUp;
-    SettingsRowView *_playlistBackgroundColorsRow;
+    NSStackView *_playlistBackgroundColorsPair;
     NSPopUpButton *_playlistTintPopUp;
-    SettingsRowView *_playlistTintDarkRow, *_playlistTintLightRow;
+    NSStackView *_playlistTintPair;
     NSPopUpButton *_volumeBarPopUp, *_volumeKnobPopUp, *_volumeLocationPopUp, *_volumeVisibilityPopUp;
     VibeSwitch *_volumeLabelsSwitch;
-    SettingsRowView *_volumeBarDarkRow, *_volumeBarLightRow;
-    SettingsRowView *_volumeKnobDarkRow, *_volumeKnobLightRow;
+    NSStackView *_volumeBarPair, *_volumeKnobPair;
     NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
     // None while the panel is not editing a slot; changeFont: no-ops then.
