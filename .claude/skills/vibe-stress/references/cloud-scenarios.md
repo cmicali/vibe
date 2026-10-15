@@ -2,7 +2,7 @@
 
 The cloud scenario suite's rules, registry and XFAIL contract, the `block_main` instrument, and the real-provider mode. Read when writing or debugging a scenario, or deciding whether a cloud check belongs here or in `make test`.
 
-The registry is `SCENARIOS` near the bottom of `scripts/cloud-scenarios.py`. Each entry is `(id, function, expected_fail, real)`. `real` is the scenario's real-provider function. For a fake-only scenario it is the reason instead.
+The registry is `SCENARIOS` near the bottom of `scripts/cloud-scenarios.py`. Each entry is `(id, function, expected_fail, real)`. `real` is the scenario's real-provider function, or `None`. `FAKE_ONLY` holds each fake-only scenario's reason.
 
 ## Five rules
 
@@ -80,13 +80,13 @@ The diagnostic counts per directory, not per file. That is why the runner verifi
 
 ### The oracle without a trace
 
-A real transfer leaves no `dump_cloud_trace`. The runner samples `dump_row_loading` and the coordinator's `foregroundTransferActive` instead, and logs each sample. A file's arrival in the registry stands for `requested` and `started`. Its departure stands for `completed` or `cancelled`. The file's own `SF_DATALESS` says whether its bytes arrived. A failing scenario prints the sample log where the fake mode prints the trace.
+A real transfer leaves no `dump_cloud_trace`. The runner samples `dump_row_loading` and the coordinator's `foregroundTransferActive` instead. `sample_events` turns the samples into trace events. A file appearing between two samples is `started`, and one leaving is `completed`. The sample index is `seq`, and `role` is `None`. The trace helpers then serve both modes. The file's own `SF_DATALESS` says whether its bytes arrived. A failing scenario prints these events as its trace.
 
 How the five rules carry over:
 
-- **Trace sequence** does not exist. The sample index orders arrivals instead. The counters give the rest of the order, and they only rise. A sample can miss a transfer shorter than one poll. So every real assertion is about what was observed. A step that needed to see a transfer and did not is `ERROR`, never a pass.
+- **Trace sequence** becomes the sample index. The counters give the rest of the order, and they only rise. A sample can miss a transfer shorter than one poll. So every real assertion is about what was observed. A step that needed to see a transfer and did not is `ERROR`, never a pass.
 - **Role matching** cannot hold. The registry names files, not roles. A scenario tells the foreground's file from the others by what it played.
-- **Choosing the edge** comes down to one edge. Foreground contention becomes a file other than the foreground's arriving between two samples that both read the hold. A hold that fell and rose between two samples hides an arrival. So this oracle can miss contention, but it cannot invent it.
+- **Choosing the edge** comes down to `started`. Contention is a `held` start of a file other than the foreground's. `held` means both samples around it read the hold. A hold that fell and rose between two samples hides an arrival. So this oracle can miss contention, but it cannot invent it.
 - **One clean launch per scenario** holds. Eviction follows the quiesce.
 - **`capacity=1 uniform`** cannot hold. The provider's capacity and durations are its own. The app's one-wide background lane still serializes the scan. S5 and S6 rely on that.
 
@@ -111,7 +111,7 @@ How the five rules carry over:
 
 ### Fake-only scenarios
 
-Each is reported `SKIP` with its reason. The registry's `real` field holds the reason.
+Each is reported `SKIP` with its reason from `FAKE_ONLY`.
 
 | Id | Why only the fake can state it |
 | --- | --- |
