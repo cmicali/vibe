@@ -4,7 +4,7 @@
 //
 //  Renders a view or a layer tree into a 1x bitmap with no window server, and
 //  reads a pixel by the view's own coordinates. The drawn-view tests assert
-//  invariants over the result, never a stored reference image.
+//  facts about the result, never against a stored reference image.
 //
 
 #import <Cocoa/Cocoa.h>

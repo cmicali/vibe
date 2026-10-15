@@ -9,6 +9,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "DrawnViewTestSupport.h"
 #import "LoadingIndicator.h"
 #import "LoadingIndicatorView.h"
 
@@ -186,11 +187,7 @@ static BOOL ColorIs(CGColorRef color, NSColor *base, CGFloat alpha) {
 }
 
 - (void)testLeavingTheWindowDropsTheAnimation {
-    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 40)
-                                                   styleMask:NSWindowStyleMaskBorderless
-                                                     backing:NSBackingStoreBuffered
-                                                       defer:YES];
-    window.releasedWhenClosed = NO;
+    NSWindow *window = VibeOffscreenWindow(NSMakeSize(100, 40));
     LoadingIndicatorView *view = [[LoadingIndicatorView alloc] initWithFrame:NSMakeRect(0, 0, 16, 12)];
     [window.contentView addSubview:view];
     view.active = YES;

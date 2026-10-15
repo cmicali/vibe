@@ -10,6 +10,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "DrawnViewTestSupport.h"
 #import "EqualizerIndicatorView.h"
 #import "EqualizerIndicatorView+Debug.h"
 
@@ -53,11 +54,7 @@
 
 - (void)setUp {
     [super setUp];
-    _window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 40)
-                                          styleMask:NSWindowStyleMaskBorderless
-                                            backing:NSBackingStoreBuffered
-                                              defer:YES];
-    _window.releasedWhenClosed = NO;
+    _window = VibeOffscreenWindow(NSMakeSize(100, 40));
     _log = [NSMutableArray array];
     _source = [self sourceNamed:@"A"];
     _baseLinks = [EqualizerIndicatorView vibeDebugActiveDisplayLinkCount];
@@ -216,11 +213,7 @@
 
 - (void)testDeallocationWhileRunningBalancesDemandAndStopsThePoller {
     @autoreleasepool {
-        NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 40)
-                                                       styleMask:NSWindowStyleMaskBorderless
-                                                         backing:NSBackingStoreBuffered
-                                                           defer:YES];
-        window.releasedWhenClosed = NO;
+        NSWindow *window = VibeOffscreenWindow(NSMakeSize(100, 40));
         EqualizerIndicatorView *view = [[EqualizerIndicatorView alloc] initWithFrame:NSMakeRect(0, 0, 16, 12)];
         [window.contentView addSubview:view];
         view.levelSource = _source;
