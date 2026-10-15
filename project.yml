@@ -819,6 +819,22 @@ targets:
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController.m   # injected constructor; ShellTestFakes stand in for the rest
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController+NowPlaying.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Settings.m
+      - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
+      - path: Vibe/Playlist/Mac/PlaylistController.m
+      - path: Vibe/Playlist/Mac/PlaylistTableView.m
+      - path: Vibe/Playlist/Mac/PlaylistRowView.m
+      - path: Vibe/Playlist/Mac/PlaylistTextCell.m
+      - path: Vibe/Playlist/Mac/PlaylistCoverImageView.m
+      - path: Vibe/Common/Mac/Theme/Fonts.m
+      - path: Vibe/Controls/EqualizerIndicatorView.m
+      - path: Vibe/Controls/LoadingIndicatorView.m
+      - path: Vibe/Controls/LoadingIndicator.m
+      - path: Vibe/Mac/Controls/ScaledImageView.m
+      - path: Vibe/Util/VibeWeakProxy.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
@@ -826,6 +842,16 @@ targets:
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
+      # The iOS shell's Foundation-only model: the session and its stores.
+      - path: Vibe/iOS/FolderSession.m
+      - path: Vibe/iOS/FolderSession+ExternalOpens.m
+      - path: Vibe/iOS/FolderSession+Persistence.m
+      - path: Vibe/iOS/Files/LocationStore.m
+      - path: Vibe/iOS/Files/RecentsStore.m
+      - path: Vibe/iOS/Search/FavoritesStore.m
+      - path: Vibe/iOS/Search/DropboxSearch.m
+      - path: Vibe/iOS/Widget/VibeWidgetState.m
+      - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/Common/PlatformImage.m

@@ -12,6 +12,7 @@
 #import "DropboxMirror.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
+#import "FolderSessionRules.h"
 #import "LocationStore.h"
 
 @implementation PlaybackController (Opening)
@@ -238,23 +239,12 @@ static const NSTimeInterval kOpeningTimeout = 25;
     }
     NSString *remembered = session.persistedTrackKey;
     if (restored && !selectedURL && remembered) {
-        // TRAP: the path alone is not enough — a provider can hand the file
-        // back under a different path, and the simulator's container UUID
-        // rotates on reinstall — so the filename is the fallback tier. An
-        // exact hit anywhere outranks it, since the playlist spans folders.
-        // A cue row's window rides on both, so the row comes back, not the
-        // file's first.
-        NSString *rememberedName = remembered.lastPathComponent;
-        for (NSUInteger i = 0; i < rows.count; i++) {
-            NSString *key = rows[i].standardizedSourceKey;
-            if ([key isEqualToString:remembered]) {
-                start = i;
-                break;
-            }
-            if (start == NSNotFound && [key.lastPathComponent isEqualToString:rememberedName]) {
-                start = i;
-            }
+        // Two tiers, exact then filename (VibeFolderSessionRememberedIndex).
+        NSMutableArray<NSString *> *keys = [NSMutableArray arrayWithCapacity:rows.count];
+        for (AudioTrack *row in rows) {
+            [keys addObject:row.standardizedSourceKey ?: @""];
         }
+        start = VibeFolderSessionRememberedIndex(keys, remembered);
     }
     [_playlist replaceAllWithTracks:rows startingAtIndex:start];
     [_metadataCache cancelScan];

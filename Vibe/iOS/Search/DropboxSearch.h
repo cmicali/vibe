@@ -13,7 +13,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class DropboxMirror;
+
 @interface DropboxSearch : NSObject
+
+// Asks DropboxMirror.shared.
+- (instancetype)init;
+- (instancetype)initWithMirror:(DropboxMirror *)mirror NS_DESIGNATED_INITIALIZER;
 
 // The answer's entries minus what the playlist already lists.
 @property (nonatomic, readonly) NSArray<NSDictionary *> *hits;

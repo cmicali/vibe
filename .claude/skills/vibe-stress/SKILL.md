@@ -5,7 +5,7 @@ description: Stress, soak, fuzz, and torture the running Vibe app against a fold
 
 # Stress and fuzz testing Vibe
 
-**Read the `vibe-debug` skill first.** Everything here rides its `--debug-cmd` channel and launches through its `launch.sh`, so its traps (grant rules, off-hardware flags, two-instance raciness, the stale-binary check) all apply. The oracle verbs (`dump_health`, `check_consistency`, `quiesce`, `dump_cloud_trace`) are ordinary channel commands.
+**Read the `vibe-debug` skill first.** Everything here rides its `--debug-cmd` channel and launches through its `launch.sh`, so its traps (grant rules, off-hardware flags, two-instance raciness, the stale-binary check) all apply. The oracle verbs (`dump_health`, `check_consistency`, `quiesce`, `dump_cloud_trace`, `dump_equalizer`) are ordinary channel commands.
 
 Needs a **Debug** build, since the channel compiles out of Release. Each script's `--help` is the authority on its flags.
 
@@ -126,7 +126,7 @@ launchctl setenv TSAN_OPTIONS \
 launchctl unsetenv TSAN_OPTIONS        # session-wide until unset
 ```
 
-`-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
+`--tsan-replay <journal>` with `--app` set to the TSan build does the setenv, the replay, the quit and the unsetenv in one step, then prints each report's first stack. It is the last step of a stress failure's chain (`references/sanitizers.md`). `-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
 
 ## Named gesture tests, separate from stress
 
@@ -139,7 +139,7 @@ Use these only when the gesture itself is under test, on a **dedicated test Mac 
 
 These are bounded tests of the pitch fader. They resolve and hit-test fresh geometry just before queuing a complete gesture and require the player and fader to reach the expected pitch. They restore the starting pitch and panel visibility even on failure. An unavailable or covered target fails rather than trying elsewhere. They cannot combine with replay or shrink. Other gestures are `vibe-debug`'s [OS-input reference](../vibe-debug/references/os-input.md). Normal stress makes no coverage claim for them.
 
-## The four oracles, and what a failure means
+## The five oracles, and what a failure means
 
 Checked between batches (`--batch`, default 25):
 
@@ -149,10 +149,11 @@ Checked between batches (`--batch`, default 25):
 | `check_consistency` | inconsistent state | violations surviving a settle and a second sample. Its `cloud.*` checks skip that filter, since their counters are cumulative and never transiently true |
 | `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, hosted units, render refusals and `pending` counters against a post-warmup baseline, plus a tighter at-rest series every `--quiesce-every` batches |
 | crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
+| progress | work that silently stops | Each batch: rows unresolved or cloud parses pending, no gate in force, and one progress signature across four samples fails. After each `quiesce`: a file with sound must advance its position and light the equalizer. `references/health-metrics.md` has the window and the gates |
 
-Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `client`. **`exit` is the app quitting, not dying**: gone with a fresh `.ips` is `crash`, gone without one is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.
+Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `stalled`, `command`, `client`. **`stalled` is work no longer attempted**: nothing grew, hung or died, yet nothing moved. **`exit` is the app quitting, not dying**: gone with a fresh `.ips` is `crash`, gone without one is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.
 
-**What no oracle catches: work that silently stops.** All four ask whether something grew, hung, went inconsistent or died, so a capability that stops being attempted passes every one. `quiesce`'s zero `pending` counters and `cloud.handle_open_stranded` catch the stranded-run form. The general check is not written. It would flag *demand outstanding* (`dump_state.playlist.resolvedRows` below `count`, or `cloudParsesPending` > 0) with *cumulative progress flat* across a window (the materialization coordinator's `requestsReady`, `requestsFailed` and `handleOpensCompleted`) and *no gate in force* (`foregroundTransferActive` false). Build it from those three before trusting a long cloud soak's silence. The same gap holds for the equalizer: the consistency oracle checks meter demand and output liveness, not nonzero signal. Drive a known non-silent fixture and read the equalizer counters (`vibe-debug`'s `references/equalizer-counters.md`). Playback has the same gap: real-output checkpoints must require position or rendered-frame progress on a known local track. A state-only check is not output coverage.
+**Work that silently stops is the progress oracle's.** The other four ask whether something grew, hung, went inconsistent or died, so a capability that stops being attempted passes every one. The progress oracle flags *demand outstanding* (`dump_state.playlist.resolvedRows` below `count`, or `cloudParsesPending` above 0) with *cumulative progress flat* (the materialization coordinator's `requestsReady`, `requestsFailed` and `handleOpensCompleted`, and the resolved rows) and *no gate in force*. A gate is the foreground hold, a held cloud lane, a player still loading, or a transfer still running. `quiesce`'s zero `pending` counters and `cloud.handle_open_stranded` still catch the stranded-run form. After each `quiesce` the driver plays one file whose name says it has sound (`equalizer_reference`), past any quiet intro. Its position must advance, the meter must publish, and a band must be nonzero. The probe is scored only while the bars are visible and sourced, and the run prints how many probes were. **A run that prints `0 of N probes scored` never checked the equalizer.** Torture requires a playing track's position to advance at every checkpoint, after a grace for an open the burst left in flight. A state-only check is not output coverage.
 
 **Reading a `resource` failure.**
 
@@ -160,7 +161,9 @@ Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `c
 - **`pending` counters must all be zero at rest.** A stranded claim is a few hundred bytes, invisible to any megabyte metric, yet it is work that will never finish. `quiesce` names the holdout.
 - The baseline is the element-wise **minimum of the first three samples** (two at rest). A metric fails only after **three consecutive** over-limit samples (two at rest).
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` returned, mostly 0 after a heavy run.
-- `--ignore-metric NAME` stands down a finding that is already diagnosed, so it stops masking later findings.
+- **The resting series is scored by slope too.** Live heap, views and mach ports fail when both halves of the series and the whole rise faster than a long run could absorb. A slow leak then fails long before it crosses an absolute limit.
+- A resting mach-port failure under `playlist` reads `heap <pid>` itself and names the known AppKit row-view purgatory, or says it is a new finding (`references/profiles.md`).
+- `--ignore-metric NAME` stands down a finding that is already diagnosed, so it stops masking later findings. Read the driver's own note on the failure before reaching for it.
 
 Cross-check new metrics against the external tools in `references/health-metrics.md`.
 
@@ -171,14 +174,14 @@ Cross-check new metrics against the external tools in `references/health-metrics
 .claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --shrink <journal> --shrink-resting-mb 150
 ```
 
-`--shrink` delta-debugs the journal to a minimal op list, relaunching the app per candidate, and writes command-script lines for `run-script.sh`. The default predicate covers crashes, hangs and consistency violations. `--shrink-resting-mb N` adds an at-rest footprint above N MB, which chases high-water noise, so prefer a live-heap threshold. A crash that needs a cold cache reproduces only with a cold cache: clear caches before each candidate's trigger.
+`--shrink` delta-debugs the journal to a minimal op list, relaunching the app per candidate. It writes command-script lines for `run-script.sh` (`.min.txt`) and the same ops as a journal (`.min.ndjson`) for `--replay` and `--tsan-replay`. The default predicate covers crashes, hangs and consistency violations. `--shrink-resting-mb N` adds an at-rest footprint above N MB, which chases high-water noise, so prefer a live-heap threshold. A crash that needs a cold cache reproduces only with a cold cache: clear caches before each candidate's trigger.
 
 ## Traps
 
 - **TRAP: raw input can start native file and window drags.** Unattended runs send only app-owned actions: `require_command` fails closed on any verb outside `COMMAND_VERBS`, old journals included. Do not reintroduce random input under another profile or recovery path.
 - **TRAP: never `sample Vibe` by name.** The CLI client is the app binary, so the name matches every in-flight `--debug-cmd`, whose stack (`VibeDebugClientRunOne` in `usleep`) reads as a hang. Resolve the GUI pid (`pgrep -x Vibe` filtered for an argv lacking `--debug-cmd`) and sample before re-probing. A probe that succeeds means the stall ended.
 - **TRAP: a toggled setting persists across runs, and a disabled feature looks exactly like a clean run.** `AppSettings` is `NSUserDefaults`, so a run inherits the last run's final toggle. The driver forces every `FEATURE_SETTINGS` entry on at launch and prints it (`settings: folderArt=on`). The `folder_art` op emits `off` then `on` as a pair, and that pair is load-bearing. **Verify a coverage claim's duty cycle from the journal.**
-- **TRAP: the store a run moves is the user's real one**, since the sandbox container is shared with the installed app. Stress, `--replay` and `--shrink` snapshot `dump_state.settings` and the window frame before forcing anything. Teardown removes every imported theme, sends a `SETTING_RESTORERS` command for each key that moved, and prints one `settings:` line naming what it restored and anything `STILL CHANGED`. It runs on pass, failure, `^C`, SIGTERM and SIGHUP, relaunching the app if it died. A SIGKILL or a hung app leaves the store moved. **A new op that writes a persisted value needs a restorer.**
+- **TRAP: the store a run moves is the user's real one**, since the sandbox container is shared with the installed app. Stress, `--replay`, `--tsan-replay` and `--shrink` snapshot `dump_state.settings` and the window frame before forcing anything. Teardown removes every imported theme, sends a `SETTING_RESTORERS` command for each key that moved, and prints one `settings:` line naming what it restored and anything `STILL CHANGED`. Teardown also clears the slow volume and the fake web server, and closes Settings. It runs on pass, failure, `^C`, SIGTERM and SIGHUP, relaunching the app if it died. A SIGKILL or a hung app leaves the store moved. **A new op that writes a persisted value needs a restorer.**
 - **TRAP: `open -a <path>` resolves by bundle id, not path.** Every build is `com.commonwealthrecordings.Vibe`, so it launches whichever copy Launch Services registered, and a fix-vs-pre-fix comparison tests one binary twice. `VIBE_APP` does not help, since `launch.sh` hands it to `open -a`. Direct-exec and verify with `ps -o comm=`, as `run-torture.sh` does.
 - **TRAP: a second instance answers the channel, then the channel stops answering.** It presents as "app never answered" against a healthy main thread. `pgrep -x Vibe` also matches the iOS Simulator's Vibe (exclude `*CoreSimulator*`), and an Xcode debug session is a second instance too.
 - **Do not debug the harness while a driver is running.** Stop it, confirm no Vibe is up, then investigate. A background run relaunching the app looks like a broken channel.
@@ -187,7 +190,7 @@ Cross-check new metrics against the external tools in `references/health-metrics
 - **TRAP: the sandbox kills clients under launch pressure.** Hundreds of quick client launches make libsecinit fail before `main()`: a `Vibe` `.ips` with `parentProc: Python` and a stack topped by `_libsecinit_appsandbox`. The driver retries a signal-killed client that produced no output and reports `client` only when retries run out. Do the same in any hand loop over `--debug-cmd`.
 - **TRAP: the corpus grant is what makes direct-exec and sanitizer runs possible.** `open -a` grants sandbox access and the grant persists, so the driver launches through `launch.sh` with the corpus folder. Sanitizer options are environment variables, which `open -a` cannot pass, and a direct-exec launch cannot read argv paths. Once the folder is granted, a direct-exec launch reaches every file in it through the channel. `launchctl setenv` is the only way an `open -a` launch sees a variable.
 - **TRAP: never add a TSan `suppressions=` file.** It deadlocks the launch before `main()` (`references/sanitizers.md`). Filter framework noise afterwards.
-- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original, and all raw input. The menu allowlist covers transport, playlist selection and removal, undo and redo, FX, pitch range and selected View actions. It excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. Discovery warns about every missing allowed item, and an unreadable menu fails startup. Add new actions deliberately at the command gate, with a runner test.
+- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original, and all raw input. The menu allowlist covers transport, playlist selection and removal, undo and redo, FX, pitch range and selected View actions. It excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. The Settings allowlist (`SETTINGS_SWITCHES`) is display and analysis switches only, each with a restorer. The gate refuses every other `settings_click`, and every `open_url` off the fake web server. Discovery warns about every missing allowed item, and an unreadable menu fails startup. Add new actions deliberately at the command gate, with a runner test.
 
 ## Supporting files
 

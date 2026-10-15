@@ -77,10 +77,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     if (view != _waveformView) {
         return;  // a neighbor's preview
     }
-    NSTimeInterval duration = _playback.duration;
-    if (duration <= 0) {
-        duration = _playback.currentTrack.duration;
-    }
+    NSTimeInterval duration = VibePlayerScreenDuration(_playback.duration, _playback.currentTrack.duration);
     if (duration <= 0) {
         return;
     }
