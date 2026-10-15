@@ -11,6 +11,7 @@
 #import "SettingsRules.h"
 #import "PlatformColor.h"
 #import "NSView+DarkMode.h"
+#import "NSImage+Util.h"
 
 NSString *const kVibeThemeIdentifierVibe = @"vibe";
 
@@ -32,6 +33,9 @@ static NSString *const kFieldWaveformPlayheadLine = @"waveformPlayheadLine";
 static NSString *const kFieldWaveformBarDensity = @"waveformBarDensity";
 static NSString *const kFieldWaveformBarWidth = @"waveformBarWidth";
 static NSString *const kFieldWindowTint = @"windowTint";
+static NSString *const kFieldDefaultArtwork = @"defaultArtwork";
+static NSString *const kFieldDefaultArtworkGlyph = @"defaultArtworkGlyph";
+static NSString *const kFieldDefaultArtworkGlyphSize = @"defaultArtworkGlyphSize";
 static NSString *const kFieldPlaylistTint = @"playlistTint";
 static NSString *const kFieldWindowBackgroundStyle = @"windowBackgroundStyle";
 static NSString *const kFieldPlaylistBackgroundStyle = @"playlistBackgroundStyle";
@@ -81,6 +85,8 @@ NSString *const kVibeThemeColorWaveformHigh = @"waveformHighColor";
 NSString *const kVibeThemeColorWindowTint = @"windowTintColor";
 NSString *const kVibeThemeColorPlaylistTint = @"playlistTintColor";
 NSString *const kVibeThemeColorWindowBackground = @"windowBackgroundColor";
+NSString *const kVibeThemeColorDefaultArtwork = @"defaultArtworkColor";
+NSString *const kVibeThemeColorDefaultArtworkGlyph = @"defaultArtworkGlyphColor";
 NSString *const kVibeThemeColorTitle = @"titleColor";
 NSString *const kVibeThemeColorArtist = @"artistColor";
 NSString *const kVibeThemeColorInfo = @"infoColor";
@@ -303,6 +309,17 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
         [rows addObject:ImageFieldSpec(kVibeThemeImageAppIcon, window, @"app_icon")];
         [rows addObject:Field(kFieldAppIconShape, window, @"appIconShape", @YES, BoolField())];
 
+        [rows addObject:Field(kFieldDefaultArtwork, player, @"defaultArtwork",
+                              SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK,
+                              LadderField(VibeNormalizedDefaultArtwork))];
+        AddColorPair(rows, kVibeThemeColorDefaultArtwork, player, @"defaultArtworkColor");
+        [rows addObject:Field(kFieldDefaultArtworkGlyph, player, @"defaultArtworkGlyph",
+                              kVibeThemeDefaultArtworkGlyphDefault, SymbolNameField())];
+        [rows addObject:Field(kFieldDefaultArtworkGlyphSize, player, @"defaultArtworkGlyphSize",
+                              @(kVibeThemeDefaultArtworkGlyphSizeDefault),
+                              NumberField(kVibeThemeDefaultArtworkGlyphSizeMin,
+                                          kVibeThemeDefaultArtworkGlyphSizeMax, NO))];
+        AddColorPair(rows, kVibeThemeColorDefaultArtworkGlyph, player, @"defaultArtworkGlyphColor");
         // front/back rather than dark/light: exported archives carry these.
         [rows addObject:ImageFieldSpec(kVibeThemeImageDefaultArtworkDark, player, @"artwork_default_front")];
         [rows addObject:ImageFieldSpec(kVibeThemeImageDefaultArtworkLight, player, @"artwork_default_back")];
@@ -562,12 +579,15 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
         return isDark ? [NSColor colorWithWhite:0.14 alpha:0.40]
                       : [NSColor colorWithWhite:0.88 alpha:0.55];
     }
+    if ([base isEqualToString:kVibeThemeColorDefaultArtwork]) {
+        return isDark ? [NSColor colorWithWhite:0.14 alpha:1] : [NSColor colorWithWhite:0.88 alpha:1];
+    }
     if ([base isEqualToString:kVibeThemeColorPlaylistPlayingRow]
             || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
     }
     // 0.55 is SymbolButton's resting strength.
-    if (VibeIsArtKeyedColorBase(base)) {
+    if (VibeIsArtKeyedColorBase(base) || [base isEqualToString:kVibeThemeColorDefaultArtworkGlyph]) {
         return [NSColor colorWithWhite:isDark ? 1 : 0 alpha:0.55];
     }
     if ([base isEqualToString:kVibeThemeColorVolumeBar]) {
@@ -872,6 +892,13 @@ static void VibeLoadBuiltInThemes(void) {
 - (NSString *)windowTint { return [self stringForKey:kFieldWindowTint]; }
 - (void)setWindowTint:(NSString *)v { [self storeSanitized:v forKey:kFieldWindowTint]; }
 
+- (NSString *)defaultArtwork { return [self stringForKey:kFieldDefaultArtwork]; }
+- (void)setDefaultArtwork:(NSString *)v { [self storeSanitized:v forKey:kFieldDefaultArtwork]; }
+- (NSString *)defaultArtworkGlyph { return [self stringForKey:kFieldDefaultArtworkGlyph]; }
+- (void)setDefaultArtworkGlyph:(NSString *)v { [self storeSanitized:v forKey:kFieldDefaultArtworkGlyph]; }
+- (double)defaultArtworkGlyphSize { return [self floatForKey:kFieldDefaultArtworkGlyphSize]; }
+- (void)setDefaultArtworkGlyphSize:(double)v { [self storeSanitized:@(v) forKey:kFieldDefaultArtworkGlyphSize]; }
+
 - (NSString *)playlistTint { return [self stringForKey:kFieldPlaylistTint]; }
 - (void)setPlaylistTint:(NSString *)v { [self storeSanitized:v forKey:kFieldPlaylistTint]; }
 
@@ -995,12 +1022,43 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
     return [self customImageForKey:key] ?: [self customImageForKey:PartnerImageKey(key)];
 }
 
+- (NSString *)resolvedDefaultArtworkGlyph {
+    return [NSImage availableSymbolName:self.defaultArtworkGlyph fallback:kVibeThemeDefaultArtworkGlyphDefault];
+}
+
 - (NSImage *)resolvedDefaultArtworkImage {
-    return [AppTheme imageForDefaultArtworkDark:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkDark]
-                                           light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
+    NSString *mode = self.defaultArtwork;
+    if ([mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK]) {
+        return [AppTheme imageForDefaultArtworkDark:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkDark]
+                                               light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
+    }
+    BOOL custom = [mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM];
+    if (!custom && ![mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH]) {
+        return [AppTheme clearDefaultArtworkImage];
+    }
+    // Keyed by the stored values, so a well or slider tick is a new image
+    // and an unchanged theme is the same one.
+    NSString *base = custom ? kVibeThemeColorDefaultArtwork : kVibeThemeColorDefaultArtworkGlyph;
+    NSString *key = [NSString stringWithFormat:@"%@|%@|%@|%@|%@", mode, self.defaultArtworkGlyph,
+                     @(self.defaultArtworkGlyphSize),
+                     _fields[[self colorKeyForBase:base dark:YES]] ?: @"",
+                     _fields[[self colorKeyForBase:base dark:NO]] ?: @""];
+    if (![key isEqualToString:_defaultArtworkSquareKey]) {
+        NSColor *dark = [self displayColorForBase:base dark:YES];
+        NSColor *light = [self displayColorForBase:base dark:NO];
+        _defaultArtworkSquareKey = key;
+        _defaultArtworkSquare = custom
+                ? [AppTheme imageForDefaultArtworkColorDark:dark light:light]
+                : [AppTheme imageForDefaultArtworkGlyph:self.resolvedDefaultArtworkGlyph
+                                                   size:self.defaultArtworkGlyphSize dark:dark light:light];
+    }
+    return _defaultArtworkSquare;
 }
 
 - (NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance {
+    if (![self.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK]) {
+        return nil;
+    }
     return [AppTheme imageForReference:[self imageReferenceForKey:appearance.isDark ? kVibeThemeImageDefaultArtworkDark
                                                                                      : kVibeThemeImageDefaultArtworkLight]];
 }

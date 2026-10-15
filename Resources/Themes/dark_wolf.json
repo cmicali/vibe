@@ -14,6 +14,7 @@
     "artistColorDark": "#438681",
     "artistFontFace": "HelveticaNeue-Medium",
     "artistFontSize": 18,
+    "defaultArtwork": "window",
     "nextButtonColorDark": "#E7D396",
     "nextButtonGlyph": "arrow.right.circle.fill",
     "pauseButtonGlyph": "pause.circle.fill",

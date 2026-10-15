@@ -205,6 +205,24 @@ static const CGFloat kImageBadgeInset = 1.5;
     return cluster;
 }
 
+// A glyph menu: each item the symbol alone, since its name is an identifier,
+// never shown, and the system symbol carries its own accessibility
+// description. Item 0, hidden, stands in for a stored glyph the menu does
+// not list — a JSON-authored one — shown only while that is the selection
+// (selectGlyph:in:).
+- (NSPopUpButton *)glyphPopUpWithGlyphs:(NSArray<NSString *> *)glyphs action:(SEL)action {
+    NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:action];
+    NSMenuItem *unlisted = [[NSMenuItem alloc] initWithTitle:@"" action:NULL keyEquivalent:@""];
+    unlisted.hidden = YES;
+    [popUp.menu addItem:unlisted];
+    for (NSString *glyph in glyphs) {
+        [self addItem:@"" value:glyph to:popUp];
+        popUp.lastItem.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
+        popUp.lastItem.toolTip = VibeNotLocalized(glyph);
+    }
+    return popUp;
+}
+
 // Keyed by the button's dark image field. The color and image rows swap on
 // whether an image is set (resolveLayoutStateFromSettings).
 - (NSArray<SettingsRowView *> *)buttonRowsForImageKey:(NSString *)imageKey
@@ -213,24 +231,10 @@ static const CGFloat kImageBadgeInset = 1.5;
                                             colorBase:(NSString *)colorBase
                                                glyphs:(NSArray<NSString *> *)glyphs
                                             imageRows:(NSArray<SettingsRowView *> *)imageRows {
-    NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
-                                               action:@selector(buttonGlyphChanged:)];
+    NSPopUpButton *popUp = [self glyphPopUpWithGlyphs:glyphs action:@selector(buttonGlyphChanged:)];
     popUp.identifier = imageKey;
-    // The glyph alone: its symbol name is an identifier, never shown. The
-    // system symbol carries its own accessibility description.
-    for (NSString *glyph in glyphs) {
-        [self addItem:@"" value:glyph to:popUp];
-        popUp.lastItem.image = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil];
-        popUp.lastItem.toolTip = VibeNotLocalized(glyph);
-    }
     [popUp.menu addItem:NSMenuItem.separatorItem];
     [self addItem:STR_SETTINGS_THEME_BUTTON_CUSTOM_IMAGE value:kGlyphChoiceCustomImage to:popUp];
-    // Item 0 stands in for a stored glyph the menu does not list — a
-    // JSON-authored one — shown only while that is the selection
-    // (selectGlyphChoiceForButtonImageKey:).
-    NSMenuItem *unlisted = [[NSMenuItem alloc] initWithTitle:@"" action:NULL keyEquivalent:@""];
-    unlisted.hidden = YES;
-    [popUp.menu insertItem:unlisted atIndex:0];
     SettingsRowView *colorRow = [SettingsRowView rowWithTitle:colorTitle
                                                       control:[self artKeyedColorPairForBase:colorBase]];
     _glyphPopUps[imageKey] = popUp;
@@ -423,11 +427,43 @@ static const CGFloat kImageBadgeInset = 1.5;
 }
 
 - (SettingsSectionView *)buildPlayerSection {
+    _defaultArtworkPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(defaultArtworkChanged:)];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_ARTWORK value:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_CLEAR value:SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_WINDOW value:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH value:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH to:_defaultArtworkPopUp];
+    [self addItem:STR_SETTINGS_THEME_DEFAULT_ARTWORK_CUSTOM value:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM to:_defaultArtworkPopUp];
     NSStackView *artPair = [self darkLightPairWithDark:
             [self imageClusterForKey:kVibeThemeImageDefaultArtworkDark]
             light:[self imageClusterForKey:kVibeThemeImageDefaultArtworkLight]];
-    NSMutableArray<SettingsRowView *> *rows = [NSMutableArray arrayWithObject:
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART control:artPair]];
+    _defaultArtworkImageRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_IMAGE control:artPair];
+    _defaultArtworkColorsPair = [self darkLightPairForBase:kVibeThemeColorDefaultArtwork
+                                                    effect:kVibeThemeDefaultArtworkEffect];
+    _defaultArtworkGlyphPopUp = [self glyphPopUpWithGlyphs:VibeDefaultArtworkGlyphs()
+                                                    action:@selector(defaultArtworkGlyphChanged:)];
+    NSStackView *glyphColors = [self darkLightPairForBase:kVibeThemeColorDefaultArtworkGlyph
+                                                   effect:kVibeThemeDefaultArtworkEffect];
+    SettingsRowView *glyphRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH
+                                                     controls:@[glyphColors, _defaultArtworkGlyphPopUp]];
+    _defaultArtworkGlyphNameField = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    _defaultArtworkGlyphNameField.delegate = self;
+    _defaultArtworkGlyphNameField.placeholderString = VibeNotLocalized(kVibeThemeDefaultArtworkGlyphDefault);
+    [_defaultArtworkGlyphNameField.widthAnchor constraintEqualToConstant:kAppearancePopUpWidth].active = YES;
+    _defaultArtworkGlyphNameRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_NAME
+                                                        control:_defaultArtworkGlyphNameField];
+    NSStackView *glyphSizeCluster = [self detentSliderClusterWithDetent:kVibeThemeDefaultArtworkGlyphSizeDefault
+            min:kVibeThemeDefaultArtworkGlyphSizeMin max:kVibeThemeDefaultArtworkGlyphSizeMax
+            action:@selector(defaultArtworkGlyphSizeChanged:)
+            width:kAppearancePopUpWidth slider:&_defaultArtworkGlyphSizeSlider valueLabel:&_defaultArtworkGlyphSizeValue];
+    _defaultArtworkGlyphRows = @[glyphRow, _defaultArtworkGlyphNameRow,
+                                 [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_SIZE
+                                                       control:glyphSizeCluster]];
+    NSMutableArray<SettingsRowView *> *rows = [NSMutableArray arrayWithArray:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART
+                             controls:@[_defaultArtworkColorsPair, _defaultArtworkPopUp]],
+        _defaultArtworkImageRow,
+    ]];
+    [rows addObjectsFromArray:_defaultArtworkGlyphRows];
     [rows addObjectsFromArray:[self buildWaveformRows]];
 
     // Title and artist paint the playlist rows too.

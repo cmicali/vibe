@@ -36,6 +36,11 @@ accessibilityDescription:(nullable NSString *)description;
 
 // VibeDominantColorOfImage (PlatformImage.h).
 - (nullable NSColor *)dominantColor;
+
+// A symbol name this macOS has, else the factory one, as Fonts falls back
+// from an uninstalled face: a control drawing nothing is never the answer.
+// Memoized, since the catalog is fixed within a run and the probe allocates.
++ (NSString *)availableSymbolName:(NSString *)name fallback:(NSString *)factory;
 @end
 
 NS_ASSUME_NONNULL_END

@@ -14,8 +14,10 @@
 #import "NSTextField+Label.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
+#import "NSImage+Util.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 
 @implementation VibePassthroughView
@@ -80,10 +82,19 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // Hidden under clear rather than restyled Clear: a second Clear pane over the
 // backdrop compounds into a visibly lighter band. Under solid the cover is the
 // whole background; frosted is the same cover with this panel kept over it.
+// The panel and its tint stop at the art's left edge, so a transparent
+// placeholder shows only the window's backdrop, unless the theme's default
+// artwork carries them under the square (SettingsRules.h).
 - (void)applyWindowBackgroundStyle {
-    NSString *style = AppSettings.sharedInstance.currentTheme.windowBackgroundStyle;
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    NSString *style = theme.windowBackgroundStyle;
     _backgroundGlassView.hidden = [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR] ||
             [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
+    CGFloat panelX = VibeDefaultArtworkCarriesHeaderPanel(theme.defaultArtwork) ? 0 : kArtSize;
+    for (NSView *panel in @[_backgroundGlassView, _headerTintView]) {
+        NSRect frame = panel.frame;
+        panel.frame = NSMakeRect(panelX, frame.origin.y, NSMaxX(frame) - panelX, frame.size.height);
+    }
     [self applyPlaylistBackground];
 }
 
@@ -388,27 +399,11 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     [_volumeControlView applyThemedLabelColors];
 }
 
-// A glyph this macOS has, else the factory one, as Fonts falls back from an
-// uninstalled face: a button drawing nothing is never the answer.
-static NSString *ResolvedGlyph(NSString *glyph, NSString *factory) {
-    // Fixed within a run, and the probe allocates an image.
-    static NSMutableDictionary<NSString *, NSNumber *> *known;
-    if (!known) {
-        known = [NSMutableDictionary dictionary];
-    }
-    NSNumber *has = known[glyph];
-    if (has == nil) {
-        has = @([NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil] != nil);
-        known[glyph] = has;
-    }
-    return has.boolValue ? glyph : factory;
-}
-
 static void ApplyThemeToButton(SymbolButton *button, AppTheme *theme, NSString *imageKey,
                                NSString *glyph, NSString *factoryGlyph,
                                NSString *colorBase, BOOL dark) {
     button.image = [theme buttonImageForKey:imageKey];
-    button.symbolName = ResolvedGlyph(glyph, factoryGlyph);
+    button.symbolName = [NSImage availableSymbolName:glyph fallback:factoryGlyph];
     [button setSymbolColorsFromRestingColor:[theme displayColorForBase:colorBase dark:dark]];
 }
 

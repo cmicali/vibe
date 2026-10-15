@@ -245,12 +245,14 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
                                isDark:dark]);
     // The placeholder is one dynamic image whose pixels follow the drawing
     // appearance, so it is re-sampled under the window's appearance on every
-    // flip. A track's crop is sampled once, on the worker.
+    // flip. A track's crop is sampled once, on the worker. Where the
+    // placeholder is transparent, the backdrop shows, as bright as the
+    // appearance.
     if (_showingDefaultArt) {
         NSImage *placeholder = _artworkView.image;
-        __block BOOL bandIsDark = YES;
+        __block BOOL bandIsDark = dark;
         [self.windowAppearance performAsCurrentDrawingAppearance:^{
-            bandIsDark = VibeImageLowerBandIsDark(placeholder, kTransportBandFraction);
+            bandIsDark = VibeImageLowerBandIsDark(placeholder, kTransportBandFraction, dark);
         }];
         [self publishTransportBackdropDark:bandIsDark];
     }
@@ -296,7 +298,7 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
         @autoreleasepool {
             NSImage *square = [request.renderSource squareCroppedImage] ?: request.renderSource;
             NSColor *color = request.cachedColor ?: [square dominantColor];
-            BOOL dark = VibeImageLowerBandIsDark(square, kTransportBandFraction);
+            BOOL dark = VibeImageLowerBandIsDark(square, kTransportBandFraction, YES);
             run_on_main_thread({ complete(square, color, dark); });
         }
     });

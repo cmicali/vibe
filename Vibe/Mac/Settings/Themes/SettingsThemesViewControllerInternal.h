@@ -48,6 +48,16 @@ static NSString *const kChoiceStandard = @"standard";
     NSStackView *_backgroundColorsPair;
     NSPopUpButton *_windowTintPopUp;
     NSStackView *_windowTintPair;
+    NSPopUpButton *_defaultArtworkPopUp, *_defaultArtworkGlyphPopUp;
+    NSStackView *_defaultArtworkColorsPair;
+    SettingsRowView *_defaultArtworkImageRow;
+    // The symbol, name and size rows, shown together under the glyph choice.
+    NSArray<SettingsRowView *> *_defaultArtworkGlyphRows;
+    // Any SF Symbol by name, for the ones the menu does not list.
+    NSTextField *_defaultArtworkGlyphNameField;
+    SettingsRowView *_defaultArtworkGlyphNameRow;
+    NSSlider *_defaultArtworkGlyphSizeSlider; // a VibeDetentSlider
+    NSTextField *_defaultArtworkGlyphSizeValue;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider
     NSTextField *_cornerRadiusValue;
     VibeSwitch *_transportButtonsSwitch;
@@ -148,6 +158,9 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)colorWellChanged:(NSColorWell *)sender;
 - (void)backgroundStyleChanged:(id)sender;
 - (void)windowTintChanged:(id)sender;
+- (void)defaultArtworkChanged:(id)sender;
+- (void)defaultArtworkGlyphChanged:(NSPopUpButton *)sender;
+- (void)defaultArtworkGlyphSizeChanged:(NSSlider *)sender;
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender;
 - (void)cornerRadiusChanged:(id)sender;
 - (void)clearCustomImage:(NSButton *)sender;

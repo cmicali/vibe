@@ -36,6 +36,10 @@ BOOL VibeIsValidImageReference(NSString *_Nullable value);
     NSMutableDictionary<NSString *, id> *_fields;
     // Keyed by hex VALUE, so it never goes stale. Rows read fills per draw.
     NSMutableDictionary<NSString *, VibeColor *> *_parsedColors;
+    // resolvedDefaultArtworkImage's drawn square and the fields it was made
+    // from.
+    NSImage *_defaultArtworkSquare;
+    NSString *_defaultArtworkSquareKey;
 }
 
 // The record key a pair's side reads and writes.
@@ -55,6 +59,14 @@ BOOL VibeIsValidImageReference(NSString *_Nullable value);
 
 // The placeholder pair as one image (resolvedDefaultArtworkImage).
 + (NSImage *)imageForDefaultArtworkDark:(NSString *)darkValue light:(NSString *)lightValue;
+// The one transparent square clear and window draw.
++ (NSImage *)clearDefaultArtworkImage;
+// Fresh squares, uncached: the record memoizes the one it shows. The color
+// pair as a square, and a symbol this macOS has centered on a transparent
+// square, each in the pair's color for the drawing appearance.
++ (NSImage *)imageForDefaultArtworkColorDark:(NSColor *)dark light:(NSColor *)light;
++ (NSImage *)imageForDefaultArtworkGlyph:(NSString *)glyph size:(double)size
+                                    dark:(NSColor *)dark light:(NSColor *)light;
 
 @end
 

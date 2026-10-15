@@ -780,7 +780,7 @@
     for (NSString *button in buttons) {
         AppTheme *theme = [[AppTheme alloc] initWithRecord:@{}];
         for (NSString *other in buttons) for (NSString *slot in [AppTheme imageKeysForButton:other]) {
-            [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:slot];
+            [theme setImageReference:@"bundled:field_dark.png" forKey:slot];
         }
         NSString *glyph = [button isEqualToString:kVibeThemeImagePlayButtonDark] ? @"play.circle.fill" : @"star.fill";
         [theme setGlyph:glyph forButtonImageKey:button];

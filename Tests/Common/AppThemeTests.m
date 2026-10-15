@@ -237,6 +237,7 @@
         @"waveformTheme": @"purple",
         @"windowTint": @"plaid",
         @"playlistTint": @"plaid",
+        @"defaultArtwork": @"vinyl",
         @"windowBackgroundStyle": @"translucent",
         // The window's alone: the playlist has no panes to keep.
         @"playlistBackgroundStyle": @"frosted",
@@ -246,6 +247,7 @@
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
+    XCTAssertEqualObjects(theme.defaultArtwork, @"artwork");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");
     XCTAssertEqualObjects(theme.playlistBackgroundStyle, @"glass");
     // The third background style is a real choice on both surfaces.
@@ -483,7 +485,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     [theme setColor:VibeColorFromHexString(@"#FF000080") forBase:kVibeThemeColorTitle dark:YES];
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
     theme.waveformPlayheadLine = YES;
-    [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:kVibeThemeImagePlayButtonDark];
+    [theme setImageReference:@"bundled:field_dark.png" forKey:kVibeThemeImagePlayButtonDark];
     NSArray<NSString *> *styles = @[@"detailed", @"basic"];
     NSSet<NSString *> *faces = [NSSet setWithArray:AppTheme.randomizableFontFaces];
     NSSet<NSNumber *> *radii = [NSSet setWithArray:@[@0, @8, @12, @16, @20, @28, @36]];
@@ -493,7 +495,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
         XCTAssertTrue(theme.waveformPlayheadLine);
         XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],
-                              @"bundled:cupertino_dark.jpg");
+                              @"bundled:field_dark.png");
         XCTAssertTrue([styles containsObject:theme.waveformStyle]);
         XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
         XCTAssertNotEqualObjects(theme.waveformSpectrumPalette, @"custom");
@@ -764,9 +766,19 @@ static CGFloat Brightness(NSString *hex) {
     }
 }
 
-- (void)testGlassyUsesArtworkOnlyButtonGradient {
+// Clear is what makes the window one sheet: the gradient would darken the
+// bare backdrop, so it shows over a cover only.
+- (void)testGlassyIsClearWithArtworkOnlyButtonGradient {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"glassy"]];
     XCTAssertEqualObjects(theme.buttonGradient, @"artwork");
+    XCTAssertEqualObjects(theme.defaultArtwork, @"clear");
+}
+
+// A symbol on the header's own gray, without shipping a tile.
+- (void)testCupertinoDrawsTheWaveformSymbol {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"cupertino"]];
+    XCTAssertEqualObjects(theme.defaultArtwork, @"glyph");
+    XCTAssertEqualObjects(theme.defaultArtworkGlyph, @"waveform");
 }
 
 - (void)testHiddenControlsRoundTripWithoutLosingTheirAppearance {
@@ -815,7 +827,7 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"snake"]);
     XCTAssertTrue([AppTheme isBuiltInIdentifier:@"sonic_cirrus"]);
     XCTAssertEqualObjects([AppTheme builtInThemeIdentifiers],
-                          (@[@"vibe", @"cupertino", @"dark_wolf", @"dengine", @"field", @"glassy", @"rekord_bin",
+                          (@[@"vibe", @"cupertino", @"dark_wolf", @"dengine", @"field", @"glassy", @"kinda_blue", @"rekord_bin",
                               @"rgb", @"snake", @"sonic_cirrus", @"tangerine", @"technical"]));
 }
 
@@ -839,7 +851,7 @@ static CGFloat Brightness(NSString *hex) {
 // A dual built-in spells out both sides: the custom waveform theme falls back
 // to mono unless its pair is complete.
 - (void)testDualModeBuiltInsAreCompleteAndOwnTheirArtwork {
-    NSDictionary *artworked = @{@"cupertino": @"jpg", @"field": @"png"};
+    NSDictionary *artworked = @{@"field": @"png"};
     for (NSString *identifier in @[@"cupertino", @"field", @"technical"]) {
         NSDictionary *record = [AppTheme builtInRecordForIdentifier:identifier];
         AppTheme *theme = [[AppTheme alloc] initWithRecord:record];

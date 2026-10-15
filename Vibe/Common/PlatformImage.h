@@ -44,7 +44,9 @@ FOUNDATION_EXPORT VibeColor *_Nullable VibeDominantColorOfImage(VibeImage *_Null
 
 // Whether the bottom `fraction` reads as dark. Uses mean weighted brightness
 // of gamma-encoded sRGB components, not linear-light luminance. Controls use
-// this to pick their color. YES when the image cannot be rasterized.
-FOUNDATION_EXPORT BOOL VibeImageLowerBandIsDark(VibeImage *_Nullable image, CGFloat fraction);
+// this to pick their color. `backdropIsDark` answers when the band has no
+// opaque pixels, or the image cannot be rasterized: what shows there is
+// whatever is behind the image.
+FOUNDATION_EXPORT BOOL VibeImageLowerBandIsDark(VibeImage *_Nullable image, CGFloat fraction, BOOL backdropIsDark);
 
 NS_ASSUME_NONNULL_END

@@ -223,6 +223,18 @@ static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable 
             ? identifier : VibeNormalizedPlaylistBackgroundStyle(identifier);
 }
 
+// The default artwork's ladder: the placeholder images, nothing, the header's
+// own background, a glyph on it, or a color.
+static inline NSString *VibeNormalizedDefaultArtwork(NSString *_Nullable identifier) {
+    if ([identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR] ||
+        [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW] ||
+        [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH] ||
+        [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM]) {
+        return identifier;
+    }
+    return SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK;
+}
+
 // Frosted and solid both lay the theme's color over the backdrop; solid also
 // drops the glass panes over it.
 static inline BOOL VibeWindowBackgroundTakesColor(NSString *_Nullable style) {
@@ -259,6 +271,26 @@ static inline NSArray<NSString *> *VibePlaylistButtonGlyphs(void) {
     return @[@"list.bullet", @"list.dash", @"list.triangle", @"list.number", @"music.note.list",
              @"text.justify", @"line.3.horizontal", @"square.stack", @"rectangle.stack",
              @"tablecells", @"sidebar.left", @"chevron.up.chevron.down"];
+}
+
+// Window and glyph carry the header's panel and tint under the art square,
+// so a track without art shows the play area's own background there.
+static inline BOOL VibeDefaultArtworkCarriesHeaderPanel(NSString *_Nullable mode) {
+    return [mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW] ||
+           [mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH];
+}
+
+// The glyph default artwork's menu: the music and audio symbols macOS 13
+// carries. Apple's device symbols (AirPods, Beats, HomePod, Apple TV) are
+// restricted to Apple's own use and stay out. Any other name goes in the
+// editor's Symbol name field.
+static inline NSArray<NSString *> *VibeDefaultArtworkGlyphs(void) {
+    return @[kVibeThemeDefaultArtworkGlyphDefault, @"music.note", @"music.note.list",
+             @"music.note.house", @"music.note.tv", @"music.mic", @"mic",
+             @"guitars", @"pianokeys", @"metronome", @"tuningfork", @"amplifier",
+             @"headphones", @"hifispeaker", @"hifispeaker.2", @"hifireceiver", @"speaker.wave.2", @"radio",
+             @"recordingtape", @"record.circle", @"opticaldisc", @"waveform", @"waveform.circle", @"waveform.path",
+             @"photo", @"star", @"heart", @"questionmark"];
 }
 
 // Pairs, because one pick dresses both states: the play field stores the

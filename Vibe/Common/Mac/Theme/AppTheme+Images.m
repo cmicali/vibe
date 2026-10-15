@@ -8,6 +8,7 @@
 #import "PlatformImage.h"
 #import "NSView+DarkMode.h"
 #import "NSURL+Hash.h"
+#import "NSImage+Util.h"
 
 @implementation AppTheme (Images)
 
@@ -258,6 +259,49 @@ static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
         cache[key] = image;
         return image;
     }
+}
+
+// One object for the app's lifetime: consumers compare identity to skip
+// reinstalling an unchanged placeholder. No representations, so it draws
+// nothing.
++ (NSImage *)clearDefaultArtworkImage {
+    static NSImage *image;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        image = [[NSImage alloc] initWithSize:NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension)];
+    });
+    return image;
+}
+
+static NSSize DefaultArtworkSquareSize(void) {
+    return NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension);
+}
+
++ (NSImage *)imageForDefaultArtworkColorDark:(NSColor *)dark light:(NSColor *)light {
+    return [NSImage imageWithSize:DefaultArtworkSquareSize() flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        [(NSAppearance.currentDrawingAppearance.isDark ? dark : light) set];
+        NSRectFillUsingOperation(rect, NSCompositingOperationCopy);
+        return YES;
+    }];
+}
+
++ (NSImage *)imageForDefaultArtworkGlyph:(NSString *)glyph size:(double)size
+                                    dark:(NSColor *)dark light:(NSColor *)light {
+    // Both sides configured once; the handler, which runs per draw context,
+    // only picks and draws.
+    CGFloat pointSize = kVibeArchivedDisplayArtDimension * size;
+    NSImage *darkSymbol = [NSImage symbolNamed:glyph pointSize:pointSize weight:NSFontWeightRegular
+                                       palette:@[dark] accessibilityDescription:nil];
+    NSImage *lightSymbol = [NSImage symbolNamed:glyph pointSize:pointSize weight:NSFontWeightRegular
+                                        palette:@[light] accessibilityDescription:nil];
+    return [NSImage imageWithSize:DefaultArtworkSquareSize() flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        NSImage *symbol = NSAppearance.currentDrawingAppearance.isDark ? darkSymbol : lightSymbol;
+        NSSize drawn = symbol.size;
+        [symbol drawInRect:NSMakeRect(NSMidX(rect) - drawn.width / 2, NSMidY(rect) - drawn.height / 2,
+                                      drawn.width, drawn.height)
+                  fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1];
+        return YES;
+    }];
 }
 
 @end
