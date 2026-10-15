@@ -79,7 +79,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 ## The last playlist
 
-**Launch order is grants, then drain, then restore, then the empty state.** Inside `restoreGrantedAccessWithCompletion:`, the tested `OpenBurstCoalescer.finishLaunchRestoring:revealEmpty:` calls `startAndDrainQueue` first. Only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and on the first launch only `loadWelcomeTrack` after it. Only when both find nothing does `revealEmptyStateNamingPlaylist:nil` end the launch grace (`Mac/MainWindow/AGENTS.md`).
+**Launch order is grants, then drain, then restore, then the empty state.** Inside `restoreGrantedAccessWithCompletion:`, the tested `OpenBurstCoalescer.finishLaunchRestoring:revealEmpty:` calls `startAndDrainQueue` first. Only when nothing drained does `MainPlayerController.restoreLastPlaylist` run, and `loadWelcomeTrack` after it, which parks nothing once the user has played or opened something. Only when both find nothing does `revealEmptyStateNamingPlaylist:nil` end the launch grace (`Mac/MainWindow/AGENTS.md`).
 
 **A launch-time open outranks the remembered playlist, and the restore is not an open.** It does not enter the coalescer. An empty drain arms no burst, so a Finder open a beat later replaces rather than appends. It does not enter `openURLs:appending:` either, so it records no stats and mints no bookmarks.
 

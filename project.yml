@@ -272,7 +272,7 @@ targets:
       - path: Resources/Themes
         type: folder
         buildPhase: resources
-      # Parked in the playlist on the first launch only (`welcomeTrackLoaded`).
+      # Parked in the playlist until the user plays or opens something (`welcomeTrackSpent`).
       - path: Resources/vibe-theme.mp3
         buildPhase: resources
     preBuildScripts:

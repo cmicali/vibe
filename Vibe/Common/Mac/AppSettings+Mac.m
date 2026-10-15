@@ -150,7 +150,7 @@ const size_t kVibeUpdateCheckIntervalPresetCount =
 }
 
 - (void)factoryReset {
-    [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_WELCOME_TRACK_LOADED];
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_WELCOME_TRACK_SPENT];
     [NSUserDefaults.standardUserDefaults removeObjectForKey:SETTING_USER_THEMES];
     [self resetToDefaults];
 }

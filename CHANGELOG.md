@@ -7,7 +7,7 @@
 * Changed Previous on the first song to restart it
 * Improved network share playback: a dropped connection pauses with "Connection lost", and a slow server no longer stalls track changes
 * Improved hi-res playback from slow network shares
-* Added the vibe theme track, which loads on the first launch
+* Added the vibe theme track, which loads on launch until you play or open something
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
 * mac: Added Move to Trash (⌘⌫) to delete a song's file from the playlist, with Undo
 * mac: Added automatic updates to the non-appstore version
