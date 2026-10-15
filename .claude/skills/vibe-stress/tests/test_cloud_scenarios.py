@@ -1045,6 +1045,8 @@ class ScriptedCtx(cloud.Ctx):
         self.wait_scale = wait_scale
         self.samples = []
         self.folders = list(folders)
+        # A batch that cannot run falls back to cmd, which the script answers.
+        self.channel = mock.Mock(**{"run_batch.return_value": None})
 
     def cmd(self, *argv, timeout=40):
         self.sent.append([str(arg) for arg in argv])
@@ -1061,12 +1063,13 @@ def args(**overrides):
 class RealProviderTests(unittest.TestCase):
     def test_registry_is_one_table_with_a_real_mode_per_scenario(self):
         self.assertEqual(len(cloud.SCENARIOS), 24)
+        self.assertEqual(set(cloud.FAKE_ONLY), FAKE_ONLY)
         for ident, fn, expected_fail, real in cloud.SCENARIOS:
             with self.subTest(ident=ident):
                 self.assertTrue(callable(fn))
                 if ident in FAKE_ONLY:
-                    self.assertIsInstance(real, str)
-                    self.assertTrue(real.strip())
+                    self.assertIsNone(real)
+                    self.assertTrue(cloud.FAKE_ONLY[ident].strip())
                 else:
                     self.assertTrue(callable(real))
                     self.assertIsNot(real, fn)
@@ -1183,19 +1186,42 @@ class RealProviderTests(unittest.TestCase):
         self.assertIs(entry["rows"], rows)
         self.assertEqual(ctx.sample()["n"], 1)
 
-    def test_arrivals_follow_sample_order_and_count_a_return(self):
+    def test_one_poll_batches_its_dumps_into_one_client_launch(self):
+        rows, health = registry("a.mp3", held=True)
+        ctx = ScriptedCtx({"dump_row_loading": [{}], "dump_cloud_health": [{}]})
+        ctx.channel.run_batch.return_value = [(0, rows), (0, health)]
+        self.assertEqual(ctx.sample()["files"], ["a.mp3"])
+        self.assertEqual(ctx.channel.run_batch.call_args.args[0],
+                         [["dump_row_loading"], ["dump_cloud_health"]])
+        self.assertEqual(ctx.sent, [])
+        # A short stream reruns every dump on its own.
+        ctx.channel.run_batch.return_value = [(0, rows)]
+        self.assertEqual(ctx.sample()["files"], [])
+        self.assertEqual(ctx.sent, [["dump_row_loading"], ["dump_cloud_health"]])
+
+    def test_samples_project_into_trace_events_in_sample_order(self):
         log = samples(([], False), (["a"], True), (["a", "c"], False),
                       (["c"], False), (["a", "b"], False))
-        self.assertEqual(cloud.registry_arrivals(log),
-                         [(1, "a"), (2, "c"), (4, "a"), (4, "b")])
-        self.assertEqual(cloud.arrival_order(log, since=3), ["a", "b"])
+        events = cloud.sample_events(log)
+        self.assertEqual([(e["seq"], e["event"], e["file"]) for e in events],
+                         [(1, "started", "a"), (2, "started", "c"),
+                          (3, "completed", "a"), (4, "completed", "c"),
+                          (4, "started", "a"), (4, "started", "b")])
+        self.assertEqual(cloud.started_order(events).count("a"), 2)
+        self.assertEqual(cloud.started_order(cloud.sample_events(log, since=3)),
+                         ["a", "b"])
+        self.assertEqual(spans(events, None),
+                         [(1, 3, "a"), (2, 4, "c"), (4, None, "a"), (4, None, "b")])
+        self.assertIn("completed  -         c", cloud.fmt_trace(events))
 
     def test_contention_counts_only_arrivals_between_two_held_samples(self):
         log = samples(([], False), (["picked", "early"], True),
                       (["picked", "early", "bad"], True), (["picked", "later"], False))
-        self.assertEqual(cloud.arrived_under_hold(log, {"picked"}), ["bad"])
-        self.assertEqual(cloud.arrived_under_hold(log, {"picked", "bad"}), [])
+        held = [e["file"] for e in cloud.sample_events(log) if e["held"]]
+        self.assertEqual(held, ["bad"])
         ctx = ScriptedCtx({})
+        ctx.samples = log
+        cloud.assert_no_sampled_contention(ctx, {"picked", "bad"})
         ctx.samples = log
         with self.assertRaisesRegex(cloud.Failed, "bad"):
             cloud.assert_no_sampled_contention(ctx, {"picked"})
@@ -1245,6 +1271,24 @@ class RealProviderTests(unittest.TestCase):
             with self.assertRaisesRegex(cloud.Failed, "180s"):
                 ctx.watch("nothing", lambda s: False, 60)
         self.assertEqual(len(ctx.samples), 3)
+        clock = iter([0, 0, 2, 4])
+        with mock.patch.object(cloud.time, "monotonic", side_effect=lambda: next(clock)), \
+                mock.patch.object(cloud.time, "sleep") as sleep:
+            ctx.sample_for(1)
+        self.assertEqual((len(ctx.samples), sleep.call_count), (5, 2))
+
+    def test_poll_returns_the_read_value_and_reports_the_last_one(self):
+        ctx = ScriptedCtx({"dump_state": [{"player": {"state": "playing"}},
+                                          {"player": {"state": "paused"}}]})
+        with mock.patch.object(cloud.time, "sleep") as sleep:
+            state = ctx.poll("a pause", ctx.state,
+                             lambda s: s["player"]["state"] == "paused", 5)
+        self.assertEqual((state["player"]["state"], sleep.call_count), ("paused", 1))
+        clock = iter([0, 0, 9])
+        with mock.patch.object(cloud.time, "monotonic", side_effect=lambda: next(clock)), \
+                mock.patch.object(cloud.time, "sleep"):
+            with self.assertRaisesRegex(cloud.Failed, "1s waiting for a stop: .*paused"):
+                ctx.poll("a stop", ctx.state, lambda s: False, 1)
 
     def test_real_outcomes_are_error_when_not_staged_and_fail_on_assertions(self):
         quiet = {"quiesce": [{"settled": True}], "clear_caches": [{"ok": True}],
@@ -1313,10 +1357,11 @@ class RealProviderTests(unittest.TestCase):
 
     def test_real_failures_print_the_registry_log(self):
         ctx = ScriptedCtx({})
-        ctx.samples = samples((["a.mp3"], True), ([], False))
+        ctx.samples = samples(([], True), (["a.mp3"], True), ([], False))
         dump = cloud.scenario_dump(ctx)
-        self.assertIn("held a.mp3", dump)
-        self.assertEqual(dump.splitlines()[-1].split(), ["1", "-"])
+        self.assertEqual([line.split() for line in dump.splitlines()],
+                         [["1", "started", "-", "a.mp3", "held"],
+                          ["2", "completed", "-", "a.mp3"]])
 
 
 if __name__ == "__main__":

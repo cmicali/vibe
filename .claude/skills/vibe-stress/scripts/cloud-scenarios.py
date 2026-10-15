@@ -89,7 +89,7 @@ class Ctx:
         self.verbose = verbose
         self.real = real
         self.wait_scale = wait_scale
-        # Real mode's registry log: one entry per sample().
+        # Real mode's registry samples, one per sample(). See sample_events().
         self.samples = []
         self.folders = sorted(p for p in corpus.iterdir() if p.is_dir())
         if len(self.folders) < 2:
@@ -141,27 +141,38 @@ class Ctx:
     def stats(self):
         return self.cmd("dump_cloud_trace").get("stats", {})
 
+    def batch(self, *argvs):
+        """Several read-only dumps in one client launch, replies in order.
+
+        A launch costs 80-130 ms, so one poll pays it once. A short stream
+        falls back to one command each, where a failure gets its own message.
+        """
+        argvs = [[str(a) for a in argv] for argv in argvs]
+        replies = self.channel.run_batch(argvs, timeout=40)
+        if self.verbose:
+            print(f"      $ batch {[argv[0] for argv in argvs]} -> "
+                  f"{len(replies or [])} replies", file=sys.stderr)
+        if replies is None or len(replies) != len(argvs) or any(c for c, _ in replies):
+            return [self.cmd(*argv) for argv in argvs]
+        return [payload or {} for _, payload in replies]
+
     def health(self):
         return self.cmd("dump_cloud_health")
 
-    def materialization(self):
-        """The coordinator's gauges and cumulative counters.
+    def materialization(self, health=None):
+        """The coordinator's gauges and cumulative counters, from health when
+        the caller already holds a dump_cloud_health reply.
 
         foregroundTransferActive is the gate: the only thing that tells "the
         foreground rule is holding metadata back" from "nothing can start at
         all", which produce the same trace. handleOpensInFlight counts file
         opens the OS still owes an answer.
         """
-        return self.health().get("materialization", {})
+        return (self.health() if health is None else health).get("materialization", {})
 
     def wait_for_hung_open(self, basename, describe, timeout=WAIT_TIMEOUT):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            reply = self.cmd("hang_open", basename)
-            if reply.get("hungOpens", 0) >= 1:
-                return reply
-            time.sleep(POLL)
-        raise Failed(f"timed out after {timeout:.0f}s waiting for {describe}")
+        return self.poll(describe, lambda: self.cmd("hang_open", basename),
+                         lambda reply: reply.get("hungOpens", 0) >= 1, timeout)
 
     def configure_timeouts(self, baseline, silence):
         reply = self.cmd("set_audio_loading", f"timeout-baseline={baseline}",
@@ -190,16 +201,26 @@ class Ctx:
         """Playlist state, with files as trace-compatible basenames."""
         return self.cmd("dump_state").get("playlist", {})
 
+    def ticks(self, seconds):
+        """Yield every POLL until seconds * --wait-scale have passed."""
+        deadline = time.monotonic() + seconds * self.wait_scale
+        while time.monotonic() < deadline:
+            yield
+            time.sleep(POLL)
+
+    def poll(self, describe, read, predicate, seconds):
+        """read() until predicate(value) holds. Returns that value."""
+        value = None
+        for _ in self.ticks(seconds):
+            value = read()
+            if predicate(value):
+                return value
+        raise Failed(f"timed out after {seconds * self.wait_scale:.0f}s waiting "
+                     f"for {describe}: {str(value)[:300]}")
+
     def wait_for(self, describe, predicate, timeout=WAIT_TIMEOUT):
         """Poll the trace until predicate(events) is true. Returns the events."""
-        deadline = time.monotonic() + timeout
-        events = []
-        while time.monotonic() < deadline:
-            events = self.trace()
-            if predicate(events):
-                return events
-            time.sleep(POLL)
-        raise Failed(f"timed out after {timeout:.0f}s waiting for {describe}")
+        return self.poll(describe, self.trace, predicate, timeout)
 
     def settle(self, seconds):
         """Let the app run. `sleep` is a client-side pause; the app is not blocked."""
@@ -214,8 +235,8 @@ class Ctx:
         event source. The hold is read after the registry: a file that
         appears between two held samples began under the hold.
         """
-        rows = self.cmd("dump_row_loading")
-        held = bool(self.materialization().get("foregroundTransferActive"))
+        rows, health = self.batch(["dump_row_loading"], ["dump_cloud_health"])
+        held = bool(self.materialization(health).get("foregroundTransferActive"))
         entry = {"n": len(self.samples), "held": held,
                  "files": sorted(item.get("file", "")
                                  for item in rows.get("transfers", [])),
@@ -225,14 +246,11 @@ class Ctx:
 
     def watch(self, describe, predicate, seconds):
         """Sample until predicate(sample) holds, within seconds * --wait-scale."""
-        deadline = time.monotonic() + seconds * self.wait_scale
-        while time.monotonic() < deadline:
-            entry = self.sample()
-            if predicate(entry):
-                return entry
-            time.sleep(POLL)
-        raise Failed(f"timed out after {seconds * self.wait_scale:.0f}s waiting "
-                     f"for {describe}")
+        return self.poll(describe, self.sample, predicate, seconds)
+
+    def sample_for(self, seconds):
+        for _ in self.ticks(seconds):
+            self.sample()
 
 
 # -- trace helpers ---------------------------------------------------------
@@ -241,8 +259,8 @@ class Ctx:
 def role_matches(recorded, wanted):
     """Exact, or delimited family prefix: "metadata" matches "metadata-scan"
     and "metadata-priority". An exact-only match makes every metadata-family
-    predicate vacuously empty."""
-    return recorded == wanted or recorded.startswith(wanted + "-")
+    predicate vacuously empty. None matches any role."""
+    return wanted is None or recorded == wanted or recorded.startswith(wanted + "-")
 
 
 def events_of(events, event=None, role=None, file=None):
@@ -256,8 +274,31 @@ def events_of(events, event=None, role=None, file=None):
     return out
 
 
-def started_order(events, role):
+def started_order(events, role=None):
     return [e["file"] for e in events_of(events, event="started", role=role)]
+
+
+def sample_events(samples, since=0):
+    """The real mode's registry samples in the trace's event form.
+
+    A file appearing between two samples is `started`, and one leaving is
+    `completed`. The sample index is `seq`, and `role` is None, since the
+    registry names files, not roles. A start's `held` means both samples
+    read the hold. A start under a hold that rose between them is not held,
+    and a hold that fell and rose hides one. So `held` can miss contention,
+    but it never invents it. Only events at `since` or later are returned.
+    """
+    events, before = [], {"files": [], "held": False}
+    for entry in samples:
+        now, then = set(entry["files"]), set(before["files"])
+        held = before["held"] and entry["held"]
+        if entry["n"] >= since:
+            events += [{"seq": entry["n"], "event": "completed", "role": None,
+                        "file": name, "held": held} for name in sorted(then - now)]
+            events += [{"seq": entry["n"], "event": "started", "role": None,
+                        "file": name, "held": held} for name in sorted(now - then)]
+        before = entry
+    return events
 
 
 def transfer_spans(events, role):
@@ -553,8 +594,11 @@ def fmt_trace(events, limit=60):
             extra = f" queued={e['queuedMs']}ms"
         if "roles" in e:
             extra = f" roles={e['roles']}"
-        lines.append(f"  {e['seq']:>3} {e['tMs']:>7}ms {e['event']:<10} "
-                     f"{e['role']:<9} {e['file']}{extra}")
+        if e.get("held"):
+            extra = " held"
+        when = f"{e['tMs']:>7}ms" if "tMs" in e else " " * 9
+        lines.append(f"  {e['seq']:>3} {when} {e['event']:<10} "
+                     f"{e['role'] or '-':<9} {e['file']}{extra}")
     return "\n".join(lines) or "  (no events)"
 
 # Shared assertions
@@ -584,21 +628,18 @@ def assert_no_foreground_contention(ctx, events):
 
 
 def wait_for_playlist_resolution(ctx, timeout=WAIT_TIMEOUT):
-    deadline = time.monotonic() + timeout
-    playlist = ctx.playlist()
-    while time.monotonic() < deadline:
-        playlist = ctx.playlist()
-        count = playlist.get("count", 0)
-        if count > 0 and playlist.get("resolvedRows", 0) >= count:
-            return playlist
-        time.sleep(POLL)
-    raise Failed(f"playlist did not resolve inside {timeout:.0f}s: {playlist}")
+    return ctx.poll("the playlist to resolve", ctx.playlist,
+                    lambda playlist: 0 < playlist.get("count", 0)
+                    <= playlist.get("resolvedRows", 0), timeout)
 
 
 def loading_residue(ctx):
     """All live loading gauges that must read empty at natural or forced rest."""
-    health = ctx.health()
-    materialization = health.get("materialization", {})
+    dumps = [["dump_cloud_health"], ["dump_row_loading"]]
+    if not ctx.real:
+        dumps.append(["dump_cloud_trace"])
+    health, rows, *trace = ctx.batch(*dumps)
+    materialization = ctx.materialization(health)
     keys = ("claims", "waiters", "interactiveRunning", "backgroundRunning",
             "interactivePending", "backgroundPending", "handleRuns",
             "datalessProbesInFlight", "handleOpensInFlight")
@@ -606,8 +647,7 @@ def loading_residue(ctx):
             if materialization.get(key, 0)}
     priority = health.get("priorityLane", {})
     scan = health.get("scanLane", {})
-    fake = {} if ctx.real else ctx.stats()
-    rows = ctx.cmd("dump_row_loading")
+    fake = trace[0].get("stats", {}) if trace else {}
     residue = {}
     if health.get("cloudLaneHeld") or health.get("cloudParsesPending"):
         residue["health"] = health
@@ -627,14 +667,8 @@ def loading_residue(ctx):
 
 
 def wait_for_loading_settlement(ctx, timeout=WAIT_TIMEOUT):
-    deadline = time.monotonic() + timeout
-    residue = {}
-    while time.monotonic() < deadline:
-        residue = loading_residue(ctx)
-        if not residue:
-            return
-        time.sleep(POLL)
-    raise Failed(f"loading machinery did not settle inside {timeout:.0f}s: {residue}")
+    ctx.poll("the loading machinery to settle", lambda: loading_residue(ctx),
+             lambda residue: not residue, timeout)
 
 
 def join_live_scan_with_playback(ctx, target_start, row_index, timeout=8):
@@ -905,11 +939,12 @@ def s3_successor_materializes_once(ctx):
                  lambda ev: events_of(ev, event="completed", file=successor))
     wait_for_playlist_resolution(ctx, timeout=60)
     wait_for_loading_settlement(ctx)
-    events = ctx.trace()
+    dump = ctx.cmd("dump_cloud_trace")
+    events = dump.get("events", [])
     lifecycle_error = single_successful_transfer_error(events, successor)
     if lifecycle_error:
         raise Failed(lifecycle_error)
-    if ctx.stats().get("metadataOverlapTransfers"):
+    if dump.get("stats", {}).get("metadataOverlapTransfers"):
         raise Failed("the metadata lane downloaded a file another role was already downloading")
     role = events_of(events, event="completed", file=successor)[0]["role"]
     return f"successor {successor} materialized exactly once (via {role})"
@@ -1239,11 +1274,12 @@ def s7_stand_aside_and_no_stranding(ctx):
         time.sleep(POLL)
     if not landed:
         raise Failed(f"play aimed at the active scan target never landed paused: {target}")
-    target_requests = events_of(ctx.trace(), event="requested", file=target)
+    dump = ctx.cmd("dump_cloud_trace")
+    target_requests = events_of(dump.get("events", []), event="requested", file=target)
     if len(target_requests) != 1:
         raise Failed(f"joining {target} produced {len(target_requests)} provider "
                      f"requests instead of reusing the live scan claim")
-    if ctx.stats().get("metadataOverlapTransfers"):
+    if dump.get("stats", {}).get("metadataOverlapTransfers"):
         raise Failed("the metadata lane downloaded a file another role was already downloading")
     # The serial scan may still owe a 4s transfer per row.
     resolution_timeout = max(60, len(rows) * 4.5 + 10)
@@ -1604,11 +1640,12 @@ def s13_one_download_per_claimed_file(ctx):
     if not landed:
         raise Failed(f"play of the active scan target never landed paused: {target}")
     ctx.settle(1)
-    overlaps = ctx.stats().get("metadataOverlapTransfers", 0)
+    dump = ctx.cmd("dump_cloud_trace")
+    overlaps = dump.get("stats", {}).get("metadataOverlapTransfers", 0)
     if overlaps:
         raise Failed(f"the metadata lane downloaded a file another role was "
                      f"already downloading {overlaps} time(s)")
-    requests = events_of(ctx.trace(), event="requested", file=target)
+    requests = events_of(dump.get("events", []), event="requested", file=target)
     if len(requests) != 1:
         raise Failed(f"active scan join for {target} produced {len(requests)} "
                      "provider requests")
@@ -1892,8 +1929,8 @@ def s19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
     ctx.cmd("clear_cloud_trace")
     ctx.settle(8)
 
-    materialization = ctx.materialization()
     health = ctx.health()
+    materialization = ctx.materialization(health)
     scan = health.get("scanLane", {})
     demand = len(scan.get("pending", [])) + len(scan.get("delayed", [])) \
             + int(bool(scan.get("inFlight")))
@@ -2070,9 +2107,9 @@ def s21_the_library_converges(ctx):
 # Real provider
 #
 # REAL PROVIDER: NO FAKE, SO NO TRACE. The transfer registry
-# (dump_row_loading), sampled, stands in for the provider's edges. A file's
-# arrival in a sample replaces `requested` and `started`, and the sample index
-# replaces the trace sequence. The coordinator's cumulative counters give the
+# (dump_row_loading), sampled, stands in for the provider's edges.
+# sample_events() projects the samples into the trace's event form, so the
+# trace helpers serve both modes. The coordinator's cumulative counters give the
 # rest of the order, and they never go backwards. The file's own SF_DATALESS
 # says whether its bytes arrived.
 #
@@ -2131,39 +2168,6 @@ def app_dataless_error(diag, folders):
     return None
 
 
-def registry_arrivals(samples):
-    """[(sample index, file)]: each file's arrival in the registry, in order.
-    A file that leaves and comes back arrives twice."""
-    arrivals, before = [], set()
-    for entry in samples:
-        now = set(entry["files"])
-        arrivals.extend((entry["n"], name) for name in sorted(now - before))
-        before = now
-    return arrivals
-
-
-def arrival_order(samples, since=0):
-    return [name for n, name in registry_arrivals(samples) if n >= since]
-
-
-def arrived_under_hold(samples, allowed):
-    """Files that arrived between two samples that both read the hold, other
-    than the foreground's own.
-
-    The sampled form of foreground contention. A background transfer that
-    began before the hold rose arrives in a sample whose predecessor read no
-    hold, so it is not counted. A hold that fell and rose again between two
-    samples hides an arrival. So this can miss contention, but it never
-    invents it.
-    """
-    hits = []
-    for before, after in zip(samples, samples[1:]):
-        if before["held"] and after["held"]:
-            hits.extend(name for name in sorted(set(after["files"]) - set(before["files"]))
-                        if name not in allowed)
-    return hits
-
-
 def counter_regressions(before, after):
     return {key: (before.get(key, 0), after.get(key, 0)) for key in REAL_COUNTERS
             if after.get(key, 0) < before.get(key, 0)}
@@ -2172,12 +2176,6 @@ def counter_regressions(before, after):
 def cloud_violations(reply):
     return [violation for violation in reply.get("violations", [])
             if str(violation.get("id", "")).startswith("cloud.")]
-
-
-def fmt_samples(samples, limit=40):
-    lines = [f"  {entry['n']:>4} {'held' if entry['held'] else '    '} "
-             f"{', '.join(entry['files']) or '-'}" for entry in samples[-limit:]]
-    return "\n".join(lines) or "  (no samples)"
 
 
 def real_audio_files(folders):
@@ -2265,21 +2263,13 @@ def real_path(ctx, name):
     raise Failed(f"{name} is not a corpus file")
 
 
-def current_name(ctx):
-    return Path((ctx.state().get("currentTrack") or {}).get("url", "")).name
-
-
 def real_pick(ctx):
     """(rows, picked) once the open has listed its rows and picked one."""
-    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
-    playlist = {}
-    while time.monotonic() < deadline:
-        playlist = ctx.playlist()
-        rows, index = playlist.get("files", []), playlist.get("currentIndex")
-        if rows and isinstance(index, int) and 0 <= index < len(rows):
-            return rows, rows[index]
-        time.sleep(POLL)
-    raise Failed(f"the open never listed and picked a row: {playlist}")
+    playlist = ctx.poll("the open to list and pick a row", ctx.playlist,
+                        lambda p: isinstance(p.get("currentIndex"), int)
+                        and 0 <= p["currentIndex"] < len(p.get("files", [])),
+                        REAL_SETTLE)
+    return playlist["files"], playlist["files"][playlist["currentIndex"]]
 
 
 def watch_live(ctx, name, describe):
@@ -2300,16 +2290,10 @@ def wait_landed(ctx, name, describe):
 
 
 def wait_player(ctx, name, states):
-    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
-    state = {}
-    while time.monotonic() < deadline:
-        state = ctx.state()
-        if (current_name(ctx) == name
-                and state.get("player", {}).get("state") in states):
-            return state
-        time.sleep(POLL)
-    raise Failed(f"the player never landed {'/'.join(states)} on {name}: "
-                 f"{state.get('player')}")
+    return ctx.poll(f"the player to land {'/'.join(states)} on {name}", ctx.state,
+                    lambda state: state.get("player", {}).get("state") in states
+                    and Path((state.get("currentTrack") or {}).get("url", "")).name
+                    == name, REAL_SETTLE)
 
 
 def real_park(ctx, name):
@@ -2320,7 +2304,8 @@ def real_park(ctx, name):
 
 
 def assert_no_sampled_contention(ctx, allowed):
-    hits = arrived_under_hold(ctx.samples, set(allowed))
+    hits = [e["file"] for e in events_of(sample_events(ctx.samples), event="started")
+            if e["held"] and e["file"] not in allowed]
     if hits:
         raise Failed(f"background transfer(s) arrived under the foreground hold: {hits}")
 
@@ -2329,7 +2314,7 @@ def watch_resolution(ctx, rows):
     seconds = max(REAL_TRANSFER, len(rows) * 5)
     ctx.watch(f"all {len(rows)} rows to resolve",
               lambda s: ctx.playlist().get("resolvedRows", 0) >= len(rows), seconds)
-    wait_for_loading_settlement(ctx, timeout=REAL_SETTLE * ctx.wait_scale)
+    wait_for_loading_settlement(ctx, timeout=REAL_SETTLE)
 
 
 def watch_projection(ctx, name, index):
@@ -2364,8 +2349,8 @@ def r1_replacement_retires_the_old_folder(ctx):
     b_picked = sorted(set(arrived["files"]) & b_names)[0]
     ctx.watch("every A transfer to leave the registry",
               lambda s: not set(s["files"]) & a_names, REAL_SETTLE)
-    late = [name for n, name in registry_arrivals(ctx.samples)
-            if n > arrived["n"] and name in a_names]
+    late = [name for name in started_order(sample_events(ctx.samples, arrived["n"] + 1))
+            if name in a_names]
     if late:
         raise Failed(f"the replaced folder started transfers after B's open: {late}")
     assert_no_sampled_contention(ctx, {a_picked, b_picked})
@@ -2408,10 +2393,10 @@ def r3_successor_materializes_once(ctx):
     ctx.watch(f"the successor {successor} to land",
               lambda s: not file_is_dataless(path), REAL_TRANSFER * 2)
     watch_resolution(ctx, rows)
-    arrivals = [name for _, name in registry_arrivals(ctx.samples) if name == successor]
-    if len(arrivals) > 1:
-        raise Failed(f"{successor} went on the wire {len(arrivals)} times")
-    return f"successor {successor} landed with {len(arrivals)} observed transfer(s)"
+    arrivals = started_order(sample_events(ctx.samples)).count(successor)
+    if arrivals > 1:
+        raise Failed(f"{successor} went on the wire {arrivals} times")
+    return f"successor {successor} landed with {arrivals} observed transfer(s)"
 
 
 def r4a_rapid_next_keeps_the_hold(ctx):
@@ -2422,15 +2407,9 @@ def r4a_rapid_next_keeps_the_hold(ctx):
     moves = min(8, len(rows) - start - 1)
     for _ in range(8):
         ctx.cmd("next")
-    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
-    index = None
-    while time.monotonic() < deadline:
-        index = ctx.playlist().get("currentIndex")
-        if index == start + moves:
-            break
-        time.sleep(POLL)
-    else:
-        raise Failed(f"rapid next landed index {index}. Expected {start + moves}")
+    index = start + moves
+    ctx.poll(f"rapid next to land on index {index}", ctx.playlist,
+             lambda playlist: playlist.get("currentIndex") == index, REAL_SETTLE)
     final = rows[index]
     wait_landed(ctx, final, f"the final pick {final} to land")
     superseded = set(rows[start:index])
@@ -2449,7 +2428,7 @@ def r5_lane_follows_rank_then_index(ctx):
     real_park(ctx, played)
     mark = len(ctx.samples)
     watch_resolution(ctx, rows)
-    order = arrival_order(ctx.samples, mark)
+    order = started_order(sample_events(ctx.samples, mark))
     duplicate = duplicate_order_error(order)
     if duplicate:
         raise Failed(duplicate)
@@ -2473,9 +2452,9 @@ def r6_first_scan_pick_is_neighborhood_ranked(ctx):
     wait_landed(ctx, played, f"{played} to land")
     real_park(ctx, played)
     mark = len(ctx.samples)
-    ctx.watch("the first scan transfer", lambda s: arrival_order(ctx.samples, mark),
+    ctx.watch("the first scan transfer", lambda s: started_order(sample_events(ctx.samples, mark)),
               REAL_TRANSFER)
-    first = arrival_order(ctx.samples, mark)[0]
+    first = started_order(sample_events(ctx.samples, mark))[0]
     neighborhood = {rows[i] for i in (3, 4, 1) if i < len(rows)}
     if first not in neighborhood:
         raise Failed(f"the first scan pick was {first}, outside {sorted(neighborhood)}")
@@ -2501,10 +2480,9 @@ def r7_play_joins_the_live_scan(ctx):
         raise NotStaged(f"the scan of {target} finished before playback could join it")
     wait_landed(ctx, target, f"the joined {target} to land")
     real_park(ctx, target)
-    arrivals = [name for n, name in registry_arrivals(ctx.samples)
-                if n >= mark and name == target]
-    if len(arrivals) != 1:
-        raise Failed(f"{target} went on the wire {len(arrivals)} times. The play "
+    arrivals = started_order(sample_events(ctx.samples, mark)).count(target)
+    if arrivals != 1:
+        raise Failed(f"{target} went on the wire {arrivals} times. The play "
                      "did not join the scan's claim")
     if ctx.materialization().get("requestsYielded", 0) != yielded:
         raise Failed(f"joining {target} yielded a claim instead of sharing it")
@@ -2525,10 +2503,9 @@ def r11_append_preserves_and_fast_path(ctx):
         raise NotStaged(f"{names[0]} landed before the appends finished")
     wait_landed(ctx, names[0], f"{names[0]} to land")
     real_park(ctx, names[0])
-    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
-    while time.monotonic() < deadline and ctx.playlist().get("count") != 4:
-        time.sleep(POLL)
-    error = exact_playlist_error(ctx.playlist().get("files"), names)
+    playlist = ctx.poll("the three appends to land", ctx.playlist,
+                        lambda p: p.get("count") == 4, REAL_SETTLE)
+    error = exact_playlist_error(playlist.get("files"), names)
     if error:
         raise Failed(error)
     ctx.watch("an appended file to land on disk",
@@ -2539,10 +2516,8 @@ def r11_append_preserves_and_fast_path(ctx):
     ctx.cmd("play_index", names.index(target))
     ctx.cmd("play_pause")
     wait_player(ctx, target, ("paused",))
-    deadline = time.monotonic() + 1.0 * ctx.wait_scale
-    while time.monotonic() < deadline:
-        ctx.sample()
-    if target in arrival_order(ctx.samples, mark):
+    ctx.sample_for(1.0)
+    if target in started_order(sample_events(ctx.samples, mark)):
         raise Failed(f"replaying the local {target} went on the wire")
     return f"three appends preserved {names[0]}, and replaying {target} cost no transfer"
 
@@ -2555,15 +2530,9 @@ def r14_storm_then_close_drains(ctx):
         ctx.cmd("play_index", index)
     b_names = {path.name for path in real_audio_files([ctx.folders[1]])}
     ctx.cmd("open", str(ctx.folders[1]))
-    deadline = time.monotonic() + REAL_SETTLE * ctx.wait_scale
-    b_rows = []
-    while time.monotonic() < deadline:
-        b_rows = ctx.playlist().get("files", [])
-        if playlist_belongs_to_folder(b_rows, b_names):
-            break
-        time.sleep(POLL)
-    else:
-        raise Failed(f"the replacement playlist never became folder B: {b_rows}")
+    b_rows = ctx.poll("the replacement playlist to become folder B", ctx.playlist,
+                      lambda p: playlist_belongs_to_folder(p.get("files", []), b_names),
+                      REAL_SETTLE)["files"]
     for index in range(min(6, len(b_rows))):
         ctx.cmd("play_index", index)
     ctx.sample()
@@ -2580,10 +2549,7 @@ def r16_close_during_a_live_transfer_starts_nothing(ctx):
     watch_live(ctx, picked, f"{picked} on the wire")
     ctx.quiesce()
     mark = len(ctx.samples)
-    deadline = time.monotonic() + 3.0 * ctx.wait_scale
-    while time.monotonic() < deadline:
-        ctx.sample()
-        time.sleep(POLL)
+    ctx.sample_for(3.0)
     seen = sorted({name for entry in ctx.samples[mark:] for name in entry["files"]})
     if seen:
         raise Failed(f"transfers were on the wire after Close: {seen}")
@@ -2603,9 +2569,9 @@ def r17_play_pause_during_loading_lands_parked(ctx):
     ctx.cmd("play_pause")
     wait_landed(ctx, picked, f"{picked} to land after the toggle")
     wait_player(ctx, picked, ("paused",))
-    arrivals = [name for _, name in registry_arrivals(ctx.samples) if name == picked]
-    if len(arrivals) != 1:
-        raise Failed(f"{picked} went on the wire {len(arrivals)} times")
+    arrivals = started_order(sample_events(ctx.samples)).count(picked)
+    if arrivals != 1:
+        raise Failed(f"{picked} went on the wire {arrivals} times")
     return f"{picked} landed parked, and its one transfer ran to term"
 
 
@@ -2618,7 +2584,7 @@ def r19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
     mark = len(ctx.samples)
     try:
         ctx.wait_for_hung_open(rows[1], "the successor's handle open to wedge",
-                               timeout=REAL_TRANSFER * 2 * ctx.wait_scale)
+                               timeout=REAL_TRANSFER * 2)
         # Paused, so the wedged successor never becomes the playing open.
         if ctx.state().get("player", {}).get("state") == "playing":
             ctx.cmd("play_pause")
@@ -2626,7 +2592,7 @@ def r19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
         mark = len(ctx.samples)
         try:
             ctx.watch("the sweep to move past the wedged open",
-                      lambda s: len(set(arrival_order(ctx.samples, mark))) >= 2
+                      lambda s: len(set(started_order(sample_events(ctx.samples, mark)))) >= 2
                       and ctx.playlist().get("resolvedRows", 0) > resolved_before,
                       REAL_TRANSFER)
         except Failed:
@@ -2634,7 +2600,7 @@ def r19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
             if materialization.get("foregroundTransferActive"):
                 raise Failed("the foreground rule was still in force, so this "
                              "scenario proves nothing")
-            raise Failed(f"only {len(set(arrival_order(ctx.samples, mark)))} scan "
+            raise Failed(f"only {len(set(started_order(sample_events(ctx.samples, mark))))} scan "
                          f"transfer(s) arrived, and resolved rows stayed at "
                          f"{resolved_before}. The wedged open "
                          f"({materialization.get('handleOpensInFlight')} in flight) "
@@ -2643,7 +2609,7 @@ def r19_a_wedged_successor_open_does_not_starve_the_sweep(ctx):
             raise Failed("the successor open was no longer wedged at the sample")
     finally:
         ctx.cmd("hang_open", "release")
-    return (f"{len(set(arrival_order(ctx.samples, mark)))} scan transfers moved "
+    return (f"{len(set(started_order(sample_events(ctx.samples, mark))))} scan transfers moved "
             "the sweep while the successor open stayed wedged")
 
 
@@ -2673,7 +2639,7 @@ def r21_the_library_converges(ctx):
     if len(rows) < 6:
         raise Failed(f"convergence needs at least six rows: {rows}")
     watch_resolution(ctx, rows)
-    if not registry_arrivals(ctx.samples):
+    if not started_order(sample_events(ctx.samples)):
         raise NotStaged("every row resolved with no transfer observed")
     dataless = [name for name in rows if file_is_dataless(real_path(ctx, name))]
     if dataless:
@@ -2681,7 +2647,7 @@ def r21_the_library_converges(ctx):
     return f"all {len(rows)} rows resolved, and every file is local"
 
 
-# The fourth field is the real mode: its scenario, or why it is fake-only.
+# The fourth field is the real mode's scenario, or None for FAKE_ONLY.
 SCENARIOS = [
     ("S1", s1_replacement_cancels_the_old_scan, False,
      r1_replacement_retires_the_old_folder),
@@ -2689,44 +2655,48 @@ SCENARIOS = [
      r2_foreground_excludes_background),
     ("S3", s3_successor_materializes_once, False, r3_successor_materializes_once),
     ("S4a", s4a_rapid_next_keeps_the_hold, False, r4a_rapid_next_keeps_the_hold),
-    ("S4b", s4b_replay_stays_out_of_error_while_its_transfer_is_live, False,
-     "every replay must pay a fresh transfer of a known length (sticky)"),
+    ("S4b", s4b_replay_stays_out_of_error_while_its_transfer_is_live, False, None),
     ("S5", s5_lane_follows_rank_then_index, False, r5_lane_follows_rank_then_index),
     ("S6", s6_first_scan_pick_is_neighborhood_ranked, False,
      r6_first_scan_pick_is_neighborhood_ranked),
     ("S7", s7_stand_aside_and_no_stranding, False, r7_play_joins_the_live_scan),
-    ("S8a", s8a_no_progress_times_out, False,
-     "needs a transfer that reports no progress (progress=none)"),
-    ("S8b", s8b_subpercent_progress_survives, False,
-     "needs a 600 s transfer that moves under 1% a second (progress=linear)"),
-    ("S8c", s8c_a_stall_after_progress_times_out, False,
-     "needs a transfer that stalls at 40% (progress=stall)"),
-    ("S10", s10_provider_failure_then_close_settles_clean, False,
-     "needs a scripted provider failure (fail=)"),
+    ("S8a", s8a_no_progress_times_out, False, None),
+    ("S8b", s8b_subpercent_progress_survives, False, None),
+    ("S8c", s8c_a_stall_after_progress_times_out, False, None),
+    ("S10", s10_provider_failure_then_close_settles_clean, False, None),
     ("S11", s11_append_preserves_and_fast_path, False,
      r11_append_preserves_and_fast_path),
-    ("S12a", s12a_a_dead_timeout_is_not_chased, False,
-     "needs an open that times out with no progress (progress=none)"),
-    ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False,
-     "needs an open that stalls at 40% and times out (progress=stall)"),
-    ("S13", s13_one_download_per_claimed_file, False,
-     "its ground truth is the fake's overlap count. S7 owns the observable join"),
+    ("S12a", s12a_a_dead_timeout_is_not_chased, False, None),
+    ("S12b", s12b_a_stalled_timeout_is_not_chased_either, False, None),
+    ("S13", s13_one_download_per_claimed_file, False, None),
     ("S14", s14_storm_then_close_drains_loading_state, False,
      r14_storm_then_close_drains),
-    ("S15", s15_a_failing_file_spends_its_budget_and_stops, False,
-     "needs a file whose every transfer fails (fail=)"),
+    ("S15", s15_a_failing_file_spends_its_budget_and_stops, False, None),
     ("S16", s16_close_during_a_live_transfer_starts_nothing, False,
      r16_close_during_a_live_transfer_starts_nothing),
     ("S17", s17_play_pause_during_loading_lands_parked, False,
      r17_play_pause_during_loading_lands_parked),
-    ("S18", s18_a_wedged_open_still_starts_the_sweep, False,
-     "needs a transfer that never ends (300 s, progress=stall)"),
+    ("S18", s18_a_wedged_open_still_starts_the_sweep, False, None),
     ("S19", s19_a_wedged_successor_open_does_not_starve_the_sweep, False,
      r19_a_wedged_successor_open_does_not_starve_the_sweep),
     ("S20", s20_row_loading_tracks_live_provider_transfers, False,
      r20_row_loading_tracks_live_transfers),
     ("S21", s21_the_library_converges, False, r21_the_library_converges),
 ]
+
+# Why each fake-only scenario has no real mode, reported as its SKIP.
+FAKE_ONLY = {
+    "S4b": "every replay must pay a fresh transfer of a known length (sticky)",
+    "S8a": "needs a transfer that reports no progress (progress=none)",
+    "S8b": "needs a 600 s transfer that moves under 1% a second (progress=linear)",
+    "S8c": "needs a transfer that stalls at 40% (progress=stall)",
+    "S10": "needs a scripted provider failure (fail=)",
+    "S12a": "needs an open that times out with no progress (progress=none)",
+    "S12b": "needs an open that stalls at 40% and times out (progress=stall)",
+    "S13": "its ground truth is the fake's overlap count. S7 owns the observable join",
+    "S15": "needs a file whose every transfer fails (fail=)",
+    "S18": "needs a transfer that never ends (300 s, progress=stall)",
+}
 
 
 def scenario_plan(wanted, provider="fake"):
@@ -2747,10 +2717,10 @@ def scenario_plan(wanted, provider="fake"):
         label = f"{ident} {fn.__name__.split('_', 1)[1].replace('_', ' ')}"
         if provider == "fake":
             plan.append((ident, label, fn, expected_fail, None))
-        elif callable(real):
+        elif real:
             plan.append((ident, label, real, False, None))
         else:
-            plan.append((ident, label, None, False, f"fake-only: {real}"))
+            plan.append((ident, label, None, False, f"fake-only: {FAKE_ONLY[ident]}"))
     return plan
 
 
@@ -2887,9 +2857,9 @@ def run_scenario(ctx, run, expect_fail):
 
 
 def scenario_dump(ctx):
-    """The evidence printed beside a failure: the registry log or the trace."""
+    """The evidence printed beside a failure: the trace, or the samples'."""
     if ctx.real:
-        return fmt_samples(ctx.samples)
+        return fmt_trace(sample_events(ctx.samples), limit=40)
     try:
         return fmt_trace(ctx.trace(), limit=40)
     except Exception:
