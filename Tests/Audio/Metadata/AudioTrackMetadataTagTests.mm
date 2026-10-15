@@ -131,9 +131,8 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
 }
 
 // TagLib 2 reads an MPEG file's APE tag only under TAGLIB_WITH_APE, which
-// the vendored taglib_config.h does not define. The parse then ignores it.
+// the vendored taglib_config.h defines (MP3Gain writes one).
 - (void)testMP3WithAnAPETag {
-    XCTExpectFailure(@"TAGLIB_WITH_APE is off in Vibe/ThirdParty/taglib/taglib_config.h");
     [self assertFixture:VibeTagFixtureMP3APE fileType:VibeAudioFileFormatMP3 rate:44100 duration:kMP3Duration];
 }
 
