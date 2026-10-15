@@ -217,23 +217,6 @@ static NSData *Mutate(NSData *original, NSRange region, FuzzRandom *random, NSSt
     return data;
 }
 
-// TRAP: CoreAudio's CAF info parser (parseInfoStringsChunk, reached through
-// kAudioFilePropertyInfoDictionary) loops over the chunk's entry count
-// without checking it against the chunk. A count of 0xF90000EE held the
-// parse past the hang guard, and afinfo hangs the same way. Nothing in Vibe
-// bounds it, so the fuzz keeps each count at the fixture's own. Without the
-// cap, VIBE_FUZZ_SEED=34462054671540093 and VIBE_FUZZ_ROUNDS=1 reproduce it.
-static NSData *CAFWithInfoCountsAtMost(NSData *data, uint32_t count) {
-    NSMutableData *capped = [data mutableCopy];
-    uint8_t *bytes = (uint8_t *)capped.mutableBytes;
-    for (NSUInteger at = 0; at + 16 <= capped.length; at++) {
-        if (memcmp(bytes + at, "info", 4) == 0 && LoadBE32(bytes + at + 12) > count) {
-            Store32(bytes + at + 12, count, NO);
-        }
-    }
-    return capped;
-}
-
 @interface AudioTrackMetadataFuzzTests : XCTestCase
 @end
 
@@ -332,9 +315,6 @@ static const NSTimeInterval kParseBound = 3;
             for (int warm = 0; warm < 4; warm++) FuzzNext(&random); // spread nearby seeds
             NSString *mutation = @"none";
             NSData *mutant = Mutate(original, region, &random, &mutation);
-            if (fixture == VibeTagFixtureCAF) {
-                mutant = CAFWithInfoCountsAtMost(mutant, 2);
-            }
             XCTAssertTrue([mutant writeToURL:mutantURL atomically:NO]);
             NSString *label = [NSString stringWithFormat:@"%@ seed %llu: %@", name, seed, mutation];
 

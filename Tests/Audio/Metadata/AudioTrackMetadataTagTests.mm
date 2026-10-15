@@ -180,6 +180,40 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
     [self assertFixture:VibeTagFixtureCAF fileType:VibeAudioFileFormatCAF rate:44100 duration:0.5];
 }
 
+// The fuzz's find, VIBE_FUZZ_SEED=34462054683540093: its flips forge the info
+// chunk's size and set its entry count to 0xF90000EE, and CoreAudio's info
+// parser never returned. The count alone does not hang it. The chunk is
+// refused before CoreAudio reads it, and the format facts stay.
+- (void)testCAFInfoChunkWithAnImpossibleCountIsSkipped {
+    NSURL *url = [self write:VibeTagFixtureCAF art:nil];
+    NSMutableData *data = [NSMutableData dataWithContentsOfURL:url];
+    uint8_t *bytes = (uint8_t *)data.mutableBytes;
+    XCTAssertGreaterThan(data.length, 112u);
+    XCTAssertEqual(memcmp(bytes + 52, "info", 4), 0, @"the fixture's layout moved");
+    static const struct { NSUInteger at; uint8_t mask; } kFlips[] = {
+            {85, 0xF6}, {63, 0xD8}, {64, 0xF9}, {70, 0x50}, {67, 0xEC}, {84, 0xE4}, {111, 0xE8}, {78, 0xF7}};
+    for (const auto &flip : kFlips) bytes[flip.at] ^= flip.mask;
+    XCTAssertEqual(CFSwapInt32BigToHost(*(const uint32_t *)(bytes + 64)), 0xF90000EEu);
+    XCTAssertTrue([data writeToURL:url atomically:NO]);
+
+    __block AudioTrackMetadata *metadata = nil;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        metadata = Parse(url, NULL);
+        dispatch_semaphore_signal(done);
+    });
+    XCTAssertEqual(dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW,
+                                                               (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))),
+                   0, @"the parse never returned");
+    XCTAssertTrue(metadata.parsedOK);
+    XCTAssertEqualObjects(metadata.fileType, VibeAudioFileFormatCAF);
+    XCTAssertEqualObjects(metadata.sampleRate, @44100);
+    // The forged size hides the chunks after the info chunk, so CoreAudio
+    // estimates no duration. That is the mutation's doing, not the guard's.
+    XCTAssertEqualObjects(metadata.title, @"tagged", @"the filename stands in");
+    XCTAssertNil(metadata.artist);
+}
+
 - (void)testW64 {
     [self assertFixture:VibeTagFixtureW64 fileType:VibeAudioFileFormatW64 rate:44100 duration:0.5];
 }
