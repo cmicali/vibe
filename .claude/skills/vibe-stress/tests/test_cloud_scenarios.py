@@ -832,8 +832,8 @@ class ScriptLineTests(unittest.TestCase):
             stress.ios_command({}, journal, ["dump_audio_path"])
         records = [json.loads(line) for line in journal.getvalue().splitlines()]
         self.assertEqual([r["event"] for r in records], ["begin", "reply"])
-        self.assertEqual(records[-1]["code"], 124)
-        self.assertEqual(records[-1]["command"], ["dump_audio_path"])
+        self.assertEqual(records[-1]["exit"], 124)
+        self.assertEqual(records[-1]["argv"], ["dump_audio_path"])
         kill.assert_called_once_with(1234, stress.signal.SIGTERM)
 
     def test_ios_interruption_is_journaled_before_cleanup(self):
@@ -843,7 +843,7 @@ class ScriptLineTests(unittest.TestCase):
         with mock.patch.object(stress.subprocess, "Popen", return_value=proc), \
              mock.patch.object(stress.os, "killpg"), self.assertRaises(KeyboardInterrupt):
             stress.ios_command({}, journal, ["play_index", "0"])
-        self.assertEqual(json.loads(journal.getvalue().splitlines()[-1])["code"], 130)
+        self.assertEqual(json.loads(journal.getvalue().splitlines()[-1])["exit"], 130)
 
 
     def test_ios_client_cancellation_retracts_only_its_own_requests(self):

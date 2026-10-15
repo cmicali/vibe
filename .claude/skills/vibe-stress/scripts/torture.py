@@ -196,11 +196,12 @@ PROGRESS_INTERVAL = 0.6
 def settled_playing(state):
     """The playing track's url when the player is playing a settled open,
     else None: paused, stopped, buffering or still loading is not scored."""
-    player = (state or {}).get("player") or {}
+    state = state or {}
+    player = state.get("player") or {}
     if (player.get("state") != "playing" or player.get("buffering")
-            or ((state or {}).get("ui") or {}).get("displayState") == "loading"):
+            or (state.get("ui") or {}).get("displayState") == "loading"):
         return None
-    return ((state or {}).get("currentTrack") or {}).get("url")
+    return (state.get("currentTrack") or {}).get("url")
 
 
 def position_stalled(first, second):
