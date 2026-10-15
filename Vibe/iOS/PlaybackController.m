@@ -580,40 +580,38 @@ static const NSUInteger kUIUpdateHz = 3;
 
 - (void)seekToProgress:(float)progress {
     progress = MIN(MAX(progress, 0), 1);
-    NSTimeInterval duration = _player.duration;
-    if (duration > 0) {
-        _pendingSeekProgress = progress;
-        _seekInFlight = YES;
-        [_player seekToPosition:duration * progress];
-        return;
-    }
-    // With no player duration, use metadata. A parked seek opens paused.
-    // An in-flight open keeps its existing play intent.
     AudioTrack *track = _playlist.currentTrack;
-    if (!track || !(_parked || _player.isLoading)) {
+    NSTimeInterval playerDuration = _player.duration;
+    VibePlayerScrubAction action = VibePlayerScrubActionFor(playerDuration, track != nil, _parked,
+                                                            _player.isLoading, track.duration);
+    if (action == VibePlayerScrubActionIgnore) {
         return;
     }
     _pendingSeekProgress = progress;
     _seekInFlight = YES;
-    if (track.duration <= 0) {
-        // Keep the target until metadata supplies a parked track's duration.
-        return;
+    NSTimeInterval duration = VibePlayerScreenDuration(playerDuration, track.duration);
+    switch (action) {
+        case VibePlayerScrubActionSeekPlayer:
+            [_player seekToPosition:duration * progress];
+            break;
+        case VibePlayerScrubActionOpenParked:
+            // Holds the waveform on the target through the open. A second seek
+            // rebinds the same-file request rather than opening again. The
+            // rule answers this only with a track; the test is the analyzer's.
+            if (track) {
+                [self openParkedTrack:track atPosition:duration * progress];
+                [self notifyDidChangePlayState];
+            }
+            break;
+        case VibePlayerScrubActionHold:
+        case VibePlayerScrubActionIgnore:
+            // A parked target lands in didLoadMetadata:.
+            break;
     }
-    if (_parked) {
-        // Holds the waveform on the target through the open. A second seek
-        // rebinds the same-file request rather than opening again.
-        [self openParkedTrack:track atPosition:track.duration * progress];
-        [self notifyDidChangePlayState];
-        return;
-    }
-    [_player seekToPosition:track.duration * progress];
 }
 
 - (void)seekToPosition:(NSTimeInterval)position {
-    NSTimeInterval duration = _player.duration;
-    if (duration <= 0) {
-        duration = _playlist.currentTrack.duration;
-    }
+    NSTimeInterval duration = VibePlayerScreenDuration(_player.duration, _playlist.currentTrack.duration);
     if (duration > 0) {
         [self seekToProgress:(float)(position / duration)];
         return;

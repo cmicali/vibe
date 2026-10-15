@@ -63,6 +63,7 @@
     // B's first track is still opening.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
+    VibeScheduler               _metadataLoadScheduler;
     // The header's notice title (showNotice:naming:), and the generation that
     // pairs the notice with its own timer. noticeStatus is the notice.
     NSString*                   _noticeTitle;
@@ -83,10 +84,27 @@
     MainWindow *window = [[MainWindow alloc] init];
     if((self = [super initWithWindow:window])) {
         _emptyStateSuppressed = YES; // before the first updateUI
+        _metadataLoadScheduler = ^(NSTimeInterval delay, dispatch_block_t block) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), block);
+        };
         // windowDidLoad hands it the audio player.
         self.devicesMenuController = [[OutputDevicesMenuController alloc] init];
         [self buildContentInWindow:window];
         [self windowDidLoad];
+    }
+    return self;
+}
+
+- (instancetype)initWithWindow:(NSWindow *)window
+                   audioPlayer:(AudioPlayer *)audioPlayer
+                 metadataCache:(AudioTrackMetadataCache *)metadataCache
+             metadataScheduler:(VibeScheduler)scheduler {
+    if ((self = [super initWithWindow:window])) {
+        _metadataLoadScheduler = [scheduler copy];
+        self.audioPlayer = audioPlayer;
+        self.metadataCache = metadataCache;
+        [self buildPlaylistController];
     }
     return self;
 }
@@ -141,9 +159,7 @@
     self.fileConverter = [[AudioFileConverter alloc] init];
 
     [CloudTransferRegistry.sharedRegistry addObserver:self];
-    self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
-    self.playlistController.levelSource = self;
-    self.playlistController.tableView = self.playlistTableView;
+    [self buildPlaylistController];
 
     _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
 
@@ -166,27 +182,11 @@
     }];
 }
 
-- (void)wireCollaboratorHandlers {
-    // Asked once per request, so a settings change lands on the next load.
-    // The iOS card installs its own, tempo only.
-    self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        AppSettings *settings = AppSettings.sharedInstance;
-        return (VibeWaveformAnalysis){
-            .bpm = settings.analyzeBPM,
-            .key = settings.analyzeKey,
-            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
-        };
-    };
-    _waveformAnalysisWanted = self.waveformCache.analysisProvider();
-
-    // A track change mid-conversion stops the sweep at the next report.
-    __weak MainPlayerController *weakControllerForConvert = self;
-    self.fileConverter.progressHandler = ^(AudioTrack *track, double fraction) {
-        MainPlayerController *strongSelf = weakControllerForConvert;
-        if (strongSelf && track == [strongSelf displayedTrack]) {
-            [strongSelf.trackDisplay setConvertSweepFraction:fraction];
-        }
-    };
+// The playlist and the four handlers that make the shell its follow-up.
+- (void)buildPlaylistController {
+    self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
+    self.playlistController.levelSource = self;
+    self.playlistController.tableView = self.playlistTableView;
 
     // The player's async events lag a slow open, so the header refreshes at
     // submission, off the playlist's one play funnel.
@@ -236,6 +236,29 @@
                                    generation:controller.playlistController.structureGeneration];
         [undoManager setActionName:STR_MENU_EDIT_REORDER];
         [controller reconcileAfterPlaylistStructureEdit];
+    };
+}
+
+- (void)wireCollaboratorHandlers {
+    // Asked once per request, so a settings change lands on the next load.
+    // The iOS card installs its own, tempo only.
+    self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
+        AppSettings *settings = AppSettings.sharedInstance;
+        return (VibeWaveformAnalysis){
+            .bpm = settings.analyzeBPM,
+            .key = settings.analyzeKey,
+            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
+        };
+    };
+    _waveformAnalysisWanted = self.waveformCache.analysisProvider();
+
+    // A track change mid-conversion stops the sweep at the next report.
+    __weak MainPlayerController *weakControllerForConvert = self;
+    self.fileConverter.progressHandler = ^(AudioTrack *track, double fraction) {
+        MainPlayerController *strongSelf = weakControllerForConvert;
+        if (strongSelf && track == [strongSelf displayedTrack]) {
+            [strongSelf.trackDisplay setConvertSweepFraction:fraction];
+        }
     };
 
     __weak MainPlayerController *weakControllerForArt = self;
@@ -672,11 +695,14 @@ static const NSTimeInterval kNoticeSeconds = 4;
 
 #pragma mark - Deferred metadata load / error mask
 
+// The fallback for a play that never settles.
+static const NSTimeInterval kDeferredMetadataLoadBoundSeconds = 2;
+
 - (void)scheduleDeferredMetadataLoad {
     _metadataLoadPending = YES;
     NSUInteger generation = ++_metadataLoadGeneration;
     __weak MainPlayerController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    _metadataLoadScheduler(kDeferredMetadataLoadBoundSeconds, ^{
         [weakSelf startPendingMetadataLoadForGeneration:generation];
     });
 }

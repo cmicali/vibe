@@ -13,6 +13,7 @@
 static const NSTimeInterval kDropboxSearchDelay = 0.3;
 
 @implementation DropboxSearch {
+    DropboxMirror *_mirror;
     // files/search_v2's answer to _query.
     NSString *_query;
     NSArray<NSDictionary *> *_entries;
@@ -21,8 +22,13 @@ static const NSTimeInterval kDropboxSearchDelay = 0.3;
 }
 
 - (instancetype)init {
+    return [self initWithMirror:DropboxMirror.shared];
+}
+
+- (instancetype)initWithMirror:(DropboxMirror *)mirror {
     self = [super init];
     if (self) {
+        _mirror = mirror;
         _entries = @[];
         _hits = @[];
         _downloaded = [NSSet set];
@@ -70,7 +76,7 @@ static const NSTimeInterval kDropboxSearchDelay = 0.3;
 - (void)runSearch {
     uint64_t generation = _searchGeneration;
     __weak DropboxSearch *weakSelf = self;
-    [DropboxMirror.shared searchQuery:_query
+    [_mirror searchQuery:_query
                            completion:^(NSArray<NSDictionary *> *entries, NSError *error) {
         DropboxSearch *strongSelf = weakSelf;
         if (!strongSelf || generation != strongSelf->_searchGeneration) {
@@ -94,7 +100,7 @@ static const NSTimeInterval kDropboxSearchDelay = 0.3;
 // the mirror spells another way reads as not downloaded, which errs safe.
 - (void)countDownloadedEntries {
     NSArray<NSDictionary *> *entries = _entries;
-    NSURL *account = DropboxMirror.shared.accountURL;
+    NSURL *account = _mirror.accountURL;
     uint64_t generation = _searchGeneration;
     __weak DropboxSearch *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
