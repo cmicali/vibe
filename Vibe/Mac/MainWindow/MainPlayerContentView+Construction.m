@@ -81,14 +81,16 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
 // backdrop compounds into a visibly lighter band. Under solid the cover is the
 // whole background; frosted is the same cover with this panel kept over it.
 // The panel and its tint stop at the art's left edge, so a transparent
-// placeholder shows only the window's backdrop, except under the window
-// default artwork, which carries them under the square.
+// placeholder shows only the window's backdrop, except under the window and
+// glyph default artwork, which carry them under the square.
 - (void)applyWindowBackgroundStyle {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     NSString *style = theme.windowBackgroundStyle;
     _backgroundGlassView.hidden = [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_CLEAR] ||
             [style isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
-    CGFloat panelX = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW] ? 0 : kArtSize;
+    BOOL panelUnderArt = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW]
+            || [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH];
+    CGFloat panelX = panelUnderArt ? 0 : kArtSize;
     for (NSView *panel in @[_backgroundGlassView, _headerTintView]) {
         NSRect frame = panel.frame;
         if (frame.origin.x != panelX) {

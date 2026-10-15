@@ -245,14 +245,15 @@ static void FadeLayerToColor(CALayer *layer, NSColor *color) {
                                isDark:dark]);
     // The placeholder is one dynamic image whose pixels follow the drawing
     // appearance, so it is re-sampled under the window's appearance on every
-    // flip. A track's crop is sampled once, on the worker. The clear and
-    // window squares have no pixels: what is under the buttons is the
-    // backdrop, as bright as the appearance.
+    // flip. A track's crop is sampled once, on the worker. The clear, window
+    // and glyph squares have no pixels to speak of: what is under the
+    // buttons is the backdrop, as bright as the appearance.
     if (_showingDefaultArt) {
         NSImage *placeholder = _artworkView.image;
         __block BOOL bandIsDark = dark;
         BOOL bare = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR]
-                || [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW];
+                || [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW]
+                || [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH];
         if (!bare) {
             [self.windowAppearance performAsCurrentDrawingAppearance:^{
                 bandIsDark = VibeImageLowerBandIsDark(placeholder, kTransportBandFraction);

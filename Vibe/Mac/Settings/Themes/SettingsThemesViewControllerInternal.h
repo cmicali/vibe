@@ -43,6 +43,11 @@ static NSString *const kChoiceStandard = @"standard";
     SettingsRowView *_windowTintDarkRow, *_windowTintLightRow;
     NSPopUpButton *_defaultArtworkPopUp;
     SettingsRowView *_defaultArtworkImageRow, *_defaultArtworkDarkRow, *_defaultArtworkLightRow;
+    NSPopUpButton *_defaultArtworkGlyphPopUp;
+    SettingsRowView *_defaultArtworkGlyphRow, *_defaultArtworkGlyphSizeRow;
+    SettingsRowView *_defaultArtworkGlyphDarkRow, *_defaultArtworkGlyphLightRow;
+    NSSlider *_defaultArtworkGlyphSizeSlider; // a VibeDetentSlider
+    NSTextField *_defaultArtworkGlyphSizeValue;
     NSSlider *_cornerRadiusSlider; // a VibeDetentSlider
     NSTextField *_cornerRadiusValue;
     VibeSwitch *_transportButtonsSwitch;
@@ -145,6 +150,8 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)backgroundStyleChanged:(id)sender;
 - (void)windowTintChanged:(id)sender;
 - (void)defaultArtworkChanged:(id)sender;
+- (void)defaultArtworkGlyphChanged:(NSPopUpButton *)sender;
+- (void)defaultArtworkGlyphSizeChanged:(NSSlider *)sender;
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender;
 - (void)cornerRadiusChanged:(id)sender;
 - (void)clearCustomImage:(NSButton *)sender;

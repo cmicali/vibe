@@ -59,6 +59,10 @@ BOOL VibeIsValidImageReference(NSString *_Nullable value);
 + (NSImage *)clearDefaultArtworkImage;
 // The custom color pair as one square, drawn for the drawing appearance.
 + (NSImage *)imageForDefaultArtworkColorDark:(NSColor *)dark light:(NSColor *)light;
+// The glyph centered on a transparent square, in the pair's color for the
+// drawing appearance; a name this macOS lacks draws the factory glyph.
++ (NSImage *)imageForDefaultArtworkGlyph:(NSString *)glyph size:(double)size
+                                    dark:(NSColor *)dark light:(NSColor *)light;
 
 @end
 

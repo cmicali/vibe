@@ -15,9 +15,9 @@
 
 - (void)testDefaultArtworkSanitizesByShape {
     AppTheme *theme = [[AppTheme alloc] initWithRecord:
-            @{@"defaultArtworkDark": @"bundled:cupertino_dark.jpg"}];
+            @{@"defaultArtworkDark": @"bundled:field_dark.png"}];
     XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkDark],
-            @"bundled:cupertino_dark.jpg");
+            @"bundled:field_dark.png");
     [theme setImageReference:@"custom:0123456789abcdef0123456789abcdef01234567.png"
                        forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
@@ -34,11 +34,11 @@
     // Single mode writes the dark slot from either side; the light half lies
     // dormant.
     theme.mode = @"single";
-    [theme setImageReference:@"bundled:cupertino_light.jpg" forKey:kVibeThemeImageDefaultArtworkLight];
+    [theme setImageReference:@"bundled:field_light.png" forKey:kVibeThemeImageDefaultArtworkLight];
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkDark"],
-            @"bundled:cupertino_light.jpg");
+            @"bundled:field_light.png");
     XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImageDefaultArtworkLight],
-            @"bundled:cupertino_light.jpg");
+            @"bundled:field_light.png");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkLight"],
             @"custom:0123456789abcdef0123456789abcdef01234567.png");
 }
@@ -88,6 +88,20 @@
     XCTAssertEqual(theme.resolvedDefaultArtworkImage, red, @"the same colors are the same image");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtwork"], @"custom");
     XCTAssertEqualObjects(theme.dictionaryRepresentation[@"defaultArtworkColorDark"], @"#FF0000");
+    theme.defaultArtwork = @"glyph";
+    NSImage *note = theme.resolvedDefaultArtworkImage;
+    XCTAssertNotEqual(note, clear);
+    XCTAssertNotEqual(note, red);
+    XCTAssertNil([theme defaultArtworkImageForAppearance:aqua]);
+    XCTAssertEqual(theme.resolvedDefaultArtworkImage, note);
+    theme.defaultArtworkGlyphSize = 0.3;
+    XCTAssertNotEqual(theme.resolvedDefaultArtworkImage, note, @"a size is a new image");
+    theme.defaultArtworkGlyphSize = 5;
+    XCTAssertEqual(theme.defaultArtworkGlyphSize, kVibeThemeDefaultArtworkGlyphSizeMax);
+    theme.defaultArtworkGlyph = @"Not A Symbol!";
+    XCTAssertEqualObjects(theme.defaultArtworkGlyph, kVibeThemeDefaultArtworkGlyphDefault, @"shape only");
+    theme.defaultArtworkGlyph = @"no.such.symbol.anywhere";
+    XCTAssertNotNil(theme.resolvedDefaultArtworkImage, @"an unknown name draws the factory glyph");
 }
 
 - (void)testCustomImageStoreValidatesAndRoundTripsThroughTheArchive {
@@ -245,28 +259,28 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
 // travels in the archive: as bare JSON it would land on the factory art on any
 // build that does not ship that image.
 - (void)testBuiltInArtworkTravelsInTheArchiveUnderSlotNames {
-    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"cupertino"];
+    NSDictionary *record = [AppTheme builtInRecordForIdentifier:@"field"];
     XCTAssertEqualObjects(record[@"defaultArtworkDark"],
-            @"bundled:cupertino_dark.jpg", @"the fixture this test rests on");
+            @"bundled:field_dark.png", @"the fixture this test rests on");
 
-    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Cupertino"];
+    NSData *zip = [AppTheme archiveDataForRecord:record name:@"Field"];
     XCTAssertNotNil(zip, @"a built-in with bundled art must export as an archive");
     XCTAssertGreaterThan(zip.length, 50000u, @"the images themselves, not just their names");
 
     // Entries are named by slot, not by hash or this build's filename, and keep
     // the source image's extension.
     NSString *bytes = [[NSString alloc] initWithData:zip encoding:NSISOLatin1StringEncoding];
-    XCTAssertTrue([bytes containsString:@"artwork_default_front.jpg"]);
-    XCTAssertTrue([bytes containsString:@"artwork_default_back.jpg"]);
+    XCTAssertTrue([bytes containsString:@"artwork_default_front.png"]);
+    XCTAssertTrue([bytes containsString:@"artwork_default_back.png"]);
     XCTAssertFalse([bytes containsString:@"bundled:"], @"no prefix survives into the archive");
-    XCTAssertFalse([bytes containsString:@"cupertino_dark.jpg"],
+    XCTAssertFalse([bytes containsString:@"field_dark.png"],
             @"nor the name this build happens to keep the image under");
 
     // Re-import lands both sides in the container under their content hashes,
     // independent of this build shipping the image.
     NSString *name = nil;
     NSDictionary *back = [AppTheme recordFromJSONOrArchiveData:zip name:&name error:NULL];
-    XCTAssertEqualObjects(name, @"Cupertino");
+    XCTAssertEqualObjects(name, @"Field");
     XCTAssertTrue([back[@"defaultArtworkDark"] hasPrefix:@"custom:"], @"%@", back);
     XCTAssertTrue([back[@"defaultArtworkLight"] hasPrefix:@"custom:"], @"%@", back);
     XCTAssertNotEqualObjects(back[@"defaultArtworkDark"], back[@"defaultArtworkLight"],
@@ -329,7 +343,7 @@ static NSData *ZipWithBytesReplaced(NSData *zip, NSString *from, NSString *to) {
     XCTAssertTrue([AppTheme referenceIsMissing:stored]);
     XCTAssertNotNil([AppTheme imageForReference:stored]);
 
-    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:cupertino_dark.jpg"]);
+    XCTAssertFalse([AppTheme referenceIsMissing:@"bundled:field_dark.png"]);
     XCTAssertTrue([AppTheme referenceIsMissing:@"bundled:not_in_any_build.png"]);
 }
 

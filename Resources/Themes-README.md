@@ -26,6 +26,6 @@ A translated display name is optional. Add the identifier as a key in `Resources
 
 ## Default artwork
 
-`player.defaultArtwork` says what shows when a track has no artwork: `artwork` (the default), `clear`, `window` or `custom` with a `defaultArtworkColorDark`/`Light` pair. Under `artwork`, `player.defaultArtworkDark` and `defaultArtworkLight` pick the placeholder image. A built-in may only use `bundled:<name>.<ext>`, a square JPEG or PNG beside the JSON, or `""` for the factory image. The test checks that each file resolves, is square, and stays within the pixel and byte caps.
+`player.defaultArtwork` says what shows when a track has no artwork: `artwork` (the default), `clear`, `window`, `glyph` with `defaultArtworkGlyph` (an SF Symbol name), `defaultArtworkGlyphSize` (0.1 to 0.9 of the square) and a `defaultArtworkGlyphColorDark`/`Light` pair, or `custom` with a `defaultArtworkColorDark`/`Light` pair. Under `artwork`, `player.defaultArtworkDark` and `defaultArtworkLight` pick the placeholder image. A built-in may only use `bundled:<name>.<ext>`, a square JPEG or PNG beside the JSON, or `""` for the factory image. The test checks that each file resolves, is square, and stays within the pixel and byte caps.
 
 **Author it at 640px, and use JPEG unless it needs alpha.** `imageForReference:` decodes every theme image bounded to `kVibeArchivedDisplayArtDimension`, which is 640 on macOS. Pixels beyond that only cost bundle size. Use PNG where transparency matters. A fully transparent placeholder needs no image: that is the `clear` default artwork.

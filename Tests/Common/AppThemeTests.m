@@ -485,7 +485,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
     [theme setColor:VibeColorFromHexString(@"#FF000080") forBase:kVibeThemeColorTitle dark:YES];
     [theme setPlaylistColorEnabled:YES forBase:kVibeThemeColorPlaylistTitle];
     theme.waveformPlayheadLine = YES;
-    [theme setImageReference:@"bundled:cupertino_dark.jpg" forKey:kVibeThemeImagePlayButtonDark];
+    [theme setImageReference:@"bundled:field_dark.png" forKey:kVibeThemeImagePlayButtonDark];
     NSArray<NSString *> *styles = @[@"detailed", @"basic"];
     NSSet<NSString *> *faces = [NSSet setWithArray:AppTheme.randomizableFontFaces];
     NSSet<NSNumber *> *radii = [NSSet setWithArray:@[@0, @8, @12, @16, @20, @28, @36]];
@@ -495,7 +495,7 @@ static NSString *HexInAppearance(NSColor *color, NSAppearanceName name) {
         XCTAssertTrue([theme playlistColorEnabledForBase:kVibeThemeColorPlaylistTitle]);
         XCTAssertTrue(theme.waveformPlayheadLine);
         XCTAssertEqualObjects([theme imageReferenceForKey:kVibeThemeImagePlayButtonDark],
-                              @"bundled:cupertino_dark.jpg");
+                              @"bundled:field_dark.png");
         XCTAssertTrue([styles containsObject:theme.waveformStyle]);
         XCTAssertNotEqualObjects(theme.waveformTheme, @"custom");
         XCTAssertNotEqualObjects(theme.waveformSpectrumPalette, @"custom");
@@ -844,7 +844,7 @@ static CGFloat Brightness(NSString *hex) {
 // A dual built-in spells out both sides: the custom waveform theme falls back
 // to mono unless its pair is complete.
 - (void)testDualModeBuiltInsAreCompleteAndOwnTheirArtwork {
-    NSDictionary *artworked = @{@"cupertino": @"jpg", @"field": @"png"};
+    NSDictionary *artworked = @{@"field": @"png"};
     for (NSString *identifier in @[@"cupertino", @"field", @"technical"]) {
         NSDictionary *record = [AppTheme builtInRecordForIdentifier:identifier];
         AppTheme *theme = [[AppTheme alloc] initWithRecord:record];
@@ -875,6 +875,10 @@ static CGFloat Brightness(NSString *hex) {
                     ([NSString stringWithFormat:@"bundled:%@_light.%@", identifier, ext]));
         }
     }
+    // Apple Music's note on its gray tile, without shipping a tile.
+    AppTheme *cupertino = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"cupertino"]];
+    XCTAssertEqualObjects(cupertino.defaultArtwork, @"glyph");
+    XCTAssertEqualObjects(cupertino.defaultArtworkGlyph, kVibeThemeDefaultArtworkGlyphDefault);
 }
 
 #pragma mark Migration

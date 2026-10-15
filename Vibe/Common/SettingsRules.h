@@ -224,10 +224,11 @@ static inline NSString *VibeNormalizedWindowBackgroundStyle(NSString *_Nullable 
 }
 
 // The default artwork's ladder: the placeholder images, nothing, the header's
-// own background, or a color.
+// own background, a glyph on it, or a color.
 static inline NSString *VibeNormalizedDefaultArtwork(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CLEAR] ||
         [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW] ||
+        [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH] ||
         [identifier isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM]) {
         return identifier;
     }
@@ -270,6 +271,13 @@ static inline NSArray<NSString *> *VibePlaylistButtonGlyphs(void) {
     return @[@"list.bullet", @"list.dash", @"list.triangle", @"list.number", @"music.note.list",
              @"text.justify", @"line.3.horizontal", @"square.stack", @"rectangle.stack",
              @"tablecells", @"sidebar.left", @"chevron.up.chevron.down"];
+}
+
+// The glyph default artwork's menu.
+static inline NSArray<NSString *> *VibeDefaultArtworkGlyphs(void) {
+    return @[kVibeThemeDefaultArtworkGlyphDefault, @"music.note", @"music.note.list", @"music.mic",
+             @"waveform", @"headphones", @"hifispeaker", @"opticaldisc", @"record.circle",
+             @"photo", @"star", @"heart", @"questionmark"];
 }
 
 // Pairs, because one pick dresses both states: the play field stores the

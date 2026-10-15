@@ -55,17 +55,22 @@ static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
 }
 
 // The popup's selection from the theme: Custom image while the button has
-// one, else its glyph — item 0 dressed as a stored glyph the menu does not
-// list, a JSON-authored one, so the popup never shows nothing.
+// one, else its glyph.
 - (void)selectGlyphChoiceForButtonImageKey:(NSString *)key {
     NSPopUpButton *popUp = _glyphPopUps[key];
-    NSMenuItem *unlisted = popUp.itemArray.firstObject;
-    unlisted.hidden = YES;
     if ([self buttonHasImageForKey:key]) {
+        popUp.itemArray.firstObject.hidden = YES;
         [self selectValue:kGlyphChoiceCustomImage in:popUp];
         return;
     }
-    NSString *glyph = [self glyphForImageKey:key];
+    [self selectGlyph:[self glyphForImageKey:key] in:popUp];
+}
+
+// Item 0 is dressed as a stored glyph the menu does not list, a
+// JSON-authored one, so the popup never shows nothing.
+- (void)selectGlyph:(NSString *)glyph in:(NSPopUpButton *)popUp {
+    NSMenuItem *unlisted = popUp.itemArray.firstObject;
+    unlisted.hidden = YES;
     [self selectValue:glyph in:popUp];
     if (popUp.indexOfSelectedItem < 0) {
         unlisted.title = @"";
@@ -121,6 +126,8 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
                                            : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_defaultArtworkDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                                : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
+    [_defaultArtworkGlyphDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
+                                                    : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_playlistTintDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
                                              : STR_SETTINGS_WINDOW_TINT_CUSTOM_DARK_LABEL];
     [_volumeBarDarkRow setRowTitle:single ? STR_SETTINGS_THEME_COLOR_LABEL
@@ -157,9 +164,14 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     _windowTintDarkRow.hidden = !customTint;
     _windowTintLightRow.hidden = !customTint || single;
     BOOL customArt = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM];
+    BOOL glyphArt = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH];
     _defaultArtworkImageRow.hidden = ![theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK];
     _defaultArtworkDarkRow.hidden = !customArt;
     _defaultArtworkLightRow.hidden = !customArt || single;
+    _defaultArtworkGlyphRow.hidden = !glyphArt;
+    _defaultArtworkGlyphSizeRow.hidden = !glyphArt;
+    _defaultArtworkGlyphDarkRow.hidden = !glyphArt;
+    _defaultArtworkGlyphLightRow.hidden = !glyphArt || single;
     _backgroundColorsRow.hidden = !VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle);
     BOOL customPlaylistTint = [theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _playlistTintDarkRow.hidden = !customPlaylistTint;
@@ -214,6 +226,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectValue:theme.windowBackgroundStyle in:_backgroundPopUp];
     [self selectValue:theme.windowTint in:_windowTintPopUp];
     [self selectValue:theme.defaultArtwork in:_defaultArtworkPopUp];
+    [self selectGlyph:theme.defaultArtworkGlyph in:_defaultArtworkGlyphPopUp];
+    [self refreshDefaultArtworkGlyphSize];
     for (NSColorWell *well in _wellBindings) {
         NSDictionary *binding = [_wellBindings objectForKey:well];
         well.color = [theme displayColorForBase:binding[kWellBase] dark:[binding[kWellDark] boolValue]];
@@ -369,6 +383,29 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
                     wells:@[_defaultArtworkDarkRow, _defaultArtworkLightRow]
                    effect:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark) | VibeSettingsLiveEffectWindowChrome
                     write:^(AppTheme *theme, NSString *identifier) { theme.defaultArtwork = identifier; }];
+}
+
+- (void)defaultArtworkGlyphChanged:(NSPopUpButton *)sender {
+    AppSettings.sharedInstance.currentTheme.defaultArtworkGlyph = sender.selectedItem.representedObject;
+    [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark)];
+    [self refreshFromSettings];
+}
+
+- (void)defaultArtworkGlyphSizeChanged:(NSSlider *)sender {
+    double size = round(sender.doubleValue * 100) / 100;
+    if (fabs(size - kVibeThemeDefaultArtworkGlyphSizeDefault) < 0.04) {
+        size = kVibeThemeDefaultArtworkGlyphSizeDefault;
+    }
+    AppSettings.sharedInstance.currentTheme.defaultArtworkGlyphSize = size;
+    [self refreshDefaultArtworkGlyphSize];
+    [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark) continuous:YES];
+}
+
+- (void)refreshDefaultArtworkGlyphSize {
+    double size = AppSettings.sharedInstance.currentTheme.defaultArtworkGlyphSize;
+    _defaultArtworkGlyphSizeSlider.doubleValue = size;
+    _defaultArtworkGlyphSizeValue.stringValue = [NSNumberFormatter
+            localizedStringFromNumber:@(size) numberStyle:NSNumberFormatterPercentStyle];
 }
 
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender {

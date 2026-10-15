@@ -9,6 +9,7 @@
 #import "NSView+DarkMode.h"
 #import "NSURL+Hash.h"
 #import "PlatformColor.h"
+#import "NSImage+Util.h"
 
 @implementation AppTheme (Images)
 
@@ -273,25 +274,58 @@ static NSMutableDictionary<NSString *, NSImage *> *ImageCache(void) {
     return image;
 }
 
-// One entry, not the image cache: a well drag mints a color per tick, and
-// each color is a new image so the identity check reinstalls it.
+// One entry per kind, not the image cache: a well or slider drag mints a
+// value per tick, and each value is a new image so the identity check
+// reinstalls it.
+static NSImage *OneDefaultArtworkSquare(NSString *kind, NSString *wanted, NSImage *(^make)(void)) {
+    static NSMutableDictionary<NSString *, NSImage *> *images;
+    static NSMutableDictionary<NSString *, NSString *> *keys;
+    @synchronized (AppTheme.class) {
+        if (!images) {
+            images = [NSMutableDictionary dictionary];
+            keys = [NSMutableDictionary dictionary];
+        }
+        if (![keys[kind] isEqualToString:wanted]) {
+            keys[kind] = wanted;
+            images[kind] = make();
+        }
+        return images[kind];
+    }
+}
+
 + (NSImage *)imageForDefaultArtworkColorDark:(NSColor *)dark light:(NSColor *)light {
-    static NSImage *image;
-    static NSString *key;
     NSString *wanted = [NSString stringWithFormat:@"%@|%@",
                         VibeHexStringFromColor(dark), VibeHexStringFromColor(light)];
-    @synchronized (AppTheme.class) {
-        if (![key isEqualToString:wanted]) {
-            key = wanted;
-            image = [NSImage imageWithSize:NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension)
-                                   flipped:NO drawingHandler:^BOOL(NSRect rect) {
-                [(NSAppearance.currentDrawingAppearance.isDark ? dark : light) set];
-                NSRectFillUsingOperation(rect, NSCompositingOperationCopy);
-                return YES;
-            }];
-        }
-        return image;
-    }
+    return OneDefaultArtworkSquare(@"color", wanted, ^NSImage *{
+        return [NSImage imageWithSize:NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension)
+                              flipped:NO drawingHandler:^BOOL(NSRect rect) {
+            [(NSAppearance.currentDrawingAppearance.isDark ? dark : light) set];
+            NSRectFillUsingOperation(rect, NSCompositingOperationCopy);
+            return YES;
+        }];
+    });
+}
+
++ (NSImage *)imageForDefaultArtworkGlyph:(NSString *)glyph size:(double)size
+                                    dark:(NSColor *)dark light:(NSColor *)light {
+    NSString *wanted = [NSString stringWithFormat:@"%@|%.3f|%@|%@", glyph, size,
+                        VibeHexStringFromColor(dark), VibeHexStringFromColor(light)];
+    return OneDefaultArtworkSquare(@"glyph", wanted, ^NSImage *{
+        NSString *name = [NSImage imageWithSystemSymbolName:glyph accessibilityDescription:nil]
+                ? glyph : kVibeThemeDefaultArtworkGlyphDefault;
+        return [NSImage imageWithSize:NSMakeSize(kVibeArchivedDisplayArtDimension, kVibeArchivedDisplayArtDimension)
+                              flipped:NO drawingHandler:^BOOL(NSRect rect) {
+            NSColor *color = NSAppearance.currentDrawingAppearance.isDark ? dark : light;
+            NSImage *symbol = [NSImage symbolNamed:name pointSize:rect.size.height * size
+                                            weight:NSFontWeightRegular palette:@[color]
+                          accessibilityDescription:nil];
+            NSSize drawn = symbol.size;
+            [symbol drawInRect:NSMakeRect(NSMidX(rect) - drawn.width / 2, NSMidY(rect) - drawn.height / 2,
+                                          drawn.width, drawn.height)
+                      fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1];
+            return YES;
+        }];
+    });
 }
 
 @end
