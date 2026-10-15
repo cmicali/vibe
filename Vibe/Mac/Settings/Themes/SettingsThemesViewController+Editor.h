@@ -24,13 +24,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+// The placeholder changed, whichever field: the header and the rows redraw
+// it.
+static const VibeSettingsLiveEffect kVibeThemeDefaultArtworkEffect =
+        VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance;
+
 static inline VibeSettingsLiveEffect VibeThemeImageEditEffect(NSString *key) {
     if ([key isEqualToString:kVibeThemeImageAppIcon]) {
         return VibeSettingsLiveEffectAppIcon;
     }
     if ([key isEqualToString:kVibeThemeImageDefaultArtworkDark]
             || [key isEqualToString:kVibeThemeImageDefaultArtworkLight]) {
-        return VibeSettingsLiveEffectTrackDisplay | VibeSettingsLiveEffectPlaylistAppearance;
+        return kVibeThemeDefaultArtworkEffect;
     }
     return VibeSettingsLiveEffectTransportButtons;
 }

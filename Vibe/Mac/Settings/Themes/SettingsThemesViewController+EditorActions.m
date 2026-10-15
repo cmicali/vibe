@@ -12,6 +12,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "Fonts.h"
+#import "Formatters.h"
 #import "NSImage+Util.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
@@ -19,6 +20,13 @@
 
 // An unset button image slot's glyph, at the transport row's glyph size.
 static const CGFloat kImagePreviewGlyphPointSize = 31;
+
+// A scale slider's value to two places, snapped to its detent within
+// `tolerance`.
+static double SnappedScale(NSSlider *slider, double detent, double tolerance) {
+    double scale = round(slider.doubleValue * 100) / 100;
+    return fabs(scale - detent) < tolerance ? detent : scale;
+}
 
 static BOOL IsEitherSide(NSString *key, NSString *dark, NSString *light) {
     return [key isEqualToString:dark] || [key isEqualToString:light];
@@ -155,9 +163,9 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
     BOOL glyphArt = [theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH];
     _defaultArtworkColorsPair.hidden = ![theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM];
     _defaultArtworkImageRow.hidden = ![theme.defaultArtwork isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK];
-    _defaultArtworkGlyphRow.hidden = !glyphArt;
-    _defaultArtworkGlyphNameRow.hidden = !glyphArt;
-    _defaultArtworkGlyphSizeRow.hidden = !glyphArt;
+    for (SettingsRowView *row in _defaultArtworkGlyphRows) {
+        row.hidden = !glyphArt;
+    }
     _playlistTintPair.hidden = ![theme.playlistTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM];
     _playlistBackgroundColorsPair.hidden = ![theme.playlistBackgroundStyle
             isEqualToString:SETTINGS_VALUE_WINDOW_BACKGROUND_SOLID];
@@ -206,13 +214,13 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectValue:theme.windowTint in:_windowTintPopUp];
     [self selectValue:theme.defaultArtwork in:_defaultArtworkPopUp];
     [self selectGlyph:theme.defaultArtworkGlyph in:_defaultArtworkGlyphPopUp];
-    if (_defaultArtworkGlyphNameField.currentEditor == nil) {
+    if (_defaultArtworkGlyphNameField.currentEditor == nil
+            && ![_defaultArtworkGlyphNameField.stringValue isEqualToString:theme.defaultArtworkGlyph]) {
         _defaultArtworkGlyphNameField.stringValue = theme.defaultArtworkGlyph;
     }
-    // The record keeps the name; the draw site falls back to the factory
-    // glyph, and the caption says so.
+    // The record keeps the name; the resolved glyph is what draws.
     [_defaultArtworkGlyphNameRow setCaption:
-            [NSImage imageWithSystemSymbolName:theme.defaultArtworkGlyph accessibilityDescription:nil]
+            [theme.resolvedDefaultArtworkGlyph isEqualToString:theme.defaultArtworkGlyph]
                     ? nil : STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_MISSING];
     [self refreshDefaultArtworkGlyphSize];
     for (NSColorWell *well in _wellBindings) {
@@ -368,34 +376,36 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 - (void)defaultArtworkChanged:(id)sender {
     [self chooseFromPopUp:_defaultArtworkPopUp revealing:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM
                     wells:@[_defaultArtworkColorsPair]
-                   effect:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark) | VibeSettingsLiveEffectWindowChrome
+                   effect:kVibeThemeDefaultArtworkEffect | VibeSettingsLiveEffectWindowChrome
                     write:^(AppTheme *theme, NSString *identifier) { theme.defaultArtwork = identifier; }];
 }
 
-- (void)defaultArtworkGlyphChanged:(NSPopUpButton *)sender {
-    // A pick wins over half-typed text, and the refresh below skips a field
-    // still editing.
-    [_defaultArtworkGlyphNameField abortEditing];
-    AppSettings.sharedInstance.currentTheme.defaultArtworkGlyph = sender.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark)];
+// The menu and the name field are two ways to write one field. Free text
+// keeps the symbol-name shape at the gate; the refresh shows what landed.
+- (void)writeDefaultArtworkGlyph:(NSString *)glyph {
+    AppSettings.sharedInstance.currentTheme.defaultArtworkGlyph = glyph;
+    [self themeFieldDidChange:kVibeThemeDefaultArtworkEffect];
     [self refreshFromSettings];
 }
 
+- (void)defaultArtworkGlyphChanged:(NSPopUpButton *)sender {
+    // A pick wins over half-typed text, and the refresh skips a field still
+    // editing.
+    [_defaultArtworkGlyphNameField abortEditing];
+    [self writeDefaultArtworkGlyph:sender.selectedItem.representedObject];
+}
+
 - (void)defaultArtworkGlyphSizeChanged:(NSSlider *)sender {
-    double size = round(sender.doubleValue * 100) / 100;
-    if (fabs(size - kVibeThemeDefaultArtworkGlyphSizeDefault) < 0.04) {
-        size = kVibeThemeDefaultArtworkGlyphSizeDefault;
-    }
-    AppSettings.sharedInstance.currentTheme.defaultArtworkGlyphSize = size;
+    AppSettings.sharedInstance.currentTheme.defaultArtworkGlyphSize =
+            SnappedScale(sender, kVibeThemeDefaultArtworkGlyphSizeDefault, 0.04);
     [self refreshDefaultArtworkGlyphSize];
-    [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark) continuous:YES];
+    [self themeFieldDidChange:kVibeThemeDefaultArtworkEffect continuous:YES];
 }
 
 - (void)refreshDefaultArtworkGlyphSize {
     double size = AppSettings.sharedInstance.currentTheme.defaultArtworkGlyphSize;
     _defaultArtworkGlyphSizeSlider.doubleValue = size;
-    _defaultArtworkGlyphSizeValue.stringValue = [NSNumberFormatter
-            localizedStringFromNumber:@(size) numberStyle:NSNumberFormatterPercentStyle];
+    _defaultArtworkGlyphSizeValue.stringValue = [Formatters.sharedInstance percentString:size];
 }
 
 - (void)cornerRadiusModeChanged:(NSPopUpButton *)sender {
@@ -559,10 +569,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 #pragma mark - Editor: waveform
 
 - (void)waveformBarSizingChanged:(NSSlider *)sender {
-    double scale = round(sender.doubleValue * 100) / 100;
-    if (fabs(scale - kVibeThemeWaveformBarScaleDefault) < 0.08) {
-        scale = kVibeThemeWaveformBarScaleDefault;
-    }
+    double scale = SnappedScale(sender, kVibeThemeWaveformBarScaleDefault, 0.08);
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     if (sender == _waveformBarWidthSlider) theme.waveformBarWidth = scale;
     else theme.waveformBarDensity = scale;
@@ -574,12 +581,8 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     AppTheme *theme = AppSettings.sharedInstance.currentTheme;
     _waveformBarDensitySlider.doubleValue = theme.waveformBarDensity;
     _waveformBarWidthSlider.doubleValue = theme.waveformBarWidth;
-    _waveformBarDensityValue.stringValue = [NSNumberFormatter
-            localizedStringFromNumber:@(theme.waveformBarDensity)
-            numberStyle:NSNumberFormatterPercentStyle];
-    _waveformBarWidthValue.stringValue = [NSNumberFormatter
-            localizedStringFromNumber:@(theme.waveformBarWidth)
-            numberStyle:NSNumberFormatterPercentStyle];
+    _waveformBarDensityValue.stringValue = [Formatters.sharedInstance percentString:theme.waveformBarDensity];
+    _waveformBarWidthValue.stringValue = [Formatters.sharedInstance percentString:theme.waveformBarWidth];
 }
 
 - (void)waveformTypeChanged:(id)sender {
@@ -646,11 +649,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 
 - (void)controlTextDidEndEditing:(NSNotification *)notification {
     if (notification.object == _defaultArtworkGlyphNameField) {
-        // Free text: the gate keeps the symbol-name shape and snaps the rest
-        // to the factory glyph, which the refresh then shows.
-        AppSettings.sharedInstance.currentTheme.defaultArtworkGlyph = _defaultArtworkGlyphNameField.stringValue;
-        [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark)];
-        [self refreshFromSettings];
+        [self writeDefaultArtworkGlyph:_defaultArtworkGlyphNameField.stringValue];
         return;
     }
     if (notification.object != _nameField) {

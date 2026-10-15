@@ -9,6 +9,19 @@
 
 @implementation NSImage (Util)
 
++ (NSString *)availableSymbolName:(NSString *)name fallback:(NSString *)factory {
+    static NSMutableDictionary<NSString *, NSNumber *> *known;
+    if (!known) {
+        known = [NSMutableDictionary dictionary];
+    }
+    NSNumber *has = known[name];
+    if (has == nil) {
+        has = @([NSImage imageWithSystemSymbolName:name accessibilityDescription:nil] != nil);
+        known[name] = has;
+    }
+    return has.boolValue ? name : factory;
+}
+
 + (NSImage *)symbolNamed:(NSString *)name
                pointSize:(CGFloat)pointSize
                   weight:(NSFontWeight)weight

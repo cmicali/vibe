@@ -11,6 +11,7 @@
 #import "SettingsRules.h"
 #import "PlatformColor.h"
 #import "NSView+DarkMode.h"
+#import "NSImage+Util.h"
 
 NSString *const kVibeThemeIdentifierVibe = @"vibe";
 
@@ -1021,22 +1022,37 @@ static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeK
     return [self customImageForKey:key] ?: [self customImageForKey:PartnerImageKey(key)];
 }
 
+- (NSString *)resolvedDefaultArtworkGlyph {
+    return [NSImage availableSymbolName:self.defaultArtworkGlyph fallback:kVibeThemeDefaultArtworkGlyphDefault];
+}
+
 - (NSImage *)resolvedDefaultArtworkImage {
     NSString *mode = self.defaultArtwork;
-    if ([mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM]) {
-        return [AppTheme imageForDefaultArtworkColorDark:[self displayColorForBase:kVibeThemeColorDefaultArtwork dark:YES]
-                                                   light:[self displayColorForBase:kVibeThemeColorDefaultArtwork dark:NO]];
+    if ([mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK]) {
+        return [AppTheme imageForDefaultArtworkDark:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkDark]
+                                               light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
     }
-    if ([mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH]) {
-        return [AppTheme imageForDefaultArtworkGlyph:self.defaultArtworkGlyph size:self.defaultArtworkGlyphSize
-                                                dark:[self displayColorForBase:kVibeThemeColorDefaultArtworkGlyph dark:YES]
-                                               light:[self displayColorForBase:kVibeThemeColorDefaultArtworkGlyph dark:NO]];
-    }
-    if (![mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_ARTWORK]) {
+    BOOL custom = [mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_CUSTOM];
+    if (!custom && ![mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH]) {
         return [AppTheme clearDefaultArtworkImage];
     }
-    return [AppTheme imageForDefaultArtworkDark:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkDark]
-                                           light:[self imageReferenceForKey:kVibeThemeImageDefaultArtworkLight]];
+    // Keyed by the stored values, so a well or slider tick is a new image
+    // and an unchanged theme is the same one.
+    NSString *base = custom ? kVibeThemeColorDefaultArtwork : kVibeThemeColorDefaultArtworkGlyph;
+    NSString *key = [NSString stringWithFormat:@"%@|%@|%@|%@|%@", mode, self.defaultArtworkGlyph,
+                     @(self.defaultArtworkGlyphSize),
+                     _fields[[self colorKeyForBase:base dark:YES]] ?: @"",
+                     _fields[[self colorKeyForBase:base dark:NO]] ?: @""];
+    if (![key isEqualToString:_defaultArtworkSquareKey]) {
+        NSColor *dark = [self displayColorForBase:base dark:YES];
+        NSColor *light = [self displayColorForBase:base dark:NO];
+        _defaultArtworkSquareKey = key;
+        _defaultArtworkSquare = custom
+                ? [AppTheme imageForDefaultArtworkColorDark:dark light:light]
+                : [AppTheme imageForDefaultArtworkGlyph:self.resolvedDefaultArtworkGlyph
+                                                   size:self.defaultArtworkGlyphSize dark:dark light:light];
+    }
+    return _defaultArtworkSquare;
 }
 
 - (NSImage *)defaultArtworkImageForAppearance:(NSAppearance *)appearance {

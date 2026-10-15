@@ -231,11 +231,11 @@ static BOOL VibeOpaquePixelRGB(const unsigned char *px, double *r, double *g, do
     return YES;
 }
 
-BOOL VibeImageLowerBandIsDark(VibeImage *image, CGFloat fraction) {
+BOOL VibeImageLowerBandIsDark(VibeImage *image, CGFloat fraction, BOOL backdropIsDark) {
     const size_t side = kDominantSampleSide;
     unsigned char *data = VibeSampledPixels(image, side);
     if (!data) {
-        return YES;
+        return backdropIsDark;
     }
     // Gamma-encoded sRGB taken as-is: the encoded midpoint is where either
     // button color starts to read.
@@ -254,7 +254,7 @@ BOOL VibeImageLowerBandIsDark(VibeImage *image, CGFloat fraction) {
         }
     }
     free(data);
-    return count == 0 || luminance / count < 0.5;
+    return count == 0 ? backdropIsDark : luminance / count < 0.5;
 }
 
 VibeColor *VibeDominantColorOfImage(VibeImage *image) {

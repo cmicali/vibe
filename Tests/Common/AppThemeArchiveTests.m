@@ -101,6 +101,8 @@
     theme.defaultArtworkGlyph = @"Not A Symbol!";
     XCTAssertEqualObjects(theme.defaultArtworkGlyph, kVibeThemeDefaultArtworkGlyphDefault, @"shape only");
     theme.defaultArtworkGlyph = @"no.such.symbol.anywhere";
+    XCTAssertEqualObjects(theme.defaultArtworkGlyph, @"no.such.symbol.anywhere", @"the record keeps the name");
+    XCTAssertEqualObjects(theme.resolvedDefaultArtworkGlyph, kVibeThemeDefaultArtworkGlyphDefault);
     XCTAssertNotNil(theme.resolvedDefaultArtworkImage, @"an unknown name draws the factory glyph");
 }
 

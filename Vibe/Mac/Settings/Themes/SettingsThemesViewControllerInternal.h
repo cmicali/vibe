@@ -49,8 +49,10 @@ static NSString *const kChoiceStandard = @"standard";
     NSPopUpButton *_windowTintPopUp;
     NSStackView *_windowTintPair;
     NSPopUpButton *_defaultArtworkPopUp, *_defaultArtworkGlyphPopUp;
-    NSStackView *_defaultArtworkColorsPair, *_defaultArtworkGlyphColorsPair;
-    SettingsRowView *_defaultArtworkImageRow, *_defaultArtworkGlyphRow, *_defaultArtworkGlyphSizeRow;
+    NSStackView *_defaultArtworkColorsPair;
+    SettingsRowView *_defaultArtworkImageRow;
+    // The symbol, name and size rows, shown together under the glyph choice.
+    NSArray<SettingsRowView *> *_defaultArtworkGlyphRows;
     // Any SF Symbol by name, for the ones the menu does not list.
     NSTextField *_defaultArtworkGlyphNameField;
     SettingsRowView *_defaultArtworkGlyphNameRow;

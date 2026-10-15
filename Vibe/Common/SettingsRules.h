@@ -273,6 +273,13 @@ static inline NSArray<NSString *> *VibePlaylistButtonGlyphs(void) {
              @"tablecells", @"sidebar.left", @"chevron.up.chevron.down"];
 }
 
+// Window and glyph carry the header's panel and tint under the art square,
+// so a track without art shows the play area's own background there.
+static inline BOOL VibeDefaultArtworkCarriesHeaderPanel(NSString *_Nullable mode) {
+    return [mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_WINDOW] ||
+           [mode isEqualToString:SETTINGS_VALUE_DEFAULT_ARTWORK_GLYPH];
+}
+
 // The glyph default artwork's menu: the music and audio symbols macOS 13
 // carries. Apple's device symbols (AirPods, Beats, HomePod, Apple TV) are
 // restricted to Apple's own use and stay out. Any other name goes in the

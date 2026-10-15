@@ -774,6 +774,13 @@ static CGFloat Brightness(NSString *hex) {
     XCTAssertEqualObjects(theme.defaultArtwork, @"clear");
 }
 
+// A symbol on the header's own gray, without shipping a tile.
+- (void)testCupertinoDrawsTheWaveformSymbol {
+    AppTheme *theme = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"cupertino"]];
+    XCTAssertEqualObjects(theme.defaultArtwork, @"glyph");
+    XCTAssertEqualObjects(theme.defaultArtworkGlyph, @"waveform");
+}
+
 - (void)testHiddenControlsRoundTripWithoutLosingTheirAppearance {
     NSDictionary *record = @{
         @"showTransportButtons": @NO, @"showVolumeLabels": @NO,
@@ -875,10 +882,6 @@ static CGFloat Brightness(NSString *hex) {
                     ([NSString stringWithFormat:@"bundled:%@_light.%@", identifier, ext]));
         }
     }
-    // A symbol on the header's own gray, without shipping a tile.
-    AppTheme *cupertino = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"cupertino"]];
-    XCTAssertEqualObjects(cupertino.defaultArtwork, @"glyph");
-    XCTAssertEqualObjects(cupertino.defaultArtworkGlyph, @"waveform");
 }
 
 #pragma mark Migration

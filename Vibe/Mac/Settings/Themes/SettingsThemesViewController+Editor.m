@@ -437,13 +437,14 @@ static const CGFloat kImageBadgeInset = 1.5;
             [self imageClusterForKey:kVibeThemeImageDefaultArtworkDark]
             light:[self imageClusterForKey:kVibeThemeImageDefaultArtworkLight]];
     _defaultArtworkImageRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_IMAGE control:artPair];
-    VibeSettingsLiveEffect artEffect = VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark);
-    _defaultArtworkColorsPair = [self darkLightPairForBase:kVibeThemeColorDefaultArtwork effect:artEffect];
+    _defaultArtworkColorsPair = [self darkLightPairForBase:kVibeThemeColorDefaultArtwork
+                                                    effect:kVibeThemeDefaultArtworkEffect];
     _defaultArtworkGlyphPopUp = [self glyphPopUpWithGlyphs:VibeDefaultArtworkGlyphs()
                                                     action:@selector(defaultArtworkGlyphChanged:)];
-    _defaultArtworkGlyphColorsPair = [self darkLightPairForBase:kVibeThemeColorDefaultArtworkGlyph effect:artEffect];
-    _defaultArtworkGlyphRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH
-                                                   controls:@[_defaultArtworkGlyphColorsPair, _defaultArtworkGlyphPopUp]];
+    NSStackView *glyphColors = [self darkLightPairForBase:kVibeThemeColorDefaultArtworkGlyph
+                                                   effect:kVibeThemeDefaultArtworkEffect];
+    SettingsRowView *glyphRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH
+                                                     controls:@[glyphColors, _defaultArtworkGlyphPopUp]];
     _defaultArtworkGlyphNameField = [[NSTextField alloc] initWithFrame:NSZeroRect];
     _defaultArtworkGlyphNameField.delegate = self;
     _defaultArtworkGlyphNameField.placeholderString = VibeNotLocalized(kVibeThemeDefaultArtworkGlyphDefault);
@@ -454,16 +455,15 @@ static const CGFloat kImageBadgeInset = 1.5;
             min:kVibeThemeDefaultArtworkGlyphSizeMin max:kVibeThemeDefaultArtworkGlyphSizeMax
             action:@selector(defaultArtworkGlyphSizeChanged:)
             width:kAppearancePopUpWidth slider:&_defaultArtworkGlyphSizeSlider valueLabel:&_defaultArtworkGlyphSizeValue];
-    _defaultArtworkGlyphSizeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_SIZE
-                                                        control:glyphSizeCluster];
+    _defaultArtworkGlyphRows = @[glyphRow, _defaultArtworkGlyphNameRow,
+                                 [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_DEFAULT_ARTWORK_GLYPH_SIZE
+                                                       control:glyphSizeCluster]];
     NSMutableArray<SettingsRowView *> *rows = [NSMutableArray arrayWithArray:@[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_ALBUM_ART
                              controls:@[_defaultArtworkColorsPair, _defaultArtworkPopUp]],
         _defaultArtworkImageRow,
-        _defaultArtworkGlyphRow,
-        _defaultArtworkGlyphNameRow,
-        _defaultArtworkGlyphSizeRow,
     ]];
+    [rows addObjectsFromArray:_defaultArtworkGlyphRows];
     [rows addObjectsFromArray:[self buildWaveformRows]];
 
     // Title and artist paint the playlist rows too.

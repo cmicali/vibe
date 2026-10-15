@@ -257,6 +257,9 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // factory glyph.
 @property (nonatomic, copy) NSString *defaultArtworkGlyph;
 @property (nonatomic) double defaultArtworkGlyphSize;
+// The glyph that draws: the stored name when this macOS has it, else the
+// factory glyph. The editor's caption is the two disagreeing.
+@property (readonly, nonatomic) NSString *resolvedDefaultArtworkGlyph;
 @property (nonatomic, copy) NSString *playlistTint;         // mono/artwork/custom; snaps to mono, the factory playlist wash
 @property (nonatomic, copy) NSString *windowBackgroundStyle; // glass/frosted/solid/clear
 @property (nonatomic, copy) NSString *playlistBackgroundStyle; // glass/solid/clear
@@ -310,7 +313,10 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // defaultArtwork: the placeholder pair as ONE image (when the sides differ, a
 // cached wrapper draws whichever side the drawing appearance asks for), the
 // one transparent square for clear and window, the glyph on a transparent
-// square, or the color pair as a square.
+// square, or the color pair as a square. The drawn squares are memoized on
+// the fields that feed them, so an unchanged theme answers the same object
+// and a changed one a new object, which is what consumers' identity checks
+// reinstall on.
 @property (readonly, nonatomic) NSImage *resolvedDefaultArtworkImage;
 // One side of the placeholder pair, for a consumer rasterizing outside a
 // view (Now Playing), where the drawing appearance is the system's, not the

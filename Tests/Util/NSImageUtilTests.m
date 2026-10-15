@@ -83,10 +83,14 @@
             return YES;
         }];
     };
-    XCTAssertTrue(VibeImageLowerBandIsDark(split(NSColor.whiteColor, NSColor.blackColor), 1.0 / 3));
-    XCTAssertFalse(VibeImageLowerBandIsDark(split(NSColor.blackColor, NSColor.whiteColor), 1.0 / 3));
-    XCTAssertTrue(VibeImageLowerBandIsDark(split(NSColor.whiteColor, [NSColor colorWithWhite:0.3 alpha:1]), 0.5));
-    XCTAssertTrue(VibeImageLowerBandIsDark(nil, 0.5), @"unrasterizable reads as dark");
+    XCTAssertTrue(VibeImageLowerBandIsDark(split(NSColor.whiteColor, NSColor.blackColor), 1.0 / 3, NO));
+    XCTAssertFalse(VibeImageLowerBandIsDark(split(NSColor.blackColor, NSColor.whiteColor), 1.0 / 3, YES));
+    XCTAssertTrue(VibeImageLowerBandIsDark(split(NSColor.whiteColor, [NSColor colorWithWhite:0.3 alpha:1]), 0.5, NO));
+    XCTAssertTrue(VibeImageLowerBandIsDark(nil, 0.5, YES), @"unrasterizable reads as the backdrop");
+    XCTAssertFalse(VibeImageLowerBandIsDark(nil, 0.5, NO));
+    NSImage *empty = [[NSImage alloc] initWithSize:NSMakeSize(64, 64)];
+    XCTAssertFalse(VibeImageLowerBandIsDark(empty, 0.5, NO), @"a transparent band shows the backdrop");
+    XCTAssertTrue(VibeImageLowerBandIsDark(empty, 0.5, YES));
 }
 
 #pragma mark - dominantColor
