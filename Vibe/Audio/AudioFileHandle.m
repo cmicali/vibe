@@ -551,6 +551,41 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
     return [self openedWithError:error];
 }
 
+// TRAP: CoreAudio's CAF info parser (parseInfoStringsChunk) loops over the
+// info chunk's entry count without checking it against the chunk. A forged
+// count of 0xF90000EE never returns, and afinfo hangs the same way. It held a
+// metadata worker forever and stopped the folder's sweep. So the info
+// dictionary is readable only when this walk finds an info chunk inside the
+// file whose body could hold its count. Each entry is two NUL-terminated
+// strings, so it takes at least two bytes. A streamed CAF's data chunk
+// declares size -1 and stops the walk, so an info chunk after it is dropped.
+// Asked, not walked at open: a playback open never waits for those bytes.
+- (BOOL)infoDictionaryReadable {
+    if (_container != kAudioFileCAFType) {
+        return YES;
+    }
+    void *context = (__bridge void *)self;
+    uint64_t fileSize = (uint64_t)MAX(0, _size);
+    uint64_t at = 8; // 'caff', version, flags
+    uint8_t header[12];
+    UInt32 got = 0;
+    while (at + sizeof header <= fileSize
+            && VibeHandleRead(context, (SInt64)at, sizeof header, header, &got) == noErr && got == sizeof header) {
+        uint64_t size = 0;
+        for (size_t i = 4; i < 12; i++) size = size << 8 | header[i];
+        uint64_t body = at + sizeof header;
+        if (size > fileSize - body) return NO; // past the file, or the data chunk's -1
+        if (memcmp(header, "info", 4) == 0) {
+            uint8_t count[4];
+            if (size < 4 || VibeHandleRead(context, (SInt64)body, 4, count, &got) != noErr || got != 4) return NO;
+            uint32_t entries = (uint32_t)count[0] << 24 | (uint32_t)count[1] << 16 | (uint32_t)count[2] << 8 | count[3];
+            return entries <= (size - 4) / 2;
+        }
+        at = body + size;
+    }
+    return NO;
+}
+
 - (instancetype)initForReading:(NSURL *)url interleaved:(BOOL)interleaved interrupted:(BOOL (^)(void))interrupted
                          error:(NSError **)error {
     self = [self initParserForReading:url interrupted:interrupted error:error];

@@ -75,6 +75,7 @@ A channel difference is mixed first, at the file's own rate, through AudioToolbo
 - The vendored dr_ copies carry Vibe's fixes (`ThirdParty/AGENTS.md`). AAC decodes to float natively.
 - Ogg is CoreAudio's own reader and decoders: Opus on both platforms, Vorbis on macOS only. iOS's Ogg reader refuses a Vorbis file, so its open fails there.
 - **TRAP: FLAC in Ogg is refused at the parser open**, since that reader reports it no length and decodes only its first page. The metadata fallback opens the same way. The TagLib parse refuses it as FLAC. Its row then fails to parse rather than look playable (`AudioFileHandle.m`, `TagLibAudioFile.mm`, `testFLACInOggIsRefused`).
+- **TRAP: a CAF's info chunk is checked before CoreAudio's info parser reads it**, since a forged entry count makes that parser loop forever. `infoDictionaryReadable` walks the chunk headers through the handle's own reads. It answers NO when the info chunk is absent, runs past the file, or declares more entries than its body could hold. A streamed CAF's data chunk of size -1 ends the walk, so an info chunk after it is dropped.
 
 `audioPathSnapshot` reports the source segment and the conversions in force.
 

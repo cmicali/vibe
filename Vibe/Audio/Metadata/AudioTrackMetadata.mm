@@ -18,9 +18,6 @@
 #import <AudioToolbox/AudioToolbox.h>
 
 #include <exception>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <audioproperties.h>
 #include <tpropertymap.h>
 #include <flacfile.h>
@@ -49,43 +46,6 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     if (![value isKindOfClass:NSString.class]) return nil;
     NSString *trimmed = [value stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     return trimmed.length > 0 ? trimmed : nil;
-}
-
-// TRAP: CoreAudio's CAF info parser (parseInfoStringsChunk) loops over the
-// info chunk's entry count without checking it against the chunk. A forged
-// count of 0xF90000EE never returns, and afinfo hangs the same way. It held a
-// metadata worker forever and stopped the folder's sweep. The info dictionary
-// is read only when this walk finds an info chunk inside the file whose body
-// could hold its count. Each entry is two NUL-terminated strings, so it takes
-// at least two bytes.
-static BOOL cafInfoChunkIsSound(NSURL *url) {
-    int fd = open(url.fileSystemRepresentation, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return NO;
-    struct stat status;
-    BOOL sound = NO;
-    if (fstat(fd, &status) == 0) {
-        uint64_t fileSize = (uint64_t)status.st_size;
-        uint64_t at = 8; // 'caff', version, flags
-        uint8_t header[12];
-        while (at + sizeof header <= fileSize && pread(fd, header, sizeof header, (off_t)at) == sizeof header) {
-            uint64_t size = 0;
-            for (size_t i = 4; i < 12; i++) size = size << 8 | header[i];
-            uint64_t body = at + sizeof header;
-            if (size > fileSize - body) break; // past the file, or the data chunk's -1
-            if (memcmp(header, "info", 4) == 0) {
-                uint8_t count[4];
-                if (size >= 4 && pread(fd, count, 4, (off_t)body) == 4) {
-                    uint32_t entries = (uint32_t)count[0] << 24 | (uint32_t)count[1] << 16
-                            | (uint32_t)count[2] << 8 | count[3];
-                    sound = entries <= (size - 4) / 2;
-                }
-                break;
-            }
-            at = body + size;
-        }
-    }
-    close(fd);
-    return sound;
 }
 
 @implementation AudioTrackMetadata
@@ -421,7 +381,7 @@ static BOOL cafInfoChunkIsSound(NSURL *url) {
     self.sampleRate = @((int)format.mSampleRate);
     CFDictionaryRef infoDictionary = NULL;
     size = sizeof(infoDictionary);
-    if ((container != kAudioFileCAFType || cafInfoChunkIsSound(url))
+    if (handle.infoDictionaryReadable
             && AudioFileGetProperty(file, kAudioFilePropertyInfoDictionary, &size, &infoDictionary) == noErr
             && infoDictionary) {
         NSDictionary *tags = CFBridgingRelease(infoDictionary);

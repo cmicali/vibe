@@ -130,6 +130,11 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 // For property reads while the handle lives. NULL once dr_flac or dr_wav has
 // taken the file over, and for a writing handle.
 @property (nonatomic, readonly, nullable) AudioFileID parser;
+// On the opening thread: NO when the parser's kAudioFilePropertyInfoDictionary
+// must not be read, for a CAF whose info chunk is absent, runs past the file
+// or declares more entries than it can hold. YES for every other container.
+// It reads as the parser does, so it may wait for a streaming file's bytes.
+@property (nonatomic, readonly) BOOL infoDictionaryReadable;
 // The file's own format: codec, native rate, channels, and for PCM the depth.
 @property (nonatomic, readonly) AVAudioFormat *fileFormat;
 // What reads deliver.
