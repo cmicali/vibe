@@ -44,6 +44,8 @@ A loader snapshots `AudioLoadingConfiguration`, so a settings change reaches onl
 
 **A file TagLib has no parser for takes its facts from CoreAudio's**: CAF and W64 among the playable ones, and any file TagLib refuses that CoreAudio reads. Those are duration, rate, bitrate, the codec or container name, and the info dictionary's title and artist, with no art. It parses OK, caches, and the folder's cover can stand in (`loadCoreAudioFactsFromURL:`). It reads them through playback's own parser open (`AudioFileHandle`'s `initParserForReading:`, no decoder), so the two never disagree on a file.
 
+**TRAP: a CAF's info chunk is checked before CoreAudio reads it.** CoreAudio's info parser loops without end on a forged entry count, and the hang holds a metadata worker forever. `cafInfoChunkIsSound` walks the chunk headers first. It refuses the info dictionary when the chunk is absent, runs past the file, or declares more entries than its body could hold. The format facts still come from CoreAudio.
+
 **The CoreAudio fallback opens never wait for a download or read ahead.** Both fallback opens, the FLAC-length one included, pass `VibeNeverWaitsForAStream` (`AudioFileHandle.h`, compared by identity). Against a file a transfer is still writing, the open fails at once, and the facts come once the file is on disk. On a network share the open reads the file directly, as TagLib's parse does.
 
 **TRAP: the TagLib parse must refuse what that open refuses.** TagLib's FLAC sniff takes FLAC in Ogg, which playback refuses. So no Ogg stream parses as FLAC (`TagLibAudioFile.mm`). Such a file is a failed parse, not a row that looks playable.
