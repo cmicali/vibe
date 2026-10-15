@@ -4,7 +4,8 @@
 //
 //  The private surface FolderSession.m and its +ExternalOpens and +Persistence
 //  categories share: the session's state, its stored keys, and the methods
-//  each side calls on the other. No other file imports it.
+//  each side calls on the other. Only those files and the macOS suite's
+//  FolderSessionTests import it.
 //
 
 #import "FolderSession.h"

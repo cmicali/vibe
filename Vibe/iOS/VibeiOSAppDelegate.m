@@ -7,6 +7,7 @@
 #import "AppSettings.h"
 #import "DropboxMirror.h"
 #import "LinkStore.h"
+#import "LocationStore.h"
 #import "NSBundle+BuildInfo.h"
 #if DEBUG
 #import "DebugiOSEntry.h"
@@ -18,6 +19,8 @@
         didFinishLaunchingWithOptions:(NSDictionary<UIApplicationLaunchOptionsKey, id> *)launchOptions {
     LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     VibeLogBuildProvenance();
+    // Before any scene names a folder.
+    LocationStore.deviceModelName = UIDevice.currentDevice.localizedModel;
     // Before the scene restores a playlist, which may name a mirror file or a
     // link. From here their placeholders are dataless. Opening one downloads
     // it, and its tags are read by range. Opening a folder then does not

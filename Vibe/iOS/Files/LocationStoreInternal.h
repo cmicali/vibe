@@ -21,6 +21,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface LocationStore (Internal)
 
+// A store of its own over the same defaults, as a relaunch reads them. The
+// app has one, LocationStore.shared.
+- (instancetype)initPrivate;
+
 // Nil when only a transient root or the app container covers url.
 - (nullable LocationGrant *)grantCoveringURL:(NSURL *)url;
 
