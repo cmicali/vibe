@@ -836,6 +836,15 @@ targets:
       - path: Vibe/Controls/LoadingIndicatorView.m
       - path: Vibe/Controls/LoadingIndicator.m
       - path: Vibe/Mac/Controls/ScaledImageView.m
+      - path: Vibe/Mac/Controls/ArtworkImageView.m          # the drawn views render into a bitmap, windowless
+      - path: Vibe/Mac/Controls/DrawnControls.m
+      - path: Vibe/Mac/Controls/PitchFaderView.m
+      - path: Vibe/Mac/Controls/SymbolButton.m
+      - path: Vibe/Mac/MainWindow/VolumeControlView.m
+      - path: Vibe/WaveformUI/Mac/WaveformView.mm
+      - path: Vibe/WaveformUI/Mac/WaveformView+Loading.mm
+      - path: Vibe/Util/Mac/NSDraggingImageComponent+Util.m
+      - path: Vibe/Util/Mac/NSTextField+Label.m
       - path: Vibe/Util/VibeWeakProxy.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m

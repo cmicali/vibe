@@ -13,6 +13,7 @@ This directory holds the tests of both test targets, `VibeTests` and `VibeAudioT
 `Support/` holds the shared helpers. None of them runs a test.
 
 - `AudioFixtures.h`: the fixture writers and the reference conversion (`VibeReferenceResample`). Both targets use it.
+- `DrawnViewTestSupport.h`: renders a view or a layer tree into a 1x bitmap and reads a pixel by view coordinates. It also makes the deferred window the view tests attach to.
 - `DropboxStubProtocol.h` and `.m`: the Dropbox tests' `NSURLProtocol`. One handler the test installs answers every request.
 - `HTTPStub.h` and `.m`: a scripted HTTP host per instance, over the debug fake's serving engine. Both targets compile it.
 - `LinkStoreTestCase.h` and `.m`: the base class of each link host's store tests.
@@ -26,7 +27,7 @@ This directory holds the tests of both test targets, `VibeTests` and `VibeAudioT
 
 Deterministic host-less logic and machinery: code whose outcome its inputs or narrow injected I/O boundaries control. That covers math, archive encode and decode, formatting, precedence rules, cache keys, coordinator accounting, queue and retry orchestration, and local temp-file wrappers. The suite is **host-less** (no `TEST_HOST`). It needs no window server, audio hardware, permissions or Vibe instance, and it does not inherit the app's sandbox, so it can read fixtures from the repo.
 
-Anything that needs the app running belongs in the `vibe-debug` skill's command channel: shell transport routing, menus, drag and drop, layout, rendering, Now Playing, device switching. Player transport and FX have the device-free audio suite below.
+Anything that needs the app running belongs in the `vibe-debug` skill's command channel: shell transport routing, menus, drag and drop, layout, on-screen compositing, Now Playing, device switching. A single view's drawing does not need it (below). Player transport and FX have the device-free audio suite below.
 
 **Where rendering is the whole class, extract the arithmetic into a seam.** Decisions that need no rendering live in header-only `*Rules.h` and `*Math.h` files that the shipping class **calls** rather than restates: `FadeMath.h`, `AudioFXMath.h`, `TransportMath.h`, `NowPlayingRules.h`, `PlayerScreenRules.h`. `AudioVoiceBusTests` tests the voice bus host-less: the tests own the output buffers and call `VibeVoiceBusRender` with inline decoding, so every frame is compared against its file. `AudioVoiceBusPoolTests` covers starvation, kills and the voice pool. Their harness is `AudioVoiceBusTestCase`. `AudioFXChainTests` hosts the FX chain alone and calls `VibeFXChainRender` through the debug pump's frame-driven clock. Reach for these before deciding a class cannot be tested.
 
@@ -55,6 +56,8 @@ Anything that needs the app running belongs in the `vibe-debug` skill's command 
 - Their harness is `IOSShellTestCase`. The shell reaches `DropboxMirror.shared` and `LinkStore.shared`, so in this process each answers a store under the per-pid root, with no account and no network. The stores' own singletons are emptied before each test. `VibeWidgetStateTests` covers the snapshot's playhead arithmetic but never its app group container, which on the mac is a real directory under `~/Library`.
 
 `PlaybackController` is in neither target. Its header imports UIKit, and it owns an `AVAudioSession` controller and the iOS recovery category, which the mac cannot compile. Its decisions are tested as rules instead (`PlayerScreenRules.h`, `FolderSessionRules.h`).
+- `EqualizerIndicatorViewTests` runs the playing-row marker in a deferred window with a recording `EqualizerLevelSource`. Every gate, a source swap, a reentrant restart and deallocation must leave one balanced consumer per running poller. `LoadingIndicatorTests` covers the loading control's layers, pulse, sweep and palette, and its row view.
+- **A drawn view renders into a bitmap with no window server** (`DrawnViewTestSupport.h`). The tests assert facts about the pixels. They never compare against a stored image, which breaks on every OS change. `WaveformViewTests` checks the played side, the playhead line and the theme's colors through the real view. `PitchFaderViewTests`, `DrawnControlsTests` (with the volume control), `SymbolButtonTests` and `ArtworkImageViewTests` cover the mac controls. A dragging session and a key window need a window server, so they stay with `vibe-debug`. NSApp is nil here, so a sent action is not asserted.
 
 OS provider state, shell routing, remote-command registration, output rebinding, device property I/O and hardware settlement remain live tests.
 

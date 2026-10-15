@@ -7,6 +7,18 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta9</title>
+<pubDate>Thu, 15 Oct 2026 17:33:01 +0000</pubDate>
+<sparkle:version>316</sparkle:version>
+<sparkle:shortVersionString>1.16-beta9</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* New: separate theme colors for the row number and the duration of the playing row and selected rows
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta9/Vibe-macOS-universal-1.16-beta9.zip" length="10106802" type="application/octet-stream" sparkle:edSignature="8K5G/0zPuiHqQBuUhkYZakMPiN8vIZQSocg+TncTzi7eFzaAPZEMOLNZaovKH4xJMee2PMLCcgLHf/fkpvFtCQ=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta8</title>
 <pubDate>Thu, 15 Oct 2026 14:05:58 +0000</pubDate>
 <sparkle:version>315</sparkle:version>

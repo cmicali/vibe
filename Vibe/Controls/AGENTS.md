@@ -10,7 +10,7 @@ The playing-row marker owns five retained pill `CALayer`s. It never redraws a bi
 
 `audioOutputActive` and `presentationVisible` both default to NO. The poller also needs a source, a window and nonempty geometry. Starting it declares one consumer. When audio stops while the row stays visible, the control stops the poller and balances demand at once. It writes the collapsed model scales and lets one keyed release per bar finish on the compositor. That release owns no display link, FFT, timer, callback or completion. Visibility loss, detachment, empty geometry and source replacement cancel the animations and settle to dots at once. Source replacement releases the old source before requesting the new one.
 
-`Audio/Levels/AGENTS.md` owns production. `iOS/AGENTS.md` and `Playlist/Mac/AGENTS.md` own their material-visibility facts. The root `AGENTS.md` guarantee ties them together.
+`Audio/Levels/AGENTS.md` owns production. `iOS/AGENTS.md` and `Playlist/Mac/AGENTS.md` own their material-visibility facts. The root `AGENTS.md` guarantee ties them together. `EqualizerIndicatorViewTests` and `LoadingIndicatorTests` run both views host-less (`Tests/AGENTS.md`).
 
 ## LoadingIndicator and LoadingIndicatorView
 
