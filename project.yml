@@ -26,8 +26,8 @@ settingGroups:
   # Keep the app and widget versions together. Release scripts read the built app.
   # A stable release also sets VIBE_BETA_DEBUG to 0 (vibe-release).
   vibe-version:
-    MARKETING_VERSION: "1.16-beta8"
-    CURRENT_PROJECT_VERSION: 315
+    MARKETING_VERSION: "1.16-beta9"
+    CURRENT_PROJECT_VERSION: 316
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS:
