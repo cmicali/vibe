@@ -316,12 +316,12 @@ static NSString *WaveformCustomBandKey(NSUInteger band, BOOL isDark, BOOL widget
     [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_SHUFFLE_REPEAT];
 }
 
-- (BOOL)welcomeTrackLoaded {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WELCOME_TRACK_LOADED];
+- (BOOL)welcomeTrackSpent {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_WELCOME_TRACK_SPENT];
 }
 
-- (void)setWelcomeTrackLoaded:(BOOL)loaded {
-    [[NSUserDefaults standardUserDefaults] setBool:loaded forKey:SETTING_WELCOME_TRACK_LOADED];
+- (void)setWelcomeTrackSpent:(BOOL)spent {
+    [[NSUserDefaults standardUserDefaults] setBool:spent forKey:SETTING_WELCOME_TRACK_SPENT];
 }
 
 #if !TARGET_OS_OSX

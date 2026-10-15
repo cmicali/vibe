@@ -123,9 +123,17 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (BOOL)loadWelcomeTrack {
     NSURL *url = [NSBundle.mainBundle URLForResource:@"vibe-theme" withExtension:@"mp3"];
-    if (!url) return NO;
+    if (!url || AppSettings.sharedInstance.welcomeTrackSpent) return NO;
     [self loadTracks:@[[[AudioTrack alloc] initWithURL:url]] selectingIndex:0 startPaused:YES];
     return YES;
+}
+
+// Spent by the user's first play or open, not by the park: a user who updates
+// before doing either would otherwise lose the track to the relaunch.
+- (void)spendWelcomeTrack {
+    if (!AppSettings.sharedInstance.welcomeTrackSpent) {
+        AppSettings.sharedInstance.welcomeTrackSpent = YES;
+    }
 }
 
 - (void)applyReopenLastPlaylist {

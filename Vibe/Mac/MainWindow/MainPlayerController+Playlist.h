@@ -26,7 +26,11 @@ NS_ASSUME_NONNULL_BEGIN
 // YES when the mirror came back, parked on its last current row; NO when the
 // setting is off or nothing was saved. Not an open (Mac/App/AGENTS.md).
 - (BOOL)restoreLastPlaylist;
+// Parks the bundled vibe-theme.mp3 until it has been played once.
 - (BOOL)loadWelcomeTrack;
+// From every open, and from the two deliveries that mean sound: a playing
+// start and a resume.
+- (void)spendWelcomeTrack;
 // Quit-time: writes the mirror, or deletes it when off or empty.
 - (void)saveLastPlaylist;
 - (void)applyReopenLastPlaylist;
