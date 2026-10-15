@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import random
 import sys
 import tempfile
@@ -375,6 +376,346 @@ WARNING: ThreadSanitizer: heap-use-after-free (pid=4242)
             self.assertEqual(result, 1)
             result, _ = self.run_tsan(lambda *_: 0, Path(directory) / "none")
             self.assertEqual(result, 0)
+
+
+IOS_LAYOUT = {
+    "": (["z album"], ["a1 tone-long.wav", "b bpm-120.wav"]),
+    "z album": (["deeper"], ["key-am.wav", "tone-art-green.mp3"]),
+    "z album/deeper": ([], ["tone.flac"]),
+    "empty": ([], []),
+}
+IOS_CORPUS = Path("/sim/Documents/Music")
+
+
+def ios_run(seed, favorites=(), dropbox=None, hits=2, count=3, index=1):
+    """A run namespace that records each performed step and answers reads."""
+    steps = []
+    search = {"sections": [{"rows": []}, {"rows": [{"text": "x"}] * hits}, {"rows": []}]}
+    starred = [str(IOS_CORPUS / p) for p in favorites]
+    opened = []
+
+    def perform(step):
+        stress.ios_validate_step(step)
+        steps.append(step)
+        argv = step.get("command", [""])
+        if argv[0] == "open":
+            opened.append(str(IOS_CORPUS / argv[1].removeprefix("$CORPUS").lstrip("/")))
+        elif argv[0] == "tap_favorite_star":
+            # The star toggles the open folder, as the app's does.
+            (starred.remove if opened[-1] in starred else starred.append)(opened[-1])
+        return search if argv[0] == "search" else {"ok": True}
+
+    def read(argv):
+        return {"dump_state": {"playlist": {"count": count, "currentIndex": index}},
+                "dump_favorites": {"favorites": [{"path": p} for p in starred]},
+                "dump_dropbox": dropbox or {"linked": False, "fake": False}}[argv[0]]
+
+    return random.Random(seed), mock.Mock(perform=perform, read=read, corpus=IOS_CORPUS,
+                                          layout=IOS_LAYOUT), steps
+
+
+def commands(steps):
+    return [step["command"] for step in steps if "command" in step]
+
+
+class IosOperationTests(unittest.TestCase):
+    def test_the_table_is_whole(self):
+        self.assertEqual(set(stress.IOS_OPS), set(stress.IOS_WEIGHTS))
+        self.assertEqual(set(stress.IOS_OP_PROOFS),
+                         set(stress.IOS_WEIGHTS) - {"transport", "burst", "fx"})
+        self.assertTrue(all(stress.IOS_WEIGHTS[kind] > 0 for kind in stress.IOS_OP_PROOFS))
+
+    def test_every_op_passes_the_gate_and_emits_its_proof_verb(self):
+        for kind, op in stress.IOS_OPS.items():
+            verbs = set()
+            for seed in range(40):
+                rng, run, steps = ios_run(seed)
+                op(rng, run)   # ios_run's perform gates every step
+                verbs |= {argv[0] for argv in commands(steps)}
+            with self.subTest(kind=kind):
+                self.assertTrue(verbs)
+                self.assertTrue(stress.IOS_OP_PROOFS.get(kind, verbs) & verbs)
+
+    def test_tab_selects_known_tabs(self):
+        for seed in range(30):
+            rng, run, steps = ios_run(seed)
+            stress.ios_op_tab(rng, run)
+            tabs = [argv[1] for argv in commands(steps) if argv[0] == "select_tab"]
+            self.assertTrue(1 <= len(tabs) <= 3)
+
+    def test_card_reads_anchors_at_rest_around_a_track_change(self):
+        for seed in range(30):
+            rng, run, steps = ios_run(seed)
+            stress.ios_op_card(rng, run)
+            shape = [step.get("check") or step["command"][0] for step in steps]
+            self.assertEqual(shape[:2], ["minimize_player", "anchors"])
+            self.assertEqual(shape[4:6], ["minimize_player", "anchors"])
+            self.assertIn(shape[3], ("next", "previous", "play_index"))
+
+    def test_browse_taps_only_listed_names_and_never_backs_past_its_show(self):
+        for seed in range(80):
+            rng, run, steps = ios_run(seed)
+            stress.ios_op_browse(rng, run)
+            argvs = commands(steps)
+            self.assertEqual(argvs[:2], [["minimize_player"], ["select_tab", "files"]])
+            shown = argvs[2][2].removeprefix("$CORPUS").lstrip("/")
+            path = [shown]
+            for argv in argvs[3:]:
+                folders, files = IOS_LAYOUT[path[-1]]
+                if argv[1] == "back":
+                    path.pop()
+                    self.assertTrue(path)
+                elif argv[1] == "tap" and argv[2] in folders:
+                    path.append(f"{path[-1]}/{argv[2]}".lstrip("/"))
+                else:
+                    self.assertTrue(argv[1] == "play" or argv[2] in files)
+                    self.assertTrue(files)
+
+    def test_search_checks_no_match_then_opens_a_listed_hit_and_clears(self):
+        for seed in range(30):
+            rng, run, steps = ios_run(seed, hits=3)
+            stress.ios_op_search(rng, run)
+            argvs = commands(steps)
+            self.assertEqual(argvs[2], ["search", stress.IOS_NO_MATCH])
+            self.assertTrue(int(argvs[4][1]) < 3)
+            self.assertEqual(argvs[-1], ["search"])
+        rng, run, steps = ios_run(0, hits=0)
+        stress.ios_op_search(rng, run)
+        self.assertNotIn("open_search_hit", [argv[0] for argv in commands(steps)])
+
+    def test_favorite_stars_opens_and_unstars_but_leaves_a_users_folder(self):
+        rng, run, steps = ios_run(3)
+        stress.ios_op_favorite(rng, run)
+        verbs = [argv[0] for argv in commands(steps)]
+        self.assertEqual(verbs, ["open", "tap_favorite_star", "select_tab",
+                                 "open_favorite", "tap_favorite_star"])
+        for seed in range(20):
+            rng, run, steps = ios_run(seed, favorites=["", "z album", "z album/deeper"])
+            stress.ios_op_favorite(rng, run)
+            self.assertEqual(steps, [])
+
+    def test_route_plays_then_draws_each_kind(self):
+        for seed in range(30):
+            rng, run, steps = ios_run(seed)
+            stress.ios_op_route(rng, run)
+            argvs = commands(steps)
+            self.assertEqual(argvs[0][0], "play_index")
+            self.assertTrue(all(argv[0] == "set_output_route" for argv in argvs[1:]))
+
+    def test_page_moves_to_adjacent_rows_under_the_card(self):
+        for seed in range(30):
+            rng, run, steps = ios_run(seed, count=4, index=0)
+            stress.ios_op_page(rng, run)
+            argvs = commands(steps)
+            self.assertEqual(argvs[0], ["expand_player"])
+            rows = [0] + [int(argv[1]) for argv in argvs[1:]]
+            for a, b in zip(rows, rows[1:]):
+                self.assertIn((b - a) % 4, (1, 3))
+            self.assertEqual(steps[-1], {"check": "progress"})
+
+    def test_fake_dropbox_browses_the_account_clears_its_fault_and_spares_a_real_one(self):
+        for seed in range(40):
+            rng, run, steps = ios_run(seed)
+            stress.ios_op_fake_dropbox(rng, run)
+            argvs = commands(steps)
+            self.assertEqual(argvs[0][:2], ["set_fake_dropbox", "$CORPUS"])
+            self.assertTrue(any(argv[:2] == ["browse", "show"] and argv[2].startswith("$DROPBOX")
+                                for argv in argvs))
+            if any(argv[0] == "fake_dropbox_fault" for argv in argvs):
+                self.assertEqual(argvs[-1], ["fake_dropbox_fault", "clear"])
+        rng, run, steps = ios_run(0, dropbox={"linked": True, "fake": False})
+        stress.ios_op_fake_dropbox(rng, run)
+        self.assertEqual(steps, [])
+
+    def test_link_never_stalls_clears_its_fault_and_takes_a_sheet_road_only_unfaulted(self):
+        roads = set()
+        for seed in range(60):
+            rng, run, steps = ios_run(seed)
+            stress.ios_op_link(rng, run)
+            argvs = commands(steps)
+            verbs = [argv[0] for argv in argvs]
+            self.assertNotIn(["fake_http_fault", "stall"], argvs)
+            roads |= set(verbs) & {"open_url", "open_url_sheet", "paste_link"}
+            if "fake_http_fault" in verbs:
+                self.assertEqual(argvs[-1], ["fake_http_fault", "off"])
+                self.assertIn("open_url", verbs)
+            if "open_url_sheet" in verbs:
+                self.assertEqual([argv[1] for argv in argvs if argv[0] == "open_url_sheet"],
+                                 ["show", "type", "open"])
+        self.assertEqual(roads, {"open_url", "open_url_sheet", "paste_link"})
+
+
+class IosGateTests(unittest.TestCase):
+    def test_refuses_escapes_other_hosts_stalls_and_input(self):
+        for argv in (["open", "$CORPUS/../etc"], ["open", "/etc"], ["open", "$CORPUS/"],
+                     ["browse", "show", "$CORPUS/a/../.."], ["browse", "tap", "a/b"],
+                     ["browse", "tap", ".."], ["select_tab", "settings"],
+                     ["set_output_route", "airplay", "Kitchen"], ["search", "a b"],
+                     ["set_fake_dropbox", "/tmp", "1"], ["fake_dropbox_fault", "stall"],
+                     ["fake_http_fault", "stall"], ["open_url", "https://example.com/a.mp3"],
+                     ["open_url", "https://fake.vibe.test/%2E%2E/x"], ["add_search_folder", "/"],
+                     ["paste_link", "https://example.com/a.mp3"], ["open_url_sheet", "paste", "x"],
+                     ["open_url_sheet", "type", "https://example.com/a.mp3"],
+                     ["open_url", "https://fake.vibe.test/a", "extra"],
+                     ["tap", "1", "2"], ["drag", "1", "2", "3", "4"], ["set_clipboard", "x"]):
+            with self.subTest(argv=argv), self.assertRaises(ValueError):
+                stress.ios_validate_step({"command": argv})
+
+    def test_new_checks_pass(self):
+        for check in ("anchors", "pending"):
+            stress.ios_validate_step({"check": check})
+
+    def test_anchor_shift_names_what_moved(self):
+        rest = {"tabBar": [0, 791, 402, 83], "strip": [21, 735, 360, 48],
+                "tabsSafeAreaInsets": [62, 0, 34, 0], "navigationBar": [0, 62, 402, 106]}
+        self.assertEqual(stress.ios_anchor_shift(rest, {**rest, "navigationBar": [0, 62, 402, 54]}), [])
+        self.assertEqual(stress.ios_anchor_shift(rest, {**rest, "tabsSafeAreaInsets": [62, 0, 0, 0]}),
+                         ["tabsSafeAreaInsets"])
+
+    def test_pending_holdouts_name_each_counter(self):
+        self.assertEqual(stress.ios_pending_holdouts(
+            {"cloudParsesPending": 0, "cloudLaneHeld": 0, "materialization": {"claims": 0}}), [])
+        self.assertEqual(stress.ios_pending_holdouts(
+            {"cloudParsesPending": 2, "cloudLaneHeld": 0, "materialization": {"waiters": 1}}),
+            ["cloudParsesPending=2", "materialization.waiters=1"])
+
+    def test_layout_lists_folders_and_playable_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "album" / ".hidden").mkdir(parents=True)
+            (root / "album" / "a.flac").write_bytes(b"")
+            (root / "notes.txt").write_text("")
+            (root / ".DS_Store").write_text("")
+            layout = stress.ios_corpus_layout(root)
+        self.assertEqual(layout, {"": (["album"], []), "album": ([], ["a.flac"])})
+
+    def test_landed_needs_every_row_inside_the_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.wav").write_bytes(b"")
+            (root / "b.wav").write_bytes(b"")
+            state = {"currentTrack": {"url": str(root / "a.wav")},
+                     "playlist": {"files": ["a.wav", "b.wav"]}}
+            self.assertTrue(stress.ios_landed(state, root))
+            self.assertFalse(stress.ios_landed({**state, "playlist": {"files": ["c.wav"]}}, root))
+            self.assertFalse(stress.ios_landed({**state, "currentTrack": None}, root))
+
+
+def ios_command_stub(replies, sent):
+    def command(argv):
+        sent.append(argv)
+        reply = replies.get(argv[0], {"ok": True})
+        return reply(argv) if callable(reply) else reply
+    return command
+
+
+class IosRestorerTests(unittest.TestCase):
+    def before(self, **extra):
+        return {"ui": {"selectedTab": "files", "playerPresentation": "minimized"},
+                "settings": {"repeatMode": "off", "shuffleEnabled": False, "pauseAtTrackEnd": False},
+                "favorites": [], "dropbox": {"fake": False}, "recents": ["/a"], **extra}
+
+    def test_fakes_disarm_only_what_the_run_armed(self):
+        sent = []
+        stress.ios_restore_fakes(ios_command_stub({"dump_dropbox": {"fake": True}}, sent), self.before())
+        self.assertIn(["set_fake_dropbox", "off"], sent)
+        self.assertIn(["set_fake_http", "off"], sent)
+        sent = []
+        stress.ios_restore_fakes(ios_command_stub({"dump_dropbox": {"fake": True}}, sent),
+                                 self.before(dropbox={"fake": True}))
+        self.assertNotIn(["set_fake_dropbox", "off"], sent)
+
+    def test_favorites_unstar_what_the_run_added_and_report_a_loss(self):
+        with tempfile.TemporaryDirectory() as directory:
+            added, kept, lost = (Path(directory) / name for name in ("added", "kept", "lost"))
+            for folder in (added, kept, lost):
+                folder.mkdir()
+                (folder / "a.wav").write_bytes(b"")
+            listing = [[{"path": str(added)}, {"path": str(kept)}]]
+            sent = []
+            replies = {
+                "dump_favorites": lambda _: {"favorites": listing[0]},
+                "tap_favorite_star": lambda _: listing.__setitem__(0, [{"path": str(kept)}]) or {"ok": True},
+                "dump_state": {"currentTrack": {"url": str(added / "a.wav")},
+                               "playlist": {"files": ["a.wav"]}},
+            }
+            errors = stress.ios_restore_favorites(
+                ios_command_stub(replies, sent),
+                self.before(favorites=[{"path": str(kept)}, {"path": str(lost)}]))
+        self.assertIn(["open", str(added.resolve())], sent)
+        self.assertEqual(sent.count(["tap_favorite_star"]), 1)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("lost", errors[0])
+
+    def test_chrome_puts_back_the_tab_the_card_and_the_models_route(self):
+        sent = []
+        stress.ios_restore_chrome(ios_command_stub(
+            {"dump_state": {"ui": {"outputRoute": {"kind": 1, "name": "Speaker"}}}}, sent), self.before())
+        self.assertEqual(sent, [["select_tab", "files"], ["minimize_player"], ["dump_state"],
+                                ["set_output_route", "speaker", "Speaker"]])
+
+    def test_recents_restore_and_verify(self):
+        sent = []
+        ok = stress.ios_restore_recents(ios_command_stub(
+            {"recents": {"items": [{"path": "/a"}]}}, sent), self.before())
+        self.assertEqual((sent, ok), ([["recents", "restore"]], []))
+        self.assertTrue(stress.ios_restore_recents(ios_command_stub(
+            {"recents": {"items": [{"path": "/b"}]}}, []), self.before()))
+
+    def test_restore_runs_every_restorer_with_recents_last(self):
+        sent = []
+        replies = {"dump_state": {"player": {"state": "paused"}, "ui": {},
+                                  "settings": {"repeatMode": "off", "shuffleEnabled": False,
+                                               "pauseAtTrackEnd": False}},
+                   "dump_favorites": {"favorites": []}, "dump_dropbox": {"fake": True},
+                   "recents": {"items": [{"path": "/a"}]}}
+        with mock.patch.object(stress, "ios_wait"):
+            errors = stress.ios_restore(ios_command_stub(replies, sent), self.before(), 1)
+        self.assertEqual(errors, [])
+        self.assertEqual(sent[-1], ["recents", "restore"])
+        for argv in (["set_fake_dropbox", "off"], ["set_fake_http", "off"], ["set_fx_pad", "off"],
+                     ["set_repeat", "off"], ["select_tab", "files"], ["set_output_route", "none"]):
+            self.assertIn(argv, sent)
+
+    def test_a_restorer_without_its_snapshot_sends_nothing(self):
+        for restorer in (stress.ios_restore_favorites, stress.ios_restore_chrome,
+                         stress.ios_restore_recents):
+            sent = []
+            self.assertEqual(restorer(ios_command_stub({}, sent), {}), [])
+            self.assertEqual(sent, [])
+
+    def test_a_failing_restorer_does_not_stop_the_rest(self):
+        def broken(argv):
+            raise stress.Failure("channel", "gone", argv)
+        sent = []
+        replies = {"dump_dropbox": broken, "dump_favorites": broken, "dump_state": broken,
+                   "recents": {"items": [{"path": "/a"}]}}
+        errors = stress.ios_restore(ios_command_stub(replies, sent), self.before(), 1)
+        self.assertTrue(errors)
+        self.assertEqual(sent[-1], ["recents", "restore"])
+
+
+class IosDeadOpTests(unittest.TestCase):
+    def test_journal_replies_feed_the_dead_op_warning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            journal = Path(directory) / "journal.ndjson"
+            records = [
+                {"event": "begin", "op": "search", "command": ["search", "x"]},
+                {"event": "reply", "op": "search", "command": ["search", "x"], "code": 0,
+                 "reply": {"ok": True}},
+                {"event": "reply", "op": "link", "command": ["open_url", "https://fake.vibe.test/a"],
+                 "code": 0, "reply": {"ok": False}},
+                {"event": "reply", "op": "browse", "command": ["browse", "tap", "a"], "code": 0,
+                 "reply": {"ok": True}},
+                {"event": "reply", "phase": "cleanup", "command": ["set_fake_http", "off"], "code": 0},
+            ]
+            journal.write_text("".join(json.dumps(r) + "\n" for r in records))
+            entries = stress.ios_journal_proof_entries(journal)
+        self.assertEqual(len(entries), 3)
+        warnings = "\n".join(stress.dead_op_warnings(entries, stress.IOS_WEIGHTS, stress.IOS_OP_PROOFS))
+        for kind in ("search", "link", "tab", "favorite"):
+            self.assertIn(f"`{kind}`", warnings)
+        self.assertNotIn("`browse`", warnings)
 
 
 if __name__ == "__main__":
