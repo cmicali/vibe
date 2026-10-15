@@ -94,6 +94,7 @@ NSString *const kVibeThemeColorTime = @"timeColor";
 NSString *const kVibeThemeColorPlaylistBackground = @"playlistBackgroundColor";
 NSString *const kVibeThemeColorPlaylistPlayingRow = @"playlistPlayingRowColor";
 NSString *const kVibeThemeColorPlaylistSelectedRow = @"playlistSelectedRowColor";
+NSString *const kVibeThemeColorPlaylistEqualizer = @"playlistEqualizerColor";
 NSString *const kVibeThemeColorVolumeBar = @"volumeBarColor";
 NSString *const kVibeThemeColorVolumeKnob = @"volumeKnobColor";
 NSString *const kVibeThemeColorPlaylistButton = @"playlistButtonColor";
@@ -434,6 +435,7 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
                              kVibeThemeColorArtist);
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistPlayingRowDuration, playlist, @"playingRowDurationColor",
                              kVibeThemeColorArtist);
+        AddColorPair(rows, kVibeThemeColorPlaylistEqualizer, playlist, @"equalizerColor");
         AddColorPair(rows, kVibeThemeColorPlaylistSelectedRow, playlist, @"selectedRowColor");
         AddSwitchedColorPair(rows, kVibeThemeColorPlaylistSelectedRowNumber, playlist, @"selectedRowNumberColor",
                              kVibeThemeColorArtist);
@@ -597,6 +599,9 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
     if ([base isEqualToString:kVibeThemeColorPlaylistPlayingRow]
             || [base isEqualToString:kVibeThemeColorPlaylistSelectedRow]) {
         return [(isDark ? NSColor.whiteColor : NSColor.blackColor) colorWithAlphaComponent:0.09];
+    }
+    if ([base isEqualToString:kVibeThemeColorPlaylistEqualizer]) {
+        return NSColor.whiteColor;
     }
     // 0.55 is SymbolButton's resting strength.
     if (VibeIsArtKeyedColorBase(base) || [base isEqualToString:kVibeThemeColorDefaultArtworkGlyph]) {

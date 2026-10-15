@@ -143,6 +143,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeColorTime;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistBackground;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistPlayingRow;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistSelectedRow;
+// The playing row's equalizer bars. Unset, white on either side.
+FOUNDATION_EXPORT NSString *const kVibeThemeColorPlaylistEqualizer;
 // Unset, the bar draws the system accent and the knob white, so choosing
 // Custom starts from None.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorVolumeBar;

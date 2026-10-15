@@ -14,6 +14,7 @@
 #import "EqualizerIndicatorView.h"
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
+#import "NSView+DarkMode.h"
 
 // Also the scroll view's line scroll and the prototypes' height.
 static const CGFloat kPlaylistRowHeight = 28;
@@ -134,6 +135,7 @@ static NSDictionary *artistAttributes;
 // off. Cached so a row view's repeated push compares by pointer.
 static NSDictionary<NSString *, NSColor *> *playingRowColors;
 static NSDictionary<NSString *, NSColor *> *selectedRowColors;
+static NSColor *equalizerBarColor;
 // Not dispatch_once: they carry the theme's fonts and colors, so the
 // PlaylistAppearance effect invalidates them.
 static BOOL cellAttributesBuilt;
@@ -212,6 +214,9 @@ static void ensureCellAttributes(void) {
                 kVibeThemeColorPlaylistArtist: kVibeThemeColorPlaylistSelectedRowArtist,
                 kVibeThemeColorPlaylistDuration: kVibeThemeColorPlaylistSelectedRowDuration,
         });
+        equalizerBarColor = [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
+            return [theme displayColorForBase:kVibeThemeColorPlaylistEqualizer dark:appearance.isDark];
+        }];
     }
 }
 
@@ -279,10 +284,9 @@ static NSTextField *makeCellTextField(NSRect frame) {
                                          (rowHeight - kEqualizerHeight) / 2,
                                          kEqualizerWidth,
                                          kEqualizerHeight)];
-        eqView.barColor = NSColor.whiteColor;
         eqView.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
         [view addSubview:eqView];
-        // The loading bar shares the equalizer's slot and its white.
+        // The loading bar shares the equalizer's slot and stays white.
         CGFloat loadingHeight = VibeLoadingIndicatorMetricsForStyle(
                 VibeLoadingIndicatorStyleRow, kEqualizerWidth).height;
         LoadingIndicatorView *loadingView = [[LoadingIndicatorView alloc]
@@ -398,6 +402,11 @@ static NSTextField *makeCellTextField(NSRect frame) {
         return selectedRowColors;
     }
     return playing ? playingRowColors : nil;
+}
+
++ (NSColor *)equalizerBarColor {
+    ensureCellAttributes();
+    return equalizerBarColor;
 }
 
 + (NSImage *)artworkCellImage:(NSImage *)thumbnail {

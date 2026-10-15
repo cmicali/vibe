@@ -379,7 +379,13 @@
                                    kVibeThemeColorPlaylistPlayingRowTitle,
                                    kVibeThemeColorPlaylistPlayingRowArtist,
                                    kVibeThemeColorPlaylistSelectedRowTitle,
-                                   kVibeThemeColorPlaylistSelectedRowArtist];
+                                   kVibeThemeColorPlaylistSelectedRowArtist,
+                                   kVibeThemeColorPlaylistEqualizer];
+    // The equalizer bars are white over either row wash until a theme says.
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistEqualizer dark:YES]),
+                          @"#FFFFFF");
+    XCTAssertEqualObjects(VibeHexStringFromColor([theme displayColorForBase:kVibeThemeColorPlaylistEqualizer dark:NO]),
+                          @"#FFFFFF");
     for (NSString *base in bases) {
         XCTAssertNotNil([theme displayColorForBase:base dark:YES], @"%@", base);
         XCTAssertNotNil([theme displayColorForBase:base dark:NO], @"%@", base);

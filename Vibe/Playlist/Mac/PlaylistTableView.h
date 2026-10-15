@@ -49,6 +49,9 @@ extern NSString *const kPlaylistColumnLength;
 // A row's text colors by the column base each draws (PlaylistColumnAttributeName).
 // A column absent, or nil, means the column's own color.
 + (nullable NSDictionary<NSString *, NSColor *> *)textColorsForRowSelected:(BOOL)selected playing:(BOOL)playing;
+// The theme's equalizer color, dynamic over the appearance. PlaylistRowView
+// pushes it with the text colors.
++ (NSColor *)equalizerBarColor;
 // The thumbnail, or the theme's placeholder sleeve.
 + (NSImage *)artworkCellImage:(nullable NSImage *)thumbnail;
 

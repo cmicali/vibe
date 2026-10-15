@@ -20,6 +20,7 @@
 * mac: Added the Kinda Blue theme
 * mac: Added Clear, Window, Symbol and Custom color choices for a theme's default artwork
 * mac: Added theme colors for the number, title, artist and duration text of the playing row and selected rows
+* mac: Added a theme color for the playing row's equalizer bars
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
 * mac: Added clicking the pitch panel's header to switch the range between 8% and 16%
