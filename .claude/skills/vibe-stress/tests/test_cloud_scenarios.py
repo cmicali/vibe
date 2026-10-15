@@ -979,7 +979,10 @@ class SettingsTeardownTests(unittest.TestCase):
         settings = dict(self.START)
         channel, sent = self.fake_app(settings)
         printed, launch = self.preserved(channel, lambda imported: None)
-        self.assertEqual({argv[0] for argv in sent}, {"dump_state", "reorder_cancel"})
+        # Disarming the fakes and closing Settings write nothing to the store.
+        self.assertEqual({argv[0] for argv in sent},
+                         {"dump_state", "settings_close"}
+                         | {argv[0] for argv in stress.DISARM_COMMANDS})
         self.assertIn("restored nothing (none moved)", printed)
         launch.assert_not_called()
 
