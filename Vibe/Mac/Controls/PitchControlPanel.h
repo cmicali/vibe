@@ -18,10 +18,13 @@ extern const CGFloat kPitchPanelWidth;
 // Once per gesture (mouse-up, double-click reset or an accessibility step),
 // for work too heavy for every drag tick.
 - (void)pitchControlPanelDidEndAdjusting:(PitchControlPanel *)panel;
+// A click on the title or the readout. The delegate switches the range.
+- (void)pitchControlPanelDidClickHeader:(PitchControlPanel *)panel;
 @end
 
 // The strip on the window's right edge: a title, a live readout and the fader.
-// Setting .pitch updates both without firing the delegate.
+// Setting .pitch updates both without firing the delegate. A click on the
+// title or the readout reports didClickHeader:.
 @interface PitchControlPanel : NSView
 
 @property (nullable, weak) id<PitchControlPanelDelegate> delegate;
