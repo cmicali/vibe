@@ -91,7 +91,7 @@ A failed PCM comparison attaches the reference, the capture, aligned difference 
 
 The fixture generator (`scripts/test/generate-test-audio.sh`) owns the source corpus in its `--render-tests` mode. Tests only create temporary slices and malformed inputs. Stock macOS encoders cover the core formats, CAF and W64 included. MP3, MP2, QTA and Ogg need ffmpeg and are skipped without it; CI installs it. No unit test reads the gitignored `Assets/test_audio_files` corpus. A unit test writes its own fixtures through `AudioFixtures.h` into the per-process temp root. The render suite instead requires its generated core fixtures. The ISO/IEC 11172-4 Layer III compliance stream and its reference decode are ISO's, so the generator fetches them from FFmpeg's FATE mirror and checks pinned hashes. When that fails, `testDrMP3PassesTheISOComplianceStreamAtFullAccuracy` skips.
 
-**A skip is gated.** `make test-summary` and `make test-audio-summary` fail when a bundle skips more tests than `scripts/checks/skip-baseline` allows. A new deliberate skip raises the baseline in the same change, and names the test there.
+**A skip is gated.** `make test-summary` and `make test-audio-summary` fail on any skipped test that `scripts/checks/skip-allowlist` does not name. A new deliberate skip is named there in the same change.
 
 The pump proves the software path, **not** DAC samples, hardware negotiation, exclusivity or iOS session recovery. `make test-audio-loopback` and `make test-audio-device` run the same verifier against a real device for those macOS boundaries. Each needs a Debug app running first (`vibe-debug`). Hardware is never a CI prerequisite.
 

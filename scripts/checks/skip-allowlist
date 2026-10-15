@@ -1,0 +1,5 @@
+# The tests a run may skip, one Class/test per line. test-summary.sh fails on
+# any other skipped test. A new deliberate skip is named here in the same change.
+#
+# Skips when the generator cannot fetch ISO's compliance stream (needs the network).
+AudioPlayerRenderFidelityTests/testDrMP3PassesTheISOComplianceStreamAtFullAccuracy

@@ -16,10 +16,9 @@
 # sources under Vibe/ that the suite compiled, ThirdParty/ excluded. It is a
 # measurement and never fails the run.
 #
-# The skip gate fails the run when the bundle skips more tests than
-# skip-baseline allows for its name (the bundle's basename). A name with no
-# line there allows none. Failed tests do not fail this script; xcodebuild
-# already did.
+# The skip gate fails the run when any test skipped that skip-allowlist does
+# not name (one Class/test per line). A count could not tell the allowed skip
+# from a new one. Failed tests do not fail this script; xcodebuild already did.
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
@@ -90,16 +89,15 @@ if COVERAGE="$(xcrun xccov view --report --json "$BUNDLE" 2>/dev/null)"; then
         else empty end' <<<"$COVERAGE" | emit
 fi
 
-KIND="$(basename "$BUNDLE" .xcresult)"
-ALLOWED="$(awk -v kind="$KIND" '$1 == kind { print $2 }' scripts/checks/skip-baseline)"
-ALLOWED="${ALLOWED:-0}"
-SKIPPED="$(jq -r '.skippedTests' <<<"$SUMMARY")"
-if (( SKIPPED > ALLOWED )); then
-    message="$KIND skipped $SKIPPED tests, and scripts/checks/skip-baseline allows $ALLOWED."
+SKIPPED="$(xcrun xcresulttool get test-results tests --path "$BUNDLE" --format json \
+    | jq -r '[.. | objects | select(.nodeType? == "Test Case" and .result == "Skipped") | .nodeIdentifier] | .[]')"
+UNLISTED="$(grep -vxF -f <(grep -v '^#' scripts/checks/skip-allowlist) <<<"$SKIPPED" | grep -v '^$' || true)"
+if [[ -n "$UNLISTED" ]]; then
+    message="skipped tests that scripts/checks/skip-allowlist does not name: $(tr '\n' ' ' <<<"$UNLISTED")"
     printf '\n> ❌ %s\n' "$message" | emit
     if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
         echo "::error title=Skipped tests::$message"
     fi
-    echo "error: $message A deliberate skip raises the baseline and names the test." >&2
+    echo "error: $message A deliberate skip is named there in the same change." >&2
     exit 1
 fi
