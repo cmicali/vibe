@@ -68,6 +68,37 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     [self layoutPanel];
 }
 
+// The header is a click target, so the panel drags the window itself from
+// everywhere else. Non-opaque, so the default would drag from the header too.
+- (BOOL)mouseDownCanMoveWindow {
+    return NO;
+}
+
+// A label is neither editable nor selectable, so its mouseDown falls through
+// to the panel.
+- (void)mouseDown:(NSEvent *)event {
+    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+    if (NSPointInRect(point, [self headerRect])) {
+        [self.delegate pitchControlPanelDidClickHeader:self];
+        return;
+    }
+    [self.window performWindowDragWithEvent:event];
+}
+
+// The title and the readout. Empty while the header is faded out for a
+// collapsed playlist, so a faded header is neither a target nor a cursor rect.
+- (NSRect)headerRect {
+    if (_titleLabel.alphaValue <= 0) {
+        return NSZeroRect;
+    }
+    return NSUnionRect(_titleLabel.frame, _readoutField.frame);
+}
+
+- (void)resetCursorRects {
+    [super resetCursorRects];
+    [self addCursorRect:[self headerRect] cursor:NSCursor.pointingHandCursor];
+}
+
 - (void)layoutPanel {
     CGFloat width = self.bounds.size.width;
     CGFloat height = self.bounds.size.height;
@@ -85,6 +116,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     CGFloat faderTop = kFaderTopCompact + t * (headerSpace - kFaderTopCompact);
     CGFloat faderBottom = kBottomPaddingCompact + t * (kBottomPadding - kBottomPaddingCompact);
     _faderView.frame = NSMakeRect(4, faderBottom, width - 8, height - faderTop - faderBottom);
+    [self.window invalidateCursorRectsForView:self];
 }
 
 - (void)drawRect:(NSRect)dirtyRect {

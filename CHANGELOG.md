@@ -16,6 +16,7 @@
 * mac: Added theme colors for the title and artist text of the playing row and selected rows
 * mac: Changed the volume slider to appear near the pointer, with a theme setting for when it shows
 * mac: Improved the pitch fader: higher-quality with a custom repitch engine and with smoother changes (no stepping)
+* mac: Added clicking the pitch panel's header to switch the range between 8% and 16%
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
