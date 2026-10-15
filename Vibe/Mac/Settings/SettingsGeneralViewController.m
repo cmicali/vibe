@@ -103,12 +103,9 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 #if VIBE_DIRECT_DISTRIBUTION
     AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
-    // No updater (a Debug build launched without --update-feed): the interval
-    // reads 0 and ignores writes, and Check Now has nowhere to go.
-    BOOL updater = delegate.updaterController != nil;
+    // Without an updater (a Debug build launched without --update-feed) the
+    // interval is a stub and Check Now reaches nothing, so both stay live.
     _checkNowButton.target = delegate.updaterController;
-    [SettingsRowView setControl:_updateCheckSwitch enabled:updater];
-    [SettingsRowView setControl:_checkNowButton enabled:updater];
     _updateCheckSwitch.state = delegate.updateCheckInterval > 0 ? NSControlStateValueOn : NSControlStateValueOff;
     // Never disabled with the automatic check off: Check Now still honors it.
     _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates ? NSControlStateValueOn : NSControlStateValueOff;

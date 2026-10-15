@@ -29,12 +29,19 @@
 static const NSUInteger kThemeListRowCount = 10;
 static NSString *const kThemeCellIdentifier = @"themeCell";
 static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
+// Header rows in _themeRows. Not identifiers: built-ins are plain names and
+// user themes are UUIDs, so neither can collide.
+static NSString *const kThemeRowUserHeader = @"//user";
+static NSString *const kThemeRowBuiltInHeader = @"//built-in";
 
 @implementation SettingsThemesViewController {
     NSTableView *_themeTable;
     NSButton *_removeThemeButton;
-    // Store order, built-ins first. Rows include group headers (identifierForRow:).
+    // Store order, built-ins first.
     NSArray<NSString *> *_themeIdentifiers;
+    // The list's rows: an identifier, or a group header sentinel. The user's
+    // themes come first, under their header, so a new theme lands in view.
+    NSArray<NSString *> *_themeRows;
     NSArray<NSView *> *_listSections;
     // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
@@ -264,6 +271,16 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
     NSString *active = settings.activeThemeIdentifier;
     _themeIdentifiers = settings.orderedThemeIdentifiers;
+    NSUInteger builtIns = AppTheme.builtInThemeIdentifiers.count;
+    NSMutableArray<NSString *> *rows = [NSMutableArray array];
+    if (_themeIdentifiers.count > builtIns) {
+        [rows addObject:kThemeRowUserHeader];
+        [rows addObjectsFromArray:[_themeIdentifiers subarrayWithRange:
+                NSMakeRange(builtIns, _themeIdentifiers.count - builtIns)]];
+    }
+    [rows addObject:kThemeRowBuiltInHeader];
+    [rows addObjectsFromArray:[_themeIdentifiers subarrayWithRange:NSMakeRange(0, MIN(builtIns, _themeIdentifiers.count))]];
+    _themeRows = rows;
     // The editor covers the list; leaving it refreshes through here again.
     if (!_editorShown) {
         _refreshingThemeList = YES;
@@ -381,35 +398,26 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
 
 #pragma mark - Theme list
 
-// Row 0 is the Built-in header and the User header sits one past the last
-// built-in; row-to-theme is arithmetic over the built-in count.
-
-// -1 while the user has no themes: the group is omitted, not empty.
-- (NSInteger)userGroupRow {
-    NSInteger builtIns = (NSInteger)AppTheme.builtInThemeIdentifiers.count;
-    return (NSInteger)_themeIdentifiers.count > builtIns ? builtIns + 1 : -1;
+static BOOL IsThemeHeaderRow(NSString *row) {
+    return row == kThemeRowUserHeader || row == kThemeRowBuiltInHeader;
 }
 
 // nil for a group header or no row, which keeps headers unselectable.
 - (nullable NSString *)identifierForRow:(NSInteger)row {
-    NSInteger userHeader = [self userGroupRow];
-    if (row <= 0 || row == userHeader) {
+    if (row < 0 || row >= (NSInteger)_themeRows.count) {
         return nil;
     }
-    NSInteger index = (userHeader >= 0 && row > userHeader) ? row - 2 : row - 1;
-    return index < (NSInteger)_themeIdentifiers.count ? _themeIdentifiers[(NSUInteger)index] : nil;
+    NSString *entry = _themeRows[(NSUInteger)row];
+    return IsThemeHeaderRow(entry) ? nil : entry;
 }
 
 - (NSInteger)rowForIdentifier:(NSString *)identifier {
-    NSUInteger index = [_themeIdentifiers indexOfObject:identifier];
-    if (index == NSNotFound) {
-        return -1;
-    }
-    return (NSInteger)index + (index >= AppTheme.builtInThemeIdentifiers.count ? 2 : 1);
+    NSUInteger row = [_themeRows indexOfObject:identifier];
+    return row == NSNotFound ? -1 : (NSInteger)row;
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tableView {
-    return (NSInteger)_themeIdentifiers.count + ([self userGroupRow] >= 0 ? 2 : 1);
+    return (NSInteger)_themeRows.count;
 }
 
 // Not an AppKit group row: that style adds a gap and its own row height to a
@@ -422,7 +430,8 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSString *identifier = [self identifierForRow:row];
     if (!identifier) {
         return [SettingsRowView listGroupCellWithIdentifier:kThemeGroupCellIdentifier inTableView:tableView title:
-                (row == 0 ? STR_SETTINGS_THEME_GROUP_BUILT_IN : STR_SETTINGS_THEME_GROUP_USER)];
+                (_themeRows[(NSUInteger)row] == kThemeRowUserHeader ? STR_SETTINGS_THEME_GROUP_USER
+                                                                     : STR_SETTINGS_THEME_GROUP_BUILT_IN)];
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
                                                         inTableView:tableView imagePosition:NSImageLeft];

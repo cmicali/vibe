@@ -250,8 +250,9 @@ static const CGFloat kImageBadgeInset = 1.5;
     _glyphPopUps = [NSMutableDictionary dictionary];
     _buttonColorRows = [NSMutableDictionary dictionary];
     _buttonImageRows = [NSMutableDictionary dictionary];
-    NSView *nameSection = [self buildNameSection];
+    // Name first: the Theme segment is the way back to the top.
     _editorJumpSections = @[
+        [self buildNameSection],
         [self buildAppIconSection],
         [self buildWindowSection],
         [self buildPlayerSection],
@@ -260,10 +261,11 @@ static const CGFloat kImageBadgeInset = 1.5;
         [self buildVolumeSection],
         [self buildPlaylistSection],
     ];
-    NSArray<NSView *> *sections = [@[nameSection] arrayByAddingObjectsFromArray:_editorJumpSections];
-    // Short labels, since seven must fit the pane's minimum width; the
+    NSArray<NSView *> *sections = _editorJumpSections;
+    // Short labels, since eight must fit the pane's minimum width; the
     // tooltips carry the cards' full headers.
-    NSArray<NSString *> *jumpLabels = @[STR_SETTINGS_THEME_JUMP_ICON, STR_SETTINGS_WINDOW_SECTION,
+    NSArray<NSString *> *jumpLabels = @[STR_SETTINGS_THEME_JUMP_THEME, STR_SETTINGS_THEME_JUMP_ICON,
+                                        STR_SETTINGS_WINDOW_SECTION,
                                         STR_SETTINGS_THEME_JUMP_PLAYER, STR_SETTINGS_THEME_JUMP_BUTTONS,
                                         STR_SETTINGS_THEME_JUMP_INFO, STR_SETTINGS_THEME_JUMP_VOLUME,
                                         STR_SETTINGS_PLAYLIST_SECTION];
@@ -273,7 +275,9 @@ static const CGFloat kImageBadgeInset = 1.5;
     _editorJumpControl.segmentStyle = NSSegmentStyleCapsule;
     _editorJumpControl.translatesAutoresizingMaskIntoConstraints = NO;
     for (NSUInteger i = 0; i < _editorJumpSections.count; i++) {
+        // The Name card has no header.
         [_editorJumpControl setToolTip:((SettingsSectionView *)_editorJumpSections[i]).headerLabel.stringValue
+                                       ?: STR_SETTINGS_THEME_NAME_LABEL
                             forSegment:(NSInteger)i];
     }
 

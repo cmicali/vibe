@@ -15,8 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface AppDelegate (Updates) <SPUUpdaterDelegate>
 
 // Settings > General's check frequency in seconds, 0 for never. Sparkle
-// stores it. Reads 0 and ignores writes while no updater runs: a Debug build
-// launched without --update-feed.
+// stores it. While no updater runs (a Debug build launched without
+// --update-feed) it is a stub that round-trips and checks nothing, so the
+// rows stay testable.
 @property (nonatomic) NSTimeInterval updateCheckInterval;
 
 // The updater controller, unstarted. nil in a Debug build launched without

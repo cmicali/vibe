@@ -37,9 +37,17 @@ static NSString *DebugUpdateFeed(void) {
                                                       userDriverDelegate:nil];
 }
 
+// With no updater (a Debug build launched without --update-feed) the
+// interval lives here, so Settings > General's rows stay live to test and
+// nothing checks. Daily, as Sparkle's first launch is.
+static NSTimeInterval stubbedUpdateCheckInterval = 24 * 3600;
+
 // Any other stored interval reads as the nearest preset.
 - (NSTimeInterval)updateCheckInterval {
     SPUUpdater *updater = self.updaterController.updater;
+    if (!updater) {
+        return stubbedUpdateCheckInterval;
+    }
     if (!updater.automaticallyChecksForUpdates) {
         return 0;
     }
@@ -49,6 +57,10 @@ static NSString *DebugUpdateFeed(void) {
 
 - (void)setUpdateCheckInterval:(NSTimeInterval)interval {
     SPUUpdater *updater = self.updaterController.updater;
+    if (!updater) {
+        stubbedUpdateCheckInterval = interval;
+        return;
+    }
     updater.automaticallyChecksForUpdates = interval > 0;
     if (interval > 0) {
         updater.updateCheckInterval = interval;

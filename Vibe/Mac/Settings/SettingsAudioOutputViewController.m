@@ -62,19 +62,22 @@
                                         caption:STR_SETTINGS_DECLICK_CAPTION
                                         control:_declickSwitch];
 
-    // Declick is one choice for every device, but it is the one other thing
-    // that shapes what the device plays, so it sits with the device's modes.
     _deviceSection = [SettingsSectionView sectionWithHeader:STR_SETTINGS_DEVICE_SECTION rows:@[
         _bitPerfectRow,
         _exclusiveOutputRow,
-        _declickRow,
     ]];
+    // Declick is one choice for every device, so it sits in the Output card
+    // under the list, ahead of the card that belongs to the selected device.
+    SettingsRowView *listRow = [SettingsRowView rowWithTableView:_outputTable rowCount:7];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_OUTPUT_LABEL rows:@[
-            [SettingsRowView rowWithTableView:_outputTable rowCount:7],
+            listRow,
+            _declickRow,
         ]],
         _deviceSection,
     ]];
+    // The list is its own divider; the section's hairline would double it.
+    _declickRow.showsTopSeparator = NO;
     _refreshingOutputList = NO;
 }
 

@@ -355,6 +355,15 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     scrollView.documentView = table;
     scrollView.hasVerticalScroller = YES;
     scrollView.autohidesScrollers = YES;
+    // Legacy, not overlay: a list clipped at rowCount rows must show that
+    // there are more without a scroll to reveal the bar. It still hides
+    // while every row fits. Reapplied when the system style changes, since
+    // AppKit resets it then.
+    scrollView.scrollerStyle = NSScrollerStyleLegacy;
+    [NSNotificationCenter.defaultCenter addObserverForName:NSPreferredScrollerStyleDidChangeNotification
+            object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        scrollView.scrollerStyle = NSScrollerStyleLegacy;
+    }];
     scrollView.borderType = NSNoBorder;
     scrollView.backgroundColor = ListColor(0);
     [scrollView.heightAnchor constraintEqualToConstant:rowCount * kListRowHeight].active = YES;

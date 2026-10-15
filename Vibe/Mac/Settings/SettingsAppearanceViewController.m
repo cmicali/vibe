@@ -75,10 +75,10 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
             _appearanceRow,
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DOCK_ICON control:_dockIconPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS
                                   caption:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS_CAPTION control:_trafficLightsSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_VOLUME_SLIDER control:_volumeSliderSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DOCK_ICON control:_dockIconPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             _waveformNormalizeRow,
