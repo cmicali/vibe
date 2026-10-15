@@ -55430,7 +55430,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.album_art": {
-      "comment": "Theme editor, Player display: row beside the dropdown choosing what shows where a track's cover art would be when it has none: Artwork, Clear, Window, Glyph or Custom color.",
+      "comment": "Theme editor, Player display: row beside the dropdown choosing what shows where a track's cover art would be when it has none: Artwork, Clear, Window, Symbol or Custom color.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63428,7 +63428,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.default_artwork.glyph": {
-      "comment": "Theme editor, Default artwork choice, and the row beside the symbol picker it reveals: a symbol such as a music note, drawn centered over the header's own background where the cover would be.",
+      "comment": "Theme editor, Default artwork choice, and the row beside the symbol picker it reveals: an SF Symbol such as a music note, drawn centered over the header's own background where the cover would be.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63463,7 +63463,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glyph"
+            "value": "Symbol"
           }
         },
         "es": {
@@ -63649,7 +63649,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This symbol isn’t on this Mac, so the factory glyph draws instead."
+            "value": "This symbol isn’t on this Mac, so the factory symbol draws instead."
           }
         },
         "es": {
@@ -63800,7 +63800,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.default_artwork.glyph_name": {
-      "comment": "Theme editor, Default artwork under the Glyph choice: row beside a text field taking the name of any SF Symbol (Apple's symbol font, names like music.note), for symbols the menu does not list.",
+      "comment": "Theme editor, Default artwork under the Symbol choice: row beside a text field taking the name of any SF Symbol (Apple's symbol font, names like music.note), for symbols the menu does not list.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -63986,7 +63986,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.default_artwork.glyph_size": {
-      "comment": "Theme editor, Default artwork under the Glyph choice: row beside the slider setting how large the symbol draws, as a percentage of the square.",
+      "comment": "Theme editor, Default artwork under the Symbol choice: row beside the slider setting how large the symbol draws, as a percentage of the square.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -64021,7 +64021,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glyph size"
+            "value": "Symbol size"
           }
         },
         "es": {

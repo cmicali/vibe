@@ -373,6 +373,9 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 }
 
 - (void)defaultArtworkGlyphChanged:(NSPopUpButton *)sender {
+    // A pick wins over half-typed text, and the refresh below skips a field
+    // still editing.
+    [_defaultArtworkGlyphNameField abortEditing];
     AppSettings.sharedInstance.currentTheme.defaultArtworkGlyph = sender.selectedItem.representedObject;
     [self themeFieldDidChange:VibeThemeImageEditEffect(kVibeThemeImageDefaultArtworkDark)];
     [self refreshFromSettings];

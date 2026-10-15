@@ -38,7 +38,7 @@ The **Default artwork** dropdown in Player display sets what shows when a track 
 - **Artwork** draws a placeholder image. It takes one image for dark and one for light, or a single image in Single Mode. Click a preview to choose your own image: a square JPEG or PNG, from 64 to 4096 pixels, up to 8 MB. Hover over a preview and click the **✕** to go back to the factory artwork.
 - **Clear** draws nothing, so the window's see-through backdrop shows where the cover would be.
 - **Window** continues the play area's own background, panel and tint included, under the square.
-- **Glyph** draws a symbol, music notes by default, over that same background. Pick the symbol, its size and its color. The menu lists music and audio symbols. For any other symbol, type its name from Apple's SF Symbols app into the **Symbol name** field, for example `guitars`.
+- **Symbol** draws an SF Symbol, music notes by default, over that same background. Pick the symbol, its size and its color. The menu lists music and audio symbols. For any other symbol, type its name from Apple's SF Symbols app into the **Symbol name** field, for example `guitars`.
 - **Custom color** fills the square with a color you pick.
 
 ## Sharing a theme
