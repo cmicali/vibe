@@ -30,7 +30,7 @@ settingGroups:
     CURRENT_PROJECT_VERSION: 316
 
   vibe-header-paths:
-    HEADER_SEARCH_PATHS:
+    HEADER_SEARCH_PATHS: &vibe-header-search-paths
       - "$(inherited)"
       - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
       - "$(SRCROOT)/Vibe/ThirdParty/taglib"
@@ -766,6 +766,8 @@ targets:
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
           - "BenchComponents/**"              # the component benchmarks, perf.py's tool
           - "AudioRender/**"                  # VibeAudioTests' suite
+          - "Audio/Metadata/AudioTrackMetadataTagTests.mm"    # VibeAudioTests': TagLib
+          - "Audio/Metadata/AudioTrackMetadataFuzzTests.mm"   # same
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -819,6 +821,22 @@ targets:
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController.m   # injected constructor; ShellTestFakes stand in for the rest
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController+NowPlaying.m
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Settings.m
+      - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
+      - path: Vibe/Playlist/Mac/PlaylistController.m
+      - path: Vibe/Playlist/Mac/PlaylistTableView.m
+      - path: Vibe/Playlist/Mac/PlaylistRowView.m
+      - path: Vibe/Playlist/Mac/PlaylistTextCell.m
+      - path: Vibe/Playlist/Mac/PlaylistCoverImageView.m
+      - path: Vibe/Common/Mac/Theme/Fonts.m
+      - path: Vibe/Controls/EqualizerIndicatorView.m
+      - path: Vibe/Controls/LoadingIndicatorView.m
+      - path: Vibe/Controls/LoadingIndicator.m
+      - path: Vibe/Mac/Controls/ScaledImageView.m
+      - path: Vibe/Util/VibeWeakProxy.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
@@ -826,6 +844,16 @@ targets:
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
+      # The iOS shell's Foundation-only model: the session and its stores.
+      - path: Vibe/iOS/FolderSession.m
+      - path: Vibe/iOS/FolderSession+ExternalOpens.m
+      - path: Vibe/iOS/FolderSession+Persistence.m
+      - path: Vibe/iOS/Files/LocationStore.m
+      - path: Vibe/iOS/Files/RecentsStore.m
+      - path: Vibe/iOS/Search/FavoritesStore.m
+      - path: Vibe/iOS/Search/DropboxSearch.m
+      - path: Vibe/iOS/Widget/VibeWidgetState.m
+      - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/Common/PlatformImage.m
@@ -941,10 +969,43 @@ targets:
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+BitPerfect.m
       - path: Vibe/Audio/Levels/AudioLevelMeter.m
+      # The tag parse and its art, over the real TagLib. VibeTests links a
+      # decoy instead (Tests/AGENTS.md).
+      - path: Tests/Audio/Metadata/AudioTrackMetadataTagTests.mm
+      - path: Tests/Audio/Metadata/AudioTrackMetadataFuzzTests.mm
+      - path: Vibe/Audio/Metadata/AudioTrackMetadata.mm
+      - path: Vibe/Audio/Metadata/TagLibAudioFile.mm
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
+      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
+      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
+      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
+      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
+      - path: Vibe/Common/AppSettings.m       # the folder-art resolver reads its setting and grants
+      - path: Vibe/Common/Mac/AppSettings+Mac.m
+      - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m
+      - path: Vibe/Common/Mac/Theme/AppTheme.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Dice.m
+      - path: Vibe/Common/Mac/Theme/AppTheme+Archive.m
+      - path: Vibe/Common/PlatformColor.m
+      - path: Vibe/Util/Mac/NSImage+Util.m
+      - path: Vibe/Util/Mac/NSView+DarkMode.m
+      - path: Vibe/Mac/App/FolderAccessManager.m
+      - path: Vibe/Common/PlatformImage.m
+      - path: Vibe/Util/Categories/NSString+CPPStrings.mm
+      - path: Vibe/ThirdParty/taglib
+        excludes: ["**/.DS_Store", "**/*.md", "**/LICENSE.MPL"]
+        compilerFlags: *third-party-flags
     settings:
       base:
         <<: *hostless-test-settings
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeAudioTests
+        # TagLib's headers. The hostless list above replaces the app group's
+        # HEADER_SEARCH_PATHS, so they ride on the system key.
+        SYSTEM_HEADER_SEARCH_PATHS: *vibe-header-search-paths
     dependencies:
       - sdk: AppKit.framework
       - sdk: AVFoundation.framework

@@ -2,7 +2,7 @@
 """Seeded stress and fuzz driver for the running Vibe app.
 
 It drives the debug command channel with weighted random operations against a
-corpus of real audio files, and checks four oracles between batches:
+corpus of real audio files, and checks five oracles between batches:
 
   liveness    the app still answers          (the channel is served on the main
                                               queue, so a timeout whose recovery
@@ -15,6 +15,15 @@ corpus of real audio files, and checks four oracles between batches:
               without bound                   ports, windows, views, layers,
                                               hosted units, pending counters)
   crash       the process is still alive     (and no fresh .ips landed)
+  progress    work still moves               (rows unresolved with no gate in
+                                              force and the materialization
+                                              counters flat across a window;
+                                              after each quiesce, a file with
+                                              sound must advance and light the
+                                              equalizer)
+
+The resting series is also scored by slope, so a slow leak fails before it
+crosses an absolute limit.
 
 The seed is printed at the start and `--seed N` regenerates the run's ops only
 as far as the app answers the same: row selections, file-drop coordinates and
@@ -26,6 +35,7 @@ delta-debugs a failing journal to a smaller run-script.sh repro.
     stress.py --corpus ~/Music/big --iterations 2000
     stress.py --corpus ~/Music/big --replay run.ndjson
     stress.py --corpus ~/Music/big --shrink run.ndjson
+    stress.py --corpus ~/Music/big --app <TSan Vibe.app> --tsan-replay run.ndjson
 
 It launches through vibe-debug's launch.sh, so the app runs off the audio
 hardware (--no-audio-hw --silent); VIBE_AUDIBLE=1 or =silent overrides.
@@ -45,6 +55,7 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.parse
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[4]
@@ -63,7 +74,7 @@ CLIENT_LAUNCH_RETRIES = 4   # see Channel.run
 # command table's clientTimeout: 5s by default, file_cache 60s, quiesce 20s),
 # or a verb still working reads as an unresponsive app. A 7-minute MP3 takes
 # ~30s through file_cache in a -O0 build.
-VERB_TIMEOUTS = {"file_cache": 90, "quiesce": 40}
+VERB_TIMEOUTS = {"file_cache": 90, "quiesce": 40, "open_url": 90}
 
 # A recovery probe slower than this after a timed-out op makes it a
 # main-thread stall rather than a slow verb. Ordinary probe latency is ~110ms.
@@ -82,13 +93,16 @@ PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".cue"}   # PlaylistFile.isPlaylistExtensi
 # old journals included.
 COMMAND_VERBS = set("""
 append block_main burst check_consistency clear_caches clear_cloud_trace
-click_menu dump_audio_loading dump_cloud_health dump_cloud_trace dump_health
-dump_menu dump_metadata_progress dump_row_loading dump_state dump_theme dump_view_tree
+block_decoder block_player block_render
+click_menu dump_audio_loading dump_cloud_health dump_cloud_trace dump_equalizer dump_health
+dump_fake_http dump_menu dump_metadata_progress dump_row_loading dump_settings_ui dump_state
+dump_theme dump_view_tree fake_http_fault
 file_cache file_clear_cache file_drag_drop file_drag_end file_drag_hover hang_open
-import_theme next open play_index play_pause select_rows remove_selected previous
+import_theme next open open_url play_index play_pause select_rows remove_selected previous
 quiesce quit redo remove_theme reorder_begin reorder_cancel reorder_drop reorder_update
 seek set_analysis set_appearance set_audio_loading set_equalizer_mode set_fake_cloud
-set_folder_art set_pause_at_track_end set_pitch set_theme set_window_width settings_close
+set_fake_http set_folder_art set_pause_at_track_end set_pitch set_slow_volume set_theme
+set_window_width settings_click settings_close settings_open
 skip_back skip_back_more skip_back_most skip_forward skip_forward_more skip_forward_most
 sleep toggle_low_kill toggle_pitch_panel toggle_size undo
 low_kill_boost_on low_kill_boost_off reverb_send_on reverb_send_off
@@ -102,6 +116,34 @@ pitch_range_8 pitch_range_16 menu_show_playlist menu_show_pitch
 menu_play_selected menu_edit_select_all menu_edit_remove_from_playlist menu_edit_undo menu_edit_redo
 """.split())
 GESTURE_TESTS = ("pitch-reset", "pitch-drag")
+
+# The fake web server's hosts (VibeFakeHTTP.h). open_url to any other host
+# would reach the network.
+FAKE_HTTP_HOSTS = ("https://fake.vibe.test/", "http://fake.local/")
+
+# The Settings controls a stress run may click: (pane, row title, the
+# dump_state.settings key it writes). Each key has a SETTING_RESTORERS entry.
+# Never Restore Defaults, Convert, Debug info, a device row or switch, a grant,
+# the Dock icon, the Default music player button or a shortcut: those reset
+# the user's store, write outside the container, move audio for every app or
+# raise a system panel no verb can dismiss.
+SETTINGS_SWITCHES = (
+    ("appearance", "Show time labels", "showTimeLabels"),
+    ("appearance", "Show status icons", "showStatusIcons"),
+    ("appearance", "Show file info", "showFileInfo"),
+    ("appearance", "Show BPM", "showBPM"),
+    ("appearance", "Show key", "showKey"),
+    ("appearance", "Camelot key colors", "keyColors"),
+    ("appearance", "Normalize waveform", "waveformNormalize"),
+    ("appearance", "Show number column", "showPlaylistNumberColumn"),
+    ("appearance", "Show artwork column", "showPlaylistArtworkColumn"),
+    ("appearance", "Show duration column", "showPlaylistDurationColumn"),
+    ("playback", "Detect BPM automatically", "analyzeBPM"),
+    ("playback", "Detect key automatically", "analyzeKey"),
+)
+# Opening and dumping a pane clicks nothing, so every pane may be walked.
+SETTINGS_PANES = ("general", "themes", "appearance", "playback", "audio", "files",
+                  "shortcuts", "advanced", "about")
 
 
 def require_command(argv, gesture_test=None):
@@ -122,6 +164,12 @@ def require_command(argv, gesture_test=None):
                          "on an isolated desktop for input testing")
     if argv[0] == "click_menu" and (len(argv) != 2 or argv[1] not in MENU_IDS):
         raise ValueError("command-only stress refuses this menu item")
+    if argv[0] == "settings_click" and (
+            len(argv) != 3 or argv[1] not in {name for _, name, _ in SETTINGS_SWITCHES}
+            or argv[2] not in ("on", "off", "toggle")):
+        raise ValueError("command-only stress refuses this Settings control")
+    if argv[0] == "open_url" and (len(argv) != 2 or not argv[1].startswith(FAKE_HTTP_HOSTS)):
+        raise ValueError("command-only stress opens links only from the fake web server")
 
 
 def script_line(argv):
@@ -319,8 +367,18 @@ SETTING_RESTORERS = {
     "pitchRange": lambda b: ["click_menu", f"pitch_range_{b['pitchRange']}"],
     "playlistShown": lambda b: ["click_menu", "menu_show_playlist"],
     "pitchPanelShown": lambda b: ["toggle_pitch_panel"],
+    # The settings op's switches with no verb of their own. A restorer may
+    # answer several commands: settings_click reaches only the selected pane.
+    **{key: (lambda b, pane=pane, name=name, key=key:
+             [["settings_open", pane], ["settings_click", name, on_off(b[key])]])
+       for pane, name, key in SETTINGS_SWITCHES if key not in ("analyzeBPM", "analyzeKey")},
     "windowFrame": window_restore,
 }
+
+# Faults that live outside the settings store, cleared on every teardown
+# whether or not the run armed them: a held read or a fake web server left in
+# place would answer the user's next session.
+DISARM_COMMANDS = (["reorder_cancel"], ["set_slow_volume", "off"], ["set_fake_http", "off"])
 
 
 def current_settings(channel):
@@ -352,7 +410,8 @@ def user_settings_restore(channel, before, imported_themes, corpus, app):
               + ("the app is not answering" if before else "no starting snapshot")
               + f"; {len(imported_themes)} imported themes remain", file=sys.stderr)
         return
-    channel.run(["reorder_cancel"])
+    for argv in DISARM_COMMANDS:
+        channel.run(argv)
     # Imports first: each is a persisted user theme, and one left behind
     # changes the next run's theme list and so the op sequence its seed draws.
     # remove_theme falls back to vibe when the removed theme is active.
@@ -362,9 +421,14 @@ def user_settings_restore(channel, before, imported_themes, corpus, app):
     now = current_settings(channel) or now
     for key, restorer in SETTING_RESTORERS.items():
         if before.get(key) is not None and now.get(key) != before[key]:
-            channel.run(restorer(before))
+            commands = restorer(before)
+            for argv in commands if isinstance(commands[0], list) else [commands]:
+                channel.run(argv)
             restored.append(f"{key}={before[key]}")
             now = current_settings(channel) or now
+    # Last: a settings restorer opens the window, and window restoration would
+    # reopen it at the next launch.
+    channel.run(["settings_close"])
     left = [f"{key} {before[key]!r} -> {now.get(key)!r}"
             for key in sorted(before) if now.get(key) != before[key]]
     line = (f"settings: {relaunched}removed {removed}/{len(imported_themes)} imported themes, "
@@ -519,11 +583,31 @@ def THEME_HOSTILE(rng):
 # uncapped, a long run would put tens of thousands in the store.
 MAX_THEME_IMPORTS = 80
 
+# Faults a real web server produces (VibeFakeHTTP.h): stall and rate last
+# until cleared, the rest change one request or every answer.
+LINK_FAULTS = (
+    ["drop"], ["etag-change"], ["latency", "0.6"], ["rate", "256K"], ["no-range"],
+    ["no-length"], ["status", "404"], ["status", "503"], ["html"], ["gzip"], ["stall"],
+)
+
+# set_slow_volume's modes. stall holds every read until the next set, so the
+# op always ends with `off`.
+SLOW_VOLUME_MODES = (
+    ["throttle", "65536"], ["throttle", "262144"], ["throttle", "1048576"],
+    ["stall"], ["fail"], ["fail", "60"],
+)
+
+# Each stall verb's documented upper bound, in seconds. block_player is held
+# under the stall probe's reach, so main waiting on the player queue reads as
+# a stall rather than a slow verb.
+STALL_LIMITS = {"block_render": 5.0, "block_decoder": 5.0, "block_player": 4.0}
+
 
 class OpGenerator:
     def __init__(self, rng, corpus_files, corpus_playlists, corpus_dirs, menu_ids,
-                 profile, themes=(), theme_base=None):
+                 profile, themes=(), theme_base=None, corpus=None):
         self.rng = rng
+        self.corpus = corpus
         self.files = corpus_files
         self.playlists = corpus_playlists
         self.dirs = corpus_dirs
@@ -791,6 +875,78 @@ class OpGenerator:
     def op_settle(self):
         return [("settle", ["sleep", f"{self.rng.uniform(0.05, 0.8):.2f}"], [])]
 
+    def op_link(self):
+        """Open a corpus file as a link through the fake web server, the
+        shell's Open URL road: probe, stream, tail and tag reads, and every
+        resend. Sometimes with a fault a real server produces. Installing
+        again clears the last op's faults, so each op stands alone in a replay.
+        """
+        if not self.files or not self.corpus:
+            return self.op_open_file()
+        path = self.rng.choice(self.files)
+        try:
+            relative = path.relative_to(self.corpus)
+        except ValueError:
+            return self.op_open_file()
+        url = self.rng.choice(FAKE_HTTP_HOSTS) + urllib.parse.quote(relative.as_posix())
+        ops = [("link", ["set_fake_http", str(self.corpus),
+                         f"{self.rng.choice([0, 0.5, 1.5, 3]):g}"], [])]
+        fault = self.rng.choice(LINK_FAULTS) if self.rng.random() < 0.35 else None
+        if fault:
+            ops.append(("link", ["fake_http_fault", *fault], []))
+        ops.append(("link", ["open_url", url], []))
+        if fault:
+            ops.append(("settle", ["sleep", f"{self.rng.uniform(0.2, 1.5):.2f}"], []))
+            ops.append(("link", ["fake_http_fault", "off"], []))
+        return ops
+
+    def op_slow_volume(self):
+        """Open a file as if on a network share that throttles, stalls or
+        fails every read, for a bounded time, then clear it. A file already
+        open keeps its road, so the open comes after the install."""
+        if not self.files:
+            return self.op_transport()
+        mode = self.rng.choice(SLOW_VOLUME_MODES)
+        return [
+            ("slow_volume", ["set_slow_volume", *mode], []),
+            ("slow_volume", ["open", str(self.rng.choice(self.files))], PATH_REFUSALS),
+            ("settle", ["sleep", f"{self.rng.uniform(0.3, 2.0):.2f}"], []),
+            ("slow_volume", ["dump_state"], []),
+            ("slow_volume", ["set_slow_volume", "off"], []),
+        ]
+
+    def op_stall(self):
+        """Hold the render, the decoder or the player queue for a bounded
+        time and probe main while it is held: dump_state reads intent no
+        queue owns, so it must answer at once. Then probe again once the
+        hold has lifted."""
+        verb = self.rng.choice(sorted(STALL_LIMITS))
+        seconds = self.rng.uniform(0.2, STALL_LIMITS[verb])
+        return [
+            ("stall", [verb, f"{seconds:.2f}"], []),
+            ("stall", ["dump_state"], []),
+            ("settle", ["sleep", f"{seconds + 0.3:.2f}"], []),
+            ("stall", ["dump_state"], []),
+        ]
+
+    def op_settings(self):
+        """Walk a Settings pane and flip allowlisted switches there and back,
+        so the run keeps the coverage the store had. The channel refreshes
+        the selected pane after every verb, so a pane left open is refreshed
+        under every later op; the batch's health sample closes it."""
+        pane = self.rng.choice(SETTINGS_PANES)
+        ops = [("settings", ["settings_open", pane], []),
+               ("settings", ["dump_settings_ui"], [])]
+        names = [name for owner, name, _ in SETTINGS_SWITCHES if owner == pane]
+        if names:
+            chosen = self.rng.sample(names, self.rng.randint(1, min(3, len(names))))
+            flips = [("settings", ["settings_click", name, "toggle"], ["is hidden"])
+                     for name in chosen]
+            ops += flips + [("settings", ["dump_settings_ui"], [])] + flips[::-1]
+        if self.rng.random() < 0.7:
+            ops.append(("settings", ["settings_close"], []))
+        return ops
+
     # -- main-thread ordering -----------------------------------------------
 
     def op_block_main(self):
@@ -959,6 +1115,7 @@ PROFILES = {
         "theme": 4, "theme_import": 1,
         "select_rows": 2, "remove_selected": 4, "playlist_move": 2,
         "undo_storm": 1,
+        "link": 2, "slow_volume": 0, "stall": 0, "settings": 0,
     },
     # The open path and the async deliveries that race it.
     "loading": {
@@ -973,6 +1130,7 @@ PROFILES = {
         "block_main": 6, "audio_loading": 4, "equalizer_mode": 1,
         "appearance": 2, "resize_storm": 2,
         "theme": 2,
+        "slow_volume": 4, "stall": 3,
     },
     # `loading` with the throttles off (in-app bursts, token settle), aimed at
     # a big local library.
@@ -995,6 +1153,7 @@ PROFILES = {
         "theme": 9, "theme_import": 2,
         "select_rows": 5, "remove_selected": 8, "playlist_move": 5,
         "undo_storm": 3,
+        "slow_volume": 5, "stall": 6,
     },
     # The folder-artwork fallback; pair it with make-hostile-corpus.py.
     "artwork": {
@@ -1037,6 +1196,7 @@ PROFILES = {
         "theme": 0, "theme_import": 0,
         "select_rows": 0, "playlist_move": 0,
         "undo_storm": 0,
+        "link": 0,
     },
     # Controller actions against whatever is loaded; opens nothing.
     "ui": {
@@ -1051,6 +1211,7 @@ PROFILES = {
         "block_main": 4, "audio_loading": 0, "equalizer_mode": 6,
         "appearance": 6, "resize_storm": 10,
         "theme": 8,
+        "link": 0, "settings": 6,
     },
     # The theme record end to end (store, sanitizer, apply), with opens heavy
     # because what matters is what is in flight under an apply.
@@ -1253,6 +1414,199 @@ def health_growth(baseline, current, streaks, limits=GROWTH_LIMITS,
     return findings
 
 
+# The resting series' slope, so a slow leak fails before it crosses an
+# absolute limit an hour later. Rate: the resting limit spread over a long
+# run's resting samples (100,000 ops at 25 per batch and 10 batches per
+# sample is 400 samples). Floor: an eighth of the resting limit, so the
+# fitted growth across a short run must also clear the noise. Both halves of
+# the series must rise as well, so one bounded step (a panel's views) is not
+# a slope.
+LONG_RUN_RESTING_SAMPLES = 400
+SLOPE_MIN_SAMPLES = 8
+SLOPE_LIMITS = {
+    metric: (RESTING_GROWTH_LIMITS[metric][0] / LONG_RUN_RESTING_SAMPLES,
+             RESTING_GROWTH_LIMITS[metric][0] / 8, label)
+    for metric, label in ((("process", "mallocLiveBytes"), "resting live heap"),
+                          (("ui", "views"), "resting views"),
+                          (("process", "machPorts"), "resting mach ports"))
+}
+
+
+def slope(values):
+    """Least-squares slope against sample index."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    mean_x, mean_y = (n - 1) / 2, sum(values) / n
+    spread = sum((x - mean_x) ** 2 for x in range(n))
+    return sum((x - mean_x) * (y - mean_y) for x, y in enumerate(values)) / spread
+
+
+def resting_slope_findings(samples, limits=SLOPE_LIMITS):
+    """Messages for resting metrics that rise steadily across the series."""
+    findings = []
+    for (section, key), (rate, floor, label) in limits.items():
+        if key in IGNORED_METRICS:
+            continue
+        values = [s.get(section, {}).get(key) for s in samples]
+        values = [v for v in values if v is not None]
+        n = len(values)
+        if n < SLOPE_MIN_SAMPLES:
+            continue
+        overall = slope(values)
+        halves = (slope(values[:n // 2]), slope(values[n // 2:]))
+        if min(overall, *halves) > rate and overall * (n - 1) > floor:
+            findings.append(f"{label} rose {overall:.4g} per resting sample over {n} samples "
+                            f"(limit {rate:.4g}; fitted growth {overall * (n - 1):.4g}, "
+                            f"floor {floor:.4g})")
+    return findings
+
+
+# The known AppKit row-view purgatory (references/profiles.md, `playlist`).
+PURGATORY_CLASS = "PlaylistRowView"
+
+
+def purgatory_note(profile, detail, listing):
+    """Evidence for the known row-view purgatory, or None when the failure is
+    not that shape. listing is `heap <pid>` output, or None when it could not
+    be read."""
+    if profile != "playlist" or "mach ports" not in detail:
+        return None
+    if listing is None:
+        return (f"suspected cause: AppKit's _rowViewPurgatory holding {PURGATORY_CLASS}s "
+                f"(references/profiles.md); `heap <pid>` could not be read, so confirm by hand")
+    rows = sum(int(m.group(1)) for m in
+               re.finditer(rf"^\s*(\d+)\s+\S+\s+\S+\s+{PURGATORY_CLASS}\b", listing, re.M))
+    if rows:
+        return (f"{rows} {PURGATORY_CLASS} instances live at rest with an empty playlist: the "
+                f"known AppKit _rowViewPurgatory (references/profiles.md). Confirm with "
+                f"`leaks --traceTree=<address> <pid>` before --ignore-metric machPorts")
+    return (f"no {PURGATORY_CLASS} instances live at rest, so this is NOT the known "
+            f"row-view purgatory: a new finding")
+
+
+def heap_listing(pid):
+    """`heap <pid>`'s class table, or None."""
+    if not pid or not shutil.which("heap"):
+        return None
+    try:
+        listing = subprocess.run(["heap", str(pid)], capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
+    return listing.stdout if listing.returncode == 0 else None
+
+
+# The progress oracle: work that silently stops. Demand outstanding, no gate
+# in force and one progress signature across this many batch samples is a
+# capability no longer attempted. Four samples span three batches of ops. The
+# sweep's deferral is two seconds, far shorter.
+PROGRESS_WINDOW = 4
+
+
+def progress_sample(state, health):
+    """One batch's reading for the progress oracle, from dump_state and
+    dump_health."""
+    playlist = (state or {}).get("playlist") or {}
+    pending = (health or {}).get("pending") or {}
+    work = (health or {}).get("materialization") or {}
+    app = (health or {}).get("app") or {}
+    count = playlist.get("count", 0)
+    resolved = playlist.get("resolvedRows", count)
+    parses = pending.get("cloudParsesPending", 0)
+    gates = [name for name, held in (
+        ("foreground transfer", work.get("foregroundTransferActive")),
+        ("cloud lane held", pending.get("cloudLaneHeld")),
+        ("player loading", app.get("playerLoading")),
+        # Running work is being attempted: a slow transfer, not a stopped one.
+        ("transfers running", (work.get("interactiveRunning") or 0)
+         + (work.get("backgroundRunning") or 0)),
+    ) if held]
+    settled = ((work.get("requestsReady") or 0) + (work.get("requestsFailed") or 0)
+               + (work.get("handleOpensCompleted") or 0))
+    return {"demand": resolved < count or parses > 0, "gates": gates,
+            "progress": (settled, resolved, count, parses)}
+
+
+def progress_stalled(samples, window=PROGRESS_WINDOW):
+    """A message when the last `window` samples all had demand, no gate and
+    one progress signature, else None."""
+    tail = samples[-window:]
+    if len(tail) < window or any(not s["demand"] or s["gates"] for s in tail):
+        return None
+    if len({s["progress"] for s in tail}) != 1:
+        return None
+    settled, resolved, count, parses = tail[0]["progress"]
+    return (f"work stopped: {resolved}/{count} rows resolved and {parses} cloud parses "
+            f"pending, no gate in force, and the materialization counters flat at "
+            f"{settled} settled across {window} samples")
+
+
+# The equalizer and playback probe after each quiesce. A name that may decode
+# to silence, or not at all, is never the reference.
+SILENT_NAMES = re.compile(r"silen|impulse|23000|zero|empty|garbage|truncat|unplay|"
+                          r"undecod|hostile|missing|fifo|oversize", re.I)
+
+
+def equalizer_reference(files):
+    """The corpus file the probe plays: the first by path whose name says it
+    has sound, or None."""
+    candidates = sorted(f for f in files
+                        if not SILENT_NAMES.search(f.name) and f.suffix.lower() in AUDIO_SUFFIXES)
+    return candidates[0] if candidates else None
+
+
+def equalizer_finding(first_state, first_eq, second_state, second_eq):
+    """(scored, finding) for two samples of the reference a moment apart.
+
+    Scored only where the counters are defined: the reference playing in
+    both, not buffering, and the bars visible and sourced (a running poller
+    is both). Then the position must advance, the meter must publish, and
+    some band must be nonzero.
+    """
+    def player(state):
+        return (state or {}).get("player") or {}
+
+    def url(state):
+        return ((state or {}).get("currentTrack") or {}).get("url")
+
+    for state, eq in ((first_state, first_eq), (second_state, second_eq)):
+        if (player(state).get("state") != "playing" or player(state).get("buffering")
+                or not (eq or {}).get("levelsEnabled")
+                or not ((eq or {}).get("renderer") or {}).get("activeDisplayLinks")):
+            return False, None
+    if not url(first_state) or url(first_state) != url(second_state):
+        return False, None
+    if player(second_state).get("position", 0) <= player(first_state).get("position", 0):
+        return True, f"playback stopped: position held at {player(second_state).get('position')}"
+    published = [(eq.get("audio") or {}).get("publications", 0) for eq in (first_eq, second_eq)]
+    if published[1] <= published[0]:
+        return True, f"the meter stopped publishing at {published[1]} publications"
+    if not any(any(b > 0 for b in eq.get("bands") or []) for eq in (first_eq, second_eq)):
+        return True, "the meter published only zero bands for a file with sound"
+    return True, None
+
+
+def equalizer_probe(channel, reference):
+    """Play the reference past any quiet intro, then score two samples.
+    Returns (scored, finding)."""
+    channel.run(["open", str(reference)])
+    state = None
+    for _ in range(20):
+        time.sleep(0.25)
+        code, state, _ = channel.run(["dump_state"], timeout=20)
+        if code == 0 and ((state or {}).get("player") or {}).get("state") == "playing":
+            break
+    duration = ((state or {}).get("player") or {}).get("duration") or 0
+    if duration > 2:
+        channel.run(["seek", f"{duration * 0.4:.2f}"])
+    samples = []
+    for pause in (0.6, 0.8):
+        time.sleep(pause)
+        samples.append(channel.run(["dump_state"], timeout=20)[1])
+        samples.append(channel.run(["dump_equalizer"], timeout=20)[1])
+    return equalizer_finding(*samples)
+
+
 def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
     """Quiesce, sample at rest, score against the resting limits.
 
@@ -1291,7 +1645,7 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
             return None, min_baseline(samples, RESTING_GROWTH_LIMITS)
         return None, None
     grew = health_growth(baseline, health, streaks, RESTING_GROWTH_LIMITS,
-                         RESTING_CONFIRMATIONS)
+                         RESTING_CONFIRMATIONS) + resting_slope_findings(samples)
     if grew:
         return Failure("resource", "at rest: " + "; ".join(grew)), baseline
     return None, baseline
@@ -1443,6 +1797,9 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
         else:
             code, payload, elapsed = channel.run(argv, timeout=VERB_TIMEOUTS.get(argv[0], 30))
         entry = {"i": i, "op": name, "argv": argv, "exit": code, "ms": elapsed}
+        if isinstance(payload, dict) and payload.get("ok") is False:
+            # A reply, not an error: a refused link says so in `ok`.
+            entry["replyOk"] = False
         if (imported_themes is not None and argv[0] == "import_theme" and code == 0
                 and isinstance(payload, dict) and payload.get("imported")
                 and payload["imported"] not in imported_themes):
@@ -1571,7 +1928,15 @@ def run(args):
                   f"0.90s base with slow and stuck tails, {payload['capacity']} transfer slot")
 
         generator = OpGenerator(rng, files, playlists, dirs, menu_ids, args.profile,
-                                themes=themes, theme_base=theme_base)
+                                themes=themes, theme_base=theme_base, corpus=corpus)
+        if generator.weights.get("settings"):
+            # The window's first creation loads every pane. Taken before the
+            # baseline, so it is not scored as growth.
+            channel.run(["settings_open"], timeout=20)
+            channel.run(["settings_close"], timeout=20)
+        reference = equalizer_reference(files)
+        equalizer = {"probes": 0, "scored": 0}
+        progress_samples = []
         journal_path = (Path(args.journal) if args.journal
                         else DEFAULT_OUTPUT_DIR / f"stress-{seed}.ndjson")
         # The health series, stall samples and failure directory all land here.
@@ -1623,8 +1988,9 @@ def run(args):
                         health["_ops"] = executed
                         # An open auxiliary window counts its subtree as views
                         # (Settings is ~600), failing the run on a window rather
-                        # than a leak. No op opens Settings on purpose, so the
-                        # note names the batch's ops to localize whatever did.
+                        # than a leak. The settings op leaves it open three times
+                        # in ten. The note names the batch's ops, so anything
+                        # else that opened it is localized too.
                         aux_views = (health.get("ui") or {}).get("views", 0)
                         if ((health.get("ui") or {}).get("visibleWindows", 1) > 1
                                 and baseline is not None
@@ -1652,6 +2018,12 @@ def run(args):
                                 failure = Failure("resource", "; ".join(grew))
                                 break
 
+                        progress_samples.append(progress_sample(state, health))
+                        stalled = progress_stalled(progress_samples)
+                        if stalled:
+                            failure = Failure("stalled", stalled)
+                            break
+
                         if len(health_samples) % 5 == 0 or args.verbose:
                             footprint = health["process"].get("footprintBytes", 0) // (1024 * 1024)
                             print(f"  {executed:6d} ops   {footprint:5d} MB   "
@@ -1664,9 +2036,24 @@ def run(args):
                             channel, resting_samples, resting_streaks, resting_baseline,
                             executed, args.verbose)
                         if failure:
+                            if failure.kind == "resource":
+                                suspect = (args.profile == "playlist"
+                                           and "mach ports" in failure.detail)
+                                note = purgatory_note(args.profile, failure.detail,
+                                                      heap_listing(app_pid()) if suspect else None)
+                                if note:
+                                    failure.detail += f"; {note}"
                             break
-                        # quiesce empties the playlist, and `ui` never opens one.
-                        if files:
+                        # quiesce empties the playlist, and `ui` never opens
+                        # one. The reopen is the equalizer and playback probe.
+                        if reference:
+                            equalizer["probes"] += 1
+                            scored, finding = equalizer_probe(channel, reference)
+                            equalizer["scored"] += scored
+                            if finding:
+                                failure = Failure("stalled", f"{reference.name}: {finding}")
+                                break
+                        else:
                             channel.run(["open", str(rng.choice(files))])
 
                     if deadline and time.time() > deadline:
@@ -1686,6 +2073,13 @@ def run(args):
 
         print(f"journal: {journal_path}")
         print(f"exercised: {describe_materialization_coverage(channel)}")
+        print(f"equalizer: {equalizer['scored']} of {equalizer['probes']} probes scored"
+              + (f" on {reference.name}" if reference else " (no file with sound in the corpus)")
+              + (" — WARNING: the check never applied" if equalizer["probes"]
+                 and not equalizer["scored"] else ""))
+        entries = [json.loads(line) for line in journal_path.read_text().splitlines()]
+        for warning in dead_op_warnings(entries, generator.weights):
+            print(warning, file=sys.stderr)
         if stalls["count"]:
             print(f"stalls:  {stalls['count']} recoverable main-thread stalls over 5s, "
                   f"sampled in {stalls['dir']}")
@@ -1804,10 +2198,122 @@ def shrink(args):
             line = "# not expressible: " + json.dumps(argv)
         lines.append(line + "\n")
     out.write_text("".join(lines))
-    print(f"\nminimal repro: {len(ops)} ops -> {out}")
+    # The same ops as a journal, for --replay and --tsan-replay.
+    journal = Path(args.shrink).with_suffix(".min.ndjson")
+    journal.write_text("".join(json.dumps({"op": name, "argv": argv, "tolerated": tolerated}) + "\n"
+                               for name, argv, tolerated in ops))
+    print(f"\nminimal repro: {len(ops)} ops -> {out} and {journal}")
     print("replay it with:")
     print(f"  .claude/skills/vibe-debug/scripts/run-script.sh /tmp/shots < {out}")
     return 0
+
+
+def replay(args, journal):
+    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    corpus = Path(args.corpus).expanduser().resolve()
+    channel = Channel(app, verbose=args.verbose,
+                      client_app=Path(args.client_app) if args.client_app else None)
+    ops = load_journal(Path(journal))
+    print(f"replaying {len(ops)} ops from {journal}")
+    launch(corpus, app)
+    with user_settings_preserved(channel, corpus, app) as imported_themes:
+        failure = replay_ops(channel, ops, check_every=args.batch,
+                             imported_themes=imported_themes)
+        if failure:
+            print(f"FAILED: {failure.kind} — {failure.detail}")
+            return 1
+        violations = check_consistency(channel)
+        if violations:
+            print("FAILED: " + "; ".join(v["id"] for v in violations))
+            return 1
+        print("PASSED")
+        return 0
+
+
+# TRAP: log_path must be inside the container and the symbolizer empty, or
+# TSan kills the app trying to write its first report (references/sanitizers.md).
+TSAN_LOG_DIR = Path.home() / "Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp"
+TSAN_OPTIONS = (f"log_path={TSAN_LOG_DIR}/tsan:halt_on_error=0:external_symbolizer_path=:"
+                f"symbolize=1:history_size=7")
+TSAN_STACK_FRAMES = 8
+
+
+def tsan_first_stacks(text):
+    """[(warning line, first stack's frames)] for each report in a TSan log."""
+    reports = []
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if "WARNING: ThreadSanitizer:" not in line:
+            continue
+        frames = []
+        for following in lines[i + 1:]:
+            stripped = following.strip()
+            if stripped.startswith("#"):
+                frames.append(stripped)
+            elif frames or "WARNING: ThreadSanitizer:" in stripped:
+                break
+        reports.append((line.strip(), frames))
+    return reports
+
+
+def tsan_replay(args):
+    """Replay a journal against a TSan build, then print each report.
+
+    `open -a` passes no environment, so the options go through launchctl,
+    which is session-wide: they are unset on every exit Python sees, and the
+    instrumented app is quit so no later launch inherits its reports.
+    """
+    app = Path(args.app).expanduser().resolve()
+    started = time.time()
+    subprocess.run(["launchctl", "setenv", "TSAN_OPTIONS", TSAN_OPTIONS], check=True)
+    try:
+        result = replay(args, args.tsan_replay)
+    finally:
+        try:
+            if app_pid():
+                Channel(app).run(["quit"], timeout=20)
+                deadline = time.monotonic() + 15
+                while app_pid() and time.monotonic() < deadline:
+                    time.sleep(0.2)
+        finally:
+            subprocess.run(["launchctl", "unsetenv", "TSAN_OPTIONS"])
+    reports = sorted(path for path in TSAN_LOG_DIR.glob("tsan.*")
+                     if path.stat().st_mtime >= started)
+    if not reports:
+        print("tsan: no report written. Confirm the app was the TSan build and could write "
+              f"to {TSAN_LOG_DIR} before reading this as clean")
+        return result
+    for path in reports:
+        found = tsan_first_stacks(path.read_text(errors="replace"))
+        print(f"\ntsan: {path} ({len(found)} reports)")
+        for warning, frames in found:
+            print(f"  {warning}")
+            for frame in frames[:TSAN_STACK_FRAMES]:
+                print(f"      {frame}")
+    return 1
+
+
+# The verb whose success proves an op kind did its work. Each kind's
+# refusals hide behind tolerated errors or a reply's `ok: false`, which score
+# a clean run while the op does nothing.
+OP_PROOFS = {
+    "link": {"open_url"},
+    "slow_volume": {"set_slow_volume"},
+    "stall": set(STALL_LIMITS),
+    "settings": {"settings_click"},
+}
+
+
+def dead_op_warnings(entries, weights):
+    """A warning for each weighted op kind the journal never shows doing its
+    work: its proof verb answered with exit 0 and no `ok: false`."""
+    proven = {entry.get("op") for entry in entries
+              if entry.get("argv") and entry["argv"][0] in OP_PROOFS.get(entry.get("op"), ())
+              and entry["argv"][1:2] != ["off"]
+              and entry.get("exit") == 0 and entry.get("replyOk", True)}
+    return [f"WARNING: op `{kind}` never did its work this run (no successful "
+            f"{'/'.join(sorted(OP_PROOFS[kind]))} in the journal): a dead op scores clean"
+            for kind in OP_PROOFS if weights.get(kind) and kind not in proven]
 
 
 def describe_materialization_coverage(channel) -> str:
@@ -2250,6 +2756,11 @@ def main():
                              "stress-<seed>.ndjson; the health series, stall samples and "
                              "failure directory land beside it)")
     parser.add_argument("--replay", help="replay a journal verbatim instead of generating ops")
+    parser.add_argument("--tsan-replay", metavar="JOURNAL",
+                        help="replay a journal against the ThreadSanitizer build named by "
+                             "--app, with TSAN_OPTIONS set through launchctl for the run "
+                             "only, then print each report's first stack "
+                             "(references/sanitizers.md)")
     parser.add_argument("--shrink", help="delta-debug a failing journal to a minimal repro")
     parser.add_argument("--shrink-resting-mb", type=int, default=0,
                         help="with --shrink, also count an at-rest footprint above this "
@@ -2293,26 +2804,12 @@ def main():
         return run_ios(args)
     if args.shrink:
         return shrink(args)
+    if args.tsan_replay:
+        if not args.app:
+            parser.error("--tsan-replay needs --app pointing at a ThreadSanitizer build")
+        return tsan_replay(args)
     if args.replay:
-        app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
-        corpus = Path(args.corpus).expanduser().resolve()
-        channel = Channel(app, verbose=args.verbose,
-                          client_app=Path(args.client_app) if args.client_app else None)
-        ops = load_journal(Path(args.replay))
-        print(f"replaying {len(ops)} ops from {args.replay}")
-        launch(corpus, app)
-        with user_settings_preserved(channel, corpus, app) as imported_themes:
-            failure = replay_ops(channel, ops, check_every=args.batch,
-                                 imported_themes=imported_themes)
-            if failure:
-                print(f"FAILED: {failure.kind} — {failure.detail}")
-                return 1
-            violations = check_consistency(channel)
-            if violations:
-                print("FAILED: " + "; ".join(v["id"] for v in violations))
-                return 1
-            print("PASSED")
-            return 0
+        return replay(args, args.replay)
     return run(args)
 
 
