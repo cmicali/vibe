@@ -38,7 +38,6 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     NSArray<NSView *> *_listSections;
     // The same theme field as the editor's _waveformPopUp.
     NSPopUpButton *_listWaveformPopUp;
-    SettingsRowView *_currentThemeRow;
     NSButton *_editThemeButton, *_revertThemeButton;
     NSMutableArray<NSImageView *> *_waveformPreviews;
     NSArray *_waveformPreviewKey;
@@ -87,30 +86,28 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
                                         target:self action:@selector(editTheme:)];
     NSButton *exportButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_EXPORT
                                                 target:self action:@selector(exportTheme:)];
+    _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
+            target:self action:@selector(revertTheme:)];
+    // The library's buttons lead; the selected theme's own, Revert and
+    // Customize…, trail, since the selected row is the current theme.
     NSStackView *buttons = [NSStackView stackViewWithViews:
             @[addButton, _removeThemeButton, exportButton]];
+    [buttons addView:_revertThemeButton inGravity:NSStackViewGravityTrailing];
+    [buttons addView:_editThemeButton inGravity:NSStackViewGravityTrailing];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
     // A THEME field: over a built-in, an edit lands in the divergence key.
     _listWaveformPopUp = [self waveformStylePopUpButton];
 
-    _revertThemeButton = [NSButton buttonWithTitle:STR_SETTINGS_THEME_REVERT
-            target:self action:@selector(revertTheme:)];
-    NSStackView *themeActions = [NSStackView stackViewWithViews:@[_revertThemeButton, _editThemeButton]];
-    themeActions.spacing = 8;
-    _currentThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_CURRENT
-            control:themeActions];
-
     _listSections = @[
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEME_CURRENT rows:@[
-            _currentThemeRow,
-            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_listWaveformPopUp],
-            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
-        ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_THEMES_SECTION rows:@[
             listRow,
             buttonRow,
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
+            [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_listWaveformPopUp],
+            [SettingsRowView rowWithContentView:[self waveformPreviewView]],
         ]],
     ];
     // The list is its own divider; the section's hairline would double it.
@@ -125,6 +122,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     _detailContainer.hidden = !_editorShown;
     for (NSView *section in _listSections) {
         section.hidden = _editorShown;
+    }
+    if (_editorShown) {
+        // Showing the page scrolls nothing, so the jump bar is synced here.
+        [self.view layoutSubtreeIfNeeded];
+        [self syncEditorJumpSelection];
     }
     [self applyEditorTitle];
 }
@@ -258,10 +260,7 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     AppTheme *theme = settings.currentTheme;
 
     [self selectWaveformStyle:theme.waveformStyle in:_listWaveformPopUp];
-    NSString *name = [settings displayNameForThemeIdentifier:settings.activeThemeIdentifier];
-    BOOL modified = settings.currentThemeIsModified;
-    [_currentThemeRow setRowTitle:modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name];
-    _revertThemeButton.hidden = !modified;
+    _revertThemeButton.hidden = !settings.currentThemeIsModified;
 
     NSString *active = settings.activeThemeIdentifier;
     _themeIdentifiers = settings.orderedThemeIdentifiers;
@@ -427,8 +426,11 @@ static NSString *const kThemeGroupCellIdentifier = @"themeGroupCell";
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:kThemeCellIdentifier
                                                         inTableView:tableView imagePosition:NSImageLeft];
-    cell.textField.stringValue =
-            [AppSettings.sharedInstance displayNameForThemeIdentifier:identifier] ?: identifier;
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *name = [settings displayNameForThemeIdentifier:identifier] ?: identifier;
+    // A built-in that diverged says so on its own row, beside Revert.
+    BOOL modified = [identifier isEqualToString:settings.activeThemeIdentifier] && settings.currentThemeIsModified;
+    cell.textField.stringValue = modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name;
     cell.imageView.image = [self swatchForThemeIdentifier:identifier dark:tableView.isDark];
     cell.toolTip = cell.textField.stringValue;
     return cell;

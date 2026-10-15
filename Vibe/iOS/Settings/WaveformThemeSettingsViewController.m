@@ -43,12 +43,13 @@ static NSArray<NSString *> *ThemeIdentifiers(VibeWaveformPaletteKind kind) {
     }
 }
 
-// The 3-Band palettes carry the mac themes' names, which no language
-// translates.
+// The 3-Band palettes are named by their colors: there are no themes on
+// iOS, so the mac theme names they come from would mean nothing here.
 static NSArray<NSString *> *ThemeDisplayNames(VibeWaveformPaletteKind kind) {
     switch (kind) {
         case VibeWaveformPaletteKindBands:
-            return @[VibeNotLocalized(@"Rekord Bin"), VibeNotLocalized(@"Dengine"), STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
+            return @[STR_SETTINGS_WAVEFORM_BAND_BLUE_ORANGE, STR_SETTINGS_WAVEFORM_BAND_BLUE_GREEN,
+                     STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
         case VibeWaveformPaletteKindSpectrum: {
             NSMutableArray<NSString *> *names = [NSMutableArray array];
             for (NSString *palette in VibeWaveformSpectrumPalettes()) {
@@ -60,6 +61,34 @@ static NSArray<NSString *> *ThemeDisplayNames(VibeWaveformPaletteKind kind) {
             return @[STR_SETTINGS_WAVEFORM_THEME_MONO, STR_SETTINGS_WAVEFORM_THEME_ORANGE,
                      STR_SETTINGS_WAVEFORM_THEME_ALBUM_ART, STR_SETTINGS_WAVEFORM_THEME_CUSTOM];
     }
+}
+
+static BOOL IsCustom(VibeWaveformPaletteKind kind, NSString *identifier);
+
+// A built-in band or spectrum palette's three colors, low, mid and high, as
+// three bars beside its name, in this appearance's colors so the high band's
+// white reads on a light cell. The waveform themes carry no swatch. Custom
+// takes an empty one, so its name lines up with the rest.
+static UIImage *PaletteSwatch(VibeWaveformPaletteKind kind, NSString *identifier, BOOL isDark) {
+    if (kind == VibeWaveformPaletteKindTheme) {
+        return nil;
+    }
+    BOOL custom = IsCustom(kind, identifier);
+    NSArray<UIColor *> *colors = custom ? @[] : kind == VibeWaveformPaletteKindBands
+            ? [WaveformTheme bandColorsForIdentifier:identifier isDark:isDark customBands:@[]]
+            : [WaveformTheme spectrumColorsForIdentifier:identifier isDark:isDark customBands:@[]];
+    const CGFloat barWidth = 8, barGap = 3, height = 22;
+    CGSize size = CGSizeMake(barWidth * 3 + barGap * 2, height);
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.opaque = NO;
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size format:format];
+    return [[renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        for (NSUInteger band = 0; band < 3 && band < colors.count; band++) {
+            [colors[band] setFill];
+            CGRect bar = CGRectMake(band * (barWidth + barGap), 0, barWidth, height);
+            [[UIBezierPath bezierPathWithRoundedRect:bar cornerRadius:2] fill];
+        }
+    }] imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
 }
 
 // Both band styles' Custom is the band wells.
@@ -197,6 +226,8 @@ static NSString *const kChoiceCellIdentifier = @"choice";
     }
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
     content.text = ThemeDisplayNames(kind)[indexPath.row];
+    content.image = PaletteSwatch(kind, ThemeIdentifiers(kind)[indexPath.row],
+                                  tableView.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark);
     cell.contentConfiguration = content;
     cell.accessoryType = [ThemeIdentifiers(kind)[indexPath.row] isEqualToString:CurrentTheme(kind, _widget)]
             ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;

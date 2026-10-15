@@ -12,16 +12,18 @@
 #import "WaveformRendererRegistry.h"
 #import "WaveformThemeSettingsViewController.h"
 
+// Time display is two checkmarked choices in place, a small set needs no
+// pushed screen.
 typedef NS_ENUM(NSInteger, VibeAppearanceSection) {
-    VibeAppearanceSectionNowPlaying = 0,
+    VibeAppearanceSectionTimeDisplay = 0,
+    VibeAppearanceSectionNowPlaying,
     VibeAppearanceSectionWaveform,
     VibeAppearanceSectionWidget,
     VibeAppearanceSectionCount,
 };
 
 typedef NS_ENUM(NSInteger, VibeNowPlayingRow) {
-    VibeNowPlayingRowTimeDisplay = 0,
-    VibeNowPlayingRowFileInfo,
+    VibeNowPlayingRowFileInfo = 0,
     VibeNowPlayingRowShuffleRepeat,
     VibeNowPlayingRowCount,
 };
@@ -36,10 +38,11 @@ typedef NS_ENUM(NSInteger, VibeWaveformRow) {
 };
 
 // Not a cast of the BOOL: a row index is a screen position.
-static const NSInteger kTimeRowTotal     = 0;
 static const NSInteger kTimeRowRemaining = 1;
+static const NSInteger kTimeRowCount     = 2;
 
 static NSString *const kValueCellIdentifier  = @"value";
+static NSString *const kChoiceCellIdentifier = @"choice";
 
 @implementation AppearanceSettingsViewController {
     PlaybackController *_playback;
@@ -110,10 +113,6 @@ static NSString *const kValueCellIdentifier  = @"value";
     return (VibeWaveformRow)[self waveformRowsForWidget:widget][(NSUInteger)index].integerValue;
 }
 
-- (NSString *)timeDisplayValueText {
-    return AppSettings.sharedInstance.showRemainingTime ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL;
-}
-
 #pragma mark - Table
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
@@ -121,6 +120,9 @@ static NSString *const kValueCellIdentifier  = @"value";
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    if (section == VibeAppearanceSectionTimeDisplay) {
+        return kTimeRowCount;
+    }
     if (section == VibeAppearanceSectionNowPlaying) {
         return VibeNowPlayingRowCount;
     }
@@ -129,6 +131,7 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     switch ((VibeAppearanceSection)section) {
+        case VibeAppearanceSectionTimeDisplay: return STR_SETTINGS_SECTION_TIME;
         case VibeAppearanceSectionNowPlaying: return STR_SETTINGS_NOW_PLAYING_SECTION;
         case VibeAppearanceSectionWidget:     return STR_SETTINGS_WIDGET_SECTION;
         default:                              return STR_SETTINGS_WAVEFORM_SECTION;
@@ -137,6 +140,20 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    if (indexPath.section == VibeAppearanceSectionTimeDisplay) {
+        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:kChoiceCellIdentifier];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                          reuseIdentifier:kChoiceCellIdentifier];
+        }
+        UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
+        content.text = indexPath.row == kTimeRowRemaining ? STR_SETTINGS_TIME_REMAINING : STR_SETTINGS_TIME_TOTAL;
+        cell.contentConfiguration = content;
+        BOOL remaining = AppSettings.sharedInstance.showRemainingTime;
+        cell.accessoryType = (indexPath.row == kTimeRowRemaining) == remaining ? UITableViewCellAccessoryCheckmark
+                                                                                 : UITableViewCellAccessoryNone;
+        return cell;
+    }
     BOOL nowPlaying = indexPath.section == VibeAppearanceSectionNowPlaying;
     // The Waveform and Widget groups share their rows; the widget's read and
     // write the widget's copies. A switch carries its section as its tag.
@@ -182,11 +199,7 @@ static NSString *const kValueCellIdentifier  = @"value";
         cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
     }
     UIListContentConfiguration *content = [UIListContentConfiguration valueCellConfiguration];
-    if (nowPlaying) {
-        content.text = STR_SETTINGS_SECTION_TIME;
-        content.secondaryText = [self timeDisplayValueText];
-    }
-    else if (row == VibeWaveformRowStyle) {
+    if (row == VibeWaveformRowStyle) {
         content.text = STR_SETTINGS_THEME_WAVEFORM_STYLE;
         content.secondaryText = [self waveformStyleValueTextForWidget:widget];
     }
@@ -210,8 +223,18 @@ static NSString *const kValueCellIdentifier  = @"value";
     UIViewController *next = nil;
     BOOL widget = indexPath.section == VibeAppearanceSectionWidget;
     switch ((VibeAppearanceSection)indexPath.section) {
+        case VibeAppearanceSectionTimeDisplay: {
+            BOOL remaining = indexPath.row == kTimeRowRemaining;
+            if (remaining != AppSettings.sharedInstance.showRemainingTime) {
+                AppSettings.sharedInstance.showRemainingTime = remaining;
+                VibeNotifyDisplaySettingsChanged();
+                // The whole section, so the checkmark leaves the row it was on.
+                [tableView reloadSections:[NSIndexSet indexSetWithIndex:VibeAppearanceSectionTimeDisplay]
+                         withRowAnimation:UITableViewRowAnimationNone];
+            }
+            break;
+        }
         case VibeAppearanceSectionNowPlaying:
-            next = indexPath.row == VibeNowPlayingRowTimeDisplay ? [self timeDisplayPicker] : nil;
             break;
         default: {
             VibeWaveformRow row = [self waveformRowAtIndex:indexPath.row widget:widget];
@@ -296,17 +319,6 @@ static NSString *const kValueCellIdentifier  = @"value";
         } else {
             AppSettings.sharedInstance.waveformStyle = types[(NSUInteger)index];
         }
-        VibeNotifyDisplaySettingsChanged();
-    }];
-}
-
-- (SettingsChoiceViewController *)timeDisplayPicker {
-    return [[SettingsChoiceViewController alloc]
-            initWithTitle:STR_SETTINGS_SECTION_TIME
-                  choices:@[STR_SETTINGS_TIME_TOTAL, STR_SETTINGS_TIME_REMAINING]
-            selectedIndex:(AppSettings.sharedInstance.showRemainingTime ? kTimeRowRemaining : kTimeRowTotal)
-                 onSelect:^(NSInteger index) {
-        AppSettings.sharedInstance.showRemainingTime = index == kTimeRowRemaining;
         VibeNotifyDisplaySettingsChanged();
     }];
 }

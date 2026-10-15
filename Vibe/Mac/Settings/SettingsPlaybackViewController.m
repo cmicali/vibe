@@ -64,9 +64,9 @@ static NSString *const kOnEndPause = @"pause";
     _detectBPMSwitch = [self switchWithAction:@selector(toggleDetectBPM:)];
     _detectKeySwitch = [self switchWithAction:@selector(toggleDetectKey:)];
 
-    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL
-                                          caption:STR_SETTINGS_CROSSFADE_CAPTION control:crossfadeCluster];
-    _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX control:_enableFXSwitch];
+    _crossfadeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_CROSSFADE_LABEL control:crossfadeCluster];
+    _enableFXRow = [SettingsRowView rowWithTitle:STR_SETTINGS_ENABLE_FX
+                                         caption:STR_SETTINGS_ENABLE_FX_CAPTION control:_enableFXSwitch];
     [self loadPaneWithSections:@[
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_TRANSITIONS_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ON_END_LABEL control:_onEndPopUp],
@@ -78,8 +78,10 @@ static NSString *const kOnEndPause = @"pause";
             _enableFXRow,
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_ANALYSIS_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_BPM control:_detectBPMSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_KEY control:_detectKeySwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_BPM
+                                  caption:STR_SETTINGS_DETECT_BPM_CAPTION control:_detectBPMSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DETECT_KEY
+                                  caption:STR_SETTINGS_DETECT_KEY_CAPTION control:_detectKeySwitch],
         ]],
     ]];
 }
@@ -97,8 +99,8 @@ static NSString *const kOnEndPause = @"pause";
     [SettingsRowView setControl:_crossfadeSlider enabled:!bitPerfect];
     [SettingsRowView setControl:_enableFXSwitch enabled:!bitPerfect];
     NSString *reason = bitPerfect ? STR_SETTINGS_OFF_WHILE_BIT_PERFECT : nil;
-    [_crossfadeRow setCaption:STR_SETTINGS_CROSSFADE_CAPTION detail:reason];
-    [_enableFXRow setCaption:reason];
+    [_crossfadeRow setCaption:reason];
+    [_enableFXRow setCaption:STR_SETTINGS_ENABLE_FX_CAPTION detail:reason];
     _detectBPMSwitch.state = AppSettings.sharedInstance.analyzeBPM ? NSControlStateValueOn : NSControlStateValueOff;
     _detectKeySwitch.state = AppSettings.sharedInstance.analyzeKey ? NSControlStateValueOn : NSControlStateValueOff;
 }

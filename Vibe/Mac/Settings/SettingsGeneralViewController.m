@@ -12,19 +12,25 @@
 #import "AppSettings+Mac.h"
 #import "DefaultAppRegistration.h"
 #import "MainPlayerController+Settings.h"
+#import "NSImage+Util.h"
 #import "VibeStrings.h"
 
 static const CGFloat kGeneralPopUpWidth = 280;
 
 @implementation SettingsGeneralViewController {
+    // One of the two shows: the button until the app holds every type, then
+    // the checkmarked label. A done state drawn as a disabled button read as
+    // unavailable.
     NSButton *_defaultPlayerButton;
+    NSStackView *_defaultPlayerDoneCluster;
     VibeSwitch *_alwaysOnTopSwitch;
     VibeSwitch *_lockWindowPositionSwitch;
     VibeSwitch *_reopenPlaylistSwitch;
     NSPopUpButton *_waveformDragPopUp;
     NSPopUpButton *_artworkDragPopUp;
 #if VIBE_DIRECT_DISTRIBUTION
-    NSPopUpButton *_updateCheckPopUp;
+    VibeSwitch *_updateCheckSwitch;
+    NSButton *_checkNowButton;
     VibeSwitch *_betaUpdatesSwitch;
 #endif
     // Shown on refresh while the async check runs.
@@ -33,14 +39,19 @@ static const CGFloat kGeneralPopUpWidth = 280;
 }
 
 - (void)loadView {
-    // The pane is measured before the async default-app check answers, so
-    // floor the button at the wider of its two titles or a long one clips.
-    _defaultPlayerButton = [NSButton buttonWithTitle:[self defaultPlayerTitle:NO]
+    _defaultPlayerButton = [NSButton buttonWithTitle:[NSString stringWithFormat:STR_SETTINGS_DEFAULT_PLAYER_SET,
+                                                      VibeAppName()]
                                               target:self action:@selector(makeDefaultPlayer:)];
-    CGFloat widestTitle = _defaultPlayerButton.fittingSize.width;
-    _defaultPlayerButton.title = [self defaultPlayerTitle:YES];
-    widestTitle = MAX(widestTitle, _defaultPlayerButton.fittingSize.width);
-    [_defaultPlayerButton.widthAnchor constraintGreaterThanOrEqualToConstant:widestTitle].active = YES;
+    NSImageView *check = [NSImageView imageViewWithImage:[NSImage symbolNamed:@"checkmark.circle.fill"
+            pointSize:NSFont.systemFontSize weight:NSFontWeightRegular
+              palette:@[NSColor.whiteColor, NSColor.systemGreenColor]
+            accessibilityDescription:nil]];
+    NSTextField *doneLabel = [NSTextField labelWithString:[NSString stringWithFormat:STR_SETTINGS_DEFAULT_PLAYER_IS,
+                                                           VibeAppName()]];
+    doneLabel.textColor = NSColor.secondaryLabelColor;
+    _defaultPlayerDoneCluster = [NSStackView stackViewWithViews:@[check, doneLabel]];
+    _defaultPlayerDoneCluster.spacing = 4;
+    _defaultPlayerDoneCluster.hidden = YES;
 
     _alwaysOnTopSwitch = [self switchWithAction:@selector(toggleAlwaysOnTop:)];
     _lockWindowPositionSwitch = [self switchWithAction:@selector(toggleLockWindowPosition:)];
@@ -56,42 +67,31 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_PATH value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_PATH to:_artworkDragPopUp];
     [self addItem:STR_SETTINGS_ARTWORK_DRAG_NAME value:SETTINGS_VALUE_ARTWORK_DRAG_COPY_ARTIST_TITLE to:_artworkDragPopUp];
 
-#if VIBE_DIRECT_DISTRIBUTION
-    // Seconds, as AppDelegate.updateCheckInterval takes them; 0 is never.
-    _updateCheckPopUp = [self popUpButtonWithWidth:kGeneralPopUpWidth action:@selector(updateCheckChanged:)];
-    [self addItem:STR_SETTINGS_UPDATE_CHECK_NEVER value:@0 to:_updateCheckPopUp];
-    NSArray<NSString *> *intervalTitles = @[STR_SETTINGS_UPDATE_CHECK_DAILY, STR_SETTINGS_UPDATE_CHECK_WEEKLY,
-                                            STR_SETTINGS_UPDATE_CHECK_MONTHLY];
-    NSAssert(intervalTitles.count == kVibeUpdateCheckIntervalPresetCount,
-             @"Every update check interval needs a title");
-    for (size_t i = 0; i < kVibeUpdateCheckIntervalPresetCount; i++) {
-        [self addItem:intervalTitles[i] value:@(kVibeUpdateCheckIntervalPresets[i]) to:_updateCheckPopUp];
-    }
-    _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
-#endif
-
-    [self loadPaneWithSections:@[
+    NSMutableArray<SettingsSectionView *> *sections = [NSMutableArray arrayWithObjects:
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_BEHAVIOR_SECTION rows:@[
-            [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST
-                                  caption:STR_SETTINGS_REOPEN_PLAYLIST_CAPTION
-                                  control:_reopenPlaylistSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_REOPEN_PLAYLIST control:_reopenPlaylistSwitch],
             [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_DRAG_LABEL control:_waveformDragPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_ARTWORK_DRAG_LABEL control:_artworkDragPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL
+                                 controls:@[_defaultPlayerDoneCluster, _defaultPlayerButton]],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_SECTION rows:@[
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_WINDOW_PLACEMENT_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALWAYS_ON_TOP control:_alwaysOnTopSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION
-                                  caption:STR_SETTINGS_LOCK_WINDOW_POSITION_CAPTION control:_lockWindowPositionSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_LOCK_WINDOW_POSITION control:_lockWindowPositionSwitch],
         ]],
-        [SettingsSectionView sectionWithHeader:STR_SETTINGS_SYSTEM_SECTION rows:@[
+        nil];
 #if VIBE_DIRECT_DISTRIBUTION
-            [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckPopUp],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL
-                                  caption:STR_SETTINGS_BETA_UPDATES_CAPTION control:_betaUpdatesSwitch],
+    _updateCheckSwitch = [self switchWithAction:@selector(updateCheckChanged:)];
+    _checkNowButton = [NSButton buttonWithTitle:STR_SETTINGS_UPDATE_CHECK_NOW_BUTTON
+                                         target:nil action:@selector(checkForUpdates:)];
+    _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
+    [sections addObject:[SettingsSectionView sectionWithHeader:STR_SETTINGS_UPDATES_SECTION rows:@[
+        [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_LABEL control:_updateCheckSwitch],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_UPDATE_CHECK_NOW_LABEL control:_checkNowButton],
+        [SettingsRowView rowWithTitle:STR_SETTINGS_BETA_UPDATES_LABEL control:_betaUpdatesSwitch],
+    ]]];
 #endif
-            [SettingsRowView rowWithTitle:STR_SETTINGS_DEFAULT_PLAYER_LABEL control:_defaultPlayerButton],
-        ]],
-    ]];
+    [self loadPaneWithSections:sections];
 }
 
 - (void)refreshFromSettings {
@@ -102,9 +102,16 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 #if VIBE_DIRECT_DISTRIBUTION
-    [self selectValue:@([(AppDelegate *)NSApp.delegate updateCheckInterval]) in:_updateCheckPopUp];
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    // No updater (a Debug build launched without --update-feed): the interval
+    // reads 0 and ignores writes, and Check Now has nowhere to go.
+    BOOL updater = delegate.updaterController != nil;
+    _checkNowButton.target = delegate.updaterController;
+    [SettingsRowView setControl:_updateCheckSwitch enabled:updater];
+    [SettingsRowView setControl:_checkNowButton enabled:updater];
+    _updateCheckSwitch.state = delegate.updateCheckInterval > 0 ? NSControlStateValueOn : NSControlStateValueOff;
+    // Never disabled with the automatic check off: Check Now still honors it.
     _betaUpdatesSwitch.state = AppSettings.sharedInstance.receiveBetaUpdates ? NSControlStateValueOn : NSControlStateValueOff;
-    [self refreshBetaUpdatesEnabled];
 #endif
 }
 
@@ -132,16 +139,16 @@ static const CGFloat kGeneralPopUpWidth = 280;
 }
 
 #if VIBE_DIRECT_DISTRIBUTION
+// On is the first preset, daily; off is never. A weekly or monthly interval
+// Sparkle still holds from an older build reads as on and is kept.
 - (void)updateCheckChanged:(id)sender {
-    [(AppDelegate *)NSApp.delegate setUpdateCheckInterval:[_updateCheckPopUp.selectedItem.representedObject doubleValue]];
-    [self refreshBetaUpdatesEnabled];
-}
-
-// Never disables the row but keeps its value: Check for Updates… still
-// honors it.
-- (void)refreshBetaUpdatesEnabled {
-    [SettingsRowView setControl:_betaUpdatesSwitch
-                        enabled:[(AppDelegate *)NSApp.delegate updateCheckInterval] > 0];
+    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    BOOL on = _updateCheckSwitch.state == NSControlStateValueOn;
+    if (on && delegate.updateCheckInterval <= 0) {
+        delegate.updateCheckInterval = kVibeUpdateCheckIntervalPresets[0];
+    } else if (!on) {
+        delegate.updateCheckInterval = 0;
+    }
 }
 
 - (void)betaUpdatesChanged:(id)sender {
@@ -184,14 +191,15 @@ static const CGFloat kGeneralPopUpWidth = 280;
     }];
 }
 
-- (NSString *)defaultPlayerTitle:(BOOL)isDefault {
-    return [NSString stringWithFormat:
-            isDefault ? STR_SETTINGS_DEFAULT_PLAYER_IS : STR_SETTINGS_DEFAULT_PLAYER_SET, VibeAppName()];
-}
-
+// The swap lands after the async check, outside the refresh that measures
+// the pane, so it remeasures itself.
 - (void)renderDefaultPlayerState:(BOOL)isDefault {
-    _defaultPlayerButton.title = [self defaultPlayerTitle:isDefault];
-    [SettingsRowView setControl:_defaultPlayerButton enabled:!isDefault];
+    if (_defaultPlayerButton.hidden == isDefault) {
+        return;
+    }
+    _defaultPlayerButton.hidden = isDefault;
+    _defaultPlayerDoneCluster.hidden = !isDefault;
+    [self paneContentDidChange];
 }
 
 @end
