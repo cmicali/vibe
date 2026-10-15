@@ -1,1 +1,2 @@
-* New: separate theme colors for the row number and the duration of the playing row and selected rows
+* New: a theme color for the playing row's equalizer bars
+* Changed the playing row's equalizer bars to black in light mode
