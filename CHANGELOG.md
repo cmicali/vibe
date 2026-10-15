@@ -24,6 +24,7 @@
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
 * mac: Improved the Settings window: clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor
+* Changed the Cupertino theme to darken only cover art behind the playback buttons, and lightened that gradient on both platforms
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
 * ios: Added a full-bleed artwork widget with the mac's playlist, play, and next buttons
 * ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors
