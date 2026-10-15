@@ -2304,16 +2304,16 @@ OP_PROOFS = {
 }
 
 
-def dead_op_warnings(entries, weights):
+def dead_op_warnings(entries, weights, proofs=OP_PROOFS):
     """A warning for each weighted op kind the journal never shows doing its
     work: its proof verb answered with exit 0 and no `ok: false`."""
     proven = {entry.get("op") for entry in entries
-              if entry.get("argv") and entry["argv"][0] in OP_PROOFS.get(entry.get("op"), ())
+              if entry.get("argv") and entry["argv"][0] in proofs.get(entry.get("op"), ())
               and entry["argv"][1:2] != ["off"]
               and entry.get("exit") == 0 and entry.get("replyOk", True)}
     return [f"WARNING: op `{kind}` never did its work this run (no successful "
-            f"{'/'.join(sorted(OP_PROOFS[kind]))} in the journal): a dead op scores clean"
-            for kind in OP_PROOFS if weights.get(kind) and kind not in proven]
+            f"{'/'.join(sorted(proofs[kind]))} in the journal): a dead op scores clean"
+            for kind in proofs if weights.get(kind) and kind not in proven]
 
 
 def describe_materialization_coverage(channel) -> str:
@@ -2382,21 +2382,57 @@ def run_gesture_test(args):
 
 # iOS: attach through the existing simulator client, never the mac channel.
 
+IOS_TABS = ("playlist", "favorites", "files", "search")
+# set_output_route's kinds in VibeOutputRouteKind's order, so the model's
+# dump_state.ui.outputRoute.kind indexes it.
+IOS_ROUTES = ("none", "speaker", "receiver", "wired", "bluetooth", "airplay", "carplay", "other")
+IOS_ROUTE_NAMES = ("Living Room", "AirPods Pro", "Car")
+# Faults a Dropbox server produces (VibeFakeDropbox.h). There is no stall,
+# because it holds a download until a resume and the op clears faults at once.
+IOS_DROPBOX_FAULTS = (
+    ["drop"], ["rev-change"], ["throttle", "seconds=1"], ["expired-token"], ["tail-fail"],
+    ["slow-tail", "seconds=2"], ["slow-tags", "seconds=2"], ["rate", "rate=256K"],
+    ["latency", "seconds=0.5"],
+)
+# There is no stall here either: open_url replies only once the resolve settles.
+IOS_LINK_FAULTS = tuple(fault for fault in LINK_FAULTS if fault != ["stall"])
+# A query no corpus name contains. Its reply must have no rows.
+IOS_NO_MATCH = "zqxjvw"
+IOS_VERB_TIMEOUTS = {"open_url": 60, "search": 15}
+# What a card move must leave where it was (iOS/AGENTS.md's backdrop TRAP).
+# The navigation bar is left out, since a track change can scroll the list
+# and collapse a large title.
+IOS_ANCHORS = ("tabBar", "strip", "tabsSafeAreaInsets")
+# dump_cloud_health's counters that must reach zero at rest. iOS has no quiesce.
+IOS_PENDING = ("cloudParsesPending", "cloudLaneHeld")
+IOS_MATERIALIZATION_PENDING = ("claims", "waiters", "backgroundPending", "backgroundRunning",
+                               "interactivePending", "interactiveRunning",
+                               "handleOpensInFlight", "datalessProbesInFlight")
+
+
+def ios_path_token(argument):
+    """$CORPUS or $DROPBOX, alone or with a relative path that cannot climb out."""
+    root, slash, rest = argument.partition("/")
+    parts = rest.split("/")
+    return root in ("$CORPUS", "$DROPBOX") and (
+        not slash or ("" not in parts and ".." not in parts and "." not in parts))
 
 
 def ios_validate_step(step):
     if isinstance(step, dict) and set(step) == {"check"}:
-        if step["check"] in ("progress", "sustained", "pending-idle", "idle", "tail", "consistency"):
+        if step["check"] in ("progress", "sustained", "pending-idle", "idle", "tail",
+                             "consistency", "anchors", "pending"):
             return
     argv = step.get("command") if isinstance(step, dict) else None
-    if not isinstance(argv, list) or not argv or any(not isinstance(a, str) for a in argv):
+    if not isinstance(argv, list) or not argv or any(not isinstance(a, str) or "\0" in a for a in argv):
         raise ValueError(f"invalid iOS replay step: {step!r}")
     if set(step) != {"command"}:
         raise ValueError("unexpected iOS replay fields")
     verb, *args = argv
-    if verb in ("next", "previous", "play_pause") and not args:
+    if verb in ("next", "previous", "play_pause", "expand_player", "minimize_player",
+                "tap_favorite_star", "dump_fake_dropbox", "search") and not args:
         return
-    if verb == "open" and args == ["$CORPUS"]:
+    if verb == "open" and len(args) == 1 and ios_path_token(args[0]):
         return
     if verb in ("set_shuffle", "set_pause_at_track_end") and args in (["on"], ["off"]):
         return
@@ -2408,6 +2444,34 @@ def ios_validate_step(step):
         return
     if verb == "burst" and len(args) == 2 and args[0] == "100" and re.fullmatch(r"[0-9]{1,10}", args[1]):
         return
+    if verb == "select_tab" and len(args) == 1 and args[0] in IOS_TABS:
+        return
+    if verb == "browse" and (args in (["back"], ["play"])
+                             or (len(args) == 2 and args[0] == "show" and ios_path_token(args[1]))
+                             or (len(args) == 2 and args[0] == "tap" and "/" not in args[1]
+                                 and args[1] not in ("", ".", ".."))):
+        return
+    if verb == "search" and len(args) == 1 and re.fullmatch(r"[A-Za-z0-9]{1,32}", args[0]):
+        return
+    if verb in ("open_search_hit", "open_favorite") and len(args) == 1 and re.fullmatch(r"[0-9]{1,4}", args[0]):
+        return
+    if verb == "set_output_route" and args and args[0] in IOS_ROUTES and (
+            len(args) == 1 or (len(args) == 2 and args[1] in IOS_ROUTE_NAMES)):
+        return
+    if verb in ("set_fake_dropbox", "set_fake_http") and (
+            args == ["off"] or (len(args) == 2 and args[0] == "$CORPUS"
+                                and re.fullmatch(r"[0-9](\.[0-9])?", args[1]))):
+        return
+    if verb == "fake_dropbox_fault" and (args == ["clear"] or args in IOS_DROPBOX_FAULTS):
+        return
+    if verb == "fake_http_fault" and (args == ["off"] or args in IOS_LINK_FAULTS):
+        return
+    link = args[-1] if args else ""
+    if link.startswith(FAKE_HTTP_HOSTS) and ".." not in urllib.parse.unquote(link).split("/") and (
+            argv in (["open_url", link], ["paste_link", link], ["open_url_sheet", "type", link])):
+        return
+    if verb == "open_url_sheet" and args in (["show"], ["open"]):
+        return
     raise ValueError(f"iOS replay refuses {argv!r}")
 
 
@@ -2416,10 +2480,12 @@ def ios_record(file, **record):
     file.flush()
 
 
-def ios_command(env, journal, argv, phase="run", timeout=10):
+def ios_command(env, journal, argv, phase="run", timeout=10, op=None):
     # Every oracle and cleanup command takes this path too. A terminal timeout
     # must survive even when no subsequent command can answer.
-    ios_record(journal, event="begin", phase=phase, command=argv)
+    timeout = max(timeout, IOS_VERB_TIMEOUTS.get(argv[0], 0))
+    labels = {"phase": phase, **({"op": op} if op else {})}
+    ios_record(journal, event="begin", command=argv, **labels)
     started = time.monotonic()
     try:
         proc = subprocess.Popen([str(LAUNCH_SH.with_name("debug-ios.sh")), *argv],
@@ -2427,7 +2493,7 @@ def ios_command(env, journal, argv, phase="run", timeout=10):
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                 start_new_session=True)
     except OSError as error:
-        ios_record(journal, event="reply", phase=phase, command=argv, code=127, stderr=str(error))
+        ios_record(journal, event="reply", command=argv, code=127, stderr=str(error), **labels)
         raise Failure("harness", str(error), argv) from error
     interrupted = False
     try:
@@ -2449,14 +2515,49 @@ def ios_command(env, journal, argv, phase="run", timeout=10):
         reply = json.loads(raw)
     except (ValueError, TypeError):
         reply = None
-    ios_record(journal, event="reply", phase=phase, command=argv, code=code,
-               elapsed=time.monotonic() - started, reply=reply, stdout=raw, stderr=stderr)
+    ios_record(journal, event="reply", command=argv, code=code,
+               elapsed=time.monotonic() - started, reply=reply, stdout=raw, stderr=stderr, **labels)
     if interrupted:
         raise KeyboardInterrupt
     if code or not isinstance(reply, dict) or "error" in reply:
         raise Failure("channel" if code in (1, 124) else "command",
                       f"{argv!r}: exit {code}: {raw or stderr}", argv)
     return reply
+
+
+def ios_poll(command, argv, predicate, timeout, kind, what):
+    """argv's reply once predicate accepts it. These polls are regenerated in a
+    replay, so they never enter the recipe."""
+    deadline = time.monotonic() + timeout
+    while True:
+        reply = command(argv)
+        if predicate(reply):
+            return reply
+        if time.monotonic() >= deadline:
+            raise Failure(kind, f"{what} within {timeout:g}s")
+        time.sleep(0.2)
+
+
+def ios_landed(state, directory):
+    """Whether the playlist is an open of `directory`: the current track and
+    every row are directly inside it."""
+    current = (state.get("currentTrack") or {}).get("url") or ""
+    names = {p.name for p in Path(directory).iterdir()} if Path(directory).is_dir() else set()
+    files = state["playlist"].get("files") or []
+    return (bool(files) and Path(current).parent.resolve() == Path(directory).resolve()
+            and set(files) <= names)
+
+
+def ios_anchor_shift(before, after):
+    """The anchors that moved between two dumps at rest."""
+    return [key for key in IOS_ANCHORS if before.get(key) != after.get(key)]
+
+
+def ios_pending_holdouts(health):
+    m = health.get("materialization") or {}
+    return ([f"{key}={health.get(key)}" for key in IOS_PENDING if health.get(key)]
+            + [f"materialization.{key}={m.get(key)}" for key in IOS_MATERIALIZATION_PENDING
+               if m.get(key)])
 
 
 def ios_wait(command, kind, timeout, expected_index=None):
@@ -2514,8 +2615,312 @@ def ios_lifecycle_steps(rounds):
             yield {"check": item} if isinstance(item, str) else {"command": item}
 
 
-def ios_restore(command, before, idle_timeout):
+# iOS ops. Each takes the seeded rng and the run, a namespace of perform (one
+# recorded step, returning its reply), read (an unrecorded query), corpus and
+# layout (ios_corpus_layout). Weights are IOS_WEIGHTS, proofs IOS_OP_PROOFS,
+# and the ios_restore_* functions put back what they persist. Why each is
+# weighted so: references/profiles.md.
+
+def ios_corpus_layout(corpus):
+    """Each corpus directory relative to the corpus ("" for itself), with the
+    subfolders and playable files the browser lists in it."""
+    layout = {}
+    for directory in [corpus, *sorted(p for p in corpus.rglob("*") if p.is_dir())]:
+        relative = directory.relative_to(corpus).as_posix()
+        if any(part.startswith(".") for part in Path(relative).parts):
+            continue
+        children = sorted(c for c in directory.iterdir() if not c.name.startswith("."))
+        layout["" if relative == "." else relative] = (
+            [c.name for c in children if c.is_dir()],
+            [c.name for c in children if c.is_file() and c.suffix.lower() in AUDIO_SUFFIXES])
+    return layout
+
+
+def ios_join(root, relative):
+    return f"{root}/{relative}" if relative else root
+
+
+def ios_count(run):
+    return run.read(["dump_state"])["playlist"]["count"]
+
+
+def ios_op_transport(rng, run):
+    count = ios_count(run)
+    run.perform({"command": rng.choice(
+        [["next"], ["previous"], ["play_pause"], ["seek", str(rng.randrange(45))]]
+        + ([["play_index", str(rng.randrange(count))]] if count else []))})
+
+
+def ios_op_burst(rng, run):
+    run.perform({"command": ["burst", "100", str(rng.randrange(2**32))]})
+
+
+def ios_op_fx(rng, run):
+    run.perform({"command": rng.choice([["set_fx_pad", "0.8", "0.7"], ["set_fx_pad", "off"]])})
+
+
+def ios_op_tab(rng, run):
+    """Tab switches, sometimes on the turn after a play, so one lands mid-open."""
+    count = ios_count(run)
+    if count and rng.random() < 0.5:
+        run.perform({"command": ["play_index", str(rng.randrange(count))]})
+    for _ in range(rng.randint(1, 3)):
+        run.perform({"command": ["select_tab", rng.choice(IOS_TABS)]})
+
+
+def ios_op_card(rng, run):
+    """Expand and minimize around a track change, with the tabs' anchors read
+    at rest before and after. A moved anchor is the backdrop TRAP."""
+    count = ios_count(run)
+    change = rng.choice([["next"], ["previous"]] + ([["play_index", str(rng.randrange(count))]] if count else []))
+    for step in (["minimize_player"], "anchors", ["expand_player"], change, ["minimize_player"], "anchors"):
+        run.perform({"check": step} if isinstance(step, str) else {"command": step})
+    if rng.random() < 0.5:
+        run.perform({"command": ["expand_player"]})
+
+
+def ios_op_browse(rng, run):
+    """The Files tab's road: a corpus folder, down into subfolders, back up
+    some of the way, then a file tap or the play button."""
+    relative = rng.choice(sorted(run.layout))
+    for argv in (["minimize_player"], ["select_tab", "files"], ["browse", "show", ios_join("$CORPUS", relative)]):
+        run.perform({"command": argv})
+    path = [relative]
+    for _ in range(rng.randint(0, 2)):
+        folders = run.layout.get(path[-1], ((), ()))[0]
+        if not folders:
+            break
+        folder = rng.choice(folders)
+        run.perform({"command": ["browse", "tap", folder]})
+        path.append(ios_join(path[-1], folder) if path[-1] else folder)
+    for _ in range(rng.randint(0, len(path) - 1)):
+        run.perform({"command": ["browse", "back"]})
+        path.pop()
+    files = run.layout.get(path[-1], ((), ()))[1]
+    if files:
+        run.perform({"command": ["browse", "play"] if rng.random() < 0.25 else ["browse", "tap", rng.choice(files)]})
+
+
+def ios_op_search(rng, run):
+    """A query that matches nothing, one from a corpus name with a hit opened,
+    then the field cleared."""
+    words = sorted({w for _, files in run.layout.values() for f in files
+                    for w in re.findall(r"[A-Za-z0-9]{3,}", Path(f).stem)})
+    for argv in (["minimize_player"], ["select_tab", "search"], ["search", IOS_NO_MATCH]):
+        run.perform({"command": argv})
+    if words:
+        reply = run.perform({"command": ["search", rng.choice(words)]})
+        sections = reply.get("sections") or []
+        hits = sections[1].get("rows") or [] if len(sections) > 1 else []
+        if hits:
+            run.perform({"command": ["open_search_hit", str(rng.randrange(len(hits)))]})
+    run.perform({"command": ["search"]})
+
+
+def ios_op_favorite(rng, run):
+    """Star a corpus folder from its open playlist, open it from Favorites,
+    then unstar it. A file has no star. A folder the user starred is left
+    alone."""
+    choices = sorted(r for r, (_, files) in run.layout.items() if files)
+    if not choices:
+        return
+    relative = rng.choice(choices)
+    target = (run.corpus / relative).resolve()
+    if any(Path(f["path"]).resolve() == target for f in run.read(["dump_favorites"])["favorites"]):
+        return
+    run.perform({"command": ["open", ios_join("$CORPUS", relative)]})
+    run.perform({"command": ["tap_favorite_star"]})
+    run.perform({"command": ["select_tab", "favorites"]})
+    favorites = run.read(["dump_favorites"])["favorites"]
+    index = next(i for i, f in enumerate(favorites) if Path(f["path"]).resolve() == target)
+    run.perform({"command": ["open_favorite", str(index)]})
+    run.perform({"command": ["tap_favorite_star"]})
+
+
+def ios_op_route(rng, run):
+    """The route indicator redrawn as each kind while a track plays."""
+    count = ios_count(run)
+    if count:
+        run.perform({"command": ["play_index", str(rng.randrange(count))]})
+    for _ in range(rng.randint(1, 3)):
+        kind = rng.choice(IOS_ROUTES)
+        name = [rng.choice(IOS_ROUTE_NAMES)] if rng.random() < 0.5 else []
+        run.perform({"command": ["set_output_route", kind, *name]})
+
+
+def ios_op_page(rng, run):
+    """Adjacent rows under the expanded card, which is what a pager swipe
+    asks: the neighbor the pager prepared becomes the page. There is no pager
+    verb, so play_index stands in for the swipe."""
+    state = run.read(["dump_state"])
+    count, index = state["playlist"]["count"], state["playlist"]["currentIndex"]
+    if count < 2:
+        return ios_op_transport(rng, run)
+    run.perform({"command": ["expand_player"]})
+    for _ in range(rng.randint(1, 3)):
+        index = (index + rng.choice([1, -1])) % count
+        run.perform({"command": ["play_index", str(index)]})
+    run.perform({"check": "progress"})
+
+
+def ios_op_fake_dropbox(rng, run):
+    """The corpus served as a fake Dropbox account, browsed through the Files
+    tab and a placeholder opened from it, sometimes under a fault. A real
+    account is never touched."""
+    dropbox = run.read(["dump_dropbox"])
+    if dropbox.get("linked") and not dropbox.get("fake"):
+        return
+    relative = rng.choice(sorted(r for r, (_, files) in run.layout.items() if files) or [""])
+    files = run.layout.get(relative, ((), ()))[1]
+    run.perform({"command": ["set_fake_dropbox", "$CORPUS", rng.choice(["0", "1", "2"])]})
+    fault = rng.choice(IOS_DROPBOX_FAULTS) if rng.random() < 0.5 else None
+    if fault:
+        run.perform({"command": ["fake_dropbox_fault", *fault]})
+    for argv in (["minimize_player"], ["select_tab", "files"],
+                 ["browse", "show", ios_join("$DROPBOX", relative)]):
+        run.perform({"command": argv})
+    if files:
+        run.perform({"command": ["browse", "tap", rng.choice(files)]})
+    run.perform({"command": ["dump_fake_dropbox"]})
+    if fault:
+        run.perform({"command": ["fake_dropbox_fault", "clear"]})
+
+
+def ios_op_link(rng, run):
+    """A corpus file opened as a link through the fake web server, sometimes
+    under a fault, as the mac's `link` op does. Without a fault it may go
+    through the Files tab's Open URL sheet or its paste row instead. A failed
+    link there leaves an alert only a tap clears."""
+    files = [ios_join(r, f) for r, (_, names) in sorted(run.layout.items()) for f in names]
+    if not files:
+        return
+    url = rng.choice(FAKE_HTTP_HOSTS) + urllib.parse.quote(rng.choice(files))
+    run.perform({"command": ["set_fake_http", "$CORPUS", rng.choice(["0", "0.5", "1.5"])]})
+    fault = rng.choice(IOS_LINK_FAULTS) if rng.random() < 0.35 else None
+    road = "open_url" if fault else rng.choice(["open_url", "open_url_sheet", "paste_link"])
+    if fault:
+        run.perform({"command": ["fake_http_fault", *fault]})
+    if road == "open_url":
+        run.perform({"command": ["open_url", url]})
+    else:
+        run.perform({"command": ["minimize_player"]})
+        run.perform({"command": ["select_tab", "files"]})
+        for argv in ((["open_url_sheet", "show"], ["open_url_sheet", "type", url], ["open_url_sheet", "open"])
+                     if road == "open_url_sheet" else (["paste_link", url],)):
+            run.perform({"command": argv})
+    if fault:
+        run.perform({"command": ["fake_http_fault", "off"]})
+
+
+IOS_OPS = {
+    "transport": ios_op_transport, "burst": ios_op_burst, "fx": ios_op_fx,
+    "tab": ios_op_tab, "card": ios_op_card, "browse": ios_op_browse,
+    "search": ios_op_search, "favorite": ios_op_favorite, "route": ios_op_route,
+    "page": ios_op_page, "fake_dropbox": ios_op_fake_dropbox, "link": ios_op_link,
+}
+IOS_WEIGHTS = {
+    "transport": 10, "burst": 2, "fx": 4, "tab": 3, "card": 3, "browse": 3,
+    "search": 2, "favorite": 2, "route": 2, "page": 3, "fake_dropbox": 1, "link": 1,
+}
+# As OP_PROOFS. An iOS refusal already fails the run, so these catch an op
+# that skipped its work: no hit to open, a folder already starred, a real
+# Dropbox account.
+IOS_OP_PROOFS = {
+    "tab": {"select_tab"}, "card": {"expand_player"}, "browse": {"browse"},
+    "search": {"open_search_hit"}, "favorite": {"open_favorite"},
+    "route": {"set_output_route"}, "page": {"play_index"},
+    "fake_dropbox": {"set_fake_dropbox"}, "link": {"open_url", "open_url_sheet", "paste_link"},
+}
+
+
+def ios_journal_proof_entries(path):
+    """The journal's op replies in dead_op_warnings' shape."""
+    entries = []
+    for line in Path(path).read_text().splitlines():
+        record = json.loads(line)
+        if record.get("event") == "reply" and record.get("op"):
+            entries.append({"op": record["op"], "argv": record["command"], "exit": record["code"],
+                            "replyOk": (record.get("reply") or {}).get("ok", True)})
+    return entries
+
+
+# Each restorer puts back one thing a run moves, from `before` (the starting
+# dump_state plus favorites, dropbox and recents), and returns its errors. One
+# whose snapshot `before` lacks has nothing to put back. They run in this order
+# on every exit but SIGKILL. The favorites open a folder before the pause, and
+# the recents go last, since every open records one.
+
+def ios_restore_fakes(command, before):
     errors = []
+    try:
+        if command(["dump_dropbox"]).get("fake") and not before.get("dropbox", {}).get("fake"):
+            command(["set_fake_dropbox", "off"])
+        command(["set_fake_http", "off"])
+    except (Failure, KeyError) as error:
+        errors.append(str(error))
+    return errors
+
+
+def ios_restore_favorites(command, before):
+    errors = []
+    if "favorites" not in before:
+        return errors
+    try:
+        kept = {Path(f["path"]).resolve() for f in before["favorites"]}
+        now = command(["dump_favorites"])["favorites"]
+        for favorite in now:
+            folder = Path(favorite["path"]).resolve()
+            if folder in kept:
+                continue
+            command(["open", str(folder)])
+            ios_poll(command, ["dump_state"], lambda s: ios_landed(s, folder), 10,
+                     "cleanup", f"open of {folder.name} did not land")
+            command(["tap_favorite_star"])
+            ios_poll(command, ["dump_favorites"],
+                     lambda r: all(Path(f["path"]).resolve() != folder for f in r["favorites"]), 10,
+                     "cleanup", f"favorite {folder.name} was not removed")
+        lost = kept - {Path(f["path"]).resolve() for f in command(["dump_favorites"])["favorites"]}
+        errors += [f"favorite {p.name} is gone and cannot come back without its bookmark" for p in lost]
+    except (Failure, KeyError) as error:
+        errors.append(str(error))
+    return errors
+
+
+def ios_restore_chrome(command, before):
+    """The tab, the card and the route indicator. None is persisted, but a
+    run should leave the screen as it found it."""
+    errors = []
+    if "ui" not in before:
+        return errors
+    try:
+        ui = before["ui"]
+        if ui.get("selectedTab") in IOS_TABS:
+            command(["select_tab", ui["selectedTab"]])
+        command(["expand_player" if ui.get("playerPresentation") == "full" else "minimize_player"])
+        # The model is untouched by set_output_route, so drawing it is the truth.
+        route = command(["dump_state"])["ui"].get("outputRoute") or {}
+        kind = route.get("kind", 0)
+        command(["set_output_route", IOS_ROUTES[kind if 0 <= kind < len(IOS_ROUTES) else 0],
+                 *([route["name"]] if route.get("name") else [])])
+    except (Failure, KeyError) as error:
+        errors.append(str(error))
+    return errors
+
+
+def ios_restore_recents(command, before):
+    errors = []
+    if "recents" not in before:
+        return errors
+    try:
+        if [i["path"] for i in command(["recents", "restore"])["items"]] != before["recents"]:
+            errors.append("recents differ from the run's start")
+    except (Failure, KeyError) as error:
+        errors.append(str(error))
+    return errors
+
+
+def ios_restore(command, before, idle_timeout):
+    errors = ios_restore_fakes(command, before) + ios_restore_favorites(command, before)
     try:
         command(["set_fx_pad", "off"])
         if command(["dump_state"])["player"]["state"] == "playing":
@@ -2533,13 +2938,14 @@ def ios_restore(command, before, idle_timeout):
                 errors.append(f"failed to restore {key}")
         except (Failure, KeyError) as error:
             errors.append(str(error))
-    return errors
+    return errors + ios_restore_chrome(command, before) + ios_restore_recents(command, before)
 
 
 def run_ios(args):
     import fcntl
     import hashlib
     import tempfile
+    import types
 
     # Validate the entire recipe before contacting the app. No raw input,
     # arbitrary paths, shell wrappers or unbounded blocking verbs in replay.
@@ -2596,6 +3002,7 @@ def run_ios(args):
                 raise ValueError("replay requires the original corpus.json and identical corpus contents")
         env = {**os.environ, "VIBE_SIM_UDID": args.ios, "VIBE_APP_TMP": str(data / "tmp")}
         before, failure, failure_kind, cleanup, pid = None, None, None, [], None
+        draws = {}
         since = time.time()
         processes = subprocess.check_output(["ps", "-axo", "pid=,command="], text=True)
         for line in processes.splitlines():
@@ -2605,26 +3012,75 @@ def run_ios(args):
         if pid is None:
             raise ValueError("no running process for the installed app; use launch-ios.sh first")
         with (out / "journal.ndjson").open("w") as journal, (out / "replay.ndjson").open("w") as recipe:
-            command = lambda argv: ios_command(env, journal, argv)
-            expected_index = None
+            current_op = None
+            command = lambda argv: ios_command(env, journal, argv, op=current_op)
+            expected_index, anchors = None, None
+            def resolve(argument):
+                root, slash, rest = argument.partition("/")
+                if root == "$CORPUS":
+                    return str(corpus / rest) if slash else str(corpus)
+                if root == "$DROPBOX":
+                    account = command(["dump_dropbox"]).get("accountPath")
+                    if not account:
+                        raise Failure("command", "no Dropbox account is linked")
+                    return str(Path(account) / rest) if slash else account
+                return argument
             def perform(step):
-                nonlocal expected_index
+                # Waits here are polls, regenerated on replay and never recorded.
+                nonlocal expected_index, anchors
                 ios_validate_step(step)
                 recipe.write(json.dumps(step) + "\n")
                 recipe.flush()
+                timeout = args.ios_progress_timeout
                 if "command" in step:
-                    argv = step["command"]
-                    command([str(corpus) if a == "$CORPUS" else a for a in argv])
-                    if argv[0] == "play_index":
+                    argv = [resolve(a) for a in step["command"]]
+                    verb = argv[0]
+                    if argv[:2] == ["browse", "tap"]:
+                        ios_poll(command, ["browse"], lambda r: argv[2] in r["folders"] + r["files"],
+                                 timeout, "browse", f"{argv[2]!r} was not listed")
+                    elif argv == ["browse", "play"]:
+                        ios_poll(command, ["browse"], lambda r: r["files"], timeout, "browse",
+                                 "the folder listed no file")
+                    starred = command(["dump_favorites"])["favorites"] if verb == "tap_favorite_star" else None
+                    reply = command(argv)
+                    if verb == "open" and Path(argv[1]).is_dir():
+                        ios_poll(command, ["dump_state"], lambda s: ios_landed(s, argv[1]), timeout,
+                                 "open", f"the open of {Path(argv[1]).name!r} did not land")
+                    elif starred is not None:
+                        ios_poll(command, ["dump_favorites"], lambda r: r["favorites"] != starred,
+                                 timeout, "favorite", "the star changed no favorite")
+                    elif argv == ["search", IOS_NO_MATCH] and any(
+                            s.get("rows") for s in reply.get("sections") or []):
+                        raise Failure("search", f"{IOS_NO_MATCH!r} matched rows: {reply['sections']}")
+                    if verb == "play_index":
                         expected_index = int(argv[1])
-                    elif argv[0] in ("next", "previous", "burst", "open"):
+                    elif verb in ("next", "previous", "burst", "open", "open_search_hit",
+                                  "open_favorite", "browse", "open_url", "open_url_sheet",
+                                  "paste_link"):
                         expected_index = None
-                elif step["check"] == "consistency":
+                    return reply
+                kind = step["check"]
+                if kind == "consistency":
                     if not command(["check_consistency"])["ok"]:
                         raise Failure("consistency", "settled consistency check failed")
+                elif kind == "anchors":
+                    dump = command(["dump_layout_anchors"])
+                    if anchors is None:
+                        anchors = dump
+                    else:
+                        moved, anchors = ios_anchor_shift(anchors, dump), None
+                        if moved:
+                            raise Failure("layout", f"a card move left {', '.join(moved)} moved under it")
+                elif kind == "pending":
+                    try:
+                        ios_poll(command, ["dump_cloud_health"], lambda h: not ios_pending_holdouts(h),
+                                 args.ios_idle_timeout, "pending", "pending counters did not reach zero")
+                    except Failure as error:
+                        holdouts = ios_pending_holdouts(command(["dump_cloud_health"]))
+                        raise Failure("pending", f"{error}: {', '.join(holdouts)}") from error
                 else:
-                    kind = step["check"]
-                    ios_wait(command, kind, args.ios_idle_timeout if kind == "idle" else args.ios_progress_timeout, expected_index)
+                    ios_wait(command, kind, args.ios_idle_timeout if kind == "idle" else timeout,
+                             expected_index)
             try:
                 ios_record(journal, event="run", seed=seed, simulator=args.ios, pid=pid,
                            output=args.ios_output, corpus=str(corpus), arguments=vars(args),
@@ -2640,12 +3096,16 @@ def run_ios(args):
                     raise Failure("setup", "release all FX before running")
                 settings = {k: state["settings"].get(k) for k in
                             ("folderOpenSort", "crossfadeMilliseconds", "analyzeBPM")}
+                # open_favorite takes an index into this list.
+                favorites = command(["dump_favorites"])["favorites"]
+                settings["favorites"] = [f["name"] for f in favorites]
                 (out / "settings.json").write_text(json.dumps(settings, indent=2))
                 if args.replay:
                     original = Path(args.replay).with_name("settings.json")
                     if not original.exists() or json.loads(original.read_text()) != settings:
-                        raise Failure("setup", "replay requires matching folder order, crossfade and BPM settings")
-                before = state
+                        raise Failure("setup", "replay requires matching folder order, crossfade, BPM settings and favorites")
+                before = {**state, "favorites": favorites, "dropbox": command(["dump_dropbox"]),
+                          "recents": [i["path"] for i in command(["recents", "save"])["items"]]}
                 if steps is not None:
                     for step in steps:
                         perform(step)
@@ -2661,21 +3121,26 @@ def run_ios(args):
                     for step in ios_lifecycle_steps(args.ios_rounds):
                         perform(step)
                     rng = random.Random(seed)
+                    run = types.SimpleNamespace(perform=perform, read=command, corpus=corpus,
+                                                layout=ios_corpus_layout(corpus))
+                    kinds = [k for k, w in IOS_WEIGHTS.items() if w]
                     deadline = time.monotonic() + args.duration if args.duration else float("inf")
                     for index in range(args.iterations):
                         if time.monotonic() >= deadline:
                             break
-                        argv = rng.choice([["next"], ["previous"], ["play_pause"],
-                            ["play_index", str(rng.randrange(count))], ["seek", str(rng.randrange(45))],
-                            ["burst", "100", str(rng.randrange(2**32))],
-                            ["set_fx_pad", "0.8", "0.7"], ["set_fx_pad", "off"]])
-                        perform({"command": argv})
+                        current_op = rng.choices(kinds, [IOS_WEIGHTS[k] for k in kinds])[0]
+                        draws[current_op] = draws.get(current_op, 0) + 1
+                        IOS_OPS[current_op](rng, run)
+                        current_op = None
                         if (index + 1) % args.batch == 0:
                             # Probe the selected track before replacing it: restarting
                             # playback here would hide a stalled render like R2.
                             state = command(["dump_state"])
                             if state["player"]["state"] == "playing":
                                 perform({"check": "progress"})
+                            # Ops replace the playlist, and the checks need the corpus's.
+                            if not ios_landed(state, corpus):
+                                perform({"command": ["open", "$CORPUS"]})
                             for step in ({"command": ["set_fx_pad", "off"]},
                                          {"command": ["play_index", "0"]}, {"check": "progress"},
                                          {"command": ["play_pause"]}, {"check": "idle"},
@@ -2686,6 +3151,7 @@ def run_ios(args):
                     state = command(["dump_state"])
                     if state["player"]["state"] == "playing":
                         perform({"check": "progress"})
+                    perform({"check": "pending"})
             except (Exception, KeyboardInterrupt) as error:
                 failure = str(error) or "interrupted"
                 failure_kind = error.kind if isinstance(error, Failure) else (
@@ -2710,6 +3176,11 @@ def run_ios(args):
                         failure = failure or "app crash report found"
                         failure_kind = "app-crash"
                 ios_record(journal, event="result", failure=failure, kind=failure_kind, cleanupErrors=cleanup)
+        if draws:
+            print("ops: " + " ".join(f"{kind}={n}" for kind, n in sorted(draws.items())))
+            for warning in dead_op_warnings(ios_journal_proof_entries(out / "journal.ndjson"),
+                                            IOS_WEIGHTS, IOS_OP_PROOFS):
+                print(warning)
         (out / "result.json").write_text(json.dumps({"failure": failure, "kind": failure_kind, "cleanupErrors": cleanup}, indent=2))
         print(f"{'FAILED' if failure or cleanup else 'PASSED'}: {out}")
         return int(bool(failure or cleanup))

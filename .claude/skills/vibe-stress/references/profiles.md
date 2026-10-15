@@ -54,6 +54,24 @@ make stress CORPUS=build/stress-corpus ARGS="--profile cloud --duration 2400 --i
 
 **Watch for a tolerated error over a dead op.** The tolerated-error list swallows refusals such as "no menu item", so an op whose target moved scores a clean run while doing nothing. There is no `waveform_style` op for this reason: the style is a theme field, and `theme` swaps the renderer anyway. For `link`, `slow_volume`, `stall` and `settings` the driver checks the journal at the end (`OP_PROOFS`). A weighted kind whose proof verb never answered with exit 0 and no `ok: false` prints a `WARNING` naming it. A short run can draw a kind too rarely to prove it, so read the warning against the run's length.
 
+## `stress.py --ios`
+
+**iOS has one weighting, `IOS_WEIGHTS`, and no `--profile`.** The simulator runs one op at a time through file round trips, so a run is short. One mix that reaches every screen is worth more than a second one that reaches fewer. Transport stays the heaviest kind, because each screen op is about what lands while a track changes. The screen ops replace the playlist, so every batch reopens the corpus before its checks. Every op is gated by `ios_validate_step`, which takes paths only as `$CORPUS` or `$DROPBOX` plus a relative path that cannot climb out.
+
+- `tab` — one to three `select_tab`s, half the time on the turn after a `play_index`, so a switch lands mid-open.
+- `card` — `minimize_player`, `expand_player`, a track change, `minimize_player`. The tab bar, the strip and the tabs' safe-area insets are read at rest before and after (`dump_layout_anchors`). A moved one is the backdrop TRAP in `Vibe/iOS/AGENTS.md`, and fails as `layout`. The navigation bar is not compared, because a track change can scroll the list and collapse a large title.
+- `browse` — the Files tab's road through `browse`: a corpus folder through Open Folder's stack, down zero to two subfolders, back up some of the way, then a file tap or the play button. A tap waits for its row to be listed.
+- `search` — a query nothing matches, whose reply must have no rows, then a word from a corpus name with one Local hit opened, then the field cleared.
+- `favorite` — opens a corpus folder, stars it, opens it from Favorites, and unstars it. A file has no star. A folder the user already starred is skipped.
+- `route` — plays a row, then redraws the route indicator as one to three kinds, with or without a device name. The model is untouched.
+- `page` — adjacent `play_index`es under the expanded card, then a progress check on the row it ends on. There is no pager verb, so this stands in for a swipe onto the neighbor the pager prepared.
+- `fake_dropbox` — serves the corpus as a fake account, sometimes under a fault, and browses the account's copy of a corpus folder. The browser lists it from the fake, and a file tap opens a placeholder. Faults are cleared at the end of the op. A real linked account is never touched.
+- `link` — the mac's `link` op on iOS, without the stall fault, since `open_url` replies only once the resolve settles. Without a fault, a third of links go through the Files tab's Open URL sheet and a third through its paste row. A faulted link stays on `open_url`, because a failure on the sheet's road leaves an alert that only a tap clears.
+
+`IOS_OP_PROOFS` names the verb that proves each screen op did its work. Any refusal already fails an iOS run, so the warning catches an op that skipped: no hit to open, a folder already starred, a real Dropbox account. `recents save` at the start and `recents restore` at teardown keep Recents, which every open writes. Favorites the run added are unstarred through the star. The tab, the card and the route indicator are put back, and the fake Dropbox and web server are disarmed.
+
+**Still unreached on iOS**: the Recents screen's rows, the add sheet and Add to Playlist, Locations, the pickers, Settings, the widget and every gesture. No verb taps a Recents row or a root row, and the pickers are another process's UI. The touch driver reaches gestures, but stress sends no input.
+
 ## Unreachable from this driver
 
 `--debug-cmd open` calls `FolderWalk expandAndFilterList:` then `play:` directly, bypassing the burst coalescer and the open-request coordinator. `openBurstQueued` moves only under a real Launch Services open or the open panel. `openResultsBuffered` moves only under the funnel's verbs, `file_drag_drop` and `append`. **Do not read zeroes there as evidence those paths are clean.**
