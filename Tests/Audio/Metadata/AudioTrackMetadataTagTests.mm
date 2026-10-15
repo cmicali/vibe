@@ -22,15 +22,35 @@
 @interface AudioTrackMetadataTagTests : XCTestCase
 @end
 
+// Each fixture tagged with the class's art, written once for the class.
+// A test gets a copy in its own directory, so it may change the copy.
+static NSURL *sFixtureDir;
+static NSDictionary<NSNumber *, NSURL *> *sFixtures;
+static NSData *sArt;
+
 @implementation AudioTrackMetadataTagTests {
     NSURL *_dir;
-    NSData *_art;
+}
+
++ (void)setUp {
+    [super setUp];
+    sArt = VibeImageOfColor(300, 0.8, 0.2, 0.3, NO);
+    sFixtureDir = VibeTagFixtureDirectory();
+    NSMutableDictionary<NSNumber *, NSURL *> *fixtures = [NSMutableDictionary dictionary];
+    for (NSInteger fixture = 0; fixture < VibeTagFixtureCount; fixture++) {
+        fixtures[@(fixture)] = VibeWriteTagFixture(sFixtureDir, (VibeTagFixture)fixture, sArt, NULL);
+    }
+    sFixtures = fixtures;
+}
+
++ (void)tearDown {
+    [NSFileManager.defaultManager removeItemAtURL:sFixtureDir error:NULL];
+    [super tearDown];
 }
 
 - (void)setUp {
     [super setUp];
     _dir = VibeTagFixtureDirectory();
-    _art = VibeTagArtImage(300, NO);
 }
 
 - (void)tearDown {
@@ -38,8 +58,19 @@
     [super tearDown];
 }
 
+// The class's copy when `art` is the class's or the format carries none.
+// Other art is written fresh.
 - (NSURL *)write:(VibeTagFixture)fixture art:(NSData *)art {
-    NSURL *url = VibeWriteTagFixture(_dir, fixture, art, NULL);
+    NSURL *url = nil;
+    if (art == sArt || !VibeTagFixtureHasArt(fixture)) {
+        NSURL *written = sFixtures[@(fixture)];
+        NSURL *copy = [_dir URLByAppendingPathComponent:VibeTagFixtureName(fixture)];
+        [NSFileManager.defaultManager removeItemAtURL:copy error:NULL];
+        if (written && [NSFileManager.defaultManager copyItemAtURL:written toURL:copy error:NULL]) url = copy;
+    }
+    else {
+        url = VibeWriteTagFixture(_dir, fixture, art, NULL);
+    }
     if (fixture == VibeTagFixtureVorbis || fixture == VibeTagFixtureOpus) {
         XCTSkipUnless(url != nil, @"%@ needs the render fixtures; run make test-audio with ffmpeg installed",
                       VibeTagFixtureName(fixture));
@@ -62,7 +93,7 @@ static VibeEmbeddedArtExtractionResult Extract(NSURL *url, NSData *__autoreleasi
 
 - (void)assertFixture:(VibeTagFixture)fixture fileType:(VibeAudioFileFormat)fileType rate:(int)rate
              duration:(NSTimeInterval)duration {
-    NSURL *url = [self write:fixture art:_art];
+    NSURL *url = [self write:fixture art:sArt];
     NSString *name = VibeTagFixtureName(fixture);
     NSData *displayArt = nil;
     AudioTrackMetadata *metadata = Parse(url, &displayArt);
@@ -97,9 +128,9 @@ static VibeEmbeddedArtExtractionResult Extract(NSURL *url, NSData *__autoreleasi
         XCTAssertNotNil(thumbnail, @"%@", name);
         CGSize size = VibeEncodedImagePixelSize(thumbnail);
         XCTAssertEqual(MAX(size.width, size.height), kVibeThumbnailArtDimension, @"%@", name);
-        XCTAssertEqualObjects(displayArt, _art, @"%@: art within the bound is archived verbatim", name);
+        XCTAssertEqualObjects(displayArt, sArt, @"%@: art within the bound is archived verbatim", name);
         XCTAssertEqual(result, VibeEmbeddedArtExtractionFoundArt, @"%@", name);
-        XCTAssertEqualObjects(extracted, _art, @"%@", name);
+        XCTAssertEqualObjects(extracted, sArt, @"%@", name);
         XCTAssertNotNil([metadata.artwork loadArtBlocking], @"%@", name);
     }
     else {
@@ -220,7 +251,7 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
 #pragma mark - Tags beat analysis
 
 - (void)testATaggedTempoAndKeyBeatAnalysis {
-    AudioTrackMetadata *tagged = Parse([self write:VibeTagFixtureFLAC art:_art], NULL);
+    AudioTrackMetadata *tagged = Parse([self write:VibeTagFixtureFLAC art:sArt], NULL);
     AudioTrackMetadata *untagged = Parse([self write:VibeTagFixtureWAVInfo art:nil], NULL);
     for (AudioTrackMetadata *metadata in @[tagged, untagged]) {
         AudioTrack *track = [[AudioTrack alloc] initWithURL:_dir];
@@ -236,7 +267,7 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
 // A tempo outside (0, 1000) and a key no spelling reads are untagged, so
 // analysis fills both in.
 - (void)testAnUnusableTempoOrKeyStaysUntagged {
-    NSURL *url = [self write:VibeTagFixtureFLAC art:_art];
+    NSURL *url = [self write:VibeTagFixtureFLAC art:sArt];
     for (NSArray<NSString *> *values in @[@[@"5000", @"42"], @[@"-3", @"Q"], @[@"tempo", @""], @[@"0", @"13A"]]) {
         {
             TagLib::FLAC::File file(url.fileSystemRepresentation);
@@ -310,7 +341,7 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
 
 // Larger art is downscaled for the rendition, aspect kept.
 - (void)testLargeArtArchivesABoundedRendition {
-    NSData *art = VibeTagArtImage(1500, YES);
+    NSData *art = VibeImageOfColor(1500, 0.8, 0.2, 0.3, YES);
     NSData *displayArt = nil;
     AudioTrackMetadata *metadata = Parse([self write:VibeTagFixtureM4A art:art], &displayArt);
     XCTAssertTrue(metadata.artwork.hasEmbeddedArt);
@@ -325,7 +356,7 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
     NSData *art = nil;
     XCTAssertEqual(Extract([_dir URLByAppendingPathComponent:@"missing.flac"], &art),
                    VibeEmbeddedArtExtractionReadFailed);
-    NSURL *locked = [self write:VibeTagFixtureFLAC art:_art];
+    NSURL *locked = [self write:VibeTagFixtureFLAC art:sArt];
     XCTAssertTrue([NSFileManager.defaultManager setAttributes:@{NSFilePosixPermissions: @0}
                                                  ofItemAtPath:locked.path error:NULL]);
     XCTAssertEqual(Extract(locked, &art), VibeEmbeddedArtExtractionReadFailed);
@@ -370,7 +401,7 @@ static VibeAudioFileFormat Detected(NSURL *url) {
             @"mp3-as.m4a": @(VibeTagFixtureMP3ID3v24), @"flac-as.m4a": @(VibeTagFixtureFLAC),
     };
     for (NSString *name in cases) {
-        NSURL *url = [self rename:[self write:(VibeTagFixture)sources[name].integerValue art:_art] to:name];
+        NSURL *url = [self rename:[self write:(VibeTagFixture)sources[name].integerValue art:sArt] to:name];
         XCTAssertEqualObjects(Detected(url), cases[name], @"%@", name);
         AudioTrackMetadata *metadata = Parse(url, NULL);
         XCTAssertEqualObjects(metadata.fileType, cases[name], @"%@", name);
@@ -387,7 +418,7 @@ static VibeAudioFileFormat Detected(NSURL *url) {
     for (NSNumber *fixture in cases) {
         NSString *name = [VibeTagFixtureName((VibeTagFixture)fixture.integerValue)
                 stringByReplacingOccurrencesOfString:@"." withString:@"-"];
-        NSURL *url = [self rename:[self write:(VibeTagFixture)fixture.integerValue art:_art] to:name];
+        NSURL *url = [self rename:[self write:(VibeTagFixture)fixture.integerValue art:sArt] to:name];
         XCTAssertEqualObjects(Detected(url), cases[fixture], @"%@", name);
         XCTAssertEqualObjects(Parse(url, NULL).title, kVibeTagTitle, @"%@", name);
     }
@@ -395,7 +426,7 @@ static VibeAudioFileFormat Detected(NSURL *url) {
 
 // TagLib's FLAC reader skips a leading ID3v2 tag, and so does its sniff.
 - (void)testAFLACWithAnID3v2PrefixReadsAsFLAC {
-    NSURL *flac = [self write:VibeTagFixtureFLAC art:_art];
+    NSURL *flac = [self write:VibeTagFixtureFLAC art:sArt];
     NSMutableData *bytes = [NSMutableData dataWithBytes:"ID3\x04\x00\x00\x00\x00\x00\x40" length:10];
     [bytes increaseLengthBy:64];
     [bytes appendData:[NSData dataWithContentsOfURL:flac]];

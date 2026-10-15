@@ -3,13 +3,10 @@
 //
 
 #import "AppThemeTestCase.h"
+#import "AudioFixtures.h"
 
 NSData *VibeSquarePNG(NSInteger side) {
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc]
-            initWithBitmapDataPlanes:NULL pixelsWide:side pixelsHigh:side
-            bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
-            colorSpaceName:NSCalibratedRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
-    return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    return VibeImageOfColor((size_t)side, 0, 0, 0, NO);
 }
 
 @implementation AppThemeTestCase

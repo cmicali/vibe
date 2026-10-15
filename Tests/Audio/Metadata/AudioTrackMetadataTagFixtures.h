@@ -10,10 +10,6 @@
 //  import it.
 //
 
-#import <AVFoundation/AVFoundation.h>
-#import <ImageIO/ImageIO.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
-
 #import "AudioFixtures.h"
 
 #include <attachedpictureframe.h>
@@ -84,27 +80,6 @@ static inline NSURL *VibeTagFixtureDirectory(void) {
     return dir;
 }
 
-// A side x side image of one color, PNG or JPEG.
-static inline NSData *VibeTagArtImage(size_t side, BOOL jpeg) {
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef context = CGBitmapContextCreate(NULL, side, side, 8, 0, space,
-                                                 (CGBitmapInfo)kCGImageAlphaNoneSkipLast);
-    CGContextSetRGBFillColor(context, 0.8, 0.2, 0.3, 1);
-    CGContextFillRect(context, CGRectMake(0, 0, side, side));
-    CGImageRef image = CGBitmapContextCreateImage(context);
-    NSMutableData *data = [NSMutableData data];
-    CGImageDestinationRef destination = CGImageDestinationCreateWithData(
-            (__bridge CFMutableDataRef)data,
-            (__bridge CFStringRef)(jpeg ? UTTypeJPEG : UTTypePNG).identifier, 1, NULL);
-    CGImageDestinationAddImage(destination, image, NULL);
-    CGImageDestinationFinalize(destination);
-    CFRelease(destination);
-    CGImageRelease(image);
-    CGContextRelease(context);
-    CGColorSpaceRelease(space);
-    return data;
-}
-
 // A JPEG's start-of-image and APP0 marker, then bytes no decoder reads.
 static inline NSData *VibeTagUndecodableArt(void) {
     NSMutableData *data = [NSMutableData dataWithBytes:"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00" length:11];
@@ -119,7 +94,7 @@ static inline NSData *VibeTagUndecodableArt(void) {
 // the header past about 10000px. Below that it decodes, filling what the
 // bytes lack, so only the bounded decode keeps the bitmap small.
 static inline NSData *VibeTagOversizeArt(uint16_t side) {
-    NSMutableData *data = [VibeTagArtImage(16, YES) mutableCopy];
+    NSMutableData *data = [VibeImageOfColor(16, 0.8, 0.2, 0.3, YES) mutableCopy];
     uint8_t *bytes = (uint8_t *)data.mutableBytes;
     for (NSUInteger i = 0; i + 9 < data.length; i++) {
         if (bytes[i] == 0xFF && (bytes[i + 1] == 0xC0 || bytes[i + 1] == 0xC2)) {
@@ -158,19 +133,6 @@ static inline NSData *VibeAPETag(NSArray<NSArray<NSString *> *> *items) {
     return tag;
 }
 
-// Half a second of a 440 Hz tone, 16-bit stereo at 44.1 kHz.
-static inline AVAudioPCMBuffer *VibeTagFixtureTone(void) {
-    AVAudioFormat *format = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16
-                                                             sampleRate:44100 channels:2 interleaved:YES];
-    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:22050];
-    buffer.frameLength = 22050;
-    int16_t *samples = buffer.int16ChannelData[0];
-    for (NSUInteger i = 0; i < 22050; i++) {
-        samples[2 * i] = samples[2 * i + 1] = (int16_t)(8000 * sin(2 * M_PI * 440 * i / 44100.0));
-    }
-    return buffer;
-}
-
 // AAC in M4A or FLAC through AVAudioFile, so the container is Apple's own.
 static inline NSURL *VibeTagFixtureEncode(NSURL *url, AudioFormatID codec) {
     NSError *error = nil;
@@ -181,7 +143,7 @@ static inline NSURL *VibeTagFixtureEncode(NSURL *url, AudioFormatID codec) {
         AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings
                                                    commonFormat:AVAudioPCMFormatInt16
                                                     interleaved:YES error:&error];
-        if (![file writeFromBuffer:VibeTagFixtureTone() error:&error]) {
+        if (![file writeFromBuffer:VibeToneBuffer(22050, 44100, 2, AVAudioPCMFormatInt16) error:&error]) {
             return nil;
         }
     }
@@ -273,7 +235,7 @@ static inline NSURL *VibeWriteTagFixture(NSURL *dir, VibeTagFixture fixture, NSD
         }
         case VibeTagFixtureWAVID3: case VibeTagFixtureWAVInfo: case VibeTagFixtureAIFF:
         case VibeTagFixtureCAF: case VibeTagFixtureW64:
-            if (!VibeWriteFixture(url, VibeTagFixtureTone(), &error)) return nil;
+            if (!VibeWriteFixture(url, VibeToneBuffer(22050, 44100, 2, AVAudioPCMFormatInt16), &error)) return nil;
             break;
         case VibeTagFixtureCount:
             return nil;
