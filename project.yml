@@ -826,6 +826,16 @@ targets:
       - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
+      # The iOS shell's Foundation-only model: the session and its stores.
+      - path: Vibe/iOS/FolderSession.m
+      - path: Vibe/iOS/FolderSession+ExternalOpens.m
+      - path: Vibe/iOS/FolderSession+Persistence.m
+      - path: Vibe/iOS/Files/LocationStore.m
+      - path: Vibe/iOS/Files/RecentsStore.m
+      - path: Vibe/iOS/Search/FavoritesStore.m
+      - path: Vibe/iOS/Search/DropboxSearch.m
+      - path: Vibe/iOS/Widget/VibeWidgetState.m
+      - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/Common/PlatformImage.m

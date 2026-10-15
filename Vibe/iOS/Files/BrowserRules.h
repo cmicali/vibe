@@ -2,7 +2,8 @@
 //  BrowserRules.h
 //  Vibe (iOS)
 //
-//  The Files tab's decisions: the root's rows, and the URLs Recents names.
+//  The Files tab's decisions: the root's rows, a folder's empty state, filter
+//  and subfolder walk, a row's long press, and the URLs Recents names.
 //  Header-only and Foundation-only so the macOS suite can test it.
 //
 
@@ -73,6 +74,83 @@ static inline NSUInteger VibeBrowserRootLocationIndex(VibeBrowserRootSection sec
         return NSNotFound;
     }
     return row - first;
+}
+
+#pragma mark - A folder
+
+// A listing at least this long gets the filter field. A short one is read at
+// a glance, and the field would only cost its height.
+static const NSUInteger kVibeBrowserFilterThreshold = 12;
+
+// Installed, never removed: a folder that shrinks below the threshold keeps a
+// field the user may be typing in.
+static inline BOOL VibeBrowserFolderWantsFilter(NSUInteger listedRows, BOOL installed) {
+    return !installed && listedRows >= kVibeBrowserFilterThreshold;
+}
+
+typedef NS_ENUM(NSInteger, VibeBrowserFolderEmptyState) {
+    VibeBrowserFolderEmptyStateNone,         // rows to show
+    VibeBrowserFolderEmptyStateNoMatches,    // a filter that matches nothing: a search with no results
+    VibeBrowserFolderEmptyStateLoading,      // nothing listed yet, and a relist running
+    VibeBrowserFolderEmptyStateUnavailable,  // nothing listed, and Dropbox could not be reached
+    VibeBrowserFolderEmptyStateEmpty,        // the folder holds nothing that plays
+};
+
+// listedRows: the folder's listing. shownRows: what the filter leaves of it.
+static inline VibeBrowserFolderEmptyState VibeBrowserFolderEmptyStateFor(NSUInteger listedRows,
+                                                                         NSUInteger shownRows,
+                                                                         BOOL refreshing,
+                                                                         BOOL refreshFailed) {
+    if (listedRows > 0) {
+        return shownRows == 0 ? VibeBrowserFolderEmptyStateNoMatches : VibeBrowserFolderEmptyStateNone;
+    }
+    if (refreshing) {
+        return VibeBrowserFolderEmptyStateLoading;
+    }
+    return refreshFailed ? VibeBrowserFolderEmptyStateUnavailable : VibeBrowserFolderEmptyStateEmpty;
+}
+
+// Play with Subfolders stops after this many listed audio entries or visited
+// folders. Whole folders can exceed the entry limit, and CUE expansion can
+// add more rows.
+static const NSUInteger kVibeBrowserMaximumSubfolderTracks = 2000;
+static const NSUInteger kVibeBrowserMaximumSubfolders = 500;
+
+// Whether the walk stops before its next folder. It is capped when folders
+// were left unvisited.
+static inline BOOL VibeBrowserSubfolderWalkStops(NSUInteger pendingFolders, NSUInteger tracks,
+                                                 NSUInteger visitedFolders) {
+    return pendingFolders == 0 || tracks >= kVibeBrowserMaximumSubfolderTracks
+            || visitedFolders >= kVibeBrowserMaximumSubfolders;
+}
+
+#pragma mark - A row's long press
+
+typedef NS_ENUM(NSInteger, VibeBrowserRowAction) {
+    VibeBrowserRowActionPlay,
+    VibeBrowserRowActionPlayInFolder,
+    VibeBrowserRowActionAddToPlaylist,
+    VibeBrowserRowActionOpenFolder,
+};
+
+// The long press Recents and Search share: Play, Play in Folder for a file,
+// Add to Playlist, and Open Folder. The add sheet only adds. A playlist file
+// is never part of its folder's play. A link has neither folder action,
+// since its folder is the Links store's, named by a hash (folderActions NO).
+static inline NSArray<NSNumber *> *VibeBrowserRowActions(BOOL isFolder, BOOL appendingSheet, BOOL isM3U,
+                                                         BOOL folderActions) {
+    NSMutableArray<NSNumber *> *actions = [NSMutableArray array];
+    if (!appendingSheet) {
+        [actions addObject:@(VibeBrowserRowActionPlay)];
+        if (!isFolder && folderActions && !isM3U) {
+            [actions addObject:@(VibeBrowserRowActionPlayInFolder)];
+        }
+    }
+    [actions addObject:@(VibeBrowserRowActionAddToPlaylist)];
+    if (folderActions) {
+        [actions addObject:@(VibeBrowserRowActionOpenFolder)];
+    }
+    return actions;
 }
 
 #pragma mark - Recents

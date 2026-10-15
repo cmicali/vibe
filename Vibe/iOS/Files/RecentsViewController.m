@@ -5,6 +5,7 @@
 
 #import "RecentsViewController.h"
 
+#import "BrowserRules.h"
 #import "FilesRootViewController.h"
 #import "FileRow.h"
 #import "LinkStore.h"
@@ -135,33 +136,41 @@ static NSString *const kRecentCellIdentifier = @"item";
                                             point:(CGPoint)point {
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
     BOOL folder = [item[@"folder"] boolValue];
-    // A link's folder is the store's, named by a hash and holding the one
-    // file: no Play in Folder, no Open Folder.
-    BOOL folderActions = ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"] isDirectory:folder]];
-    BOOL appendingSheet = _appending;
+    NSArray<NSNumber *> *actions = VibeBrowserRowActions(
+            folder, _appending, [PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString],
+            ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"] isDirectory:folder]]);
     __weak RecentsViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        if (!appendingSheet) {
-            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                [weakSelf openItem:item appending:NO inFolder:NO];
-            })];
-            if (!folder && folderActions
-                    && ![PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString]) {
-                [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                    [weakSelf openItem:item appending:NO inFolder:YES];
-                })];
+        for (NSNumber *action in actions) {
+            switch ((VibeBrowserRowAction)action.integerValue) {
+                case VibeBrowserRowActionPlay: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
+                        [weakSelf openItem:item appending:NO inFolder:NO];
+                    })];
+                    break;
+                }
+                case VibeBrowserRowActionPlayInFolder: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
+                        [weakSelf openItem:item appending:NO inFolder:YES];
+                    })];
+                    break;
+                }
+                case VibeBrowserRowActionAddToPlaylist: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+                        [weakSelf openItem:item appending:YES inFolder:NO];
+                    })];
+                    break;
+                }
+                case VibeBrowserRowActionOpenFolder: {
+                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+                        [weakSelf showFolderOfItem:item];
+                    })];
+                    break;
+                }
             }
-        }
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
-            [weakSelf openItem:item appending:YES inFolder:NO];
-        })];
-        if (folderActions) {
-            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
-                [weakSelf showFolderOfItem:item];
-            })];
         }
         return [UIMenu menuWithTitle:@"" children:items];
     }];

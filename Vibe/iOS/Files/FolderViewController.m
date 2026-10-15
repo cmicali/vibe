@@ -9,6 +9,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "BrowserRules.h"
 #import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
@@ -31,12 +32,6 @@ static NSString *const kItemCellIdentifier = @"item";
 static const CFTimeInterval kRelistInterval = 60;
 // A larger selection lifts its first rows only: the rest would be a blur.
 static const NSUInteger kMaximumLiftedRows = 6;
-// Whole folders can exceed this audio-entry limit. CUE expansion adds more rows.
-static const NSUInteger kMaximumSubfolderTracks = 2000;
-static const NSUInteger kMaximumSubfolders = 500;
-// A listing at least this long gets the filter field; a short one is read
-// at a glance and the field would only cost its height.
-static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
 
@@ -317,10 +312,9 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 
 #pragma mark - The filter field
 
-// Installed, never removed: a folder that shrinks below the threshold keeps
-// a field the user may be typing in.
 - (void)showFilterIfNeeded {
-    if (!self.navigationItem.searchController && _allFolders.count + _allFiles.count >= kFilterThreshold) {
+    if (VibeBrowserFolderWantsFilter(_allFolders.count + _allFiles.count,
+                                     self.navigationItem.searchController != nil)) {
         self.navigationItem.searchController = _filter;
     }
 }
@@ -361,24 +355,27 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 }
 
 - (void)refreshEmptyState {
-    if (!self.isEmpty) {
-        // A filter that matches nothing is a search with no results.
-        self.contentUnavailableConfiguration = _folders.count == 0 && _files.count == 0
-                ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
-        return;
-    }
-    if (_refreshing) {
-        self.contentUnavailableConfiguration = [UIContentUnavailableConfiguration loadingConfiguration];
-        return;
-    }
-    UIContentUnavailableConfiguration *empty = [UIContentUnavailableConfiguration emptyConfiguration];
-    if (_refreshError) {
-        empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
-        empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
-    }
-    else {
-        empty.image = [UIImage systemImageNamed:@"music.note"];
-        empty.text = STR_ERROR_FOLDER_EMPTY;
+    UIContentUnavailableConfiguration *empty = nil;
+    switch (VibeBrowserFolderEmptyStateFor(_allFolders.count + _allFiles.count, _folders.count + _files.count,
+                                           _refreshing, _refreshError != nil)) {
+        case VibeBrowserFolderEmptyStateNone:
+            break;
+        case VibeBrowserFolderEmptyStateNoMatches:
+            empty = [UIContentUnavailableConfiguration searchConfiguration];
+            break;
+        case VibeBrowserFolderEmptyStateLoading:
+            empty = [UIContentUnavailableConfiguration loadingConfiguration];
+            break;
+        case VibeBrowserFolderEmptyStateUnavailable:
+            empty = [UIContentUnavailableConfiguration emptyConfiguration];
+            empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
+            empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
+            break;
+        case VibeBrowserFolderEmptyStateEmpty:
+            empty = [UIContentUnavailableConfiguration emptyConfiguration];
+            empty.image = [UIImage systemImageNamed:@"music.note"];
+            empty.text = STR_ERROR_FOLDER_EMPTY;
+            break;
     }
     self.contentUnavailableConfiguration = empty;
 }
@@ -454,7 +451,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
         UIAlertController *alert = [UIAlertController
                 alertControllerWithTitle:strongSelf->_title
                                  message:[NSString stringWithFormat:STR_BROWSER_SUBFOLDERS_CAPPED,
-                                                  (unsigned long)kMaximumSubfolderTracks]
+                                                  (unsigned long)kVibeBrowserMaximumSubfolderTracks]
                           preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault
                                                 handler:^(UIAlertAction *action) { open(); }]];
@@ -470,7 +467,7 @@ static const NSTimeInterval kHighlightInterval = 1.2;
                 tracks:(NSUInteger)tracks
                visited:(NSUInteger)visited
             completion:(void (^)(NSArray<NSURL *> *folders, BOOL capped))completion {
-    if (pending.count == 0 || tracks >= kMaximumSubfolderTracks || visited >= kMaximumSubfolders) {
+    if (VibeBrowserSubfolderWalkStops(pending.count, tracks, visited)) {
         completion(found, pending.count > 0);
         return;
     }
