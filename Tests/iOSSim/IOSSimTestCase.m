@@ -4,37 +4,6 @@
 #import "PlaybackController.h"
 #import "Playlist.h"
 
-@implementation FakeTrackMetadata
-
-- (instancetype)init {
-    self = [super init];
-    if (self) {
-        // The real metadata starts at -1: 0 is C major.
-        _key = -1;
-        _parsedOK = YES;
-        _fileInfoLine = @"";
-    }
-    return self;
-}
-
-// The art is set by the test as cachedArt, already decoded: there is nothing
-// to load and nothing to discard.
-- (BOOL)artNeedsLoad {
-    return NO;
-}
-
-- (BOOL)isArtLoadPending {
-    return NO;
-}
-
-- (void)loadArtIfNeededStillWanted:(BOOL (^)(void))stillWanted completion:(void (^)(UIImage *))completion {
-}
-
-- (void)discardDecodedArt {
-}
-
-@end
-
 @implementation FakePlayback {
     NSHashTable *_observers;
     NSMutableArray<NSString *> *_calls;
@@ -185,25 +154,13 @@ static NSString *DefaultsDomain(void) {
     metadata.title = title;
     metadata.artist = artist;
     metadata.duration = duration;
+    metadata.parsedOK = YES;
     XCTAssertTrue([track installMetadataIfUnresolved:(AudioTrackMetadata *)metadata]);
     return track;
 }
 
-- (BOOL)waitUntil:(BOOL (^)(void))condition {
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
-    while (!condition()) {
-        if (deadline.timeIntervalSinceNow < 0) {
-            return NO;
-        }
-        [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode
-                            beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
-    }
-    return YES;
-}
-
-- (void)spin {
-    [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode
-                        beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+- (BOOL)eventually:(BOOL (^)(void))condition {
+    return VibeSpinUntil(condition);
 }
 
 @end

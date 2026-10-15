@@ -11,6 +11,7 @@
 //
 
 #import "AudioFixtures.h"
+#import "TestFilesystemGuard.h"
 
 #include <attachedpictureframe.h>
 #include <aifffile.h>
@@ -71,9 +72,7 @@ static inline BOOL VibeTagFixtureHasArt(VibeTagFixture fixture) {
 // A fresh directory inside TestFilesystemGuard's per-process root, which the
 // guard removes at exit and a later run removes after a crash.
 static inline NSURL *VibeTagFixtureDirectory(void) {
-    NSString *root = [NSTemporaryDirectory() stringByAppendingPathComponent:
-            [NSString stringWithFormat:@"VibeTests-%d", getpid()]];
-    NSURL *dir = [NSURL fileURLWithPath:[root stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
+    NSURL *dir = [NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
                             isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES
                                             attributes:nil error:NULL];

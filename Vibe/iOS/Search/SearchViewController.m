@@ -658,39 +658,31 @@ static const NSUInteger kMaxFileResults = 200;
     id hit = [self hitAtIndexPath:indexPath];
     BOOL folder = [hit isKindOfClass:NSDictionary.class]
             && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
-    NSArray<NSNumber *> *actions = VibeBrowserRowActions(folder, NO, NO, YES);
+    VibeBrowserRowActions actions = VibeBrowserRowActionsFor(folder, NO, NO, YES);
     __weak SearchViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        for (NSNumber *action in actions) {
-            switch ((VibeBrowserRowAction)action.integerValue) {
-                case VibeBrowserRowActionPlay: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                        [weakSelf openHit:hit inFolder:NO];
-                    })];
-                    break;
-                }
-                case VibeBrowserRowActionPlayInFolder: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                        [weakSelf openHit:hit inFolder:YES];
-                    })];
-                    break;
-                }
-                case VibeBrowserRowActionAddToPlaylist: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
-                        [weakSelf addHit:hit];
-                    })];
-                    break;
-                }
-                case VibeBrowserRowActionOpenFolder: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
-                        [weakSelf showFolderOfHit:hit];
-                    })];
-                    break;
-                }
-            }
+        if (actions & VibeBrowserRowActionPlay) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
+                [weakSelf openHit:hit inFolder:NO];
+            })];
+        }
+        if (actions & VibeBrowserRowActionPlayInFolder) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
+                [weakSelf openHit:hit inFolder:YES];
+            })];
+        }
+        if (actions & VibeBrowserRowActionAddToPlaylist) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+                [weakSelf addHit:hit];
+            })];
+        }
+        if (actions & VibeBrowserRowActionOpenFolder) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+                [weakSelf showFolderOfHit:hit];
+            })];
         }
         return [UIMenu menuWithChildren:items];
     }];

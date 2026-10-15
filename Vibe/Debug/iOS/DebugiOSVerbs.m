@@ -16,6 +16,7 @@
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
 #import "FavoritesStore.h"
+#import "FolderViewControllerInternal.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
@@ -155,35 +156,38 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 
 #pragma mark Files tab
 
-// The top screen of the Files tab's stack and, on a folder screen, the rows
-// its listing has drawn so far. The listing lands off main, so a caller
-// polls this until the row it wants is there.
+// A folder screen's row names as its listing has drawn them so far, one
+// array per VibeBrowserSection. The listing lands off main, so a caller polls
+// until the row it wants is there.
+static NSArray<NSArray<NSString *> *> *VibeBrowserRows(FolderViewController *folder) {
+    NSMutableArray<NSArray<NSString *> *> *sections = [NSMutableArray array];
+    for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
+        NSMutableArray<NSString *> *names = [NSMutableArray array];
+        NSURL *url;
+        for (NSInteger row = 0; (url = [folder itemAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]]); row++) {
+            [names addObject:url.lastPathComponent];
+        }
+        [sections addObject:names];
+    }
+    return sections;
+}
+
+// The top screen of the Files tab's stack and, on a folder screen, its rows.
 static NSDictionary *VibeBrowserDictionary(UINavigationController *stack) {
     UIViewController *top = stack.topViewController;
-    NSMutableArray<NSString *> *folders = [NSMutableArray array];
-    NSMutableArray<NSString *> *files = [NSMutableArray array];
-    if ([top isKindOfClass:FolderViewController.class]) {
-        FolderViewController *folder = (FolderViewController *)top;
-        // Section 0 is the folders, 1 the files (VibeBrowserSection).
-        for (NSInteger section = 0; section < 2; section++) {
-            NSURL *url;
-            for (NSInteger row = 0; (url = [folder itemAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]]); row++) {
-                [section == 0 ? folders : files addObject:url.lastPathComponent];
-            }
-        }
-    }
+    NSArray<NSArray<NSString *> *> *rows = [top isKindOfClass:FolderViewController.class]
+            ? VibeBrowserRows((FolderViewController *)top) : @[@[], @[]];
     return @{@"ok": @YES, @"depth": @(stack.viewControllers.count - 1),
              @"title": top.navigationItem.title ?: top.title ?: @"",
-             @"folders": folders, @"files": files};
+             @"folders": rows[VibeBrowserSectionFolders], @"files": rows[VibeBrowserSectionFiles]};
 }
 
 static NSIndexPath *VibeBrowserRowNamed(FolderViewController *folder, NSString *name) {
-    for (NSInteger section = 0; section < 2; section++) {
-        NSURL *url;
-        for (NSInteger row = 0; (url = [folder itemAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]]); row++) {
-            if ([url.lastPathComponent isEqualToString:name]) {
-                return [NSIndexPath indexPathForRow:row inSection:section];
-            }
+    NSArray<NSArray<NSString *> *> *rows = VibeBrowserRows(folder);
+    for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
+        NSUInteger row = [rows[section] indexOfObject:name];
+        if (row != NSNotFound) {
+            return [NSIndexPath indexPathForRow:(NSInteger)row inSection:section];
         }
     }
     return nil;

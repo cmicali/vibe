@@ -157,7 +157,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 - (void)showAndBake:(CodableAudioWaveform *)waveform {
     [_view prepareForWaveformLoad];
     [_view showWaveform:waveform animated:NO];
-    XCTAssertTrue([self waitUntil:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }],
+    XCTAssertTrue([self eventually:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }],
                   @"the bake never installed");
     // The reset ends any interaction, which reports itself: start clean.
     _events = [[ScrubberEvents alloc] init];
@@ -260,7 +260,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     [AppSettings.sharedInstance setWaveformTheme:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE forWidget:NO];
     NSArray *before = self.bakedImages;
     [_view syncWaveformTheme];
-    XCTAssertTrue([self waitUntil:^BOOL {
+    XCTAssertTrue([self eventually:^BOOL {
         return ![self.bakedImages isEqualToArray:before] && self.bakedImages.count > 0;
     }]);
     VibeImageTint orange = [self strongestTint];
@@ -278,13 +278,13 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 
     NSArray *before = self.bakedImages;
     _view.artworkThemeColor = [UIColor colorWithRed:0.1 green:0.8 blue:0.2 alpha:1];
-    XCTAssertTrue([self waitUntil:^BOOL { return ![self.bakedImages isEqualToArray:before]; }]);
+    XCTAssertTrue([self eventually:^BOOL { return ![self.bakedImages isEqualToArray:before]; }]);
     VibeImageTint green = [self strongestTint];
     XCTAssertGreaterThan(green.green - green.red, 0.25, @"%f %f %f", green.red, green.green, green.blue);
 
     [AppSettings.sharedInstance setWaveformTheme:SETTINGS_VALUE_WAVEFORM_THEME_MONO forWidget:NO];
     [_view syncWaveformTheme];
-    XCTAssertTrue([self waitUntil:^BOOL {
+    XCTAssertTrue([self eventually:^BOOL {
         VibeImageTint tint = [self strongestTint];
         return fabs(tint.red - tint.green) < 0.08;
     }], @"Mono ignores the art");
@@ -306,7 +306,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 
     CodableAudioWaveform *waveform = CompleteWaveform();
     [_view showWaveform:waveform animated:NO];
-    XCTAssertTrue([self waitUntil:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }]);
+    XCTAssertTrue([self eventually:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }]);
     XCTAssertGreaterThan(self.hostLayerCount, resting, @"the bitmap took the open's indicator down");
 
     _view.playbackLoading = NO;
@@ -323,7 +323,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     XCTAssertGreaterThan(self.hostLayerCount, resting);
     CodableAudioWaveform *waveform = CompleteWaveform();
     [_view showWaveform:waveform animated:NO];
-    XCTAssertTrue([self waitUntil:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }]);
+    XCTAssertTrue([self eventually:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }]);
     XCTAssertGreaterThan(self.hostLayerCount, resting, @"the fill went with the shimmer");
     [_view setLoadingProgress:-1];
     XCTAssertEqual(self.hostLayerCount, resting);
@@ -336,7 +336,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     XCTAssertGreaterThan(self.hostLayerCount, resting);
     CodableAudioWaveform *waveform = CompleteWaveform();
     [_view showWaveform:waveform animated:NO];
-    XCTAssertTrue([self waitUntil:^BOOL { return self.hostLayerCount == resting; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self.hostLayerCount == resting; }]);
 }
 
 #pragma mark - Gestures

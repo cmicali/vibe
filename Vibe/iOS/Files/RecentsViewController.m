@@ -136,7 +136,7 @@ static NSString *const kRecentCellIdentifier = @"item";
                                             point:(CGPoint)point {
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
     BOOL folder = [item[@"folder"] boolValue];
-    NSArray<NSNumber *> *actions = VibeBrowserRowActions(
+    VibeBrowserRowActions actions = VibeBrowserRowActionsFor(
             folder, _appending, [PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString],
             ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"] isDirectory:folder]]);
     __weak RecentsViewController *weakSelf = self;
@@ -144,33 +144,25 @@ static NSString *const kRecentCellIdentifier = @"item";
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        for (NSNumber *action in actions) {
-            switch ((VibeBrowserRowAction)action.integerValue) {
-                case VibeBrowserRowActionPlay: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                        [weakSelf openItem:item appending:NO inFolder:NO];
-                    })];
-                    break;
-                }
-                case VibeBrowserRowActionPlayInFolder: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                        [weakSelf openItem:item appending:NO inFolder:YES];
-                    })];
-                    break;
-                }
-                case VibeBrowserRowActionAddToPlaylist: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
-                        [weakSelf openItem:item appending:YES inFolder:NO];
-                    })];
-                    break;
-                }
-                case VibeBrowserRowActionOpenFolder: {
-                    [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
-                        [weakSelf showFolderOfItem:item];
-                    })];
-                    break;
-                }
-            }
+        if (actions & VibeBrowserRowActionPlay) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
+                [weakSelf openItem:item appending:NO inFolder:NO];
+            })];
+        }
+        if (actions & VibeBrowserRowActionPlayInFolder) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
+                [weakSelf openItem:item appending:NO inFolder:YES];
+            })];
+        }
+        if (actions & VibeBrowserRowActionAddToPlaylist) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
+                [weakSelf openItem:item appending:YES inFolder:NO];
+            })];
+        }
+        if (actions & VibeBrowserRowActionOpenFolder) {
+            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
+                [weakSelf showFolderOfItem:item];
+            })];
         }
         return [UIMenu menuWithTitle:@"" children:items];
     }];

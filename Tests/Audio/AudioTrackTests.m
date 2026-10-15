@@ -1,10 +1,7 @@
 //
 // AudioTrack's derived display values and the BPM precedence rule.
 //
-// The metadata stand-in below is duck-typed: AudioTrack only ever sends
-// messages to its metadata and never names the class, so a fake cast to the
-// property type behaves identically at runtime and keeps TagLib out of the
-// test target.
+// The metadata is the duck-typed FakeTrackMetadata (Tests/Support).
 //
 
 #import <XCTest/XCTest.h>
@@ -15,37 +12,7 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
-
-@interface FakeTrackMetadata : NSObject
-@property (nonatomic, copy) NSString *title;
-@property (nonatomic, copy) NSString *artist;
-@property (nonatomic) float bpm;
-@property (nonatomic) NSInteger key;
-@property (nonatomic) NSTimeInterval duration;
-@property (nonatomic, strong) NSImage *cachedArt;
-@property (nonatomic, strong) NSImage *cachedThumbnail;
-@property (nonatomic) BOOL parsedOK;
-@property (nonatomic) BOOL artNeedsLoad;
-@property (nonatomic, getter=isArtLoadPending) BOOL artLoadPending;
-@property (nonatomic, copy) BOOL (^artStillWanted)(void);
-@property (nonatomic, copy) void (^artCompletion)(NSImage *);
-@property (nonatomic) NSUInteger discardedArtCount;
-@end
-
-@implementation FakeTrackMetadata
-- (void)loadArtIfNeededStillWanted:(BOOL (^)(void))wanted completion:(void (^)(NSImage *))completion {
-    self.artStillWanted = wanted;
-    self.artCompletion = completion;
-}
-- (void)discardDecodedArt { self.discardedArtCount++; self.cachedArt = nil; }
-- (instancetype)init {
-    self = [super init];
-    // The real AudioTrackMetadata inits key to -1 (0 would be C major); the
-    // fake must match or every untagged fixture would read as tagged C.
-    _key = -1;
-    return self;
-}
-@end
+#import "FakeTrackMetadata.h"
 
 @interface AudioTrackTests : XCTestCase
 @end

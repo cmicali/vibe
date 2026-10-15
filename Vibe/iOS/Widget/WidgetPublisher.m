@@ -11,7 +11,6 @@
 #import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
-#import "PlayerScreenRules.h"
 #import "UIImage+DominantColor.h"
 #import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
@@ -174,10 +173,13 @@ static const CGFloat kWidgetWaveformScale = 3;
     // allocation-free; republish writes the art when a widget appears.
     UIImage *artwork = track.cachedArt;
     BOOL trackChanged = (track != _publishedTrack);
-    BOOL writeArtwork = VibeWidgetWritesArtwork(_widgetPlaced, trackChanged, artwork != nil, _artworkOnDisk);
+    BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
 
-    if (!writeArtwork && !VibeWidgetNeedsPublish(_published, !trackChanged, track != nil,
-                                                 track.displayTitle, track.displayArtist, playing,
+    VibeWidgetState *last = _published;
+    if (!writeArtwork && !VibeWidgetNeedsPublish(last && !trackChanged, last.hasTrack, last.title, last.artist,
+                                                 last.playing, last.duration, last.position,
+                                                 last.positionDate.timeIntervalSinceReferenceDate,
+                                                 track != nil, track.displayTitle, track.displayArtist, playing,
                                                  duration, position, startPending,
                                                  CFAbsoluteTimeGetCurrent())) {
         return;

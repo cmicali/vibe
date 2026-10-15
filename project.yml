@@ -756,6 +756,7 @@ targets:
       - path: Tests/iOSSim
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Tests/Support/TestFilesystemGuard.m
+      - path: Tests/Support/FakeTrackMetadata.m
     dependencies:
       - target: VibeiOS
     settings:

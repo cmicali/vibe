@@ -1,49 +1,26 @@
 
-#import <XCTest/XCTest.h>
+#import "IOSShellTestCase.h"
 
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 #import "FolderSessionRules.h"
 
-@interface FileSearchRulesTests : XCTestCase <FileSearchIndexDelegate>
+@interface FileSearchRulesTests : IOSShellTestCase <FileSearchIndexDelegate>
 @property (nonatomic) XCTestExpectation *buildFinished;
-@property (nonatomic) NSMutableArray<NSURL *> *temporaryRoots;
 @end
 
 @implementation FileSearchRulesTests
 
-- (void)setUp {
-    [super setUp];
-    self.temporaryRoots = [NSMutableArray array];
-}
-
-- (void)tearDown {
-    for (NSURL *root in self.temporaryRoots) {
-        [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
-    }
-    [super tearDown];
-}
-
+// An index over the harness's root, holding these files.
 - (FileSearchIndex *)indexWithRelativeFilePaths:(NSArray<NSString *> *)paths {
-    NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory()
-            stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];
-    [self.temporaryRoots addObject:root];
-    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:root
-                                         withIntermediateDirectories:YES
-                                                          attributes:nil
-                                                               error:NULL]);
     for (NSString *path in paths) {
-        NSURL *file = [root URLByAppendingPathComponent:path];
-        XCTAssertTrue([NSFileManager.defaultManager
-                createDirectoryAtURL:file.URLByDeletingLastPathComponent
-          withIntermediateDirectories:YES attributes:nil error:NULL]);
-        XCTAssertTrue([[NSData data] writeToURL:file atomically:YES]);
+        [self file:path];
     }
 
     FileSearchIndex *index = [[FileSearchIndex alloc] init];
     index.delegate = self;
     self.buildFinished = [self expectationWithDescription:@"index built"];
-    [index setRoots:@[root]];
+    [index setRoots:@[self.root]];
     [index beginBuildIfNeeded];
     [self waitForExpectations:@[self.buildFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
     index.delegate = nil;

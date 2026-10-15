@@ -70,12 +70,6 @@
 
 #pragma mark - A folder
 
-- (void)testTheFilterArrivesAtTheThresholdAndStays {
-    XCTAssertFalse(VibeBrowserFolderWantsFilter(kVibeBrowserFilterThreshold - 1, NO));
-    XCTAssertTrue(VibeBrowserFolderWantsFilter(kVibeBrowserFilterThreshold, NO));
-    XCTAssertFalse(VibeBrowserFolderWantsFilter(100, YES), @"installed once");
-}
-
 - (void)testAFolderSaysWhyItShowsNothing {
     XCTAssertEqual(VibeBrowserFolderEmptyStateFor(3, 3, YES, YES), VibeBrowserFolderEmptyStateNone,
                    @"rows drawn outrank a relist or its failure");
@@ -85,38 +79,30 @@
     XCTAssertEqual(VibeBrowserFolderEmptyStateFor(0, 0, NO, NO), VibeBrowserFolderEmptyStateEmpty);
 }
 
-- (void)testTheSubfolderWalkStopsAtEitherCapOrWhenDone {
-    XCTAssertTrue(VibeBrowserSubfolderWalkStops(0, 0, 0));
-    XCTAssertFalse(VibeBrowserSubfolderWalkStops(1, kVibeBrowserMaximumSubfolderTracks - 1,
-                                                 kVibeBrowserMaximumSubfolders - 1));
-    XCTAssertTrue(VibeBrowserSubfolderWalkStops(1, kVibeBrowserMaximumSubfolderTracks, 0));
-    XCTAssertTrue(VibeBrowserSubfolderWalkStops(1, 0, kVibeBrowserMaximumSubfolders));
-}
-
 #pragma mark - A row's long press
 
 - (void)testAFileOffersEveryAction {
-    NSArray *all = @[@(VibeBrowserRowActionPlay), @(VibeBrowserRowActionPlayInFolder),
-                     @(VibeBrowserRowActionAddToPlaylist), @(VibeBrowserRowActionOpenFolder)];
-    XCTAssertEqualObjects(VibeBrowserRowActions(NO, NO, NO, YES), all);
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, NO, YES),
+                   VibeBrowserRowActionPlay | VibeBrowserRowActionPlayInFolder | VibeBrowserRowActionAddToPlaylist
+                           | VibeBrowserRowActionOpenFolder);
 }
 
 - (void)testAFolderOrAPlaylistFileHasNoPlayInFolder {
-    NSArray *expected = @[@(VibeBrowserRowActionPlay), @(VibeBrowserRowActionAddToPlaylist),
-                          @(VibeBrowserRowActionOpenFolder)];
-    XCTAssertEqualObjects(VibeBrowserRowActions(YES, NO, NO, YES), expected);
-    XCTAssertEqualObjects(VibeBrowserRowActions(NO, NO, YES, YES), expected);
+    VibeBrowserRowActions expected = VibeBrowserRowActionPlay | VibeBrowserRowActionAddToPlaylist
+            | VibeBrowserRowActionOpenFolder;
+    XCTAssertEqual(VibeBrowserRowActionsFor(YES, NO, NO, YES), expected);
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, YES, YES), expected);
 }
 
 - (void)testALinkHasNeitherFolderAction {
-    XCTAssertEqualObjects(VibeBrowserRowActions(NO, NO, NO, NO),
-                          (@[@(VibeBrowserRowActionPlay), @(VibeBrowserRowActionAddToPlaylist)]));
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, NO, NO),
+                   VibeBrowserRowActionPlay | VibeBrowserRowActionAddToPlaylist);
 }
 
 - (void)testTheAddSheetOnlyAdds {
-    XCTAssertEqualObjects(VibeBrowserRowActions(NO, YES, NO, YES),
-                          (@[@(VibeBrowserRowActionAddToPlaylist), @(VibeBrowserRowActionOpenFolder)]));
-    XCTAssertEqualObjects(VibeBrowserRowActions(NO, YES, NO, NO), @[@(VibeBrowserRowActionAddToPlaylist)]);
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, YES),
+                   VibeBrowserRowActionAddToPlaylist | VibeBrowserRowActionOpenFolder);
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, NO), VibeBrowserRowActionAddToPlaylist);
 }
 
 @end

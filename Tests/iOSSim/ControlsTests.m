@@ -99,13 +99,11 @@ static BOOL ColorsEqual(CGColorRef a, UIColor *b) {
     [self.window addSubview:view];
     view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     [view layoutIfNeeded];
-    [self spin];
     NSArray<CALayer *> *bars = view.layer.sublayers;
     XCTAssertEqual(bars.count, 5u);
     XCTAssertTrue(ColorsEqual(bars.firstObject.backgroundColor, UIColor.whiteColor));
     view.overrideUserInterfaceStyle = UIUserInterfaceStyleLight;
     [view layoutIfNeeded];
-    [self spin];
     XCTAssertTrue(ColorsEqual(bars.firstObject.backgroundColor, UIColor.blackColor));
     view.barColor = UIColor.redColor;
     XCTAssertTrue(ColorsEqual(bars.lastObject.backgroundColor, UIColor.redColor));

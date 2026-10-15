@@ -4,6 +4,7 @@
 #import "DropboxMirrorTestCase.h"
 
 #import "DropboxSearch.h"
+#import "TestFilesystemGuard.h"
 
 @interface DropboxSearchTests : DropboxMirrorTestCase
 @end
@@ -75,7 +76,7 @@
     [_search searchQuery:@"so"];
     XCTAssertFalse(_search.isSearching);
     XCTAssertEqualObjects(self.hitNames, (@[@"Other.mp3", @"Album"]));
-    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
+    VibeSpinFor(kVibeTestNegativeWindow);
     XCTAssertEqual([self requestsToPath:@"/2/files/search_v2"].count, 0u);
 }
 
@@ -106,7 +107,7 @@
     [_search reset];
     NSUInteger changes = _changes;
     dispatch_semaphore_signal(gate);
-    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.3]];
+    VibeSpinFor(kVibeTestNegativeWindow);
     XCTAssertEqual(_changes, changes);
     XCTAssertEqualObjects(_search.hits, @[]);
     XCTAssertFalse(_search.isSearching);

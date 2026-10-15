@@ -32,7 +32,7 @@
     self.window.rootViewController = _root;
     [self.window layoutIfNeeded];
     _root.sceneActive = YES;
-    [self spin];
+    VibeSpinFor(0);
 }
 
 - (void)tearDown {
@@ -85,7 +85,7 @@
 
 - (void)expandAndSettle {
     [self expand];
-    XCTAssertTrue([self waitUntil:^BOOL { return self.settled && self.tabs.view.hidden; }],
+    XCTAssertTrue([self eventually:^BOOL { return self.settled && self.tabs.view.hidden; }],
                   @"the card never came to rest up");
 }
 
@@ -111,21 +111,21 @@
 - (void)testWhileTheCardMovesTheSnapshotStandsInAndTheTabsAreShown {
     // A view never committed to the screen snapshots nothing.
     [CATransaction flush];
-    [self waitUntil:^BOOL { return [self.tabs.view snapshotViewAfterScreenUpdates:NO] != nil; }];
+    [self eventually:^BOOL { return [self.tabs.view snapshotViewAfterScreenUpdates:NO] != nil; }];
     [self expand];
     if (UIAccessibilityIsReduceMotionEnabled()) {
         return;  // unanimated: no moving phase to see
     }
     XCTAssertNotNil(self.snapshot);
     XCTAssertFalse(self.tabs.view.hidden);
-    XCTAssertTrue([self waitUntil:^BOOL { return self.settled; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self.settled; }]);
     XCTAssertTrue(self.tabs.view.hidden);
 }
 
 - (void)testAnEmptyPlaylistNeverExpands {
     [_playback.playlist clear];
     [self expand];
-    [self spin];
+    VibeSpinFor(kVibeTestNegativeWindow);
     XCTAssertTrue(self.card.view.hidden);
     XCTAssertFalse(self.card.isPresented);
 }
@@ -141,7 +141,7 @@
     [self pan:60 velocity:0 state:UIGestureRecognizerStateChanged];
     XCTAssertEqual(self.card.view.transform.ty, 60);
     [self pan:60 velocity:0 state:UIGestureRecognizerStateEnded];
-    XCTAssertTrue([self waitUntil:^BOOL { return self.settled && self.tabs.view.hidden; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self.settled && self.tabs.view.hidden; }]);
     XCTAssertTrue(self.card.isPresented, @"a short drag keeps the card up");
     XCTAssertTrue(CGAffineTransformIsIdentity(self.card.view.transform));
 }
@@ -150,7 +150,7 @@
     [self expandAndSettle];
     [self pan:200 velocity:0 state:UIGestureRecognizerStateBegan];
     [self pan:200 velocity:0 state:UIGestureRecognizerStateCancelled];
-    XCTAssertTrue([self waitUntil:^BOOL { return self.settled && self.tabs.view.hidden; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self.settled && self.tabs.view.hidden; }]);
     XCTAssertTrue(self.card.isPresented);
 }
 
@@ -159,14 +159,14 @@
     [self pan:30 velocity:0 state:UIGestureRecognizerStateBegan];
     [self pan:30 velocity:5000 state:UIGestureRecognizerStateEnded];
     XCTAssertFalse(self.card.isPresented, @"presented drops as the minimize starts");
-    XCTAssertTrue([self waitUntil:^BOOL { return self.settled && self.card.view.hidden; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self.settled && self.card.view.hidden; }]);
     XCTAssertFalse(self.tabs.view.hidden);
 }
 
 - (void)testTheGrabberMinimizes {
     [self expandAndSettle];
     [(id<PlayerViewControllerDelegate>)_root playerViewControllerDidRequestMinimize:self.card];
-    XCTAssertTrue([self waitUntil:^BOOL { return self.settled && self.card.view.hidden; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self.settled && self.card.view.hidden; }]);
     XCTAssertFalse(self.tabs.view.hidden);
 }
 

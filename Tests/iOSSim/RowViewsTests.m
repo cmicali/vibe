@@ -153,7 +153,7 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     PlaylistViewController *screen = [[PlaylistViewController alloc] initWithPlayback:playback.asPlayback];
     self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:screen];
     [self.window layoutIfNeeded];
-    XCTAssertTrue([self waitUntil:^BOOL { return screen.tableView.visibleCells.count > 0; }]);
+    XCTAssertTrue([self eventually:^BOOL { return screen.tableView.visibleCells.count > 0; }]);
     return screen;
 }
 
@@ -172,12 +172,12 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     NSURL *url = [playback.playlist trackAtIndex:1].url;
     CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
     [registry beganTransferForPath:VibeStandardizedAudioOpenPath(url) url:url];
-    XCTAssertTrue([self waitUntil:^BOOL { return row.isLoading; }]);
+    XCTAssertTrue([self eventually:^BOOL { return row.isLoading; }]);
     XCTAssertFalse([self cellAtRow:0 of:screen].isLoading, @"only the row whose file is on the wire");
     XCTAssertEqual([self cellAtRow:1 of:screen], row, @"in place, never a reload");
 
     [registry endedTransferForPath:VibeStandardizedAudioOpenPath(url)];
-    XCTAssertTrue([self waitUntil:^BOOL { return !row.isLoading; }]);
+    XCTAssertTrue([self eventually:^BOOL { return !row.isLoading; }]);
 }
 
 // The playing row's marker asks for levels only while its surface is
@@ -186,20 +186,19 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     FakePlayback *playback = [self playbackWithTracks:3 current:0];
     playback.audioOutputActive = YES;
     PlaylistViewController *screen = [self showPlaylistFor:playback];
-    [self spin];
+    VibeSpinFor(kVibeTestNegativeWindow);
     XCTAssertEqual(playback.levelConsumers, 0, @"the root has not exposed the surface");
 
     screen.equalizerSurfaceVisible = YES;
-    [self spin];
-    XCTAssertEqual(playback.levelConsumers, 1);
+    XCTAssertTrue([self eventually:^BOOL { return playback.levelConsumers == 1; }]);
 
     NSURL *url = playback.playlist.currentTrack.url;
     CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
     [registry beganTransferForPath:VibeStandardizedAudioOpenPath(url) url:url];
-    XCTAssertTrue([self waitUntil:^BOOL { return playback.levelConsumers == 0; }],
+    XCTAssertTrue([self eventually:^BOOL { return playback.levelConsumers == 0; }],
                   @"a hidden marker behind the bar must not poll");
     [registry endedTransferForPath:VibeStandardizedAudioOpenPath(url)];
-    XCTAssertTrue([self waitUntil:^BOOL { return playback.levelConsumers == 1; }]);
+    XCTAssertTrue([self eventually:^BOOL { return playback.levelConsumers == 1; }]);
 
     screen.equalizerSurfaceVisible = NO;
     XCTAssertEqual(playback.levelConsumers, 0);

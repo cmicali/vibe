@@ -59,7 +59,7 @@
         }
     }
     XCTAssertNotNil(_pages);
-    XCTAssertTrue([self waitUntil:^BOOL { return [self pageAt:self->_playback.currentIndex] != nil; }],
+    XCTAssertTrue([self eventually:^BOOL { return [self pageAt:self->_playback.currentIndex] != nil; }],
                   @"the current page never appeared");
 }
 

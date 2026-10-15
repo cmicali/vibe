@@ -9,6 +9,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import "NowPlayingRules.h"     // header-only: the lock screen's tests, which the widget shares
+
 NS_ASSUME_NONNULL_BEGIN
 
 // Both targets' entitlements carry it; a mismatch makes containerURL nil.
@@ -64,5 +66,52 @@ extern const char *const kVibeWidgetReadNotification;
 - (double)progressAtDate:(NSDate *)date NS_SWIFT_NAME(progress(at:));
 
 @end
+
+#pragma mark - When to publish
+
+// A seek detector against the widget's own extrapolation. Looser than the
+// lock screen's, since a widget entry spans seconds.
+static const NSTimeInterval kVibeWidgetPositionTolerance = 2.0;
+
+// Whether a tick publishes a new snapshot. The published fields are the last
+// snapshot's. samePublishedTrack is NO when nothing was published yet. The
+// widget extrapolates steady playback. So only a new track, a play or pause,
+// a changed duration or line, or a jump past the tolerance publishes. Tags
+// landing after the start change the lines, not the identity. While the open
+// runs the playhead is pinned at 0, so the position alone publishes nothing.
+static inline BOOL VibeWidgetNeedsPublish(BOOL samePublishedTrack,
+                                          BOOL publishedHasTrack,
+                                          NSString *_Nullable publishedTitle,
+                                          NSString *_Nullable publishedArtist,
+                                          BOOL publishedPlaying,
+                                          NSTimeInterval publishedDuration,
+                                          NSTimeInterval publishedPosition,
+                                          CFAbsoluteTime publishedAt,
+                                          BOOL hasTrack,
+                                          NSString *_Nullable title,
+                                          NSString *_Nullable artist,
+                                          BOOL playing,
+                                          NSTimeInterval duration,
+                                          NSTimeInterval position,
+                                          BOOL startPending,
+                                          CFAbsoluteTime now) {
+    if (!samePublishedTrack) {
+        return YES;
+    }
+    if (publishedHasTrack != hasTrack || publishedPlaying != playing) {
+        return YES;
+    }
+    if (fabs(publishedDuration - duration) > 0.5) {
+        return YES;
+    }
+    if (!VibeNowPlayingStringsEqual(publishedTitle, title) || !VibeNowPlayingStringsEqual(publishedArtist, artist)) {
+        return YES;
+    }
+    if (startPending) {
+        return NO;
+    }
+    return VibeNowPlayingPositionIsDirty(publishedPosition, publishedAt, 1.0, publishedPlaying, position, now,
+                                         kVibeWidgetPositionTolerance);
+}
 
 NS_ASSUME_NONNULL_END
