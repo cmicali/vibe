@@ -65664,32 +65664,32 @@
       "localizations": {
         "bg": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Персонализирани"
+            "state": "translated",
+            "value": "Потребителски"
           }
         },
         "cs": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Vlastní"
           }
         },
         "da": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tilpassede"
+            "state": "translated",
+            "value": "Egne"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Eigene"
           }
         },
         "el": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Προσαρμοσμένα"
+            "state": "translated",
+            "value": "Χρήστη"
           }
         },
         "en": {
@@ -65700,146 +65700,146 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Personalizados"
+            "state": "translated",
+            "value": "Del usuario"
           }
         },
         "fi": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Omat"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Personnalisés"
+            "state": "translated",
+            "value": "Utilisateur"
           }
         },
         "hr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Prilagođene"
+            "state": "translated",
+            "value": "Korisničke"
           }
         },
         "hu": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Egyéni"
+            "state": "translated",
+            "value": "Saját"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Khusus"
+            "state": "translated",
+            "value": "Pengguna"
           }
         },
         "it": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Personalizzati"
+            "state": "translated",
+            "value": "Utente"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "カスタム"
+            "state": "translated",
+            "value": "ユーザ"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "사용자 설정"
+            "state": "translated",
+            "value": "사용자"
           }
         },
         "nb": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Egendefinerte"
+            "state": "translated",
+            "value": "Egne"
           }
         },
         "nl": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Aangepast"
+            "state": "translated",
+            "value": "Eigen"
           }
         },
         "pl": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Własne"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Personalizados"
+            "state": "translated",
+            "value": "Do usuário"
           }
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Personalizados"
+            "state": "translated",
+            "value": "Do utilizador"
           }
         },
         "ro": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Personalizate"
+            "state": "translated",
+            "value": "Utilizator"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Пользовательские"
           }
         },
         "sk": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Vlastné"
           }
         },
         "sv": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Anpassade"
+            "state": "translated",
+            "value": "Egna"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "กำหนดเอง"
+            "state": "translated",
+            "value": "ผู้ใช้"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Özel"
+            "state": "translated",
+            "value": "Kullanıcı"
           }
         },
         "uk": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Власні"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Tùy chỉnh"
+            "state": "translated",
+            "value": "Người dùng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "自定义"
+            "state": "translated",
+            "value": "用户"
           }
         },
         "zh-Hant": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "自訂"
+            "state": "translated",
+            "value": "使用者"
           }
         }
       },
@@ -67522,10 +67522,184 @@
     "settings.appearance.theme.jump.theme": {
       "comment": "Theme editor: first segment of the jump bar above the page, which scrolls back to the top, where the theme's Name sits. One short word.",
       "localizations": {
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тема"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motiv"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thema"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Θέμα"
+          }
+        },
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Theme"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thème"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Téma"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "テーマ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "테마"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thema"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motyw"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temă"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тема"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Motív"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ธีม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tema"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тема"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chủ đề"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主題"
           }
         }
       },
