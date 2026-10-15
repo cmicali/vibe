@@ -106,6 +106,7 @@ set_window_width settings_click settings_close settings_open
 skip_back skip_back_more skip_back_most skip_forward skip_forward_more skip_forward_most
 sleep toggle_low_kill toggle_pitch_panel toggle_size undo
 low_kill_boost_on low_kill_boost_off reverb_send_on reverb_send_off
+set_dataless_diag dump_dataless_diag
 delay_send_on delay_send_off short_delay_send_on short_delay_send_off
 """.split())
 MENU_IDS = set("""
@@ -2075,7 +2076,9 @@ def run(args):
         print(f"exercised: {describe_materialization_coverage(channel)}")
         print(f"equalizer: {equalizer['scored']} of {equalizer['probes']} probes scored"
               + (f" on {reference.name}" if reference else " (no file with sound in the corpus)")
-              + (" — WARNING: the check never applied" if equalizer["probes"]
+              + (" — off the audio hardware the bars never poll; VIBE_AUDIBLE=silent scores it"
+                 if equalizer["probes"] and not equalizer["scored"] and os.environ.get("VIBE_AUDIBLE") is None
+                 else " — WARNING: the check never applied" if equalizer["probes"]
                  and not equalizer["scored"] else ""))
         entries = [json.loads(line) for line in journal_path.read_text().splitlines()]
         for warning in dead_op_warnings(entries, generator.weights):

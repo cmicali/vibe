@@ -42,12 +42,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from stress import (AUDIO_SUFFIXES, COMMAND_VERBS, DEFAULT_APP,  # noqa: E402
+from stress import (AUDIO_SUFFIXES, DEFAULT_APP,  # noqa: E402
                     Channel, launch)
-
-# Read-only measurement verbs that only this runner sends. They join the gate
-# here, not in stress.py, so random stress never reaches them.
-COMMAND_VERBS.update({"set_dataless_diag", "dump_dataless_diag"})
 
 # Seconds. Long enough to observe a transfer mid-flight across channel round
 # trips, short enough that a dozen do not make the suite a soak.
