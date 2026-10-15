@@ -18,6 +18,7 @@ This directory holds the tests of both test targets, `VibeTests` and `VibeAudioT
 - `LinkStoreTestCase.h` and `.m`: the base class of each link host's store tests.
 - `MaterializationTestFakes.h` and `.m`: the gated dataless probe and the hand-completed provider operations of the stage-1 coordinator tests (`AudioFileMaterializationCoordinatorTestCase`).
 - `MetadataLoaderTestFakes.h` and `.m`: the metadata loader tests' fakes, and the suite's `AudioTrackMetadata` decoy.
+- `ShellTestFakes.h` and `.m`: the mac shell's duck-typed player and metadata scan, the window's occlusion answer, and the shell's decoys.
 - `TestFilesystemGuard.h` and `.m`: the per-process temp root and in-memory defaults, installed at image load. Both targets compile it.
 - `VibeReadAheadScript.h` and `.m`: forces the network-mount rule and scripts each read. Both targets compile it.
 
@@ -46,10 +47,12 @@ Anything that needs the app running belongs in the `vibe-debug` skill's command 
 - `ArtworkDisplayController` (`AudioTrackTests`): the real single-render, latest-request scheduler with held renderer completions and a publication sink that keeps views and the Dock out.
 - `OpenBurstCoalescerTests` runs launch priority through the production launch method. `PlaylistFileSessionTests` round-trips the private session with temp files and isolated defaults.
 - `AudioDeviceManagerTests` runs `AudioDeviceManager` with injected enumeration and retry scheduling, with no HAL registration. `CoreAudioUtil`'s `releaseDeviceObligation:attempt:isAbsent:` is tested with controlled attempts.
+- `MainPlayerControllerTests` builds the mac shell through its injected constructor, with a duck-typed player and metadata scan, a held deferral timer and the real `PlaylistController`. The removal funnel, every successor re-park, the deferred metadata sweep, the reorder follow-up and the equalizer demand count run as shipped.
+- `PlaylistControllerTests` makes the data source calls AppKit makes for a drag, over a windowless `PlaylistTableView`. It covers the reorder proof and the dragged rows' identity resolution.
 
 OS provider state, shell routing, remote-command registration, output rebinding, device property I/O and hardware settlement remain live tests.
 
-**The suite links an incomplete `AudioTrackMetadata` decoy** (`Support/MetadataLoaderTestFakes.m`), because the real one is ObjC++ and TagLib. Its parser constructor raises. Loader fixtures use the copy-capable duck fake, and a newly required selector is added deliberately.
+**The suite links an incomplete `AudioTrackMetadata` decoy** (`Support/MetadataLoaderTestFakes.m`), because the real one is ObjC++ and TagLib. Its parser constructor raises. Loader fixtures use the copy-capable duck fake, and a newly required selector is added deliberately. `ShellTestFakes.m` holds the shell's decoys. `AudioPlayer`, `AudioTrackMetadataCache`, `OutputDevicesMenuController` and `MainWindow` only satisfy the window constructor's class references. `MainMenuBuilder` answers only the row menu's items. The suite compiles `MainPlayerController.m`, `+Playlist`, `+Transport`, `+Settings` and `+NowPlaying`. A tested path that reaches another category fails loudly, except `+Window`'s `isWindowVisible`, which the fakes answer.
 
 ## Rendered audio
 
