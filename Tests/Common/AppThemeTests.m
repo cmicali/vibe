@@ -875,10 +875,10 @@ static CGFloat Brightness(NSString *hex) {
                     ([NSString stringWithFormat:@"bundled:%@_light.%@", identifier, ext]));
         }
     }
-    // Apple Music's note on its gray tile, without shipping a tile.
+    // A symbol on the header's own gray, without shipping a tile.
     AppTheme *cupertino = [[AppTheme alloc] initWithRecord:[AppTheme builtInRecordForIdentifier:@"cupertino"]];
     XCTAssertEqualObjects(cupertino.defaultArtwork, @"glyph");
-    XCTAssertEqualObjects(cupertino.defaultArtworkGlyph, kVibeThemeDefaultArtworkGlyphDefault);
+    XCTAssertEqualObjects(cupertino.defaultArtworkGlyph, @"waveform");
 }
 
 #pragma mark Migration

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "Kinda Blue",
-  "description": "Dark Core's layout in blue. A dark navy window with the Spectrum waveform's Blue palette.",
+  "description": "Dark Core's layout in blue. A dark navy window with the Spectrum waveform's Blue palette, and a waveform symbol where a missing cover would be.",
   "window": {
     "backgroundColorDark": "#1A1E24",
     "mode": "single",
@@ -12,15 +12,13 @@
     "artistColorDark": "#3F86B0",
     "artistFontFace": "HelveticaNeue-Medium",
     "artistFontSize": 18,
-    "defaultArtwork": "window",
+    "buttonGradient": "artwork",
+    "defaultArtwork": "glyph",
+    "defaultArtworkGlyph": "waveform",
+    "defaultArtworkGlyphSize": 0.3,
     "nextButtonColorDark": "#A8D8F0",
-    "nextButtonGlyph": "arrow.right.circle.fill",
-    "pauseButtonGlyph": "pause.circle.fill",
     "playButtonColorDark": "#A8D8F0",
-    "playButtonGlyph": "play.circle.fill",
     "playlistButtonColorDark": "#A8D8F0",
-    "playlistButtonGlyph": "music.note.list",
-    "showTransportButtons": false,
     "titleColorDark": "#8CC4E4",
     "titleFontFace": "HelveticaNeue-Medium",
     "titleFontSize": 20

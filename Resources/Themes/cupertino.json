@@ -1,7 +1,7 @@
 {
   "version" : 2,
   "name" : "Cupertino",
-  "description" : "The Apple Music look: near-white and charcoal surfaces, system type, legible secondary grays, and a red-pink accent reserved for what is playing. The placeholder is the familiar note glyph over the header's own gray.",
+  "description" : "The Apple Music look: near-white and charcoal surfaces, system type, legible secondary grays, and a red-pink accent reserved for what is playing. The placeholder is a waveform symbol over the header's own gray.",
   "window" : {
     "backgroundColorDark" : "#282828",
     "backgroundColorLight" : "#F5F5F7",
@@ -15,6 +15,7 @@
     "artistColorLight" : "#515156",
     "buttonGradient" : "artwork",
     "defaultArtwork" : "glyph",
+    "defaultArtworkGlyph" : "waveform",
     "titleColorDark" : "#F5F5F7",
     "titleColorLight" : "#1D1D1F"
   },
