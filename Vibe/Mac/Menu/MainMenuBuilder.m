@@ -263,12 +263,14 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // Back before forward, as Previous and Next. Validation names each
     // distance from the track's tempo; the seconds form is the placeholder.
     NSInteger baseBars = AppSettings.sharedInstance.skipBaseBars;
-    AddItem(playbackMenu, VibeSkipMenuTitle(kVibeMenuSkipBack, baseBars, NO), @selector(skipBack:), player, @"", 0, kVibeMenuSkipBack);
-    AddItem(playbackMenu, VibeSkipMenuTitle(kVibeMenuSkipBackMore, baseBars, NO), @selector(skipBackMore:), player, @"", 0, kVibeMenuSkipBackMore);
-    AddItem(playbackMenu, VibeSkipMenuTitle(kVibeMenuSkipBackMost, baseBars, NO), @selector(skipBackMost:), player, @"", 0, kVibeMenuSkipBackMost);
-    AddItem(playbackMenu, VibeSkipMenuTitle(kVibeMenuSkipForward, baseBars, NO), @selector(skipForward:), player, @"", 0, kVibeMenuSkipForward);
-    AddItem(playbackMenu, VibeSkipMenuTitle(kVibeMenuSkipForwardMore, baseBars, NO), @selector(skipForwardMore:), player, @"", 0, kVibeMenuSkipForwardMore);
-    AddItem(playbackMenu, VibeSkipMenuTitle(kVibeMenuSkipForwardMost, baseBars, NO), @selector(skipForwardMost:), player, @"", 0, kVibeMenuSkipForwardMost);
+    NSMenu *skipBackMenu = Submenu(playbackMenu, STR_MENU_SKIP_BACK).submenu;
+    AddItem(skipBackMenu, VibeSkipMenuTitle(kVibeMenuSkipBack, baseBars, NO), @selector(skipBack:), player, @"", 0, kVibeMenuSkipBack);
+    AddItem(skipBackMenu, VibeSkipMenuTitle(kVibeMenuSkipBackMore, baseBars, NO), @selector(skipBackMore:), player, @"", 0, kVibeMenuSkipBackMore);
+    AddItem(skipBackMenu, VibeSkipMenuTitle(kVibeMenuSkipBackMost, baseBars, NO), @selector(skipBackMost:), player, @"", 0, kVibeMenuSkipBackMost);
+    NSMenu *skipForwardMenu = Submenu(playbackMenu, STR_MENU_SKIP_FORWARD).submenu;
+    AddItem(skipForwardMenu, VibeSkipMenuTitle(kVibeMenuSkipForward, baseBars, NO), @selector(skipForward:), player, @"", 0, kVibeMenuSkipForward);
+    AddItem(skipForwardMenu, VibeSkipMenuTitle(kVibeMenuSkipForwardMore, baseBars, NO), @selector(skipForwardMore:), player, @"", 0, kVibeMenuSkipForwardMore);
+    AddItem(skipForwardMenu, VibeSkipMenuTitle(kVibeMenuSkipForwardMost, baseBars, NO), @selector(skipForwardMost:), player, @"", 0, kVibeMenuSkipForwardMost);
     AddSeparator(playbackMenu);
 
     NSMenu *pitchRangeMenu = Submenu(playbackMenu, STR_MENU_PITCH_RANGE).submenu;

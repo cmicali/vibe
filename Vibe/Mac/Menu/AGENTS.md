@@ -70,7 +70,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **Repeat is a submenu of radio-marked modes**, Off, All and One (`VibeRepeatMenuIdentifier`, `selectRepeatMode:`). The transport button and ⌘R still cycle. Shuffle is a checkmarked toggle.
 
-**Each skip item names its distance** (`VibeSkipMenuTitle`): whole bars while the track's tempo is known, else seconds, from `AppSettings.skipBaseBars` and `TransportMath.h`'s three levels. The Shortcuts pane labels them in the bars form whatever the track. They are listed back before forward, as Previous and Next are.
+**Skip Back and Skip Forward are submenus of three distances each** (`VibeSkipMenuTitle`): whole bars while the track's tempo is known, else seconds, from `AppSettings.skipBaseBars` and `TransportMath.h`'s three levels. An item names only its distance, since its submenu names the direction. The Shortcuts pane labels each as "Skip Back: 4 Bars", in the bars form whatever the track. Back comes before forward, as Previous and Next do.
 
 ## Convert
 

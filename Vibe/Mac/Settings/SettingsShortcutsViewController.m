@@ -126,20 +126,17 @@ static const CGFloat kShortcutColumnWidth = 120;
     if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
         return VibeConvertMenuTitle(NO);
     }
-    NSString *skip = VibeSkipMenuTitle(identifier, AppSettings.sharedInstance.skipBaseBars, YES);
-    if (skip) {
-        return skip;
-    }
     NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
+    NSString *title = VibeSkipMenuTitle(identifier, AppSettings.sharedInstance.skipBaseBars, YES) ?: item.title;
     NSMenu *parent = item.menu.supermenu;
     if (parent && parent != NSApp.mainMenu) {
         NSInteger index = [parent indexOfItemWithSubmenu:item.menu];
         if (index >= 0) {
             return [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_SUBMENU_ITEM,
-                                              [parent itemAtIndex:index].title, item.title];
+                                              [parent itemAtIndex:index].title, title];
         }
     }
-    return item.title;
+    return title;
 }
 
 - (nullable NSString *)identifierForRow:(NSInteger)row {
