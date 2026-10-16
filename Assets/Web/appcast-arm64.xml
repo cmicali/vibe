@@ -7,6 +7,19 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta11</title>
+<pubDate>Fri, 16 Oct 2026 03:23:48 +0000</pubDate>
+<sparkle:version>318</sparkle:version>
+<sparkle:shortVersionString>1.16-beta11</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* Changed the skip items into Skip Back and Skip Forward submenus
+* Fixed a corrupt CAF file stalling the metadata scan
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta11/Vibe-macOS-arm64-1.16-beta11.zip" length="8746343" type="application/octet-stream" sparkle:edSignature="2s8MNv4aDLOnvKa3risUZAo7PCFRcdl03bCg7DqPL56dJPdWc0sn7y5w5fcI9yvcv6yFHsXO0ItwMoelBgTjBg=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta10</title>
 <pubDate>Thu, 15 Oct 2026 22:46:04 +0000</pubDate>
 <sparkle:version>317</sparkle:version>
