@@ -1,2 +1,2 @@
-* New: a theme color for the playing row's equalizer bars
-* Changed the playing row's equalizer bars to black in light mode
+* Changed the skip items into Skip Back and Skip Forward submenus
+* Fixed a corrupt CAF file stalling the metadata scan

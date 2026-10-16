@@ -7,6 +7,7 @@
 * Changed Previous on the first song to restart it
 * Improved network share playback: a dropped connection pauses with "Connection lost", and a slow server no longer stalls track changes
 * Improved hi-res playback from slow network shares
+* Fixed a corrupt CAF file stalling the metadata scan
 * Added the vibe theme track, which loads on launch until you play or open something
 * mac: Added Add to Playlist… (⇧⌘O) to the File menu
 * mac: Added a Window menu with Minimize (⌘M), Window Width, Always on Top, and Lock Window Position
