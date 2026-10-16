@@ -1,6 +1,6 @@
 # WaveformCore
 
-A waveform engine meant for reuse outside Vibe: the summary of an audio stream, the reads every display is drawn from, the raster that draws them, and the archive. It is plain C++17 over Accelerate. It names no app type, so another app can take the directory as it is. Vibe compiles its sources straight into both apps and the tests (`project.yml`). In Vibe the summary is `AudioWaveform` (`Vibe/Audio/Waveform/AGENTS.md`).
+A waveform engine meant for reuse outside Vibe: the summary of an audio stream, the reads every display is drawn from, the raster that draws them, and the archive. It is plain C++17 over Accelerate. It names no app type, so another app can take the directory as it is. `Package.swift` makes it a Swift package, and `README.md` is the reader's start. Vibe compiles its sources straight into both apps and the tests (`project.yml`). **Its tests are the package's own** (`Tests/WaveformCoreTests`). `swift test` runs them here, and Vibe's `make test` compiles the same files. In Vibe the summary is `AudioWaveform` (`Vibe/Audio/Waveform/AGENTS.md`).
 
 The public headers are in `Sources/WaveformCore/include`, and each states its contract. The namespace is `wavecore`, a name no variable takes, so it cannot be shadowed by a local `waveform`.
 

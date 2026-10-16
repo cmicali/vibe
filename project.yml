@@ -816,6 +816,8 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Packages/WaveformCore/Sources
         excludes: ["**/.DS_Store", "**/*.md"]
+      - path: Packages/WaveformCore/Tests   # the package's own, which swift test runs too
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
