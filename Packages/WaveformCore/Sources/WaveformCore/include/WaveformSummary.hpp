@@ -173,6 +173,7 @@ private:
     void buildPyramid() const;
     void buildLoudest() const;
     void accumulate(size_t levelIndex, double first, double last, int channel, Column &into) const;
+    void unionBin(const Level &level, size_t bin, int channel, Column &into) const;
     double binEnd(const Level &level, size_t bin) const;
     double binWidth(const Level &level, size_t bin) const { return binEnd(level, bin) - double(bin * level.binFrames); }
 

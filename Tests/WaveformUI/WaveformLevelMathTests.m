@@ -58,13 +58,12 @@ static float RMSAtFraction(float fraction) {
 // still applied over normalization — the bend included.
 - (void)testAQuietNormalizedReferenceDrawsTheLoudestColumnFull {
     float loudest = RMSAtFraction(0.5f);
-    float reference = loudest;
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, kVibeWaveformFullScaleRMS, 0), 0.5f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, reference, 0), 1.0f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(0.25f), reference, 0), 0.5f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, reference, -6),
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, loudest, 0), 1.0f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(0.25f), loudest, 0), 0.5f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, loudest, -6),
                                powf(powf(10, -6.0f / 20), exp2f(6.0f / 24)), 1e-5f);
-    XCTAssertEqual(VibeWaveformBarLevel(loudest, reference, 6), 1.0f);
+    XCTAssertEqual(VibeWaveformBarLevel(loudest, loudest, 6), 1.0f);
 }
 
 - (void)testLevelIsMonotonicInEnergyAtEveryGain {

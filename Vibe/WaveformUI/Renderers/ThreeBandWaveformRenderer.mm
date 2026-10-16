@@ -250,14 +250,17 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // Heights are each band's loudest window. Spectrum colors use a window of
 // their own, floored at kVibeWaveformSpectrumColorColumns and unclamped.
 - (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform {
-    NSUInteger count = part.count;
+    NSUInteger count = part.count, stride = _samplesPerBar;
     double frames = part.framesPerColumn();
-    std::vector<float> scratch(_spectrum ? count * kSpectrumSamplesPerBar : 0);
-    float *heights = _spectrum ? scratch.data() : out;
-    float *colors = heights + count * wavecore::kBandCount;
-    double total = (double)waveform->totalFrames();
+    // Under Normalize each band is measured against its own loudest window,
+    // so a hot master's bands fill their ceilings rather than pegging.
+    // Otherwise against its share of the fixed full scale.
+    wavecore::Column track = VibeWaveformNormalizeColumn(waveform, self.normalizesLevels);
     float references[wavecore::kBandCount];
-    [self bandReferences:references forWaveform:waveform];
+    for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
+        references[b] = track.bandLoudest[b] > 0 ? track.bandLoudest[b]
+                                                 : kVibeWaveformFullScaleRMS * kBandShareOfFullScale[b];
+    }
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
         // A column at a time, never through the detail, whose frames hold no
@@ -265,35 +268,20 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         double k = (double)(part.first + (int64_t)i);
         wavecore::Column column = waveform->column(k * frames, (k + 1) * frames);
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-            heights[i * wavecore::kBandCount + b] =
-                    kBandCeiling[b] * VibeWaveformBarLevel(column.bandLoudest[b], references[b], gainDB);
+            out[i * stride + b] = kBandCeiling[b] * VibeWaveformBarLevel(column.bandLoudest[b], references[b], gainDB);
         }
     }
     if (!_spectrum) {
         return;
     }
-    double halfWidth = fmax(frames, total / kVibeWaveformSpectrumColorColumns / 2);
-    waveform->tentBandMeanSquares(frames, part.first, count, halfWidth, colors);
+    std::vector<float> meanSquares(count * wavecore::kBandCount);
+    double halfWidth = fmax(frames, (double)waveform->totalFrames() / kVibeWaveformSpectrumColorColumns / 2);
+    waveform->tentBandMeanSquares(frames, part.first, count, halfWidth, meanSquares.data());
     for (NSUInteger i = 0; i < count; i++) {
-        float *bar = out + i * kSpectrumSamplesPerBar;
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-            bar[b] = heights[i * wavecore::kBandCount + b];
-            float meanSquare = fmaxf(colors[i * wavecore::kBandCount + b], 0);
-            bar[wavecore::kBandCount + b] = sqrtf(meanSquare) / kBandShareOfFullScale[b];
+            float meanSquare = fmaxf(meanSquares[i * wavecore::kBandCount + b], 0);
+            out[i * stride + wavecore::kBandCount + b] = sqrtf(meanSquare) / kBandShareOfFullScale[b];
         }
-    }
-}
-
-// Under Normalize each band is measured against its own loudest window in the
-// track, so no view can move it, and a hot master's bands fill their
-// ceilings rather than pegging. Otherwise against its share of the fixed
-// full scale.
-- (void)bandReferences:(float *)references forWaveform:(AudioWaveform *)waveform {
-    BOOL normalize = self.normalizesLevels && waveform->isComplete();
-    wavecore::Column track = normalize ? waveform->column(0, (double)waveform->totalFrames()) : wavecore::Column();
-    for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-        references[b] = track.bandLoudest[b] > 0 ? track.bandLoudest[b]
-                                                 : kVibeWaveformFullScaleRMS * kBandShareOfFullScale[b];
     }
 }
 

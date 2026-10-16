@@ -16,7 +16,7 @@ App-owned work that must unwind at rest. `quiesce` polls until all are zero and 
 | `priorityRecordsPending` | priority metadata records |
 | `datalessProbesInFlight`, `handleOpensInFlight` | attempt gauges, not containers. Probe accounting starts before the worker handoff and survives detachment from its claim. Handle-open accounting starts before dispatch. A failed quiesce can therefore tell stuck classification from downloading or opening |
 
-**The two cloud counters are not scored for growth, and must not be.** A cloud folder's sweep legitimately holds dozens of pending parses, and the lane is held for every foreground open. `quiesce` refuses to settle until both are zero, and `check_consistency` tests the conditions, not the magnitudes. `dump_cloud_health` reports both on both platforms. It is the only way to see them on iOS, which has no `dump_health` and no `quiesce`.
+**The two cloud counters are not scored for growth, and must not be.** A cloud folder's sweep legitimately holds dozens of pending parses, and the lane is held for every foreground open. `quiesce` refuses to settle until both are zero, and `check_consistency` tests the conditions, not the magnitudes. `dump_cloud_health` and `dump_health` report both on both platforms.
 
 `MetadataParseCoordinatorTests.testDebugPendingCountsTrackHoldersAndWaiters` checks that live holders and waiters produce nonzero counts.
 

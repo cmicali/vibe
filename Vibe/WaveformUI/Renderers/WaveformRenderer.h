@@ -31,14 +31,19 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// Normalize's reference is the track's loudest window: the waveform's own, so
-// no view can move it. A streaming load keeps the fixed reference: its
-// loudest window is only the loudest SO FAR, and a reference that rises per
-// delivery shrinks bars already drawn.
+// Normalize's reference is the whole track's column: the waveform's own, so
+// no view can move it. A streaming load keeps the fixed reference, which an
+// empty column stands for. Its loudest window is only the loudest SO FAR, and
+// a reference that rises per delivery shrinks bars already drawn.
+static inline wavecore::Column VibeWaveformNormalizeColumn(AudioWaveform *waveform, BOOL normalize) {
+    return normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames())
+                                               : wavecore::Column();
+}
+// The mix styles' Normalize only raises levels: its reference cannot exceed
+// the fixed one. Silence keeps the fixed reference.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize) {
-    float loudest = normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames()).loudest
-                                                        : 0;
-    return VibeWaveformNormalizedFullScaleRMS(loudest);
+    float loudest = VibeWaveformNormalizeColumn(waveform, normalize).loudest;
+    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
 
 // Both styles' gradient: a ramp down the band, the resting level at the top
@@ -189,11 +194,14 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch;
 
 // The level of each column of count on the grid of frames from first, its
-// loudest window with Normalize and Gain applied: the bar styles' and
-// Wiggle's. Stride permits interleaved envelopes; the caller supplies their
-// sign and symmetry.
-- (void)fillEnergyLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
-                   first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform;
+// loudest window with Normalize and Gain applied: Cupertino's, Sonic Cirrus'
+// and Wiggle's. Stride permits interleaved envelopes; the caller supplies
+// their sign and symmetry.
+- (void)fillLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
+             first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform;
+// The same for columns already read.
+- (void)fillLevels:(float *)out stride:(NSUInteger)stride columns:(const wavecore::Column *)columns
+             count:(NSUInteger)count waveform:(AudioWaveform *)waveform;
 
 // The finest a zoom may show this style, in frames a point. Here the summary
 // alone, and no wider than the width where the bars stop growing in number.

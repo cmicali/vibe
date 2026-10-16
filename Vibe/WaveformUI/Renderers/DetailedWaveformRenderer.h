@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSUInteger)numBarsForWidth:(CGFloat)width;
 
 // count interleaved, normalized [min, max] pairs for the columns of frames
-// from first: the energy-scaled envelope here, ±level in Cupertino. The one
+// from first: the level-scaled envelope here, ±level in Cupertino. The one
 // hook behind every target, a step's columns or a style's bars.
 - (void)fillColumns:(float *)out framesPerColumn:(double)frames first:(int64_t)first count:(NSUInteger)count
            waveform:(AudioWaveform *)waveform;

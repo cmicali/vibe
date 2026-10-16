@@ -86,12 +86,6 @@ static NSData *VibeBenchComponentsUISublayerFrames(CALayer *parent) {
     return frames;
 }
 
-// A layer's picture as its pixels.
-static NSData *VibeBenchComponentsUIContents(CALayer *layer) {
-    CGImageRef image = (__bridge CGImageRef)layer.contents;
-    return image ? CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))) : [NSData data];
-}
-
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
 // The Detailed family's mask, its coverage drawn into its contents.
 static NSData *VibeBenchComponentsUIMaskCoverage(WaveformRenderer *renderer) {

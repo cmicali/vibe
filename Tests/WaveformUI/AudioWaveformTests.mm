@@ -435,19 +435,16 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
         if (rms == 0 || rms >= kVibeWaveformFullScaleRMS) XCTAssertEqual(normalized, plain);
         for (float gain : {-12.0f, 0.0f, 12.0f}) {
             for (float fraction : {0.0f, 0.1f, 0.5f, 1.0f}) {
-                float energy = rms * rms * fraction;
-                float level = VibeWaveformBarLevel(energy, normalized, gain);
+                float level = VibeWaveformBarLevel(rms * fraction, normalized, gain);
                 XCTAssertTrue(std::isfinite(level));
-                XCTAssertGreaterThanOrEqual(level, VibeWaveformBarLevel(energy, plain, gain));
+                XCTAssertGreaterThanOrEqual(level, VibeWaveformBarLevel(rms * fraction, plain, gain));
             }
         }
     }
 }
 
-// Normalize only raises. A Detailed type's reference is its own energy
-// grid's, which a zoom step fixes, so its tallest column reaches full height;
-// the bar styles' is the track's loudest 1/1024, which coarser bars never
-// pass.
+// Normalize only raises. Every style's reference is the track's loudest
+// window, so a Detailed type's column holding it reaches full height.
 - (void)testEveryDetailedVariantNormalizesAgainstTheTracksOwnReference {
     std::vector<VibeTestBin> bins(8192, {-0.1f, 0.1f, 0.01f});
     bins[4095] = {-0.8f, 0.8f, 0.64f}; // a transient inside a quieter averaged section
@@ -498,7 +495,7 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     return envelope;
 }
 
-// Columns finer than the energy grid need not cover a transient its energy
+// Columns finer than the level grid need not cover a transient its level
 // holds. The quiet columns beside it must still draw quiet.
 - (void)testDetailedQuietBarsBesideATransientStayQuiet {
     std::vector<VibeTestBin> bins(8192, {-0.01f, 0.01f, 0.0001f});
@@ -508,7 +505,7 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     for (CGFloat width : {930.0, 931.0, 1200.0}) {
         std::vector<float> envelope = VibeDetailedColumns(renderer, waveform.get(), width);
         NSUInteger count = envelope.size() / 2;
-        XCTAssertGreaterThan(count, kVibeWaveformEnergyColumns);
+        XCTAssertGreaterThan(count, kVibeWaveformLevelColumns);
         for (NSUInteger i = 0; i < count; i++) {
             if (VibeTestColumn(waveform.get(), i, count).hi < 0.1f) {
                 XCTAssertLessThan(envelope[i * 2 + 1], 0.05f, @"width %g bar %lu", width, i);
@@ -517,8 +514,8 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     }
 }
 
-// A transient changes only the columns that hold it or read its energy
-// column, which are those whose centers lie within one energy column of it.
+// A transient changes only the columns that hold it or read its level
+// column, which are those whose centers lie within one level column of it.
 - (void)testDetailedBarsBesideAStraddlingTransientKeepTheirHeight {
     std::vector<VibeTestBin> steady(8192, {-0.1f, 0.1f, 0.01f}), bins = steady;
     bins[816] = {-0.9f, 0.9f, 0.81f};
@@ -530,11 +527,11 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
         NSUInteger count = envelope.size() / 2;
         double frames = 8192.0 / count;
         // Four pixels of columns at one column a pixel and two a point.
-        double energyFrames = frames * 4 * [renderer columnsPerPoint];
-        double transientColumn = floor(816 / energyFrames);
+        double levelFrames = frames * 4 * [renderer columnsPerPoint];
+        double transientColumn = floor(816 / levelFrames);
         NSUInteger untouched = 0;
         for (NSUInteger i = 0; i < count; i++) {
-            double u = (i + 0.5) * frames / energyFrames - 0.5;
+            double u = (i + 0.5) * frames / levelFrames - 0.5;
             BOOL reads = floor(u) == transientColumn || floor(u) + 1 == transientColumn;
             if (!reads && VibeTestColumn(waveform.get(), i, count).hi < 0.5f) {
                 XCTAssertEqualWithAccuracy(envelope[i * 2 + 1], plain[i * 2 + 1], 1e-3, @"width %g bar %lu", width, i);

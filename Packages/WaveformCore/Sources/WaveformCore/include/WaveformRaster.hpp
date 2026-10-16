@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -87,11 +88,6 @@ inline void ForEachColumnShare(int x, double perPixel, int64_t first, size_t cou
     }
 }
 
-template <typename Visit>
-inline void ForEachColumnShare(int x, double framesPerPixel, const StepPart &part, Visit visit) {
-    ForEachColumnShare(x, framesPerPixel / part.framesPerColumn(), part.first, part.count, visit);
-}
-
 // The two columns of a grid's [first, first + count) around a frame and how
 // far it lies between their centers, for a value read linearly from column to
 // column. Clamped at the ends.
@@ -117,10 +113,6 @@ inline ColumnPair ColumnPairAroundFrame(double frame, double framesPerColumn, in
     return {size_t(left), size_t(left) + 1, float(u - left)};
 }
 
-inline ColumnPair ColumnPairAroundFrame(double frame, const StepPart &part) {
-    return ColumnPairAroundFrame(frame, part.framesPerColumn(), part.first, part.count);
-}
-
 // Up to kLanes neighbouring pixel columns' coverage, accumulated exactly: a
 // partly covered row by its part. Spans arrive y-up, 0 at a column's bottom.
 // A span costs its two ends whatever its height. Coverage can exceed 1 until
@@ -131,7 +123,19 @@ public:
 
     explicit ColumnCoverage(int height);
 
-    void clear();
+    // Pixel columns [x0, x1) into out, column x0 first, kLanes at a time:
+    // spans(x, add) adds column x's spans with add(bottom, top, weight).
+    template <typename Spans>
+    void draw(int x0, int x1, uint32_t *out, ptrdiff_t rowStride, Spans spans) {
+        for (int x = x0; x < x1; x += kLanes) {
+            int lanes = std::min(kLanes, x1 - x);
+            for (int lane = 0; lane < lanes; lane++) {
+                spans(x + lane, [&](double bottom, double top, float weight) { addSpan(lane, bottom, top, weight); });
+            }
+            writeMask(out + (x - x0), rowStride, lanes);
+        }
+    }
+
     // Column lane's [bottom, top] in y-up pixels, times weight.
     void addSpan(int lane, double bottom, double top, float weight);
     // Column lane's coverage of a row, from the top, unclamped.
@@ -139,14 +143,15 @@ public:
     // Columns [0, lanes)' covered rows from the top, clamped to 0...1, as
     // premultiplied white: 32-bit ARGB in host order. A row no span covers is
     // left as out held it, so out starts cleared. out is column 0's top row,
-    // rowStride pixels a row, so a negative stride writes bottom-up.
+    // rowStride pixels a row, so a negative stride writes bottom-up. Leaves
+    // the coverage clear for the next columns.
     void writeMask(uint32_t *out, ptrdiff_t rowStride, int lanes);
 
 private:
     // Full rows as a difference array, partial rows directly, a row's lanes
     // together. Coverage changes only at the rows the spans touched, a bit
-    // each, so a mask walks those in order and fills the runs between them,
-    // and a clear resets only them.
+    // each, so a mask walks those in order, fills the runs between them and
+    // resets only them.
     void touch(int row) { touched_[size_t(row) >> 6] |= uint64_t(1) << (row & 63); }
     template <typename Visit> void forEachTouched(Visit visit) const;
 
@@ -161,10 +166,13 @@ private:
 // so edges that coincide do not stack their coverage into a bolder line.
 class ColumnPaint {
 public:
+    static constexpr size_t kMaxSpans = 16;
+
     explicit ColumnPaint(int height);
 
-    void clear();
+    void clear() { count_ = 0; }
     // [bottom, top] in y-up pixels, in an opaque color, 0...1 a component.
+    // Spans past kMaxSpans are dropped.
     void paintSpan(double bottom, double top, float red, float green, float blue);
     // Premultiplied 32-bit ARGB in host order, rows from the top, stepping
     // rowStride pixels a row. Only rows a span covers are written, so out
@@ -177,8 +185,8 @@ private:
         float red, green, blue;
     };
     int height_;
-    std::vector<Span> spans_;
-    std::vector<double> edges_;
+    Span spans_[kMaxSpans];
+    size_t count_ = 0;
 };
 
 }  // namespace wavecore

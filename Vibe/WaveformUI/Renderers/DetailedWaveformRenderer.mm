@@ -108,7 +108,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     std::vector<float> _bottoms;
     std::vector<float> _tops;
     std::vector<wavecore::Column> _columns;
-    std::vector<wavecore::Column> _energy;
+    std::vector<wavecore::Column> _levelColumns;
     std::vector<float> _levels;
 }
 
@@ -343,41 +343,39 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     }
     if (_wiggle) {
         // Keeps the [min, max] layout morphs and dips share.
-        [self fillEnergyLevels:out + 1 stride:2 framesPerColumn:frames first:first count:count waveform:waveform];
+        [self fillLevels:out + 1 stride:2 framesPerColumn:frames first:first count:count waveform:waveform];
         for (NSUInteger i = 0; i < count; i++) out[i * 2] = 0;
         return;
     }
     // Each column keeps its own min and max, scaled so the peaks draw the
     // level around them: DC-offset asymmetry and fine texture survive. The
-    // level, each energy column's loudest window, is read linearly between
-    // the centers of a coarser grid, so no edge of it shows when zoomed in.
+    // level is the loudest window of each column on a coarser grid, read
+    // linearly between that grid's centers, so no edge of it shows when
+    // zoomed in.
     _columns.resize(count);
     waveform->columns(frames, first, count, _columns.data());
     double total = (double)waveform->totalFrames();
-    double energyFrames = fmax(frames * [self energyColumnsPerColumn], total / kVibeWaveformEnergyColumns);
-    double firstEnergy = fmax(0, floor(((double)first + 0.5) * frames / energyFrames - 0.5));
-    double endEnergy = fmin(ceil(total / energyFrames),
-                            floor(((double)first + count - 0.5) * frames / energyFrames - 0.5) + 2);
-    size_t energyCount = endEnergy > firstEnergy ? (size_t)(endEnergy - firstEnergy) : 0;
-    if (energyCount == 0) {
+    double levelFrames = fmax(frames * [self levelColumnsPerColumn], total / kVibeWaveformLevelColumns);
+    double firstLevel = fmax(0, floor(((double)first + 0.5) * frames / levelFrames - 0.5));
+    double endLevel = fmin(ceil(total / levelFrames),
+                           floor(((double)first + count - 0.5) * frames / levelFrames - 0.5) + 2);
+    size_t levelCount = endLevel > firstLevel ? (size_t)(endLevel - firstLevel) : 0;
+    if (levelCount == 0) {
         std::fill(out, out + count * 2, 0.0f);
         return;
     }
-    _energy.resize(energyCount);
-    waveform->columns(energyFrames, (int64_t)firstEnergy, energyCount, _energy.data());
-    _levels.resize(energyCount);
+    _levelColumns.resize(levelCount);
+    waveform->columns(levelFrames, (int64_t)firstLevel, levelCount, _levelColumns.data());
+    _levels.resize(levelCount);
+    [self fillLevels:_levels.data() stride:1 columns:_levelColumns.data() count:levelCount waveform:waveform];
     const float *levels = _levels.data();
-    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
-    for (size_t j = 0; j < energyCount; j++) {
-        _levels[j] = VibeWaveformBarLevel(_energy[j].loudest, fullScaleRMS, self.gainDB);
-    }
-    const wavecore::Column *energy = _energy.data(), *columns = _columns.data();
+    const wavecore::Column *levelColumns = _levelColumns.data(), *columns = _columns.data();
     for (NSUInteger i = 0; i < count; i++) {
-        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(((double)first + i + 0.5) * frames, energyFrames,
-                                                                    (int64_t)firstEnergy, energyCount);
+        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(((double)first + i + 0.5) * frames, levelFrames,
+                                                                    (int64_t)firstLevel, levelCount);
         size_t left = pair.left, right = pair.right;
         float toRight = pair.toRight;
-        float leftPeak = energy[left].extent(), rightPeak = energy[right].extent();
+        float leftPeak = levelColumns[left].extent(), rightPeak = levelColumns[right].extent();
         float leftGain = leftPeak > 0 ? levels[left] / leftPeak : 0;
         float rightGain = rightPeak > 0 ? levels[right] / rightPeak : 0;
         // Silence has no shape to scale: the music beside it reaches across.
@@ -399,15 +397,15 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     }
 }
 
-// TRAP: the energy grid is never finer than kEnergyPixels. Its levels change
+// TRAP: the level grid is never finer than kLevelPixels. Its levels change
 // from column to column, and finer than a pixel they alias into a comb that
 // slides as a resize moves it. A multiple of the step's own columns, so a
 // step keeps one grid at every width.
-static const double kEnergyPixels = 4;
+static const double kLevelPixels = 4;
 
-- (double)energyColumnsPerColumn {
+- (double)levelColumnsPerColumn {
     double columnsPerPixel = [self columnsPerPoint] / _pixels.scale;
-    return columnsPerPixel > 0 ? kEnergyPixels * columnsPerPixel : 1;
+    return columnsPerPixel > 0 ? kLevelPixels * columnsPerPixel : 1;
 }
 
 - (void)backingScaleDidChange {
@@ -471,23 +469,18 @@ static const double kEnergyPixels = 4;
                                 framesPerPixel / window.parts[1].framesPerColumn()};
     return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
         wavecore::ColumnCoverage columns(pixels.height);
-        for (int x0 = pixels.x0; x0 < pixels.x1; x0 += wavecore::ColumnCoverage::kLanes) {
-            int lanes = MIN(wavecore::ColumnCoverage::kLanes, pixels.x1 - x0);
-            columns.clear();
-            for (int lane = 0; lane < lanes; lane++) {
-                for (int p = 0; p < 2; p++) {
-                    float weight = window.weight(p);
-                    size_t offset = window.offset(p);
-                    if (weight > 0) {
-                        wavecore::ForEachColumnShare(x0 + lane, perPixel[p], window.parts[p].first,
-                                                     window.parts[p].count, [&](size_t i, float share) {
-                            columns.addSpan(lane, bottoms[offset + i], tops[offset + i], weight * share);
-                        });
-                    }
+        columns.draw(pixels.x0, pixels.x1, out, stride, [&](int x, auto add) {
+            for (int p = 0; p < 2; p++) {
+                float weight = window.weight(p);
+                size_t offset = window.offset(p);
+                if (weight > 0) {
+                    wavecore::ForEachColumnShare(x, perPixel[p], window.parts[p].first, window.parts[p].count,
+                                                 [&](size_t i, float share) {
+                        add(bottoms[offset + i], tops[offset + i], weight * share);
+                    });
                 }
             }
-            columns.writeMask(out + (x0 - pixels.x0), stride, lanes);
-        }
+        });
     });
 }
 
@@ -501,22 +494,16 @@ static const double kEnergyPixels = 4;
     double barWidth = [self barWidthForWidth:size.width barCount:count] * pixels.scale;
     return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
         wavecore::ColumnCoverage columns(pixels.height);
-        for (int x0 = pixels.x0; x0 < pixels.x1; x0 += wavecore::ColumnCoverage::kLanes) {
-            int lanes = MIN(wavecore::ColumnCoverage::kLanes, pixels.x1 - x0);
-            columns.clear();
-            for (int lane = 0; lane < lanes; lane++) {
-                int x = x0 + lane;
-                long first = MAX(0L, (long)floor((x - barWidth) / pitch));
-                long end = MIN((long)count, (long)ceil((x + 1) / pitch));
-                for (long i = first; i < end; i++) {
-                    double overlap = fmin(x + 1, i * pitch + barWidth) - fmax(x, i * pitch);
-                    if (overlap > 0) {
-                        columns.addSpan(lane, bottoms[i], tops[i], (float)overlap);
-                    }
+        columns.draw(pixels.x0, pixels.x1, out, stride, [&](int x, auto add) {
+            long first = MAX(0L, (long)floor((x - barWidth) / pitch));
+            long end = MIN((long)count, (long)ceil((x + 1) / pitch));
+            for (long i = first; i < end; i++) {
+                double overlap = fmin(x + 1, i * pitch + barWidth) - fmax(x, i * pitch);
+                if (overlap > 0) {
+                    add(bottoms[i], tops[i], (float)overlap);
                 }
             }
-            columns.writeMask(out + (x0 - pixels.x0), stride, lanes);
-        }
+        });
     });
 }
 

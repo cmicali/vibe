@@ -158,10 +158,15 @@ static const NSUInteger kMaxBlockBars = 1024;
     [_morph invalidateTarget];
 }
 
-- (void)fillEnergyLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
-                   first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
+- (void)fillLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
+             first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     std::vector<wavecore::Column> columns(count);
     waveform->columns(frames, first, count, columns.data());
+    [self fillLevels:out stride:stride columns:columns.data() count:count waveform:waveform];
+}
+
+- (void)fillLevels:(float *)out stride:(NSUInteger)stride columns:(const wavecore::Column *)columns
+             count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {

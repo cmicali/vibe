@@ -16,6 +16,7 @@
 #import "VibeBenchComponents.h"
 
 #import <AVFAudio/AVFAudio.h>
+#import <QuartzCore/QuartzCore.h>
 
 #import "AppSettings.h"
 #import "AudioWaveformLoader.h"
@@ -340,6 +341,11 @@ void VibeBenchComponentsUIDump(NSString *name, NSData *bytes) {
     }
     NSString *path = [[NSString stringWithUTF8String:directory] stringByAppendingPathComponent:name];
     [bytes writeToFile:path atomically:YES];
+}
+
+NSData *VibeBenchComponentsUIContents(CALayer *layer) {
+    CGImageRef image = (__bridge CGImageRef)layer.contents;
+    return image ? CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))) : [NSData data];
 }
 
 // Set by a wait that ran out, so the driver fails the benchmark it ran in.

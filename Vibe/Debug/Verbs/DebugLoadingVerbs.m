@@ -104,8 +104,6 @@ NSArray<NSDictionary *> *VibeDebugLoadingVerbs(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            // The cloud lane's at-rest facts, both zero once a sweep settles.
-            // macOS also reports them in dump_health; this is iOS's only view.
             VibeDebugCmd(@"set_loading <off | indeterminate | fraction>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {
@@ -122,6 +120,7 @@ NSArray<NSDictionary *> *VibeDebugLoadingVerbs(void) {
                 [surface debugSetWaveformLoading:YES fraction:(float)fraction];
                 return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
             }),
+            // The cloud lane's at-rest facts, both zero once a sweep settles.
             VibeDebugCmd(@"dump_cloud_health", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

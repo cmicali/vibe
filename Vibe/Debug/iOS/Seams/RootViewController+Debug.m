@@ -485,7 +485,6 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     return 1;
 }
 
-// No pitch control on iOS; the same constant Now Playing publishes.
 static NSUInteger VibeCountViews(UIView *view) {
     NSUInteger total = 1;
     for (UIView *sub in view.subviews) {
@@ -528,6 +527,7 @@ static NSUInteger VibeCountViews(UIView *view) {
     [self.player debugSetWaveformLoading:shown fraction:fraction];
 }
 
+// No pitch control on iOS; the same constant Now Playing publishes.
 - (double)debugPlaybackRate {
     return 1.0;
 }

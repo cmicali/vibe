@@ -44,16 +44,20 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     ColumnCoverage clipped(4);
     clipped.addSpan(0, -5, 50, 0.5f);
     for (int r = 0; r < 4; r++) XCTAssertEqualWithAccuracy(clipped.at(0, r), 0.5, 1e-6);
-    clipped.clear();
-    XCTAssertEqual(clipped.at(0, 2), 0);
+    uint32_t mask[4] = {};
+    clipped.writeMask(mask, 1, 1);
+    XCTAssertEqual(clipped.at(0, 2), 0, @"a written mask leaves the coverage clear");
 }
 
 // Premultiplied white, clamped, and in the row order the stride asks for.
 - (void)testTheMaskIsClampedWhiteInEitherRowOrder {
     ColumnCoverage column(3);
-    column.addSpan(0, 2, 3, 2);
-    column.addSpan(0, 1, 2, 0.5f);
-    column.addSpan(1, 0, 3, 1);
+    auto addSpans = [&] {
+        column.addSpan(0, 2, 3, 2);
+        column.addSpan(0, 1, 2, 0.5f);
+        column.addSpan(1, 0, 3, 1);
+    };
+    addSpans();
     uint32_t pixels[3][2] = {};
     column.writeMask(&pixels[0][0], 2, 2);
     XCTAssertEqual(pixels[0][0], 0xffffffffu);
@@ -61,6 +65,7 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     XCTAssertEqual(pixels[2][0], 0u);
     for (int r = 0; r < 3; r++) XCTAssertEqual(pixels[r][1], 0xffffffffu, @"the second column, row %d", r);
     uint32_t flipped[3] = {};
+    addSpans();
     column.writeMask(flipped + 2, -1, 1);
     XCTAssertEqual(flipped[0], 0u);
     XCTAssertEqual(flipped[1], 0x80808080u);
@@ -107,7 +112,7 @@ static uint32_t VibeAlpha(uint32_t pixel) {
         StepPart part{12, 0, 100000};
         for (int x = 0; x < 50; x++) {
             float sum = 0;
-            wavecore::ForEachColumnShare(x, ratio * part.framesPerColumn(), part,
+            wavecore::ForEachColumnShare(x, ratio, part.first, part.count,
                                          [&](size_t, float share) { sum += share; });
             XCTAssertEqualWithAccuracy(sum, 1, 1e-5, @"ratio %g", ratio);
         }
@@ -122,7 +127,8 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     StepPart part{8, 1, 1};
     std::vector<float> shares(3, 0);
     for (int x = 0; x < 3; x++) {
-        wavecore::ForEachColumnShare(x, 12, part, [&](size_t column, float share) {
+        wavecore::ForEachColumnShare(x, 12 / part.framesPerColumn(), part.first, part.count,
+                                     [&](size_t column, float share) {
             XCTAssertEqual(column, 0u);
             shares[size_t(x)] += share;
         });
@@ -133,13 +139,13 @@ static uint32_t VibeAlpha(uint32_t pixel) {
 }
 
 - (void)testAValueReadsLinearlyBetweenColumnCenters {
-    StepPart part{2, 10, 4};  // 2 frames a column, columns 10...13
-    wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(22, part);  // between 11's and 12's centers
+    // 2 frames a column, columns 10...13.
+    wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(22, 2, 10, 4);  // between 11's and 12's centers
     XCTAssertEqual(pair.left, 0u);
     XCTAssertEqual(pair.right, 1u);
     XCTAssertEqualWithAccuracy(pair.toRight, 0.5, 1e-6);
-    XCTAssertEqual(wavecore::ColumnPairAroundFrame(0, part).left, 0u);
-    XCTAssertEqual(wavecore::ColumnPairAroundFrame(1000, part).right, 3u);
+    XCTAssertEqual(wavecore::ColumnPairAroundFrame(0, 2, 10, 4).left, 0u);
+    XCTAssertEqual(wavecore::ColumnPairAroundFrame(1000, 2, 10, 4).right, 3u);
 }
 
 // What the steps are for. The same columns drawn at two nearly equal scales
@@ -148,19 +154,15 @@ static uint32_t VibeAlpha(uint32_t pixel) {
 - (void)testAPictureChangesContinuouslyWithTheScale {
     std::mt19937 rng(5);
     std::uniform_real_distribution<float> height(0, 40);
-    StepPart part{0, 0, 4000};
-    std::vector<float> tops(part.count);
+    std::vector<float> tops(4000);
     for (float &top : tops) top = height(rng);
     auto draw = [&](double fpp) {
         std::vector<uint32_t> pixels(300 * 40);
-        ColumnCoverage column(40);
-        for (int x = 0; x < 300; x++) {
-            column.clear();
-            wavecore::ForEachColumnShare(x, fpp, part, [&](size_t i, float share) {
-                column.addSpan(0, 0, tops[i], share);
+        ColumnCoverage(40).draw(0, 300, pixels.data(), 300, [&](int x, auto add) {
+            wavecore::ForEachColumnShare(x, fpp, 0, tops.size(), [&](size_t i, float share) {
+                add(0, tops[i], share);
             });
-            column.writeMask(&pixels[size_t(x)], 300, 1);
-        }
+        });
         return pixels;
     };
     std::vector<uint32_t> a = draw(6.0), b = draw(6.0 * 1.0005);

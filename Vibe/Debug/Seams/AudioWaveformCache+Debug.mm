@@ -89,10 +89,12 @@ static std::atomic<double> sDebugDecodeSeconds{0};
         NSMutableArray *mins = [NSMutableArray arrayWithCapacity:count];
         NSMutableArray *maxes = [NSMutableArray arrayWithCapacity:count];
         NSMutableArray *meanSquares = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *loudest = [NSMutableArray arrayWithCapacity:count];
         NSMutableArray *frames = [NSMutableArray arrayWithCapacity:count];
-        NSMutableArray *bands[wavecore::kBandCount];
+        NSMutableArray *bands[wavecore::kBandCount], *bandLoudest[wavecore::kBandCount];
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
             bands[b] = [NSMutableArray arrayWithCapacity:count];
+            bandLoudest[b] = [NSMutableArray arrayWithCapacity:count];
         }
         std::vector<wavecore::Column> grid(count);
         waveform->columns(framesPerColumn, 0, count, grid.data());
@@ -100,9 +102,11 @@ static std::atomic<double> sDebugDecodeSeconds{0};
             [mins addObject:@(column.lo)];
             [maxes addObject:@(column.hi)];
             [meanSquares addObject:@(column.meanSquare())];
+            [loudest addObject:@(column.loudest)];
             [frames addObject:@(column.frames)];
             for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
                 [bands[b] addObject:@(column.bandMeanSquare(b))];
+                [bandLoudest[b] addObject:@(column.bandLoudest[b])];
             }
         }
         completion(@{
@@ -111,8 +115,9 @@ static std::atomic<double> sDebugDecodeSeconds{0};
             @"frames": @(waveform->totalFrames()), @"sampleRate": @(waveform->sampleRate()),
             @"columns": @(count), @"hasBands": @(waveform->hasBands()),
             @"bpm": @(codable.bpm), @"key": @(codable.key),
-            @"min": mins, @"max": maxes, @"meanSquare": meanSquares, @"columnFrames": frames,
+            @"min": mins, @"max": maxes, @"meanSquare": meanSquares, @"loudest": loudest, @"columnFrames": frames,
             @"bands": @{@"low": bands[0], @"mid": bands[1], @"high": bands[2]},
+            @"bandLoudest": @{@"low": bandLoudest[0], @"mid": bandLoudest[1], @"high": bandLoudest[2]},
         });
     }];
 }

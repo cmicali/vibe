@@ -73,13 +73,6 @@ static void VibeBenchComponentsZoomDraw(VibeBenchComponentsZoomState *state, CGF
     [state->renderer updateWaveform:bounds progress:0.4 waveform:state->waveform.get()];
 }
 
-// The picture last drawn, from the renderer's one picture layer.
-static NSData *VibeBenchComponentsZoomPicture(VibeBenchComponentsZoomState *state, NSString *key) {
-    CALayer *layer = [state->renderer valueForKey:key];
-    CGImageRef image = (__bridge CGImageRef)layer.contents;
-    return image ? CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))) : [NSData data];
-}
-
 // Thirty scroll frames a screen apart, each drawing a fresh window.
 static void VibeBenchComponentsZoomScroll(VibeBenchComponentsZoomState *state) {
     for (int i = 0; i < 30; i++) {
@@ -127,8 +120,9 @@ static void VibeBenchComponentsRegisterZoom(void) {
             VibeBenchComponentsZoomSetUp(state.get(), item.style, item.bands, item.width);
             item.body(state.get());
             [state->renderer settleMorphImmediately];
+            // The picture last drawn, from the renderer's one picture layer.
             VibeBenchComponentsUIDump([NSString stringWithFormat:@"ui-waveform-zoom-%s.raw", item.name],
-                                      VibeBenchComponentsZoomPicture(state.get(), item.picture));
+                                      VibeBenchComponentsUIContents([state->renderer valueForKey:item.picture]));
             return 30;
         }, [state, item]() {
             item.body(state.get());

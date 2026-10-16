@@ -111,6 +111,10 @@ NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger cou
 // byte for byte.
 void VibeBenchComponentsUIDump(NSString *name, NSData *bytes);
 
+// A layer's picture as its pixels, empty without one.
+@class CALayer;
+NSData *VibeBenchComponentsUIContents(CALayer *layer);
+
 // --analyze: every audio file under `root` through the waveform loader with
 // both analyzers, one "path<TAB>bpm<TAB>key" line each, in path order, so two
 // builds' answers can be diffed for exactness. Registered by the file that

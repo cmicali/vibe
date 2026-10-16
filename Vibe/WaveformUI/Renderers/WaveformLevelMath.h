@@ -25,8 +25,7 @@ static const float kVibeWaveformFullScaleRMS = 0.5f;
 static const float kVibeWaveformGainDBPerExponentDoubling = 24.0f;
 
 // fullScaleRMS draws full height at 0 dB: the fixed reference, or under
-// Normalize the track's loudest column capped at it, so normalizing only
-// raises.
+// Normalize one the track measures (WaveformRenderer.h).
 static inline float VibeWaveformBarLevel(float rms, float fullScaleRMS, float gainDB) {
     float level = fmaxf(rms, 0.0f) / fullScaleRMS;
     if (gainDB == 0) {
@@ -68,7 +67,7 @@ static inline void VibeSpectrumColor(const float *levels, const float primaries[
 // track, regardless of the drawn columns. Zoomed in, the stream's own shape
 // then draws under one smooth gain, and the sample line stays the line. Only
 // the level is floored. The min/max shape keeps each column's own resolution.
-static const NSUInteger kVibeWaveformEnergyColumns = 1024;
+static const NSUInteger kVibeWaveformLevelColumns = 1024;
 
 // Spectrum's color window is a tent 1/256 of the track from foot to foot,
 // about two beats on a typical track, so its weight is a beat's. A bar-long
@@ -78,9 +77,3 @@ static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 // pitch. The tent's leakage is the square of that. Coarser than the level
 // floor, because a bar's height may show each hit while its color should not.
 static const NSUInteger kVibeWaveformSpectrumColorColumns = 256;
-
-// Normalize only raises levels: its reference cannot exceed the fixed one.
-// Silence keeps the fixed reference to avoid division by zero.
-static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
-    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
-}

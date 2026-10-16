@@ -99,16 +99,6 @@ void ColumnCoverage::forEachTouched(Visit visit) const {
     }
 }
 
-void ColumnCoverage::clear() {
-    forEachTouched([&](int r) {
-        std::fill_n(&steps_[size_t(r) * kLanes], kLanes, 0.0f);
-        if (r < height_) {
-            std::fill_n(&partial_[size_t(r) * kLanes], kLanes, 0.0f);
-        }
-    });
-    std::fill(touched_.begin(), touched_.end(), 0);
-}
-
 void ColumnCoverage::addSpan(int lane, double bottom, double top, float weight) {
     if (!(top > bottom) || !(weight != 0)) {
         return;
@@ -186,32 +176,32 @@ void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride, int lanes) {
     simd_float4 run = 0;
     simd_uint4 between = 0;
     forEachTouched([&](int r) {
+        float *step = &steps_[size_t(r) * kLanes];
         if (r >= height_) {
+            std::fill_n(step, kLanes, 0.0f);
             return;
         }
         fill(r, between);
-        run += load(&steps_[size_t(r) * kLanes]);
+        run += load(step);
+        std::fill_n(step, kLanes, 0.0f);
         next = r;
-        fill(r + 1, pixels(run + load(&partial_[size_t(r) * kLanes])));
+        float *partial = &partial_[size_t(r) * kLanes];
+        fill(r + 1, pixels(run + load(partial)));
+        std::fill_n(partial, kLanes, 0.0f);
         next = r + 1;
         between = pixels(run);
     });
     fill(height_, between);
+    std::fill(touched_.begin(), touched_.end(), 0);
 }
 
-ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {
-    spans_.reserve(16);
-}
-
-void ColumnPaint::clear() {
-    spans_.clear();
-}
+ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {}
 
 void ColumnPaint::paintSpan(double bottom, double top, float red, float green, float blue) {
     bottom = std::fmax(bottom, 0.0);
     top = std::fmin(top, double(height_));
-    if (top > bottom) {
-        spans_.push_back({bottom, top, red, green, blue});
+    if (top > bottom && count_ < kMaxSpans) {
+        spans_[count_++] = {bottom, top, red, green, blue};
     }
 }
 
@@ -242,15 +232,10 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
     // Between two neighbouring span edges one span shows: the last painted
     // over that stretch. Full rows take its color at once. A row that holds
     // an edge sums the stretches crossing it.
-    double inlineEdges[32];
-    size_t edgeCount = 2 * spans_.size();
-    if (edgeCount > std::size(inlineEdges)) {
-        edges_.resize(edgeCount);
-    }
-    double *edges = edgeCount > std::size(inlineEdges) ? edges_.data() : inlineEdges;
+    double edges[2 * kMaxSpans] = {};
     size_t sorted = 0;
-    for (const Span &span : spans_) {
-        for (double edge : {span.bottom, span.top}) {
+    for (size_t s = 0; s < count_; s++) {
+        for (double edge : {spans_[s].bottom, spans_[s].top}) {
             // Insertion: a column holds a handful of spans.
             size_t i = sorted++;
             for (; i > 0 && edges[i - 1] > edge; i--) {
@@ -269,14 +254,14 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
         partial.add(float(cover), shown->red, shown->green, shown->blue);
     };
     // From the top down, so rows arrive in order.
-    for (size_t e = edgeCount; e-- > 1;) {
+    for (size_t e = sorted; e-- > 1;) {
         double bottom = edges[e - 1], top = edges[e];
         if (!(top > bottom)) {
             continue;
         }
         double middle = 0.5 * (bottom + top);
         shown = nullptr;
-        for (size_t i = spans_.size(); i-- > 0;) {
+        for (size_t i = count_; i-- > 0;) {
             if (spans_[i].bottom <= middle && middle < spans_[i].top) {
                 shown = &spans_[i];
                 break;

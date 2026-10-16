@@ -28,11 +28,11 @@ static const CGFloat kCupertinoBarWidth = 1;
                          pitch:width / count];
 }
 
-// Symmetric samples use the column's energy instead of its peak envelope.
+// Symmetric samples use the column's level instead of its peak envelope.
 // The centered setting still decides where the resulting bar stands.
 - (void)fillColumns:(float *)out framesPerColumn:(double)frames first:(int64_t)first count:(NSUInteger)count
            waveform:(AudioWaveform *)waveform {
-    [self fillEnergyLevels:out + 1 stride:2 framesPerColumn:frames first:first count:count waveform:waveform];
+    [self fillLevels:out + 1 stride:2 framesPerColumn:frames first:first count:count waveform:waveform];
     for (NSUInteger i = 0; i < count; i++) {
         out[i * 2] = -out[i * 2 + 1];
     }
