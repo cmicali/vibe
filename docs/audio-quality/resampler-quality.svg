@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 622 390" width="622" height="390" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Resampling: everything that isn&#x27;t the music">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.good1{fill:#ebf6ea}.bad1{fill:#f9eeee}.good2{fill:#ddf0dc}.bad2{fill:#f6e3e2}.good3{fill:#cceacb}.bad3{fill:#f3d5d5}.good4{fill:#b9e3b8}.bad4{fill:#f0c6c5}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.good1{fill:#182a17}.bad1{fill:#301e1d}.good2{fill:#173417}.bad2{fill:#3d201f}.good3{fill:#163f15}.bad3{fill:#4b2322}.good4{fill:#154b14}.bad4{fill:#5c2625}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="622" height="390" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Resampling: everything that isn&#x27;t the music</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">In dB against the signal. More negative is better. Green is better, red is worse.</text>
+<text class="t" x="210.2" y="80.0" font-size="11.5" text-anchor="middle" font-weight="600">Worst distortion + noise</text>
+<line class="a" x1="143.9" y1="86.0" x2="276.5" y2="86.0" stroke-width="1"/>
+<text class="t" x="376.2" y="80.0" font-size="11.5" text-anchor="middle" font-weight="600">Twenty tones vs. a perfect copy</text>
+<line class="a" x1="288.5" y1="86.0" x2="463.9" y2="86.0" stroke-width="1"/>
+<text class="t" x="534.0" y="80.0" font-size="11.5" text-anchor="middle" font-weight="600">There and back</text>
+<line class="a" x1="475.9" y1="86.0" x2="592.0" y2="86.0" stroke-width="1"/>
+<text class="m" x="174.0" y="104.0" font-size="11.5" text-anchor="middle" font-weight="600">r8brain</text>
+<text class="m" x="174.0" y="118.0" font-size="11.5" text-anchor="middle" font-weight="600">(Vibe)</text>
+<text class="m" x="246.3" y="104.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple</text>
+<text class="m" x="329.4" y="104.0" font-size="11.5" text-anchor="middle" font-weight="600">r8brain</text>
+<text class="m" x="329.4" y="118.0" font-size="11.5" text-anchor="middle" font-weight="600">(Vibe)</text>
+<text class="m" x="423.1" y="104.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple</text>
+<text class="m" x="501.9" y="104.0" font-size="11.5" text-anchor="middle" font-weight="600">r8brain</text>
+<text class="m" x="501.9" y="118.0" font-size="11.5" text-anchor="middle" font-weight="600">(Vibe)</text>
+<text class="m" x="566.0" y="104.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple</text>
+<line class="a" x1="24.0" y1="128.0" x2="598.0" y2="128.0" stroke-width="1"/>
+<text class="t" x="24.0" y="147.0" font-size="12" text-anchor="start">44.1 → 48 kHz</text>
+<rect class="good4" x="139.9" y="130.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="147.0" font-size="12" text-anchor="middle" font-weight="650">−149.2</text>
+<rect class="bad4" x="212.2" y="130.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="147.0" font-size="12" text-anchor="middle">−145.8</text>
+<rect class="good4" x="284.5" y="130.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="147.0" font-size="12" text-anchor="middle" font-weight="650">−149.0</text>
+<rect class="bad4" x="378.2" y="130.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="147.0" font-size="12" text-anchor="middle">−145.6</text>
+<rect class="good4" x="471.9" y="130.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="147.0" font-size="12" text-anchor="middle" font-weight="650">−149.9</text>
+<rect class="bad4" x="536.0" y="130.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="147.0" font-size="12" text-anchor="middle">−143.3</text>
+<line class="g" x1="24.0" y1="158.0" x2="598.0" y2="158.0" stroke-width="1"/>
+<text class="t" x="24.0" y="177.0" font-size="12" text-anchor="start">48 → 44.1 kHz</text>
+<rect class="good4" x="139.9" y="160.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="177.0" font-size="12" text-anchor="middle" font-weight="650">−150.0</text>
+<rect class="bad4" x="212.2" y="160.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="177.0" font-size="12" text-anchor="middle">−146.2</text>
+<rect class="good4" x="284.5" y="160.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="177.0" font-size="12" text-anchor="middle" font-weight="650">−149.1</text>
+<rect class="bad4" x="378.2" y="160.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="177.0" font-size="12" text-anchor="middle">−146.0</text>
+<rect class="good4" x="471.9" y="160.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="177.0" font-size="12" text-anchor="middle" font-weight="650">−149.4</text>
+<rect class="bad4" x="536.0" y="160.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="177.0" font-size="12" text-anchor="middle">−143.2</text>
+<line class="g" x1="24.0" y1="188.0" x2="598.0" y2="188.0" stroke-width="1"/>
+<text class="t" x="24.0" y="207.0" font-size="12" text-anchor="start">44.1 → 96 kHz</text>
+<rect class="good4" x="139.9" y="190.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="207.0" font-size="12" text-anchor="middle" font-weight="650">−149.6</text>
+<rect class="bad4" x="212.2" y="190.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="207.0" font-size="12" text-anchor="middle">−145.9</text>
+<rect class="good4" x="284.5" y="190.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="207.0" font-size="12" text-anchor="middle" font-weight="650">−149.0</text>
+<rect class="bad4" x="378.2" y="190.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="207.0" font-size="12" text-anchor="middle">−145.6</text>
+<rect class="good4" x="471.9" y="190.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="207.0" font-size="12" text-anchor="middle" font-weight="650">−151.3</text>
+<rect class="bad4" x="536.0" y="190.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="207.0" font-size="12" text-anchor="middle">−145.7</text>
+<line class="g" x1="24.0" y1="218.0" x2="598.0" y2="218.0" stroke-width="1"/>
+<text class="t" x="24.0" y="237.0" font-size="12" text-anchor="start">96 → 44.1 kHz</text>
+<rect class="good4" x="139.9" y="220.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="237.0" font-size="12" text-anchor="middle" font-weight="650">−151.2</text>
+<rect class="bad4" x="212.2" y="220.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="237.0" font-size="12" text-anchor="middle">−148.1</text>
+<rect class="good4" x="284.5" y="220.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="237.0" font-size="12" text-anchor="middle" font-weight="650">−150.3</text>
+<rect class="bad4" x="378.2" y="220.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="237.0" font-size="12" text-anchor="middle">−148.2</text>
+<rect class="good4" x="471.9" y="220.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="237.0" font-size="12" text-anchor="middle" font-weight="650">−148.9</text>
+<rect class="bad4" x="536.0" y="220.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="237.0" font-size="12" text-anchor="middle">−144.3</text>
+<line class="g" x1="24.0" y1="248.0" x2="598.0" y2="248.0" stroke-width="1"/>
+<text class="t" x="24.0" y="267.0" font-size="12" text-anchor="start">88.2 → 44.1 kHz</text>
+<rect class="good4" x="139.9" y="250.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="267.0" font-size="12" text-anchor="middle" font-weight="650">−152.4</text>
+<rect class="bad4" x="212.2" y="250.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="267.0" font-size="12" text-anchor="middle">−148.7</text>
+<rect class="good4" x="284.5" y="250.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="267.0" font-size="12" text-anchor="middle" font-weight="650">−151.7</text>
+<rect class="bad4" x="378.2" y="250.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="267.0" font-size="12" text-anchor="middle">−147.3</text>
+<rect class="good4" x="471.9" y="250.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="267.0" font-size="12" text-anchor="middle" font-weight="650">−150.2</text>
+<rect class="bad4" x="536.0" y="250.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="267.0" font-size="12" text-anchor="middle">−142.7</text>
+<line class="g" x1="24.0" y1="278.0" x2="598.0" y2="278.0" stroke-width="1"/>
+<text class="t" x="24.0" y="297.0" font-size="12" text-anchor="start">96 → 48 kHz</text>
+<rect class="good4" x="139.9" y="280.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="297.0" font-size="12" text-anchor="middle" font-weight="650">−152.6</text>
+<rect class="bad4" x="212.2" y="280.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="297.0" font-size="12" text-anchor="middle">−148.9</text>
+<rect class="good4" x="284.5" y="280.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="297.0" font-size="12" text-anchor="middle" font-weight="650">−151.7</text>
+<rect class="bad4" x="378.2" y="280.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="297.0" font-size="12" text-anchor="middle">−147.3</text>
+<rect class="good4" x="471.9" y="280.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="297.0" font-size="12" text-anchor="middle" font-weight="650">−150.2</text>
+<rect class="bad4" x="536.0" y="280.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="297.0" font-size="12" text-anchor="middle">−142.5</text>
+<line class="g" x1="24.0" y1="308.0" x2="598.0" y2="308.0" stroke-width="1"/>
+<text class="t" x="24.0" y="327.0" font-size="12" text-anchor="start">192 → 48 kHz</text>
+<rect class="good4" x="139.9" y="310.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="327.0" font-size="12" text-anchor="middle" font-weight="650">−152.5</text>
+<rect class="bad4" x="212.2" y="310.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="327.0" font-size="12" text-anchor="middle">−147.9</text>
+<rect class="good4" x="284.5" y="310.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="327.0" font-size="12" text-anchor="middle" font-weight="650">−151.7</text>
+<rect class="bad4" x="378.2" y="310.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="327.0" font-size="12" text-anchor="middle">−150.3</text>
+<rect class="good4" x="471.9" y="310.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="327.0" font-size="12" text-anchor="middle" font-weight="650">−149.5</text>
+<rect class="bad4" x="536.0" y="310.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="327.0" font-size="12" text-anchor="middle">−145.8</text>
+<line class="g" x1="24.0" y1="338.0" x2="598.0" y2="338.0" stroke-width="1"/>
+<text class="t" x="24.0" y="357.0" font-size="12" text-anchor="start">44.1 → 192 kHz</text>
+<rect class="good4" x="139.9" y="340.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="174.0" y="357.0" font-size="12" text-anchor="middle" font-weight="650">−149.6</text>
+<rect class="bad4" x="212.2" y="340.0" width="68.3" height="26" rx="4"/>
+<text class="t" x="246.3" y="357.0" font-size="12" text-anchor="middle">−146.2</text>
+<rect class="good4" x="284.5" y="340.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="329.4" y="357.0" font-size="12" text-anchor="middle" font-weight="650">−148.9</text>
+<rect class="bad4" x="378.2" y="340.0" width="89.7" height="26" rx="4"/>
+<text class="t" x="423.1" y="357.0" font-size="12" text-anchor="middle">−145.7</text>
+<rect class="good4" x="471.9" y="340.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="501.9" y="357.0" font-size="12" text-anchor="middle" font-weight="650">−151.8</text>
+<rect class="bad4" x="536.0" y="340.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="566.0" y="357.0" font-size="12" text-anchor="middle">−148.0</text>
+</svg>

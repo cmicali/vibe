@@ -32,7 +32,7 @@ Plain requests map to one command each. Run the matching one with the procedure 
 | "Just redraw the page" | `make bench-report` |
 | "Is my change faster than main?" | `make bench-components` (compares refs; the page is untouched) |
 
-**The page's two halves can live on different Macs.** Each half of `docs/performance.md` names the machine it was measured on, in its intro line and in `results.json`. Use `make bench-releases` (both halves) only on a Mac that matches both; otherwise run `make bench-app` on the Mac that holds **The app** and `make bench-components-releases` on the one that holds **Components**. The component benchmarks don't launch the app, so they can run on a Mac that's in use.
+**The page's two suites can live on different Macs.** The generated block at the top of `docs/performance.md` names each suite's machine, and so does `results.json`. Use `make bench-releases` (both suites) only on a Mac that matches both. Otherwise run `make bench-app` on the app benchmarks' Mac and `make bench-components-releases` on the component benchmarks' Mac. The component benchmarks don't launch the app, so they can run on a Mac that's in use.
 
 **The guard.** Before measuring, every release target compares this Mac (chip, cores, memory, macOS, Xcode) and its corpus against the history it is adding to. If they differ and the run would leave versions behind, it refuses and prints what differs: the page charts only versions measured on the newest entry's setup, so a run on the wrong Mac, or after a macOS or Xcode update, would silently take every version it didn't rerun off the page. When it refuses, report the differences and stop. Rerunning every version (no `VERSIONS`) always passes; pass `ARGS="--new-machine"` only when the user says to start that half's history on this Mac.
 
@@ -42,7 +42,7 @@ Plain requests map to one command each. Run the matching one with the procedure 
 2. **Prerequisites:** Xcode, `make setup` (xcodegen and the rest) and `brew install ffmpeg`. The corpus is generated on first use.
 3. **For the app benchmarks only:** the Mac on power, output on the built-in speakers (put Bluetooth headphones away; the AirPods are often the default), Vibe quit, and nothing else using the Mac: every launch takes focus, and the runner waits for the machine to be 80% idle before each scenario.
 4. **Run it in the background under `caffeinate -dimsu`**, with a Monitor on its output, and relay each version's lines (`1.14 rep 2/5 playback: 244s`, `1.14: VibeBenchComponents, 32 benchmarks`) as they land. The app benchmarks take about half an hour a version, longer on slower Macs; the component benchmarks a few minutes. Each version is saved as it finishes, so an interrupted run loses only the version in progress.
-5. **Verify:** the run ends with `report: N versions, M charts` and no `leaving out` line; each measured entry in `results.json` has the expected `ref`, `commit` and `prerelease`. Show the user the changed columns of the page's table.
+5. **Verify:** the run ends with `report: N versions, M charts`, with no `leaving out` line and no `does not show` line. Each measured entry in `results.json` has the expected `ref`, `commit` and `prerelease`. Show the user the changed columns of the release table (`docs/performance/summary.svg`). A big move deserves a sentence in its section of the page, saying which change did it.
 6. **Commit** `docs/performance.md` and `docs/performance/` with a message naming the versions and the machine, and push. No attribution lines.
 
 ## Comparing two refs
@@ -64,7 +64,7 @@ The corpus is the app benchmarks' (`build/bench/corpus`: the play files, a 600-f
 
 ## Charting every release on the performance page
 
-`docs/performance.md` has two sets of charts: **The app** (the app benchmarks) and **Components** (the component benchmarks). This skill owns the second: `perf.py releases` measures each version, and `PAGE_CHARTS` in `perf.py` decides what is measured and drawn.
+`docs/performance.md` has one section per decision, each with the charts that back it, from either suite. This skill owns the component charts: `perf.py releases` measures each version, and `PAGE_CHARTS` in `perf.py` decides what is measured and drawn.
 
 ### Generating it
 
@@ -92,11 +92,11 @@ For each version, `measure_release` in `perf.py`:
 2. **Grafts today's harness onto it** (`graft`, `features`, `tool_spec`), as described under Comparing two refs.
 3. **Builds it Release, leaving out what it cannot compile.** A benchmark file that fails against the old code is deleted from that checkout and the build retried. The binary is cached under `build/bench-components/bin/<commit>-<harness digest>/`.
 4. **Runs only the page's benchmarks** (`page_filter`, every name in `PAGE_CHARTS`), five repetitions, and stores the medians — CPU ms, wall ms, millions of instructions, units — with the commit, `prerelease`, date, corpus hash, machine and harness digest, under the version in `results.json`'s `components` section. A benchmark the version cannot build is absent, not zero, so its line starts at the first version that has the code.
-5. **Redraws the page** (`scripts/bench/report.py`): one SVG per `PAGE_CHARTS` entry into `docs/performance/components-*.svg`, and the block between the page's `<!-- performance:begin -->` and `<!-- performance:end -->` markers, the app benchmarks' charts included.
+5. **Redraws the page** (`scripts/bench/report.py`, drawing with `scripts/docs/charts.py`): one SVG per `PAGE_CHARTS` entry with data into `docs/performance/components-*.svg`, the app benchmarks' charts, the release table (`summary.svg`), and the machine line between the page's `<!-- performance:begin -->` and `<!-- performance:end -->` markers. The sections show each chart by file name, and `report.py` names any chart the page doesn't show.
 
 ### Changing what the page shows
 
-`PAGE_CHARTS` is the only list. Each entry is `(svg name, title, unit, [(benchmark, measure, legend)], decimals)`, at most four series; the measures (`cpu_per_minute`, `cpu_per_unit`, `wall_per_unit`, `us_per_unit`, `wall`, `wall_s`) are `page_value`'s. Adding a series or a chart means adding it there and running `make bench-components-releases` with no `VERSIONS`, so every version gets the new benchmark; one the old versions cannot build simply starts late. A new benchmark *file* also has to build against old code, which is "Adding a benchmark" below.
+`PAGE_CHARTS` is the only list. Each entry is `(svg name, title, unit, [(benchmark, measure, legend)], decimals)`, at most four series; the measures (`cpu_per_minute`, `cpu_per_unit`, `wall_per_unit`, `us_per_unit`, `wall`, `wall_s`) are `page_value`'s. Adding a series or a chart means adding it there and running `make bench-components-releases` with no `VERSIONS`, so every version gets the new benchmark; one the old versions cannot build simply starts late. A new chart also needs a line in the section of `docs/performance.md` it belongs to, or under More charts. A series whose legend is a format name (`MP3 320k`, `AAC 256k`, `FLAC 16/44.1`, `FLAC 24/192`, `WAV 24/96`) keeps that format's color on every chart (`report.py`'s `SLOT`). A new benchmark *file* also has to build against old code, which is "Adding a benchmark" below.
 
 ### When it goes wrong
 

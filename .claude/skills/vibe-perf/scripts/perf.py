@@ -348,11 +348,11 @@ PAGE_CHARTS = [
         ('pitch.-8', 'cpu_per_minute', '−8%'),
         ('pitch.+4', 'cpu_per_minute', '+4%'),
         ('pitch.+16', 'cpu_per_minute', '+16%')], 0),
-    ('components-metadata', 'Reading a file\'s tags and cover art', 'ms per file', [
-        ('metadata.mp3-320', 'wall_per_unit', 'MP3, 1000 px cover'),
-        ('metadata.flac-16-44', 'wall_per_unit', 'FLAC, 1000 px cover'),
-        ('metadata.aac-256', 'wall_per_unit', 'AAC, 1000 px cover'),
-        ('metadata.library-mp3', 'wall_per_unit', 'Library MP3, 600 px')], 2),
+    ('components-metadata', 'Reading tags and a 1000 px cover', 'ms per file', [
+        ('metadata.mp3-320', 'wall_per_unit', 'MP3 320k'),
+        ('metadata.aac-256', 'wall_per_unit', 'AAC 256k'),
+        ('metadata.flac-16-44', 'wall_per_unit', 'FLAC 16/44.1'),
+        ('metadata.library-mp3', 'wall_per_unit', 'Library MP3, 600 px cover')], 2),
     ('components-disk-cache', 'The metadata and waveform disk cache', 'µs per entry', [
         ('pincache.hit-300', 'us_per_unit', 'Hit'),
         ('pincache.write-300', 'us_per_unit', 'Write'),

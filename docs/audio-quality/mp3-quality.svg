@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 644 278" width="644" height="278" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="MP3 decoders: what you hear">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.good1{fill:#ebf6ea}.bad1{fill:#f9eeee}.good2{fill:#ddf0dc}.bad2{fill:#f6e3e2}.good3{fill:#cceacb}.bad3{fill:#f3d5d5}.good4{fill:#b9e3b8}.bad4{fill:#f0c6c5}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.good1{fill:#182a17}.bad1{fill:#301e1d}.good2{fill:#173417}.bad2{fill:#3d201f}.good3{fill:#163f15}.bad3{fill:#4b2322}.good4{fill:#154b14}.bad4{fill:#5c2625}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="644" height="278" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">MP3 decoders: what you hear</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Green is the best in each row, red the worst.</text>
+<text class="m" x="316.1" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">dr_mp3</text>
+<text class="m" x="316.1" y="96.0" font-size="11.5" text-anchor="middle" font-weight="600">(Vibe)</text>
+<text class="m" x="404.2" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple,</text>
+<text class="m" x="404.2" y="96.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple silicon</text>
+<text class="m" x="492.3" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple,</text>
+<text class="m" x="492.3" y="96.0" font-size="11.5" text-anchor="middle" font-weight="600">Intel</text>
+<text class="m" x="577.4" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">BASS</text>
+<line class="a" x1="24.0" y1="106.0" x2="620.0" y2="106.0" stroke-width="1"/>
+<text class="t" x="24.0" y="125.0" font-size="12" text-anchor="start">Output</text>
+<rect class="good3" x="275.5" y="108.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="316.1" y="125.0" font-size="12" text-anchor="middle">32-bit float</text>
+<rect class="bad3" x="360.7" y="108.0" width="87.0" height="26" rx="4"/>
+<text class="t" x="404.2" y="125.0" font-size="12" text-anchor="middle">16-bit</text>
+<rect class="good3" x="451.7" y="108.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="492.3" y="125.0" font-size="12" text-anchor="middle">32-bit float</text>
+<rect class="good3" x="536.8" y="108.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="577.4" y="125.0" font-size="12" text-anchor="middle">32-bit float</text>
+<line class="g" x1="24.0" y1="136.0" x2="620.0" y2="136.0" stroke-width="1"/>
+<text class="t" x="24.0" y="155.0" font-size="12" text-anchor="start">Error on a quiet passage, below the music</text>
+<rect class="good4" x="275.5" y="138.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="316.1" y="155.0" font-size="12" text-anchor="middle" font-weight="650">127 dB</text>
+<rect class="bad4" x="360.7" y="138.0" width="87.0" height="26" rx="4"/>
+<text class="t" x="404.2" y="155.0" font-size="12" text-anchor="middle">31 dB</text>
+<text class="t" x="492.3" y="155.0" font-size="12" text-anchor="middle">–</text>
+<rect class="good4" x="536.8" y="138.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="577.4" y="155.0" font-size="12" text-anchor="middle" font-weight="650">127 dB</text>
+<line class="g" x1="24.0" y1="166.0" x2="620.0" y2="166.0" stroke-width="1"/>
+<text class="t" x="24.0" y="185.0" font-size="12" text-anchor="start">ISO accuracy, times inside the limit</text>
+<rect class="good2" x="275.5" y="168.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="316.1" y="185.0" font-size="12" text-anchor="middle">105×</text>
+<rect class="bad4" x="360.7" y="168.0" width="87.0" height="26" rx="4"/>
+<text class="t" x="404.2" y="185.0" font-size="12" text-anchor="middle">1×</text>
+<rect class="good4" x="451.7" y="168.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="492.3" y="185.0" font-size="12" text-anchor="middle" font-weight="650">150×</text>
+<rect class="good1" x="536.8" y="168.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="577.4" y="185.0" font-size="12" text-anchor="middle">100×</text>
+<line class="g" x1="24.0" y1="196.0" x2="620.0" y2="196.0" stroke-width="1"/>
+<text class="t" x="24.0" y="215.0" font-size="12" text-anchor="start">Peaks on a loud master</text>
+<rect class="good3" x="275.5" y="198.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="316.1" y="215.0" font-size="12" text-anchor="middle">Kept</text>
+<rect class="bad3" x="360.7" y="198.0" width="87.0" height="26" rx="4"/>
+<text class="t" x="404.2" y="215.0" font-size="12" text-anchor="middle">Clipped</text>
+<rect class="bad3" x="451.7" y="198.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="492.3" y="215.0" font-size="12" text-anchor="middle">Clipped</text>
+<rect class="good3" x="536.8" y="198.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="577.4" y="215.0" font-size="12" text-anchor="middle">Kept</text>
+<line class="g" x1="24.0" y1="226.0" x2="620.0" y2="226.0" stroke-width="1"/>
+<text class="t" x="24.0" y="245.0" font-size="12" text-anchor="start">Last 12 ms without gapless info</text>
+<rect class="good3" x="275.5" y="228.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="316.1" y="245.0" font-size="12" text-anchor="middle">Played</text>
+<rect class="bad3" x="360.7" y="228.0" width="87.0" height="26" rx="4"/>
+<text class="t" x="404.2" y="245.0" font-size="12" text-anchor="middle">Silent</text>
+<rect class="bad3" x="451.7" y="228.0" width="81.2" height="26" rx="4"/>
+<text class="t" x="492.3" y="245.0" font-size="12" text-anchor="middle">Silent</text>
+<text class="t" x="577.4" y="245.0" font-size="12" text-anchor="middle">–</text>
+</svg>
