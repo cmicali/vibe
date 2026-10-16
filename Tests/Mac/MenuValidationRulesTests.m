@@ -81,18 +81,19 @@
     XCTAssertNil(VibeViewToggleTitle(kVibeMenuLockWindowPosition, NO));
 }
 
-// A skip names its distance: the base bar count, twice and four times it
-// with a tempo, else 10, 30 and 60 seconds. A base of 0 is unset and reads 8.
+// A skip names only its distance: the base bar count, twice and four times
+// it with a tempo, else 10, 30 and 60 seconds. A base of 0 is unset and reads
+// 8. The direction is the submenu's.
 - (void)testSkipItemsNameTheirDistance {
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBack, 4, YES), @"Skip Back 4 Bars");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBackMore, 4, YES), @"Skip Back 8 Bars");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBackMost, 16, YES), @"Skip Back 64 Bars");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForward, 0, YES), @"Skip Forward 8 Bars");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMore, 8, YES), @"Skip Forward 16 Bars");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMost, 8, YES), @"Skip Forward 32 Bars");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBack, 8, NO), @"Skip Back 10 Seconds");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMore, 8, NO), @"Skip Forward 30 Seconds");
-    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMost, 8, NO), @"Skip Forward 60 Seconds");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBack, 4, YES), @"4 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBackMore, 4, YES), @"8 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBackMost, 16, YES), @"64 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForward, 0, YES), @"8 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMore, 8, YES), @"16 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMost, 8, YES), @"32 Bars");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipBack, 8, NO), @"10 Seconds");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMore, 8, NO), @"30 Seconds");
+    XCTAssertEqualObjects(VibeSkipMenuTitle(kVibeMenuSkipForwardMost, 8, NO), @"60 Seconds");
     XCTAssertNil(VibeSkipMenuTitle(kVibeMenuNextTrack, 8, YES));
     XCTAssertNil(VibeSkipMenuTitle(nil, 8, NO));
 }

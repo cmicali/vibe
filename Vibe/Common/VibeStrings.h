@@ -102,9 +102,9 @@ static inline NSString *VibeAppName(void) {
 
 #pragma mark - Playback menu
 
-// A skip item names its distance: whole bars when the track's tempo is known,
-// else wall-clock seconds. The counts are 4 to 64 bars and 10, 30 or 60
-// seconds, never 1.
+// Skip Back and Skip Forward each hold three distances: whole bars when the
+// track's tempo is known, else wall-clock seconds. The counts are 4 to 64 bars
+// and 10, 30 or 60 seconds, never 1.
 
 #define STR_MENU_PLAYBACK          NSLS(@"menu.playback",                   @"Playback",          @"Menu bar: the Playback menu; also the Playback pane's sidebar item in the macOS Settings window, and the Playback row and screen title on iOS settings.")
 #define STR_MENU_PLAY_SELECTED     NSLS(@"menu.playback.play_selected",     @"Play Selected Track", @"Playback menu item: play the playlist row the user has selected, rather than the one already playing.")
@@ -112,10 +112,10 @@ static inline NSString *VibeAppName(void) {
 #define STR_MENU_REPEAT_OFF        NSLS(@"menu.playback.repeat.off",        @"Off",               @"Repeat submenu item: playback stops at the end of the playlist.")
 #define STR_MENU_REPEAT_ALL        NSLS(@"menu.playback.repeat.all",        @"All",               @"Repeat submenu item: after the last track the playlist plays again from the start.")
 #define STR_MENU_REPEAT_ONE        NSLS(@"menu.playback.repeat.one",        @"One",               @"Repeat submenu item: the current track replays when it ends.")
-#define STR_MENU_SKIP_BACK_BARS       NSLS(@"menu.playback.skip_back_bars",       @"Skip Back %ld Bars",       @"Playback menu item: seek backward a whole number of musical bars. %ld is the count, 4 to 64, never 1.")
-#define STR_MENU_SKIP_BACK_SECONDS    NSLS(@"menu.playback.skip_back_seconds",    @"Skip Back %ld Seconds",    @"Playback menu item: seek backward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.")
-#define STR_MENU_SKIP_FORWARD_BARS    NSLS(@"menu.playback.skip_forward_bars",    @"Skip Forward %ld Bars",    @"Playback menu item: seek forward a whole number of musical bars. %ld is the count, 4 to 64, never 1.")
-#define STR_MENU_SKIP_FORWARD_SECONDS NSLS(@"menu.playback.skip_forward_seconds", @"Skip Forward %ld Seconds", @"Playback menu item: seek forward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.")
+#define STR_MENU_SKIP_BACK         NSLS(@"menu.playback.skip_back",         @"Skip Back",         @"Playback menu: submenu of three distances to seek backward by.")
+#define STR_MENU_SKIP_FORWARD      NSLS(@"menu.playback.skip_forward",      @"Skip Forward",      @"Playback menu: submenu of three distances to seek forward by.")
+#define STR_MENU_SKIP_BARS         NSLS(@"menu.playback.skip_bars",         @"%ld Bars",          @"Skip Back and Skip Forward submenu item: a distance in whole musical bars. %ld is the count, 4 to 64, never 1.")
+#define STR_MENU_SKIP_SECONDS      NSLS(@"menu.playback.skip_seconds",      @"%ld Seconds",       @"Skip Back and Skip Forward submenu item: a distance in seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.")
 #define STR_MENU_PITCH_RANGE       NSLS(@"menu.playback.pitch_range",       @"Pitch Range",       @"Playback menu: submenu selecting the pitch fader's range (±8% or ±16%).")
 #define STR_MENU_PITCH_RANGE_8     NSLS(@"menu.playback.pitch_range.8",     @"±8%",               @"Pitch Range submenu item: a fader range of 8% above and below. Keep the ± sign.")
 #define STR_MENU_PITCH_RANGE_16    NSLS(@"menu.playback.pitch_range.16",    @"±16%",              @"Pitch Range submenu item: a fader range of 16% above and below. Keep the ± sign.")

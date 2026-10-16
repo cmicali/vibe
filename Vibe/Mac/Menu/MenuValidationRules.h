@@ -285,7 +285,7 @@ static inline NSString *_Nullable VibeViewToggleTitle(NSString *identifier, BOOL
     return nil;
 }
 
-// The skip items in menu order, back before forward, each three levels deep.
+// The three levels of the Skip Back and Skip Forward submenus, in menu order.
 static inline NSInteger VibeSkipMenuLevel(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:kVibeMenuSkipBack] || [identifier isEqualToString:kVibeMenuSkipForward]) return 0;
     if ([identifier isEqualToString:kVibeMenuSkipBackMore] || [identifier isEqualToString:kVibeMenuSkipForwardMore]) return 1;
@@ -293,24 +293,18 @@ static inline NSInteger VibeSkipMenuLevel(NSString *_Nullable identifier) {
     return -1;
 }
 
-static inline BOOL VibeSkipMenuIsForward(NSString *_Nullable identifier) {
-    return [identifier hasPrefix:kVibeMenuSkipForward];
-}
-
-// A skip item names its distance: bars while the track's tempo is known,
-// else seconds. nil for any other identifier.
+// A skip item names only its distance, since its submenu names the direction:
+// bars while the track's tempo is known, else seconds. nil for any other
+// identifier.
 static inline NSString *_Nullable VibeSkipMenuTitle(NSString *_Nullable identifier, NSInteger baseBars, BOOL tempoKnown) {
     NSInteger level = VibeSkipMenuLevel(identifier);
     if (level < 0) {
         return nil;
     }
-    BOOL forward = VibeSkipMenuIsForward(identifier);
     if (tempoKnown) {
-        return [NSString stringWithFormat:forward ? STR_MENU_SKIP_FORWARD_BARS : STR_MENU_SKIP_BACK_BARS,
-                                          (long)VibeSkipBars(baseBars, (NSUInteger)level)];
+        return [NSString stringWithFormat:STR_MENU_SKIP_BARS, (long)VibeSkipBars(baseBars, (NSUInteger)level)];
     }
-    return [NSString stringWithFormat:forward ? STR_MENU_SKIP_FORWARD_SECONDS : STR_MENU_SKIP_BACK_SECONDS,
-                                      (long)VibeSkipWallClockSeconds((NSUInteger)level)];
+    return [NSString stringWithFormat:STR_MENU_SKIP_SECONDS, (long)VibeSkipWallClockSeconds((NSUInteger)level)];
 }
 
 // Convert to FLAC shows only with Convert switched on, and never for a file

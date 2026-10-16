@@ -30319,745 +30319,745 @@
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_back_bars": {
-      "comment": "Playback menu item: seek backward a whole number of musical bars. %ld is the count, 4 to 64, never 1.",
+    "menu.playback.skip_back": {
+      "comment": "Playback menu: submenu of three distances to seek backward by.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти назад %ld такта"
+            "value": "Превърти назад"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit zpět o %ld taktů"
+            "value": "Skočit zpět"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop %ld takter tilbage"
+            "value": "Hop tilbage"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Takte zurückspringen"
+            "value": "Zurückspringen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πίσω %ld μέτρα"
+            "value": "Μεταπήδηση πίσω"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skip Back %ld Bars"
+            "value": "Skip Back"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder %ld compases"
+            "value": "Retroceder"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää %ld tahtia taaksepäin"
+            "value": "Hyppää taaksepäin"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reculer de %ld mesures"
+            "value": "Reculer"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči %ld taktova natrag"
+            "value": "Preskoči natrag"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás vissza %ld ütemet"
+            "value": "Ugrás vissza"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Mundur %ld Bar"
+            "value": "Lompat Mundur"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indietro di %ld battute"
+            "value": "Indietro"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld小節戻る"
+            "value": "戻る"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld마디 뒤로 이동"
+            "value": "뒤로 이동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp %ld takter bakover"
+            "value": "Hopp bakover"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring %ld maten terug"
+            "value": "Spring terug"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń do tyłu o %ld taktów"
+            "value": "Przewiń do tyłu"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder %ld Compassos"
+            "value": "Retroceder"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder %ld compassos"
+            "value": "Retroceder"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înapoi %ld măsuri"
+            "value": "Săriți înapoi"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать назад на %ld тактов"
+            "value": "Перемотать назад"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť dozadu o %ld taktov"
+            "value": "Skočiť dozadu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa %ld takter bakåt"
+            "value": "Hoppa bakåt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอกลับ %ld ห้อง"
+            "value": "กรอกลับ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Ölçü Geri Atla"
+            "value": "Geri Atla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати назад на %ld тактів"
+            "value": "Перемотати назад"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua lùi %ld ô nhịp"
+            "value": "Tua lùi"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "后退 %ld 小节"
+            "value": "后退"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "倒退 %ld 小節"
+            "value": "倒退"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_back_seconds": {
-      "comment": "Playback menu item: seek backward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
+    "menu.playback.skip_bars": {
+      "comment": "Skip Back and Skip Forward submenu item: a distance in whole musical bars. %ld is the count, 4 to 64, never 1.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти назад %ld секунди"
+            "value": "%ld такта"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit zpět o %ld sekund"
+            "value": "%ld taktů"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop %ld sekunder tilbage"
+            "value": "%ld takter"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Sekunden zurückspringen"
+            "value": "%ld Takte"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση πίσω %ld δευτερόλεπτα"
+            "value": "%ld μέτρα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skip Back %ld Seconds"
+            "value": "%ld Bars"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder %ld segundos"
+            "value": "%ld compases"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää %ld sekuntia taaksepäin"
+            "value": "%ld tahtia"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reculer de %ld secondes"
+            "value": "%ld mesures"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči %ld sekundi natrag"
+            "value": "%ld taktova"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás vissza %ld másodpercet"
+            "value": "%ld ütem"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Mundur %ld Detik"
+            "value": "%ld Bar"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indietro di %ld secondi"
+            "value": "%ld battute"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld秒戻る"
+            "value": "%ld小節"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld초 뒤로 이동"
+            "value": "%ld마디"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp %ld sekunder bakover"
+            "value": "%ld takter"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring %ld seconden terug"
+            "value": "%ld maten"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń do tyłu o %ld sekund"
+            "value": "%ld taktów"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder %ld Segundos"
+            "value": "%ld Compassos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Retroceder %ld segundos"
+            "value": "%ld compassos"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înapoi %ld secunde"
+            "value": "%ld măsuri"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать назад на %ld секунд"
+            "value": "%ld тактов"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť dozadu o %ld sekúnd"
+            "value": "%ld taktov"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa %ld sekunder bakåt"
+            "value": "%ld takter"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอกลับ %ld วินาที"
+            "value": "%ld ห้อง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Saniye Geri Atla"
+            "value": "%ld Ölçü"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати назад на %ld секунд"
+            "value": "%ld тактів"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua lùi %ld giây"
+            "value": "%ld ô nhịp"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "后退 %ld 秒"
+            "value": "%ld 小节"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "倒退 %ld 秒"
+            "value": "%ld 小節"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_forward_bars": {
-      "comment": "Playback menu item: seek forward a whole number of musical bars. %ld is the count, 4 to 64, never 1.",
+    "menu.playback.skip_forward": {
+      "comment": "Playback menu: submenu of three distances to seek forward by.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти напред %ld такта"
+            "value": "Превърти напред"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit vpřed o %ld taktů"
+            "value": "Skočit vpřed"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop %ld takter frem"
+            "value": "Hop frem"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Takte vorspringen"
+            "value": "Vorspringen"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση εμπρός %ld μέτρα"
+            "value": "Μεταπήδηση εμπρός"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skip Forward %ld Bars"
+            "value": "Skip Forward"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanzar %ld compases"
+            "value": "Avanzar"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää %ld tahtia eteenpäin"
+            "value": "Hyppää eteenpäin"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avancer de %ld mesures"
+            "value": "Avancer"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči %ld taktova naprijed"
+            "value": "Preskoči naprijed"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás előre %ld ütemet"
+            "value": "Ugrás előre"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Maju %ld Bar"
+            "value": "Lompat Maju"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanti di %ld battute"
+            "value": "Avanti"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld小節進む"
+            "value": "進む"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld마디 앞으로 이동"
+            "value": "앞으로 이동"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp %ld takter fremover"
+            "value": "Hopp fremover"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring %ld maten vooruit"
+            "value": "Spring vooruit"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń do przodu o %ld taktów"
+            "value": "Przewiń do przodu"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar %ld Compassos"
+            "value": "Avançar"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar %ld compassos"
+            "value": "Avançar"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înainte %ld măsuri"
+            "value": "Săriți înainte"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать вперед на %ld тактов"
+            "value": "Перемотать вперед"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť dopredu o %ld taktov"
+            "value": "Skočiť dopredu"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa %ld takter framåt"
+            "value": "Hoppa framåt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอไปข้างหน้า %ld ห้อง"
+            "value": "กรอไปข้างหน้า"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Ölçü İleri Atla"
+            "value": "İleri Atla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати вперед на %ld тактів"
+            "value": "Перемотати вперед"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua tới %ld ô nhịp"
+            "value": "Tua tới"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "前进 %ld 小节"
+            "value": "前进"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "前進 %ld 小節"
+            "value": "前進"
           }
         }
       },
       "extractionState": "manual"
     },
-    "menu.playback.skip_forward_seconds": {
-      "comment": "Playback menu item: seek forward a number of seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
+    "menu.playback.skip_seconds": {
+      "comment": "Skip Back and Skip Forward submenu item: a distance in seconds, shown when the track's tempo is unknown. %ld is the count, 10, 30 or 60, never 1.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Превърти напред %ld секунди"
+            "value": "%ld секунди"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočit vpřed o %ld sekund"
+            "value": "%ld sekund"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hop %ld sekunder frem"
+            "value": "%ld sekunder"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Sekunden vorspringen"
+            "value": "%ld Sekunden"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Μεταπήδηση εμπρός %ld δευτερόλεπτα"
+            "value": "%ld δευτερόλεπτα"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skip Forward %ld Seconds"
+            "value": "%ld Seconds"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanzar %ld segundos"
+            "value": "%ld segundos"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hyppää %ld sekuntia eteenpäin"
+            "value": "%ld sekuntia"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avancer de %ld secondes"
+            "value": "%ld secondes"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preskoči %ld sekundi naprijed"
+            "value": "%ld sekundi"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ugrás előre %ld másodpercet"
+            "value": "%ld másodperc"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lompat Maju %ld Detik"
+            "value": "%ld Detik"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avanti di %ld secondi"
+            "value": "%ld secondi"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld秒進む"
+            "value": "%ld秒"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld초 앞으로 이동"
+            "value": "%ld초"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hopp %ld sekunder fremover"
+            "value": "%ld sekunder"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spring %ld seconden vooruit"
+            "value": "%ld seconden"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Przewiń do przodu o %ld sekund"
+            "value": "%ld sekund"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar %ld Segundos"
+            "value": "%ld Segundos"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avançar %ld segundos"
+            "value": "%ld segundos"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Săriți înainte %ld secunde"
+            "value": "%ld secunde"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотать вперед на %ld секунд"
+            "value": "%ld секунд"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Skočiť dopredu o %ld sekúnd"
+            "value": "%ld sekúnd"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoppa %ld sekunder framåt"
+            "value": "%ld sekunder"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "กรอไปข้างหน้า %ld วินาที"
+            "value": "%ld วินาที"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%ld Saniye İleri Atla"
+            "value": "%ld Saniye"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Перемотати вперед на %ld секунд"
+            "value": "%ld секунд"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tua tới %ld giây"
+            "value": "%ld giây"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "前进 %ld 秒"
+            "value": "%ld 秒"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "前進 %ld 秒"
+            "value": "%ld 秒"
           }
         }
       },
