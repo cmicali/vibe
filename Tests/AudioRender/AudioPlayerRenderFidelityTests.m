@@ -5,6 +5,7 @@
 #import "AudioPlayerRenderTestCase.h"
 #import "AudioFX.h"
 #import "OutputFormatRules.h"
+#import <Accelerate/Accelerate.h>
 
 // The oracle itself, the bit-perfect matrix, every container and codec, float limits and wide sources.
 @interface AudioPlayerRenderFidelityTests : AudioPlayerRenderTests
@@ -100,6 +101,63 @@
     }
 }
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
+// An Ogg page's CRC: polynomial 0x04C11DB7, unreflected, with its own field zeroed.
+static uint32_t VibeOggCRC(const uint8_t *bytes, size_t length) {
+    uint32_t crc = 0;
+    for (size_t i = 0; i < length; i++) {
+        crc ^= (uint32_t)bytes[i] << 24;
+        for (int bit = 0; bit < 8; bit++) crc = crc & 0x80000000u ? crc << 1 ^ 0x04C11DB7u : crc << 1;
+    }
+    return crc;
+}
+// The Opus file with its OpusHead output gain set to `q78` (dB × 256), and
+// its first page's CRC made good again.
+static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
+    NSMutableData *patched = [opus mutableCopy];
+    uint8_t *page = patched.mutableBytes;
+    size_t packet = 27 + page[26], length = packet;
+    for (uint8_t s = 0; s < page[26]; s++) length += page[27 + s];
+    if (patched.length < length || memcmp(page + packet, "OpusHead", 8) != 0) return nil;
+    page[packet + 16] = (uint8_t)q78;
+    page[packet + 17] = (uint8_t)((uint16_t)q78 >> 8);
+    memset(page + 22, 0, 4);
+    uint32_t crc = VibeOggCRC(page, length);
+    for (int i = 0; i < 4; i++) page[22 + i] = (uint8_t)(crc >> (8 * i));
+    return patched;
+}
+// RFC 7845's output gain, which Apple's decoder ignores: the handle applies
+// it, a boost held at +12 dB. The canary at the end fails once CoreAudio
+// applies the gain itself, which would apply it twice.
+- (void)testOpusPlaysAtItsHeaderOutputGain {
+    NSURL *url = [self optionalFixture:@"lossy.opus"];
+    NSData *bytes = [NSData dataWithContentsOfURL:url];
+    NSData *plain = VibePCM([self read:url]);
+    NSDictionary<NSNumber *, NSNumber *> *applied = @{@(-6 * 256): @(-6.0f), @(3 * 256 + 128): @(3.5f), @(40 * 256): @(12.0f)};
+    for (NSNumber *q78 in applied) {
+        NSURL *gained = [self writeBytes:VibeOpusWithOutputGain(bytes, q78.shortValue) name:[NSString stringWithFormat:@"gain%@.opus", q78]];
+        NSMutableData *expected = [plain mutableCopy];
+        float factor = powf(10, applied[q78].floatValue / 20);
+        vDSP_vsmul(expected.mutableBytes, 1, &factor, expected.mutableBytes, 1, expected.length / sizeof(float));
+        XCTAssertEqualObjects(VibePCM([self read:gained]), expected, @"header gain %@ / 256 dB", q78);
+    }
+    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
+    NSURL *quieter = [self writeBytes:VibeOpusWithOutputGain(bytes, -6 * 256) name:@"played.opus"];
+    AVAudioPCMBuffer *decoded = [self read:quieter];
+    [self play:quieter paused:NO position:0];
+    [self assertReference:VibePCM(decoded) capture:[self renderSeconds:decoded.frameLength / _rate + 0.1] skip:[self startupSkip] tolerance:0];
+
+    ExtAudioFileRef reader = NULL;
+    XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)quieter, &reader), noErr);
+    AVAudioPCMBuffer *apple = [[AVAudioPCMBuffer alloc] initWithPCMFormat:decoded.format frameCapacity:4096];
+    ExtAudioFileSetProperty(reader, kExtAudioFileProperty_ClientDataFormat, sizeof(AudioStreamBasicDescription), decoded.format.streamDescription);
+    apple.frameLength = apple.frameCapacity; // sizes the list's buffers for the read
+    UInt32 frames = apple.frameCapacity;
+    XCTAssertEqual(ExtAudioFileRead(reader, &frames, apple.mutableAudioBufferList), noErr);
+    apple.frameLength = frames;
+    ExtAudioFileDispose(reader);
+    NSData *head = [plain subdataWithRange:NSMakeRange(0, MIN(plain.length, (NSUInteger)frames * decoded.format.channelCount * sizeof(float)))];
+    XCTAssertEqualObjects(VibePCM(apple), head, @"CoreAudio now applies the Opus output gain: drop the handle's (kVibeOpusGainMaxDB)");
+}
 // The parser open is the metadata fallback's, so a row never reads as a file
 // playback refuses. The second half is the canary: once CoreAudio reports the
 // length, re-check its decode and lift the refusal (AudioFileHandle.m).
