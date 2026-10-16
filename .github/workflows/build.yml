@@ -111,7 +111,7 @@ jobs:
       - uses: actions/cache/save@v6
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         with:
-          path: build/CompilationCache
+          path: build/CICache
           key: ${{ steps.cache.outputs.key }}
 
   # The text checks that need macOS tools ride here, the shortest job.
@@ -147,7 +147,7 @@ jobs:
       - uses: actions/cache/save@v6
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         with:
-          path: build/CompilationCache
+          path: build/CICache
           key: ${{ steps.cache.outputs.key }}
 
   # Nightly and manual runs only. A runner's first simulator boot and the
@@ -189,7 +189,7 @@ jobs:
       - uses: actions/cache/save@v6
         if: ${{ !cancelled() }}
         with:
-          path: build/CompilationCache
+          path: build/CICache
           key: ${{ steps.cache.outputs.key }}
 
   # Each suite has a runner to itself: both are CPU-bound, and the runner has
@@ -229,7 +229,7 @@ jobs:
       - uses: actions/cache/save@v6
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         with:
-          path: build/CompilationCache
+          path: build/CICache
           key: ${{ steps.cache.outputs.key }}
 
   audio-tests:
@@ -300,5 +300,5 @@ jobs:
       - uses: actions/cache/save@v6
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
         with:
-          path: build/CompilationCache
+          path: build/CICache
           key: ${{ steps.cache.outputs.key }}
