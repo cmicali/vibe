@@ -85,9 +85,19 @@ def tick_decimals(step):
     return 4
 
 
+UNIT_WORDS = {'Hz', 'kHz', 'dB', 'dBFS', 'ms', 's', 'KB', 'MB', 'GB', 'J'}
+
+
 def wrap(s, width, size):
-    lines, line = [], ''
+    """Lines of s no wider than width. A number keeps its unit on its line."""
+    words = []
     for word in s.split(' '):
+        if words and word.rstrip('.,') in UNIT_WORDS:
+            words[-1] += ' ' + word
+        else:
+            words.append(word)
+    lines, line = [], ''
+    for word in words:
         trial = f'{line} {word}'.strip()
         if line and text_width(trial, size) > width:
             lines.append(line)
@@ -374,7 +384,8 @@ def rate(cells, better, min_spread=0.0):
     return steps, [c == best for c in cells]
 
 
-def table(title, subtitle, columns, rows, spans=None, compare=None, width=None, label_header='', min_spread=0.0):
+def table(title, subtitle, columns, rows, spans=None, compare=None, width=None, label_header='', min_spread=0.0,
+          wrap_at=None):
     """A table whose cells are tinted from best to worst along each row.
 
     columns: header labels, '\\n' for a second line. rows: (label, cells, better),
@@ -382,11 +393,17 @@ def table(title, subtitle, columns, rows, spans=None, compare=None, width=None, 
     (text, value): a number to compare, or 'good' / 'bad' to tint it outright.
     compare: groups of column indexes compared with each other, all columns by
     default. spans: [(label, first column, last column)] above the headers.
-    min_spread leaves a comparison uncolored when its cells are that close."""
+    min_spread leaves a comparison uncolored when its cells are that close.
+    wrap_at: {column: width} wraps that column's text to the width, left-aligned."""
     compare = compare or [list(range(len(columns)))]
+    wrap_at = wrap_at or {}
     texts = [[('–' if c is None else c[0] if isinstance(c, tuple) else c) for c in cells] for _, cells, _ in rows]
+    lines = [[wrap(t, wrap_at[j], 12) if j in wrap_at else [t] for j, t in enumerate(row)] for row in texts]
     col_w = []
     for j, head in enumerate(columns):
+        if j in wrap_at:
+            col_w.append(wrap_at[j] + 26)
+            continue
         widest = max([text_width(t[j], 12) for t in texts] + [text_width(h, 11.5) for h in head.split('\n')])
         col_w.append(max(widest + 26, 64))
     for label, a, b in spans or []:
@@ -409,14 +426,15 @@ def table(title, subtitle, columns, rows, spans=None, compare=None, width=None, 
         y += 22
     head_lines = max(len(h.split('\n')) for h in columns)
     for j, head in enumerate(columns):
+        hx, anchor = (xs[j] + 13, 'start') if j in wrap_at else (xs[j] + col_w[j] / 2, 'middle')
         for k, line in enumerate(head.split('\n')):
-            card.text(xs[j] + col_w[j] / 2, y + 12 + 14 * k, line, cls='m', size=11.5, anchor='middle', weight=600)
+            card.text(hx, y + 12 + 14 * k, line, cls='m', size=11.5, anchor=anchor, weight=600)
     if label_header:
         card.text(24, y + 12, label_header, cls='m', size=11.5, weight=600)
     y += 14 * head_lines + 8
     card.rule(24, y, width - 24, y, 'a')
-    row_h = 30
     for r, (label, cells, better) in enumerate(rows):
+        row_h = 30 + 16 * (max(len(cell) for cell in lines[r]) - 1)
         values = [c[1] if isinstance(c, tuple) else None for c in cells]
         steps, bests = [0] * len(cells), [False] * len(cells)
         for group in compare:
@@ -426,14 +444,16 @@ def table(title, subtitle, columns, rows, spans=None, compare=None, width=None, 
         for j, v in enumerate(values):
             if v in ('good', 'bad'):
                 steps[j] = STEPS - 1 if v == 'good' else 1 - STEPS
-        card.text(24, y + 19, label, cls='t', size=12)
-        for j, text in enumerate(texts[r]):
+        card.text(24, y + 19 + (row_h - 30) / 2, label, cls='t', size=12)
+        for j, cell in enumerate(lines[r]):
             s = steps[j]
             if s:
                 card.add(f'<rect class="{"good" if s > 0 else "bad"}{abs(s)}" x="{xs[j] + 2:.1f}" y="{y + 2:.1f}" '
                          f'width="{col_w[j] - 4:.1f}" height="{row_h - 4}" rx="4"/>')
-            card.text(xs[j] + col_w[j] / 2, y + 19, text, cls='t', size=12, anchor='middle',
-                      weight=650 if bests[j] else None)
+            cx, anchor = (xs[j] + 13, 'start') if j in wrap_at else (xs[j] + col_w[j] / 2, 'middle')
+            top = y + 19 + (row_h - 30 - 16 * (len(cell) - 1)) / 2
+            for k, line in enumerate(cell):
+                card.text(cx, top + 16 * k, line, cls='t', size=12, anchor=anchor, weight=650 if bests[j] else None)
         y += row_h
         if r < len(rows) - 1:
             card.rule(24, y, width - 24, y, 'g')

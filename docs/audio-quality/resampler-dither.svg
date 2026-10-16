@@ -1,70 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 622 326" width="622" height="326" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Why there is no dither">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 621 326" width="621" height="326" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Why there is no dither">
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.good1{fill:#ebf6ea}.bad1{fill:#f9eeee}.good2{fill:#ddf0dc}.bad2{fill:#f6e3e2}.good3{fill:#cceacb}.bad3{fill:#f3d5d5}.good4{fill:#b9e3b8}.bad4{fill:#f0c6c5}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.good1{fill:#182a17}.bad1{fill:#301e1d}.good2{fill:#173417}.bad2{fill:#3d201f}.good3{fill:#163f15}.bad3{fill:#4b2322}.good4{fill:#154b14}.bad4{fill:#5c2625}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
-<rect class="bg" width="622" height="326" rx="10"/>
+<rect class="bg" width="621" height="326" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Why there is no dither</text>
 <text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Five of the cases where Apple measured better, and the noise everywhere else. In dB, more negative is</text>
 <text class="m" x="24.0" y="68.0" font-size="12" text-anchor="start">better.</text>
-<text class="m" x="286.1" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">r8brain,</text>
-<text class="m" x="286.1" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">as shipped</text>
-<text class="m" x="384.7" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">r8brain,</text>
-<text class="m" x="384.7" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">with dither</text>
-<text class="m" x="484.0" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">r8brain, before</text>
-<text class="m" x="484.0" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">final rounding</text>
-<text class="m" x="566.0" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple</text>
-<line class="a" x1="24.0" y1="124.0" x2="598.0" y2="124.0" stroke-width="1"/>
+<text class="m" x="286.5" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Vibe,</text>
+<text class="m" x="286.5" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">as shipped</text>
+<text class="m" x="385.1" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Vibe,</text>
+<text class="m" x="385.1" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">with dither</text>
+<text class="m" x="483.7" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Vibe, before</text>
+<text class="m" x="483.7" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">final rounding</text>
+<text class="m" x="565.0" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple</text>
+<line class="a" x1="24.0" y1="124.0" x2="597.0" y2="124.0" stroke-width="1"/>
 <text class="t" x="24.0" y="143.0" font-size="12" text-anchor="start">CCIF intermodulation, 44.1 → 48</text>
-<rect class="bad4" x="238.8" y="126.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="286.1" y="143.0" font-size="12" text-anchor="middle">−167.5</text>
-<rect class="good4" x="337.4" y="126.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="384.7" y="143.0" font-size="12" text-anchor="middle" font-weight="650">−173.7</text>
-<rect class="good2" x="436.0" y="126.0" width="95.9" height="26" rx="4"/>
-<text class="t" x="484.0" y="143.0" font-size="12" text-anchor="middle">−172.4</text>
-<rect class="good3" x="536.0" y="126.0" width="60.0" height="26" rx="4"/>
-<text class="t" x="566.0" y="143.0" font-size="12" text-anchor="middle">−173.1</text>
-<line class="g" x1="24.0" y1="154.0" x2="598.0" y2="154.0" stroke-width="1"/>
+<rect class="bad4" x="239.2" y="126.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="286.5" y="143.0" font-size="12" text-anchor="middle">−167.5</text>
+<rect class="good4" x="337.8" y="126.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="385.1" y="143.0" font-size="12" text-anchor="middle" font-weight="650">−173.7</text>
+<rect class="good2" x="436.4" y="126.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="483.7" y="143.0" font-size="12" text-anchor="middle">−172.4</text>
+<rect class="good3" x="535.0" y="126.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="565.0" y="143.0" font-size="12" text-anchor="middle">−173.1</text>
+<line class="g" x1="24.0" y1="154.0" x2="597.0" y2="154.0" stroke-width="1"/>
 <text class="t" x="24.0" y="173.0" font-size="12" text-anchor="start">CCIF intermodulation, 44.1 → 96</text>
-<rect class="bad4" x="238.8" y="156.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="286.1" y="173.0" font-size="12" text-anchor="middle">−166.6</text>
-<rect class="good3" x="337.4" y="156.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="384.7" y="173.0" font-size="12" text-anchor="middle">−171.8</text>
-<rect class="good4" x="436.0" y="156.0" width="95.9" height="26" rx="4"/>
-<text class="t" x="484.0" y="173.0" font-size="12" text-anchor="middle" font-weight="650">−172.4</text>
-<rect class="good2" x="536.0" y="156.0" width="60.0" height="26" rx="4"/>
-<text class="t" x="566.0" y="173.0" font-size="12" text-anchor="middle">−171.1</text>
-<line class="g" x1="24.0" y1="184.0" x2="598.0" y2="184.0" stroke-width="1"/>
+<rect class="bad4" x="239.2" y="156.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="286.5" y="173.0" font-size="12" text-anchor="middle">−166.6</text>
+<rect class="good3" x="337.8" y="156.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="385.1" y="173.0" font-size="12" text-anchor="middle">−171.8</text>
+<rect class="good4" x="436.4" y="156.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="483.7" y="173.0" font-size="12" text-anchor="middle" font-weight="650">−172.4</text>
+<rect class="good2" x="535.0" y="156.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="565.0" y="173.0" font-size="12" text-anchor="middle">−171.1</text>
+<line class="g" x1="24.0" y1="184.0" x2="597.0" y2="184.0" stroke-width="1"/>
 <text class="t" x="24.0" y="203.0" font-size="12" text-anchor="start">SMPTE intermodulation, 48 → 44.1</text>
-<rect class="bad4" x="238.8" y="186.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="286.1" y="203.0" font-size="12" text-anchor="middle">−158.4</text>
-<rect class="good2" x="337.4" y="186.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="384.7" y="203.0" font-size="12" text-anchor="middle">−161.8</text>
-<rect class="good4" x="436.0" y="186.0" width="95.9" height="26" rx="4"/>
-<text class="t" x="484.0" y="203.0" font-size="12" text-anchor="middle" font-weight="650">−162.6</text>
-<rect class="bad1" x="536.0" y="186.0" width="60.0" height="26" rx="4"/>
-<text class="t" x="566.0" y="203.0" font-size="12" text-anchor="middle">−160.0</text>
-<line class="g" x1="24.0" y1="214.0" x2="598.0" y2="214.0" stroke-width="1"/>
+<rect class="bad4" x="239.2" y="186.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="286.5" y="203.0" font-size="12" text-anchor="middle">−158.4</text>
+<rect class="good2" x="337.8" y="186.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="385.1" y="203.0" font-size="12" text-anchor="middle">−161.8</text>
+<rect class="good4" x="436.4" y="186.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="483.7" y="203.0" font-size="12" text-anchor="middle" font-weight="650">−162.6</text>
+<rect class="bad1" x="535.0" y="186.0" width="60.0" height="26" rx="4"/>
+<text class="t" x="565.0" y="203.0" font-size="12" text-anchor="middle">−160.0</text>
+<line class="g" x1="24.0" y1="214.0" x2="597.0" y2="214.0" stroke-width="1"/>
 <text class="t" x="24.0" y="233.0" font-size="12" text-anchor="start">6 kHz tone distortion, 48 → 44.1</text>
-<rect class="bad4" x="238.8" y="216.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="286.1" y="233.0" font-size="12" text-anchor="middle">−161.6</text>
-<rect class="good4" x="337.4" y="216.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="384.7" y="233.0" font-size="12" text-anchor="middle" font-weight="650">−170.0</text>
-<rect class="good4" x="436.0" y="216.0" width="95.9" height="26" rx="4"/>
-<text class="t" x="484.0" y="233.0" font-size="12" text-anchor="middle">−169.7</text>
-<text class="t" x="566.0" y="233.0" font-size="12" text-anchor="middle">−165.8</text>
-<line class="g" x1="24.0" y1="244.0" x2="598.0" y2="244.0" stroke-width="1"/>
+<rect class="bad4" x="239.2" y="216.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="286.5" y="233.0" font-size="12" text-anchor="middle">−161.6</text>
+<rect class="good4" x="337.8" y="216.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="385.1" y="233.0" font-size="12" text-anchor="middle" font-weight="650">−170.0</text>
+<rect class="good4" x="436.4" y="216.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="483.7" y="233.0" font-size="12" text-anchor="middle">−169.7</text>
+<text class="t" x="565.0" y="233.0" font-size="12" text-anchor="middle">−165.8</text>
+<line class="g" x1="24.0" y1="244.0" x2="597.0" y2="244.0" stroke-width="1"/>
 <text class="t" x="24.0" y="263.0" font-size="12" text-anchor="start">1 kHz tone distortion, 192 → 48</text>
-<rect class="bad4" x="238.8" y="246.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="286.1" y="263.0" font-size="12" text-anchor="middle">−157.2</text>
-<rect class="good4" x="337.4" y="246.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="384.7" y="263.0" font-size="12" text-anchor="middle">−165.6</text>
-<rect class="good4" x="436.0" y="246.0" width="95.9" height="26" rx="4"/>
-<text class="t" x="484.0" y="263.0" font-size="12" text-anchor="middle" font-weight="650">−165.9</text>
-<text class="t" x="566.0" y="263.0" font-size="12" text-anchor="middle">−161.7</text>
-<line class="g" x1="24.0" y1="274.0" x2="598.0" y2="274.0" stroke-width="1"/>
+<rect class="bad4" x="239.2" y="246.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="286.5" y="263.0" font-size="12" text-anchor="middle">−157.2</text>
+<rect class="good4" x="337.8" y="246.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="385.1" y="263.0" font-size="12" text-anchor="middle">−165.6</text>
+<rect class="good4" x="436.4" y="246.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="483.7" y="263.0" font-size="12" text-anchor="middle" font-weight="650">−165.9</text>
+<text class="t" x="565.0" y="263.0" font-size="12" text-anchor="middle">−161.7</text>
+<line class="g" x1="24.0" y1="274.0" x2="597.0" y2="274.0" stroke-width="1"/>
 <text class="t" x="24.0" y="293.0" font-size="12" text-anchor="start">Noise, every other measurement</text>
-<text class="t" x="286.1" y="293.0" font-size="12" text-anchor="middle">−150 to −157</text>
-<rect class="bad4" x="337.4" y="276.0" width="94.6" height="26" rx="4"/>
-<text class="t" x="384.7" y="293.0" font-size="12" text-anchor="middle">−147 to −148</text>
-<rect class="good4" x="436.0" y="276.0" width="95.9" height="26" rx="4"/>
-<text class="t" x="484.0" y="293.0" font-size="12" text-anchor="middle" font-weight="650">−153 to −180</text>
-<text class="t" x="566.0" y="293.0" font-size="12" text-anchor="middle">–</text>
+<text class="t" x="286.5" y="293.0" font-size="12" text-anchor="middle">−150 to −157</text>
+<rect class="bad4" x="337.8" y="276.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="385.1" y="293.0" font-size="12" text-anchor="middle">−147 to −148</text>
+<rect class="good4" x="436.4" y="276.0" width="94.6" height="26" rx="4"/>
+<text class="t" x="483.7" y="293.0" font-size="12" text-anchor="middle" font-weight="650">−153 to −180</text>
+<text class="t" x="565.0" y="293.0" font-size="12" text-anchor="middle">–</text>
 </svg>

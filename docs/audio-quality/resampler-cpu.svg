@@ -4,9 +4,9 @@
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">CPU to resample in real time</text>
 <text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Percent of one core, measured in the player. Lower is better.</text>
 <rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
-<text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">r8brain (Vibe)</text>
-<rect class="s1" x="138.6" y="63.0" width="14" height="4" rx="2"/>
-<text class="t" x="158.6" y="68.0" font-size="12" text-anchor="start">Apple</text>
+<text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Vibe</text>
+<rect class="s1" x="89.64" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="109.6" y="68.0" font-size="12" text-anchor="start">Apple</text>
 <line class="a" x1="125.3" y1="90.0" x2="125.3" y2="376.0" stroke-width="1"/>
 <text class="q" x="125.3" y="392.0" font-size="11" text-anchor="middle">0%</text>
 <line class="g" x1="257.6" y1="90.0" x2="257.6" y2="376.0" stroke-width="1"/>
@@ -18,42 +18,42 @@
 <line class="g" x1="654.6" y1="90.0" x2="654.6" y2="376.0" stroke-width="1"/>
 <text class="q" x="654.6" y="392.0" font-size="11" text-anchor="middle">4%</text>
 <text class="m" x="113.3" y="108.5" font-size="12" text-anchor="end">44.1 → 48 kHz</text>
-<path class="s0" d="M125.3,94.0 h9.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-9.0 z"><title>44.1 → 48 kHz, r8brain (Vibe): 0.10%</title></path>
+<path class="s0" d="M125.3,94.0 h9.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-9.0 z"><title>44.1 → 48 kHz, Vibe: 0.10%</title></path>
 <text class="m" x="144.3" y="102.5" font-size="11" text-anchor="start">0.10%</text>
 <path class="s1" d="M125.3,106.0 h113.8 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-113.8 z"><title>44.1 → 48 kHz, Apple: 0.89%</title></path>
 <text class="m" x="249.1" y="114.5" font-size="11" text-anchor="start">0.89%</text>
 <text class="m" x="113.3" y="144.5" font-size="12" text-anchor="end">48 → 44.1 kHz</text>
-<path class="s0" d="M125.3,130.0 h11.3 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-11.3 z"><title>48 → 44.1 kHz, r8brain (Vibe): 0.12%</title></path>
+<path class="s0" d="M125.3,130.0 h11.3 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-11.3 z"><title>48 → 44.1 kHz, Vibe: 0.12%</title></path>
 <text class="m" x="146.7" y="138.5" font-size="11" text-anchor="start">0.12%</text>
 <path class="s1" d="M125.3,142.0 h115.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-115.1 z"><title>48 → 44.1 kHz, Apple: 0.90%</title></path>
 <text class="m" x="250.4" y="150.5" font-size="11" text-anchor="start">0.90%</text>
 <text class="m" x="113.3" y="180.5" font-size="12" text-anchor="end">44.1 → 96 kHz</text>
-<path class="s0" d="M125.3,166.0 h12.8 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-12.8 z"><title>44.1 → 96 kHz, r8brain (Vibe): 0.13%</title></path>
+<path class="s0" d="M125.3,166.0 h12.8 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-12.8 z"><title>44.1 → 96 kHz, Vibe: 0.13%</title></path>
 <text class="m" x="148.1" y="174.5" font-size="11" text-anchor="start">0.13%</text>
 <path class="s1" d="M125.3,178.0 h230.4 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-230.4 z"><title>44.1 → 96 kHz, Apple: 1.77%</title></path>
 <text class="m" x="365.7" y="186.5" font-size="11" text-anchor="start">1.77%</text>
 <text class="m" x="113.3" y="216.5" font-size="12" text-anchor="end">96 → 44.1 kHz</text>
-<path class="s0" d="M125.3,202.0 h12.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-12.0 z"><title>96 → 44.1 kHz, r8brain (Vibe): 0.12%</title></path>
+<path class="s0" d="M125.3,202.0 h12.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-12.0 z"><title>96 → 44.1 kHz, Vibe: 0.12%</title></path>
 <text class="m" x="147.3" y="210.5" font-size="11" text-anchor="start">0.12%</text>
 <path class="s1" d="M125.3,214.0 h228.6 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-228.6 z"><title>96 → 44.1 kHz, Apple: 1.76%</title></path>
 <text class="m" x="364.0" y="222.5" font-size="11" text-anchor="start">1.76%</text>
 <text class="m" x="113.3" y="252.5" font-size="12" text-anchor="end">88.2 → 44.1 kHz</text>
-<path class="s0" d="M125.3,238.0 h4.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-4.1 z"><title>88.2 → 44.1 kHz, r8brain (Vibe): 0.06%</title></path>
+<path class="s0" d="M125.3,238.0 h4.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-4.1 z"><title>88.2 → 44.1 kHz, Vibe: 0.06%</title></path>
 <text class="m" x="139.4" y="246.5" font-size="11" text-anchor="start">0.06%</text>
 <path class="s1" d="M125.3,250.0 h207.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-207.1 z"><title>88.2 → 44.1 kHz, Apple: 1.59%</title></path>
 <text class="m" x="342.4" y="258.5" font-size="11" text-anchor="start">1.59%</text>
 <text class="m" x="113.3" y="288.5" font-size="12" text-anchor="end">96 → 48 kHz</text>
-<path class="s0" d="M125.3,274.0 h5.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-5.0 z"><title>96 → 48 kHz, r8brain (Vibe): 0.07%</title></path>
+<path class="s0" d="M125.3,274.0 h5.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-5.0 z"><title>96 → 48 kHz, Vibe: 0.07%</title></path>
 <text class="m" x="140.3" y="282.5" font-size="11" text-anchor="start">0.07%</text>
 <path class="s1" d="M125.3,286.0 h226.5 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-226.5 z"><title>96 → 48 kHz, Apple: 1.74%</title></path>
 <text class="m" x="361.8" y="294.5" font-size="11" text-anchor="start">1.74%</text>
 <text class="m" x="113.3" y="324.5" font-size="12" text-anchor="end">192 → 48 kHz</text>
-<path class="s0" d="M125.3,310.0 h11.2 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-11.2 z"><title>192 → 48 kHz, r8brain (Vibe): 0.12%</title></path>
+<path class="s0" d="M125.3,310.0 h11.2 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-11.2 z"><title>192 → 48 kHz, Vibe: 0.12%</title></path>
 <text class="m" x="146.5" y="318.5" font-size="11" text-anchor="start">0.12%</text>
 <path class="s1" d="M125.3,322.0 h457.7 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-457.7 z"><title>192 → 48 kHz, Apple: 3.49%</title></path>
 <text class="m" x="593.0" y="330.5" font-size="11" text-anchor="start">3.49%</text>
 <text class="m" x="113.3" y="360.5" font-size="12" text-anchor="end">44.1 → 192 kHz</text>
-<path class="s0" d="M125.3,346.0 h19.8 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-19.8 z"><title>44.1 → 192 kHz, r8brain (Vibe): 0.18%</title></path>
+<path class="s0" d="M125.3,346.0 h19.8 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-19.8 z"><title>44.1 → 192 kHz, Vibe: 0.18%</title></path>
 <text class="m" x="155.1" y="354.5" font-size="11" text-anchor="start">0.18%</text>
 <path class="s1" d="M125.3,358.0 h463.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-463.0 z"><title>44.1 → 192 kHz, Apple: 3.53%</title></path>
 <text class="m" x="598.3" y="366.5" font-size="11" text-anchor="start">3.53%</text>

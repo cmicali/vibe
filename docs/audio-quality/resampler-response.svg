@@ -5,9 +5,9 @@
 <text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">An impulse through each converter. Left: the whole output. Everything above 22.05 kHz is an image of the input and has to go. Right: the top of the band, where</text>
 <text class="m" x="24.0" y="68.0" font-size="12" text-anchor="start">both stay flat to 21.7 kHz.</text>
 <rect class="s0" x="24" y="81.0" width="14" height="4" rx="2"/>
-<text class="t" x="44.0" y="86.0" font-size="12" text-anchor="start">r8brain (Vibe)</text>
-<rect class="s1" x="138.6" y="81.0" width="14" height="4" rx="2"/>
-<text class="t" x="158.6" y="86.0" font-size="12" text-anchor="start">Apple</text>
+<text class="t" x="44.0" y="86.0" font-size="12" text-anchor="start">Vibe</text>
+<rect class="s1" x="89.64" y="81.0" width="14" height="4" rx="2"/>
+<text class="t" x="109.6" y="86.0" font-size="12" text-anchor="start">Apple</text>
 <text class="t" x="34.0" y="108.0" font-size="12" text-anchor="start" font-weight="600">The whole band</text>
 <clipPath id="clip0"><rect x="80.0" y="130.0" width="370.0" height="222"/></clipPath>
 <line class="g" x1="80.0" y1="352.0" x2="450.0" y2="352.0" stroke-width="1"/>

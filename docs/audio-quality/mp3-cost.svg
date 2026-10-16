@@ -1,86 +1,85 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 482 446" width="482" height="446" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="MP3 decoders: what they cost">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 482 432" width="482" height="432" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="MP3 decoders: what they cost">
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.good1{fill:#ebf6ea}.bad1{fill:#f9eeee}.good2{fill:#ddf0dc}.bad2{fill:#f6e3e2}.good3{fill:#cceacb}.bad3{fill:#f3d5d5}.good4{fill:#b9e3b8}.bad4{fill:#f0c6c5}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.good1{fill:#182a17}.bad1{fill:#301e1d}.good2{fill:#173417}.bad2{fill:#3d201f}.good3{fill:#163f15}.bad3{fill:#4b2322}.good4{fill:#154b14}.bad4{fill:#5c2625}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
-<rect class="bg" width="482" height="446" rx="10"/>
+<rect class="bg" width="482" height="432" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">MP3 decoders: what they cost</text>
 <text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">A 320 kbps MP3 on an M4 Max. Lower is better. Green is the best in each row,</text>
 <text class="m" x="24.0" y="68.0" font-size="12" text-anchor="start">red the worst.</text>
-<text class="m" x="275.8" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">dr_mp3</text>
-<text class="m" x="275.8" y="114.0" font-size="11.5" text-anchor="middle" font-weight="600">(Vibe)</text>
+<text class="m" x="275.8" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Vibe</text>
 <text class="m" x="345.2" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">Apple</text>
 <text class="m" x="419.0" y="100.0" font-size="11.5" text-anchor="middle" font-weight="600">BASS</text>
-<line class="a" x1="24.0" y1="124.0" x2="458.0" y2="124.0" stroke-width="1"/>
-<text class="t" x="24.0" y="143.0" font-size="12" text-anchor="start">CPU to play, fast core</text>
-<rect class="good4" x="243.0" y="126.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="143.0" font-size="12" text-anchor="middle" font-weight="650">0.042%</text>
-<rect class="bad4" x="312.5" y="126.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="143.0" font-size="12" text-anchor="middle">0.096%</text>
-<rect class="good3" x="381.9" y="126.0" width="74.1" height="26" rx="4"/>
-<text class="t" x="419.0" y="143.0" font-size="12" text-anchor="middle">0.050%</text>
-<line class="g" x1="24.0" y1="154.0" x2="458.0" y2="154.0" stroke-width="1"/>
-<text class="t" x="24.0" y="173.0" font-size="12" text-anchor="start">CPU to play, efficiency core</text>
-<rect class="good4" x="243.0" y="156.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="173.0" font-size="12" text-anchor="middle" font-weight="650">0.12%</text>
-<rect class="bad4" x="312.5" y="156.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="173.0" font-size="12" text-anchor="middle">0.32%</text>
-<rect class="good3" x="381.9" y="156.0" width="74.1" height="26" rx="4"/>
-<text class="t" x="419.0" y="173.0" font-size="12" text-anchor="middle">0.14%</text>
-<line class="g" x1="24.0" y1="184.0" x2="458.0" y2="184.0" stroke-width="1"/>
-<text class="t" x="24.0" y="203.0" font-size="12" text-anchor="start">Energy per hour of music</text>
-<rect class="good4" x="243.0" y="186.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="203.0" font-size="12" text-anchor="middle" font-weight="650">8.1 J</text>
-<rect class="bad4" x="312.5" y="186.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="203.0" font-size="12" text-anchor="middle">16.8 J</text>
-<rect class="good3" x="381.9" y="186.0" width="74.1" height="26" rx="4"/>
-<text class="t" x="419.0" y="203.0" font-size="12" text-anchor="middle">9.6 J</text>
-<line class="g" x1="24.0" y1="214.0" x2="458.0" y2="214.0" stroke-width="1"/>
-<text class="t" x="24.0" y="233.0" font-size="12" text-anchor="start">Decoding a whole 6.5-minute track</text>
-<rect class="good4" x="243.0" y="216.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="233.0" font-size="12" text-anchor="middle" font-weight="650">161 ms</text>
-<rect class="bad4" x="312.5" y="216.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="233.0" font-size="12" text-anchor="middle">361 ms</text>
-<rect class="good3" x="381.9" y="216.0" width="74.1" height="26" rx="4"/>
-<text class="t" x="419.0" y="233.0" font-size="12" text-anchor="middle">188 ms</text>
-<line class="g" x1="24.0" y1="244.0" x2="458.0" y2="244.0" stroke-width="1"/>
-<text class="t" x="24.0" y="263.0" font-size="12" text-anchor="start">Opening a file</text>
-<rect class="good4" x="243.0" y="246.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="263.0" font-size="12" text-anchor="middle" font-weight="650">0.06 ms</text>
-<rect class="bad4" x="312.5" y="246.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="263.0" font-size="12" text-anchor="middle">0.09 ms</text>
-<text class="t" x="419.0" y="263.0" font-size="12" text-anchor="middle">–</text>
-<line class="g" x1="24.0" y1="274.0" x2="458.0" y2="274.0" stroke-width="1"/>
-<text class="t" x="24.0" y="293.0" font-size="12" text-anchor="start">Seeking, then reading 4,096 frames</text>
-<rect class="good4" x="243.0" y="276.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="293.0" font-size="12" text-anchor="middle" font-weight="650">0.15 ms</text>
-<rect class="bad4" x="312.5" y="276.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="293.0" font-size="12" text-anchor="middle">0.17 ms</text>
-<text class="t" x="419.0" y="293.0" font-size="12" text-anchor="middle">–</text>
-<line class="g" x1="24.0" y1="304.0" x2="458.0" y2="304.0" stroke-width="1"/>
-<text class="t" x="24.0" y="323.0" font-size="12" text-anchor="start">Slowest 4,096-frame read</text>
-<rect class="good4" x="243.0" y="306.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="323.0" font-size="12" text-anchor="middle" font-weight="650">0.75 ms</text>
-<rect class="bad4" x="312.5" y="306.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="323.0" font-size="12" text-anchor="middle">2.4 ms</text>
-<text class="t" x="419.0" y="323.0" font-size="12" text-anchor="middle">–</text>
-<line class="g" x1="24.0" y1="334.0" x2="458.0" y2="334.0" stroke-width="1"/>
-<text class="t" x="24.0" y="353.0" font-size="12" text-anchor="start">Memory per open file</text>
-<rect class="good4" x="243.0" y="336.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="353.0" font-size="12" text-anchor="middle" font-weight="650">60 KB</text>
-<rect class="bad4" x="312.5" y="336.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="353.0" font-size="12" text-anchor="middle">177 KB</text>
-<text class="t" x="419.0" y="353.0" font-size="12" text-anchor="middle">30 KB*</text>
-<line class="g" x1="24.0" y1="364.0" x2="458.0" y2="364.0" stroke-width="1"/>
-<text class="t" x="24.0" y="383.0" font-size="12" text-anchor="start">Data read to play a 15 MB file</text>
-<rect class="good4" x="243.0" y="366.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="383.0" font-size="12" text-anchor="middle" font-weight="650">17 MB</text>
-<rect class="bad4" x="312.5" y="366.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="383.0" font-size="12" text-anchor="middle">235 MB</text>
-<text class="t" x="419.0" y="383.0" font-size="12" text-anchor="middle">15.7 MB*</text>
-<line class="g" x1="24.0" y1="394.0" x2="458.0" y2="394.0" stroke-width="1"/>
-<text class="t" x="24.0" y="413.0" font-size="12" text-anchor="start">Added to the app</text>
-<rect class="good4" x="243.0" y="396.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="275.8" y="413.0" font-size="12" text-anchor="middle">48 KB</text>
-<rect class="good4" x="312.5" y="396.0" width="65.4" height="26" rx="4"/>
-<text class="t" x="345.2" y="413.0" font-size="12" text-anchor="middle" font-weight="650">Nothing</text>
-<rect class="bad4" x="381.9" y="396.0" width="74.1" height="26" rx="4"/>
-<text class="t" x="419.0" y="413.0" font-size="12" text-anchor="middle">0.9 MB</text>
+<line class="a" x1="24.0" y1="110.0" x2="458.0" y2="110.0" stroke-width="1"/>
+<text class="t" x="24.0" y="129.0" font-size="12" text-anchor="start">CPU to play, fast core</text>
+<rect class="good4" x="243.0" y="112.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="129.0" font-size="12" text-anchor="middle" font-weight="650">0.042%</text>
+<rect class="bad4" x="312.5" y="112.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="129.0" font-size="12" text-anchor="middle">0.096%</text>
+<rect class="good3" x="381.9" y="112.0" width="74.1" height="26" rx="4"/>
+<text class="t" x="419.0" y="129.0" font-size="12" text-anchor="middle">0.050%</text>
+<line class="g" x1="24.0" y1="140.0" x2="458.0" y2="140.0" stroke-width="1"/>
+<text class="t" x="24.0" y="159.0" font-size="12" text-anchor="start">CPU to play, efficiency core</text>
+<rect class="good4" x="243.0" y="142.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="159.0" font-size="12" text-anchor="middle" font-weight="650">0.12%</text>
+<rect class="bad4" x="312.5" y="142.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="159.0" font-size="12" text-anchor="middle">0.32%</text>
+<rect class="good3" x="381.9" y="142.0" width="74.1" height="26" rx="4"/>
+<text class="t" x="419.0" y="159.0" font-size="12" text-anchor="middle">0.14%</text>
+<line class="g" x1="24.0" y1="170.0" x2="458.0" y2="170.0" stroke-width="1"/>
+<text class="t" x="24.0" y="189.0" font-size="12" text-anchor="start">Energy per hour of music</text>
+<rect class="good4" x="243.0" y="172.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="189.0" font-size="12" text-anchor="middle" font-weight="650">8.1 J</text>
+<rect class="bad4" x="312.5" y="172.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="189.0" font-size="12" text-anchor="middle">16.8 J</text>
+<rect class="good3" x="381.9" y="172.0" width="74.1" height="26" rx="4"/>
+<text class="t" x="419.0" y="189.0" font-size="12" text-anchor="middle">9.6 J</text>
+<line class="g" x1="24.0" y1="200.0" x2="458.0" y2="200.0" stroke-width="1"/>
+<text class="t" x="24.0" y="219.0" font-size="12" text-anchor="start">Decoding a whole 6.5-minute track</text>
+<rect class="good4" x="243.0" y="202.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="219.0" font-size="12" text-anchor="middle" font-weight="650">161 ms</text>
+<rect class="bad4" x="312.5" y="202.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="219.0" font-size="12" text-anchor="middle">361 ms</text>
+<rect class="good3" x="381.9" y="202.0" width="74.1" height="26" rx="4"/>
+<text class="t" x="419.0" y="219.0" font-size="12" text-anchor="middle">188 ms</text>
+<line class="g" x1="24.0" y1="230.0" x2="458.0" y2="230.0" stroke-width="1"/>
+<text class="t" x="24.0" y="249.0" font-size="12" text-anchor="start">Opening a file</text>
+<rect class="good4" x="243.0" y="232.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="249.0" font-size="12" text-anchor="middle" font-weight="650">0.06 ms</text>
+<rect class="bad4" x="312.5" y="232.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="249.0" font-size="12" text-anchor="middle">0.09 ms</text>
+<text class="t" x="419.0" y="249.0" font-size="12" text-anchor="middle">–</text>
+<line class="g" x1="24.0" y1="260.0" x2="458.0" y2="260.0" stroke-width="1"/>
+<text class="t" x="24.0" y="279.0" font-size="12" text-anchor="start">Seeking, then reading 4,096 frames</text>
+<rect class="good4" x="243.0" y="262.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="279.0" font-size="12" text-anchor="middle" font-weight="650">0.15 ms</text>
+<rect class="bad4" x="312.5" y="262.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="279.0" font-size="12" text-anchor="middle">0.17 ms</text>
+<text class="t" x="419.0" y="279.0" font-size="12" text-anchor="middle">–</text>
+<line class="g" x1="24.0" y1="290.0" x2="458.0" y2="290.0" stroke-width="1"/>
+<text class="t" x="24.0" y="309.0" font-size="12" text-anchor="start">Slowest 4,096-frame read</text>
+<rect class="good4" x="243.0" y="292.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="309.0" font-size="12" text-anchor="middle" font-weight="650">0.75 ms</text>
+<rect class="bad4" x="312.5" y="292.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="309.0" font-size="12" text-anchor="middle">2.4 ms</text>
+<text class="t" x="419.0" y="309.0" font-size="12" text-anchor="middle">–</text>
+<line class="g" x1="24.0" y1="320.0" x2="458.0" y2="320.0" stroke-width="1"/>
+<text class="t" x="24.0" y="339.0" font-size="12" text-anchor="start">Memory per open file</text>
+<rect class="good4" x="243.0" y="322.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="339.0" font-size="12" text-anchor="middle" font-weight="650">60 KB</text>
+<rect class="bad4" x="312.5" y="322.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="339.0" font-size="12" text-anchor="middle">177 KB</text>
+<text class="t" x="419.0" y="339.0" font-size="12" text-anchor="middle">30 KB*</text>
+<line class="g" x1="24.0" y1="350.0" x2="458.0" y2="350.0" stroke-width="1"/>
+<text class="t" x="24.0" y="369.0" font-size="12" text-anchor="start">Data read to play a 15 MB file</text>
+<rect class="good4" x="243.0" y="352.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="369.0" font-size="12" text-anchor="middle" font-weight="650">17 MB</text>
+<rect class="bad4" x="312.5" y="352.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="369.0" font-size="12" text-anchor="middle">235 MB</text>
+<text class="t" x="419.0" y="369.0" font-size="12" text-anchor="middle">15.7 MB*</text>
+<line class="g" x1="24.0" y1="380.0" x2="458.0" y2="380.0" stroke-width="1"/>
+<text class="t" x="24.0" y="399.0" font-size="12" text-anchor="start">Added to the app</text>
+<rect class="good4" x="243.0" y="382.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="275.8" y="399.0" font-size="12" text-anchor="middle">48 KB</text>
+<rect class="good4" x="312.5" y="382.0" width="65.4" height="26" rx="4"/>
+<text class="t" x="345.2" y="399.0" font-size="12" text-anchor="middle" font-weight="650">Nothing</text>
+<rect class="bad4" x="381.9" y="382.0" width="74.1" height="26" rx="4"/>
+<text class="t" x="419.0" y="399.0" font-size="12" text-anchor="middle">0.9 MB</text>
 </svg>

@@ -7,7 +7,7 @@
 <text class="m" x="360.5" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">Peaks above full scale</text>
 <text class="m" x="559.9" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">If sent to the device as 16-bit</text>
 <line class="a" x1="24.0" y1="92.0" x2="684.0" y2="92.0" stroke-width="1"/>
-<text class="t" x="24.0" y="111.0" font-size="12" text-anchor="start">MP3, dr_mp3 (Vibe)</text>
+<text class="t" x="24.0" y="111.0" font-size="12" text-anchor="start">MP3, Vibe</text>
 <rect class="good3" x="201.9" y="94.0" width="81.2" height="26" rx="4"/>
 <text class="t" x="242.5" y="111.0" font-size="12" text-anchor="middle">32-bit float</text>
 <rect class="good3" x="287.1" y="94.0" width="146.8" height="26" rx="4"/>

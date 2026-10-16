@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 732 298" width="732" height="298" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="MP3 decoders considered">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.good1{fill:#ebf6ea}.bad1{fill:#f9eeee}.good2{fill:#ddf0dc}.bad2{fill:#f6e3e2}.good3{fill:#cceacb}.bad3{fill:#f3d5d5}.good4{fill:#b9e3b8}.bad4{fill:#f0c6c5}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.good1{fill:#182a17}.bad1{fill:#301e1d}.good2{fill:#173417}.bad2{fill:#3d201f}.good3{fill:#163f15}.bad3{fill:#4b2322}.good4{fill:#154b14}.bad4{fill:#5c2625}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="732" height="298" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">MP3 decoders considered</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Green is what Vibe uses. Red is what it doesn&#x27;t.</text>
+<text class="m" x="225.2" y="82.0" font-size="11.5" text-anchor="middle" font-weight="600">Verdict</text>
+<text class="m" x="275.0" y="82.0" font-size="11.5" text-anchor="start" font-weight="600">Why</text>
+<line class="a" x1="24.0" y1="92.0" x2="708.0" y2="92.0" stroke-width="1"/>
+<text class="t" x="24.0" y="119.0" font-size="12" text-anchor="start">dr_mp3</text>
+<rect class="good3" x="190.5" y="94.0" width="69.5" height="42" rx="4"/>
+<text class="t" x="225.2" y="119.0" font-size="12" text-anchor="middle">Chosen</text>
+<text class="t" x="275.0" y="111.0" font-size="12" text-anchor="start">Full precision, keeps the peaks, and 105 times inside the ISO limit. Less than</text>
+<text class="t" x="275.0" y="127.0" font-size="12" text-anchor="start">half the CPU of Apple&#x27;s. One header file under a permissive license.</text>
+<line class="g" x1="24.0" y1="138.0" x2="708.0" y2="138.0" stroke-width="1"/>
+<text class="t" x="24.0" y="165.0" font-size="12" text-anchor="start">Apple&#x27;s decoder</text>
+<rect class="bad3" x="190.5" y="140.0" width="69.5" height="42" rx="4"/>
+<text class="t" x="225.2" y="165.0" font-size="12" text-anchor="middle">Rejected</text>
+<text class="t" x="275.0" y="157.0" font-size="12" text-anchor="start">Only 16-bit on Apple silicon. Clips the peaks and silences the last 12 ms on</text>
+<text class="t" x="275.0" y="173.0" font-size="12" text-anchor="start">every Mac. Still a choice in Settings &gt; Advanced.</text>
+<line class="g" x1="24.0" y1="184.0" x2="708.0" y2="184.0" stroke-width="1"/>
+<text class="t" x="24.0" y="211.0" font-size="12" text-anchor="start">BASS</text>
+<rect class="bad3" x="190.5" y="186.0" width="69.5" height="42" rx="4"/>
+<text class="t" x="225.2" y="211.0" font-size="12" text-anchor="middle">Rejected</text>
+<text class="t" x="275.0" y="203.0" font-size="12" text-anchor="start">Matches dr_mp3 to the last bit or two, with about 15% more CPU. A 0.9 MB</text>
+<text class="t" x="275.0" y="219.0" font-size="12" text-anchor="start">closed-source library, free only for non-commercial use.</text>
+<line class="g" x1="24.0" y1="230.0" x2="708.0" y2="230.0" stroke-width="1"/>
+<text class="t" x="24.0" y="257.0" font-size="12" text-anchor="start">FFmpeg, libmad, mpg123</text>
+<rect class="bad3" x="190.5" y="232.0" width="69.5" height="42" rx="4"/>
+<text class="t" x="225.2" y="257.0" font-size="12" text-anchor="middle">Rejected</text>
+<text class="t" x="275.0" y="249.0" font-size="12" text-anchor="start">About as accurate. Copyleft licenses (LGPL or GPL), and each needs its own</text>
+<text class="t" x="275.0" y="265.0" font-size="12" text-anchor="start">build.</text>
+</svg>

@@ -1,6 +1,6 @@
 # Performance
 
-I run the same benchmarks against every release of Vibe, on the same Mac. That shows me what got faster, what got slower, and which change did it. This page has the results, and the reasons behind the big moves.
+Every release of Vibe runs the same benchmarks, on the same Mac. That shows what got faster, what got slower, and which change did it. This page has the results, and the reasons behind the big moves.
 
 There are two kinds of benchmark. The app benchmarks launch each release's own app and play real files through the speakers. The component benchmarks run the code under each feature directly, with no app around it. Lower is better on every chart and table here.
 
@@ -14,7 +14,7 @@ The app benchmarks ran on an Apple M2 Pro with 32 GB of memory and macOS 27.0.1.
 
 ## Playing a track
 
-In 1.14 I replaced Apple's AVAudioEngine with Vibe's own audio engine. It plays straight to the output device.
+In 1.14, Vibe's own audio engine replaced Apple's AVAudioEngine. It plays straight to the output device.
 
 **Why:** Vibe's engine keeps the output running when the track changes. The next track only has to open its file and start decoding. With AVAudioEngine, a track switch took about 36 ms.
 
@@ -24,11 +24,11 @@ In 1.14 I replaced Apple's AVAudioEngine with Vibe's own audio engine. It plays 
 
 ## Seeking
 
-The 1.14 engine seeks without stopping the output. In 1.15 I replaced Apple's FLAC decoder with dr_flac.
+The 1.14 engine seeks without stopping the output. In 1.15, Vibe's FLAC decoder replaced Apple's.
 
-**Why:** Apple's FLAC decoder ignores the seek table in a FLAC file. To seek into a part it hasn't read yet, it reads the file from the start up to that point. dr_flac uses the seek table, or bisects the file when there isn't one. [Audio quality](audio-quality.md#the-flac-decoder) has the rest of that decision.
+**Why:** Apple's FLAC decoder ignores the seek table in a FLAC file. To seek into a part it hasn't read yet, it reads the file from the start up to that point. Vibe's decoder uses the seek table, or bisects the file when there isn't one. [Audio quality](audio-quality.md#the-flac-decoder) has the rest of that decision.
 
-**The data:** a seek in a 3-minute file went from about 55 ms to 2 ms. 1.12 made every seek about 20 ms slower, and 1.14 took that back along with the rest. FLAC 24/192 still took 19 ms in 1.14, because of Apple's decoder. With dr_flac it takes 2 ms. The CPU behind one FLAC 24/192 seek went from 8 ms to 0.06 ms.
+**The data:** a seek in a 3-minute file went from about 55 ms to 2 ms. 1.12 made every seek about 20 ms slower, and 1.14 took that back along with the rest. FLAC 24/192 still took 19 ms in 1.14, because of Apple's decoder. With Vibe's it takes 2 ms. The CPU behind one FLAC 24/192 seek went from 8 ms to 0.06 ms.
 
 ![Seek latency](performance/seek.svg)
 
@@ -36,7 +36,7 @@ The 1.14 engine seeks without stopping the output. In 1.15 I replaced Apple's FL
 
 ## Decoding
 
-I replaced Apple's decoders with three small open-source ones: dr_mp3 for MP3 in 1.14, and dr_flac and dr_wav for FLAC, WAV and AIFF in 1.15. AAC still uses Apple's decoder.
+Vibe's decoders replaced Apple's for MP3 in 1.14, and for FLAC, WAV and AIFF in 1.15. AAC still uses Apple's decoder.
 
 **Why:** they keep every bit of the audio and use less CPU. Each one is measured against Apple's decoder in [audio quality](audio-quality.md).
 
@@ -49,8 +49,8 @@ I replaced Apple's decoders with three small open-source ones: dr_mp3 for MP3 in
 Four releases cut the CPU it takes to play a file:
 
 - 1.12 made the UI's playback updates cheaper. Formatting the time readout had been most of each update.
-- 1.14 brought Vibe's own engine, dr_mp3, and r8brain for sample-rate conversion.
-- 1.15 brought dr_flac and dr_wav, and slowed the player's timer from 100 checks a second to 10.
+- 1.14 brought Vibe's own engine, and its MP3 decoder and resampler.
+- 1.15 brought Vibe's FLAC, WAV and AIFF decoders, and slowed the player's timer from 100 checks a second to 10.
 - 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. 1.16 isn't on these charts yet.
 
 **Why:** a music player should cost close to nothing during playback. The savings matter most on a laptop battery.
@@ -79,7 +79,7 @@ A new track gets a waveform and a tempo. Both come from one pass that decodes th
 
 **Why:** the pass is mostly decoding. The faster decoders did most of the work. Tempo detection works in samples. A 96 kHz file cost twice as much as the same music at 48 kHz. On 150 test tracks converted to 96 kHz, tempo accuracy stayed at 82.3%.
 
-**The data:** a 3-minute MP3 went from 250 ms to 118 ms with dr_mp3. A 3-minute FLAC went from 279 ms to 61 ms with dr_flac. A 60-minute MP3 went from 4.8 s to 2.1 s.
+**The data:** a 3-minute MP3 went from 250 ms to 118 ms with the new MP3 decoder. A 3-minute FLAC went from 279 ms to 61 ms with the new FLAC decoder. A 60-minute MP3 went from 4.8 s to 2.1 s.
 
 ![Waveform and tempo for a 3-minute file](performance/waveform.svg)
 
@@ -103,13 +103,13 @@ Peak memory fell from 107 MB to 68 MB in 1.10. That release fixed several leaks 
 
 ## Drawing the waveform
 
-In October 2026 I made the Spectrum waveform style cheaper to draw. Spectrum now mixes its color and brightness in one SIMD vector. A strip with one bar per pixel skips the color interpolation. A finished waveform remembers the loudest of each band's 1,024 columns. Resizing doesn't scan for it again.
+In October 2026, the Spectrum waveform style got cheaper to draw. Spectrum now mixes its color and brightness in one SIMD vector. A strip with one bar per pixel skips the color interpolation. A finished waveform remembers the loudest of each band's 1,024 columns. Resizing doesn't scan for it again.
 
 **Why:** resizing the window redraws the waveform every frame. Spectrum was the most expensive style to resize.
 
 **The data:** resizing a normalized Spectrum waveform takes 26% fewer instructions and 24% less CPU. It went from 138.7 to 102.0 million instructions, and from 5.7 to 4.3 ms. With display gain at −6 or +6 dB, it takes 9% fewer instructions and 7–8% less CPU. Each resize draws 60 frames from 700 to 936 points wide at 2x. The saved envelopes, masks and strips are byte-identical to before. These are CPU and instruction counts on an M4 Max. They don't measure the GPU, and iOS wasn't measured on a device.
 
-Two other ideas didn't help, and I dropped them. Rewriting the waveform's energy windows with more SIMD didn't reduce the work. Building the whole app with `-O3` showed no clear gain either. To repeat the comparison:
+Two other ideas didn't help, and were dropped. Rewriting the waveform's energy windows with more SIMD didn't reduce the work. Building the whole app with `-O3` showed no clear gain either. To repeat the comparison:
 
 ```bash
 python3 .claude/skills/vibe-perf/scripts/perf.py compare 2e8059a2 --filter '^ui-waveform\.' --rounds 5 --reps 20
@@ -134,7 +134,7 @@ These component charts don't need a section of their own.
 
 </details>
 
-## How I measure
+## How it's measured
 
 Both suites run unchanged against every release. Everything is held fixed except the app's own code. A difference between two versions comes from the code. The app benchmarks live in `scripts/bench/`. The component benchmarks belong to the `vibe-perf` skill.
 
