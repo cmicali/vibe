@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 296" width="720" height="296" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Accuracy on the ISO MP3 test">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.sg{fill:#a8a7a1;stroke:#a8a7a1}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.sg{fill:#6e6d68;stroke:#6e6d68}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="720" height="296" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Accuracy on the ISO MP3 test</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">How many times inside the ISO&#x27;s full-accuracy limit each decoder stays, on its worst of seven test streams. 1× is right on the</text>
+<text class="m" x="24.0" y="68.0" font-size="12" text-anchor="start">limit. Higher is better.</text>
+<line class="a" x1="144.2" y1="88.0" x2="144.2" y2="266.0" stroke-width="1"/>
+<text class="q" x="144.2" y="282.0" font-size="11" text-anchor="middle">0×</text>
+<line class="g" x1="272.7" y1="88.0" x2="272.7" y2="266.0" stroke-width="1"/>
+<text class="q" x="272.7" y="282.0" font-size="11" text-anchor="middle">50×</text>
+<line class="g" x1="401.3" y1="88.0" x2="401.3" y2="266.0" stroke-width="1"/>
+<text class="q" x="401.3" y="282.0" font-size="11" text-anchor="middle">100×</text>
+<line class="g" x1="529.9" y1="88.0" x2="529.9" y2="266.0" stroke-width="1"/>
+<text class="q" x="529.9" y="282.0" font-size="11" text-anchor="middle">150×</text>
+<line class="g" x1="658.5" y1="88.0" x2="658.5" y2="266.0" stroke-width="1"/>
+<text class="q" x="658.5" y="282.0" font-size="11" text-anchor="middle">200×</text>
+<text class="m" x="132.2" y="102.0" font-size="12" text-anchor="end">Vibe</text>
+<path class="s0" d="M144.2,92.0 h266.0 a4,4 0 0 1 4,4 v4.0 a4,4 0 0 1 -4,4 h-266.0 z"><title>Vibe, Vibe: 105×</title></path>
+<text class="m" x="420.2" y="102.0" font-size="11" text-anchor="start">105×</text>
+<text class="m" x="132.2" y="128.0" font-size="12" text-anchor="end">Apple, Apple silicon</text>
+<path class="s1" d="M144.2,118.0 h1.3 a1.2857999999999947,1.2857999999999947 0 0 1 1.2857999999999947,1.2857999999999947 v9.4 a1.2857999999999947,1.2857999999999947 0 0 1 -1.2857999999999947,1.2857999999999947 h-1.3 z"><title>Apple, Apple silicon, Apple, Apple silicon: 1×</title></path>
+<text class="m" x="152.7" y="128.0" font-size="11" text-anchor="start">1×</text>
+<text class="m" x="132.2" y="154.0" font-size="12" text-anchor="end">Apple, Intel</text>
+<path class="s1" d="M144.2,144.0 h381.7 a4,4 0 0 1 4,4 v4.0 a4,4 0 0 1 -4,4 h-381.7 z"><title>Apple, Intel, Apple, Intel: 150×</title></path>
+<text class="m" x="535.9" y="154.0" font-size="11" text-anchor="start">150×</text>
+<text class="m" x="132.2" y="180.0" font-size="12" text-anchor="end">BASS</text>
+<path class="sg" d="M144.2,170.0 h253.2 a4,4 0 0 1 4,4 v4.0 a4,4 0 0 1 -4,4 h-253.2 z"><title>BASS, BASS: 100×</title></path>
+<text class="m" x="407.3" y="180.0" font-size="11" text-anchor="start">100×</text>
+<text class="m" x="132.2" y="206.0" font-size="12" text-anchor="end">FFmpeg</text>
+<path class="sg" d="M144.2,196.0 h284.0 a4,4 0 0 1 4,4 v4.0 a4,4 0 0 1 -4,4 h-284.0 z"><title>FFmpeg, FFmpeg: 112×</title></path>
+<text class="m" x="438.2" y="206.0" font-size="11" text-anchor="start">112×</text>
+<text class="m" x="132.2" y="232.0" font-size="12" text-anchor="end">libmad</text>
+<path class="sg" d="M144.2,222.0 h268.6 a4,4 0 0 1 4,4 v4.0 a4,4 0 0 1 -4,4 h-268.6 z"><title>libmad, libmad: 106×</title></path>
+<text class="m" x="422.7" y="232.0" font-size="11" text-anchor="start">106×</text>
+<text class="m" x="132.2" y="258.0" font-size="12" text-anchor="end">mpg123</text>
+<path class="sg" d="M144.2,248.0 h268.6 a4,4 0 0 1 4,4 v4.0 a4,4 0 0 1 -4,4 h-268.6 z"><title>mpg123, mpg123: 106×</title></path>
+<text class="m" x="422.7" y="258.0" font-size="11" text-anchor="start">106×</text>
+</svg>

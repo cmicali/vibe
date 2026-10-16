@@ -14,7 +14,7 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
 
 ## Directories
 
-- [audio-quality/](audio-quality/): the charts that `audio-quality.md` shows, in light and dark versions.
+- [audio-quality/](audio-quality/): the charts and tables that `audio-quality.md` shows, and `response.json`, the resampler's frequency response curves. `scripts/docs/audio_quality.py` draws them and holds the other numbers.
 - [bugs/](bugs/): `open-issues.md`, bugs seen in testing that are not fixed or not explained.
 - [future/](future/): plans and studies for work that is not built, or only partly built. Each file opens with its status.
   - `agent-build-slots.md`: separate build slots for agents working at once.
@@ -34,7 +34,7 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
 - [not-doing/](not-doing/): designs that were weighed and declined, kept so they are not proposed again.
   - `airplay-output-devices.md`: why AirPlay targets are not in the output device list.
   - `rejected-alternatives.md`: alternatives to the current design and why they are excluded.
-- [performance/](performance/): the charts that `performance.md` shows, and `results.json`, the data behind them.
+- [performance/](performance/): the charts and the release table that `performance.md` shows, and `results.json`, the data behind them. `scripts/bench/report.py` draws them.
 
 ## Which doc is the authority
 

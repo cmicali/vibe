@@ -6,7 +6,7 @@
                                          is every version already there
     bench.py all [<label>[=<ref>] ...]   the app suite, then the component benchmarks
     bench.py build <label>=<ref> ...     build versions (scripts/bench/build-version.sh)
-    bench.py report                      the charts and table atop docs/performance.md
+    bench.py report                      docs/performance.md's charts and release table
 
 A label is a release, `1.15` for tag v1.15; `=<ref>` measures any other commit.
 A label with no v<label> tag yet is stored and charted as "<label> pre-release".

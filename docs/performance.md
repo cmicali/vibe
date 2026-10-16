@@ -1,154 +1,188 @@
 # Performance
 
+Every release of Vibe runs the same benchmarks, on the same Mac. That shows what got faster, what got slower, and which change did it. This page has the results, and the reasons behind the big moves.
+
+There are two kinds of benchmark. The app benchmarks launch each release's own app and play real files through the speakers. The component benchmarks run the code under each feature directly, with no app around it. Lower is better on every chart and table here.
+
 <!-- performance:begin -->
 
-### The app
+The app benchmarks ran on an Apple M2 Pro with 32 GB of memory and macOS 27.0.1. The component benchmarks ran on an Apple M4 Max with 64 GB of memory and macOS 27.0. A version marked pre-release was measured before its release was tagged.
 
-The app benchmarks: each release's own app, launched and driven the same way, on one machine (Apple M2 Pro, 32 GB, macOS 27.0.1); lower is better everywhere. A version marked pre-release was measured before its release was tagged. What each number measures and how to run it is below the charts.
-
-| | 1.8 | 1.9 | 1.10 | 1.11 | 1.12 | 1.13 | 1.14 | 1.15 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| App startup, window shown (ms) | 198 | 199 | 201 | 202 | 206 | 205 | 206 | 208 |
-| Time to play, first file after launch (ms) | 68 | 67 | 68 | 66 | 67 | 62 | 37 | 42 |
-| Time to play, track switch, mean of 6 formats (ms) | 36 | 36 | 36 | 39 | 36 | 37 | 7 | 3 |
-| Seek latency, 3 min files, mean of 3 formats (ms) | 54 | 55 | 55 | 54 | 76 | 75 | 8 | 2 |
-| Seek latency, 60 min VBR MP3 (ms) | 55 | 54 | 54 | 54 | 76 | 75 | 5 | 4 |
-| Seek latency, VBR MP3 without Xing (ms) | 54 | 54 | 54 | 54 | 75 | 74 | 3 | 2 |
-| Playback CPU, MP3 320k (% core) | 4.5 | 4.5 | 4.5 | 4.5 | 3.8 | 3.7 | 2.1 | 1.7 |
-| Playback CPU, FLAC 24/192 (% core) | 8.1 | 8.1 | 8.3 | 8.1 | 5.5 | 5.5 | 3.9 | 2.1 |
-| Playback CPU, FLAC 24/192 + FX (% core) | 11.5 | 11.3 | 11.5 | 11.5 | 8.7 | 8.8 | 8.8 | 7.1 |
-| Playback CPU, FLAC 24/352.8 (% core) | 11.9 | 12.2 | 12.2 | 12.1 | 7.4 | 7.3 | 5.8 | 3.1 |
-| Playback CPU, FLAC 24/192 at +8% pitch (% core) | 10.8 | 10.8 | 11.1 | 11.0 | 10.8 | 10.8 | 8.7 | 6.8 |
-| Waveform analysis, FLAC 16/44.1, 3 min (ms) | 279 | 277 | 278 | 278 | 278 | 278 | 289 | 61 |
-| Waveform analysis, MP3 320k, 60 min (s) | 4.8 | 4.8 | 4.8 | 4.8 | 4.8 | 4.8 | 2.1 | 2.1 |
-| Library metadata scan, cold (s) | 0.29 | 0.32 | 0.46 | 0.47 | 0.43 | 0.43 | 0.40 | 0.36 |
-| Memory, idle (MB) | 31 | 32 | 35 | 33 | 30 | 30 | 41 | 37 |
-| Memory, peak (MB) | 107 | 107 | 68 | 66 | 59 | 60 | 66 | 64 |
-
-![App startup](performance/startup.svg)
-![Time to play a file never opened before](performance/time-to-play.svg)
-![Seek latency](performance/seek.svg)
-![Long MP3s: open and seek](performance/long-mp3.svg)
-![Playback CPU](performance/playback-cpu.svg)
-![Playback CPU, resampled to 48 kHz](performance/resampler-cpu.svg)
-![Playback CPU at ±8% pitch](performance/pitch-cpu.svg)
-![Waveform + tempo analysis, 3 min file](performance/waveform.svg)
-![Waveform + tempo analysis, long files](performance/waveform-long.svg)
-![600-file library: open and metadata scan](performance/library.svg)
-![Memory footprint](performance/memory.svg)
-![Background cost](performance/idle.svg)
-![Playback energy](performance/playback-energy.svg)
-![Playback work, instructions retired](performance/playback-work.svg)
-![Wakeups](performance/wakeups.svg)
-
-### Components
-
-The component benchmarks, VibeBenchComponents, built against each version's own code and run on one machine (Apple M4 Max, 64 GB, macOS 27.0): the code under each feature, without the app around it. A missing point means that benchmark has no stored result for the version; a version marked pre-release was measured before its release was tagged.
-
-![Decoding, CPU per minute of audio](performance/components-decode.svg)
-![Opening a file](performance/components-open.svg)
-![Seeking, and the first read after it](performance/components-seek.svg)
-![Waveform, tempo and key for a new track, 3 min file](performance/components-waveform.svg)
-![Tempo and key analysis, CPU per minute of audio](performance/components-analysis.svg)
-![Reading a file's tags and cover art](performance/components-metadata.svg)
-![The metadata and waveform disk cache](performance/components-disk-cache.svg)
-![Large libraries](performance/components-library.svg)
+![Every release](performance/summary.svg)
 
 <!-- performance:end -->
 
-## October 2026 performance pass
+## Playing a track
 
-Measured on an Apple M4 Max with 64 GB of memory, macOS 27.0.1 and Xcode 27.0. The initial baseline was `54351183`. After the Spectrum color-window change in #244, the branch was rebased and the component comparisons were repeated against `2e8059a2`. Both sides use the same benchmark harness and the shipping `-Os` settings. This pass is separate from the release charts above.
+In 1.14, Vibe's own audio engine replaced Apple's AVAudioEngine. It plays straight to the output device.
 
-The initial survey covered 134 component benchmarks. It covered opening, decoding, seeking, playback stages, analysis, caches, library loading and UI work. Two new cases measure Spectrum with display gain at -6 dB and +6 dB. The final comparison covered all 136 cases.
+**Why:** Vibe's engine keeps the output running when the track changes. The next track only has to open its file and start decoding. With AVAudioEngine, a track switch took about 36 ms.
 
-Spectrum now mixes RGB and brightness in one SIMD vector. A strip with one bar per pixel skips the color scratch and interpolation. A completed waveform now keeps each band's loudest of 1,024 columns. Resizing no longer repeats that scan. The iOS completion gain reads the same answer.
+**The data:** a track switch now takes about 3 ms. The first file after launch still has to start the output. It takes about 40 ms. The slow case is an MP3 with no Xing header. That file has no frame count and no seek table. Opening it takes more work. App launch has stayed near 200 ms in every release. It has crept up by about 10 ms since 1.8.
 
-The waveform comparison alternates baseline and changed binaries for five rounds of twenty repetitions. Each resize repetition draws 60 frames from 700 to 936 points at 2x backing scale. These are CPU and instruction measurements. They do not measure GPU frame completion. iOS was not measured on a device.
+![Time to play a file never opened before](performance/time-to-play.svg)
 
-| Spectrum resize case | Instructions before | Instructions after | CPU before | CPU after |
-| --- | ---: | ---: | ---: | ---: |
-| Normalized | 138.7 million | 102.0 million | 5.7 ms | 4.3 ms |
-| Gain -6 dB | 136.3 million | 123.5 million | 5.4 ms | 5.0 ms |
-| Gain +6 dB | 136.3 million | 123.5 million | 5.4 ms | 4.9 ms |
+## Seeking
 
-The normalized case uses 26% fewer instructions and 24% less CPU time. The gain cases use 9% fewer instructions and 7–8% less CPU time. Before #244, the same changes measured 30% fewer instructions and 25–28% less CPU time in the normalized case. The table above includes #244 on both sides. Other waveform styles have unchanged instruction counts within measurement variation. Their CPU timings vary between batches. An apparent oversampling slowdown reversed in an isolated repeat. It did not reproduce as an instruction increase.
+The 1.14 engine seeks without stopping the output. In 1.15, Vibe's FLAC decoder replaced Apple's.
 
-The saved waveform envelopes, masks, bakes and Spectrum strips are byte-identical. Strip checks include widths below and above the 8,192-bar cap.
+**Why:** Apple's FLAC decoder ignores the seek table in a FLAC file. To seek into a part it hasn't read yet, it reads the file from the start up to that point. Vibe's decoder uses the seek table, or bisects the file when there isn't one. [Audio quality](audio-quality.md#the-flac-decoder) has the rest of that decision.
 
-The audio path already uses Accelerate and SIMD for mixing, resampling, metering and analysis. The high-rate FLAC profile spends most decoder time in the existing NEON residual decoder. The Detailed resize profile spends much of its time in Core Graphics path construction. Spectrum with nonzero display gain still spends substantial time in `powf`.
+**The data:** a seek in a 3-minute file went from about 55 ms to 2 ms. 1.12 made every seek about 20 ms slower, and 1.14 took that back along with the rest. FLAC 24/192 still took 19 ms in 1.14, because of Apple's decoder. With Vibe's it takes 2 ms. The CPU behind one FLAC 24/192 seek went from 8 ms to 0.06 ms.
 
-Broader SIMD rewrites of waveform energy windows did not improve the measured work. A whole-target `-O3` build also showed no convincing general gain. Those experiments were discarded. The retained changes consolidate the normalization scan and remove the common strip's intermediate color pass.
+![Seek latency](performance/seek.svg)
 
-To repeat the component comparison:
+![Seeking, and the first read after it](performance/components-seek.svg)
+
+## Decoding
+
+Vibe's decoders replaced Apple's for MP3 in 1.14, and for FLAC, WAV and AIFF in 1.15. AAC still uses Apple's decoder.
+
+**Why:** they keep every bit of the audio and use less CPU. Each one is measured against Apple's decoder in [audio quality](audio-quality.md).
+
+**The data:** decoding a minute of MP3 went from 61 ms of CPU to 26 ms. A minute of FLAC 24/192 went from 442 ms to 62 ms. AAC got about 25% more expensive in 1.14. That's when Vibe started asking Apple's AAC decoder for 32-bit float instead of 16-bit. The extra cost buys the precision described in [lossy files and bit depth](audio-quality.md#lossy-files-and-bit-depth).
+
+![Decoding, CPU per minute of audio](performance/components-decode.svg)
+
+## Playback CPU
+
+Four releases cut the CPU it takes to play a file:
+
+- 1.12 made the UI's playback updates cheaper. Formatting the time readout had been most of each update.
+- 1.14 brought Vibe's own engine, and its MP3 decoder and resampler.
+- 1.15 brought Vibe's FLAC, WAV and AIFF decoders, and slowed the player's timer from 100 checks a second to 10.
+- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. 1.16 isn't on these charts yet.
+
+**Why:** a music player should cost close to nothing during playback. The savings matter most on a laptop battery.
+
+**The data:** MP3 and FLAC 16/44.1 went from about 4.5% of a core to about 1.7%. FLAC 24/192 went from 8.1% to 2.1%. The speakers in these tests run at 48 kHz. Every other rate gets resampled, 44.1 kHz included. FLAC 24/352.8 needs the most resampling, and it went from 12% to 3.1%. With every effect on, CPU fell less, because the effects themselves are most of that work.
+
+![Playback CPU](performance/playback-cpu.svg)
+
+![Playback CPU with effects, pitch and resampling](performance/playback-cpu-extra.svg)
+
+## When nothing is playing
+
+When it's paused or idle, Vibe should do close to nothing. With nothing loaded, the 1.14 engine does no work at all.
+
+**Why:** an app that wakes the CPU often keeps it from sleeping, even if each wakeup is cheap. That costs battery.
+
+**The data:** CPU while paused went from 2.2% of a core to 0.19%. 1.14 got one thing wrong. Its player timer ran 100 times a second whenever a track was loaded, playing or paused. That took wakeups while playing from 7 a second to 105. It also raised the energy of playing FLAC 24/192 from 9.9 mW to 16.5 mW, even though CPU went down. In 1.15 the timer runs 10 times a second. It goes back to 100 only when a fade, a track change or the end of a file is coming up. Wakeups while playing dropped to 15, and FLAC 24/192 now takes 4.0 mW.
+
+![CPU wakeups](performance/wakeups.svg)
+
+![CPU when not playing](performance/background.svg)
+
+## Waveform and tempo
+
+A new track gets a waveform and a tempo. Both come from one pass that decodes the whole file. Since 1.15, files at 88.2 kHz and up are converted down to 44.1 or 48 kHz before tempo detection.
+
+**Why:** the pass is mostly decoding. The faster decoders did most of the work. Tempo detection works in samples. A 96 kHz file cost twice as much as the same music at 48 kHz. On 150 test tracks converted to 96 kHz, tempo accuracy stayed at 82.3%.
+
+**The data:** a 3-minute MP3 went from 250 ms to 118 ms with the new MP3 decoder. A 3-minute FLAC went from 279 ms to 61 ms with the new FLAC decoder. A 60-minute MP3 went from 4.8 s to 2.1 s.
+
+![Waveform and tempo for a 3-minute file](performance/waveform.svg)
+
+## Libraries and tags
+
+Vibe has no library to import. When you open a folder, it lists the files right away. Then it reads tags and cover art in the background. It caches what it reads on disk, keyed by each file's size and modification time.
+
+**Why:** you can open any folder and play right away, and the second time is faster.
+
+**The data:** since 1.10, reading a file's tags also makes the smaller copies of its cover that the app shows. That's the jump at 1.10 in the second chart. 1.15 halved that cost. It decodes the JPEG at a smaller size first, then scales it with vImage. 1.15 also made the disk cache faster. A first scan of the 600-file library takes 0.36 s. A scan with a full cache takes 0.08 s.
+
+![A 600-file library](performance/library.svg)
+
+![Reading tags and a 1000 px cover](performance/components-metadata.svg)
+
+## Memory
+
+Peak memory fell from 107 MB to 68 MB in 1.10. That release fixed several leaks and reworked library and artwork loading. It's 64 MB now. Idle memory went up from 30 MB to 41 MB in 1.14 with the new engine. It's back down to 37 MB.
+
+![Memory](performance/memory.svg)
+
+## Drawing the waveform
+
+In October 2026, the Spectrum waveform style got cheaper to draw. Spectrum now mixes its color and brightness in one SIMD vector. A strip with one bar per pixel skips the color interpolation. A finished waveform remembers the loudest of each band's 1,024 columns. Resizing doesn't scan for it again.
+
+**Why:** resizing the window redraws the waveform every frame. Spectrum was the most expensive style to resize.
+
+**The data:** resizing a normalized Spectrum waveform takes 26% fewer instructions and 24% less CPU. It went from 138.7 to 102.0 million instructions, and from 5.7 to 4.3 ms. With display gain at −6 or +6 dB, it takes 9% fewer instructions and 7–8% less CPU. Each resize draws 60 frames from 700 to 936 points wide at 2x. The saved envelopes, masks and strips are byte-identical to before. These are CPU and instruction counts on an M4 Max. They don't measure the GPU, and iOS wasn't measured on a device.
+
+Two other ideas didn't help, and were dropped. Rewriting the waveform's energy windows with more SIMD didn't reduce the work. Building the whole app with `-O3` showed no clear gain either. To repeat the comparison:
 
 ```bash
 python3 .claude/skills/vibe-perf/scripts/perf.py compare 2e8059a2 --filter '^ui-waveform\.' --rounds 5 --reps 20
 ```
 
-## How it works
+## More charts
 
-The numbers above come from two benchmark suites, each run unchanged against every release. Their job is to show a regression or an improvement between versions, so everything about them is held fixed except the app's own code. The **app benchmarks** (`scripts/bench/`, this section) launch each version's own app and drive it; the **component benchmarks** (the `vibe-perf` skill, [below](#the-component-benchmarks)) run each version's production code in-process, without the app.
+These component charts don't need a section of their own.
+
+<details>
+<summary>Opening files, the waveform pass, tempo and key, the disk cache, and large libraries</summary>
+
+![Opening a file](performance/components-open.svg)
+
+![Waveform, tempo and key for a new track, 3 min file](performance/components-waveform.svg)
+
+![Tempo and key analysis, CPU per minute of audio](performance/components-analysis.svg)
+
+![The metadata and waveform disk cache](performance/components-disk-cache.svg)
+
+![Large libraries](performance/components-library.svg)
+
+</details>
+
+## How it's measured
+
+Both suites run unchanged against every release. Everything is held fixed except the app's own code. A difference between two versions comes from the code. The app benchmarks live in `scripts/bench/`. The component benchmarks belong to the `vibe-perf` skill.
 
 ```bash
-make bench-releases VERSIONS="1.16"         # a new release: both suites at tag v1.16, this page redrawn
+make bench-releases VERSIONS="1.16"         # a new release: both suites at tag v1.16, and this page redrawn
 make bench-releases VERSIONS="HEAD"         # this checkout before its release, charted as "<its version> pre-release"
 make bench-releases VERSIONS="1.16=<ref>"   # any other commit, under that version
-make bench-releases                         # every version on this page again, e.g. on a new machine
+make bench-releases                         # every version again, for example on a new machine
 make bench-app VERSIONS="1.16"              # the app benchmarks alone
-make bench-components-releases              # the component benchmarks alone (no app launches)
+make bench-components-releases              # the component benchmarks alone, with no app launches
 make bench-report                           # this page's charts and table from results.json alone
 ```
 
-A version is a release tag (`1.16` means `v1.16`), a version at a commit (`1.16=<ref>`), or a bare ref such as `HEAD`, which is labelled with the version its own `project.yml` declares. **A version whose `v<version>` tag does not exist yet is a pre-release**: it is stored and charted, labelled `1.16 pre-release`, until a run at the tag replaces it.
+A version is a release tag (`1.16` means `v1.16`), a version at a commit (`1.16=<ref>`), or a ref such as `HEAD`. A ref takes the version its own `project.yml` declares. If the `v<version>` tag doesn't exist yet, the version is a pre-release. It's charted as `1.16 pre-release` until a run at the tag replaces it. `results.json` records the ref, the commit and `prerelease` for every entry. The component results still hold 1.14 at `1.14-beta3` (`8ae57716`) and 1.15 at a pre-release commit (`1057c2ae`).
 
-A version takes about half an hour on an M4 Max, longer on a slower Mac (five repetitions of every scenario; `ARGS="--reps 1"` for a quick look). The suite launches the app seventeen times per repetition and each launch takes focus, so leave the Mac alone while it runs, and put Bluetooth headphones away: the app is held to the built-in speakers, but a headset that is the system default can still be pulled in by the OS. It needs `ffmpeg` (`brew install ffmpeg`) for the corpus, generated once into `build/bench/corpus`.
+`scripts/bench/report.py` draws every chart and the release table. Each section above shows its charts by file name. When a chart is new, `make bench-report` says the page doesn't show it yet. Add it to the section it belongs to.
+
+One version takes about half an hour on an M4 Max, and longer on a slower Mac. That's five repetitions of every scenario. Use `ARGS="--reps 1"` for a quick look. The suite launches the app seventeen times per repetition, and each launch takes focus. Leave the Mac alone during a run, and put Bluetooth headphones away. The app is held to the built-in speakers, but a headset that is the system default can still get pulled in. The corpus needs `ffmpeg` (`brew install ffmpeg`). It's generated once into `build/bench/corpus`.
 
 ### What is held fixed
 
-- **The build.** `build-version.sh` checks the tag out into its own worktree and uses that version's Release configuration (`-Os` in the measured releases, `NDEBUG`, no `NSAssert`) with `DEBUG=1` added back so the debug command channel is compiled in, `VIBE_VERBOSE_LOGGING=0` (betas carry instrumentation a release does not), no App Sandbox, its own bundle ID, `com.commonwealthrecordings.Vibe.bench`, and its own process name, `VibeBenchApp`. Other sessions' tooling (vibe-debug's `launch.sh`) kills any process named `Vibe`, which would end a measurement mid-run.
-- **The state.** Every scenario starts from an empty home (`CFFIXED_USER_HOME`), so caches are cold unless the scenario says warm. That moves caches but not preferences, which `cfprefsd` keeps in the real home whatever the home variable says; so the bench builds carry their own bundle ID, and the runner resets that preferences domain before every scenario and seeds it. Nothing touches the installed app's container.
-- **The audio device.** The real output path on the built-in speakers, silent: every launch passes `--silent`, so the output unit drives the device and its clock while the samples are zeroed after the meter. Every version's saved output device is seeded as the speakers (`AudioPlayer.deviceUID`, the same key in all of them) with bit-perfect and exclusive output off in the builds that have them (1.12 on), and the runner refuses to open a file until `dump_state` shows the app bound to the speakers with bit-perfect off. Every launch also passes `-NSAppSleepDisabled YES`.
+- **The build.** `build-version.sh` checks the tag out into its own worktree and builds that version's Release configuration. That means `-Os`, `NDEBUG` and no `NSAssert`. It adds `DEBUG=1` back to compile in the debug command channel. It sets `VIBE_VERBOSE_LOGGING=0`, because betas carry logging a release doesn't. It turns off the App Sandbox. The build gets its own bundle ID, `com.commonwealthrecordings.Vibe.bench`, and its own process name, `VibeBenchApp`. Other tools (vibe-debug's `launch.sh`) kill any process named `Vibe`. That would end a run partway through.
+- **The state.** Every scenario starts from an empty home (`CFFIXED_USER_HOME`). Caches start cold unless the scenario says warm. `cfprefsd` keeps preferences in the real home whatever that variable says. So the runner resets the bench bundle ID's preferences before every scenario, then seeds them. Nothing touches the installed app's container.
+- **The audio device.** Every run plays through the built-in speakers, silently. Each launch passes `--silent`. The output unit drives the device and its clock, and the samples are zeroed after the meter. Every version's saved output device is seeded as the speakers (`AudioPlayer.deviceUID`, the same key in all of them). Bit-perfect and exclusive output are off in the builds that have them (1.12 on). The runner won't open a file until `dump_state` shows the app on the speakers with bit-perfect off. Every launch also passes `-NSAppSleepDisabled YES`. The runs don't use `--no-audio-hw`. Its debug pump stands in for the device with a 20 ms timer. In 1.8 that pump drives AVAudioEngine's offline rendering, where a track switch or seek under load can take tens of seconds that no real device shows.
+- **The corpus.** `bench.py` generates it with ffmpeg into `build/bench/corpus`, the same every time (1.4 GB). The audio is pink noise under a 120 BPM kick. It's broadband. Lossless files barely compress, and decoding is at its worst. Each tagged format carries a 1000 px cover. WAV has none. There are fifteen playback files. The everyday formats are 3 minutes long: MP3 320k and V0, AAC 256k, FLAC 16/44.1, 24/96 and 24/192, and WAV 24/96. MP3 at its worst is an hour at 320k and at V0, ten minutes of VBR with no Xing header, and a 48 kHz file, the one MP3 that isn't resampled. The resampler gets awkward ratios: FLAC 24/88.2, 24/176.4, 24/352.8 and 16/22.05 mono. There's also a 600-file library of 30 albums with 20 tracks each, in MP3, FLAC and AAC, each with a 600 px cover. `results.json` records a hash of the corpus.
+- **The load.** Before every scenario, the runner waits until the whole machine has been at least 80% idle for three seconds (`top`, or `ARGS="--idle <percent>"`). It records that idle level in `results.json`. Another workload would inflate every number, unevenly, and show up as a regression.
+- **The machine.** Results only compare on one machine. `results.json` records the chip, memory, macOS and Xcode for each version. The page charts only the versions measured on the newest entry's machine and corpus. After a change of either, run `make bench-releases` with no `VERSIONS`. A run that would leave versions measured elsewhere off the page refuses to start, and says what differs. `ARGS="--new-machine"` overrides it.
 
-  The speakers run at 48 kHz, so every file not at 48 kHz is resampled, 44.1 kHz included.
-
-  Not `--no-audio-hw`. Its debug pump stands in for the device with a 20 ms timer. In 1.8 it drives AVAudioEngine's offline manual rendering, where a track switch or seek under load can take tens of seconds that no real device shows. Measure the real path.
-- **The corpus.** Generated deterministically by `bench.py` with ffmpeg into `build/bench/corpus` (1.4 GB): decorrelated pink noise under a 120 BPM kick — broadband, so lossless files barely compress and decoding is at its worst — each tagged format carrying a 1000 px cover (WAV has none). Fifteen playback files: the everyday formats at 3 minutes (MP3 320k and V0, AAC 256k, FLAC 16/44.1, 24/96 and 24/192, WAV 24/96); MP3 at its worst (an hour at 320k and at V0, ten minutes of VBR with no Xing header, so no seek table and no frame count, and 48 kHz, the one MP3 not resampled); and the resampler at awkward ratios (FLAC 24/88.2, 24/176.4, 24/352.8 DXD, and 16/22.05 mono, upsampled). Plus a 600-file library: 30 albums × 20 tracks of MP3, FLAC and AAC, every file tagged with a 600 px cover. `results.json` records a hash of it.
-- **The load.** Before every scenario the runner waits until the whole machine has been at least 80% idle for three seconds running (`top`; `ARGS="--idle <percent>"`), and records that idle level in `results.json`. Another workload would inflate every number, unevenly across cores, and chart as a regression.
-- **The machine.** Results are only comparable from one machine. `results.json` records the chip, memory, macOS and Xcode per version, and the report charts only versions measured on the newest entry's machine and corpus. After a change of either, `make bench-releases` with no `VERSIONS`. A run that would leave versions measured elsewhere off the page refuses before it starts, and says what differs; `ARGS="--new-machine"` overrides it.
-
-**Which build each version is.** A version is its release tag, or the commit it was measured at. `results.json` records the ref, the commit and `prerelease` for every entry. The component results still hold 1.14 at `1.14-beta3` (`8ae57716`) until a run at `v1.14` replaces it.
-
-**Patches.** 1.8 and 1.9 lack `dump_metadata_progress`, the channel verb the library scan settles on. `scripts/bench/patches/<version>.patch` backports it. It reads state and changes nothing. No other version is patched.
+**Patches.** 1.8 and 1.9 lack `dump_metadata_progress`, the channel command the library scan waits on. `scripts/bench/patches/<version>.patch` backports it. It only reads state. No other version is patched. One source change goes into every version's build, for the channel only. In `Vibe/Debug/`, `NSTemporaryDirectory()` reads `VIBE_DEBUG_TMPDIR` first. An unsandboxed app's temp folder is the shared per-user one, and unrelated files there slow every channel scan.
 
 ### How each number is taken
 
-Every metric is the median of five repetitions, each in a fresh app launch; the noisiest ones are themselves medians or means over many samples within a repetition (below). Lower is better throughout.
+Every number is the median of five repetitions, each in a fresh launch. The noisiest ones are themselves medians or means of many samples within a repetition. `results.json` keeps every repetition's raw value under `samples`.
 
-The suite drives the app through the debug command channel with its own client, which speaks the channel's wire format; it polls response files every 0.2 ms. The observed command-file removal starts the command intervals. Startup is timed from process spawn. Time to play and seek latency are estimated from the command-file removal time and the reported playback position. Subtracting the position reduces polling delay. These are render-start estimates, not measurements of sound reaching the listener. Scheduling and output buffering limit their precision.
+The suite drives the app through the debug command channel with its own client. It checks for response files every 0.2 ms. It polls `dump_state` only every 25 ms, because `dump_state` runs on the app's main thread. A tight loop would pin the main thread and measure the benchmark instead of the app. Each command's timing starts when the app removes the command file. Time to play and seek latency subtract the reported playback position. That takes out the polling delay. They estimate when rendering starts, not when sound reaches you. Scheduling and output buffering limit their precision. CPU, memory, wakeups and energy are read from outside the app with `proc_pid_rusage`, the same way for every version. CPU is the time over a window as a percent of one core. Memory is `phys_footprint`.
 
-So the suite polls gently, every 25 ms. `dump_state` runs on the app's main thread. A tight loop sends thousands of requests a second, pins the main thread, and measures the benchmark instead of the app.
-
-One source change the build makes to every version, for the channel alone: in `Vibe/Debug/`, `NSTemporaryDirectory()` reads `VIBE_DEBUG_TMPDIR` first. An unsandboxed app's temp dir is the shared per-user one, and unrelated entries add work to every channel scan.
-
-CPU, memory, wakeups and energy are read from outside with `proc_pid_rusage`, the same in every version: CPU time over a window as a percentage of one core, `phys_footprint` for memory.
-
-| Metric | Scenario |
-| --- | --- |
-| **App startup** | Process spawn to the first on-screen window (`scripts/bench/probe.swift`, from the window server, no permission needed), and to the first channel reply. *Warm* is the median of ten relaunches over the same home; *first launch* the median of three, each into an empty home with reset preferences. |
-| **Idle cost** | CPU %, wakeups/s and footprint over 5 s, 4 s after a first launch with nothing loaded. *Paused* measures 5 s after a 3 s wait with a loaded track paused. |
-| **Time to play** | `open` of a file never opened before (cold metadata, art and waveform) to the first rendered audio. The first, MP3 320k CBR, is the first play after launch, so it includes starting the output; the other six are track switches from a playing file: MP3 V0 VBR, AAC 256k, FLAC 16/44.1, FLAC 24/96, FLAC 24/192, WAV 24/96. A version that keeps its output running across a switch (1.14 on) plays the next file in a few milliseconds. The long and resampler-stress files below are opened the same way, and their times are recorded too. |
-| **Playback CPU** | 8 s of steady playback of every one of the fifteen files, measured after four consecutive 0.25 s samples below 15% of a core. This is a low-CPU heuristic, not proof that analysis has ended. If the 120 s wait expires, the runner warns and still measures. The same window gives *playback energy* (the process's energy over it, as `proc_pid_rusage` reports it), *playback work* (instructions retired a second, steadier than CPU time) and *wakeups* while playing. The FX worst case is FLAC 24/192 with reverb, delay, short delay and low kill all on; the pitch-fader cases hold the varispeed at +8% on FLAC 24/192 and −8% on MP3 320k, a non-integer ratio on top of the rate conversion. |
-| **Seek latency** | 40 seeded seeks per file, each from the app taking the command to audio rendering past the target, the mean per repetition: MP3 V0, AAC and FLAC 24/192 at 3 minutes, and the hour-long MP3s and the MP3 without a Xing header, where a seek deep into the file is the worst case. |
-| **Waveform analysis** | `file_cache` on a cleared entry: the full decode, waveform and tempo analysis, until the entry is on disk. MP3 320k, FLAC 16/44.1 and FLAC 24/192 at 3 minutes; an hour of MP3; a minute of DXD. |
-| **Library** | `open` of the 600-file folder into an empty cache: until every row is listed, and until every row's metadata has been read (`dump_metadata_progress`). *Warm* repeats the scan in a relaunch over the filled cache. The CPU seconds it cost and the footprint afterwards and at peak are recorded too. |
-
-`results.json` keeps every repetition's raw value under `samples` beside the median.
+- **App startup:** process spawn to the first window on screen, and to the first channel reply. `scripts/bench/probe.swift` asks the window server and needs no permission. Warm is the median of ten relaunches over the same home. First launch is the median of three, each into an empty home with reset preferences.
+- **Time to play:** `open` of a file never opened before, until the first rendered audio. Its tags, art and waveform are all cold. The first file, MP3 320k, is the first play after launch. It includes starting the output. The other six are track switches from a playing file: MP3 V0, AAC 256k, FLAC 16/44.1, FLAC 24/96, FLAC 24/192 and WAV 24/96. The long and resampler files are opened the same way, and their times are recorded too.
+- **Seek latency:** 40 seeded seeks per file, from the app taking the command to audio rendering past the target, as the mean for each repetition. The files are MP3 V0, AAC and FLAC 24/192 at 3 minutes, the hour-long MP3s, and the MP3 with no Xing header. A seek deep into the long files is the worst case.
+- **Playback CPU:** 8 s of steady playback of each of the fifteen files. It starts after four 0.25 s samples in a row under 15% of a core. That's a guess that analysis has finished, not proof. If 120 s pass first, the runner warns and measures anyway. The same window gives playback energy (as `proc_pid_rusage` reports it), instructions retired a second, and wakeups while playing. "Every effect on" is FLAC 24/192 with reverb, delay, short delay and low kill. The pitch cases hold the fader at +8% on FLAC 24/192 and −8% on MP3 320k, a non-integer ratio on top of the rate conversion.
+- **Idle and paused:** CPU, wakeups a second and memory over 5 s. Idle starts 4 s after a first launch with nothing loaded. Paused starts 3 s after pausing a loaded track.
+- **Waveform:** `file_cache` on a cleared entry, until the entry is on disk. That runs the full decode, the waveform and tempo detection. The files are MP3 320k, FLAC 16/44.1 and FLAC 24/192 at 3 minutes, an hour of MP3, and a minute of DXD.
+- **Library:** `open` of the 600-file folder with an empty cache, until every row is listed, and until every row's tags are read (`dump_metadata_progress`). The warm scan repeats that in a relaunch with the cache full. The CPU seconds it took and the memory after it and at peak are recorded too.
 
 ### The component benchmarks
 
-The second set of charts is the code under each feature, without the app around it. `Tests/BenchComponents/`'s VibeBenchComponents drives the production code in-process: the player's file reader opening, decoding and seeking, the waveform pass with tempo and key, the analyzers alone, the pitch fader's converter, the metadata parse with its cover art, the disk cache, and the large-library operations. `make bench-components-releases`, or `make bench-releases` after the app benchmarks, runs it against every version into `results.json`'s `components` section. No app launches, so the Mac can be in use.
+VibeBenchComponents (`Tests/BenchComponents/`) drives the production code in-process. It covers the player's file reader opening, decoding and seeking, the waveform pass with tempo and key, the analyzers alone, the pitch converter, the tag parse with its cover art, the disk cache, and large libraries. `make bench-components-releases` runs it against every version into the `components` section of `results.json`. It doesn't launch the app. You can keep using the Mac.
 
-Today's harness is built against every version's own code, and a benchmark file a version cannot compile is left out. Some benchmarks therefore start later: the level meter from 1.10, the metadata sweep from 1.14, the playlist-file, folder-walk and playlist-edit benchmarks from 1.15, the pitch converter from 1.16. The `vibe-perf` skill explains how `perf.py releases` grafts the harness onto each version.
+Today's harness is built against each version's own code. A benchmark a version can't compile is left out. Some lines start late because of that. The level meter starts at 1.10, the metadata sweep at 1.14, the playlist-file, folder-walk and playlist-edit benchmarks at 1.15, and the pitch converter at 1.16. The `vibe-perf` skill explains how `perf.py releases` grafts the harness onto each version.
 
-Each number is the median of five runs of one process per version, after a warm-up. Decoding, analysis and the pitch converter are CPU time per minute of the audio, opening and seeking CPU time per operation, the waveform pass wall time (it pipelines across two threads), the metadata parse, the disk cache and the libraries wall time per file, entry or job. The machine is recorded separately from the app benchmarks', and these charts compare only versions measured on one machine. CPU time and instruction counts are kept beside wall time in `results.json`. Compare their run-to-run variation before attributing a small difference to the code.
+Each number is the median of five runs, one process per version, after a warm-up. Decoding, analysis and the pitch converter are CPU time per minute of audio. Opening and seeking are CPU time per operation. The waveform pass is wall time, because it runs on two threads. The tag parse, the disk cache and the libraries are wall time per file, entry or job. CPU time and instruction counts sit beside wall time in `results.json`. Check their run-to-run spread before blaming a small difference on the code.

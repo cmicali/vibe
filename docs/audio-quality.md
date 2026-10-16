@@ -1,509 +1,335 @@
 # Audio quality
 
-This page describes the playback path and the measurements behind its decoder and resampler choices. The tables record the tests and machines named beside them. They are not fresh measurements of every release.
+This page covers what Vibe does to your audio between the file and your output device, and why. Every choice here was measured before it was made. The numbers come from the tests and machines named in each section. They aren't re-run for every release.
 
-## The short version
+## The choices
 
-- **Unprocessed playback preserves the decoded samples.** This requires matching sample rates and channels, full volume, no active fade, a settled 0% pitch fader and no active effect or effect tail. The internal format is 32-bit float. Sources with greater precision are rounded during decoding.
-- **Different sample rates need conversion.** Vibe uses r8brain-free-src when the file and output rates differ. It produced less noise on most of the measurements below and used less CPU than Apple’s converter.
-- **Bit-perfect output (macOS) requests the file’s rate and a suitable device format.** The status reports whether Vibe could confirm the required conditions. It cannot verify processing inside the DAC.
-- **Vibe requests floating-point decode output.** It preserves the precision the decoder supplies. Apple’s MPEG decoder on Apple silicon supplied only 16-bit precision in the tests below.
-- **MP3s use Vibe's own decoder, dr_mp3.** On Apple silicon, Apple's built-in MP3 decoder can only produce 16-bit sound. dr_mp3 keeps the full detail, is about 100 times more accurate on the official MP3 test, and uses less than half the CPU. On an Intel Mac, Apple's decoder keeps the full detail too, but it still chops off a loud master's peaks. See [The MP3 decoder](#the-mp3-decoder).
-- **FLAC files use dr_flac.** It matched Apple’s samples in the tested library and sought faster in long files. It also used less CPU and handled files Apple’s decoder refused. See [The FLAC decoder](#the-flac-decoder).
-- **WAV and AIFF files use dr_wav when it accepts their format.** The library comparison below found identical samples and faster decoding. Unsupported encodings and rates fall back to another decoder. See [The WAV and AIFF decoder](#the-wav-and-aiff-decoder).
+- **Vibe leaves your samples alone unless it has to change them.** Everything decodes to 32-bit float. With matching sample rates and channels, full volume, no fade, the pitch fader at 0% and no effect running, the output carries the decoded samples exactly. A source with more precision than 32-bit float is rounded when it's decoded.
+- **Bit-perfect output (Mac) sets your device to the file's rate,** in a format with enough precision. The status says what Vibe could confirm. It can't see processing inside your DAC.
+- **MP3 doesn't use Apple's decoder.** On Apple silicon, Apple's MP3 decoder only makes 16-bit samples. [The MP3 decoder](#the-mp3-decoder)
+- **FLAC doesn't use Apple's decoder either.** Vibe's gives the same samples, with much faster seeks and less CPU. [The FLAC decoder](#the-flac-decoder)
+- **Neither do WAV and AIFF.** Vibe's decoder gives the same samples, faster, and reads files Apple's gets wrong. [The WAV and AIFF decoder](#the-wav-and-aiff-decoder)
+- **Sample-rate conversion doesn't use Apple's converter.** Vibe's resampler is cleaner and far cheaper. [The resampler](#the-resampler)
+- **The pitch fader uses Vibe's own converter.** It's much cleaner than Apple's Varispeed. [The pitch fader](#the-pitch-fader)
+
+Each section opens with what Vibe uses, the alternatives, and why each lost. The tables color each row from best (green) to worst (red). The best value is also bold. Every chart lists Vibe first, in blue, then Apple's, in orange, then anything else, in gray.
 
 ## A few terms
 
-- **Sample rate**: how many samples per second a recording has, such as 44.1 kHz (CD) or 96 kHz.
-- **Bit depth**: how finely each sample is measured. 16 bits is CD quality; 24 bits and 32-bit float are finer. More bits means a lower noise floor.
-- **Decoder**: the part that turns a compressed file, such as an MP3 or AAC, back into sound samples.
-- **Resampling**: converting audio from one sample rate to another. Doing it well takes careful filtering; doing it badly adds noise, distortion and false tones.
-- **dB and dBFS**: logarithmic measures of level. 0 dBFS is digital full scale. Floating-point samples can exceed it. Each −20 dB represents one tenth of the amplitude.
-- **Aliasing**: false tones that appear when sound above the new sample rate's limit is not filtered out. A good resampler removes them.
+- **Sample rate:** how many samples a second a recording has, like 44.1 kHz (CD) or 96 kHz.
+- **Bit depth:** how finely each sample is measured. 16 bits is CD quality. 24 bits and 32-bit float are finer. More bits means a lower noise floor.
+- **Decoder:** the part that turns a compressed file, like an MP3, back into samples.
+- **Resampling:** converting audio from one sample rate to another. Done badly, it adds noise, distortion and false tones.
+- **dB and dBFS:** a log scale for level. 0 dBFS is digital full scale. Floating-point samples can go past it. Every −20 dB is a tenth of the amplitude.
+- **Aliasing:** false tones that show up when sound above the new rate's limit isn't filtered out.
 
 ## Where the audio goes
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/signal-path-dark.svg"><img alt="The signal path in regular output, bit-perfect output and on iOS" src="audio-quality/signal-path-light.svg"></picture>
+Every file decodes to 32-bit float. Every stage after that is skipped when it has nothing to do.
 
-Every file is decoded to 32-bit floating point. The following stages bypass processing when inactive. A hosted stage can remain allocated during bypass.
+**Why:** a file at the output's sample rate, at full volume and with no effects, should reach the output exactly as it decoded. A stage that's hosted but idle still has to leave the samples alone. The tests check this sample by sample ([how it's tested](#how-its-tested)).
 
-- **Resample**: only when the file's sample rate is different from the output's.
-- **Declick**: a 10-millisecond fade at playback transitions to reduce clicks. Settings > Audio Output > Declick controls it on macOS. An enabled crossfade can last longer. iOS keeps declick enabled.
-- **Pitch**: the converter bypasses its filter at 0% after its ramp and buffered history settle. This preserves exact samples during settled playback. See [The pitch fader](#the-pitch-fader).
-- **DJ effects**: inactive effects bypass processing after their tails settle. The low cut ramps flat on release and resets after a quarter of a second. Exact-output tests check that it leaves no residual filtering.
-- **Volume**: Vibe's own volume fader. At full volume it does nothing at all.
+![Where the samples go: regular output, bit-perfect output, and iOS](audio-quality/signal-path.svg)
+
+- **Resample** runs only when the file's sample rate differs from the output's.
+- **Declick** is a 10 ms fade at transitions, to stop clicks. Settings > Audio Output > Declick turns it off on the Mac. A crossfade can run longer. iOS always declicks.
+- **Pitch** stops filtering at 0% once its ramp and its buffered history settle. From then on the samples are exact. [The pitch fader](#the-pitch-fader) has more.
+- **DJ effects** drop out once released and once their tails have died away. The low cut ramps flat when released and resets after a quarter of a second. Exact-output tests check it leaves nothing behind.
+- **Volume** is Vibe's own fader. At full volume it does nothing.
 
 The equalizer bars read a copy of the output. They never change it.
 
 ### Regular output
 
-Vibe plays at whatever sample rate your output device is currently set to. A file at a different rate is converted once, by r8brain. The DJ effects and pitch fader are available. After Vibe, macOS mixes in any other apps' sound, converts to your device's format, and applies the system volume.
+Vibe plays at whatever rate your output device is set to. A file at another rate is converted once, by Vibe's resampler. The DJ effects and the pitch fader are available. After Vibe, macOS mixes in other apps' sound, converts to your device's format, and applies the system volume.
 
-### Bit-perfect output (macOS)
+### Bit-perfect output (Mac)
 
-Turn it on in Settings > Audio Output > Bit-perfect output. It is remembered for each device, and it needs a specific device chosen, not "System Output". Before each track plays, Vibe sets up your device:
+Turn it on in Settings > Audio Output > Bit-perfect output. It's remembered per device, and it needs a specific device, not "System Output". Before each track plays, Vibe sets up your device:
 
-- **The sample rate is set to the file's.** If your device can't run at that rate, Vibe uses the lowest exact multiple it can (a 44.1 kHz file on a device that only offers 88.2 kHz is doubled, cleanly). If there is no multiple either, it plays at the device's own rate, and the status says it is not bit-perfect.
-- **Vibe requests enough device precision.** Integer files prefer the smallest sufficient integer format, then a floating-point fallback. Float and lossy files prefer the widest available float format. All decoding passes through float32. This limits 32-bit integer and 64-bit float sources, regardless of the device’s format.
-- **DJ effects and pitch are disabled.** Crossfades are limited to declick. Declick and volume can still change samples. Turn declick off and keep volume full for exact playback through transitions.
-- **Exclusive output** (a separate switch) locks the device so no other app can play through it at the same time.
+- **The sample rate is set to the file's.** If the device can't run at that rate, Vibe picks the lowest exact multiple it can. A 44.1 kHz file on a device that only offers 88.2 kHz gets doubled, cleanly. If there's no multiple either, it plays at the device's rate, and the status says it isn't bit-perfect.
+- **The device format gets enough precision.** Integer files ask for the smallest integer format that holds them, then float. Float and lossy files ask for the widest float format. Everything passes through 32-bit float. That limits 32-bit integer and 64-bit float sources, whatever the device takes.
+- **DJ effects and pitch are off.** Crossfades shrink to the declick. Declick and volume can still change samples. Turn declick off and keep volume at full for exact playback through transitions.
+- **Exclusive output** is a separate switch. It locks the device so no other app can play through it.
 
-The caption reports the confirmed device format and any condition that prevents exact output. These include rate conversion, channel mapping, insufficient precision, mute, volume scaling, unconfirmed device state and refused exclusive access. Lossy sources have a separate status because the decoded samples differ from the compressed file.
+The caption shows the confirmed device format and anything that stops exact output. That covers rate conversion, channel mapping, too little precision, mute, volume, an unconfirmed device and a refused exclusive lock. Lossy files get their own status, because the decoded samples aren't the compressed file.
 
-By default, Vibe permits this mode for built-in, USB, FireWire, Thunderbolt, PCI, HDMI, DisplayPort, AVB and virtual devices. Bluetooth, AirPlay and aggregate devices are excluded. Settings > Advanced can override this filter. Eligibility alone does not prove that a device preserves the samples.
+By default the mode is allowed on built-in, USB, FireWire, Thunderbolt, PCI, HDMI, DisplayPort, AVB and virtual devices. Bluetooth, AirPlay and aggregate devices are left out. Settings > Advanced can override that. Being allowed doesn't prove a device keeps the samples.
 
-### iOS
+### iPhone and iPad
 
-On iPhone and iPad, iOS decides the output's sample rate based on where the sound is going (the speaker, headphones, a USB DAC). Vibe converts to that rate with r8brain when needed, and otherwise works like regular output. There is no bit-perfect mode on iOS.
+iOS picks the output rate for where the sound is going: the speaker, headphones or a USB DAC. Vibe converts to that rate when it has to. Otherwise it works like regular output. There's no bit-perfect mode on iOS.
 
 ## Lossy files and bit depth
 
-**MP3 and AAC files don't have a bit depth.** They store the sound in a compressed form, and the decoder rebuilds the waveform when you play it. Some players send MP3s to the DAC as 16-bit on the idea that "MP3s are 16-bit". But a decoder that works at full precision produces more detail than 16 bits can hold, and its loudest moments can go slightly above the digital maximum. Cutting that down to 16 bits adds noise, and chopping off the peaks adds distortion.
+In bit-perfect mode, a lossy file goes to your device as float if the device has a float format. Otherwise it gets the device's highest bit depth. Vibe never picks 16 bits just because a file is lossy.
 
-So in bit-perfect mode, Vibe gives lossy files your device's floating-point format if it has one, and otherwise its highest bit depth. It never picks 16 bits just because a file is lossy.
+![Formats for lossy files in bit-perfect output](audio-quality/lossy-choice.svg)
 
-How much that matters depends on the decoder. Apple's built-in decoders behave very differently:
+**Why:** MP3 and AAC don't have a bit depth. They store sound in a compressed form, and the decoder rebuilds the waveform as it plays. Some players send MP3s to the DAC as 16-bit, on the idea that "MP3s are 16-bit". A decoder that works at full precision makes more detail than 16 bits can hold, though. Its loudest moments can also go a little past full scale. Cutting that down to 16 bits adds noise, and clipping the peaks adds distortion.
 
-| Apple's decoder | What it can output | Samples that fit exactly in 16 bits | Peaks above the maximum (a loud master) | What sending it as 16-bit would do |
-| --- | --- | --- | --- | --- |
-| AAC | 32-bit float or 16-bit (Vibe asks for float) | 0.04% | kept: up to +0.79 dBFS | add a layer of noise (at −101 dBFS) and chop off every peak |
-| MP3 and MP2, Apple silicon | 16-bit only | 100% | chopped off by the decoder itself | nothing, played unchanged: the decoder already made it 16-bit |
-| MP3 and MP2, Intel | 32-bit float or 16-bit (Vibe asks for float) | 0.03% | chopped off by the decoder itself, at exactly the maximum | add a layer of noise (at −101 dBFS) |
+**The data:** how much it matters depends on the decoder.
 
-**AAC** is the format of iTunes purchases, Apple Music downloads and most lossy files on Apple devices, and it is where this choice matters. A floating-point output keeps the decoded AAC exactly, peaks and all. A 24-bit output keeps everything within the maximum level, with any change far below hearing (at −149 dBFS), but like any integer format it still chops off the peaks above the maximum; only floating point keeps those. A 16-bit output would add noise that sits only 33 dB below a quiet fade-out, compared with 81 dB below at 24 bits.
+![What each MP3 and AAC decoder hands Vibe](audio-quality/lossy-decoders.svg)
 
-**MP3 and MP2** are different with Apple's decoder on Apple silicon, which is why Vibe does not use it by default:
+**AAC** is where this matters most. It's the format of iTunes purchases and most lossy files on Apple devices. A float output keeps the decoded AAC exactly, peaks and all. A 24-bit output keeps everything up to full scale, with any change far below hearing (−149 dBFS). Like any integer format, it still clips the peaks. A 16-bit output would add noise only 33 dB below a quiet fade-out, against 81 dB below at 24 bits.
 
-- **On Apple silicon, Apple's MP3 decoder can only produce 16-bit samples.** It rounds the audio to 16 bits and chops off any peaks above the maximum before Vibe receives it. There is no setting to ask it for more. A test checks what it offers on every build.
-- **Asking for floating-point output doesn't change that.** A common tip says you can get full-precision MP3s from Apple by requesting 32-bit float output (through `ExtAudioFile` or `AudioConverter`). It works on an Intel Mac (see below), but not on Apple silicon, where we tried both. You do get floating-point numbers back, but every one of them is still a 16-bit value, and the loud peaks are still chopped off at the maximum. Core Audio converts the decoder's 16-bit output to float after the fact; it can't restore what was already rounded away. Vibe already requests float output for every file, which is what keeps AAC's full detail.
-- **So on Apple silicon, with Apple's decoder, the output format makes no difference for MP3 in bit-perfect mode.** When Vibe plays the decoded samples unchanged (at the file's own sample rate, full volume, no effects), 16-bit, 24-bit and floating-point outputs all carry exactly the same samples.
-- **On Apple silicon, the only way to get more out of MP3s is a different decoder, and Vibe uses one.** A full-precision decoder keeps the detail below 16 bits (only 0.03% of its samples fit exactly in 16 bits) and the peaks (up to +0.49 dBFS on the same file). With it, MP3s behave like AAC: a floating-point output keeps everything. See [The MP3 decoder](#the-mp3-decoder).
-- **On an Intel Mac, Apple's decoder keeps the detail but not the peaks.** Its Intel version also offers 32-bit float output, which Vibe asks for, so the detail below 16 bits survives: 0.03% of its samples fit exactly in 16 bits, and it matches dr_mp3 to within 0.06 of a 16-bit step. But it still cuts every peak above the maximum down to exactly the maximum. dr_mp3 keeps those peaks, so it is the default on Intel Macs too.
+**MP3 with Apple's decoder on Apple silicon** is different. That decoder only makes 16-bit samples. It rounds the audio and clips the peaks before Vibe ever sees it, and there's no setting to ask for more. A common tip says to request 32-bit float output from `ExtAudioFile` or `AudioConverter`. That works on an Intel Mac. On Apple silicon, both were tried. You get floats back, but every one is still a 16-bit value, and the peaks are still clipped. Core Audio converts the 16-bit output to float after the fact. So with that decoder, 16-bit, 24-bit and float outputs all carry the same samples. The only way to get more out of an MP3 is a different decoder. Vibe uses one. With it, MP3 behaves like AAC.
 
-*How this was measured:* we made a test track that behaves like mastered music: tones and noise at CD quality (16-bit, dithered), loud for ten seconds with peaks just under the maximum, then fading out to −70 dB. A second, louder version was squashed right up to the maximum, like a modern loud master. We encoded them as MP3 (LAME at 320 kbps and V2) and AAC (Apple's encoder at 256 kbps), then decoded them the way Vibe does, and with ffmpeg for comparison. The Intel figures come from Vibe's own test files (MP3 at 192 kbps, V2 and a loud 320 kbps master, plus MP2), decoded under Rosetta 2, which runs the Intel version of Apple's decoder on an Apple silicon Mac. We haven't checked them on an Intel Mac itself.
+**On an Intel Mac**, Apple's MP3 decoder also offers float, and Vibe asks for it. The detail below 16 bits survives. It matches Vibe's decoder to within 0.06 of a 16-bit step. It still clips every peak at exactly full scale, though. Vibe's decoder keeps them. It's the default on Intel Macs too.
+
+*How this was measured:* the test tracks behave like mastered music. They're tones and noise at CD quality (16-bit, dithered), loud for ten seconds with peaks just under full scale, then fading to −70 dB. A second version was squashed up to full scale, like a modern loud master. They were encoded as MP3 (LAME at 320 kbps and V2) and AAC (Apple's encoder at 256 kbps). Then they were decoded the way Vibe does, and with ffmpeg to compare. The Intel figures come from Vibe's own test files, decoded under Rosetta 2. Rosetta runs the Intel build of Apple's decoder. They haven't been checked on an Intel Mac itself.
 
 ## The MP3 decoder
 
-Vibe decodes MPEG audio with **dr_mp3** by default on both platforms. On macOS, Settings > Advanced > MP3 decoder selects dr_mp3 or Apple’s decoder. Changing it clears the prefetched handle and reopens the current MPEG track with its playback position and intent. iOS always uses dr_mp3.
+Vibe decodes MP3, MP2 and MP1 with dr_mp3 by default, on both platforms. On the Mac, Settings > Advanced > MP3 decoder can switch to Apple's. Switching reopens the current track at the same position. iOS always uses it.
 
-### Why not Apple's decoder
+![MP3 decoders considered](audio-quality/mp3-choice.svg)
 
-On Apple silicon, Apple's MP3 decoder can only produce 16-bit samples, as the section above explains. That costs three things:
+**Why:** on Apple silicon, Apple's MP3 decoder only makes 16-bit samples. That costs three things:
 
-- **Quiet passages lose detail.** Rounding to 16 bits adds a thin layer of noise. On loud music it is far below hearing. On a quiet passage, it sits much closer to the music: for a passage at −70 dB, Apple's error is only 31 dB below the music, while dr_mp3's is 127 dB below (BASS's too).
-- **Loud masters lose their peaks.** A modern, loud master decodes slightly above the digital maximum. Apple's decoder chops those peaks off: 36,188 samples on our 20-second test master. dr_mp3 keeps them (up to +0.93 dB), so Vibe's volume control, effects or resampler can bring them back down cleanly instead of distorting them.
-- **Some songs lose their last moment.** In an MP3 without gapless information, the last 529 samples (about 12 milliseconds) come from the decoder emptying itself. Apple's decoder fills them with silence; dr_mp3 plays them. If the music runs to the very end of the file, Apple's version ends with a small click.
+- **Quiet passages lose detail.** Rounding to 16 bits adds a thin layer of noise. On loud music it's far below hearing. On a passage at −70 dB, Apple's error sits only 31 dB below the music. Vibe's sits 127 dB below.
+- **Loud masters lose their peaks.** A loud master decodes a little past full scale. Apple's decoder clipped 36,188 samples of the 20-second test master. Vibe keeps them, up to +0.93 dB. Vibe's volume, effects or resampler can then bring them down cleanly.
+- **Some songs lose their last moment.** In an MP3 without gapless info, the last 529 samples (about 12 ms) come from the decoder emptying itself. Apple's decoder makes them silent. Vibe plays them. If the music runs to the very end of the file, Apple's version ends with a small click.
 
-On an Intel Mac, Apple's decoder keeps the quiet detail, but the other two costs remain.
+On an Intel Mac, Apple's decoder keeps the quiet detail, but the other two costs remain. Vibe's decoder also uses less than half the CPU. dr_mp3 is one header file under a permissive license, and it needs no extra toolchain.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-quiet-dark.svg"><img alt="How far below the music the decoding error sits on a quiet passage, best first: BASS and dr_mp3 127 dB, Apple (Apple silicon) 31 dB" src="audio-quality/mp3-quiet-light.svg"></picture>
+**The data:**
 
-### Accuracy on the official test
+![MP3 decoders: what you hear](audio-quality/mp3-quality.svg)
 
-MP3 has an official accuracy test from the ISO, the standards body behind the format (ISO/IEC 11172-4). It comes with test recordings and the exact output a perfect decoder should give. A decoder passes at "full accuracy" if its average error stays under a set limit. That limit is exactly the size of 16-bit rounding, so a decoder with 16-bit output, like Apple's on Apple silicon, lands right on it.
+MP3 has an official accuracy test from the ISO (ISO/IEC 11172-4). It comes with test streams and the exact output a perfect decoder should give. A decoder passes at "full accuracy" if its average error stays under a set limit. That limit is exactly the size of 16-bit rounding. A 16-bit decoder like Apple's on Apple silicon lands right on it. Seven of the test streams went through every decoder below.
 
-We ran seven of the ISO test recordings through six decoders. The chart shows how many times inside the limit each decoder stays, on its worst recording, best first. **Higher is better.**
+![Accuracy on the ISO MP3 test](audio-quality/mp3-accuracy.svg)
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-accuracy-dark.svg"><img alt="Accuracy on the ISO test, best first: FFmpeg 112 times inside the limit, libmad and mpg123 106 times, dr_mp3 105 times, BASS 100 times, Apple (Apple silicon) on the limit" src="audio-quality/mp3-accuracy-light.svg"></picture>
+- Vibe stays 105 times inside the limit. Apple's decoder on Apple silicon reaches full accuracy on three streams and only "limited accuracy" on the other four.
+- The Intel build of Apple's decoder, under Rosetta 2, reaches full accuracy on all seven. It's 150 times inside the limit on its worst stream, `compl`. It ties Vibe on `si` and is slightly ahead on the other six.
+- The full-precision decoders are close. Their differences are about the size of the rounding in the ISO reference files. This test doesn't prove they're equal on every MP3.
+- BASS is dr_mp3's close cousin. Its notes say its MP3 decoding comes from minimp3, the same code dr_mp3 comes from. Its output matches dr_mp3's to within the last bit or two of a 32-bit float, about −134 dB.
 
-- **dr_mp3 is about 105 times inside the limit.** Apple's decoder on Apple silicon is right on it: "full accuracy" on three recordings and only "limited accuracy" on the other four.
-- **On an Intel Mac, Apple's decoder is a full-precision decoder too.** Under Rosetta 2, which runs its Intel version, it reaches full accuracy on all seven recordings and is 150 times inside the limit on its worst, `compl`. It is level with dr_mp3 on `si` and slightly ahead of it on the other six.
-- **The full-precision decoders were close on these recordings.** Their differences were comparable to rounding in the ISO reference files. This test does not establish identical accuracy on every MP3.
-- **BASS is dr_mp3's close cousin.** BASS is a commercial audio library, and its notes say its MP3 decoding is based on minimp3, the same decoder dr_mp3 comes from. Its output matches dr_mp3's to within the last bit or two of a 32-bit float, about −134 dB. It keeps a loud master's peaks too.
+The limit is an average error below −101.1 dBFS, with no single error above 6.1e-5. libmad was read at its full internal precision, finer than its usual 24-bit output. Apple's decoder and BASS both remove the 529-sample start-up delay. Their output was lined up 529 samples later to match. The streams come from FFmpeg's test-file mirror. A test runs this check on every change. It fails if Vibe's decoder is ever less than 50 times inside the limit. That would catch a slip back to 16-bit output. The ISO's streams can't be included in the repo. The test downloads them, and skips if it can't.
 
-The numbers behind the chart, plus Apple's decoder on an Intel Mac, best first. "Average error" is on each decoder's worst recording.
+![MP3 decoders: what they cost](audio-quality/mp3-cost.svg)
 
-| Decoder | Average error | Largest single error | Times inside the limit | Result |
-| --- | --- | --- | --- | --- |
-| Apple built-in, Intel (under Rosetta 2) | −144.6 dBFS | 6.9e-7 | 150× | full accuracy on all 7 |
-| FFmpeg (`mp3float`) | −142.1 dBFS | 7.2e-7 | 112× | full accuracy on all 7 |
-| libmad 0.15.1b, accuracy build | −141.6 dBFS | 7.3e-7 | 106× | full accuracy on all 7 |
-| mpg123 1.33.7 | −141.6 dBFS | 7.0e-7 | 106× | full accuracy on all 7 |
-| dr_mp3 0.7.4 | −141.5 dBFS | 7.1e-7 | 105× | full accuracy on all 7 |
-| BASS 2.4.18 | −141.1 dBFS | 6.9e-7 | 100× | full accuracy on all 7 |
-| libmad 0.15.1b, default build | −140.2 dBFS | 9.2e-7 | 90× | full accuracy on all 7 |
-| Apple built-in, Apple silicon | −100.8 dBFS | 2.4e-5 | 1× | full on 3, limited on 4 |
+![CPU to play each MP3](audio-quality/mp3-cpu.svg)
 
-The limit for full accuracy is an average error below −101.1 dBFS and no single error above 6.1e-5. We read libmad at its full internal precision, finer than the 24-bit output it is known for. Apple and BASS both remove the decoder's 529-sample start-up delay, so their output was lined up 529 samples later. The recordings come from FFmpeg's test-file mirror; `compl`, a −20 dB sine sweep, is the one the well-known Underbit compliance table used.
+- **Both are cheap.** Playing a 320 kbps MP3 takes about 0.1% of one core with Apple's decoder and 0.04% with Vibe's. You won't feel that during playback. It shows on slower cores, and when a whole track is decoded at once for the waveform. That's 2.2 times faster with Vibe's.
+- **Vibe's decoder does less work.** It used less CPU than Apple's on all 11 files. It runs 2 to 3 times fewer instructions. BASS comes second, about 15% behind Vibe. An hour of music costs 8.1 joules to decode with Vibe's decoder and 16.8 with Apple's. A phone battery holds about 50,000.
+- **Apple's decoder rereads the file.** It reads 64 KB at a time and goes back over the same part of the file many times, 15 to 40 times the file's size in one playthrough. In the test the file was already in memory. That cost time (about 10 ms a track, against 1–3 ms) but no disk reads. A slow drive and a network share weren't tested.
+- **dr_mp3's memory** is 23 KB of decoder state, about 21 KB for 16 compressed frames read ahead, and 9 KB for one frame of sound. The rest is macOS's file reader.
+- **\* BASS reads the file itself.** Both of Vibe's decoders share macOS's file reader. Those two BASS figures aren't like for like. With real embedded artwork, BASS also held 174–414 KB of tags in memory.
+- **A read has lots of time.** Each 4,096-frame read covers 93 ms of music, and the slowest took under 3 ms. On efficiency cores both decoders had rare reads of 45–77 ms. That came from the test's lowest thread priority on a busy machine. The app's decode thread runs at the highest priority, and each track keeps at least a second of audio buffered.
 
-A test runs this ISO check on every change and fails if dr_mp3 is ever less than 50 times inside the limit, so it would catch a slip back to 16-bit output. (The ISO's recordings aren't ours to include, so the test downloads them, and skips if it can't.)
-
-### Speed and cost
-
-dr_mp3 is also cheaper to run than Apple's decoder, on every measure except app size (it adds 48 KB of code). We timed BASS the same way, for comparison. Both charts put the cheapest first. **Lower is better** in both.
-
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-cost-dark.svg"><img alt="Cost as a share of Apple's decoder, cheapest first. dr_mp3: 43% of the CPU on a fast core, 36% on an efficiency core, 49% of the energy, 45% of the time to decode a whole track, 34% of the memory, 7% of the data read. BASS: 52%, 45%, 57% and 52% on the first four" src="audio-quality/mp3-cost-light.svg"></picture>
-
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/mp3-cpu-dark.svg"><img alt="CPU to play each of eleven test files, cheapest first: dr_mp3 used the least on every file, then BASS, then Apple" src="audio-quality/mp3-cpu-light.svg"></picture>
-
-- **Less than half the CPU.** Across 11 files, dr_mp3 used 2.5 times less CPU than Apple's decoder on the Mac's fast cores, and 3 times less on its efficiency cores. It won on every file. It does less work, not the same work faster: it runs 2 to 3 times fewer CPU instructions.
-- **Both are very cheap.** Playing a 320 kbps MP3 takes about 0.1% of one core with Apple's decoder and 0.04% with dr_mp3. You won't feel the difference during playback. It shows up when a whole track is decoded at once, as for the waveform (2.2 times faster), and on slower cores.
-- **About half the energy.** An hour of music costs 8.1 joules to decode with dr_mp3 and 16.8 with Apple's decoder. Both are tiny: a phone battery holds about 50,000 joules.
-- **A third of the memory, and far less reading.** Each open file takes 60 KB with dr_mp3 and 177 KB with Apple's decoder. To play a 15 MB file, Apple's decoder read 235 MB from it and dr_mp3 read 17 MB.
-- **BASS comes second.** It used about 15% more CPU than dr_mp3 on both kinds of core, and about half as much as Apple's decoder. dr_mp3 was cheaper on every file on the fast cores; on the efficiency cores the two were within 3% of each other on four of the eleven, which is inside those cores' run-to-run noise.
-
-The whole comparison for a 320 kbps MP3, best first:
-
-| Measure | dr_mp3 | BASS | Apple |
-| --- | --- | --- | --- |
-| CPU to play, fast core | 0.042% of one core | 0.050% | 0.096% |
-| CPU to play, efficiency core | 0.12% | 0.14% | 0.32% |
-| Energy per hour of music | 8.1 J | 9.6 J | 16.8 J |
-| Decoding a whole 6.5-minute track | 161 ms | 188 ms | 361 ms |
-| Opening a file | 0.06 ms | not measured | 0.09 ms |
-| Seeking, then reading 4,096 frames | 0.15 ms | not measured | 0.17 ms |
-| Slowest 4,096-frame read on a fast core, any file | 0.75 ms | not measured | 2.4 ms |
-| Memory per open file | 60 KB | 30 KB* | 177 KB |
-| Data read to play a 15 MB file | 17 MB | 15.7 MB* | 235 MB |
-| Added to the app | 48 KB of code | a 0.9 MB library | nothing |
-
-\* BASS reads the file itself, while both of Vibe's decoders share macOS's file reader, so these two aren't like for like. With a real track's embedded artwork, BASS also held 174–414 KB of tags in memory.
-
-- **A read has plenty of time.** Each 4,096-frame read covers 93 ms of music, and the slowest took under 3 ms. On efficiency cores both decoders had rare reads of 45–77 ms, from the test's lowest thread priority waiting on a busy machine; the app's decode thread runs at the highest priority, and each track keeps at least a second of audio buffered.
-- **Where dr_mp3's memory goes:** 23 KB of decoder state, about 21 KB for 16 compressed frames read ahead, and 9 KB for one frame of sound. The rest is macOS's file reader.
-- **Why Apple's decoder reads so much:** it reads 64 KB at a time and rereads the same part of the file many times, 15 to 40 times the file's size over one playthrough. In our test the file was already in memory, so this cost time (about 10 ms per track, against 1–3 ms) and no disk reads. We didn't test a slow drive or a network share.
-
-*How this was measured:* Vibe's own file reader with the app's Release build settings, switching between the two decoders run by run, on a Mac with an M4 Max. BASS 2.4.18 decoded the same files with its own file reader, in the same session. The files were one real 6.5-minute track encoded nine ways, plus two real 320 kbps tracks. No iPhone or Intel Mac was measured.
+*How this was measured:* Vibe's own file reader with the app's Release build settings, switching decoders run by run, on an M4 Max. BASS 2.4.18 decoded the same files with its own reader, in the same session. The files were one real 6.5-minute track encoded nine ways, plus two real 320 kbps tracks. No iPhone or Intel Mac was measured.
 
 ### How it fits in
 
-- **macOS still reads the file.** It opens the file, reads its tags and gapless information, and finds each frame of audio. dr_mp3 only turns those frames into sound. So every track has the same length and plays gaplessly exactly as with Apple's decoder. On 16 test files the lengths matched exactly, and on Apple silicon the sound differed only by Apple's 16-bit rounding (at most 4 steps of a 16-bit value). With the Intel version of Apple's decoder, Vibe's six MP3 and MP2 test files differ by at most 0.06 of a step, apart from the peaks Apple chops off.
-- **Decoder delay is removed.** Vibe discards dr_mp3’s first 529 samples for MP3 and 241 for MP1 and MP2. At the end, a silent frame flushes the remaining samples.
-- **Seeking lands on the exact sample.** An MP3 frame can borrow data from the frames before it, so dr_mp3 starts at least ten frames before the target and throws them away. In the tiny frames of an 8 or 16 kbps MP3 the borrowing can reach much further back, as far as 80 frames in our 8 kbps tests, so there Vibe works out how far from the frames' sizes and starts that far back. A seek then gives exactly the same sound as playing from the start.
-- **Damaged and cut-off files end where Apple's do.**
-- **MP3 and MP2 inside WAV files work too.** macOS opens these only when every frame is the same size, which 48 kHz CBR is; it refuses 44.1 kHz and VBR ones with either decoder. Rare "free-format" MP3s are also refused by macOS before either decoder sees them.
-- **MP2 plays on the iPhone.** iOS has no MP2 decoder of its own. dr_mp3 decodes MP2 files there.
-- **A damaged frame is capped at +12 dB.** Corrupt data can produce extreme peaks that contaminate effect tails and analysis. The cap preserves ordinary overshoots. The loudest undamaged peak in the measured library was +8.6 dB.
-- **Two fixes to dr_mp3 itself.** It misread frames with any of their "private bits" set, which encoders may use as they like, and 8 kHz files with a rare kind of frame, the mixed block, where it also wrote past the end of a buffer. Vibe's copy decodes both as FFmpeg and mpg123 do. Neither kind turned up in 1,065 real MP3s, and every one of them decodes the same with or without the fixes.
-- **Not tested yet:** MP1 files (we have no MP1 encoder; dr_mp3 decodes them with MP2's timing, which MP1 shares), and CPU use on an iPhone.
+- **macOS still reads the file.** It opens it, reads its tags and gapless info, and finds each frame. dr_mp3 only turns frames into sound. So every track has the same length and plays gaplessly, exactly as with Apple's decoder. On 16 test files the lengths matched exactly. On Apple silicon the sound differed only by Apple's 16-bit rounding, at most 4 steps of a 16-bit value.
+- **The decoder delay is removed.** Vibe drops dr_mp3's first 529 samples for MP3, and 241 for MP1 and MP2. A silent frame at the end flushes the rest out.
+- **Seeks land on the exact sample.** An MP3 frame can borrow data from the frames before it. So dr_mp3 starts at least ten frames before the target and throws them away. In the tiny frames of an 8 or 16 kbps MP3 the borrowing reaches further, up to 80 frames in the 8 kbps tests. There, Vibe works out how far back from the frame sizes. A seek gives exactly the sound that playing from the start gives.
+- **A damaged frame is capped at +12 dB.** Corrupt data can decode to huge peaks that ring through effect tails and throw off analysis. The cap is well above real overs. The loudest undamaged peak in the measured library was +8.6 dB.
+- **Damaged and cut-off files end where Apple's do.** MP3 and MP2 inside WAV work too, when every frame is the same size, like 48 kHz CBR. macOS refuses 44.1 kHz and VBR ones with either decoder, and rare free-format MP3s.
+- **MP2 plays on the iPhone.** iOS has no MP2 decoder of its own.
+- **Not tested yet:** MP1 files, for lack of an MP1 encoder, and CPU on an iPhone. dr_mp3 decodes MP1 with MP2's timing. MP1 shares that timing.
 
-### Tuning dr_mp3
+### Changes to dr_mp3
 
-Two choices in how Vibe feeds dr_mp3 cut the decode time by 13–18% together:
+- **Two fixes.** dr_mp3 misread frames with any of their "private bits" set. Encoders can use those bits as they like. It also misread 8 kHz files with mixed blocks, a rare kind of frame, and wrote past the end of a buffer there. Vibe's copy decodes both the way FFmpeg and mpg123 do. Neither kind turned up in 1,065 real MP3s, and all of them decode the same with or without the fixes.
+- **Reading 16 frames at a time.** Asking macOS for one frame at a time made about four small reads per frame. That was a tenth of the decode time. 16 at a time saved it. 4 saved half as much, and 64 no more than 16.
+- **One Accelerate call to split stereo.** dr_mp3 hands back left and right mixed together, and playback wants them apart. One `vDSP_ctoz` call does it, and saves about 3%.
 
-- **Reading 16 frames at a time.** Asking macOS for one frame at a time made about four small file reads per frame, a tenth of the decode time. 16 at a time saved it; 4 saved half as much, and 64 no more than 16.
-- **One Accelerate call to split stereo.** dr_mp3 gives left and right samples mixed together, and playback wants them apart. A single `vDSP_ctoz` call does that, saving about 3%.
-
-What didn't help: build settings (`-O3`, what ships, was as fast as any; `-Os` is 8% slower and turning off dr_mp3's hand-written NEON code 16% slower), faster floating-point math, and Accelerate inside the decoder, whose transforms are too small to gain from it. About half the decode is reading the compressed bits, where each value depends on the one before, so no vector instructions can help.
-
-### Why dr_mp3
-
-dr_mp3 combines full-precision output, low measured cost and a single-header implementation under a permissive license. It requires no additional toolchain. Apple’s decoder remains available on macOS.
+Together those cut decode time by 13–18%. Some things didn't help. `-O3` (what ships) was as fast as any build setting. `-Os` is 8% slower, and turning off dr_mp3's hand-written NEON code is 16% slower. Faster float math didn't help. Accelerate inside the decoder didn't either, because its transforms are too small. About half the decode is reading the compressed bits. Each value there depends on the one before, and vector instructions can't help with that.
 
 ## The FLAC decoder
 
-Vibe decodes FLAC files with **dr_flac**, not the decoder built into macOS and iOS, on the Mac and the iPhone alike. The sound is the same: FLAC is lossless, and both decoders give back exactly the samples that were encoded. On all 1,394 FLAC files of a real library that Apple's decoder opens, dr_flac's output was identical to Apple's, bit for bit, and so was every seek. What changes is how it seeks, what it costs, and which files play. There is no setting, because there is no difference to hear.
+Vibe decodes FLAC with dr_flac on the Mac and the iPhone. There's no setting, because there's nothing to hear. FLAC is lossless, and both decoders return exactly the encoded samples. On all 1,394 FLAC files of a real library that Apple's decoder opens, dr_flac's output matched Apple's bit for bit, and so did every seek.
 
-### Why not Apple's decoder
+![FLAC decoders considered](audio-quality/flac-choice.svg)
 
-- **Seeking.** Apple's decoder never uses a FLAC file's seek table. The first time you seek into a part of a track it hasn't read yet, it reads the whole file from the start up to that point, and the sound after the seek waits for it. Resuming a track where you left off is a seek too. dr_flac finds the spot in a few small reads, from the seek table or by bisecting the file.
-- **A quarter of the CPU or less:** 4 to 7 times less than Apple's decoder, on the fast cores and the efficiency cores alike. Playing costs little either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis: 5.4 times faster on an efficiency core for a 24-bit, 96 kHz track.
+**Why:**
+
+- **Seeking.** Apple's decoder never uses a FLAC file's seek table. The first time you seek into a part it hasn't read, it reads the whole file from the start up to that point, and the sound waits. Resuming a track where you left off is a seek too. Vibe's decoder finds the spot in a few small reads, from the seek table or by bisecting the file.
+- **A quarter of the CPU or less.** It shows most when a whole track is decoded for the waveform, tempo and key.
 - **It reads the file once.** Apple's decoder reads 2.4 to 5 times the file's size to play it.
-- **A fraction of the memory:** about 100 KB per open file, against 1.3 to 2.8 MB for Apple's decoder.
-- **Files Apple's decoder refuses play.** These are legal FLAC files that some encoders write: block sizes of 16 or 65,535, sample rates above 655 kHz (such as 705.6 kHz), and 32-bit files.
-- **Unknown-length files can play.** dr_flac searches backward for the last valid frame. The search begins at the tail and expands after each miss. It can read much more than the tail when the file ends in damage or padding.
-- **Recoverable damage preserves the timeline.** dr_flac fills the gap before the next valid frame with silence. Truncation ends the stream. It cannot recover audio that is absent or undecodable.
-- **The last moment of a file with an ID3v1 tag.** Apple's decoder drops the file's last frame (about 30 ms) when an ID3v1 tag follows it. dr_flac plays it.
+- **Files Apple's decoder refuses play.** These are legal FLAC files that some encoders write: block sizes of 16 or 65,535, rates above 655 kHz such as 705.6 kHz, and 32-bit files.
+- **Damaged files keep their timing.** Vibe's decoder fills a damaged stretch with silence up to the next good frame. A cut-off file ends where the data ends. A file that doesn't say how long it is can still play, because the decoder searches back from the end for the last good frame.
+- **The last moment of a file with an ID3v1 tag.** Apple's decoder drops the last frame (about 30 ms) when an ID3v1 tag follows it. Vibe plays it.
 
-The seek that waits, measured with the file read from the SSD rather than from memory. **Lower is better.**
+**The data:**
 
-| First seek | dr_flac | Apple |
-| --- | --- | --- |
-| To the middle of a 4-minute track (27 MB) | 0.9 ms | 51 ms |
-| To 90% of it | 1.4 ms | 93 ms |
-| To the middle of a 77-minute mix (604 MB) | 2.6 ms | 1.16 s |
-| To 90% of it | 2.7 ms | 2.11 s |
-| Any later seek, over 1,500 on five files | 2.1 ms at most | 0.2–0.3 ms, or a scan again past the part already read |
+![FLAC: the first seek into a part not read yet](audio-quality/flac-seek.svg)
 
-The whole comparison, best first, **lower is better**. The ranges run across thirteen real tracks, 16 and 24-bit, 44.1 to 192 kHz:
+After the first seek, Apple's decoder seeks in 0.2–0.3 ms, until you seek past the part it has read and it scans again. Vibe's took 2.1 ms at most over 1,500 seeks on five files.
 
-| Measure | dr_flac | Apple |
-| --- | --- | --- |
-| CPU to play, fast core | 0.022–0.10% of one core | 0.086–0.58% |
-| CPU to play, efficiency core | 0.057–0.41% | 0.26–1.9% |
-| Decoding a whole 3-minute, 24-bit, 96 kHz track, efficiency core | 0.30 s | 1.59 s |
-| Decoding a whole 4-minute, 16-bit track, fast core | 55 ms | 230 ms |
-| Data read to play a file | its size, once | 2.4–5.1 times its size |
-| Memory per open file | 54–98 KB | 1.3–2.8 MB |
-| Opening a file | 0.3–0.5 ms | 0.5–0.8 ms |
-| Slowest 4,096-frame read, fast core | 0.08 ms | 0.85 ms |
-| Added to the app | 118 KB of code | nothing |
+![FLAC: what each decoder costs](audio-quality/flac-cost.svg)
 
-*How this was measured:* Vibe's own file reader with the app's Release build settings, with dr_flac and with Apple's decoder, run by turns, on a Mac with an M4 Max that other work was also using, so each figure is the best of five runs. The library was 1,397 FLAC files from ordinary sources (CD rips, web stores, downloads, sample packs). Every one but three empty files was decoded in full by both decoders and compared sample by sample, with 25 seeks each compared too. "Read from the SSD" means a fresh copy of the file, none of it in memory. No iPhone was measured.
+*How this was measured:* Vibe's own file reader with the app's Release build settings, with each decoder in turn, on an M4 Max that was busy with other work. Each figure is the best of five runs. The library was 1,397 FLAC files from ordinary sources: CD rips, web stores, downloads and sample packs. Every file but three empty ones was decoded in full by both decoders and compared sample by sample, with 25 seeks each. "Read from the SSD" means a fresh copy of the file, none of it in memory. No iPhone was measured.
 
-### What we fixed in dr_flac
+### Fixes to dr_flac
 
-Vibe's copy of dr_flac fixes problems of its own. Most turned up in real files from that library, and the rest in test files made for the rarer cases (32-bit files, damaged frames, files that don't say how long they are):
+Most of these turned up in real files from that library. The rest came from test files made for the rare cases, from fuzzing and from simulated damage.
 
-- **A tag in front of the music.** Some taggers put an ID3v2 tag before the FLAC data. dr_flac read the file from the wrong place and played noise, cut the track short, or refused it (17 files, 1.2%).
-- **Seeks that failed.** A kind of frame that encoders legally write could be decoded but not skipped over, so some seeks failed and would have stopped the track with an error (33 files, 2.4%).
-- **A seek table that is out of date.** A file edited after it was encoded can keep a seek table that points at the wrong frames. dr_flac trusted it and landed up to 0.85 s early. It now checks where it actually landed.
-- **Seeks that read the whole file.** On a file without a seek table (39% of the library), a few percent of seeks read most of the file, up to 1.9 s on the 77-minute mix. Vibe’s search completed these measured seeks in a few milliseconds.
-- **Damaged frames.** dr_flac skipped a damaged frame, so everything after it played early, or stopped the track. It now plays silence in its place.
-- **Seeking into a cut-off file.** A seek past the end of an unfinished download failed. It now lands at the end, and the next track plays.
-- **32-bit files,** which dr_flac could open but not play, and **files that don't say how long they are**, where every seek went back to the start. dr_flac now finds such a file's length when it opens it, from the end of the file.
-- **Files made with an encoder's most extreme settings.** Told to ignore the limits that keep a file easy to stream, an encoder can split each frame's data into more than 256 parts. That is still a valid FLAC file, but dr_flac took every such frame for damage and played silence. Apple's decoder stops partway through the same files.
-- **Seeks in very long files.** A seek that jumped more than about 6 hours at 192 kHz (27 hours at 44.1 kHz) from inside a frame stayed in that frame.
-
-Fuzzing and simulated damage found more:
-
-- **More kinds of damage.** A frame missing a few bytes also took the intact frame after it, and one time in 256 any damaged frame did. A damaged first frame made the whole track play a frame early. A rare corrupted header could add minutes of silence, and a file cut off inside a frame sometimes ended with a frame of silence. On 1,200 simulated damaged library files, every undamaged frame now plays in its place, except in one file whose damage erased its last frames. Before, 181 of them (15%) lost or moved an undamaged frame.
-- **Seeks near damage.** A seek to a damaged frame that the seek table points at landed 93 ms late, and the slower ways of seeking missed the frames lost to damage. Every way of seeking now lands where playing from the start would.
-- **Seek tables with garbage in them, and unfinished downloads.** One flipped bit in a seek table could stall a seek for five seconds. It now takes under a millisecond. Seeking into the empty end of a download that reserved its full size took 1 to 2.5 seconds, and now takes about 0.2.
-- **Crashes and undefined behavior**, all in rare or damaged files. A file that doesn't say how long it is could crash when read to its end and then seeked back into. Damaged 32-bit files, and invalid files made by fuzzing, ran into arithmetic that C leaves undefined.
+- **A tag in front of the music.** Some taggers put an ID3v2 tag before the FLAC data. dr_flac read from the wrong place and played noise, cut the track short or refused it (17 files, 1.2%).
+- **Seeks that failed.** A kind of frame encoders can legally write could be decoded but not skipped. Some seeks failed and would have stopped the track (33 files, 2.4%).
+- **Stale seek tables.** A file edited after encoding can keep a seek table that points at the wrong frames. dr_flac trusted it and landed up to 0.85 s early. It now checks where it landed.
+- **Seeks that read the whole file.** On a file with no seek table (39% of the library), a few percent of seeks read most of the file, up to 1.9 s on a 77-minute mix. Vibe's search does those in a few milliseconds.
+- **Damaged frames.** dr_flac skipped a damaged frame. Everything after it played early, or the track stopped. It now plays silence in its place. Fuzzing found more cases, like a short frame taking the good frame after it, and a bad header adding minutes of silence. On 1,200 simulated damaged files, 181 lost or moved a good frame before. Now every good frame plays in its place, except in one file whose damage erased its last frames.
+- **Seeks near damage, and garbage in seek tables.** A seek to a damaged frame landed 93 ms late. One flipped bit in a seek table could stall a seek for five seconds. It now takes under a millisecond.
+- **Cut-off downloads.** A seek past the end of an unfinished download failed. It now lands at the end, and the next track plays. Seeking into the empty end of a download that reserved its full size took 1 to 2.5 s. Now it takes about 0.2 s.
+- **32-bit files, and files that don't say how long they are.** dr_flac could open 32-bit files but not play them. In a file with no length, every seek went back to the start. dr_flac now finds the length when it opens the file.
+- **Files made with an encoder's most extreme settings.** They can split each frame into more than 256 parts. That's valid FLAC, but dr_flac took every such frame for damage and played silence. Apple's decoder stops partway through the same files.
+- **Seeks in very long files.** A seek of more than about 6 hours at 192 kHz (27 hours at 44.1 kHz) from inside a frame stayed in that frame.
+- **Crashes and undefined behavior,** all in rare or damaged files.
 
 ### Tuning dr_flac
 
-The checksum and NEON changes to dr_flac halve the work of decoding. Across 17 library files, 16 and 24-bit, 44.1 to 192 kHz, it takes 51% fewer CPU cycles than upstream, and every file came out between 49% and 53% cheaper. The output is identical, bit for bit, on every file of the library. With these and the fixes above, dr_flac is 118 KB of code, where upstream's is 80 KB.
+These changes halve the work of decoding. Across 17 library files, 16 and 24-bit, 44.1 to 192 kHz, Vibe's dr_flac takes 51% fewer CPU cycles than upstream, and every file is 49–53% cheaper. The output is identical, bit for bit, on every file in the library. With the fixes, it's 118 KB of code, against upstream's 80 KB.
 
-- **The checksum, eight bytes at a time.** Every FLAC frame carries a checksum, which dr_flac worked out one byte at a time, each step waiting for the one before. The plain C spent a fifth of a 16-bit file's decoding time on it, and half of a 24-bit file's. Tables that let eight bytes be worked on at once cut it to 2%.
-- **Vibe's own NEON code.** Upstream dr_flac's hand-written code for the vector instructions (NEON) is slower on Apple Silicon than its plain C: 60% slower on 16-bit files. Its way of predicting each sample keeps the vector unit waiting on the sample before. Vibe's replacement keeps the few newest samples in ordinary registers and leaves the older ones to the vector unit. It is 23% faster than the plain C on 16-bit files, 20% on 24-bit, and twice as fast as upstream's NEON code. It also covers the prediction orders above 12, which upstream leaves to the plain C.
-- **Straight into each channel.** Vibe mixes a channel at a time, and dr_flac decodes a channel at a time. Upstream interleaves the channels as it converts them, and Vibe would then split them again, two extra passes over every sample. Vibe's copy writes each channel to its own buffer as it converts it. That cuts 9 to 14% from decoding a file on the fast cores in Vibe's own file reader (a 10-minute 16-bit file: 104 to 89 ms; 24-bit, 96 kHz: 241 to 219 ms). The output is identical, bit for bit.
-- **Fewer, larger reads.** dr_flac asks for 4 KB at a time. Vibe's file handle answers those from a 16 KB fill of the 64 KB block it already keeps for CoreAudio's parser. A FLAC then takes a quarter of the reads and 2–4% less time to decode, with no extra memory. A seek's bisection probe fills only 16 KB, so seeks cost the same. A 64 KB fill at every probe would make seeks slower.
+- **The checksum, eight bytes at a time.** Every FLAC frame carries a checksum. dr_flac worked it out one byte at a time, each step waiting on the last. That was a fifth of a 16-bit file's decode time and half of a 24-bit file's. Tables that work on eight bytes at once cut it to 2%.
+- **New NEON code.** Upstream's hand-written NEON code is slower on Apple silicon than its plain C, 60% slower on 16-bit files. Its way of predicting each sample keeps the vector unit waiting on the one before. Vibe's version keeps the newest few samples in ordinary registers and leaves the older ones to the vector unit. It's 23% faster than the plain C on 16-bit files, 20% on 24-bit, and twice as fast as upstream's NEON. It also covers prediction orders above 12. Upstream leaves those to plain C.
+- **Straight into each channel.** Vibe mixes a channel at a time, and dr_flac decodes a channel at a time. Upstream interleaves the channels, and Vibe would then split them again. Vibe's copy writes each channel to its own buffer. That cuts 9–14% on the fast cores. A 10-minute 16-bit file went from 104 to 89 ms, and a 24/96 file from 241 to 219 ms.
+- **Fewer, larger reads.** dr_flac asks for 4 KB at a time. Vibe's file handle answers from a 16 KB fill of the 64 KB block it already keeps for CoreAudio's parser. That's a quarter of the reads and 2–4% less decode time, with no extra memory. A seek probe fills only 16 KB. Seeks cost the same as before.
 
-Giving up early on a long run of zeros inside a frame, which only a damaged file has, was left out. It sped up those files but slowed every normal file by 2%.
-
-### How it fits in
-
-- **CoreAudio opens the file** and reads its format and channel layout on both platforms. dr_flac then decodes it.
-- **Same length, exact seeks, gapless.** A seek gives exactly the sound playing from the start does, and tracks still join seamlessly.
-- **16 and 24-bit samples survive decoding exactly.** Exact device output also requires the conditions described under [Bit-perfect output](#bit-perfect-output-macos).
+One change was left out. Giving up early on a long run of zeros inside a frame sped up damaged files, but slowed every normal file by 2%.
 
 ## The WAV and AIFF decoder
 
-Vibe decodes WAV, BWF, RF64, Wave64 and AIFF files with **dr_wav**, not the decoder built into macOS and iOS, on the Mac and the iPhone alike. That covers every coding they commonly hold: 8 to 32-bit integer samples, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds (IMA and Microsoft's in a WAV, Apple's IMA4 in an AIFF). On all 10,823 WAV and AIFF files of a real library of music projects and sample packs that both decoders open, dr_wav's output was identical to Apple's, bit for bit, and so was every seek. Other encodings fall back to the appropriate decoder. MPEG inside WAV can use dr_mp3. dr_wav also falls back above its 384 kHz rate limit. There is no setting.
+Vibe decodes WAV, BWF, RF64, Wave64 and AIFF with dr_wav on the Mac and the iPhone. That covers 8 to 32-bit integer, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds: IMA and Microsoft's in a WAV, and Apple's IMA4 in an AIFF. Anything else falls back to the right decoder. MPEG inside a WAV can use Vibe's MP3 decoder. Files above dr_wav's 384 kHz limit fall back too. There's no setting. On all 10,823 WAV and AIFF files of a real library that both decoders open, dr_wav matched Apple's output bit for bit, and so did every seek.
 
-### Why not Apple's decoder
+![WAV and AIFF decoders considered](audio-quality/wav-choice.svg)
 
-- **Less time decoding:** 1.4 to 3.2 times faster than Apple's decoder, on the fast cores and the efficiency cores. Playing costs almost nothing either way; it shows when a whole track is decoded at once for the waveform, beat, and key analysis.
-- **Exact seeks in IMA4.** In Apple's IMA4 (compressed AIFF), each part of the sound depends on everything before it. After a seek, Apple's decoder plays slightly different samples from the ones playing from the start gives: all 300 of 300 random seeks in a test file. dr_wav keeps notes on its way through the file and seeks to exactly the samples playing from the start gives.
-- **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes the block anyway, and at one in a Microsoft ADPCM file it plays nothing of the file at all. dr_wav plays silence for the damaged block and every other block where it belongs.
-- **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding that fills out the file's last block, 464 frames (about 10 ms) on a test file. dr_wav stops where the file says the sound ends.
-- **24 and 32-bit little-endian AIFF.** Apple's decoder reads every such file as 16-bit and plays it wrongly, one and a half or two times as long as the music. dr_wav plays it, and Convert to FLAC reads it through dr_wav too, so the FLAC holds the right sound at the right length.
+**Why:**
 
-A whole 10-minute stereo file decoded at once, best first, **lower is better**:
+- **It's faster.** It decodes 1.4 to 3.2 times faster than Apple's decoder. That shows when a whole file is decoded for the waveform, tempo and key.
+- **Exact seeks in IMA4.** In Apple's IMA4 (compressed AIFF), each part of the sound depends on everything before it. After a seek, Apple's decoder plays slightly different samples than playing from the start does. That happened on all 300 of 300 random seeks in a test file. Vibe's decoder keeps notes on its way through the file. A seek gives exactly the samples playing from the start gives.
+- **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes it anyway. At one in a Microsoft ADPCM file, it plays nothing of the file at all. Vibe's plays silence for the bad block and every other block in its place.
+- **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding in the last block, 464 frames (about 10 ms) in a test file. Vibe's stops where the file says the sound ends.
+- **24 and 32-bit little-endian AIFF.** Apple's decoder reads these as 16-bit and plays them wrong, one and a half or two times as long as the music. Vibe plays them right. Convert to FLAC reads them the same way.
 
-| File | dr_wav, fast core | Apple, fast core | dr_wav, efficiency core | Apple, efficiency core |
-| --- | --- | --- | --- | --- |
-| 16-bit, 44.1 kHz WAV | 10 ms | 21 ms | 53 ms | 116 ms |
-| 24-bit, 96 kHz WAV | 33 ms | 68 ms | 154 ms | 371 ms |
-| 24-bit, 96 kHz AIFF | 32 ms | 101 ms | 166 ms | 506 ms |
-| 32-bit float, 96 kHz WAV | 39 ms | 54 ms | 172 ms | 282 ms |
+**The data:**
 
-The ADPCM formats are the exception: they take about as long as Apple's decoder, and IMA4 about 60% longer, a few milliseconds for 20 seconds of sound.
+![WAV and AIFF: decoding a whole 10-minute file](audio-quality/wav-decode.svg)
 
-*How this was measured:* Vibe's own file reader with the app's Release build settings, with dr_wav and with Apple's decoder, run by turns on a Mac with an M4 Max; each fast-core figure is the best of five runs, each efficiency-core figure the middle of three, since those runs vary more. The library comparison used a test program that opens files the way Vibe does, on 17,917 WAV and AIFF files from music projects, sample packs and the Ableton Live factory library. Every file both decoders open, 10,823 of them, was decoded in full by both and compared sample by sample, with 50 seeks each compared too. No iPhone was measured.
+The ADPCM formats are the exception. They take about as long as Apple's decoder, and IMA4 about 60% longer. That's a few milliseconds for 20 seconds of sound.
 
-### What we fixed in dr_wav
+*How this was measured:* Vibe's own file reader with the app's Release build settings, with each decoder in turn, on an M4 Max. Each fast-core figure is the best of five runs. Each efficiency-core figure is the middle of three, because those runs vary more. The library comparison opened 17,917 WAV and AIFF files from music projects, sample packs and the Ableton Live factory library the way Vibe does. Every file both decoders open, 10,823 of them, was decoded in full by both and compared sample by sample, with 50 seeks each. No iPhone was measured.
 
-Vibe's copy of dr_wav fixes problems of its own. Some turned up in real files from that library, some in test files made for the rarer cases, and the rest under fuzzing and simulated damage:
+### Fixes to dr_wav
 
-- **Seeks in tagged AIFF files landed late.** dr_wav counted 8 bytes of an AIFF's header as sound. In a file with anything after the sound, such as the tags Ableton Live writes, every seek landed a sample or two late (278 of the library's 749 AIFF files).
-- **Compressed AIFF-C in µ-law and A-law** played every sample wrong.
+- **Seeks in tagged AIFF files landed late.** dr_wav counted 8 bytes of an AIFF's header as sound. In a file with anything after the sound, like the tags Ableton Live writes, every seek landed a sample or two late. That was 278 of the library's 749 AIFF files.
+- **AIFF-C in µ-law and A-law** played every sample wrong.
 - **8-bit files** had a slight offset under the whole track, about −48 dBFS.
-- **The length a file claims.** dr_wav trusted the length an AIFF or a compressed WAV states even when the file holds less, as a cut-off download does, and then seeked to the wrong place. It now plays what the file holds.
-- **Unfinished recordings.** A recording that was never finished leaves the length in the file at zero or at its maximum, and a WAV past 4 GB overflows it. dr_wav played nothing of those, or only part. It now plays them in full.
-- **Long seeks.** Seeks further than about an hour into a 24-bit, 96 kHz file left dr_wav's count of where it was one sample off.
-- **AIFF files dr_wav refused.** The AIFF-C types Apple's own tools write for 16, 24 and 32-bit sound, IMA4, and a few header layouts other programs write, were refused. All now play.
-- **Damaged compressed WAVs** lost the damaged block from the timeline, shifting everything after it earlier, or stopped the track.
-- **Files that made it hang or misbehave.** Fuzzing found sizes in a damaged file that made opening or seeking it take billions of steps, and arithmetic that C leaves undefined.
+- **The length a file claims.** dr_wav trusted the length an AIFF or a compressed WAV states, even when the file holds less, like a cut-off download. It then seeked to the wrong place. It now plays what the file holds.
+- **Unfinished recordings.** A recording that was never finished leaves its length at zero or at its maximum, and a WAV past 4 GB overflows it. dr_wav played none of those, or only part. It now plays them in full.
+- **Long seeks.** Seeks more than about an hour into a 24/96 file left dr_wav's position one sample off.
+- **AIFF files dr_wav refused.** That covered the AIFF-C types Apple's own tools write for 16, 24 and 32-bit sound, IMA4, and a few header layouts other programs write. All of them play now.
+- **Damaged compressed WAVs** lost the bad block from the timeline, shifting everything after it earlier, or stopped the track.
+- **Files that made it hang or misbehave.** Fuzzing found sizes in damaged files that made opening or seeking take billions of steps, and arithmetic that C leaves undefined.
 
 ### Tuning dr_wav
 
-- **Straight into the output.** Upstream dr_wav reads a file through a 4 KB buffer, one read of the file for each, and converts each sample through double precision. Vibe's copy reads the samples in one go into the memory they are converted in. It converts them with the vector instructions of Apple Silicon (and Intel's), giving exactly the same values.
-- **Reading ahead in ADPCM.** Upstream reads an ADPCM file a few bytes at a time, one read of the file for every sample of a Microsoft ADPCM file. Vibe's copy reads ahead, which makes those files 15 to 45 times faster to decode.
-- **Straight into each channel.** Vibe mixes a channel at a time. dr_wav converts stereo files straight into a buffer for each channel, which saves a second pass over every sample and cuts decoding 16 and 24-bit files by 20 to 30% on the fast cores. Reading a whole file for the waveform asks for it in one piece instead of 4,096 frames at a time, which cuts that by 15 to 20%.
-- **Seeking to the right block.** Upstream decodes everything from the start for a seek backwards in an ADPCM file. Vibe's copy goes straight to the block it needs.
-
-### How it fits in
-
-- **CoreAudio opens the file** and reads its format and channel layout on both platforms. dr_wav then decodes it.
-- **Same length, exact seeks, gapless**, except the Microsoft ADPCM files above, which end where they say.
-- **16 and 24-bit samples survive decoding exactly.** Exact device output also requires the conditions described under [Bit-perfect output](#bit-perfect-output-macos).
+- **Straight into the output.** Upstream reads through a 4 KB buffer and converts each sample through double precision. Vibe's copy reads the samples in one go into the memory they're converted in. It converts them with vector instructions, to exactly the same values.
+- **Straight into each channel.** dr_wav converts stereo straight into a buffer per channel. That saves a second pass and cuts 16 and 24-bit decoding by 20–30% on the fast cores. Reading a whole file for the waveform asks for it in one piece instead of 4,096 frames at a time. That cuts it by 15–20%.
+- **Reading ahead in ADPCM.** Upstream reads ADPCM a few bytes at a time, one read per sample in a Microsoft ADPCM file. Reading ahead makes those files 15 to 45 times faster to decode.
+- **Seeking to the right block.** Upstream decodes from the start for a seek backwards in an ADPCM file. Vibe's copy goes straight to the block it needs.
 
 ## The resampler
 
-Changing the sample rate is the one job where Vibe has to change the samples, so we hold it to the strictest standard. We measured r8brain-free-src against Apple's converter at its highest quality setting, both through Vibe's own playback engine, with the same test signals, at the eight rate changes a music library is likely to need:
+When a file's sample rate differs from the output's, Vibe converts it with r8brain-free-src. It runs at its highest-precision setting, with a steep filter at the top of the band.
 
-- **Pure tones** at nearly full level: whether the volume stays flat up to 20 kHz, where the top end starts to roll off, how much distortion and noise is added (THD+N: "total harmonic distortion plus noise"), and whether timing stays exact.
-- **A very quiet tone**, to measure the noise floor underneath quiet music.
-- **A tone sweeping from low to high**, to catch any false tone at any frequency.
-- **A sawtooth wave**, rich in overtones, to catch anything that isn't one of its overtones.
-- **Twenty tones at once, compared with a perfect mathematical copy.** No adjustment is allowed, so any error in level, timing or tone counts. Then the same converted there and back again.
-- **Two standard intermodulation tests** (CCIF and SMPTE), which show distortion created when two tones interact.
-- **A single click (impulse)**, to measure the exact frequency and timing response.
-- **A tone whose peaks fall between samples** and go above the maximum, to check nothing is clipped.
-- **Silence, a steady level, the exact length, and CPU use.**
+![Resamplers considered](audio-quality/resampler-choice.svg)
 
-**r8brain performed better on most quality measurements.** Across 103 measurements of noise, distortion and false tones, it did better in 90. Apple's converter did better in 8, all at levels between −157 and −173 dB, which is far below hearing. r8brain also removed false tones 4–9 dB more thoroughly, and used 8 to 30 times less CPU.
+**Why:** changing the sample rate is the one job where Vibe has to change your samples. It gets the strictest test. It was measured against Apple's converter at its highest quality, both inside Vibe's player, with the same test signals, at the eight rate changes a music library is likely to need. Across 103 measurements of noise, distortion and false tones, Vibe's did better in 90. Apple's converter did better in 8, all between −157 and −173 dB, far below hearing. It removed false tones 4–9 dB more thoroughly. It also used 8 to 30 times less CPU.
 
-In all four charts below, **lower is better** (less noise, less distortion, less CPU).
+The test signals were pure tones near full scale, a very quiet tone, a sweep from low to high, a sawtooth, twenty tones at once compared against a perfect copy, the CCIF and SMPTE intermodulation tests, a single click, a tone whose peaks fall between samples, silence, and a steady level. The tests also checked flat response to 20 kHz, exact timing and length, and CPU.
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/response-dark.svg"><img alt="Frequency response from an impulse, 44.1 to 96 kHz" src="audio-quality/response-light.svg"></picture>
+**The data:**
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/noise-dark.svg"><img alt="Noise and distortion at every rate pair" src="audio-quality/noise-light.svg"></picture>
+![Frequency response, 44.1 → 96 kHz](audio-quality/resampler-response.svg)
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/alias-dark.svg"><img alt="Aliasing and intermodulation" src="audio-quality/alias-light.svg"></picture>
+![Resampling: everything that isn't the music](audio-quality/resampler-quality.svg)
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/cpu-dark.svg"><img alt="CPU per rate pair, Apple against r8brain" src="audio-quality/cpu-light.svg"></picture>
+![CPU to resample in real time](audio-quality/resampler-cpu.svg)
 
-The key numbers. The first six columns are in dB, where **more negative is better**: the worst distortion plus noise across all the tones, the twenty tones compared with their perfect copy, and the same after converting there and back. The last two columns are the share of one CPU core needed to keep up in real time, where **lower is better**; they were measured while other tests ran alongside, so they are a little noisy.
-
-| Rate change | Apple distortion + noise | r8brain distortion + noise | Apple twenty tones | r8brain twenty tones | Apple there and back | r8brain there and back | Apple CPU % | r8brain CPU % |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 44.1→48 | −145.8 | −149.2 | −145.6 | −149.0 | −143.3 | −149.9 | 0.89 | 0.098 |
-| 48→44.1 | −146.2 | −150.0 | −146.0 | −149.1 | −143.2 | −149.4 | 0.90 | 0.116 |
-| 44.1→96 | −145.9 | −149.6 | −145.6 | −149.0 | −145.7 | −151.3 | 1.77 | 0.127 |
-| 96→44.1 | −148.1 | −151.2 | −148.2 | −150.3 | −144.3 | −148.9 | 1.76 | 0.121 |
-| 88.2→44.1 | −148.7 | −152.4 | −147.3 | −151.7 | −142.7 | −150.2 | 1.59 | 0.061 |
-| 96→48 | −148.9 | −152.6 | −147.3 | −151.7 | −142.5 | −150.2 | 1.74 | 0.068 |
-| 192→48 | −147.9 | −152.5 | −150.3 | −151.7 | −145.8 | −149.5 | 3.49 | 0.115 |
-| 44.1→192 | −146.2 | −149.6 | −145.7 | −148.9 | −148.0 | −151.8 | 3.53 | 0.180 |
-
-**On an iPhone 17 Pro**, converting a 44.1 kHz file to the phone's 48 kHz output: r8brain used 0.54–0.56% of a CPU core, and Apple's converter 3.27–3.39%. That's about six times less.
+The in-player CPU figures were measured alongside other tests. They're a little noisy. On an iPhone 17 Pro, converting a 44.1 kHz file to the phone's 48 kHz took 0.54–0.56% of a core with Vibe's and 3.27–3.39% with Apple's converter. That's about six times less.
 
 ### How r8brain is set up
 
-- **Its highest-precision setting**, made for 24-bit and floating-point audio. It removes false tones by about 180 dB.
-- **A steep filter at the top of the range.** From a 44.1 kHz file, the response stays flat to 21.72 kHz and is 3 dB down at 21.83 kHz, matching Apple's converter. r8brain's default setting starts rolling off earlier, at 21.39 kHz. The steeper setting costs about 20% more CPU, which is still tiny.
-- **Aligned output.** The converter compensates for its filter delay. It still needs buffered input before it can produce output.
-- **Full 64-bit precision internally**, rounded once to 32-bit float at the end.
+- **Its highest-precision preset,** made for 24-bit and float audio. It removes false tones by about 180 dB.
+- **A steep filter at the top.** From a 44.1 kHz file, the response is flat to 21.72 kHz and 3 dB down at 21.83 kHz, within 30 Hz of Apple's. r8brain's default starts rolling off earlier, at 21.39 kHz. The steeper filter costs about 20% more CPU. That's still tiny.
+- **Aligned output.** The converter makes up for its filter's delay. It still needs some input buffered before it can produce output.
+- **64-bit math inside,** rounded once to 32-bit float at the end.
 
-**Why there is no dither.** Dither is a small amount of added noise that hides the effect of rounding. r8brain works at 64-bit precision and rounds once to 32-bit float, and that rounding error is already tiny: a very quiet tone's error measures −209 dBFS. We tested whether dither would help in the few cases where Apple's converter measured better. It would lower those particular distortion figures, but it would also raise the overall noise by the same amount, which makes the more important measurements worse. In the table, **more negative is better**:
+### Why there is no dither
 
-| Measurement | Apple | r8brain before its final rounding | r8brain as shipped | r8brain with dither |
-| --- | --- | --- | --- | --- |
-| CCIF intermodulation, 44.1→48 | −173.1 | −172.4 | −167.5 | −173.7 |
-| CCIF intermodulation, 44.1→96 | −171.1 | −172.4 | −166.6 | −171.8 |
-| SMPTE intermodulation, 48→44.1 | −160.0 | −162.6 | −158.4 | −161.8 |
-| Distortion of a 6 kHz tone, 48→44.1 | −165.8 | −169.7 | −161.6 | −170.0 |
-| Distortion of a 1 kHz tone, 192→48 | −161.7 | −165.9 | −157.2 | −165.6 |
-| Everything else (noise) | | −153 to −180 | −150 to −157 | −147 to −148 |
+Dither is a little added noise that hides the effect of rounding. r8brain's one rounding, from 64-bit to 32-bit float, is already tiny. A very quiet tone's error measures −209 dBFS. Dither was tested on the few cases where Apple's converter measured better. It would fix those, but it raises the noise everywhere else by about as much, and that matters more.
 
-Before its final rounding, r8brain matches or beats Apple's converter everywhere, so these few gaps come from rounding to 32-bit float, not from r8brain itself. All of them are far below hearing.
+![Why there is no dither](audio-quality/resampler-dither.svg)
 
-**CPU use in detail**, from a separate, quieter benchmark (two minutes of stereo audio per rate change, the middle of three runs, as a share of one CPU core; **lower is better**). The first column is what Vibe ships; the others are setups we tried and rejected:
+Before its final rounding, r8brain matches or beats Apple's converter everywhere. So those few gaps come from rounding to 32-bit float, not from r8brain. All of them are far below hearing.
 
-| Rate change | Shipped | With extra FFT padding | With padding, without Apple silicon's vector instructions | With a different FFT library | r8brain's default filter, with padding |
-| --- | --- | --- | --- | --- | --- |
-| 44.1→48 | **0.092** | 0.102 | 0.110 | 0.107 | 0.077 |
-| 48→44.1 | **0.098** | 0.105 | 0.116 | 0.114 | 0.080 |
-| 96→44.1 | **0.119** | 0.126 | 0.139 | 0.142 | 0.095 |
-| 44.1→96 | **0.124** | 0.131 | 0.141 | 0.137 | 0.106 |
-| 192→48 | **0.113** | 0.117 | 0.126 | 0.127 | 0.096 |
-| 44.1→192 | **0.175** | 0.181 | 0.202 | 0.211 | 0.152 |
+### Setups tried
 
-r8brain's default filter is cheaper, but it starts rolling off the top end earlier, so we use the steeper one. Starting a conversion took under half a millisecond in this benchmark.
+This is a separate, quieter benchmark: two minutes of stereo per rate change, the middle of three runs. Starting a conversion took under half a millisecond. Extra FFT padding is r8brain's `R8B_EXTFFT` switch.
+
+![Resampler setups tried](audio-quality/resampler-setups.svg)
+
+r8brain's default filter is the cheapest, but it rolls off the top end earlier. Vibe uses the steeper one.
 
 ### BASS, tested and not used
 
-**BASS** (version 2.4.18.3, with its BASSmix add-on) is a popular audio library used by many players. We tested its resampler the same way, at its default setting (16-point) and its highest (256-point). It keeps the level and length right, but it passed only 63 (default) and 67 (highest) of the 184 checks. Apple's converter and r8brain both pass all 184.
+BASS (2.4.18.3, with BASSmix) is an audio library many players use. Its resampler was tested the same way, at its default setting (16-point) and its highest (256-point). It keeps the level and length right. It passed only 63 (default) and 67 (highest) of the 184 checks. Apple's converter and r8brain pass all 184.
 
-In both charts, **lower is better**.
+![Vibe, Apple and BASS](audio-quality/resampler-bass.svg)
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/resamplers-quality-dark.svg"><img alt="Noise, distortion and aliasing for Apple, r8brain and BASS at every rate pair" src="audio-quality/resamplers-quality-light.svg"></picture>
-
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/resamplers-cpu-dark.svg"><img alt="CPU to resample in real time for Apple, r8brain and BASS" src="audio-quality/resamplers-cpu-light.svg"></picture>
-
-The numbers, shown as default / highest. The first column is where the top end is 3 dB down (**higher is better**, up to about 22 kHz). The rest are in dB (**more negative is better**). "False tones" is the loudest false tone when converting down to a lower rate:
-
-| Rate change | Top end, −3 dB (Hz) | Worst distortion + noise | Noise under a quiet tone (dBFS) | False tones | Twenty tones vs. perfect copy |
-| --- | --- | --- | --- | --- | --- |
-| 44.1→48 | 17398 / 21565 | −34.1 / −38.6 | −132.7 / −133.0 | — | −15.6 / −47.1 |
-| 48→44.1 | 17213 / 21525 | −46.3 / −46.6 | −132.7 / −127.1 | −31.5 / −88.8 | −15.5 / −47.4 |
-| 44.1→96 | 18667 / 21565 | −19.8 / −43.2 | −128.8 / −129.2 | — | −20.5 / −50.1 |
-| 96→44.1 | 15899 / 20999 | −52.7 / −56.0 | −141.8 / −140.8 | −15.4 / −81.0 | −16.2 / −62.9 |
-| 88.2→44.1 | 16107 / 21079 | −141.6 / −138.3 | −208.2 / −200.5 | −16.2 / −84.5 | −16.2 / −94.7 |
-| 96→48 | 16810 / 22943 | −144.4 / −139.0 | −207.4 / −199.5 | −16.2 / −84.2 | −18.1 / −109.6 |
-| 192→48 | 15436 / 21545 | −145.8 / −142.5 | −212.3 / −201.0 | −9.9 / −76.3 | −17.8 / −90.4 |
-| 44.1→192 | 18667 / 21565 | −19.8 / −39.9 | −126.1 / −126.2 | — | −20.5 / −45.1 |
-
-What the numbers mean:
-
-- **The top end.** At its default setting, BASS starts rolling off the treble early: it is 3 dB down by 15–19 kHz, which you can hear. At its highest setting it stays flat to 20–22 kHz, like the others.
-- **False tones near the top.** BASS's filter doesn't fully block sound near the sample rate's limit, so some of it comes back as false tones. That is why a 20 kHz test tone shows so much distortion. When converting down, BASS's loudest false tone is at −10 to −32 dB at the default setting and −76 to −89 dB at the highest. Apple's converter and r8brain keep it at −148 to −160 dB.
-- **A higher noise floor.** For most rate changes BASS adds noise at about −126 to −142 dBFS, where the others reach about −206 to −212. For exact 2:1 and 4:1 changes, BASS is as quiet as the others, so this noise comes from how BASS calculates in-between samples, not from a lack of precision.
-- **What you would hear.** At the highest setting, almost certainly nothing; these errors are below hearing. At the default setting, slightly dull treble. We didn't choose BASS because r8brain is more accurate on every measure, and at its highest setting BASS also uses more CPU than r8brain.
-- **Why BASS gets expensive.** BASS's CPU use doubles with each quality step, because it does the filtering the direct way. Apple's converter and r8brain use smarter methods that stay cheap even with steep filters. BASS on its own, as a share of one CPU core (**lower is better**):
-
-  | Rate change | 16-point | 32-point | 64-point | 128-point | 256-point |
-  | --- | --- | --- | --- | --- | --- |
-  | 44.1→48 | 0.078 | 0.155 | 0.310 | 0.603 | 1.215 |
-  | 48→44.1 | 0.072 | 0.145 | 0.276 | 0.551 | 1.100 |
-  | 44.1→96 | 0.152 | 0.301 | 0.610 | 1.212 | 2.432 |
-  | 96→44.1 | 0.074 | 0.142 | 0.280 | 0.558 | 1.105 |
-  | 192→48 | 0.079 | 0.155 | 0.306 | 0.610 | 1.204 |
-  | 44.1→192 | 0.309 | 0.628 | 1.256 | 2.420 | 4.855 |
-
-- **Licensing.** BASS is closed source and free only for non-commercial use.
+- **The top end.** At its default, BASS rolls off the treble early, 3 dB down by 15–19 kHz. You can hear that. At its highest it stays flat to 20–22 kHz, like the others.
+- **False tones.** BASS's filter doesn't fully block sound near the rate's limit. Some of it comes back as false tones. That's also why a 20 kHz test tone shows so much distortion.
+- **Noise.** For most rate changes BASS adds noise at about −126 to −142 dBFS, where the others reach about −206 to −212. For exact 2:1 and 4:1 changes BASS is as quiet as the others. So the noise comes from how it works out in-between samples, not from a lack of precision.
+- **CPU.** BASS doubles its CPU with each quality step, because it filters the direct way. For 44.1 → 48 kHz that's 0.078% of a core at 16-point and 1.2% at 256-point. Vibe's resampler and Apple's converter use smarter methods that stay cheap with steep filters.
+- **What you'd hear.** At its highest setting, almost certainly nothing. At its default, slightly dull treble. BASS wasn't chosen because r8brain is more accurate on every measure, and BASS at its highest costs more CPU than r8brain. BASS is also closed source, and free only for non-commercial use.
 
 ## The pitch fader
 
-The pitch fader changes the speed and the pitch together, as on a turntable, by up to 8% or 16%. Vibe does this by resampling at a ratio that follows the fader. The fader is on macOS only, and never in bit-perfect output.
+The pitch fader changes speed and pitch together, like a turntable, by up to 8% or 16%. Since 1.16 it uses Vibe's own converter, not Apple's Varispeed. The fader is on the Mac only, and never in bit-perfect output.
 
-The fader uses Vibe’s own converter. r8brain fixes its ratio at creation and prepares samples ahead of playback. The fader needs a ratio that can follow live changes.
+![Pitch converters considered](audio-quality/pitch-choice.svg)
 
-How it works:
+**Why:** the fader needs a ratio that follows your hand. Vibe's resampler fixes its ratio when it's created, and prepares samples ahead of time. It can't follow a moving ratio. Apple's Varispeed can, but it's much dirtier. Its error grows 12 dB per octave, the sign of a coarse filter table. It can't be tuned away. It already runs at its highest quality, and it refuses Apple's Mastering setting. It also cuts the top end.
 
-- **A windowed-sinc filter**, the standard design for resampling. Its half-width before stretching is 64 input frames. It uses a Kaiser window (β 15.6) with about 150 dB of stopband attenuation.
-- **The top end is kept.** The filter is flat to 20 kHz and 6 dB down at 22 kHz (at 48 kHz; it scales with the sample rate).
-- **No false tones when speeding up.** The filter stretches with the speed, so its top follows the output's limit.
-- **Smooth drags.** When the fader moves, the speed glides across each block of audio instead of jumping.
-- **64-bit sums**, rounded once to 32-bit float at the end.
-- **A short delay**: 64 samples, about 1.3 ms at 48 kHz, and up to 75 when speeding up by 16%.
+**The data:** both measured through Vibe's player with the same test, at −16%, −8%, −1%, +1%, +8% and +16%, at 48 kHz. Each tone is measured at exactly its frequency. Anything that isn't the tone counts against the converter. 32-bit float sets a floor of about −150 dB.
 
-We measured this converter against Apple's Varispeed through Vibe's player with the same test, at −16%, −8%, −1%, +1%, +8% and +16%, at 48 kHz. Each tone is fitted at exactly its frequency, so anything that isn't the tone counts. 32-bit float sets a floor of about −150 dB. **More negative is better.**
+![The pitch fader: Vibe and Apple's Varispeed](audio-quality/pitch-quality.svg)
 
-| Measurement | Apple Varispeed | Vibe's converter |
-| --- | --- | --- |
-| Distortion + noise, 1 kHz tone at −1 dBFS | −129 to −135 | −150 to −152 |
-| Same, 10 kHz | −93 to −99 | −150 to −153 |
-| Same, 20 kHz, from −8% to +16% | −83 to −87 | −148 to −151 |
-| Twenty tones at once | −96 to −99 | −149 to −150 |
-| False tones when speeding up | −114 to −133 | −148 to −149 |
+![The pitch fader: level of a 20 kHz tone](audio-quality/pitch-top-end.svg)
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="audio-quality/pitch-quality-dark.svg"><img alt="Noise, distortion and false tones of the pitch fader, Apple's Varispeed against Vibe's converter" src="audio-quality/pitch-quality-light.svg"></picture>
+Slowing down moves everything in the file down with it, the top end included. At −8%, a 20 kHz tone comes from 21.7 kHz in the file. That's on the filter's slope. At −16% it comes from 23.8 kHz. No converter keeps that. At 96 kHz the filter scales with the rate. There Vibe's converter measures −148 to −152 dB on every row, and a 20 kHz tone stays at 0.00 dB at every setting, −16% included.
 
-**Apple's error grows 12 dB per octave**, the sign of a coarse filter table. It can't be tuned away. The unit already ran at its highest quality, and it refuses Apple's Mastering converter setting.
+Apple's Varispeed takes about a third of the CPU, 0.07% of a core against 0.20–0.24%. That's measured on an M4 Max in the `pitch` component benchmarks. Both are tiny.
 
-**Apple's filter also cuts the top end.** The level of a 20 kHz tone, in dB:
+- **The filter** is a windowed sinc, the standard design for resampling. It's 64 input frames each side before stretching, with a Kaiser window (β 15.6) and about 150 dB of stopband.
+- **It keeps the top end.** It's flat to 20 kHz and 6 dB down at 22 kHz at 48 kHz, and it scales with the rate.
+- **No false tones when speeding up.** The filter stretches with the speed. Its top follows the output's limit.
+- **Smooth drags.** When you move the fader, the speed glides across each block of audio instead of jumping. Apple's unit jumps. That adds side tones 60 to 63 dB below the music as the fader moves. The glide brings them down to −98 dB on an 8 kHz tone and −116 dB on a 1 kHz tone.
+- **64-bit sums,** rounded once to 32-bit float at the end.
+- **A short delay:** 64 samples, about 1.3 ms at 48 kHz, and up to 75 when speeding up by 16%.
+- **Timing follows the fader.** The converter takes source samples in order at the chosen speed. The tests check that through a seek, a pause, a gapless track change, a change of output rate, and every sample of a six-and-a-half-minute track. They cover the converter's delay, not the output device's. The track ends on time.
+- **A wider filter didn't work.** With 96 zero crossings and the cutoff at 22.9 kHz, 20 kHz stays flat at −8%. Its stopband starts too close to the output's limit, though. At +1%, a 23.8 kHz tone comes back at −101 dB.
 
-| Fader | Apple Varispeed | Vibe's converter |
-| --- | --- | --- |
-| +16% | −0.33 | 0.00 |
-| +8% | −0.77 | 0.00 |
-| +1% | −1.49 | 0.00 |
-| −1% | −0.05 | 0.00 |
-| −8% | −7.8 | −3.0 |
-| −16% | −131 | −123 |
+Key lock is a different feature. It changes tempo without changing pitch, and needs a time-stretching algorithm, not a resampler. `scripts/analysis/varispeed-quality/run.sh` measures Apple's Varispeed, Vibe's resampler at a fixed ratio, and a prototype of this converter outside the player, with no audio device. It times them too, and measures a drag. It's the place to try a new filter design before it goes into the player.
 
-Slowing down moves everything in the file down with it, the top end included. At −8%, a 20 kHz tone comes from 21.7 kHz in the file, which is on the filter's slope. At −16% it comes from 23.8 kHz, which no converter keeps.
+## How it's tested
 
-**At 96 kHz the filter scales with the rate.** Vibe's converter measures −148 to −152 dB on every row above at 96 kHz. There, a 20 kHz tone stays at 0.00 dB at every setting, −16% included.
+These run on every change, with no audio hardware:
 
-**Source timing follows the fader.** The converter consumes source samples in order at the selected speed. The tests read this off a test signal through a seek, a pause, a gapless track change and a change of the output's sample rate. They also read every sample of a track six and a half minutes long. These tests cover the converter’s delay. They do not measure output-device latency. The track ends on time.
+- **Every sample is checked.** The real player plays into memory, and every sample of every channel is compared with the file. That covers 44.1 to 192 kHz, 16-bit, 24-bit and float, mono and stereo, and the generated format fixtures. Bit-perfect and regular playback must match the file exactly. The only exception is the first 50 ms, as declick fades in, and not even that with Declick off. The check catches one changed bit, a dropped or repeated sample, swapped channels or flipped polarity.
+- **Unused features change nothing.** The file must play back exactly with the effects on but unused, with the equalizer bars running, with the pitch fader at 0%, and after every effect has been used and released. That covers each effect key, the boost, the iOS effects pad, and an effect switched off partway through. Exactly means exactly, not "within a tolerance". A released low cut left in the path changes the audio by about 0.0000000000007, and only an exact comparison catches that.
+- **The pitch fader** must keep distortion, noise and false tones below −145 dB at six settings from −16% to +16%, at 48 and 96 kHz. It must stay flat to 20 kHz from −1% up. Leaving 0% and coming back must not click, skip or repeat a sample, at every rate from 44.1 to 192 kHz and in mono. At 0% the file must play exactly, and so must a track that plays on after the fader returns to 0%. Away from 0%, it must not skip or repeat a sample through a seek, a pause, a gapless change, a rate change or a six-and-a-half-minute track.
+- **The resampler** must pass every measurement above at all eight rate changes. It must carry on seamlessly across gapless track changes, and match the same conversion done outside the player, exactly.
+- **The MP3 decoder** must stay at least 50 times inside the ISO limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks and seek to the exact sample, including in 8 kbps files. It must decode private-bit frames and 8 kHz mixed blocks as FFmpeg does, cap a damaged frame at +12 dB, and end cut-off files where Apple's does. Switching decoders must drop a prefetched track opened with the old one.
+- **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode. Every seek must land on the exact sample. Files damaged the ways real files get damaged must play as described above. That covers a tag in front, a stale seek table, a garbage seek-table entry, a damaged frame, frame header or first frame, bytes lost inside a frame, a damaged frame the seek table points at, downloads cut off all across a frame, and a file with no length, alone and with a megabyte of zeros after it. Frames split into more than 256 parts must decode exactly. A file more than 2^32 samples long must seek forward and back across that distance.
+- **The WAV and AIFF decoder** must match Apple's decoder on the supported fixtures, including the AIFF-C types Apple's tools write, IMA4, and both ADPCMs in a WAV. Every seek must land on the exact sample. Damaged files must play as described above: a chunk after the sound, a file cut short, a length larger than the file, unfinished sizes, the format after the sound, a damaged ADPCM block, and a Microsoft ADPCM file cut off inside a block. A Microsoft ADPCM file with its own coefficient table must decode with that table, as Apple's decoder does.
+- **Lossy files** must match their own decoded audio exactly. AAC gets four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output. Any change there fails it.
 
-**Dragging the fader.** Apple's unit jumps to each new speed. While the fader moves, that adds side tones 60 to 63 dB below the music. Gliding across each block brings them down to −98 dB on an 8 kHz tone and −116 dB on a 1 kHz tone.
+On the Mac there's also an optional test that plays through a real output device and records it back, to compare the captured stream with the source. It doesn't test a DAC's analog output.
 
-**CPU.** Vibe's converter takes 0.20% to 0.24% of one CPU core at 48 kHz on an M4 Max, from −8% to +16%. Apple's Varispeed takes 0.07% in the same benchmark (the `pitch` component benchmarks), about a third as much. **Lower is better.**
-
-**Why not a wider filter.** With 96 zero crossings and the cutoff at 22.9 kHz, 20 kHz stays flat at −8%. But its stopband begins too close to the output's limit, and at +1% a 23.8 kHz tone comes back at −101 dB.
-
-**Key lock is a different feature.** It changes tempo without changing pitch. That requires a time-stretching algorithm, not this resampler.
-
-`scripts/analysis/varispeed-quality/run.sh` measures Apple's Varispeed, r8brain at a fixed ratio and a prototype of this converter outside the player, with no audio device. It times them too, and measures a drag. It is the place to try a new filter design before it goes into the player.
-
-## How we test it
-
-These tests run automatically on every change, without any audio hardware:
-
-- **Every sample is checked.** The real player plays into memory, and every sample of every channel is compared with the file. This covers 44.1 kHz to 192 kHz; 16-bit, 24-bit and float; mono and stereo; and the generated format fixtures. Bit-perfect and regular playback must match the file exactly. The only exception is the first 50 ms, while the declick fades in, and not even that when Declick is off. The check catches a single changed bit, a dropped or repeated sample, swapped channels, or flipped polarity.
-- **Unused features change nothing.** The file must play back exactly with the effects turned on but unused, with the equalizer bars running, with the pitch fader at 0%, and after every effect has been used and released: each effect key, the boost, the iOS effects pad, and an effect switched off partway through. "Exactly" means exactly, not "within a tolerance". A released low cut left in the path changes the audio by about 0.0000000000007, and only an exact comparison catches that.
-- **The pitch fader** must keep distortion, noise and false tones below −145 dB at six settings from −16% to +16%, at 48 kHz and 96 kHz. It must stay flat to 20 kHz from −1% up. Leaving 0% and coming back must not click, skip or repeat a sample, at every rate from 44.1 kHz to 192 kHz and in mono. At 0% the file must play exactly, and so must a track that plays on after the fader comes back to 0%. Away from 0%, it must not skip or repeat a sample through a seek, a pause, a gapless track change, a rate change or a track six and a half minutes long.
-- **The resampler** must pass every measurement above at all eight rate changes. It must also continue seamlessly across gapless track changes, and match the same conversion done separately from the player, exactly.
-- **The MP3 decoder** must stay at least 50 times inside the ISO accuracy limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks, seek to the exact sample, including in 8 kbps files, decode frames with private bits set and 8 kHz mixed blocks as FFmpeg does, cap a damaged frame at +12 dB, and end cut-off files where Apple's does. Changing the decoder must invalidate a prefetched handle opened with the old choice.
-- **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a tag in front, a stale seek table, a seek table with a garbage entry, a damaged frame, a damaged frame header, a damaged first frame, bytes lost inside a frame, a damaged frame the seek table points at, a download cut short at points all across a frame, and a file that doesn't say how long it is, alone and with a megabyte of zeros after it, which must know its length, play in full, and seek. Files whose frames are split into more than 256 parts must decode exactly, and a file more than 2^32 samples long must seek forward and back across that distance.
-- **The WAV and AIFF decoder** must match Apple’s decoder on the supported encoding fixtures, including the AIFF-C types Apple's tools write, IMA4 and both ADPCMs in a WAV, and every seek must land on the exact sample. Files damaged the ways real files are must play as described above: a chunk after the sound, a file cut short, a length larger than the file, sizes left unfinished, the format after the sound, a damaged ADPCM block, and a Microsoft ADPCM file cut off inside a block. A Microsoft ADPCM file with a coefficient table of its own must decode with that table, as Apple's decoder does.
-- **Lossy files** must match their own decoded audio exactly. AAC is allowed a difference of four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output, so we'll know if that ever changes.
-
-On macOS there is also an optional test that plays through a real output device and records it back, to compare the captured device stream with the source. This does not test a DAC’s analog output.
+The charts and tables on this page are drawn by `python3 scripts/docs/audio_quality.py`. The numbers live in that script, and the frequency response curves in `audio-quality/response.json`.

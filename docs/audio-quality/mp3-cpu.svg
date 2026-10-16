@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 646" width="720" height="646" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="CPU to play each MP3">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.sg{fill:#a8a7a1;stroke:#a8a7a1}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.sg{fill:#6e6d68;stroke:#6e6d68}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="720" height="646" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">CPU to play each MP3</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Percent of one fast core on an M4 Max, the fastest of seven whole-file decodes. Lower is better.</text>
+<rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Vibe</text>
+<rect class="s1" x="89.64" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="109.6" y="68.0" font-size="12" text-anchor="start">Apple</text>
+<rect class="sg" x="161.51999999999998" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="181.5" y="68.0" font-size="12" text-anchor="start">BASS</text>
+<line class="a" x1="160.7" y1="90.0" x2="160.7" y2="616.0" stroke-width="1"/>
+<text class="q" x="160.7" y="632.0" font-size="11" text-anchor="middle">0%</text>
+<line class="g" x1="242.0" y1="90.0" x2="242.0" y2="616.0" stroke-width="1"/>
+<text class="q" x="242.0" y="632.0" font-size="11" text-anchor="middle">0.02%</text>
+<line class="g" x1="323.2" y1="90.0" x2="323.2" y2="616.0" stroke-width="1"/>
+<text class="q" x="323.2" y="632.0" font-size="11" text-anchor="middle">0.04%</text>
+<line class="g" x1="404.5" y1="90.0" x2="404.5" y2="616.0" stroke-width="1"/>
+<text class="q" x="404.5" y="632.0" font-size="11" text-anchor="middle">0.06%</text>
+<line class="g" x1="485.7" y1="90.0" x2="485.7" y2="616.0" stroke-width="1"/>
+<text class="q" x="485.7" y="632.0" font-size="11" text-anchor="middle">0.08%</text>
+<line class="g" x1="567.0" y1="90.0" x2="567.0" y2="616.0" stroke-width="1"/>
+<text class="q" x="567.0" y="632.0" font-size="11" text-anchor="middle">0.1%</text>
+<line class="g" x1="648.2" y1="90.0" x2="648.2" y2="616.0" stroke-width="1"/>
+<text class="q" x="648.2" y="632.0" font-size="11" text-anchor="middle">0.12%</text>
+<text class="m" x="148.7" y="114.5" font-size="12" text-anchor="end">CBR 320 kbps</text>
+<path class="s0" d="M160.7,94.0 h166.6 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-166.6 z"><title>CBR 320 kbps, Vibe: 0.042%</title></path>
+<text class="m" x="337.4" y="102.5" font-size="11" text-anchor="start">0.042%</text>
+<path class="s1" d="M160.7,106.0 h386.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-386.0 z"><title>CBR 320 kbps, Apple: 0.096%</title></path>
+<text class="m" x="556.7" y="114.5" font-size="11" text-anchor="start">0.096%</text>
+<path class="sg" d="M160.7,118.0 h199.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-199.1 z"><title>CBR 320 kbps, BASS: 0.050%</title></path>
+<text class="m" x="369.9" y="126.5" font-size="11" text-anchor="start">0.050%</text>
+<text class="m" x="148.7" y="162.5" font-size="12" text-anchor="end">CBR 128 kbps</text>
+<path class="s0" d="M160.7,142.0 h121.9 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-121.9 z"><title>CBR 128 kbps, Vibe: 0.031%</title></path>
+<text class="m" x="292.7" y="150.5" font-size="11" text-anchor="start">0.031%</text>
+<path class="s1" d="M160.7,154.0 h329.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-329.1 z"><title>CBR 128 kbps, Apple: 0.082%</title></path>
+<text class="m" x="499.9" y="162.5" font-size="11" text-anchor="start">0.082%</text>
+<path class="sg" d="M160.7,166.0 h146.3 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-146.3 z"><title>CBR 128 kbps, BASS: 0.037%</title></path>
+<text class="m" x="317.0" y="174.5" font-size="11" text-anchor="start">0.037%</text>
+<text class="m" x="148.7" y="210.5" font-size="12" text-anchor="end">VBR V0</text>
+<path class="s0" d="M160.7,190.0 h166.6 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-166.6 z"><title>VBR V0, Vibe: 0.042%</title></path>
+<text class="m" x="337.4" y="198.5" font-size="11" text-anchor="start">0.042%</text>
+<path class="s1" d="M160.7,202.0 h402.3 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-402.3 z"><title>VBR V0, Apple: 0.100%</title></path>
+<text class="m" x="573.0" y="210.5" font-size="11" text-anchor="start">0.100%</text>
+<path class="sg" d="M160.7,214.0 h191.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-191.0 z"><title>VBR V0, BASS: 0.048%</title></path>
+<text class="m" x="361.7" y="222.5" font-size="11" text-anchor="start">0.048%</text>
+<text class="m" x="148.7" y="258.5" font-size="12" text-anchor="end">VBR V5</text>
+<path class="s0" d="M160.7,238.0 h121.9 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-121.9 z"><title>VBR V5, Vibe: 0.031%</title></path>
+<text class="m" x="292.7" y="246.5" font-size="11" text-anchor="start">0.031%</text>
+<path class="s1" d="M160.7,250.0 h329.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-329.1 z"><title>VBR V5, Apple: 0.082%</title></path>
+<text class="m" x="499.9" y="258.5" font-size="11" text-anchor="start">0.082%</text>
+<path class="sg" d="M160.7,262.0 h142.3 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-142.3 z"><title>VBR V5, BASS: 0.036%</title></path>
+<text class="m" x="313.0" y="270.5" font-size="11" text-anchor="start">0.036%</text>
+<text class="m" x="148.7" y="306.5" font-size="12" text-anchor="end">CBR 256 kbps, 48 kHz</text>
+<path class="s0" d="M160.7,286.0 h154.4 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-154.4 z"><title>CBR 256 kbps, 48 kHz, Vibe: 0.039%</title></path>
+<text class="m" x="325.2" y="294.5" font-size="11" text-anchor="start">0.039%</text>
+<path class="s1" d="M160.7,298.0 h390.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-390.1 z"><title>CBR 256 kbps, 48 kHz, Apple: 0.097%</title></path>
+<text class="m" x="560.8" y="306.5" font-size="11" text-anchor="start">0.097%</text>
+<path class="sg" d="M160.7,310.0 h182.9 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-182.9 z"><title>CBR 256 kbps, 48 kHz, BASS: 0.046%</title></path>
+<text class="m" x="353.6" y="318.5" font-size="11" text-anchor="start">0.046%</text>
+<text class="m" x="148.7" y="354.5" font-size="12" text-anchor="end">Mono 64 kbps</text>
+<path class="s0" d="M160.7,334.0 h73.2 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-73.2 z"><title>Mono 64 kbps, Vibe: 0.019%</title></path>
+<text class="m" x="243.9" y="342.5" font-size="11" text-anchor="start">0.019%</text>
+<path class="s1" d="M160.7,346.0 h166.6 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-166.6 z"><title>Mono 64 kbps, Apple: 0.042%</title></path>
+<text class="m" x="337.4" y="354.5" font-size="11" text-anchor="start">0.042%</text>
+<path class="sg" d="M160.7,358.0 h89.4 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-89.4 z"><title>Mono 64 kbps, BASS: 0.023%</title></path>
+<text class="m" x="260.2" y="366.5" font-size="11" text-anchor="start">0.023%</text>
+<text class="m" x="148.7" y="402.5" font-size="12" text-anchor="end">MPEG-2, 22.05 kHz</text>
+<path class="s0" d="M160.7,382.0 h65.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-65.1 z"><title>MPEG-2, 22.05 kHz, Vibe: 0.017%</title></path>
+<text class="m" x="235.8" y="390.5" font-size="11" text-anchor="start">0.017%</text>
+<path class="s1" d="M160.7,394.0 h170.7 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-170.7 z"><title>MPEG-2, 22.05 kHz, Apple: 0.043%</title></path>
+<text class="m" x="341.4" y="402.5" font-size="11" text-anchor="start">0.043%</text>
+<path class="sg" d="M160.7,406.0 h73.2 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-73.2 z"><title>MPEG-2, 22.05 kHz, BASS: 0.019%</title></path>
+<text class="m" x="243.9" y="414.5" font-size="11" text-anchor="start">0.019%</text>
+<text class="m" x="148.7" y="450.5" font-size="12" text-anchor="end">MPEG-2.5, 11 kHz</text>
+<path class="s0" d="M160.7,430.0 h24.4 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-24.4 z"><title>MPEG-2.5, 11 kHz, Vibe: 0.007%</title></path>
+<text class="m" x="195.2" y="438.5" font-size="11" text-anchor="start">0.007%</text>
+<path class="s1" d="M160.7,442.0 h69.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-69.1 z"><title>MPEG-2.5, 11 kHz, Apple: 0.018%</title></path>
+<text class="m" x="239.8" y="450.5" font-size="11" text-anchor="start">0.018%</text>
+<path class="sg" d="M160.7,454.0 h24.4 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-24.4 z"><title>MPEG-2.5, 11 kHz, BASS: 0.007%</title></path>
+<text class="m" x="195.2" y="462.5" font-size="11" text-anchor="start">0.007%</text>
+<text class="m" x="148.7" y="498.5" font-size="12" text-anchor="end">MP2 256 kbps</text>
+<path class="s0" d="M160.7,478.0 h89.4 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-89.4 z"><title>MP2 256 kbps, Vibe: 0.023%</title></path>
+<text class="m" x="260.2" y="486.5" font-size="11" text-anchor="start">0.023%</text>
+<path class="s1" d="M160.7,490.0 h264.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-264.1 z"><title>MP2 256 kbps, Apple: 0.066%</title></path>
+<text class="m" x="434.9" y="498.5" font-size="11" text-anchor="start">0.066%</text>
+<path class="sg" d="M160.7,502.0 h117.9 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-117.9 z"><title>MP2 256 kbps, BASS: 0.030%</title></path>
+<text class="m" x="288.6" y="510.5" font-size="11" text-anchor="start">0.030%</text>
+<text class="m" x="148.7" y="546.5" font-size="12" text-anchor="end">Real track A, 320 kbps</text>
+<path class="s0" d="M160.7,526.0 h170.7 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-170.7 z"><title>Real track A, 320 kbps, Vibe: 0.043%</title></path>
+<text class="m" x="341.4" y="534.5" font-size="11" text-anchor="start">0.043%</text>
+<path class="s1" d="M160.7,538.0 h390.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-390.1 z"><title>Real track A, 320 kbps, Apple: 0.097%</title></path>
+<text class="m" x="560.8" y="546.5" font-size="11" text-anchor="start">0.097%</text>
+<path class="sg" d="M160.7,550.0 h195.1 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-195.1 z"><title>Real track A, 320 kbps, BASS: 0.049%</title></path>
+<text class="m" x="365.8" y="558.5" font-size="11" text-anchor="start">0.049%</text>
+<text class="m" x="148.7" y="594.5" font-size="12" text-anchor="end">Real track B, 320 kbps</text>
+<path class="s0" d="M160.7,574.0 h166.6 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-166.6 z"><title>Real track B, 320 kbps, Vibe: 0.042%</title></path>
+<text class="m" x="337.4" y="582.5" font-size="11" text-anchor="start">0.042%</text>
+<path class="s1" d="M160.7,586.0 h386.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-386.0 z"><title>Real track B, 320 kbps, Apple: 0.096%</title></path>
+<text class="m" x="556.7" y="594.5" font-size="11" text-anchor="start">0.096%</text>
+<path class="sg" d="M160.7,598.0 h191.0 a4,4 0 0 1 4,4 v1.0 a4,4 0 0 1 -4,4 h-191.0 z"><title>Real track B, 320 kbps, BASS: 0.048%</title></path>
+<text class="m" x="361.7" y="606.5" font-size="11" text-anchor="start">0.048%</text>
+</svg>

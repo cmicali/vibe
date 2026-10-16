@@ -1,76 +1,64 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" width="720" height="300" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" role="img" aria-label="Wakeups">
-<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.g{stroke:#e4e3df}.a{stroke:#b9b8b2}.s0{stroke:#2a78d6;fill:#2a78d6}.s1{stroke:#eb6834;fill:#eb6834}.s2{stroke:#1baf7a;fill:#1baf7a}.s3{stroke:#eda100;fill:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#ffffff}.m{fill:#c3c2b7}.g{stroke:#2f2f2d}.a{stroke:#555550}.s0{stroke:#3987e5;fill:#3987e5}.s1{stroke:#d95926;fill:#d95926}.s2{stroke:#199e70;fill:#199e70}.s3{stroke:#c98500;fill:#c98500}}.l{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}</style>
-<rect class="bg" width="720" height="300" rx="8"/>
-<text class="t" x="56" y="24" font-size="15" font-weight="600">Wakeups</text>
-<text class="m" x="56" y="38" font-size="11">a second</text>
-<line class="a" x1="56" x2="570" y1="264.0" y2="264.0"/>
-<text class="m" x="48" y="268.0" font-size="11" text-anchor="end">0</text>
-<line class="g" x1="56" x2="570" y1="227.3" y2="227.3"/>
-<text class="m" x="48" y="231.3" font-size="11" text-anchor="end">20</text>
-<line class="g" x1="56" x2="570" y1="190.7" y2="190.7"/>
-<text class="m" x="48" y="194.7" font-size="11" text-anchor="end">40</text>
-<line class="g" x1="56" x2="570" y1="154.0" y2="154.0"/>
-<text class="m" x="48" y="158.0" font-size="11" text-anchor="end">60</text>
-<line class="g" x1="56" x2="570" y1="117.3" y2="117.3"/>
-<text class="m" x="48" y="121.3" font-size="11" text-anchor="end">80</text>
-<line class="g" x1="56" x2="570" y1="80.7" y2="80.7"/>
-<text class="m" x="48" y="84.7" font-size="11" text-anchor="end">100</text>
-<line class="g" x1="56" x2="570" y1="44.0" y2="44.0"/>
-<text class="m" x="48" y="48.0" font-size="11" text-anchor="end">120</text>
-<text class="m" x="88.1" y="280" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="152.4" y="280" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="216.6" y="280" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="280.9" y="280" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="345.1" y="280" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="409.4" y="280" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="473.6" y="280" font-size="11" text-anchor="middle">1.14</text>
-<text class="m" x="537.9" y="280" font-size="11" text-anchor="middle">1.15</text>
-<path class="l s0" d="M88.1,252.1 L152.4,251.6 L216.6,251.6 L280.9,251.6 L345.1,251.2 L409.4,251.4 L473.6,72.1 L537.9,235.8"/>
-<circle class="s0" cx="88.1" cy="252.1" r="4" stroke="none"><title>Playing MP3: 6 a second</title></circle>
-<circle class="s0" cx="152.4" cy="251.6" r="4" stroke="none"><title>Playing MP3: 7 a second</title></circle>
-<circle class="s0" cx="216.6" cy="251.6" r="4" stroke="none"><title>Playing MP3: 7 a second</title></circle>
-<circle class="s0" cx="280.9" cy="251.6" r="4" stroke="none"><title>Playing MP3: 7 a second</title></circle>
-<circle class="s0" cx="345.1" cy="251.2" r="4" stroke="none"><title>Playing MP3: 7 a second</title></circle>
-<circle class="s0" cx="409.4" cy="251.4" r="4" stroke="none"><title>Playing MP3: 7 a second</title></circle>
-<circle class="s0" cx="473.6" cy="72.1" r="4" stroke="none"><title>Playing MP3: 105 a second</title></circle>
-<circle class="s0" cx="537.9" cy="235.8" r="4" stroke="none"><title>Playing MP3: 15 a second</title></circle>
-<path class="l s1" d="M88.1,252.1 L152.4,251.4 L216.6,251.6 L280.9,251.6 L345.1,251.4 L409.4,251.4 L473.6,72.2 L537.9,235.6"/>
-<circle class="s1" cx="88.1" cy="252.1" r="4" stroke="none"><title>Playing FLAC 24/192: 6 a second</title></circle>
-<circle class="s1" cx="152.4" cy="251.4" r="4" stroke="none"><title>Playing FLAC 24/192: 7 a second</title></circle>
-<circle class="s1" cx="216.6" cy="251.6" r="4" stroke="none"><title>Playing FLAC 24/192: 7 a second</title></circle>
-<circle class="s1" cx="280.9" cy="251.6" r="4" stroke="none"><title>Playing FLAC 24/192: 7 a second</title></circle>
-<circle class="s1" cx="345.1" cy="251.4" r="4" stroke="none"><title>Playing FLAC 24/192: 7 a second</title></circle>
-<circle class="s1" cx="409.4" cy="251.4" r="4" stroke="none"><title>Playing FLAC 24/192: 7 a second</title></circle>
-<circle class="s1" cx="473.6" cy="72.2" r="4" stroke="none"><title>Playing FLAC 24/192: 105 a second</title></circle>
-<circle class="s1" cx="537.9" cy="235.6" r="4" stroke="none"><title>Playing FLAC 24/192: 15 a second</title></circle>
-<path class="l s2" d="M88.1,261.8 L152.4,261.8 L216.6,262.2 L280.9,261.4 L345.1,262.2 L409.4,262.9 L473.6,152.6 L537.9,250.8"/>
-<circle class="s2" cx="88.1" cy="261.8" r="4" stroke="none"><title>Paused: 1 a second</title></circle>
-<circle class="s2" cx="152.4" cy="261.8" r="4" stroke="none"><title>Paused: 1 a second</title></circle>
-<circle class="s2" cx="216.6" cy="262.2" r="4" stroke="none"><title>Paused: 1 a second</title></circle>
-<circle class="s2" cx="280.9" cy="261.4" r="4" stroke="none"><title>Paused: 1 a second</title></circle>
-<circle class="s2" cx="345.1" cy="262.2" r="4" stroke="none"><title>Paused: 1 a second</title></circle>
-<circle class="s2" cx="409.4" cy="262.9" r="4" stroke="none"><title>Paused: 1 a second</title></circle>
-<circle class="s2" cx="473.6" cy="152.6" r="4" stroke="none"><title>Paused: 61 a second</title></circle>
-<circle class="s2" cx="537.9" cy="250.8" r="4" stroke="none"><title>Paused: 7 a second</title></circle>
-<path class="l s3" d="M88.1,262.5 L152.4,262.5 L216.6,262.5 L280.9,262.5 L345.1,262.5 L409.4,262.5 L473.6,262.5 L537.9,262.2"/>
-<circle class="s3" cx="88.1" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="152.4" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="216.6" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="280.9" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="345.1" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="409.4" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="473.6" cy="262.5" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<circle class="s3" cx="537.9" cy="262.2" r="4" stroke="none"><title>Idle, empty: 1 a second</title></circle>
-<rect class="s1" x="582" y="175.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="180.0" font-size="11">Playing FLAC 24/192</text>
-<text class="m" x="598" y="193.0" font-size="11">15</text>
-<rect class="s0" x="582" y="203.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="208.0" font-size="11">Playing MP3</text>
-<text class="m" x="598" y="221.0" font-size="11">15</text>
-<rect class="s2" x="582" y="231.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="236.0" font-size="11">Paused</text>
-<text class="m" x="598" y="249.0" font-size="11">7</text>
-<rect class="s3" x="582" y="259.0" width="10" height="3" rx="1.5" stroke="none"/>
-<text class="t" x="598" y="264.0" font-size="11">Idle, empty</text>
-<text class="m" x="598" y="277.0" font-size="11">1</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 318" width="720" height="318" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="CPU wakeups">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="720" height="318" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">CPU wakeups</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Per second. Lower is better. The numbers in the key are 1.15&#x27;s.</text>
+<rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Playing</text>
+<text class="m" x="89.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">15</text>
+<rect class="s1" x="125.28" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="145.3" y="68.0" font-size="12" text-anchor="start">Paused</text>
+<text class="m" x="190.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">7</text>
+<rect class="s2" x="219.36" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="239.4" y="68.0" font-size="12" text-anchor="start">Idle, nothing loaded</text>
+<text class="m" x="348.1" y="68.0" font-size="12" text-anchor="start" font-weight="600">1</text>
+<line class="a" x1="52.0" y1="274.0" x2="696.0" y2="274.0" stroke-width="1"/>
+<text class="q" x="44.0" y="278.0" font-size="11" text-anchor="end">0</text>
+<line class="g" x1="52.0" y1="244.0" x2="696.0" y2="244.0" stroke-width="1"/>
+<text class="q" x="44.0" y="248.0" font-size="11" text-anchor="end">20</text>
+<line class="g" x1="52.0" y1="214.0" x2="696.0" y2="214.0" stroke-width="1"/>
+<text class="q" x="44.0" y="218.0" font-size="11" text-anchor="end">40</text>
+<line class="g" x1="52.0" y1="184.0" x2="696.0" y2="184.0" stroke-width="1"/>
+<text class="q" x="44.0" y="188.0" font-size="11" text-anchor="end">60</text>
+<line class="g" x1="52.0" y1="154.0" x2="696.0" y2="154.0" stroke-width="1"/>
+<text class="q" x="44.0" y="158.0" font-size="11" text-anchor="end">80</text>
+<line class="g" x1="52.0" y1="124.0" x2="696.0" y2="124.0" stroke-width="1"/>
+<text class="q" x="44.0" y="128.0" font-size="11" text-anchor="end">100</text>
+<line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
+<text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">120</text>
+<text class="m" x="92.2" y="292.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="172.8" y="292.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="253.2" y="292.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="333.8" y="292.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="414.2" y="292.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="494.8" y="292.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="575.2" y="292.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="t" x="655.8" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.15</text>
+<path class="ln s0" stroke-width="2" d="M92.2,264.3 L172.8,263.9 L253.2,263.9 L333.8,263.9 L414.2,263.5 L494.8,263.7 L575.2,117.0 L655.8,250.9"/>
+<circle class="s0 ring" cx="92.2" cy="264.3" r="3.5" stroke-width="2"><title>1.8, Playing: 6</title></circle>
+<circle class="s0 ring" cx="172.8" cy="263.9" r="3.5" stroke-width="2"><title>1.9, Playing: 7</title></circle>
+<circle class="s0 ring" cx="253.2" cy="263.9" r="3.5" stroke-width="2"><title>1.10, Playing: 7</title></circle>
+<circle class="s0 ring" cx="333.8" cy="263.9" r="3.5" stroke-width="2"><title>1.11, Playing: 7</title></circle>
+<circle class="s0 ring" cx="414.2" cy="263.5" r="3.5" stroke-width="2"><title>1.12, Playing: 7</title></circle>
+<circle class="s0 ring" cx="494.8" cy="263.7" r="3.5" stroke-width="2"><title>1.13, Playing: 7</title></circle>
+<circle class="s0 ring" cx="575.2" cy="117.0" r="3.5" stroke-width="2"><title>1.14, Playing: 105</title></circle>
+<circle class="s0 ring" cx="655.8" cy="250.9" r="3.5" stroke-width="2"><title>1.15, Playing: 15</title></circle>
+<path class="ln s1" stroke-width="2" d="M92.2,272.2 L172.8,272.2 L253.2,272.5 L333.8,271.9 L414.2,272.5 L494.8,273.1 L575.2,182.9 L655.8,263.2"/>
+<circle class="s1 ring" cx="92.2" cy="272.2" r="3.5" stroke-width="2"><title>1.8, Paused: 1</title></circle>
+<circle class="s1 ring" cx="172.8" cy="272.2" r="3.5" stroke-width="2"><title>1.9, Paused: 1</title></circle>
+<circle class="s1 ring" cx="253.2" cy="272.5" r="3.5" stroke-width="2"><title>1.10, Paused: 1</title></circle>
+<circle class="s1 ring" cx="333.8" cy="271.9" r="3.5" stroke-width="2"><title>1.11, Paused: 1</title></circle>
+<circle class="s1 ring" cx="414.2" cy="272.5" r="3.5" stroke-width="2"><title>1.12, Paused: 1</title></circle>
+<circle class="s1 ring" cx="494.8" cy="273.1" r="3.5" stroke-width="2"><title>1.13, Paused: 1</title></circle>
+<circle class="s1 ring" cx="575.2" cy="182.9" r="3.5" stroke-width="2"><title>1.14, Paused: 61</title></circle>
+<circle class="s1 ring" cx="655.8" cy="263.2" r="3.5" stroke-width="2"><title>1.15, Paused: 7</title></circle>
+<path class="ln s2" stroke-width="2" d="M92.2,272.8 L172.8,272.8 L253.2,272.8 L333.8,272.8 L414.2,272.8 L494.8,272.8 L575.2,272.8 L655.8,272.5"/>
+<circle class="s2 ring" cx="92.2" cy="272.8" r="3.5" stroke-width="2"><title>1.8, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="172.8" cy="272.8" r="3.5" stroke-width="2"><title>1.9, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="253.2" cy="272.8" r="3.5" stroke-width="2"><title>1.10, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="333.8" cy="272.8" r="3.5" stroke-width="2"><title>1.11, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="414.2" cy="272.8" r="3.5" stroke-width="2"><title>1.12, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="494.8" cy="272.8" r="3.5" stroke-width="2"><title>1.13, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="575.2" cy="272.8" r="3.5" stroke-width="2"><title>1.14, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="655.8" cy="272.5" r="3.5" stroke-width="2"><title>1.15, Idle, nothing loaded: 1</title></circle>
 </svg>
