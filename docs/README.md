@@ -18,6 +18,7 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
 - [bugs/](bugs/): `open-issues.md`, bugs seen in testing that are not fixed or not explained.
 - [future/](future/): plans and studies for work that is not built, or only partly built. Each file opens with its status.
   - `agent-build-slots.md`: separate build slots for agents working at once.
+  - `audio-quality-gaps.md`: gaps in audio quality that an audit of the playback path found, and the order to fix them.
   - `carplay.md`: CarPlay.
   - `cloud-services-order.md`: which cloud file services to handle next, in order.
   - `dropbox-shared-links.md`: browsing a shared Dropbox folder link on iOS.
