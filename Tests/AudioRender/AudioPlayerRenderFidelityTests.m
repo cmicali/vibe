@@ -125,38 +125,25 @@ static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
     for (int i = 0; i < 4; i++) page[22 + i] = (uint8_t)(crc >> (8 * i));
     return patched;
 }
-// RFC 7845's output gain, which Apple's decoder ignores: the handle applies
-// it, a boost held at +12 dB. The canary at the end fails once CoreAudio
-// applies the gain itself, which would apply it twice.
+// RFC 7845's output gain, which Apple's decoder ignores. The handle applies
+// it, and bounds the samples at +12 dBFS as it does a damaged MP3 frame's.
+// The last check is a canary. It fails once CoreAudio applies the gain too.
 - (void)testOpusPlaysAtItsHeaderOutputGain {
     NSURL *url = [self optionalFixture:@"lossy.opus"];
     NSData *bytes = [NSData dataWithContentsOfURL:url];
     NSData *plain = VibePCM([self read:url]);
-    NSDictionary<NSNumber *, NSNumber *> *applied = @{@(-6 * 256): @(-6.0f), @(3 * 256 + 128): @(3.5f), @(40 * 256): @(12.0f)};
-    for (NSNumber *q78 in applied) {
+    NSURL *quieter = nil;
+    for (NSNumber *q78 in @[@(-6 * 256), @(3 * 256 + 128), @(40 * 256)]) {
         NSURL *gained = [self writeBytes:VibeOpusWithOutputGain(bytes, q78.shortValue) name:[NSString stringWithFormat:@"gain%@.opus", q78]];
         NSMutableData *expected = [plain mutableCopy];
-        float factor = powf(10, applied[q78].floatValue / 20);
+        float factor = powf(10, q78.floatValue / 256 / 20), low = -4, high = 4; // kVibeDecodeSampleBound
         vDSP_vsmul(expected.mutableBytes, 1, &factor, expected.mutableBytes, 1, expected.length / sizeof(float));
+        vDSP_vclip(expected.mutableBytes, 1, &low, &high, expected.mutableBytes, 1, expected.length / sizeof(float));
         XCTAssertEqualObjects(VibePCM([self read:gained]), expected, @"header gain %@ / 256 dB", q78);
+        if (q78.intValue < 0) quieter = gained;
     }
-    [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-    NSURL *quieter = [self writeBytes:VibeOpusWithOutputGain(bytes, -6 * 256) name:@"played.opus"];
-    AVAudioPCMBuffer *decoded = [self read:quieter];
-    [self play:quieter paused:NO position:0];
-    [self assertReference:VibePCM(decoded) capture:[self renderSeconds:decoded.frameLength / _rate + 0.1] skip:[self startupSkip] tolerance:0];
-
-    ExtAudioFileRef reader = NULL;
-    XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)quieter, &reader), noErr);
-    AVAudioPCMBuffer *apple = [[AVAudioPCMBuffer alloc] initWithPCMFormat:decoded.format frameCapacity:4096];
-    ExtAudioFileSetProperty(reader, kExtAudioFileProperty_ClientDataFormat, sizeof(AudioStreamBasicDescription), decoded.format.streamDescription);
-    apple.frameLength = apple.frameCapacity; // sizes the list's buffers for the read
-    UInt32 frames = apple.frameCapacity;
-    XCTAssertEqual(ExtAudioFileRead(reader, &frames, apple.mutableAudioBufferList), noErr);
-    apple.frameLength = frames;
-    ExtAudioFileDispose(reader);
-    NSData *head = [plain subdataWithRange:NSMakeRange(0, MIN(plain.length, (NSUInteger)frames * decoded.format.channelCount * sizeof(float)))];
-    XCTAssertEqualObjects(VibePCM(apple), head, @"CoreAudio now applies the Opus output gain: drop the handle's (kVibeOpusGainMaxDB)");
+    XCTAssertEqualObjects(VibePCM(VibeReadWithAVAudioFile(quieter, NULL)), plain,
+                          @"CoreAudio now applies the Opus output gain: drop VibeOpusOutputGain and _opusGain");
 }
 // The parser open is the metadata fallback's, so a row never reads as a file
 // playback refuses. The second half is the canary: once CoreAudio reports the

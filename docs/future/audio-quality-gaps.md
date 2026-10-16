@@ -45,7 +45,7 @@ Do not compensate by shifting Apple's decode 128 frames. The cause is Apple's an
 
 A test file's header gain was set to −6 dB. ffmpeg, through libopus, played it 6.0 dB quieter. Apple's decoder played it unchanged. So Vibe played such files at the wrong level.
 
-**Fixed.** `AudioFileHandle` reads the gain when the file opens and scales Apple's decode by it (`VibeOpusOutputGain`). A boost above +12 dB is held at +12 dB as damage. `testOpusPlaysAtItsHeaderOutputGain` checks three gains, and ends with a canary that fails once Apple applies the gain itself.
+**Fixed.** `AudioFileHandle` reads the gain when the file opens and scales Apple's decode by it (`VibeOpusOutputGain`). Its samples are then bounded at +12 dBFS, as a damaged MP3 frame's are. `testOpusPlaysAtItsHeaderOutputGain` checks three gains, and ends with a canary that fails once Apple applies the gain itself.
 
 R128 gain tags in Opus files are relative to this header gain. Finding 3 would need it applied first.
 

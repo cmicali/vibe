@@ -19,6 +19,14 @@
 
 @class CloudFileAvailability;
 
+// The bound on a decoded sample where damage can run past it: a damaged MP3
+// frame, or an Opus header's gain. dr_mp3 never clamps, and one damaged frame
+// can decode past +90 dBFS. The FX's reverb and delay then ring at full scale
+// for seconds, the equalizer's reference stays up for half a minute, and the
+// track's detected tempo moves. The bound, +12 dBFS, sits well above any real
+// master's overs (docs/audio-quality.md).
+static const float kVibeDecodeSampleBound = 4.0f;
+
 // Packets asked of the parser at once, sparing it about four small reads
 // per MP3 frame, which were a tenth of the whole decode's time.
 enum { kVibeMPEGReadPackets = 16 };
