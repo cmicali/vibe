@@ -129,6 +129,8 @@ FAKE_HTTP_HOSTS = ("https://fake.vibe.test/", "http://fake.local/")
 # the Dock icon, the Default music player button or a shortcut: those reset
 # the user's store, write outside the container, move audio for every app or
 # raise a system panel no verb can dismiss.
+# The names are the English labels, which settings_click matches on. launch()
+# pins the app to English for a stress run (VIBE_LANGUAGE=en unless set).
 SETTINGS_SWITCHES = (
     ("appearance", "Show time labels", "showTimeLabels"),
     ("appearance", "Show status icons", "showStatusIcons"),
@@ -143,6 +145,26 @@ SETTINGS_SWITCHES = (
     ("playback", "Detect BPM automatically", "analyzeBPM"),
     ("playback", "Detect key automatically", "analyzeKey"),
 )
+SETTINGS_SWITCH_NAMES = {key: name for _, name, key in SETTINGS_SWITCHES}
+# The pane disables a switch while a parent is off (SettingsAppearanceViewController).
+SETTINGS_PARENTS = {
+    "showBPM": ("showFileInfo",),
+    "showKey": ("showFileInfo",),
+    "keyColors": ("showKey", "showFileInfo"),
+}
+
+
+def settings_switch_restorer(pane, name, key):
+    """The commands that put one switch back: its pane, its parents on, then
+    the switch itself. The parents' own restorers run after it."""
+    def restore(before):
+        return ([["settings_open", pane]]
+                + [["settings_click", SETTINGS_SWITCH_NAMES[parent], "on"]
+                   for parent in SETTINGS_PARENTS.get(key, ())]
+                + [["settings_click", name, on_off(before[key])]])
+    return restore
+
+
 # Opening and dumping a pane clicks nothing, so every pane may be walked.
 SETTINGS_PANES = ("general", "themes", "appearance", "playback", "audio", "files",
                   "shortcuts", "advanced", "about")
@@ -371,9 +393,14 @@ SETTING_RESTORERS = {
     "pitchPanelShown": lambda b: ["toggle_pitch_panel"],
     # The settings op's switches with no verb of their own. A restorer may
     # answer several commands: settings_click reaches only the selected pane.
-    **{key: (lambda b, pane=pane, name=name, key=key:
-             [["settings_open", pane], ["settings_click", name, on_off(b[key])]])
-       for pane, name, key in SETTINGS_SWITCHES if key not in ("analyzeBPM", "analyzeKey")},
+    # Children before parents: a child is restored under its parents switched
+    # on, and each parent is restored after it. Parent first, a run
+    # interrupted between a flip and its unflip would restore Show file info
+    # to off and then be refused Show BPM as disabled, leaving it moved.
+    **{key: settings_switch_restorer(pane, name, key)
+       for pane, name, key in sorted(SETTINGS_SWITCHES,
+                                     key=lambda s: -len(SETTINGS_PARENTS.get(s[2], ())))
+       if key not in ("analyzeBPM", "analyzeKey")},
     "windowFrame": window_restore,
 }
 
@@ -463,6 +490,9 @@ def launch(corpus: Path, app: Path):
     `open`s inside the corpus are readable.
     """
     env = dict(os.environ, VIBE_APP=str(app))
+    # The settings op clicks controls by their English labels, and launch.sh
+    # would otherwise leave the app in the system's language.
+    env.setdefault("VIBE_LANGUAGE", "en")
     result = subprocess.run(
         [str(LAUNCH_SH), str(corpus)], capture_output=True, text=True, env=env
     )

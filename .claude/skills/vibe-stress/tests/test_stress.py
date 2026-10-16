@@ -71,6 +71,51 @@ class CommandGateTests(unittest.TestCase):
                 for argv in commands if isinstance(commands[0], list) else [commands]:
                     stress.require_command(argv)
 
+    def test_switch_parents_are_switches_and_children_restore_first(self):
+        keys = [key for _, _, key in stress.SETTINGS_SWITCHES]
+        order = list(stress.SETTING_RESTORERS)
+        for child, parents in stress.SETTINGS_PARENTS.items():
+            self.assertIn(child, keys)
+            for parent in parents:
+                self.assertIn(parent, keys)
+                self.assertLess(order.index(child), order.index(parent))
+
+    def test_an_interrupted_settings_op_is_restored_despite_the_disabled_child(self):
+        # The op flipped Show file info on and Show BPM off, then the run
+        # ended before the unflips. The pane refuses a click on Show BPM
+        # while Show file info is off, as the app does.
+        before = {"showFileInfo": False, "showBPM": True, "windowFrame": None}
+        store = {"showFileInfo": True, "showBPM": False, "windowFrame": None}
+        names = {name: key for _, name, key in stress.SETTINGS_SWITCHES}
+
+        def run(argv, **_):
+            if argv[0] == "settings_click":
+                key = names[argv[1]]
+                parents = stress.SETTINGS_PARENTS.get(key, ())
+                if not all(store[parent] for parent in parents if parent in store):
+                    return 2, {"error": f"'{argv[1]}' is disabled"}, 0
+                store[key] = argv[2] == "on"
+            return 0, {}, 0
+        channel = mock.Mock()
+        channel.run.side_effect = run
+        with mock.patch.object(stress, "app_pid", return_value=1), \
+                mock.patch.object(stress, "current_settings", side_effect=lambda _: dict(store)), \
+                contextlib.redirect_stdout(io.StringIO()):
+            stress.user_settings_restore(channel, before, [], Path("c"), Path("a"))
+        self.assertEqual(store, before)
+
+    def test_launch_pins_the_app_to_english_unless_told_otherwise(self):
+        envs = []
+        with mock.patch.object(stress.subprocess, "run",
+                               side_effect=lambda argv, **kw: envs.append(kw["env"]) or mock.Mock(returncode=0, stderr="")), \
+                mock.patch.object(stress, "assert_running_binary"), \
+                mock.patch.dict(stress.os.environ, {}, clear=False):
+            stress.os.environ.pop("VIBE_LANGUAGE", None)
+            stress.launch(Path("/c"), Path("/a"))
+            stress.os.environ["VIBE_LANGUAGE"] = "de"
+            stress.launch(Path("/c"), Path("/a"))
+        self.assertEqual([env["VIBE_LANGUAGE"] for env in envs], ["en", "de"])
+
     def test_teardown_runs_multi_command_restorers_and_disarms(self):
         sent = []
         before = {"showBPM": True, "windowFrame": None}

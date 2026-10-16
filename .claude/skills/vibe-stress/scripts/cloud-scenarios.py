@@ -2424,11 +2424,14 @@ def r5_lane_follows_rank_then_index(ctx):
     suppress_setup_prefetch(ctx)
     ctx.cmd("open", str(ctx.folders[0]))
     rows, played = real_pick(ctx)
+    # The scan can put its first pick on the wire while the play lands, so
+    # the count starts before the waits. The play's own transfer is not the
+    # scan's.
+    mark = len(ctx.samples)
     wait_landed(ctx, played, f"{played} to land")
     real_park(ctx, played)
-    mark = len(ctx.samples)
     watch_resolution(ctx, rows)
-    order = started_order(sample_events(ctx.samples, mark))
+    order = [name for name in started_order(sample_events(ctx.samples, mark)) if name != played]
     duplicate = duplicate_order_error(order)
     if duplicate:
         raise Failed(duplicate)
@@ -2444,21 +2447,27 @@ def r5_lane_follows_rank_then_index(ctx):
 def r6_first_scan_pick_is_neighborhood_ranked(ctx):
     suppress_setup_prefetch(ctx)
     ctx.cmd("open", str(ctx.folders[0]))
-    rows, _ = real_pick(ctx)
+    rows, first = real_pick(ctx)
     if len(rows) < 4:
         raise Failed(f"needs at least four rows: {rows}")
     played = rows[2]
+    # The scan can put its first pick on the wire while the play lands, so
+    # the count starts at the play. The play's own transfer and the open's
+    # first pick are not the scan's.
+    mark = len(ctx.samples)
     ctx.cmd("play_index", 2)
     wait_landed(ctx, played, f"{played} to land")
     real_park(ctx, played)
-    mark = len(ctx.samples)
-    ctx.watch("the first scan transfer", lambda s: started_order(sample_events(ctx.samples, mark)),
-              REAL_TRANSFER)
-    first = started_order(sample_events(ctx.samples, mark))[0]
+
+    def scan_order():
+        return [name for name in started_order(sample_events(ctx.samples, mark))
+                if name not in (first, played)]
+    ctx.watch("the first scan transfer", lambda s: scan_order(), REAL_TRANSFER)
+    pick = scan_order()[0]
     neighborhood = {rows[i] for i in (3, 4, 1) if i < len(rows)}
-    if first not in neighborhood:
-        raise Failed(f"the first scan pick was {first}, outside {sorted(neighborhood)}")
-    return f"first pick {first} was in the neighborhood of {played}"
+    if pick not in neighborhood:
+        raise Failed(f"the first scan pick was {pick}, outside {sorted(neighborhood)}")
+    return f"first pick {pick} was in the neighborhood of {played}"
 
 
 def r7_play_joins_the_live_scan(ctx):

@@ -1104,6 +1104,23 @@ class ScanJoinTests(unittest.TestCase):
         self.assertEqual(started.count("c.flac"), 1)
 
 
+    def test_r6_counts_the_scan_pick_that_started_while_the_play_landed(self):
+        # The scan's first pick d.flac (the row after the played c.flac) goes
+        # on the wire while c.flac is still landing. A mark taken after the
+        # landing would see only f.flac, outside the neighborhood, and fail a
+        # correct order.
+        ctx = SampledCtx([["c.flac", "d.flac"], ["d.flac"], ["f.flac"], []])
+        rows = ["a.flac", "b.flac", "c.flac", "d.flac", "e.flac", "f.flac"]
+        with mock.patch.object(cloud, "suppress_setup_prefetch"), \
+                mock.patch.object(cloud, "real_pick", return_value=(rows, "a.flac")), \
+                mock.patch.object(cloud, "wait_landed",
+                                  side_effect=lambda c, name, describe: c.watch(describe, lambda s: name not in s["files"], 1)), \
+                mock.patch.object(cloud, "real_park"):
+            summary = cloud.r6_first_scan_pick_is_neighborhood_ranked(ctx)
+        self.assertIn("first pick d.flac", summary)
+        self.assertEqual(ctx.sent.count(["play_index", "2"]), 1)
+
+
 class RealProviderTests(unittest.TestCase):
     def test_registry_is_one_table_with_a_real_mode_per_scenario(self):
         self.assertEqual(len(cloud.SCENARIOS), 24)
