@@ -70,22 +70,26 @@ StepWindow StepWindowForPixels(int64_t totalFrames, double framesPerPixel, doubl
 void RemapStepSamples(const StepWindow &from, const StepWindow &to, size_t stride,
                       std::vector<float> &samples, const std::vector<float> &target);
 
-// The share of each column of part under pixel x: visit(column, share) over
-// the columns it overlaps, shares summing to the part of the pixel they cover.
+// The share of each column of [first, first + count) under pixel x, a pixel
+// spanning perPixel columns: visit(column, share) over the columns it
+// overlaps, shares summing to the part of the pixel they cover.
 template <typename Visit>
-inline void ForEachColumnShare(int x, double framesPerPixel, const StepPart &part, Visit visit) {
-    double framesPerColumn = part.framesPerColumn();
-    double perPixel = framesPerPixel / framesPerColumn;
-    double u0 = double(x) * perPixel - double(part.first);
+inline void ForEachColumnShare(int x, double perPixel, int64_t first, size_t count, Visit visit) {
+    double u0 = double(x) * perPixel - double(first);
     double u1 = u0 + perPixel;
-    long first = long(std::floor(std::fmax(u0, 0.0)));
-    long end = long(std::ceil(std::fmin(u1, double(part.count))));
-    for (long i = first; i < end; i++) {
+    long begin = long(std::floor(std::fmax(u0, 0.0)));
+    long end = long(std::ceil(std::fmin(u1, double(count))));
+    for (long i = begin; i < end; i++) {
         double overlap = std::fmin(u1, double(i + 1)) - std::fmax(u0, double(i));
         if (overlap > 0) {
             visit(size_t(i), float(overlap / perPixel));
         }
     }
+}
+
+template <typename Visit>
+inline void ForEachColumnShare(int x, double framesPerPixel, const StepPart &part, Visit visit) {
+    ForEachColumnShare(x, framesPerPixel / part.framesPerColumn(), part.first, part.count, visit);
 }
 
 // The two columns of a grid's [first, first + count) around a frame and how

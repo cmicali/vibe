@@ -309,6 +309,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         pixels.height > 0) {
         const float *samples = displayed.data();
         double framesPerPixel = [self framesPerPixel];
+        const double framesPerColumn[2] = {window.parts[0].framesPerColumn(), window.parts[1].framesPerColumn()};
         CGFloat height = pixels.height;
         CGFloat midY = height / 2, baseline = VibeBarBaseline(height), vscale = VibeBarVScale(height);
         CGFloat minimum = _morph.barMinHeight * pixels.scale;
@@ -326,7 +327,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
                 for (int p = 0; p < 2; p++) {
                     float weight = window.weight(p);
                     if (weight > 0 && window.parts[p].count > 0) {
-                        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(center, window.parts[p]);
+                        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(
+                                center, framesPerColumn[p], window.parts[p].first, window.parts[p].count);
                         const float *left = samples + (window.offset(p) + pair.left) * stride;
                         const float *right = samples + (window.offset(p) + pair.right) * stride;
                         for (NSUInteger k = 0; k < stride; k++) {

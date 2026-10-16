@@ -467,6 +467,8 @@ static const double kEnergyPixels = 4;
     [self fillSpansForSamples:samples height:pixels.height scale:pixels.scale];
     const float *bottoms = _bottoms.data(), *tops = _tops.data();
     double framesPerPixel = [self framesPerPixel];
+    const double perPixel[2] = {framesPerPixel / window.parts[0].framesPerColumn(),
+                                framesPerPixel / window.parts[1].framesPerColumn()};
     return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
         wavecore::ColumnCoverage column(pixels.height);
         for (int x = pixels.x0; x < pixels.x1; x++) {
@@ -475,7 +477,8 @@ static const double kEnergyPixels = 4;
                 float weight = window.weight(p);
                 size_t offset = window.offset(p);
                 if (weight > 0) {
-                    wavecore::ForEachColumnShare(x, framesPerPixel, window.parts[p], [&](size_t i, float share) {
+                    wavecore::ForEachColumnShare(x, perPixel[p], window.parts[p].first, window.parts[p].count,
+                                                 [&](size_t i, float share) {
                         column.addSpan(bottoms[offset + i], tops[offset + i], weight * share);
                     });
                 }

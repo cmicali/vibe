@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
+#include <iterator>
 
 namespace wavecore {
 
@@ -176,7 +177,9 @@ void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride) {
     fill(height_, run);
 }
 
-ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {}
+ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {
+    spans_.reserve(16);
+}
 
 void ColumnPaint::clear() {
     spans_.clear();
@@ -217,14 +220,21 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
     // Between two neighbouring span edges one span shows: the last painted
     // over that stretch. Full rows take its color at once. A row that holds
     // an edge sums the stretches crossing it.
-    edges_.clear();
+    double inlineEdges[32];
+    size_t edgeCount = 2 * spans_.size();
+    if (edgeCount > std::size(inlineEdges)) {
+        edges_.resize(edgeCount);
+    }
+    double *edges = edgeCount > std::size(inlineEdges) ? edges_.data() : inlineEdges;
+    size_t sorted = 0;
     for (const Span &span : spans_) {
         for (double edge : {span.bottom, span.top}) {
             // Insertion: a column holds a handful of spans.
-            edges_.push_back(edge);
-            for (size_t i = edges_.size() - 1; i > 0 && edges_[i - 1] > edges_[i]; i--) {
-                std::swap(edges_[i - 1], edges_[i]);
+            size_t i = sorted++;
+            for (; i > 0 && edges[i - 1] > edge; i--) {
+                edges[i] = edges[i - 1];
             }
+            edges[i] = edge;
         }
     }
     PartialRow partial;
@@ -237,8 +247,8 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
         partial.add(float(cover), shown->red, shown->green, shown->blue);
     };
     // From the top down, so rows arrive in order.
-    for (size_t e = edges_.size(); e-- > 1;) {
-        double bottom = edges_[e - 1], top = edges_[e];
+    for (size_t e = edgeCount; e-- > 1;) {
+        double bottom = edges[e - 1], top = edges[e];
         if (!(top > bottom)) {
             continue;
         }
