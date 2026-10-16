@@ -40,7 +40,7 @@ Releases go through the **`vibe-release` skill**. The Developer ID path (`make r
 
 ## Checks
 
-All of these run in CI (`.github/workflows/build.yml`). `make test-ios` runs on pushes to main and on manual runs only.
+All of these run in CI (`.github/workflows/build.yml`). `make test-ios` runs only nightly and on manual runs, so run it yourself when a change touches the iOS shell.
 
 | Command | Gate |
 | --- | --- |
