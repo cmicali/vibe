@@ -23,7 +23,7 @@ runs:
       run: |
         xcode="$(xcodebuild -version | tr -cs 'A-Za-z0-9.' '-')"
         echo "prefix=cas-${{ inputs.job }}-$xcode" >>"$GITHUB_OUTPUT"
-        echo "key=cas-${{ inputs.job }}-$xcode${{ github.sha }}" >>"$GITHUB_OUTPUT"
+        echo "key=cas-${{ inputs.job }}-${xcode}${{ github.sha }}" >>"$GITHUB_OUTPUT"
 
     - uses: actions/cache/restore@v6
       with:
