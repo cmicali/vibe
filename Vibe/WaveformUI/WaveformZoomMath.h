@@ -20,12 +20,15 @@ static const CGFloat kVibeWaveformMinimumZoomFraction = 0.000001;
 // floats, and at 2^20 points a float still resolves a quarter of a 3x pixel.
 static const CGFloat kVibeWaveformMaxVirtualWidth = 1 << 20;
 
-// The finest a view may read the waveform: two columns a point, Detailed's,
-// each no finer than a bin of binFrames, below which the summary holds
-// nothing finer to draw.
+// The finest a view reads the summary alone: two columns a point, Detailed's,
+// each no finer than a bin of binFrames, below which it holds nothing finer.
 static inline double VibeWaveformMinimumFramesPerPoint(double binFrames) {
     return 2 * binFrames;
 }
+
+// The finest with the stream's own frames read in for deep zoom: eight
+// points a frame, where the line through the samples is the picture.
+static const double kVibeWaveformMinimumDetailFramesPerPoint = 0.125;
 
 // The deepest zoom: the track at no fewer than minimumFramesPerPoint frames a
 // point, and no wider than kVibeWaveformMaxVirtualWidth. Without a track, the

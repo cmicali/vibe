@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <utility>
 #include <vector>
 
 namespace wavecore {
@@ -53,6 +54,29 @@ struct Column {
     float extent() const { return std::fmax(std::fabs(lo), std::fabs(hi)); }
 };
 
+// A stream's own frames as the mix, held in blocks a caller fills on demand:
+// what a column finer than a summary's bins reads. Blocks may arrive on any
+// thread while reads run, and the oldest go first past kMaxBlocks.
+class Detail {
+public:
+    static constexpr int64_t kBlockFrames = 1 << 16;
+    static constexpr size_t kMaxBlocks = 16;
+
+    // The mix's samples for the frames from block * kBlockFrames. A block
+    // shorter than kBlockFrames ends the stream.
+    void insertBlock(int64_t block, std::vector<float> samples);
+    bool hasBlock(int64_t block) const;
+    // Columns of the grid of F frames from firstIndex, of a stream of
+    // `frames`, read through the line joining the samples at their frames'
+    // centers. So a column narrower than a frame holds the line's span across
+    // it. false, leaving out as it was, when a block they cross is missing.
+    bool columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const;
+
+private:
+    mutable std::mutex lock_;
+    std::vector<std::pair<int64_t, std::shared_ptr<const std::vector<float>>>> blocks_;  // oldest first
+};
+
 class Summary {
 public:
     Summary(uint32_t binFrames, uint32_t channels, bool bands, double sampleRate);
@@ -79,7 +103,8 @@ public:
     Column column(double first, double last, int channel = kAllChannels) const;
     // Column k of the grid covers [k F, (k + 1) F). count columns from
     // firstIndex into out. The grid counts from frame 0, so a scroll or a
-    // window never moves a column's frames.
+    // window never moves a column's frames. Columns finer than a bin read
+    // the mix's own frames where the detail holds every one they cross.
     void columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out,
                  int channel = kAllChannels) const;
     // Each grid column's mean square, the mix's into mix and the bands' (low
@@ -98,6 +123,10 @@ public:
     // summary at this reach: a reference that does not depend on any view.
     // Kept per (columns, reach) while the summary stands.
     void loudestMeanSquares(size_t columns, float reach, float *mix, float *bands) const;
+
+    // The stream's frames for deep zoom, filled by whoever holds the summary.
+    // A copy starts without them.
+    Detail &detail() const { return detail_; }
 
     std::unique_ptr<Summary> copy() const;
 
@@ -153,6 +182,7 @@ private:
     // bands' first and second running sums. An entry is never replaced, so a
     // reader holding one is safe while another builds a second.
     mutable std::vector<std::pair<size_t, std::shared_ptr<const std::vector<double>>>> tentSums_;
+    mutable Detail detail_;
 };
 
 // Builds a summary from a decode's stream, in order. The mono mix carries the

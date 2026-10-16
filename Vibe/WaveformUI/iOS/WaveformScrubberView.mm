@@ -121,6 +121,9 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 // swipe. The track sets the zoom floor, so a new one can move the width.
 - (void)setWaveform:(CodableAudioWaveform *)waveform {
     CGFloat fraction = [self effectiveVisibleFraction];
+    if (waveform != _waveform) {
+        _detailAsked = nil;
+    }
     _waveform = waveform;
     _scroll.scrollEnabled = (waveform != nil);
     if ([self effectiveVisibleFraction] != fraction) {
@@ -160,11 +163,15 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 }
 
 // Moves with the view's width and the track, which is why the request is
-// kept apart from what is drawn.
+// kept apart from what is drawn. A complete waveform zooms past its bins on
+// the stream's own frames.
 - (CGFloat)minimumVisibleFraction {
     AudioWaveform *waveform = self.waveform.waveform;
+    double framesPerPoint = !waveform ? 0
+            : waveform->isComplete() ? kVibeWaveformMinimumDetailFramesPerPoint
+                                     : VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
     return VibeWaveformMinimumVisibleFraction(self.bounds.size.width, waveform ? waveform->totalFrames() : 0,
-            waveform ? VibeWaveformMinimumFramesPerPoint(waveform->binFrames()) : 0);
+                                              framesPerPoint);
 }
 
 - (CGFloat)effectiveVisibleFraction {
@@ -397,6 +404,50 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     _renderer.renderRect = _renderWindow;
     [_renderer updateWaveform:virtualBounds progress:[self playedProgress] waveform:self.waveform.waveform];
     VibeTallyCount(waveform_window);
+    [self requestDetailForWindow];
+}
+
+// Past the summary's bins, the blocks under the window are asked for, each
+// once, a request at a time. A block that cannot be read is never asked for
+// again, so a file gone from disk cannot loop.
+- (void)requestDetailForWindow {
+    AudioWaveform *waveform = self.waveform.waveform;
+    CGFloat virtualWidth = [self virtualWidth];
+    if (_detailRequested || !waveform || !waveform->isComplete() || virtualWidth <= 0 || CGRectIsEmpty(_renderWindow)
+            || ![self.delegate respondsToSelector:@selector(waveformScrubberView:needsDetailBlocks:ofWaveform:)]) {
+        return;
+    }
+    double framesPerPoint = (double)waveform->totalFrames() / virtualWidth;
+    if (framesPerPoint >= VibeWaveformMinimumFramesPerPoint(waveform->binFrames())) {
+        return;
+    }
+    const double blockFrames = (double)wavecore::Detail::kBlockFrames;
+    NSUInteger first = (NSUInteger)floor(CGRectGetMinX(_renderWindow) * framesPerPoint / blockFrames);
+    NSUInteger last = (NSUInteger)floor(CGRectGetMaxX(_renderWindow) * framesPerPoint / blockFrames);
+    NSMutableIndexSet *wanted = [NSMutableIndexSet indexSet];
+    for (NSUInteger block = first; block <= last; block++) {
+        if (![_detailAsked containsIndex:block] && !waveform->detail().hasBlock((int64_t)block)) {
+            [wanted addIndex:block];
+        }
+    }
+    if (wanted.count == 0) {
+        return;
+    }
+    if (!_detailAsked) {
+        _detailAsked = [NSMutableIndexSet indexSet];
+    }
+    [_detailAsked addIndexes:wanted];
+    _detailRequested = YES;
+    [self.delegate waveformScrubberView:self needsDetailBlocks:wanted ofWaveform:self.waveform];
+}
+
+- (void)detailDidLoadForWaveform:(CodableAudioWaveform *)waveform {
+    _detailRequested = NO;
+    if (waveform != self.waveform) {
+        return;
+    }
+    [_renderer waveformDetailDidChange];
+    [self drawRendererWindowForcing:YES];
 }
 // The play position IS the view's center, so the line never moves: it follows
 // only the theme, the layout and whether there is a waveform to mark.
@@ -508,6 +559,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 
 - (void)resetWaveformContentState {
     [self discardRenderer];
+    // An answer still out lands on a view showing nothing of it.
+    _detailRequested = NO;
     [self cancelInteraction];
     self.waveform = nil;
     // Force the repaint even when the bucket is already 0.

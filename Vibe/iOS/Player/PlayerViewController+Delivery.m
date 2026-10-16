@@ -11,6 +11,7 @@
 #import "PlayerViewController+Pager.h"
 
 #import "AudioTrack.h"
+#import "AudioWaveformCache.h"
 #import "Formatters.h"
 #import "PlaceholderFiles.h"
 #import "PlaybackController+NowPlaying.h"
@@ -110,6 +111,23 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     }
     // allObjects, not count, which still counts a holder that has died.
     _pagesView.scrollEnabled = _pagerHoldViews.allObjects.count == 0;
+}
+
+// Deep zoom's frames, for the page bound to playback only: the cache reads
+// them once and the view refills as they land.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+           needsDetailBlocks:(NSIndexSet *)blocks
+                  ofWaveform:(CodableAudioWaveform *)waveform {
+    NSUInteger index = _playlist.currentIndex;
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    if (view != _waveformView || !track || [_waveformCoordinator snapshotAtIndex:index] != waveform) {
+        [view detailDidLoadForWaveform:waveform];
+        return;
+    }
+    __weak WaveformScrubberView *weakView = view;
+    [_waveformCache loadDetailBlocks:blocks forTrack:track waveform:waveform completion:^{
+        [weakView detailDidLoadForWaveform:waveform];
+    }];
 }
 
 #pragma mark - Waveform zoom

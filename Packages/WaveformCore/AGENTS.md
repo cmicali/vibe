@@ -20,6 +20,8 @@ Every read takes frames, never bins.
 - **`tentBandMeanSquares`** reads the bands under a tent per column, through double running sums kept per pyramid level.
 - **`loudestMeanSquares`** is the loudest over a fixed column count across the whole stream: a normalize reference no view can move.
 
+**Deep zoom reads the stream's own frames** (`Detail`, the summary's `detail()`). A holder fills it with blocks of 65,536 frames of the mix on demand, from any thread, while reads run. A grid of columns finer than a bin reads the detail when it holds every block the columns cross, and the bins otherwise. It reads through the line joining the samples at their frames' centers, so a column narrower than a frame holds the line's span across it. At sample zoom the picture is that line. It keeps the newest 16 blocks. A copy starts without them.
+
 The pyramid, the running sums and the loudest answers are built on first use and kept, behind one lock. A shared summary never changes. **TRAP: never append to a summary after a read.** Its pyramid would no longer describe it. Only builders and archive decodes append, before the summary is shared.
 
 ## The raster

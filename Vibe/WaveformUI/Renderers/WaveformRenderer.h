@@ -225,6 +225,10 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 // The convert sweep over a step style's columns.
 - (void)dipStepColumnsFromFraction:(double)from toFraction:(double)to stride:(NSUInteger)stride;
 
+// The waveform's detail gained frames (WaveformCore's Detail): the next
+// update reads its columns again, and they ease to the finer picture.
+- (void)waveformDetailDidChange;
+
 // Wiggle's loop count can use an unzoomed reference width while its geometry
 // spans the drawn width. Zero follows the drawn width; other styles ignore it.
 @property (nonatomic) CGFloat samplingWidth;

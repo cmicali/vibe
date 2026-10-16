@@ -81,6 +81,10 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
     }];
 }
 
+- (void)waveformDetailDidChange {
+    [_morph invalidateTarget];
+}
+
 - (double)framesPerPixel {
     double pixels = [_morph size].width * _pixels.scale;
     return pixels > 0 ? (double)_window.totalFrames / pixels : 0;

@@ -14,6 +14,8 @@ The view is split like the mac's. `WaveformScrubberView.mm` is the core: the scr
 
 **A pinch frame draws again.** The step styles read fixed columns at zoom steps (`Renderers/AGENTS.md`), so a frame inside a step only resamples them, and every frame stays sharp.
 
+**A complete waveform zooms past its bins on the stream's own frames**, down to eight points a frame (`kVibeWaveformMinimumDetailFramesPerPoint`). The width cap stops a 4:40 song near 12 frames a point, and a loop reaches its samples, drawn as the line through them. Past the bins the view asks its delegate for the detail blocks under its window, each once and one request at a time (`needsDetailBlocks:`). The pager reads them through its cache, for the page bound to playback only, and the view refills as they land. Until then the bins draw. A block that cannot be read is never asked for again, so a file gone from disk cannot loop. A streaming waveform keeps the bins' floor.
+
 
 The fraction is written live, so the content size and end stops are honest on every frame. `UIScrollView`'s own `zoomScale` is the wrong shape. It scales both axes and anchors on the pinch centroid, but the playhead must stay at center.
 

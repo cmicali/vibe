@@ -62,6 +62,16 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // pending work drops its completion. Preview stats cannot occupy active slots.
 - (AudioWorkToken *)cachedWaveformForTrack:(AudioTrack *)track
                    completion:(void (^)(CodableAudioWaveform * _Nullable waveform))completion;
+// Main-thread request and completion. Reads blocks of a complete waveform's
+// window at full resolution into its detail, for deep zoom, on a lane of its
+// own: one read running and one waiting. A file not on disk is skipped, since
+// a zoom must never start a download. The completion runs once the blocks
+// are in or could not be read. Cancelling pending work drops it.
+- (AudioWorkToken *)loadDetailBlocks:(NSIndexSet *)blocks
+                            forTrack:(AudioTrack *)track
+                            waveform:(CodableAudioWaveform *)waveform
+                          completion:(dispatch_block_t)completion;
+
 // Supersedes the in-flight load: no further waveform deliveries until the
 // next loadWaveformForTrack:. The decode is NOT aborted: it detaches, runs to
 // completion and persists, so the next request for that file is a disk hit;

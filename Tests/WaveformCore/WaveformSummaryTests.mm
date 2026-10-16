@@ -476,4 +476,101 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     XCTAssertTrue(Summary::decode(shifted.data() + 1, blob.size()) != nullptr);
 }
 
+#pragma mark - Detail
+
+// Bins of 256 frames over a stream whose frame i is sin(i / 10), and a
+// detail holding blocks of those frames.
+static std::unique_ptr<Summary> VibeSineSummary(int64_t frames, std::vector<float> &samples) {
+    samples.resize(size_t(frames));
+    for (int64_t i = 0; i < frames; i++) samples[size_t(i)] = float(std::sin(double(i) / 10));
+    auto summary = std::make_unique<Summary>(256, 1, false, 44100);
+    for (int64_t start = 0; start < frames; start += 256) {
+        uint32_t count = uint32_t(std::min<int64_t>(256, frames - start));
+        auto range = std::minmax_element(samples.begin() + start, samples.begin() + start + count);
+        double sum = 0;
+        for (uint32_t j = 0; j < count; j++) sum += double(samples[size_t(start + j)]) * samples[size_t(start + j)];
+        summary->appendBin(&*range.first, &*range.second, sum, nullptr, count);
+    }
+    summary->markComplete();
+    return summary;
+}
+
+static void VibeInsertBlocks(const Summary &summary, const std::vector<float> &samples) {
+    const int64_t blockFrames = wavecore::Detail::kBlockFrames;
+    for (int64_t block = 0; block * blockFrames < int64_t(samples.size()); block++) {
+        auto begin = samples.begin() + block * blockFrames;
+        auto end = samples.begin() + std::min<int64_t>(int64_t(samples.size()), (block + 1) * blockFrames);
+        summary.detail().insertBlock(block, std::vector<float>(begin, end));
+    }
+}
+
+// Finer than a bin, a column reads the frames themselves: their extremes,
+// across a block's edge, and their sum of squares.
+- (void)testColumnsFinerThanABinReadTheFrames {
+    std::vector<float> samples;
+    const int64_t frames = wavecore::Detail::kBlockFrames + 5000;
+    auto summary = VibeSineSummary(frames, samples);
+    std::vector<Column> before(64), after(64);
+    int64_t firstIndex = (wavecore::Detail::kBlockFrames - 128) / 4;
+    summary->columns(4, firstIndex, 64, before.data());
+    VibeInsertBlocks(*summary, samples);
+    summary->columns(4, firstIndex, 64, after.data());
+    for (size_t c = 0; c < 64; c++) {
+        int64_t start = (firstIndex + int64_t(c)) * 4;
+        float lo = INFINITY, hi = -INFINITY;
+        double sum = 0;
+        for (int64_t i = start; i < start + 4; i++) {
+            lo = std::min(lo, samples[size_t(i)]);
+            hi = std::max(hi, samples[size_t(i)]);
+            sum += double(samples[size_t(i)]) * samples[size_t(i)];
+        }
+        // The line's ends reach a little past the outer samples' centers.
+        XCTAssertLessThanOrEqual(after[c].lo, lo + 1e-6);
+        XCTAssertGreaterThanOrEqual(after[c].hi, hi - 1e-6);
+        XCTAssertGreaterThan(after[c].lo, lo - 0.06);
+        XCTAssertLessThan(after[c].hi, hi + 0.06);
+        XCTAssertEqualWithAccuracy(after[c].sumSquares, sum, 1e-4);
+        XCTAssertEqualWithAccuracy(after[c].frames, 4, 1e-9);
+        // Without the detail the bins answered, each spanning its whole bin.
+        XCTAssertGreaterThanOrEqual(before[c].hi - before[c].lo, after[c].hi - after[c].lo);
+    }
+}
+
+// A column narrower than a frame holds the line's span across it, so at
+// sample zoom the picture is the line joining the samples.
+- (void)testAColumnInsideAFrameIsTheLinesSpan {
+    std::vector<float> samples;
+    auto summary = VibeSineSummary(1000, samples);
+    VibeInsertBlocks(*summary, samples);
+    Column column;
+    // A quarter of the way from frame 100's center to frame 101's.
+    summary->columns(0.25, 403, 1, &column);
+    float at = samples[100] + (samples[101] - samples[100]) * 0.25f;
+    float next = samples[100] + (samples[101] - samples[100]) * 0.5f;
+    XCTAssertEqualWithAccuracy(column.lo, std::min(at, next), 1e-6);
+    XCTAssertEqualWithAccuracy(column.hi, std::max(at, next), 1e-6);
+}
+
+// Without every block a read crosses, the bins answer, and an evicted block
+// is gone.
+- (void)testAMissingBlockFallsBackToTheBins {
+    std::vector<float> samples;
+    const int64_t blockFrames = wavecore::Detail::kBlockFrames;
+    auto summary = VibeSineSummary(3 * blockFrames, samples);
+    summary->detail().insertBlock(0, std::vector<float>(samples.begin(), samples.begin() + blockFrames));
+    Column straddling, inside;
+    summary->columns(16, blockFrames / 16 - 1, 1, &straddling);
+    XCTAssertEqualWithAccuracy(straddling.frames, 16, 1e-9);
+    XCTAssertTrue(summary->detail().hasBlock(0));
+    XCTAssertFalse(summary->detail().columns(16, blockFrames / 16 - 1, 1, summary->frames(), &inside));
+    for (int64_t block = 1; block <= int64_t(wavecore::Detail::kMaxBlocks); block++) {
+        summary->detail().insertBlock(block, std::vector<float>(16, 0));
+    }
+    XCTAssertFalse(summary->detail().hasBlock(0), @"the oldest goes first");
+    // A coarser grid never reads the detail.
+    Column coarse;
+    summary->columns(512, 0, 1, &coarse);
+    XCTAssertEqualWithAccuracy(coarse.hi, 1, 1e-3);
+}
+
 @end

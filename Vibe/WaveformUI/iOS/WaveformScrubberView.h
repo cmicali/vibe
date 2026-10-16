@@ -37,6 +37,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)waveformScrubberView:(WaveformScrubberView *)view
     didChangeVisibleFraction:(CGFloat)fraction;
 
+@optional
+
+// Zoomed past the summary's bins, the view wants these blocks of the
+// waveform's own frames (AudioWaveformCache's loadDetailBlocks:). One request
+// at a time. The owner answers with detailDidLoadForWaveform:, whether or not
+// the blocks could be read.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+           needsDetailBlocks:(NSIndexSet *)blocks
+                  ofWaveform:(CodableAudioWaveform *)waveform;
+
 @end
 
 @interface WaveformScrubberView : UIView
@@ -88,6 +98,10 @@ NS_ASSUME_NONNULL_BEGIN
 // A slow playback open keeps the indicator until settlement, even over a
 // drawn waveform.
 @property (nonatomic) BOOL playbackLoading;
+
+// The answer to needsDetailBlocks:. The picture refills if the view still
+// shows that waveform.
+- (void)detailDidLoadForWaveform:(CodableAudioWaveform *)waveform;
 
 // Fresh deliveries use showWaveform:, and the renderer eases each one in: the
 // first grows from the midline, a streaming load's newest stretch rises, and

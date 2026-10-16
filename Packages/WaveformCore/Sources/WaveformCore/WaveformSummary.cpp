@@ -207,7 +207,91 @@ Column Summary::column(double first, double last, int channel) const {
     return result;
 }
 
+void Detail::insertBlock(int64_t block, std::vector<float> samples) {
+    auto held = std::make_shared<const std::vector<float>>(std::move(samples));
+    std::lock_guard<std::mutex> lock(lock_);
+    blocks_.erase(std::remove_if(blocks_.begin(), blocks_.end(),
+                                 [&](const auto &entry) { return entry.first == block; }),
+                  blocks_.end());
+    blocks_.emplace_back(block, std::move(held));
+    if (blocks_.size() > kMaxBlocks) {
+        blocks_.erase(blocks_.begin());
+    }
+}
+
+bool Detail::hasBlock(int64_t block) const {
+    std::lock_guard<std::mutex> lock(lock_);
+    return std::any_of(blocks_.begin(), blocks_.end(), [&](const auto &entry) { return entry.first == block; });
+}
+
+bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const {
+    if (count == 0 || frames <= 0 || !(framesPerColumn > 0)) {
+        return count == 0;
+    }
+    // The samples the line runs through, one past each end of the frames.
+    double first = std::max(0.0, double(firstIndex) * framesPerColumn);
+    double last = std::min(double(frames), double(firstIndex + int64_t(count)) * framesPerColumn);
+    int64_t s0 = std::clamp(int64_t(std::floor(first - 0.5)), int64_t(0), frames - 1);
+    int64_t s1 = std::clamp(int64_t(std::ceil(last - 0.5)), s0, frames - 1);
+    int64_t b0 = s0 / kBlockFrames, b1 = s1 / kBlockFrames;
+    std::vector<std::shared_ptr<const std::vector<float>>> held(size_t(b1 - b0 + 1));
+    {
+        std::lock_guard<std::mutex> lock(lock_);
+        for (const auto &entry : blocks_) {
+            if (entry.first >= b0 && entry.first <= b1) {
+                held[size_t(entry.first - b0)] = entry.second;
+            }
+        }
+    }
+    for (const auto &block : held) {
+        if (!block) {
+            return false;
+        }
+    }
+    // A block short of its frames ends the stream there.
+    auto sample = [&](int64_t i) -> float {
+        i = std::clamp(i, int64_t(0), frames - 1);
+        const std::vector<float> &block = *held[size_t(i / kBlockFrames - b0)];
+        size_t at = size_t(i % kBlockFrames);
+        return block.empty() ? 0.0f : block[std::min(at, block.size() - 1)];
+    };
+    auto line = [&](double frame) -> float {
+        double u = frame - 0.5;
+        double left = std::floor(u);
+        float a = sample(int64_t(left)), b = sample(int64_t(left) + 1);
+        return a + (b - a) * float(u - left);
+    };
+    for (size_t c = 0; c < count; c++) {
+        Column &column = out[c];
+        column = Column();
+        double a = std::max(0.0, double(firstIndex + int64_t(c)) * framesPerColumn);
+        double b = std::min(double(frames), double(firstIndex + int64_t(c) + 1) * framesPerColumn);
+        if (!(b > a)) {
+            continue;
+        }
+        float ends[2] = {line(a), line(b)};
+        column.lo = std::min(ends[0], ends[1]);
+        column.hi = std::max(ends[0], ends[1]);
+        for (int64_t i = int64_t(std::ceil(a - 0.5)); double(i) + 0.5 < b; i++) {
+            float value = sample(i);
+            column.lo = std::min(column.lo, value);
+            column.hi = std::max(column.hi, value);
+        }
+        for (int64_t i = int64_t(std::floor(a)); double(i) < b; i++) {
+            double overlap = std::min(b, double(i + 1)) - std::max(a, double(i));
+            double value = sample(i);
+            column.sumSquares += value * value * overlap;
+            column.frames += overlap;
+        }
+    }
+    return true;
+}
+
 void Summary::columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out, int channel) const {
+    if (framesPerColumn < double(binFrames_) && (channel == kAllChannels || channels_ == 1) &&
+        detail_.columns(framesPerColumn, firstIndex, count, frames_, out)) {
+        return;
+    }
     for (size_t i = 0; i < count; i++) {
         double k = double(firstIndex + int64_t(i));
         out[i] = column(k * framesPerColumn, (k + 1) * framesPerColumn, channel);

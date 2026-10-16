@@ -26,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
     NSString                *_themeSignature;
     // The stretch of content the renderer last drew, in content points.
     CGRect                  _renderWindow;
+    // Deep zoom's blocks asked for this waveform, each once, and whether a
+    // request is out.
+    NSMutableIndexSet       *_detailAsked;
+    BOOL                    _detailRequested;
     CGFloat                 _progress;
     NSUInteger              _progressTracker;
     LoadingIndicator *_loadingIndicator;

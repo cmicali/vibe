@@ -63,6 +63,16 @@ static CGFloat PhoneMinimum(void) {
                          PhoneMinimum());
 }
 
+// On the stream's own frames a loop zooms to its samples, while the width
+// cap holds a song short of them.
+- (void)testDetailZoomsALoopToItsSamples {
+    CGFloat loop = VibeWaveformMinimumVisibleFraction(kPhoneWidth, 10.0 * 44100, kVibeWaveformMinimumDetailFramesPerPoint);
+    XCTAssertLessThan(10.0 * 44100 / (kPhoneWidth / loop), 1, @"under a frame a point");
+    CGFloat song = VibeWaveformMinimumVisibleFraction(kPhoneWidth, kSongFrames, kVibeWaveformMinimumDetailFramesPerPoint);
+    XCTAssertEqualWithAccuracy(song, kPhoneWidth / kVibeWaveformMaxVirtualWidth, 1e-12);
+    XCTAssertLessThan(song, PhoneMinimum());
+}
+
 // Without a track, only the float range limits the width.
 - (void)testNoTrackLimitsOnlyTheWidth {
     XCTAssertEqualWithAccuracy(VibeWaveformMinimumVisibleFraction(kPhoneWidth, 0, 0),

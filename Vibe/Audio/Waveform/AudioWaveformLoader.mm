@@ -79,6 +79,43 @@
     return result;
 }
 
+- (BOOL)loadDetailBlocks:(NSIndexSet *)blocks ofFile:(NSString *)filename
+            intoWaveform:(CodableAudioWaveform *)waveform {
+    AudioWaveform *summary = waveform.waveform;
+    if (!summary || self.isCancelled) {
+        return NO;
+    }
+    struct VibeWaveformDecodePass pass = {};
+    AudioFileHandle *file = [self openFileAtPath:filename pass:&pass];
+    const AVAudioFrameCount blockFrames = (AVAudioFrameCount)wavecore::Detail::kBlockFrames;
+    AVAudioPCMBuffer *buffer = file ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                                                  frameCapacity:blockFrames] : nil;
+    std::vector<float> scratch(pass.numChannels > 1 ? blockFrames : 0);
+    BOOL ok = buffer != nil;
+    for (NSUInteger block = blocks.firstIndex; ok && block != NSNotFound; block = [blocks indexGreaterThanIndex:block]) {
+        AVAudioFramePosition start = (AVAudioFramePosition)block * blockFrames;
+        if (summary->detail().hasBlock((int64_t)block) || start >= pass.totalFrames) {
+            continue;
+        }
+        NSError *error = nil;
+        AVAudioFrameCount count = (AVAudioFrameCount)MIN((AVAudioFramePosition)blockFrames, pass.totalFrames - start);
+        ok = !self.isCancelled && [file seekToFrame:pass.windowStart + start error:&error]
+                && [file readIntoBuffer:buffer frameCount:count error:&error];
+        if (ok) {
+            const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch.data(),
+                                                     buffer.frameLength, pass.numChannels);
+            summary->detail().insertBlock((int64_t)block, std::vector<float>(mono, mono + buffer.frameLength));
+        } else if (error && ![AudioFileHandle isInterruption:error]) {
+            LogError(@"Detail read failed at frame %lld of %@: %@", start, filename, error);
+        }
+    }
+    // As load: does, so a loader kept past its read keeps no descriptor.
+    @synchronized (self) {
+        _file = nil;
+    }
+    return ok;
+}
+
 - (CodableAudioWaveform *)decode:(NSString *)filename {
 
     // Phase timings for this pass. The clock reads compile to constants in

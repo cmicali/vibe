@@ -326,6 +326,34 @@ static BOOL ColumnHasContent(const wavecore::Column &column) {
     XCTAssertEqual(file.framePosition, (AVAudioFramePosition)21756);
 }
 
+// Deep zoom's blocks are the window's own frames, as the mix, from the
+// window's start; a second ask reads nothing.
+- (void)testDetailBlocksAreTheWindowsFrames {
+    NSString *path = [self writeWAVNamed:@"detail.wav" seconds:4.0 sample:^float(AVAudioFrameCount i) {
+        return (float)(i % 1000) / 1000.0f - 0.5f;
+    }];
+    _loader.cueStart = 37;   // frame 21756
+    _loader.cueEnd = 0;
+    CodableAudioWaveform *waveform = [[CodableAudioWaveform alloc]
+            initWithWaveform:std::make_unique<AudioWaveform>(256, 1, false, 44100)];
+    NSMutableIndexSet *blocks = [NSMutableIndexSet indexSetWithIndex:1];
+    [blocks addIndex:9];   // past the window: skipped
+    XCTAssertTrue([_loader loadDetailBlocks:blocks ofFile:path intoWaveform:waveform]);
+    wavecore::Detail &detail = waveform.waveform->detail();
+    XCTAssertTrue(detail.hasBlock(1));
+    XCTAssertFalse(detail.hasBlock(0));
+    XCTAssertFalse(detail.hasBlock(9));
+    const int64_t blockFrames = wavecore::Detail::kBlockFrames;
+    wavecore::Column column;
+    for (int64_t frame : {blockFrames + 1, blockFrames + 777, 2 * blockFrames - 2}) {
+        // The column of one frame, at its center: the frame itself.
+        XCTAssertTrue(detail.columns(0.5, 2 * frame, 1, 4 * 44100, &column));
+        float expected = (float)((frame + 21756) % 1000) / 1000.0f - 0.5f;
+        XCTAssertEqualWithAccuracy(column.hi, expected, 1e-3, @"frame %lld", frame);
+    }
+    XCTAssertTrue([_loader loadDetailBlocks:blocks ofFile:path intoWaveform:waveform]);
+}
+
 - (void)testOpenOfAWindowPastTheFileAnswersNil {
     NSString *path = [self writeWAVNamed:@"short.wav" seconds:1.0];
     _loader.cueStart = 150;
