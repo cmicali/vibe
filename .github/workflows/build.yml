@@ -63,13 +63,12 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/checks/check-translations.sh --github
 
-  # Three macOS jobs on a pull request: the free plan runs five macOS jobs at
+  # Four macOS jobs on a pull request. The free plan runs five macOS jobs at
   # once, and a pull request's run often overlaps its merge's run. Text-only
-  # checks use Linux.
-  # Each job keeps its own compilation cache (.github/ci.xcconfig), restored
-  # from main's last run and saved only by main, so a pull request compiles
-  # little more than the files it changed. Analyze Release: findings can
-  # depend on the configuration.
+  # checks use Linux. Each job keeps its own compilation cache (.github/ci.xcconfig),
+  # restored from main's last run and saved only by main, so a pull request
+  # compiles little more than the files it changed. Analyze Release: findings
+  # can depend on the configuration.
   macos:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -85,28 +84,17 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-version --sdk macosx
 
-      - name: Check string catalog is in sync
-        run: make check-strings
-
-      - name: Validate App Store copy
-        if: ${{ !cancelled() }}
-        run: make appstore-validate-copy
-
       - uses: ./.github/actions/setup-xcodegen
-        if: ${{ !cancelled() }}
 
       - id: cache
         uses: ./.github/actions/compilation-cache
-        if: ${{ !cancelled() }}
         with:
           job: macos
 
       - name: Build Release and analyze (macOS)
-        if: ${{ !cancelled() }}
         run: scripts/build/analyze.sh Release macos
 
       - name: Verify code signature
-        if: ${{ !cancelled() }}
         run: |
           codesign --verify --deep --strict --verbose=2 \
             build/AnalyzeDD/Build/Products/Release/Vibe.app
@@ -126,6 +114,7 @@ jobs:
           path: build/CompilationCache
           key: ${{ steps.cache.outputs.key }}
 
+  # The text checks that need macOS tools ride here, the shortest job.
   ios:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -135,14 +124,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Check string catalog is in sync
+        run: make check-strings
+
+      - name: Validate App Store copy
+        if: ${{ !cancelled() }}
+        run: make appstore-validate-copy
+
       - uses: ./.github/actions/setup-xcodegen
+        if: ${{ !cancelled() }}
 
       - id: cache
         uses: ./.github/actions/compilation-cache
+        if: ${{ !cancelled() }}
         with:
           job: ios
 
       - name: Build Release and analyze (iOS)
+        if: ${{ !cancelled() }}
         run: scripts/build/analyze.sh Release ios
 
       - uses: actions/cache/save@v6
@@ -193,7 +192,9 @@ jobs:
           path: build/CompilationCache
           key: ${{ steps.cache.outputs.key }}
 
-  test:
+  # Each suite has a runner to itself: both are CPU-bound, and the runner has
+  # three cores. The default is two test runners per suite there.
+  unit-tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
@@ -207,7 +208,45 @@ jobs:
       - id: cache
         uses: ./.github/actions/compilation-cache
         with:
-          job: test
+          job: unit-tests
+
+      - name: Run unit tests
+        run: make test COVERAGE=1 ARGS='-parallel-testing-worker-count 3'
+
+      - name: Test summary
+        if: always()
+        run: make test-summary
+
+      - name: Upload result bundle
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TestResults.xcresult
+          path: build/TestResults.xcresult
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CompilationCache
+          key: ${{ steps.cache.outputs.key }}
+
+  audio-tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: audio-tests
 
       # The fixtures are a function of their two scripts and of the runner
       # image's encoders. A hit skips ffmpeg, the verifier's compile and the
@@ -233,27 +272,13 @@ jobs:
             brew install ffmpeg
           fi
 
-      # The default is two runners per suite on this runner's three cores,
-      # which leaves a core idle once the unit suite finishes.
-      - name: Run unit and audio tests
-        run: make -k -j3 test test-audio COVERAGE=1 ARGS='-parallel-testing-worker-count 3'
-
-      - name: Test summary
-        if: always()
-        run: make test-summary
+      # -j2: the bundle compiles while the fixtures generate.
+      - name: Run audio tests
+        run: make -j2 test-audio COVERAGE=1 ARGS='-parallel-testing-worker-count 3'
 
       - name: Audio test summary
         if: always()
         run: make test-audio-summary
-
-      - name: Upload result bundle
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: TestResults.xcresult
-          path: build/TestResults.xcresult
-          retention-days: 7
-          if-no-files-found: ignore
 
       - name: Upload audio failures and PCM attachments
         if: failure()
