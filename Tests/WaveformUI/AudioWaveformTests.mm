@@ -951,7 +951,7 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
 
     // A loud low, a mid and a faint high: the low band out to the low, low
     // and mid out to the mid, the all-bands core out to the high.
-    std::vector<CGFloat> nested = [self visibleThreeBandLayerHeightsForBands:{1, 0.01f, 0.0001f}];
+    std::vector<CGFloat> nested = [self visibleThreeBandLayerHeightsForBands:{1, 0.04f, 0.01f}];
     XCTAssertGreaterThan(nested[0], nested[3]);
     XCTAssertGreaterThan(nested[3], nested[6]);
     XCTAssertGreaterThan(nested[6], 0);
@@ -982,19 +982,19 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
     XCTAssertTrue(CGRectIsNull(VibeLitBounds(empty)), @"no waveform draws nothing");
 }
 
-// Under Normalize, the tallest band against its share reaches full height,
-// whichever band it is; a band already past full stays where it was.
-- (void)testThreeBandNormalizeFillsTheTallestBand {
+// Under Normalize every band fills its own ceiling at its loudest window,
+// whichever band is louder: the lows the whole band, the mids three quarters,
+// the highs half. So a hot master's bands nest rather than peg.
+- (void)testThreeBandNormalizeFillsEachBandsCeiling {
     CGFloat full = 2 * VibeBarVScale(80);
-    std::vector<CGFloat> lowLed = VibeVisibleLayerHeights(
-            [self threeBandPictureForBands:{0.001f, 0.0001f, 0.00001f} normalize:YES centered:YES waveform:YES]);
-    XCTAssertEqualWithAccuracy(lowLed[0], full, 1);
-    std::vector<CGFloat> highLed = VibeVisibleLayerHeights(
-            [self threeBandPictureForBands:{0.00001f, 0.00001f, 0.001f} normalize:YES centered:YES waveform:YES]);
-    XCTAssertEqualWithAccuracy(highLed[2], full, 1);
-    std::array<float, 3> loud = {1, 0.01f, 0.0001f};
-    XCTAssertTrue([self threeBandPictureForBands:loud normalize:YES centered:YES waveform:YES].pixels ==
-                  [self threeBandPictureForBands:loud normalize:NO centered:YES waveform:YES].pixels);
+    const std::array<float, 3> mixes[] = {{0.001f, 0.0001f, 0.00001f}, {0.00001f, 0.00001f, 0.001f}, {1, 1, 1}};
+    for (const std::array<float, 3> &bands : mixes) {
+        std::vector<CGFloat> heights = VibeVisibleLayerHeights(
+                [self threeBandPictureForBands:bands normalize:YES centered:YES waveform:YES]);
+        XCTAssertEqualWithAccuracy(heights[0], full, 1.5, @"the low band alone, out to the full height");
+        XCTAssertEqualWithAccuracy(heights[3], 0.75 * full, 1.5, @"low and mid, out to the mids' ceiling");
+        XCTAssertEqualWithAccuracy(heights[6], 0.5 * full, 1.5, @"the core, out to the highs' ceiling");
+    }
 }
 
 // A renderer reused across widths and tracks draws what a fresh one draws:
@@ -1082,7 +1082,7 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
 // The fills are the theme's, by the set of bands each ring holds: the core,
 // the low and mid ring and the low band's own, down the center column.
 - (void)testThreeBandPaintsEachRingInTheThemesBandColor {
-    std::array<float, 3> levels = {1, 0.01f, 0.0001f};
+    std::array<float, 3> levels = {1, 0.04f, 0.01f};
     VibeTestPicture picture = [self threeBandPictureForBands:levels normalize:NO centered:YES waveform:YES];
     std::vector<CGFloat> heights = VibeVisibleLayerHeights(picture);
     size_t center = picture.height / 2, x = picture.width / 2;
