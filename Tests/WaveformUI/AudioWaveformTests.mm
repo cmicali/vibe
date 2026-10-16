@@ -1281,4 +1281,38 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     XCTAssertEqualWithAccuracy(VibeLitBounds(spectrum, 128).size.height, VibeLitBounds(threeBand, 128).size.height, 0.5);
 }
 
+#pragma mark - The convert sweep
+
+// The ink down one pixel column of a picture.
+static CGFloat VibeInkAt(const VibeTestPicture &picture, size_t x) {
+    CGFloat ink = 0;
+    for (size_t row = 0; row < picture.height; row++) ink += picture.alpha(x, row) / 255.0;
+    return ink;
+}
+
+// The convert sweep zeroes a step style's columns over the span in every
+// step, so the notch is a hairline, and the ease brings them back.
+- (void)testTheConvertSweepDipsAStepStylesColumns {
+    auto steady = VibeTestSteadyWaveform(8192, {-0.5f, 0.5f, 0.25f});
+    auto banded = VibeThreeBandTestWaveform({1, 0.01f, 0.0001f});
+    for (NSString *style in @[@"detailed", @"oversampling_detailed_x4", @"three_band"]) {
+        BOOL bands = [style isEqualToString:@"three_band"];
+        WaveformRenderer *renderer = [self rendererForStyle:style];
+        CALayer *host = renderer.parentLayer;
+        [renderer updateWaveform:host.bounds progress:0 waveform:bands ? banded.get() : steady.get()];
+        [renderer settleMorphImmediately];
+        VibeTestPicture (^picture)(void) = ^VibeTestPicture {
+            return bands ? VibeThreeBandPicture(renderer) : VibePictureOf(VibeMaskLayer(renderer));
+        };
+        // Pixel 256 is inside the span, at half the track; pixel 64 is not.
+        CGFloat inside = VibeInkAt(picture(), 256), outside = VibeInkAt(picture(), 64);
+        XCTAssertGreaterThan(inside, 20, @"%@", style);
+        [renderer dipBarsFromFraction:0.4 toFraction:0.6];
+        XCTAssertLessThan(VibeInkAt(picture(), 256), 2.5, @"%@: a hairline in the span", style);
+        XCTAssertEqualWithAccuracy(VibeInkAt(picture(), 64), outside, 0.5, @"%@: untouched outside it", style);
+        [renderer settleMorphImmediately];
+        XCTAssertEqualWithAccuracy(VibeInkAt(picture(), 256), inside, 0.5, @"%@: eased back", style);
+    }
+}
+
 @end
