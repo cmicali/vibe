@@ -248,7 +248,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 }
 
 // Heights are each band's loudest window. Spectrum colors use a window of
-// their own, floored at kVibeWaveformSpectrumColorColumns and unclamped.
+// their own (kVibeWaveformSpectrumColorSeconds), never narrower than a
+// column each side, and unclamped.
 - (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform {
     NSUInteger count = part.count, stride = _samplesPerBar;
     double frames = part.framesPerColumn();
@@ -275,7 +276,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         return;
     }
     std::vector<float> meanSquares(count * wavecore::kBandCount);
-    double halfWidth = fmax(frames, (double)waveform->totalFrames() / kVibeWaveformSpectrumColorColumns / 2);
+    double halfWidth = fmax(frames, kVibeWaveformSpectrumColorSeconds * waveform->sampleRate());
     waveform->tentBandMeanSquares(frames, part.first, count, halfWidth, meanSquares.data());
     for (NSUInteger i = 0; i < count; i++) {
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {

@@ -1220,12 +1220,16 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
 // alternate between a low band and a high band every period bins.
 - (std::vector<uint32_t>)spectrumRGBForAlternationPeriod:(NSUInteger)period scale:(CGFloat)scale
                                                   theme:(WaveformTheme *)theme {
-    std::vector<std::array<float, 3>> bands;
+    // A frame a bin, at a rate that puts the tent's feet two bins from its
+    // centre.
+    auto waveform = std::make_unique<AudioWaveform>(1, 1, true, 2.0 / kVibeWaveformSpectrumColorSeconds);
     for (NSUInteger i = 0; i < 1024; i++) {
         bool low = (i / period) % 2 == 0;
-        bands.push_back({low ? 1.0f : 0.0f, 0.0f, low ? 0.0f : 0.2f});
+        float lo = -0.1f, hi = 0.1f;
+        double bands[wavecore::kBandCount] = {low ? 1.0 : 0.0, 0.0, low ? 0.0 : 0.2};
+        waveform->appendBin(&lo, &hi, 0.01, bands, 1);
     }
-    auto waveform = VibeTestWaveform(std::vector<VibeTestBin>(1024, {-0.1f, 0.1f, 0.01f}), bands);
+    waveform->markComplete();
     VibeTestPicture picture = [self spectrumPictureForWaveform:waveform.get() scale:scale theme:theme];
     std::vector<uint32_t> rgb;
     for (size_t x = 0; x < picture.width; x++) {
@@ -1235,9 +1239,8 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
 }
 
 // The height reach would mix neighboring bands into identical colors. The
-// tent is 1/256 of the track foot to foot: four bins here, two columns at a
-// column a pixel, so a column's own band leads with a quarter of each
-// neighbor's.
+// tent is four bins foot to foot here, two columns at a column a pixel. A
+// column's own band leads with a quarter of each neighbor's.
 - (void)testSpectrumColorsEachBarByItsOwnBandDownToTheTent {
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     theme.flatFill = YES;
