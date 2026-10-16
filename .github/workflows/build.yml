@@ -207,11 +207,34 @@ jobs:
         with:
           job: test
 
-      - name: Install fixture encoder
-        run: brew install ffmpeg
+      # The fixtures are a function of their two scripts and of the runner
+      # image's encoders. A hit skips ffmpeg, the verifier's compile and the
+      # writes, so the render suite starts as soon as its bundle links.
+      - id: fixtures-key
+        run: echo "key=audio-fixtures-$ImageOS-$ImageVersion-${{ hashFiles('scripts/test/generate-test-audio.sh', 'scripts/test/verify-bit-perfect.swift') }}" >>"$GITHUB_OUTPUT"
 
+      - id: fixtures
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            build/audio-fixtures
+            build/verify-bit-perfect
+          key: ${{ steps.fixtures-key.outputs.key }}
+
+      # make rebuilds the verifier when its source is newer, and checkout
+      # dates the source now.
+      - name: Install the fixture encoder unless the fixtures hit
+        run: |
+          if [ '${{ steps.fixtures.outputs.cache-hit }}' = true ]; then
+            touch build/verify-bit-perfect
+          else
+            brew install ffmpeg
+          fi
+
+      # The default is two runners per suite on this runner's three cores,
+      # which leaves a core idle once the unit suite finishes.
       - name: Run unit and audio tests
-        run: make -k -j3 test test-audio COVERAGE=1
+        run: make -k -j3 test test-audio COVERAGE=1 ARGS='-parallel-testing-worker-count 3'
 
       - name: Test summary
         if: always()
@@ -238,6 +261,14 @@ jobs:
           path: build/AudioTestResults.xcresult
           retention-days: 7
           if-no-files-found: ignore
+
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.fixtures.outputs.cache-hit != 'true' }}
+        with:
+          path: |
+            build/audio-fixtures
+            build/verify-bit-perfect
+          key: ${{ steps.fixtures-key.outputs.key }}
 
       - uses: actions/cache/save@v6
         if: ${{ !cancelled() && github.event_name != 'pull_request' }}
