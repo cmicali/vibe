@@ -93,9 +93,8 @@ Mono is fine. Apple's matrix sends mono to each channel at 0.707, but `VibeMixMa
 
 ## 6. 16-bit device formats are rounded without dither
 
-**Bit-perfect output picks the smallest integer depth that carries the source** (`VibeBitPerfectChooseFormat`, `OutputFormatRules.h`). A 16-bit FLAC gets a 16-bit device format even when the DAC offers 24 or 32 bits. Any change to the samples is then rounded to 16 bits without dither: the opt-in volume control, and the declick at transport edges.
+**Bit-perfect output is fixed.** It picked the smallest integer depth that carries the source. A 16-bit FLAC got a 16-bit device format even when the DAC offered 24 or 32 bits. Any change to the samples was then rounded to 16 bits without dither: the opt-in volume control, and the declick at transport edges. It now picks the widest integer depth (`VibeBitPerfectChooseFormat`, `OutputFormatRules.h`). At full volume the output is identical, with the extra bits zero. The DAC's display shows 24 or 32 bits instead of 16. A DAC that decodes HDCD no longer sees a 16-bit stream.
 
-- **The fix:** prefer the widest integer depth for an integer source. At full volume the output is identical, with the extra bits zero. The DAC's display then shows 24 or 32 bits instead of 16. A DAC that decodes HDCD would no longer see a 16-bit stream.
 - **Regular output can land on 16 bits too.** The physical format is whatever Audio MIDI Setup holds, and Vibe does not read it there. Resampling, FX and pitch are then rounded to 16 bits. TPDF dither in the last stage of `VibeMasterBusRender` would fix that. It is not known whether macOS dithers this conversion itself. Measure first with the loopback verifier (`scripts/test/verify-bit-perfect.swift`). Play a −90 dBFS tone at volume 0.5 into a 16-bit format, and look for its harmonics.
 - **Priority is low.** The volume control is off by default, and most DACs default to 24 bits.
 
