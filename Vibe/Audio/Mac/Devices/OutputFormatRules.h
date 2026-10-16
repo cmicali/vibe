@@ -263,26 +263,19 @@ static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription c
     return !VibePhysicalFormatsEquivalent(current, chosen) || mixerRate != chosen.mSampleRate;
 }
 
-// The depth rule at `rate`, as-is. An integer source takes the widest integer
-// depth, never one below its own, else the widest float. The bits it adds are
-// zero, so full volume delivers the same samples. A sample the player changes
-// (its volume, a declick) is then rounded at that depth, not at 16 bits
-// without dither. One depth for every integer source also lets a 16-bit and a
-// 24-bit track at one rate share a format, so moving between them needs no
-// switch. A float source takes the float format first, since no integer depth
-// delivers one unchanged. A lossy source has no depth of its own. What
-// reaches the device is its float32 decode, so it is chosen like a float
-// source: the float format first, else the widest integer. Only formats wide
-// enough for all source channels qualify. Returns NO when none is usable at
-// `rate`. The caller compares the choice against what the device has before
-// writing.
+// The depth rule at `rate`, as-is (Mac/Devices/AGENTS.md says why). The
+// integer pick is the widest integer depth not below the source's, and the
+// float pick the widest float. An integer source takes the integer pick. A
+// float or lossy source takes the float pick first, since only a float format
+// carries a float decode unchanged. Only formats wide enough for all source
+// channels qualify. Returns NO when none is usable at `rate`. The caller
+// compares the choice against what the device has before writing.
 static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,
                                               UInt32 count,
                                               AudioStreamBasicDescription *chosen) {
     UInt32 depth = VibeSourceBitDepth(source);
-    BOOL haveInteger = NO, haveFloat = NO;
     AudioStreamBasicDescription integerPick = {0}, floatPick = {0};
     for (UInt32 i = 0; i < count; i++) {
         if (!VibeRangedFormatOffersRate(formats[i], rate)
@@ -292,25 +285,20 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
         }
         AudioStreamBasicDescription candidate = formats[i].mFormat;
         candidate.mSampleRate = rate;
-        if (VibePhysicalFormatIsFloat(candidate)) {
-            if (!haveFloat || candidate.mBitsPerChannel > floatPick.mBitsPerChannel) {
-                floatPick = candidate;
-                haveFloat = YES;
-            }
-            continue;
-        }
-        if (candidate.mBitsPerChannel < depth) {
+        BOOL isFloat = VibePhysicalFormatIsFloat(candidate);
+        if (!isFloat && candidate.mBitsPerChannel < depth) {
             continue; // never below the source
         }
-        if (!haveInteger || candidate.mBitsPerChannel > integerPick.mBitsPerChannel) {
-            integerPick = candidate;
-            haveInteger = YES;
+        AudioStreamBasicDescription *pick = isFloat ? &floatPick : &integerPick;
+        if (candidate.mBitsPerChannel > pick->mBitsPerChannel) {
+            *pick = candidate;
         }
     }
+    BOOL haveInteger = integerPick.mBitsPerChannel > 0, haveFloat = floatPick.mBitsPerChannel > 0;
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    BOOL preferFloat = VibeSourceIsFloat(source) || depth == 0 ? haveFloat : !haveInteger;
+    BOOL preferFloat = (VibeSourceIsFloat(source) || !VibeSourceIsLossless(source)) ? haveFloat : !haveInteger;
     *chosen = preferFloat ? floatPick : integerPick;
     return YES;
 }

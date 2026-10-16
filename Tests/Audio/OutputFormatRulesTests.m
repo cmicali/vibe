@@ -251,8 +251,6 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 
 #pragma mark - The depth rule, as-is
 
-// An integer source takes the widest integer depth. The added bits are zero,
-// and a sample the player changes is rounded at that depth, not at 16 bits.
 - (void)testIntegerSourcesTakeTheWidestIntegerDepth {
     AudioStreamRangedDescription dac[16];
     UInt32 n = (UInt32)USBDACList(dac);
@@ -266,16 +264,17 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertEqual(chosen.mBitsPerChannel, 32u);
     XCTAssertEqual(chosen.mSampleRate, 96000);
 
-    AudioStreamRangedDescription twentyFour[] = { VibeRangedPCMFormat(44100, 16, NO), VibeRangedPCMFormat(44100, 24, NO) };
-    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, twentyFour, 2, &chosen));
+    // USBDACList opens with 44.1 kHz at 16 and 24 bits.
+    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, 2, &chosen));
     XCTAssertEqual(chosen.mBitsPerChannel, 24u);
     XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
-    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, twentyFour, 1, &chosen));
+    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, 1, &chosen));
     XCTAssertEqual(chosen.mBitsPerChannel, 16u, @"16 bits when that is all the device offers");
 }
 
 - (void)testOddAndUnknownLosslessDepthsNeverGoBelowTheSource {
-    AudioStreamRangedDescription formats[] = { VibeRangedPCMFormat(44100, 16, NO), VibeRangedPCMFormat(44100, 24, NO) };
+    AudioStreamRangedDescription formats[16];
+    USBDACList(formats); // the first two: 44.1 kHz at 16 and 24 bits
     AudioStreamBasicDescription chosen = {0};
     AudioStreamBasicDescription twenty = Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_20BitSourceData, 44100);
     XCTAssertTrue(VibeBitPerfectChooseFormat(twenty, 44100, formats, 2, &chosen));
@@ -412,8 +411,7 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibePhysicalFormatsEquivalent(original, changed));
 }
 
-// A 16-bit and a 24-bit track at one rate want one format, so moving between
-// them needs no switch, and a gapless splice between them can arm.
+// A gapless splice between them can arm.
 - (void)testSixteenAndTwentyFourBitTracksShareAFormatOnAnIntegerDAC {
     AudioStreamRangedDescription dac[16];
     UInt32 n = (UInt32)USBDACList(dac);
