@@ -38,6 +38,16 @@ launchctl unsetenv TSAN_OPTIONS
 
 Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). Reports land as `log_path.<pid>`; Confirm that the instrumented app launched and could write its report. TSan creates the file on the first report: **no file means no report was written**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
 
+## From a stress failure to a TSan report
+
+A failing journal reproduces commands, not scheduling, so a race that failed once may never fail again on a plain build. Instrument the scheduling instead:
+
+1. **Shrink** the journal on the plain build: `stress.py --corpus <dir> --shrink build/stress/stress-<seed>.ndjson`. Shrink writes the minimal ops twice: as script lines (`.min.txt`) and as a journal (`.min.ndjson`), which the next step takes.
+2. **Replay it under TSan**: `stress.py --corpus <dir> --app <TSan Vibe.app> --tsan-replay <journal>`. It sets `TSAN_OPTIONS` through `launchctl setenv` with the options above, replays through `launch.sh`, restores the settings, quits the app and unsets the options. The unset runs on pass, failure, `^C`, SIGTERM and SIGHUP. Only SIGKILL leaves the options set for the session.
+3. **Read the reports.** It collects every `tsan.*` in the container's tmp written during the run and prints each report's warning line and first stack. A report fails the replay. No file means no report was written, so confirm the instrumented app launched before reading that as clean.
+
+A race the journal reaches only sometimes needs repeats. Run step 2 a few times rather than lengthening one run, since a long TSan run can exhaust its shadow metadata.
+
 **`--client-app`** runs a plain build as the channel *client* against the instrumented app: an instrumented client costs ~2.4 s per op against ~0.13 s. Build both from the same source.
 
 ## The three builds

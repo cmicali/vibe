@@ -9,5 +9,7 @@
 #define   TAGLIB_WITH_MP4 1
 #define   TAGLIB_WITH_RIFF 1
 #define   TAGLIB_WITH_VORBIS 1
+/* Vibe: MPEG files read their APEv2 tag (MP3Gain, ReplayGain) only with this. */
+#define   TAGLIB_WITH_APE 1
 
 #endif

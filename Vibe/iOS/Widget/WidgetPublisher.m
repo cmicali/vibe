@@ -20,10 +20,6 @@
 // Allow the title and the later waveform bake to request separate reloads.
 static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;
 
-// A seek detector against the widget's own extrapolation; looser than the lock
-// screen's, since a widget entry spans seconds.
-static const NSTimeInterval kWidgetPositionTolerance = 2.0;
-
 // Request fresh dense entries during playback. WidgetKit controls delivery.
 static const NSTimeInterval kWidgetPlayingReloadInterval = 60;
 
@@ -179,8 +175,9 @@ static const CGFloat kWidgetWaveformScale = 3;
     BOOL trackChanged = (track != _publishedTrack);
     BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
 
-    if (!writeArtwork && ![self needsPublishForTrack:track playing:playing duration:duration
-                                            position:position startPending:startPending]) {
+    if (!writeArtwork && !VibeWidgetNeedsPublish(_published, trackChanged, track != nil, track.displayTitle,
+                                                 track.displayArtist, playing, duration, position, startPending,
+                                                 CFAbsoluteTimeGetCurrent())) {
         return;
     }
 
@@ -264,37 +261,6 @@ static const CGFloat kWidgetWaveformScale = 3;
     else {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kWidgetReloadMinInterval - since)), _queue, reload);
     }
-}
-
-// The widget extrapolates steady playback. Check for state changes and drift.
-- (BOOL)needsPublishForTrack:(AudioTrack *)track
-                     playing:(BOOL)playing
-                    duration:(NSTimeInterval)duration
-                    position:(NSTimeInterval)position
-                startPending:(BOOL)startPending {
-    VibeWidgetState *last = _published;
-    if (!last || track != _publishedTrack) {
-        return YES;
-    }
-    if (last.hasTrack != (track != nil) || last.playing != playing) {
-        return YES;
-    }
-    if (fabs(last.duration - duration) > 0.5) {
-        return YES;
-    }
-    // Tags landing after the start change the lines, not the identity.
-    if (!VibeNowPlayingStringsEqual(last.title, track.displayTitle)
-            || !VibeNowPlayingStringsEqual(last.artist, track.displayArtist)) {
-        return YES;
-    }
-    if (startPending) {
-        return NO;      // pinned at 0 while the open runs
-    }
-    // The lock screen's seek test, with this caller's tolerance.
-    return VibeNowPlayingPositionIsDirty(last.position,
-                                         CFDateGetAbsoluteTime((__bridge CFDateRef)last.positionDate),
-                                         1.0, last.playing, position,
-                                         CFAbsoluteTimeGetCurrent(), kWidgetPositionTolerance);
 }
 
 #pragma mark - The waveform strip

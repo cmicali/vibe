@@ -1,5 +1,5 @@
-// Install theme-art and defaults isolation before any test can run.
-// Host-less tests otherwise resolve the developer's real Library paths.
+// Install theme-art, defaults and link-store isolation before any test can
+// run. Host-less tests otherwise resolve the developer's real Library paths.
 // TRAP: restore a narrowed VIBE_THEME_ART_DIR. Unsetting it exposes ~/Library.
 // TRAP: keep tested defaults in memory. cfprefsd caching can make immediate
 // read-after-write assertions depend on another process.
@@ -8,6 +8,10 @@
 #import <objc/runtime.h>
 #include <errno.h>
 #include <signal.h>
+
+#if TARGET_OS_OSX
+#import "LinkStore.h"
+#endif
 
 static NSString *gRoot;
 static NSString *gToolDomain;
@@ -81,6 +85,10 @@ static NSString *gSuite;
 
 @implementation VibeTestFilesystemGuard
 
+NSString *VibeTestProcessRoot(void) {
+    return gRoot;
+}
+
 static void VibeRestoreTestFilesystem(void) {
     [NSFileManager.defaultManager removeItemAtPath:gRoot error:NULL];
 }
@@ -122,6 +130,23 @@ static void VibeRemoveOrphanedTestRoots(NSString *temporary) {
     method_setImplementation(
             class_getClassMethod(NSUserDefaults.class, @selector(standardUserDefaults)),
             imp_implementationWithBlock(^NSUserDefaults *(id self) { return defaults; }));
+
+#if TARGET_OS_OSX
+    // LinkStore.shared resolves the main bundle's Application Support, which
+    // host-less is the XCTest tool's real ~/Library. Made on first use.
+    NSURL *links = [NSURL fileURLWithPath:[gRoot stringByAppendingPathComponent:@"Links"] isDirectory:YES];
+    method_setImplementation(class_getClassMethod(LinkStore.class, @selector(shared)),
+                             imp_implementationWithBlock(^LinkStore *(id self) {
+        static LinkStore *store;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            LinkClient *client = [[LinkClient alloc]
+                    initWithConfiguration:NSURLSessionConfiguration.ephemeralSessionConfiguration];
+            store = [[LinkStore alloc] initWithClient:client rootURL:links];
+        });
+        return store;
+    }));
+#endif
     atexit(VibeRestoreTestFilesystem);
 }
 

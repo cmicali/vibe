@@ -381,7 +381,9 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     self.sampleRate = @((int)format.mSampleRate);
     CFDictionaryRef infoDictionary = NULL;
     size = sizeof(infoDictionary);
-    if (AudioFileGetProperty(file, kAudioFilePropertyInfoDictionary, &size, &infoDictionary) == noErr && infoDictionary) {
+    if (handle.infoDictionaryReadable
+            && AudioFileGetProperty(file, kAudioFilePropertyInfoDictionary, &size, &infoDictionary) == noErr
+            && infoDictionary) {
         NSDictionary *tags = CFBridgingRelease(infoDictionary);
         NSString *artist = trimmedTagText(tags[@kAFInfoDictionary_Artist]);
         NSString *title = trimmedTagText(tags[@kAFInfoDictionary_Title]);

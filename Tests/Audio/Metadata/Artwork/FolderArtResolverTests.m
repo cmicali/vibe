@@ -4,6 +4,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioFixtures.h"
 #import "FolderArtRules.h"
 #import "FolderArtResolverInternal.h"
 
@@ -137,13 +138,7 @@
     [self addTeardownBlock:^{
         [NSFileManager.defaultManager removeItemAtPath:directory error:nil];
     }];
-    NSImage *source = [[NSImage alloc] initWithSize:NSMakeSize(2, 2)];
-    [source lockFocus];
-    [NSColor.redColor setFill];
-    NSRectFill(NSMakeRect(0, 0, 2, 2));
-    [source unlockFocus];
-    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithData:source.TIFFRepresentation];
-    NSData *png = [bitmap representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    NSData *png = VibeImageOfColor(2, 1, 0, 0, NO);
     NSString *target = [directory stringByAppendingPathComponent:@"actual.png"];
     XCTAssertTrue([png writeToFile:target atomically:YES]);
     NSString *candidate = [directory stringByAppendingPathComponent:@"cover.jpg"];

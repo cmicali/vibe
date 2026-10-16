@@ -12,11 +12,9 @@
 #import "SettingsRules.h"
 #import "ArtworkDisplayController.h"
 #import "TrackDisplayController.h"
-#import "OutputDevicesMenuController.h"
 #import "AppDelegate.h"
 #import "AudioDeviceManager.h"
 #import "MainPlayerContentView.h"
-#import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "AudioFX.h"
@@ -26,9 +24,7 @@
 #import "AudioWaveformCache.h"
 #import "WaveformView.h"
 #import "AudioFileConverter.h"
-#import "CloudTransferRegistry.h"
 #import "FolderArtResolver.h"
-#import "FolderAccessManager.h"
 #import "PlaylistController.h"
 #import "PlaybackDeliveryRules.h"
 #import "PlaylistTableView.h"
@@ -36,7 +32,6 @@
 #import "MainWindow.h"
 #import "SymbolButton.h"
 #import "PitchControlPanel.h"
-#import "TransportKeyMonitor.h"
 #import "NowPlayingController.h"
 #import "MainMenuBuilder.h" // vends the context-menu items shared with the main menu
 #import "MusicalKey.h"
@@ -49,7 +44,6 @@
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
 #import "TrackCommands.h"
-#import "WaveformRendererRegistry.h"
 #import "VibeStrings.h"
 
 @implementation MainPlayerController {
@@ -63,11 +57,11 @@
     // B's first track is still opening.
     BOOL                        _metadataLoadPending;
     NSUInteger                  _metadataLoadGeneration;
+    VibeScheduler               _metadataLoadScheduler;
     // The header's notice title (showNotice:naming:), and the generation that
     // pairs the notice with its own timer. noticeStatus is the notice.
     NSString*                   _noticeTitle;
     NSUInteger                  _noticeGeneration;
-    TransportKeyMonitor*        _keyMonitor;
     uint64_t                    _nextSecondUpdateGeneration; // a newer start or seek drops an older aimed update
     // Playing-row indicators reading band levels; the tap is off at zero.
     NSInteger                   _levelConsumers;
@@ -77,116 +71,22 @@
     [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
-- (id) init {
-    // No nib: initWithWindow: marks the controller loaded, so AppKit never
-    // runs loadWindow or windowDidLoad and both happen here.
-    MainWindow *window = [[MainWindow alloc] init];
-    if((self = [super initWithWindow:window])) {
-        _emptyStateSuppressed = YES; // before the first updateUI
-        // windowDidLoad hands it the audio player.
-        self.devicesMenuController = [[OutputDevicesMenuController alloc] init];
-        [self buildContentInWindow:window];
-        [self windowDidLoad];
+- (instancetype)initWithWindow:(NSWindow *)window
+                   audioPlayer:(AudioPlayer *)audioPlayer
+                 metadataCache:(AudioTrackMetadataCache *)metadataCache
+             metadataScheduler:(VibeScheduler)scheduler {
+    if ((self = [super initWithWindow:window])) {
+        _metadataLoadScheduler = [scheduler copy];
+        self.audioPlayer = audioPlayer;
+        self.metadataCache = metadataCache;
     }
     return self;
 }
 
-- (void)windowDidLoad {
-    // Capped: a dead removal registration pins its tracks for the window's
-    // lifetime.
-    self.window.undoManager.levelsOfUndo = 32;
-    [self buildCollaborators];
-    [self wireCollaboratorHandlers];
-    [self registerGrantAndArtworkObservers];
-    [self wireWindowAndViews];
-    [self buildPitchPanel];
-
-    [self.playlistTableView reloadData];
-    [self updateUI];
-    [self syncEqualizerActivity];
-
-    if (@available(macOS 14.0, *)) {
-        [NSApp activate];
-    } else {
-        // macOS 13 has no -activate; calling it crashes at launch.
-        [NSApp activateIgnoringOtherApps:NO];
-    }
-}
-
-- (void)buildCollaborators {
-    // Before the player exists, so no file opens with the default decoder.
-    AudioFileHandle.appleMPEGDecoder = AppSettings.sharedInstance.appleMPEGDecoder;
-    // The saved device resolves asynchronously (UID, then name): the HAL
-    // sweep can stall on Bluetooth or an unavailable coreaudiod, and must
-    // block neither the player queue nor first paint.
-    self.audioPlayer = [[AudioPlayer alloc] initWithDeviceUID:AppSettings.sharedInstance.audioOutputDeviceUID
-                                                     modelUID:AppSettings.sharedInstance.audioOutputDeviceModelUID
-                                                         name:AppSettings.sharedInstance.audioOutputDeviceName
-                                                     enableFX:AppSettings.sharedInstance.audioFXAllowed
-                                                     delegate:self];
-    self.audioPlayer.crossfadeMilliseconds = AppSettings.sharedInstance.effectiveCrossfadeMilliseconds;
-    self.audioPlayer.declick = AppSettings.sharedInstance.declick;
-    self.audioPlayer.volume = (float)AppSettings.sharedInstance.effectiveVolume;
-    [self.audioPlayer setBitPerfectOutput:AppSettings.sharedInstance.bitPerfectOutput
-                         exclusiveOutput:AppSettings.sharedInstance.exclusiveOutput
-                              enableFX:AppSettings.sharedInstance.audioFXEnabled allowAnyDevice:AppSettings.sharedInstance.allowBitPerfectOnAnyDevice];
-    self.devicesMenuController.audioPlayer = self.audioPlayer;
-
-    self.metadataCache = [[AudioTrackMetadataCache alloc] init];
-    self.metadataCache.delegate = self;
-
-    self.waveformCache = [[AudioWaveformCache alloc] init];
-    self.waveformCache.delegate = self;
-
-    self.fileConverter = [[AudioFileConverter alloc] init];
-
-    [CloudTransferRegistry.sharedRegistry addObserver:self];
+- (void)buildPlaylistController {
     self.playlistController = [[PlaylistController alloc] initWithAudioPlayer:self.audioPlayer];
     self.playlistController.levelSource = self;
     self.playlistController.tableView = self.playlistTableView;
-
-    _artworkController = [[ArtworkDisplayController alloc] initWithContentView:self.playerContentView];
-
-    _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
-
-    self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
-    // Before the launch restore, so a shuffled restore starts its order on the
-    // saved row.
-    [self pushTransportModesToPlaylist];
-
-    __weak MainPlayerController *weakSelf = self;
-    _uiTimer = [[UIUpdateTimer alloc] initWithHz:kVibeUIUpdateHzMin handler:^{
-        [weakSelf updatePlaybackUI];
-        // Reconciliation, not an edge: a play settlement dropped as stale
-        // (submittedPlayIsCurrent:) reaches no updateUI, which would leave the
-        // system card's playbackState wrong for the whole track. The
-        // publisher's unchanged check makes this a per-tick comparison;
-        // position advance alone is not dirty.
-        [weakSelf updateNowPlaying];
-    }];
-}
-
-- (void)wireCollaboratorHandlers {
-    // Asked once per request, so a settings change lands on the next load.
-    // The iOS card installs its own, tempo only.
-    self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        AppSettings *settings = AppSettings.sharedInstance;
-        return (VibeWaveformAnalysis){
-            .bpm = settings.analyzeBPM,
-            .key = settings.analyzeKey,
-            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
-        };
-    };
-    _waveformAnalysisWanted = self.waveformCache.analysisProvider();
-
-    // A track change mid-conversion stops the sweep at the next report.
-    __weak MainPlayerController *weakControllerForConvert = self;
-    self.fileConverter.progressHandler = ^(AudioTrack *track, double fraction) {
-        MainPlayerController *strongSelf = weakControllerForConvert;
-        if (strongSelf && track == [strongSelf displayedTrack]) {
-            [strongSelf.trackDisplay setConvertSweepFraction:fraction];
-        }
-    };
 
     // The player's async events lag a slow open, so the header refreshes at
     // submission, off the playlist's one play funnel.
@@ -237,74 +137,7 @@
         [undoManager setActionName:STR_MENU_EDIT_REORDER];
         [controller reconcileAfterPlaylistStructureEdit];
     };
-
-    __weak MainPlayerController *weakControllerForArt = self;
-    _artworkController.currentTrackProvider = ^AudioTrack *{
-        return weakControllerForArt.playlistController.currentTrack;
-    };
-    _artworkController.artDidResolveHandler = ^{
-        [weakControllerForArt updateUI];
-    };
-    // Fired only for a target-matched install, so the delivery race is closed.
-    _artworkController.dominantColorDidChangeHandler = ^{
-        MainPlayerController *strongSelf = weakControllerForArt;
-        if (!strongSelf) {
-            return;
-        }
-        strongSelf.waveformView.artworkThemeColor = strongSelf->_artworkController.dominantArtColor;
-        [strongSelf refreshWaveformTheme];
-    };
-    _artworkController.transportBackdropDidChangeHandler = ^(BOOL dark, BOOL hasArtwork) {
-        [weakControllerForArt.playerContentView setTransportBackdropDark:dark hasArtwork:hasArtwork];
-    };
-    self.playerContentView.appearanceChangedHandler = ^{
-        MainPlayerController *strongSelf = weakControllerForArt;
-        if (strongSelf) {
-            [strongSelf->_artworkController refreshTintWashes];
-            [strongSelf applyWindowBackground]; // its layer color is not dynamic
-            // The Now Playing placeholder follows the appearance.
-            [strongSelf updateNowPlaying];
-        }
-    };
 }
-
-// Grants are observed here, not in the Files pane, which may never open: a
-// new grant can reveal covers the resolver declined for want of one.
-- (void)registerGrantAndArtworkObservers {
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(grantedFoldersDidChange:)
-                                               name:FolderAccessManagerDidChangeNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(folderArtDidResolve:)
-                                               name:FolderArtDidResolveNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(thumbnailDidLoad:)
-                                               name:AudioTrackMetadataThumbnailDidLoadNotification
-                                             object:nil];
-}
-
-- (void)wireWindowAndViews {
-    // Closing the player quits (windowWillClose:): with About open,
-    // applicationShouldTerminateAfterLastWindowClosed never fires.
-    self.window.delegate = self;
-
-    [self applyStoredAppearance];
-    [self applyAlwaysOnTop];
-    [self applyWindowLock];
-    [self applyAppIcon];
-
-    self.waveformView.delegate = self;
-    // The theme's style, never the loose waveformStyle key, which theme
-    // migration consumed on macOS. This creates the renderer, so
-    // prepareForWaveformLoad's fallback never runs.
-    self.waveformView.waveformStyle = AppSettings.sharedInstance.currentTheme.waveformStyle;
-
-    MainWindow *window = (MainWindow *)self.window;
-    window.dropDelegate = self;
-}
-
 
 - (void)pauseUIUpdateTimer {
     _uiTimer.wanted = NO;
@@ -672,11 +505,14 @@ static const NSTimeInterval kNoticeSeconds = 4;
 
 #pragma mark - Deferred metadata load / error mask
 
+// The fallback for a play that never settles.
+static const NSTimeInterval kDeferredMetadataLoadBoundSeconds = 2;
+
 - (void)scheduleDeferredMetadataLoad {
     _metadataLoadPending = YES;
     NSUInteger generation = ++_metadataLoadGeneration;
     __weak MainPlayerController *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    _metadataLoadScheduler(kDeferredMetadataLoadBoundSeconds, ^{
         [weakSelf startPendingMetadataLoadForGeneration:generation];
     });
 }

@@ -4,10 +4,11 @@
 //
 //  The player screen's display state, tested from the macOS suite. Separate
 //  from the mac's TrackDisplayRules.h: no launch grace here, and parked tracks
-//  the mac has no equivalent of.
+//  the mac has no equivalent of. Also the card's pager and a scrub's action.
 //
 
 #import <Foundation/Foundation.h>
+
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -58,6 +59,71 @@ static inline BOOL VibePlayerScreenDescribesTrack(VibePlayerScreenState state) {
 // The strip is the card in one line, so the same question.
 static inline BOOL VibeMiniPlayerVisible(VibePlayerScreenState state) {
     return VibePlayerScreenDescribesTrack(state);
+}
+
+// The duration the screens draw: the player's, else the metadata's while
+// the player holds none (parked, or opening).
+static inline NSTimeInterval VibePlayerScreenDuration(NSTimeInterval playerDuration,
+                                                      NSTimeInterval trackDuration) {
+    return playerDuration > 0 ? playerDuration : trackDuration;
+}
+
+#pragma mark - A scrub
+
+typedef NS_ENUM(NSInteger, VibePlayerScrubAction) {
+    VibePlayerScrubActionIgnore,      // no track, or no open and no duration
+    VibePlayerScrubActionSeekPlayer,  // the player seeks, by its duration or the metadata's
+    VibePlayerScrubActionHold,        // no duration yet: keep the target until metadata lands
+    VibePlayerScrubActionOpenParked,  // a parked track: open its file paused at the target
+};
+
+// What a scrub does. Parked, the player holds no file, so a scrub opens one
+// paused rather than playing. Its duration comes from metadata, and until
+// metadata lands the target is held. An open in flight takes the metadata's
+// duration and keeps its own play intent.
+static inline VibePlayerScrubAction VibePlayerScrubActionFor(NSTimeInterval playerDuration,
+                                                             BOOL hasTrack,
+                                                             BOOL parked,
+                                                             BOOL loading,
+                                                             NSTimeInterval trackDuration) {
+    if (playerDuration > 0) {
+        return VibePlayerScrubActionSeekPlayer;
+    }
+    if (!hasTrack || !(parked || loading)) {
+        return VibePlayerScrubActionIgnore;
+    }
+    if (trackDuration <= 0) {
+        return VibePlayerScrubActionHold;
+    }
+    return parked ? VibePlayerScrubActionOpenParked : VibePlayerScrubActionSeekPlayer;
+}
+
+#pragma mark - The pager
+
+// The page's own index, so the last page arrives dimmed. Under Repeat All no
+// page is last. Under shuffle only the current page knows its next, which the
+// playlist answers (currentHasNext).
+static inline BOOL VibePlayerPageNextEnabled(NSUInteger index,
+                                             NSUInteger currentIndex,
+                                             NSUInteger count,
+                                             BOOL currentHasNext,
+                                             BOOL repeatAll) {
+    if (index == currentIndex) {
+        return currentHasNext;
+    }
+    return index + 1 < count || repeatAll;
+}
+
+// The pages within radius of the current one, clamped to the playlist. A
+// cursor past the end counts as the last page.
+static inline NSRange VibePlayerPageWindow(NSUInteger count, NSUInteger currentIndex, NSUInteger radius) {
+    if (count == 0) {
+        return NSMakeRange(0, 0);
+    }
+    NSUInteger current = MIN(currentIndex, count - 1);
+    NSUInteger first = current > radius ? current - radius : 0;
+    NSUInteger last = MIN(current + radius, count - 1);
+    return NSMakeRange(first, last - first + 1);
 }
 
 NS_ASSUME_NONNULL_END

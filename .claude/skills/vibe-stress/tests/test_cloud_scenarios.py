@@ -832,8 +832,8 @@ class ScriptLineTests(unittest.TestCase):
             stress.ios_command({}, journal, ["dump_audio_path"])
         records = [json.loads(line) for line in journal.getvalue().splitlines()]
         self.assertEqual([r["event"] for r in records], ["begin", "reply"])
-        self.assertEqual(records[-1]["code"], 124)
-        self.assertEqual(records[-1]["command"], ["dump_audio_path"])
+        self.assertEqual(records[-1]["exit"], 124)
+        self.assertEqual(records[-1]["argv"], ["dump_audio_path"])
         kill.assert_called_once_with(1234, stress.signal.SIGTERM)
 
     def test_ios_interruption_is_journaled_before_cleanup(self):
@@ -843,7 +843,7 @@ class ScriptLineTests(unittest.TestCase):
         with mock.patch.object(stress.subprocess, "Popen", return_value=proc), \
              mock.patch.object(stress.os, "killpg"), self.assertRaises(KeyboardInterrupt):
             stress.ios_command({}, journal, ["play_index", "0"])
-        self.assertEqual(json.loads(journal.getvalue().splitlines()[-1])["code"], 130)
+        self.assertEqual(json.loads(journal.getvalue().splitlines()[-1])["exit"], 130)
 
 
     def test_ios_client_cancellation_retracts_only_its_own_requests(self):
@@ -979,7 +979,10 @@ class SettingsTeardownTests(unittest.TestCase):
         settings = dict(self.START)
         channel, sent = self.fake_app(settings)
         printed, launch = self.preserved(channel, lambda imported: None)
-        self.assertEqual({argv[0] for argv in sent}, {"dump_state", "reorder_cancel"})
+        # Disarming the fakes and closing Settings write nothing to the store.
+        self.assertEqual({argv[0] for argv in sent},
+                         {"dump_state", "settings_close"}
+                         | {argv[0] for argv in stress.DISARM_COMMANDS})
         self.assertIn("restored nothing (none moved)", printed)
         launch.assert_not_called()
 
@@ -1014,6 +1017,412 @@ class PlayableSuffixTests(unittest.TestCase):
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             self.assertIs(module.AUDIO_SUFFIXES, stress.AUDIO_SUFFIXES, name)
+
+
+FAKE_ONLY = {"S4b", "S8a", "S8b", "S8c", "S10", "S12a", "S12b", "S13", "S15", "S18"}
+
+
+def registry(*files, held=False):
+    """A dump_row_loading payload and the hold read beside it."""
+    return ({"transfers": [{"file": name, "progress": -1} for name in files],
+             "loadingRows": [], "playlistCount": 8},
+            {"materialization": {"foregroundTransferActive": held}})
+
+
+def samples(*entries):
+    return [{"n": n, "held": held, "files": sorted(files), "rows": {}}
+            for n, (files, held) in enumerate(entries)]
+
+
+class ScriptedCtx(cloud.Ctx):
+    """A real-mode Ctx whose channel replies come from a script, per verb."""
+
+    def __init__(self, replies, folders=(), wait_scale=1.0):
+        self.replies = {verb: list(value) for verb, value in replies.items()}
+        self.sent = []
+        self.verbose = False
+        self.real = True
+        self.wait_scale = wait_scale
+        self.samples = []
+        self.folders = list(folders)
+        # A batch that cannot run falls back to cmd, which the script answers.
+        self.channel = mock.Mock(**{"run_batch.return_value": None})
+
+    def cmd(self, *argv, timeout=40):
+        self.sent.append([str(arg) for arg in argv])
+        queue = self.replies.get(argv[0], [{}])
+        return queue.pop(0) if len(queue) > 1 else queue[0]
+
+
+def args(**overrides):
+    values = {"provider": "fake", "corpus": None, "folder": None, "wait_scale": 1.0}
+    values.update(overrides)
+    return mock.Mock(**values)
+
+
+class SampledCtx(ScriptedCtx):
+    """A real-mode Ctx whose registry samples come from a queue of file lists."""
+
+    def __init__(self, files_per_sample):
+        super().__init__({}, folders=["/corpus/one"])
+        self.queue = list(files_per_sample)
+
+    def sample(self):
+        files = self.queue.pop(0) if len(self.queue) > 1 else self.queue[0]
+        entry = {"n": len(self.samples), "held": False, "files": sorted(files), "rows": {}}
+        self.samples.append(entry)
+        return entry
+
+    def watch(self, describe, predicate, seconds):
+        for _ in range(len(self.queue) + 1):
+            entry = self.sample()
+            if predicate(entry):
+                return entry
+        raise cloud.Failed(f"scripted samples ran out waiting for {describe}")
+
+    def materialization(self, health=None):
+        return {"requestsYielded": 0, "foregroundTransferActive": False}
+
+
+class ScanJoinTests(unittest.TestCase):
+    def test_r7_counts_a_scan_transfer_that_started_during_the_earlier_waits(self):
+        # The scan puts c.flac on the wire while b.flac's landing is awaited,
+        # before any mark r7 could take. The play then joins that transfer,
+        # which went on the wire once. Only a count over every sample sees it.
+        ctx = SampledCtx([["b.flac"], ["c.flac"], ["c.flac"], ["c.flac"], [], []])
+        rows = ["a.flac", "b.flac", "c.flac"]
+        with mock.patch.object(cloud, "suppress_setup_prefetch"), \
+                mock.patch.object(cloud, "real_pick", return_value=(rows, "a.flac")), \
+                mock.patch.object(cloud, "wait_landed",
+                                  side_effect=lambda c, name, describe: c.watch(describe, lambda s: name not in s["files"], 1)), \
+                mock.patch.object(cloud, "real_park"), \
+                mock.patch.object(cloud, "watch_resolution"):
+            summary = cloud.r7_play_joins_the_live_scan(ctx)
+        self.assertIn("joined the live scan of c.flac", summary)
+        self.assertEqual(ctx.sent.count(["play_index", "2"]), 1)
+        started = cloud.started_order(cloud.sample_events(ctx.samples))
+        self.assertEqual(started.count("c.flac"), 1)
+
+
+    def test_r6_counts_the_scan_pick_that_started_while_the_play_landed(self):
+        # The scan's first pick d.flac (the row after the played c.flac) goes
+        # on the wire while c.flac is still landing. A mark taken after the
+        # landing would see only f.flac, outside the neighborhood, and fail a
+        # correct order.
+        ctx = SampledCtx([["c.flac", "d.flac"], ["d.flac"], ["f.flac"], []])
+        rows = ["a.flac", "b.flac", "c.flac", "d.flac", "e.flac", "f.flac"]
+        with mock.patch.object(cloud, "suppress_setup_prefetch"), \
+                mock.patch.object(cloud, "real_pick", return_value=(rows, "a.flac")), \
+                mock.patch.object(cloud, "wait_landed",
+                                  side_effect=lambda c, name, describe: c.watch(describe, lambda s: name not in s["files"], 1)), \
+                mock.patch.object(cloud, "real_park"):
+            summary = cloud.r6_first_scan_pick_is_neighborhood_ranked(ctx)
+        self.assertIn("first pick d.flac", summary)
+        self.assertEqual(ctx.sent.count(["play_index", "2"]), 1)
+
+
+class RealProviderTests(unittest.TestCase):
+    def test_registry_is_one_table_with_a_real_mode_per_scenario(self):
+        self.assertEqual(len(cloud.SCENARIOS), 24)
+        self.assertEqual(set(cloud.FAKE_ONLY), FAKE_ONLY)
+        for ident, fn, expected_fail, real in cloud.SCENARIOS:
+            with self.subTest(ident=ident):
+                self.assertTrue(callable(fn))
+                if ident in FAKE_ONLY:
+                    self.assertIsNone(real)
+                    self.assertTrue(cloud.FAKE_ONLY[ident].strip())
+                else:
+                    self.assertTrue(callable(real))
+                    self.assertIsNot(real, fn)
+
+    def test_real_plan_skips_fake_only_scenarios_with_their_reason(self):
+        plan = cloud.scenario_plan(None, "real")
+        self.assertEqual([entry[0] for entry in plan],
+                         [entry[0] for entry in cloud.SCENARIOS])
+        skipped = {ident: reason for ident, _, run, _, reason in plan if reason}
+        self.assertEqual(set(skipped), FAKE_ONLY)
+        for ident, reason in skipped.items():
+            self.assertTrue(reason.startswith("fake-only: "), ident)
+        for ident, label, run, _, reason in plan:
+            self.assertEqual(run is None, reason is not None, ident)
+            self.assertTrue(label.startswith(ident + " "))
+        self.assertEqual(len(plan) - len(skipped), 14)
+
+    def test_fake_plan_runs_every_fake_scenario_and_skips_nothing(self):
+        plan = cloud.scenario_plan(None)
+        self.assertEqual([run for _, _, run, _, _ in plan],
+                         [fn for _, fn, _, _ in cloud.SCENARIOS])
+        self.assertFalse(any(reason for *_, reason in plan))
+
+    def test_only_filters_both_modes_and_expected_fail_stays_fake(self):
+        plan = cloud.scenario_plan({"S8a", "S20"}, "real")
+        self.assertEqual([(ident, reason is None) for ident, _, _, _, reason in plan],
+                         [("S8a", False), ("S20", True)])
+        marked = [(ident, fn, True, real) for ident, fn, _, real in cloud.SCENARIOS]
+        with mock.patch.object(cloud, "SCENARIOS", marked):
+            self.assertTrue(all(entry[3] for entry in cloud.scenario_plan({"S1"})))
+            self.assertFalse(cloud.scenario_plan({"S1"}, "real")[0][3])
+        with self.assertRaisesRegex(ValueError, "S99"):
+            cloud.scenario_plan({"S99"}, "real")
+
+    def test_provider_and_folder_arguments_are_validated(self):
+        self.assertIsNone(cloud.provider_args_error(args(corpus="c")))
+        self.assertIsNone(cloud.provider_args_error(
+                args(provider="real", folder="f", wait_scale=3)))
+        rejected = {
+            "needs --folder": args(provider="real"),
+            "not --corpus": args(provider="real", folder="f", corpus="c"),
+            "needs --corpus": args(),
+            "--folder needs --provider real": args(corpus="c", folder="f"),
+            "only to --provider real": args(corpus="c", wait_scale=2),
+            "at least 1": args(provider="real", folder="f", wait_scale=0.5),
+        }
+        for message, values in rejected.items():
+            with self.subTest(message=message):
+                self.assertIn(message, cloud.provider_args_error(values))
+
+    def test_bad_provider_arguments_exit_before_any_launch(self):
+        for argv in (["--provider", "real"], ["--folder", "f", "--corpus", "c"],
+                     ["--provider", "real", "--folder", "f", "--wait-scale", "0.5"],
+                     ["--provider", "icloud", "--folder", "f"]):
+            with self.subTest(argv=argv), \
+                    mock.patch.object(sys, "argv", ["cloud-scenarios.py", *argv]), \
+                    mock.patch.object(cloud, "launch") as launch, \
+                    mock.patch.object(sys, "stderr"):
+                with self.assertRaises(SystemExit) as raised:
+                    cloud.main()
+                self.assertEqual(raised.exception.code, 2)
+                launch.assert_not_called()
+
+    def test_eviction_is_verified_per_file_from_its_flags(self):
+        dataless = cloud.SF_DATALESS
+        self.assertIsNone(cloud.eviction_error({"a.mp3": dataless, "b.mp3": dataless | 0x20}))
+        self.assertIn("still local", cloud.eviction_error({"a.mp3": dataless, "b.mp3": 0}))
+        self.assertIn("b.mp3", cloud.eviction_error({"a.mp3": dataless, "b.mp3": 0x20}))
+        self.assertIn("could not stat", cloud.eviction_error({"a.mp3": None}))
+        self.assertIn("no audio", cloud.eviction_error({}))
+
+    def test_an_eviction_that_never_lands_is_not_staged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folders = [Path(directory) / "a", Path(directory) / "b"]
+            for folder in folders:
+                folder.mkdir()
+                (folder / f"{folder.name}.mp3").write_bytes(b"x")
+            ctx = ScriptedCtx({}, folders, wait_scale=1.0)
+            evicted = mock.Mock(returncode=0, stdout="", stderr="")
+            with mock.patch.object(cloud, "REAL_EVICT", 0), \
+                    mock.patch.object(cloud.subprocess, "run", return_value=evicted) as run, \
+                    mock.patch.object(cloud.time, "sleep"):
+                with self.assertRaisesRegex(cloud.NotStaged, "still local"):
+                    cloud.evict_and_verify(ctx)
+            self.assertEqual([call.args[0][:2] for call in run.call_args_list],
+                             [["brctl", "evict"]] * 2)
+            refused = mock.Mock(returncode=1, stdout="", stderr="not uploaded")
+            with mock.patch.object(cloud.subprocess, "run", return_value=refused):
+                with self.assertRaisesRegex(cloud.NotStaged, "not uploaded"):
+                    cloud.evict_and_verify(ctx)
+
+    def test_the_app_must_have_seen_dataless_in_a_scenario_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a, b, other = (Path(directory) / name for name in ("a", "b", "other"))
+            for folder in (a, b, other):
+                folder.mkdir()
+            seen = {"enabled": True, "directories": {
+                str(a): {"dataless": 3, "local": 1, "statFailed": 0}}}
+            self.assertIsNone(cloud.app_dataless_error(seen, [a, b]))
+            only_local = {"enabled": True, "directories": {
+                str(a): {"dataless": 0, "local": 9, "statFailed": 0},
+                str(other): {"dataless": 4, "local": 0, "statFailed": 0}}}
+            self.assertIn("never answered dataless",
+                          cloud.app_dataless_error(only_local, [a, b]))
+            self.assertIn("not enabled",
+                          cloud.app_dataless_error({"enabled": False}, [a, b]))
+
+    def test_sample_reads_the_registry_and_the_hold(self):
+        rows, health = registry("b.mp3", "a.mp3", held=True)
+        ctx = ScriptedCtx({"dump_row_loading": [rows], "dump_cloud_health": [health]})
+        entry = ctx.sample()
+        self.assertEqual((entry["n"], entry["files"], entry["held"]),
+                         (0, ["a.mp3", "b.mp3"], True))
+        self.assertIs(entry["rows"], rows)
+        self.assertEqual(ctx.sample()["n"], 1)
+
+    def test_one_poll_batches_its_dumps_into_one_client_launch(self):
+        rows, health = registry("a.mp3", held=True)
+        ctx = ScriptedCtx({"dump_row_loading": [{}], "dump_cloud_health": [{}]})
+        ctx.channel.run_batch.return_value = [(0, rows), (0, health)]
+        self.assertEqual(ctx.sample()["files"], ["a.mp3"])
+        self.assertEqual(ctx.channel.run_batch.call_args.args[0],
+                         [["dump_row_loading"], ["dump_cloud_health"]])
+        self.assertEqual(ctx.sent, [])
+        # A short stream reruns every dump on its own.
+        ctx.channel.run_batch.return_value = [(0, rows)]
+        self.assertEqual(ctx.sample()["files"], [])
+        self.assertEqual(ctx.sent, [["dump_row_loading"], ["dump_cloud_health"]])
+
+    def test_samples_project_into_trace_events_in_sample_order(self):
+        log = samples(([], False), (["a"], True), (["a", "c"], False),
+                      (["c"], False), (["a", "b"], False))
+        events = cloud.sample_events(log)
+        self.assertEqual([(e["seq"], e["event"], e["file"]) for e in events],
+                         [(1, "started", "a"), (2, "started", "c"),
+                          (3, "completed", "a"), (4, "completed", "c"),
+                          (4, "started", "a"), (4, "started", "b")])
+        self.assertEqual(cloud.started_order(events).count("a"), 2)
+        self.assertEqual(cloud.started_order(cloud.sample_events(log, since=3)),
+                         ["a", "b"])
+        self.assertEqual(spans(events, None),
+                         [(1, 3, "a"), (2, 4, "c"), (4, None, "a"), (4, None, "b")])
+        self.assertIn("completed  -         c", cloud.fmt_trace(events))
+
+    def test_contention_counts_only_arrivals_between_two_held_samples(self):
+        log = samples(([], False), (["picked", "early"], True),
+                      (["picked", "early", "bad"], True), (["picked", "later"], False))
+        held = [e["file"] for e in cloud.sample_events(log) if e["held"]]
+        self.assertEqual(held, ["bad"])
+        ctx = ScriptedCtx({})
+        ctx.samples = log
+        cloud.assert_no_sampled_contention(ctx, {"picked", "bad"})
+        ctx.samples = log
+        with self.assertRaisesRegex(cloud.Failed, "bad"):
+            cloud.assert_no_sampled_contention(ctx, {"picked"})
+
+    def test_counters_must_never_go_backwards(self):
+        before = {"requestsReady": 4, "requestsYielded": 2, "handleOpensStarted": 3}
+        self.assertEqual(cloud.counter_regressions(before, dict(before, requestsReady=9)), {})
+        self.assertEqual(cloud.counter_regressions(before, dict(before, requestsYielded=1)),
+                         {"requestsYielded": (2, 1)})
+
+    def test_only_cloud_consistency_violations_are_real_mode_findings(self):
+        reply = {"violations": [{"id": "cloud.handle_open_stranded"},
+                                {"id": "track.bpm_precedence"}]}
+        self.assertEqual([v["id"] for v in cloud.cloud_violations(reply)],
+                         ["cloud.handle_open_stranded"])
+
+    def test_live_projection_is_checked_against_a_registry_dump(self):
+        good = {"transfers": [{"file": "a.mp3", "progress": 0.25}],
+                "loadingRows": [{"index": 2, "file": "a.mp3", "progress": 0.25}]}
+        self.assertIsNone(cloud.row_loading_projection_error(good, "a.mp3", 2))
+        stray = dict(good, transfers=good["transfers"] + [{"file": "b.mp3", "progress": -1}])
+        self.assertIn("sole live row", cloud.row_loading_projection_error(stray, "a.mp3", 2))
+        health = {"materialization": {"foregroundTransferActive": True}}
+        ctx = ScriptedCtx({"dump_row_loading": [stray, stray, {"transfers": []}],
+                           "dump_cloud_health": [health]})
+        with mock.patch.object(cloud, "real_path", return_value=Path("a.mp3")), \
+                mock.patch.object(cloud, "file_is_dataless", return_value=True), \
+                mock.patch.object(cloud.time, "sleep"):
+            with self.assertRaisesRegex(cloud.Failed, "never projected"):
+                cloud.watch_projection(ctx, "a.mp3", 2)
+
+    def test_a_transfer_that_lands_between_samples_is_not_staged(self):
+        rows, health = registry()
+        ctx = ScriptedCtx({"dump_row_loading": [rows], "dump_cloud_health": [health]})
+        with mock.patch.object(cloud, "real_path", return_value=Path("a.mp3")), \
+                mock.patch.object(cloud, "file_is_dataless", return_value=False):
+            with self.assertRaisesRegex(cloud.NotStaged, "between two samples"):
+                cloud.watch_live(ctx, "a.mp3", "a on the wire")
+
+    def test_waits_widen_with_the_wait_scale(self):
+        rows, health = registry()
+        ctx = ScriptedCtx({"dump_row_loading": [rows], "dump_cloud_health": [health]},
+                          wait_scale=3)
+        clock = iter([0, 0, 50, 179, 181])
+        with mock.patch.object(cloud.time, "monotonic", side_effect=lambda: next(clock)), \
+                mock.patch.object(cloud.time, "sleep"):
+            with self.assertRaisesRegex(cloud.Failed, "180s"):
+                ctx.watch("nothing", lambda s: False, 60)
+        self.assertEqual(len(ctx.samples), 3)
+        clock = iter([0, 0, 2, 4])
+        with mock.patch.object(cloud.time, "monotonic", side_effect=lambda: next(clock)), \
+                mock.patch.object(cloud.time, "sleep") as sleep:
+            ctx.sample_for(1)
+        self.assertEqual((len(ctx.samples), sleep.call_count), (5, 2))
+
+    def test_poll_returns_the_read_value_and_reports_the_last_one(self):
+        ctx = ScriptedCtx({"dump_state": [{"player": {"state": "playing"}},
+                                          {"player": {"state": "paused"}}]})
+        with mock.patch.object(cloud.time, "sleep") as sleep:
+            state = ctx.poll("a pause", ctx.state,
+                             lambda s: s["player"]["state"] == "paused", 5)
+        self.assertEqual((state["player"]["state"], sleep.call_count), ("paused", 1))
+        clock = iter([0, 0, 9])
+        with mock.patch.object(cloud.time, "monotonic", side_effect=lambda: next(clock)), \
+                mock.patch.object(cloud.time, "sleep"):
+            with self.assertRaisesRegex(cloud.Failed, "1s waiting for a stop: .*paused"):
+                ctx.poll("a stop", ctx.state, lambda s: False, 1)
+
+    def test_real_outcomes_are_error_when_not_staged_and_fail_on_assertions(self):
+        quiet = {"quiesce": [{"settled": True}], "clear_caches": [{"ok": True}],
+                 "set_pause_at_track_end": [{"pauseAtTrackEnd": False}],
+                 "dump_cloud_trace": [{"stats": {"installed": False}, "events": []}]}
+
+        def outcome(run, **replies):
+            ctx = ScriptedCtx(dict(quiet, **replies))
+            with mock.patch.object(cloud, "evict_and_verify", return_value=2):
+                return cloud.run_scenario(ctx, run, expect_fail=False)
+
+        def not_staged(ctx):
+            raise cloud.NotStaged("a.mp3 downloaded between two samples")
+
+        def failed(ctx):
+            raise cloud.Failed("background arrived under the hold")
+
+        self.assertEqual(outcome(not_staged),
+                         ("ERROR", "not staged: a.mp3 downloaded between two samples"))
+        self.assertEqual(outcome(failed), ("FAIL", "background arrived under the hold"))
+        installed = {"stats": {"installed": True}, "events": []}
+        self.assertEqual(outcome(lambda ctx: "ok", dump_cloud_trace=[installed])[0], "ERROR")
+        vacuous = outcome(lambda ctx: "ok", check_consistency=[{"violations": []}],
+                          dump_dataless_diag=[{"enabled": True, "directories": {}}])
+        self.assertEqual(vacuous[0], "ERROR")
+        self.assertIn("never answered dataless", vacuous[1])
+        regressed = outcome(lambda ctx: "ok", dump_cloud_health=[
+                {"materialization": {"requestsReady": 5}},
+                {"materialization": {"requestsReady": 4}}])
+        self.assertEqual(regressed[0], "FAIL")
+        self.assertIn("backwards", regressed[1])
+
+    def test_a_clean_real_scenario_passes_and_turns_the_record_off(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a = Path(directory) / "a"
+            a.mkdir()
+            ctx = ScriptedCtx({
+                "quiesce": [{"settled": True}],
+                "set_pause_at_track_end": [{"pauseAtTrackEnd": False}],
+                "dump_cloud_trace": [{"stats": {"installed": False}}],
+                "check_consistency": [{"violations": [{"id": "track.key_in_range"}]}],
+                "dump_dataless_diag": [{"enabled": True, "directories": {
+                    str(a): {"dataless": 2, "local": 0}}}],
+            }, [a, a])
+            with mock.patch.object(cloud, "evict_and_verify", return_value=2):
+                self.assertEqual(cloud.run_scenario(ctx, lambda c: "fine", False),
+                                 ("PASS", "fine"))
+            self.assertIn(["set_dataless_diag", "on"], ctx.sent)
+            self.assertEqual(ctx.sent[-1], ["set_dataless_diag", "off"])
+            self.assertNotIn("set_fake_cloud", {argv[0] for argv in ctx.sent})
+
+    def test_real_folder_needs_brctl_small_files_and_no_legacy_stubs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("a", "b"):
+                (root / name).mkdir()
+                (root / name / f"{name}.mp3").write_bytes(b"x" * 1024)
+            self.assertIsNone(cloud.real_folder_error(root, which=lambda _: "/usr/bin/brctl"))
+            self.assertIn("brctl", cloud.real_folder_error(root, which=lambda _: None))
+            with (root / "a" / "big.flac").open("wb") as big:
+                big.truncate(cloud.REAL_MAX_FILE_BYTES + 1)
+            self.assertIn("big.flac", cloud.real_folder_error(root, which=lambda _: "brctl"))
+            (root / "a" / "big.flac").unlink()
+            (root / "b" / ".c.mp3.icloud").write_bytes(b"")
+            self.assertIn(".icloud", cloud.real_folder_error(root, which=lambda _: "brctl"))
+
+    def test_real_failures_print_the_registry_log(self):
+        ctx = ScriptedCtx({})
+        ctx.samples = samples(([], True), (["a.mp3"], True), ([], False))
+        dump = cloud.scenario_dump(ctx)
+        self.assertEqual([line.split() for line in dump.splitlines()],
+                         [["1", "started", "-", "a.mp3", "held"],
+                          ["2", "completed", "-", "a.mp3"]])
 
 
 if __name__ == "__main__":

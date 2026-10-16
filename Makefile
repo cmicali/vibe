@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-ios test-ios-summary test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -99,6 +99,10 @@ compile-commands: project
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
 # `make -j3 test test-audio` runs both suites at once: test-audio has its own
 # derived data, since two xcodebuilds cannot share one.
+# ARGS='-only-testing:VibeTests/<Class>' narrows a run. COVERAGE=1 measures
+# coverage, which test-summary reports. CI passes it. It adds about a quarter
+# to a clean run's time, so it is off by default.
+COVERAGE_FLAG = $(if $(filter 1,$(COVERAGE)),-enableCodeCoverage YES)
 test: project check-cloud-scenarios
 	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
@@ -108,7 +112,32 @@ test: project check-cloud-scenarios
 	    -derivedDataPath build/DerivedData \
 	    -resultBundlePath $(RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
-	    test
+	    $(COVERAGE_FLAG) \
+	    $(ARGS) test
+
+# The iOS shell's views and controllers (VibeiOSTests), on a simulator, hosted
+# in the Debug app. IOS_DERIVED_DATA is its own by default, so it runs beside
+# `make test`. CI points it at build-ios's, so the app compiles once there.
+# IOS_TEST_DEVICE names the simulator; CI's runner has the default.
+# ARGS='-only-testing:VibeiOSTests/<Class>' narrows a run.
+IOS_TEST_DEVICE ?= iPhone 17
+IOS_DERIVED_DATA ?= build/iOSTestDerivedData
+IOS_RESULT_BUNDLE ?= build/iOSTestResults.xcresult
+test-ios: project
+	rm -rf $(IOS_RESULT_BUNDLE)
+	xcodebuild \
+	    -project Vibe.xcodeproj \
+	    -scheme VibeiOSTests \
+	    -configuration Debug \
+	    -destination 'platform=iOS Simulator,name=$(IOS_TEST_DEVICE)' \
+	    -derivedDataPath $(IOS_DERIVED_DATA) \
+	    -resultBundlePath $(IOS_RESULT_BUNDLE) \
+	    -collect-test-diagnostics never \
+	    $(IOS_SIM_SIGN) $(ARGS) test
+
+# The last `make test-ios` as a markdown pass/fail table, with the skip gate.
+test-ios-summary:
+	scripts/checks/test-summary.sh $(IOS_RESULT_BUNDLE)
 
 # One compiled PCM verifier shared by hardware and device-free audio tests.
 build/verify-bit-perfect: scripts/test/verify-bit-perfect.swift
@@ -132,10 +161,12 @@ test-bit-perfect: audio-fixtures
 # The render suite produces real PCM without opening hardware. ARGS can narrow
 # XCTest, and reaches the build too, so a sanitizer flag builds what it tests.
 # Under `make -j` its two prerequisites run side by side. The bundle compiles
-# as the fixtures generate.
+# as the fixtures generate. COVERAGE=1 applies as for `make test`, and to
+# both halves of the split.
 AUDIO_RESULT_BUNDLE ?= build/AudioTestResults.xcresult
 AUDIO_XCODEBUILD = scripts/build/build-lock.sh xcodebuild -project Vibe.xcodeproj -scheme VibeAudioTests \
-    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData
+    -configuration Debug -destination 'platform=macOS' -derivedDataPath build/AudioDerivedData \
+    $(COVERAGE_FLAG)
 test-audio: audio-test-bundle audio-fixtures
 	rm -rf $(AUDIO_RESULT_BUNDLE)
 	$(AUDIO_XCODEBUILD) -resultBundlePath $(AUDIO_RESULT_BUNDLE) -collect-test-diagnostics never \

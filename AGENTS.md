@@ -46,7 +46,8 @@ All of these run in CI (`.github/workflows/build.yml`).
 | --- | --- |
 | `make test` | Host-less unit and orchestration tests (`Tests/`, always Debug) plus the cloud-runner oracle tests. **Read `Tests/AGENTS.md` before adding to it.** |
 | `make test-audio` | The real player and FX pipeline driven by the debug render pump, full PCM comparisons and signal-quality checks; no app or audio device. See `Tests/AGENTS.md`. |
-| `make test-summary` | Markdown pass/fail table from the last `make test`. |
+| `make test-ios` | The iOS shell's views and controllers (`Tests/iOSSim/`), hosted in the Debug app on a simulator. `IOS_TEST_DEVICE` names the simulator. See `Tests/AGENTS.md`. |
+| `make test-summary` | Markdown pass/fail table from the last `make test`, with the skip gate. `test-audio-summary` and `test-ios-summary` read the other two suites. |
 | `make analyze CONFIG=Release` | clang static analyzer over **both** app targets. Fails on any finding outside `ThirdParty/`. Findings depend on the configuration, and CI checks Release. |
 | `make check-layout` | The layout rule below. |
 | `make check-vocabulary` | The mechanical vocabulary rules below, and no doc line over 1500 characters. |

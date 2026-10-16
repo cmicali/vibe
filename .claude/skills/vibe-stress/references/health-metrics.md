@@ -1,6 +1,6 @@
 # The `dump_health` metrics
 
-What each metric counts, which are trustworthy at rest, and why the footprint is not a leak signal. Read when a `resource` failure fires or before adding a metric or limit.
+What each metric counts, which are trustworthy at rest, and why the footprint is not a leak signal. Read when a `resource` or `stalled` failure fires or before adding a metric or limit.
 
 ## The `pending` counters
 
@@ -27,6 +27,30 @@ App-owned work that must unwind at rest. `quiesce` polls until all are zero and 
 - `renderCycles`, `renderMeanMicros` and `renderMaxMicros` are the callback's cost. Diff the cycles and the mean across a run. Read the max against the device's buffer period, since a max near it is the dropout before it happens.
 - `clear_render_counters` zeroes all five, for a per-phase reading.
 - `retiredFades` (under `pending`) and `hostedUnits` (under `app`) fail apart. A voice that never reports its end strands a fade while the unit count stays flat. The unit count covers hosted FX units. It excludes the output unit and the custom varispeed. Enabling FX can raise it.
+
+## The progress oracle
+
+A capability that stops being attempted grows nothing, hangs nothing and breaks no rule, so only progress can show it. Each batch takes one sample from the `dump_state` and `dump_health` it already reads (`progress_sample`):
+
+- **Demand**: `playlist.resolvedRows` below `count`, or `pending.cloudParsesPending` above 0. A failed parse lands metadata too, so a broken file is not demand.
+- **Progress**: one signature of `requestsReady + requestsFailed + handleOpensCompleted`, the resolved rows, the row count and the pending cloud parses. Any change is progress, including a replaced playlist.
+- **Gates**: `materialization.foregroundTransferActive`, `pending.cloudLaneHeld`, `app.playerLoading`, any running transfer (`interactiveRunning` or `backgroundRunning`), and a parse in flight (`pending.metadataHolders`). A gate legitimately parks the sweep. A running transfer or parse is work still attempted, however slow, such as the fake provider's stuck tail or a long MP3 in a -O0 build. A parse that never returns holds `metadataHolders` at rest, where `quiesce` catches it.
+
+**Four samples with demand, no gate and one signature fail as `stalled`.** Four samples span three batches, at least 75 ops. The sweep's deferral is two seconds, so a healthy sweep moves the signature well inside it. The first sample of the window is its baseline, as the health oracle's first samples are. A gate that never lifts is not scored here. `cloud.hold_outlives_playback` catches the hold outliving playback. `quiesce`'s zero `pending` counters catch anything held at rest. `cloud.handle_open_stranded` catches a stranded handle run.
+
+**The equalizer and playback probe** runs after each `quiesce`, in place of the reopen. It plays `equalizer_reference`: the first corpus file by path whose name does not suggest silence (`SILENT_NAMES`). It seeks to 40% of the track, past a quiet intro, and takes `dump_state` and `dump_equalizer` twice, 0.8 s apart. It is scored only when both samples show the reference playing, not buffering, levels enabled and a running display link, since a running poller means the bars are visible and sourced. Then the position must move, `audio.publications` must rise, and one band must be nonzero. A position that went backwards is Repeat One restarting a short reference, not a stall. `--silent` zeroes after the meter, so the bars stay live under it. The run prints how many probes were scored. A hidden playlist or an occluded window scores none.
+
+## The resting slope
+
+The absolute resting limits admit a slow leak. 64 MB of live heap over an hour-long run is a leak that never fails. So the resting series is also fitted by least squares against sample index (`resting_slope_findings`):
+
+| Metric | Rate per resting sample | Floor |
+| --- | --- | --- |
+| `mallocLiveBytes` | 64 MB / 400 ≈ 164 KB | 8 MB |
+| `views` | 40 / 400 = 0.1 | 5 |
+| `machPorts` | 300 / 400 = 0.75 | 37.5 |
+
+**The rate is the resting limit divided by a long run's resting samples.** A long run is 100,000 ops. At 25 ops per batch and a resting sample every 10 batches, that is 400 samples. A leak at the rate would just reach the absolute limit by the end. **The floor is an eighth of the limit.** The fitted growth across the series must clear it, so allocator noise in a short run is not a slope. **Both halves of the series must rise faster than the rate as well.** One bounded step, such as the pitch panel's views, lands in one half only. Scoring starts at eight resting samples. `--ignore-metric` stands a metric down here too.
 
 ## `quiesce`
 

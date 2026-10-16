@@ -9,6 +9,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
+#import "BrowserRules.h"
 #import "DropboxMirror.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
@@ -31,14 +32,15 @@ static NSString *const kItemCellIdentifier = @"item";
 static const CFTimeInterval kRelistInterval = 60;
 // A larger selection lifts its first rows only: the rest would be a blur.
 static const NSUInteger kMaximumLiftedRows = 6;
-// Whole folders can exceed this audio-entry limit. CUE expansion adds more rows.
-static const NSUInteger kMaximumSubfolderTracks = 2000;
-static const NSUInteger kMaximumSubfolders = 500;
-// A listing at least this long gets the filter field; a short one is read
-// at a glance and the field would only cost its height.
-static const NSUInteger kFilterThreshold = 12;
 // How long Open Folder keeps the file it came from highlighted.
 static const NSTimeInterval kHighlightInterval = 1.2;
+// Play with Subfolders stops after this many listed audio entries or visited
+// folders. Whole folders can exceed the entry limit. CUE expansion adds more rows.
+static const NSUInteger kMaximumSubfolderTracks = 2000;
+static const NSUInteger kMaximumSubfolders = 500;
+// A listing at least this long gets the filter field. A short one is read at
+// a glance, and the field would only cost its height.
+static const NSUInteger kFilterThreshold = 12;
 
 @implementation FolderViewController
 
@@ -361,24 +363,27 @@ static const NSTimeInterval kHighlightInterval = 1.2;
 }
 
 - (void)refreshEmptyState {
-    if (!self.isEmpty) {
-        // A filter that matches nothing is a search with no results.
-        self.contentUnavailableConfiguration = _folders.count == 0 && _files.count == 0
-                ? [UIContentUnavailableConfiguration searchConfiguration] : nil;
-        return;
-    }
-    if (_refreshing) {
-        self.contentUnavailableConfiguration = [UIContentUnavailableConfiguration loadingConfiguration];
-        return;
-    }
-    UIContentUnavailableConfiguration *empty = [UIContentUnavailableConfiguration emptyConfiguration];
-    if (_refreshError) {
-        empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
-        empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
-    }
-    else {
-        empty.image = [UIImage systemImageNamed:@"music.note"];
-        empty.text = STR_ERROR_FOLDER_EMPTY;
+    UIContentUnavailableConfiguration *empty = nil;
+    switch (VibeBrowserFolderEmptyStateFor(_allFolders.count + _allFiles.count, _folders.count + _files.count,
+                                           _refreshing, _refreshError != nil)) {
+        case VibeBrowserFolderEmptyStateNone:
+            break;
+        case VibeBrowserFolderEmptyStateNoMatches:
+            empty = [UIContentUnavailableConfiguration searchConfiguration];
+            break;
+        case VibeBrowserFolderEmptyStateLoading:
+            empty = [UIContentUnavailableConfiguration loadingConfiguration];
+            break;
+        case VibeBrowserFolderEmptyStateUnavailable:
+            empty = [UIContentUnavailableConfiguration emptyConfiguration];
+            empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
+            empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
+            break;
+        case VibeBrowserFolderEmptyStateEmpty:
+            empty = [UIContentUnavailableConfiguration emptyConfiguration];
+            empty.image = [UIImage systemImageNamed:@"music.note"];
+            empty.text = STR_ERROR_FOLDER_EMPTY;
+            break;
     }
     self.contentUnavailableConfiguration = empty;
 }

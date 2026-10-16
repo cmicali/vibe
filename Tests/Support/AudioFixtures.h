@@ -8,10 +8,13 @@
 //  bare RIFF cannot carry — a channel layout, or a codec. VibeReferenceResample
 //  is the one reference conversion. VibeFitTones is the one tone fit, with
 //  VibeFitTone and VibeDB beside it, which both quality measurements share. VibeRangedPCMFormat is a device's offered
-//  format, for the bit-perfect format rules.
+//  format, for the bit-perfect format rules. VibeToneBuffer is the one test tone, and VibeImageOfColor the one
+//  solid-color image. VibeFuzzRandom and VibeFuzzBaseSeed are the fuzz classes' generator and seed.
 //
 
 #import <AVFoundation/AVFoundation.h>
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "AudioFileHandle.h"
 #import "AudioResampler.h"
@@ -28,6 +31,69 @@ static inline AudioStreamRangedDescription VibeRangedPCMFormat(double rate, UInt
     r.mSampleRateRange.mMinimum = rate;
     r.mSampleRateRange.mMaximum = rate;
     return r;
+}
+
+// xorshift64*, chosen for being four lines rather than for its statistics.
+// A state of 0 stays 0, so a seed must be nonzero.
+typedef struct { uint64_t state; } VibeFuzzRandom;
+
+static inline uint64_t VibeFuzzNext(VibeFuzzRandom *random) {
+    uint64_t x = random->state;
+    x ^= x >> 12;
+    x ^= x << 25;
+    x ^= x >> 27;
+    random->state = x;
+    return x * 0x2545F4914F6CDD1DULL;
+}
+
+static inline NSUInteger VibeFuzzBelow(VibeFuzzRandom *random, NSUInteger bound) {
+    return bound ? (NSUInteger)(VibeFuzzNext(random) % bound) : 0;
+}
+
+// VIBE_FUZZ_SEED in decimal or 0x hex, else `fallback`. Fixed by default: a
+// suite that explores new inputs on every run passes and fails at random.
+static inline uint64_t VibeFuzzBaseSeed(uint64_t fallback) {
+    NSString *seed = NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_SEED"];
+    return seed ? strtoull(seed.UTF8String, NULL, 0) : fallback;
+}
+
+// `frames` of a 440 Hz tone at about -12 dBFS, every channel alike, interleaved
+// int16 or float32.
+static inline AVAudioPCMBuffer *VibeToneBuffer(AVAudioFrameCount frames, double rate, AVAudioChannelCount channels,
+                                               AVAudioCommonFormat format) {
+    AVAudioFormat *pcm = [[AVAudioFormat alloc] initWithCommonFormat:format sampleRate:rate channels:channels
+                                                         interleaved:YES];
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:pcm frameCapacity:frames];
+    buffer.frameLength = frames;
+    for (AVAudioFrameCount i = 0; i < frames; i++) {
+        int16_t sample = (int16_t)(8000 * sin(2 * M_PI * 440 * i / rate));
+        for (AVAudioChannelCount c = 0; c < channels; c++) {
+            if (format == AVAudioPCMFormatInt16) buffer.int16ChannelData[0][i * channels + c] = sample;
+            else buffer.floatChannelData[0][i * channels + c] = sample / 32768.0f;
+        }
+    }
+    return buffer;
+}
+
+// A side x side image of one opaque sRGB color, PNG or JPEG.
+static inline NSData *VibeImageOfColor(size_t side, CGFloat red, CGFloat green, CGFloat blue, BOOL jpeg) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = CGBitmapContextCreate(NULL, side, side, 8, 0, space,
+                                                 (CGBitmapInfo)kCGImageAlphaNoneSkipLast);
+    CGContextSetRGBFillColor(context, red, green, blue, 1);
+    CGContextFillRect(context, CGRectMake(0, 0, side, side));
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    NSMutableData *data = [NSMutableData data];
+    CGImageDestinationRef destination = CGImageDestinationCreateWithData(
+            (__bridge CFMutableDataRef)data,
+            (__bridge CFStringRef)(jpeg ? UTTypeJPEG : UTTypePNG).identifier, 1, NULL);
+    CGImageDestinationAddImage(destination, image, NULL);
+    CGImageDestinationFinalize(destination);
+    CFRelease(destination);
+    CGImageRelease(image);
+    CGContextRelease(context);
+    CGColorSpaceRelease(space);
+    return data;
 }
 
 // A canonical 44-byte-header WAV of `bits` per sample (16 or 24 integer, 32
@@ -233,14 +299,44 @@ static inline NSData *VibeMP3WithoutVBRHeader(uint32_t frames, uint32_t rate, ui
     return bytes;
 }
 
+// VibeMP3WithoutVBRHeader's frames at 44.1 kHz behind a 128 kbps Xing frame.
+// The Xing frame counts the frames and bytes and carries a 100-entry seek
+// TOC. That is the VBR header LAME writes, without its LAME extension.
+static inline NSData *VibeMP3WithXingFrame(uint32_t frames, uint8_t (^index)(uint32_t frame)) {
+    static const uint32_t kbps[15] = {0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320};
+    NSData *body = VibeMP3WithoutVBRHeader(frames, 44100, index);
+    NSMutableData *bytes = [NSMutableData dataWithLength:417];
+    uint8_t *out = (uint8_t *)bytes.mutableBytes;
+    const uint8_t header[4] = {0xFF, 0xFB, 0x90, 0x00};
+    memcpy(out, header, sizeof(header));
+    memcpy(out + 36, "Xing", 4);
+    const uint32_t fields[3] = {CFSwapInt32HostToBig(7), CFSwapInt32HostToBig(frames + 1),
+                                CFSwapInt32HostToBig((uint32_t)(417 + body.length))};
+    memcpy(out + 40, fields, sizeof(fields));
+    // Entry i is where i percent of the frames starts, in 256ths of the audio.
+    uint64_t offset = 0;
+    uint32_t frame = 0;
+    for (uint32_t i = 0; i < 100; i++) {
+        for (; frame < (uint64_t)frames * i / 100; frame++) {
+            offset += 144 * kbps[index(frame)] * 1000 / 44100;
+        }
+        out[52 + i] = (uint8_t)MIN((uint64_t)255, offset * 256 / body.length);
+    }
+    [bytes appendData:body];
+    return bytes;
+}
+
 // Writes `buffer` as the container its name says — WAV, AIFC for .aif, W64
 // for .w64, CAF for .caf — in the buffer's own sample format, interleaved,
-// with its channel layout.
+// with its channel layout. A .flac is Apple's encode, as afconvert writes it,
+// with no seek table: 16-bit from an int16 buffer, else 24-bit.
 static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSError **error) {
     AVAudioFormat *format = buffer.format;
     NSString *extension = url.pathExtension.lowercaseString;
     BOOL aiff = [extension hasPrefix:@"aif"];
+    BOOL flac = [extension isEqualToString:@"flac"];
     AudioFileTypeID type = aiff ? kAudioFileAIFCType
+            : flac ? kAudioFileFLACType
             : [extension isEqualToString:@"w64"] ? kAudioFileWave64Type
             : [extension isEqualToString:@"caf"] ? kAudioFileCAFType
             : kAudioFileWAVEType;
@@ -248,6 +344,13 @@ static inline NSURL *VibeWriteFixture(NSURL *url, AVAudioPCMBuffer *buffer, NSEr
     file.mFormatFlags = (file.mFormatFlags & ~(UInt32)kAudioFormatFlagIsNonInterleaved) | (aiff ? kAudioFormatFlagIsBigEndian : 0);
     file.mBytesPerFrame = file.mBitsPerChannel / 8 * file.mChannelsPerFrame;
     file.mBytesPerPacket = file.mBytesPerFrame;
+    if (flac) {
+        file = (AudioStreamBasicDescription){
+            .mSampleRate = format.sampleRate, .mFormatID = kAudioFormatFLAC,
+            .mFormatFlags = format.commonFormat == AVAudioPCMFormatInt16 ? kAppleLosslessFormatFlag_16BitSourceData
+                                                                         : kAppleLosslessFormatFlag_24BitSourceData,
+            .mChannelsPerFrame = format.channelCount};
+    }
     AVAudioFormat *fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&file channelLayout:format.channelLayout];
     AudioFileHandle *handle = [[AudioFileHandle alloc] initForWriting:url fileType:type
                                                            fileFormat:fileFormat processingFormat:format error:error];

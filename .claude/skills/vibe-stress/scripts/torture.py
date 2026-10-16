@@ -6,9 +6,11 @@ hammers transport, so track changes outrun the metadata scan, the waveform
 load and the analyzers, and seeks land on a track already replaced. Each burst
 is one `script -` invocation, which is what drives it faster than the fuzzer.
 
-Oracles between bursts: the app is alive, check_consistency is clean, and
-dump_health's fds / hosted units / pending counters / live heap have not run
-away. --seed N repeats choices when the app returns the same state.
+Oracles between bursts: the app is alive, check_consistency is clean, a
+playing track's position advances once any open the burst left in flight has
+settled (`stalled`), and dump_health's fds / hosted units / pending counters /
+live heap have not run away. --seed N repeats choices when the app returns
+the same state.
 """
 
 import argparse
@@ -185,6 +187,61 @@ def surviving_violations(app, settle=0.4):
     return [v for v in second["violations"] if v["id"] in ids] or None
 
 
+# A burst can end mid-open: the checkpoint waits this long for the player to
+# settle before it judges progress, and skips the check if it never does.
+OPEN_GRACE_SECONDS = 5.0
+PROGRESS_INTERVAL = 0.6
+
+
+def settled_playing(state):
+    """The playing row, as (url, row index), when the player is playing a
+    settled open, else None: paused, stopped, buffering or still loading is
+    not scored. The row index is part of the identity because a cue sheet's
+    rows share one url."""
+    state = state or {}
+    player = state.get("player") or {}
+    if (player.get("state") != "playing" or player.get("buffering")
+            or (state.get("ui") or {}).get("displayState") == "loading"):
+        return None
+    url = (state.get("currentTrack") or {}).get("url")
+    return (url, (state.get("playlist") or {}).get("currentIndex")) if url else None
+
+
+# A held position reads the same twice. A position that went backwards is a
+# transition the samples straddled (Repeat One replaying the row, or a cue
+# row's window ending), not a stall.
+POSITION_HELD_SECONDS = 0.001
+
+
+def position_stalled(first, second):
+    """True when the same settled row played across both samples and its
+    position held still; None when the pair is not scored."""
+    row = settled_playing(first)
+    if not row or settled_playing(second) != row:
+        return None
+    return abs(second["player"]["position"] - first["player"]["position"]) <= POSITION_HELD_SECONDS
+
+
+def playback_checkpoint(app):
+    """Wait out an open the burst left in flight, then require the position
+    to advance. Returns a failure message or None."""
+    deadline = time.time() + OPEN_GRACE_SECONDS
+    first = app.json("dump_state")
+    while first and not settled_playing(first) and time.time() < deadline:
+        if (first.get("player") or {}).get("state") in ("paused", "stopped"):
+            return None
+        time.sleep(0.25)
+        first = app.json("dump_state")
+    if not settled_playing(first):
+        return None
+    time.sleep(PROGRESS_INTERVAL)
+    second = app.json("dump_state")
+    if position_stalled(first, second):
+        return (f"playback stalled: {settled_playing(first)[0]} held at "
+                f"{second['player']['position']:.3f}s while playing")
+    return None
+
+
 def health_of(app):
     h = app.json("dump_health")
     if not h:
@@ -205,7 +262,7 @@ def health_of(app):
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--app", required=True)
     ap.add_argument("--playlist", required=True, help="folder to open as ONE playlist")
     ap.add_argument("--seed", type=int, default=None)
@@ -301,6 +358,12 @@ def main():
             if surviving:
                 print(f"\nFAILED: consistency violation in phase {phase}, burst {r}")
                 print(json.dumps(surviving, indent=2))
+                print("last ops:", " | ".join(ops[-12:]))
+                return 1
+
+            stalled = playback_checkpoint(app)
+            if stalled:
+                print(f"\nFAILED: stalled in phase {phase}, burst {r}: {stalled}")
                 print("last ops:", " | ".join(ops[-12:]))
                 return 1
 

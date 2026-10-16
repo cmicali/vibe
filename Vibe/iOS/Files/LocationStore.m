@@ -6,8 +6,6 @@
 #import "LocationStore.h"
 #import "FilePaths.h"
 
-#import <UIKit/UIKit.h>
-
 #import "DropboxMirror.h"
 #import "FileSearchRules.h"
 #import "LocationStoreInternal.h"
@@ -23,6 +21,9 @@ static NSString *const kSearchFolderRestoreSuppressionsKey =
 static NSString *const kSuppressedBookmarkKey = @"bookmark";
 static NSString *const kSuppressedRootPathsKey = @"rootPaths";
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
+
+// Main only. The app delegate sets UIDevice's name before any scene connects.
+static NSString *sDeviceModelName = @"iPhone";
 
 @interface LocationEntry : NSObject
 @property (nonatomic) NSURL *url;
@@ -69,7 +70,6 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 @end
 
 @interface LocationStore ()
-- (instancetype)initPrivate;
 - (void)releaseSessionGrantForEntry:(LocationEntry *)entry;
 @end
 
@@ -151,6 +151,14 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
 #pragma mark - Reading
 
++ (NSString *)deviceModelName {
+    return sDeviceModelName;
+}
+
++ (void)setDeviceModelName:(NSString *)deviceModelName {
+    sDeviceModelName = [deviceModelName copy];
+}
+
 - (NSArray<NSURL *> *)folderURLs {
     NSMutableArray<NSURL *> *urls = [NSMutableArray arrayWithCapacity:_folders.count];
     for (LocationEntry *folder in _folders) {
@@ -189,7 +197,7 @@ static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
     });
     NSString *path = VibeComparablePath(url.path);
     if ([path isEqualToString:documentsPath]) {
-        return [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, UIDevice.currentDevice.localizedModel];
+        return [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, sDeviceModelName];
     }
     for (LocationEntry *folder in LocationStore.shared->_folders) {
         if ([VibeComparablePath(folder.url.path) isEqualToString:path]) {

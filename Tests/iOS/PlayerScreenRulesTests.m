@@ -97,4 +97,61 @@
     }
 }
 
+#pragma mark - Duration and a scrub
+
+- (void)testTheScreensDrawThePlayersDurationElseTheMetadatas {
+    XCTAssertEqual(VibePlayerScreenDuration(200, 180), 200);
+    XCTAssertEqual(VibePlayerScreenDuration(0, 180), 180);
+    XCTAssertEqual(VibePlayerScreenDuration(0, 0), 0);
+}
+
+- (void)testAScrubWithAPlayerDurationSeeksThePlayer {
+    XCTAssertEqual(VibePlayerScrubActionFor(200, YES, NO, NO, 0), VibePlayerScrubActionSeekPlayer);
+    XCTAssertEqual(VibePlayerScrubActionFor(200, NO, NO, NO, 0), VibePlayerScrubActionSeekPlayer);
+}
+
+- (void)testAScrubOnAParkedTrackOpensItPausedNeverPlays {
+    XCTAssertEqual(VibePlayerScrubActionFor(0, YES, YES, NO, 180), VibePlayerScrubActionOpenParked);
+    XCTAssertEqual(VibePlayerScrubActionFor(0, YES, YES, YES, 180), VibePlayerScrubActionOpenParked,
+                   @"a second scrub rebinds the parked open");
+}
+
+- (void)testAScrubBeforeTheMetadataHoldsItsTarget {
+    XCTAssertEqual(VibePlayerScrubActionFor(0, YES, YES, NO, 0), VibePlayerScrubActionHold);
+    XCTAssertEqual(VibePlayerScrubActionFor(0, YES, NO, YES, 0), VibePlayerScrubActionHold);
+}
+
+- (void)testAScrubIntoAnOpenSeeksByTheMetadata {
+    XCTAssertEqual(VibePlayerScrubActionFor(0, YES, NO, YES, 180), VibePlayerScrubActionSeekPlayer);
+}
+
+- (void)testAScrubWithNothingToSeekIsIgnored {
+    XCTAssertEqual(VibePlayerScrubActionFor(0, NO, YES, YES, 180), VibePlayerScrubActionIgnore);
+    XCTAssertEqual(VibePlayerScrubActionFor(0, YES, NO, NO, 180), VibePlayerScrubActionIgnore,
+                   @"stopped, with no open to seek into");
+}
+
+#pragma mark - The pager
+
+- (void)testNextDimsOnlyOnTheLastPageUnlessRepeatAll {
+    XCTAssertTrue(VibePlayerPageNextEnabled(1, 0, 3, NO, NO));
+    XCTAssertFalse(VibePlayerPageNextEnabled(2, 0, 3, YES, NO), @"the last page arrives dimmed");
+    XCTAssertTrue(VibePlayerPageNextEnabled(2, 0, 3, NO, YES), @"under Repeat All no page is last");
+}
+
+- (void)testTheCurrentPageAsksThePlaylist {
+    XCTAssertFalse(VibePlayerPageNextEnabled(1, 1, 3, NO, NO), @"under shuffle only the playlist knows");
+    XCTAssertTrue(VibePlayerPageNextEnabled(2, 2, 3, YES, NO));
+}
+
+- (void)testThePageWindowIsClampedToThePlaylist {
+    XCTAssertTrue(NSEqualRanges(VibePlayerPageWindow(0, 0, 2), NSMakeRange(0, 0)));
+    XCTAssertTrue(NSEqualRanges(VibePlayerPageWindow(10, 5, 2), NSMakeRange(3, 5)));
+    XCTAssertTrue(NSEqualRanges(VibePlayerPageWindow(10, 0, 2), NSMakeRange(0, 3)));
+    XCTAssertTrue(NSEqualRanges(VibePlayerPageWindow(10, 9, 1), NSMakeRange(8, 2)));
+    XCTAssertTrue(NSEqualRanges(VibePlayerPageWindow(1, 0, 1), NSMakeRange(0, 1)));
+    XCTAssertTrue(NSEqualRanges(VibePlayerPageWindow(4, NSNotFound, 1), NSMakeRange(2, 2)),
+                  @"a cursor past the end counts as the last page");
+}
+
 @end

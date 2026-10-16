@@ -16,12 +16,14 @@
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
 #import "FavoritesStore.h"
+#import "FolderViewControllerInternal.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
 #import "PlayerViewController+Debug.h"
 #import "LocationStore.h"
+#import "RecentsStore.h"
 #import "WaveformRendererRegistry.h"
 
 // What the system's Paste hands its target for copied text. Text that
@@ -150,6 +152,45 @@ static NSDictionary *VibeFavoritesDictionary(void) {
                           @"path": favorite.path}];
     }
     return @{@"favorites": rows};
+}
+
+#pragma mark Files tab
+
+// A folder screen's row names as its listing has drawn them so far, one
+// array per VibeBrowserSection. The listing lands off main, so a caller polls
+// until the row it wants is there.
+static NSArray<NSArray<NSString *> *> *VibeBrowserRows(FolderViewController *folder) {
+    NSMutableArray<NSArray<NSString *> *> *sections = [NSMutableArray array];
+    for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
+        NSMutableArray<NSString *> *names = [NSMutableArray array];
+        NSURL *url;
+        for (NSInteger row = 0; (url = [folder itemAtIndexPath:[NSIndexPath indexPathForRow:row inSection:section]]); row++) {
+            [names addObject:url.lastPathComponent];
+        }
+        [sections addObject:names];
+    }
+    return sections;
+}
+
+// The top screen of the Files tab's stack and, on a folder screen, its rows.
+static NSDictionary *VibeBrowserDictionary(UINavigationController *stack) {
+    UIViewController *top = stack.topViewController;
+    NSArray<NSArray<NSString *> *> *rows = [top isKindOfClass:FolderViewController.class]
+            ? VibeBrowserRows((FolderViewController *)top) : @[@[], @[]];
+    return @{@"ok": @YES, @"depth": @(stack.viewControllers.count - 1),
+             @"title": top.navigationItem.title ?: top.title ?: @"",
+             @"folders": rows[VibeBrowserSectionFolders], @"files": rows[VibeBrowserSectionFiles]};
+}
+
+static NSIndexPath *VibeBrowserRowNamed(FolderViewController *folder, NSString *name) {
+    NSArray<NSArray<NSString *> *> *rows = VibeBrowserRows(folder);
+    for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
+        NSUInteger row = [rows[section] indexOfObject:name];
+        if (row != NSNotFound) {
+            return [NSIndexPath indexPathForRow:(NSInteger)row inSection:section];
+        }
+    }
+    return nil;
 }
 
 #pragma mark Command table
@@ -487,6 +528,71 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 controller.selectedTabIdentifier = identifier;
                 return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.selectedTabIdentifier});
+            }),
+            // The Files tab's stack without a touch. show builds it through
+            // Open Folder's road. tap is a row's didSelectRow:, so a folder
+            // pushes and a file plays alone. play is the bar's play button.
+            // back pops. Every form answers the top screen's rows.
+            VibeDebugCmd(@"browse [show <directory> | tap <name> | play | back]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                FilesRootViewController *browser = controller.filesBrowser;
+                UINavigationController *stack = browser.navigationController;
+                if (!stack) {
+                    return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
+                }
+                NSString *action = tokens.count > 1 ? tokens[1] : @"";
+                NSString *argument = tokens.count > 2
+                        ? [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] componentsJoinedByString:@" "]
+                        : nil;
+                FolderViewController *folder = [stack.topViewController isKindOfClass:FolderViewController.class]
+                        ? (FolderViewController *)stack.topViewController : nil;
+                if ([action isEqualToString:@"show"] && argument) {
+                    [browser showDirectory:[NSURL fileURLWithPath:argument isDirectory:YES] highlighting:nil];
+                }
+                else if ([action isEqualToString:@"tap"] && argument) {
+                    NSIndexPath *row = folder ? VibeBrowserRowNamed(folder, argument) : nil;
+                    if (!row) {
+                        return VibeErrorJSON(@"no row named '%@' on the top folder screen", argument);
+                    }
+                    [folder tableView:folder.tableView didSelectRowAtIndexPath:row];
+                }
+                else if ([action isEqualToString:@"play"]) {
+                    if (!folder) {
+                        return VibeErrorJSON(@"play needs a folder screen on top");
+                    }
+                    [folder openDirectory];
+                }
+                else if ([action isEqualToString:@"back"]) {
+                    [stack popViewControllerAnimated:NO];
+                }
+                else if (action.length > 0) {
+                    return VibeErrorJSON(@"usage: browse [show <directory> | tap <name> | play | back]");
+                }
+                return VibeJSONString(VibeBrowserDictionary(stack));
+            }),
+            // Every open records a recent, and Recents is persisted. save
+            // keeps a copy in memory. restore writes it back. The copy dies
+            // with the app.
+            VibeDebugCmd(@"recents [save | restore]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                static NSArray<NSDictionary *> *saved;
+                NSString *action = tokens.count > 1 ? tokens[1] : @"";
+                if ([action isEqualToString:@"save"]) {
+                    saved = RecentsStore.shared.recentItems;
+                }
+                else if ([action isEqualToString:@"restore"]) {
+                    if (!saved) {
+                        return VibeErrorJSON(@"nothing saved (recents save first)");
+                    }
+                    [RecentsStore.shared clearRecentItems];
+                    [RecentsStore.shared recordRecentItems:saved];
+                }
+                else if (action.length > 0) {
+                    return VibeErrorJSON(@"usage: recents [save | restore]");
+                }
+                NSMutableArray<NSDictionary *> *items = [NSMutableArray array];
+                for (NSDictionary *item in RecentsStore.shared.recentItems) {
+                    [items addObject:@{@"path": item[@"path"] ?: @"", @"folder": item[@"folder"] ?: @NO}];
+                }
+                return VibeJSONString(@{@"ok": @YES, @"items": items, @"saved": saved ? @(saved.count) : NSNull.null});
             }),
         ];
         table = [own arrayByAddingObjectsFromArray:VibeDebugDropboxVerbs()];

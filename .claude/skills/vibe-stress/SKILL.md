@@ -5,7 +5,7 @@ description: Stress, soak, fuzz, and torture the running Vibe app against a fold
 
 # Stress and fuzz testing Vibe
 
-**Read the `vibe-debug` skill first.** Everything here rides its `--debug-cmd` channel and launches through its `launch.sh`, so its traps (grant rules, off-hardware flags, two-instance raciness, the stale-binary check) all apply. The oracle verbs (`dump_health`, `check_consistency`, `quiesce`, `dump_cloud_trace`) are ordinary channel commands.
+**Read the `vibe-debug` skill first.** Everything here rides its `--debug-cmd` channel and launches through its `launch.sh`, so its traps (grant rules, off-hardware flags, two-instance raciness, the stale-binary check) all apply. The oracle verbs (`dump_health`, `check_consistency`, `quiesce`, `dump_cloud_trace`, `dump_equalizer`) are ordinary channel commands.
 
 Needs a **Debug** build, since the channel compiles out of Release. Each script's `--help` is the authority on its flags.
 
@@ -34,10 +34,11 @@ make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600 --iterati
 
 By default, validated batches travel through one `script -` invocation. `--no-batch` uses one client per operation when individual timing matters.
 
-**iOS stress and replay.** `stress.py --ios <exact simulator UUID>` attaches through `debug-ios.sh` to an already launched Debug app. It never launches, rebuilds, terminates or drives a phone. Use a dedicated simulator that stays in the foreground, with no other driver on it. The run replaces the playlist, leaves playback paused, and restores repeat, shuffle and Pause at track end. FX must start enabled and released. A per-simulator lock excludes other instances of this runner.
+**iOS stress and replay.** `stress.py --ios <exact simulator UUID>` attaches through `debug-ios.sh` to an already launched Debug app. It never launches, rebuilds, terminates or drives a phone. Use a dedicated simulator that stays in the foreground, with no other driver on it. The run replaces the playlist and leaves playback paused. It restores repeat, shuffle and Pause at track end. It also restores the favorites it starred, Recents, the tab, the card and the route indicator, and disarms the fake Dropbox and web server. These restorers run on pass, failure, `^C` and SIGTERM. FX must start enabled and released. A per-simulator lock excludes other instances of this runner.
 
 ```bash
-# Seed at least two long local files; row 0 must be >= 60 s. VIBE_IOS_APP selects a build.
+# Seed at least two long local files; row 0 must be >= 60 s. Subfolders give
+# `browse` something to walk. VIBE_IOS_APP selects a build.
 VIBE_SIM_UDID=<uuid> .claude/skills/vibe-debug/scripts/launch-ios.sh <file1> <file2>
 DATA=$(xcrun simctl get_app_container <uuid> com.commonwealthrecordings.Vibe data)
 make stress CORPUS="$DATA/Documents/Music" ARGS="--ios <uuid> --seed 1152001 --iterations 200 --ios-rounds 3"
@@ -45,11 +46,11 @@ make stress CORPUS="$DATA/Documents/Music" ARGS="--ios <uuid> --seed 1152001 --i
 make stress CORPUS="$DATA/Documents/Music" ARGS="--ios <uuid> --replay build/stress/ios-<seed>-<unique>/replay.ndjson"
 ```
 
-Each iOS run writes a unique directory under `build/stress/` with the seed, arguments, build provenance, executable hash, a content-hashed corpus manifest, playback settings, every command and reply, a replay recipe and the result. Replay accepts a different build but refuses different corpus contents, folder order, crossfade or BPM settings. Recipes keep command and check order. Polls and their deadlines are regenerated, so original wall-clock timing is not reproduced.
+Each iOS run writes a unique directory under `build/stress/` with the seed, arguments, build provenance, executable hash, a content-hashed corpus manifest, playback settings, every command and reply, a replay recipe and the result. Replay accepts a different build but refuses different corpus contents, folder order, crossfade or BPM settings, or a different favorites list. Recipes keep command and check order. Polls and their deadlines are regenerated, so original wall-clock timing is not reproduced. The waits for a listing, an open's landing and a star are polls too.
 
-The lifecycle pass checks pause → actual idle → resume, a verified FX tail before idle, resume before idle, and replacement playback before idle. Random transport, seek, FX and burst operations follow, with position movement checked before any recovery play can hide a stall. Every batch plays row 0, verifies progress, pauses, drains output and checks consistency. `--iterations 0` runs lifecycle checks only. `--ios-rounds 0` skips them. SIGINT and SIGTERM stop driving and attempt bounded cleanup. SIGKILL cannot restore settings.
+The lifecycle pass checks pause → actual idle → resume, a verified FX tail before idle, resume before idle, and replacement playback before idle. Weighted ops follow (`IOS_WEIGHTS`): transport, seek, FX and burst, and the shell's screens. `tab`, `card`, `browse`, `search`, `favorite`, `route`, `page`, `fake_dropbox` and `link` are in `references/profiles.md`. Position movement is checked before any recovery play can hide a stall. Every batch reopens the corpus if an op replaced the playlist, then plays row 0, verifies progress, pauses, drains output and checks consistency. At the end, `dump_cloud_health`'s pending counters must reach zero, since iOS has no `quiesce`. The run prints how often each op was drawn and warns about an op that never did its work (`IOS_OP_PROOFS`). `--iterations 0` runs lifecycle checks only. `--ios-rounds 0` skips them. SIGINT and SIGTERM stop driving and attempt bounded cleanup. SIGKILL cannot restore settings.
 
-The default `--ios-output pump` verifies `noAudioHw` at startup. For **real RemoteIO**, relaunch with `VIBE_AUDIBLE=silent` and pass `--ios-output remoteio --isolated-host-audio`. That flag acknowledges a stable host default output (built-in speakers suit), no simultaneous macOS device, rate or exclusive tests, and no other simulator audio driver (`vibe-debug`'s iOS loop). The runner does not change host audio. A pump pass does not cover RemoteIO. Neither covers physical-device interruptions, route changes or background playback. The open RemoteIO abort is `docs/bugs/open-issues.md`, "iPad simulator aborts in RemoteIO stop".
+The default `--ios-output pump` verifies `noAudioHw` at startup. For **real RemoteIO**, relaunch with `VIBE_AUDIBLE=silent` and pass `--ios-output remoteio --isolated-host-audio`. That flag acknowledges a stable host default output (built-in speakers suit), no simultaneous macOS device, rate or exclusive tests, and no other simulator audio driver (`vibe-debug`'s iOS loop). The runner does not change host audio. A pump pass does not cover RemoteIO. Neither covers physical-device interruptions, route changes or background playback. The `route` op redraws only the indicator. The open RemoteIO abort is `docs/bugs/open-issues.md`, "iPad simulator aborts in RemoteIO stop".
 
 **The corpus.** `~/Music/big` stands for any folder of a few hundred distinct real files. With none, the drivers exit at startup. Without a library, build one from the generated audio. APFS-clone (`cp -c`) `build/streaming-fixtures/source/*` or `build/bench/corpus`'s `play/*` and `extra/*` (`python3 .claude/skills/vibe-perf/scripts/perf.py corpus` regenerates them) a dozen times each under distinct names, plus `Assets/test_audio_files/`, into `build/stress-corpus` (about 300 files). Distinct names give distinct cache keys. Grant it once with `launch.sh build/stress-corpus` before `run-torture.sh`, which direct-execs and cannot grant. `make clean` removes the corpus.
 
@@ -73,6 +74,8 @@ make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40 --seed N"
 ```
 
 The first two corpus folders must each hold 6–40 playable files. A clean report is **`PASS=24`** with no `FAIL` or `ERROR`. `XFAIL` does not fail the run. `XPASS`, `FAIL` and `ERROR` do, and an `XPASS` is a finding: the gap closed or the scenario stopped reaching it. The rules, the registry and the `block_main` instrument are in `references/cloud-scenarios.md`.
+
+`--provider real --folder <iCloud Drive folder>` runs 14 of the scenarios against a real provider, with no fake. Its folder preparation, assertions, limits and clean result (`PASS=14  SKIP=10`) are in that reference's "Real provider" section.
 
 The suite takes about ten minutes, and silence reads as stalled. Run it with its output in a file under a Monitor tailing that file (`tail -f <log> | grep -E --line-buffered ' \.\.\. .*(PASS|FAIL|ERROR)|PASS=|Traceback'`), and relay each scenario's outcome as it arrives. A busy check with `pgrep -f` matches the Monitor's own command line, so match `[Pp]ython[0-9]* .*cloud-scenarios\.py` instead.
 
@@ -126,7 +129,7 @@ launchctl setenv TSAN_OPTIONS \
 launchctl unsetenv TSAN_OPTIONS        # session-wide until unset
 ```
 
-`-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
+`--tsan-replay <journal>` with `--app` set to the TSan build does the setenv, the replay, the quit and the unsetenv in one step, then prints each report's first stack. It is the last step of a stress failure's chain (`references/sanitizers.md`). `-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
 
 ## Named gesture tests, separate from stress
 
@@ -139,7 +142,7 @@ Use these only when the gesture itself is under test, on a **dedicated test Mac 
 
 These are bounded tests of the pitch fader. They resolve and hit-test fresh geometry just before queuing a complete gesture and require the player and fader to reach the expected pitch. They restore the starting pitch and panel visibility even on failure. An unavailable or covered target fails rather than trying elsewhere. They cannot combine with replay or shrink. Other gestures are `vibe-debug`'s [OS-input reference](../vibe-debug/references/os-input.md). Normal stress makes no coverage claim for them.
 
-## The four oracles, and what a failure means
+## The five oracles, and what a failure means
 
 Checked between batches (`--batch`, default 25):
 
@@ -149,10 +152,11 @@ Checked between batches (`--batch`, default 25):
 | `check_consistency` | inconsistent state | violations surviving a settle and a second sample. Its `cloud.*` checks skip that filter, since their counters are cumulative and never transiently true |
 | `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, hosted units, render refusals and `pending` counters against a post-warmup baseline, plus a tighter at-rest series every `--quiesce-every` batches |
 | crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
+| progress | work that silently stops | Demand outstanding, progress flat and no gate in force fails. After each `quiesce`, a file with sound must advance its position and light the equalizer. `references/health-metrics.md` has the window, the gates and the probe |
 
-Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `client`. **`exit` is the app quitting, not dying**: gone with a fresh `.ips` is `crash`, gone without one is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.
+Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `stalled`, `command`, `client`. **`stalled` is work no longer attempted**: nothing grew, hung or died, yet nothing moved. **`exit` is the app quitting, not dying**: gone with a fresh `.ips` is `crash`, gone without one is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.
 
-**What no oracle catches: work that silently stops.** All four ask whether something grew, hung, went inconsistent or died, so a capability that stops being attempted passes every one. `quiesce`'s zero `pending` counters and `cloud.handle_open_stranded` catch the stranded-run form. The general check is not written. It would flag *demand outstanding* (`dump_state.playlist.resolvedRows` below `count`, or `cloudParsesPending` > 0) with *cumulative progress flat* across a window (the materialization coordinator's `requestsReady`, `requestsFailed` and `handleOpensCompleted`) and *no gate in force* (`foregroundTransferActive` false). Build it from those three before trusting a long cloud soak's silence. The same gap holds for the equalizer: the consistency oracle checks meter demand and output liveness, not nonzero signal. Drive a known non-silent fixture and read the equalizer counters (`vibe-debug`'s `references/equalizer-counters.md`). Playback has the same gap: real-output checkpoints must require position or rendered-frame progress on a known local track. A state-only check is not output coverage.
+**Work that silently stops is the progress oracle's.** The other four ask whether something grew, hung, went inconsistent or died, so a capability that stops being attempted passes every one. **A run that prints `0 of N probes scored` never checked the equalizer.** `references/health-metrics.md` has the oracle and the equalizer probe. Torture's position check is in `references/profiles.md`.
 
 **Reading a `resource` failure.**
 
@@ -160,7 +164,9 @@ Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `command`, `c
 - **`pending` counters must all be zero at rest.** A stranded claim is a few hundred bytes, invisible to any megabyte metric, yet it is work that will never finish. `quiesce` names the holdout.
 - The baseline is the element-wise **minimum of the first three samples** (two at rest). A metric fails only after **three consecutive** over-limit samples (two at rest).
 - `quiesce.pressureRelief.releasedBytes` is what `malloc_zone_pressure_relief` returned, mostly 0 after a heavy run.
-- `--ignore-metric NAME` stands down a finding that is already diagnosed, so it stops masking later findings.
+- **The resting series is scored by slope too.** Live heap, views and mach ports fail when both halves of the series and the whole rise faster than a long run could absorb. A slow leak then fails long before it crosses an absolute limit.
+- A resting mach-port failure under `playlist` reads `heap <pid>` itself and names the known AppKit row-view purgatory, or says it is a new finding (`references/profiles.md`).
+- `--ignore-metric NAME` stands down a finding that is already diagnosed, so it stops masking later findings. Read the driver's own note on the failure before reaching for it.
 
 Cross-check new metrics against the external tools in `references/health-metrics.md`.
 
@@ -171,14 +177,14 @@ Cross-check new metrics against the external tools in `references/health-metrics
 .claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --shrink <journal> --shrink-resting-mb 150
 ```
 
-`--shrink` delta-debugs the journal to a minimal op list, relaunching the app per candidate, and writes command-script lines for `run-script.sh`. The default predicate covers crashes, hangs and consistency violations. `--shrink-resting-mb N` adds an at-rest footprint above N MB, which chases high-water noise, so prefer a live-heap threshold. A crash that needs a cold cache reproduces only with a cold cache: clear caches before each candidate's trigger.
+`--shrink` delta-debugs the journal to a minimal op list, relaunching the app per candidate. It writes command-script lines for `run-script.sh` (`.min.txt`) and the same ops as a journal (`.min.ndjson`) for `--replay` and `--tsan-replay`. The default predicate covers crashes, hangs and consistency violations. `--shrink-resting-mb N` adds an at-rest footprint above N MB, which chases high-water noise, so prefer a live-heap threshold. A crash that needs a cold cache reproduces only with a cold cache: clear caches before each candidate's trigger.
 
 ## Traps
 
 - **TRAP: raw input can start native file and window drags.** Unattended runs send only app-owned actions: `require_command` fails closed on any verb outside `COMMAND_VERBS`, old journals included. Do not reintroduce random input under another profile or recovery path.
 - **TRAP: never `sample Vibe` by name.** The CLI client is the app binary, so the name matches every in-flight `--debug-cmd`, whose stack (`VibeDebugClientRunOne` in `usleep`) reads as a hang. Resolve the GUI pid (`pgrep -x Vibe` filtered for an argv lacking `--debug-cmd`) and sample before re-probing. A probe that succeeds means the stall ended.
 - **TRAP: a toggled setting persists across runs, and a disabled feature looks exactly like a clean run.** `AppSettings` is `NSUserDefaults`, so a run inherits the last run's final toggle. The driver forces every `FEATURE_SETTINGS` entry on at launch and prints it (`settings: folderArt=on`). The `folder_art` op emits `off` then `on` as a pair, and that pair is load-bearing. **Verify a coverage claim's duty cycle from the journal.**
-- **TRAP: the store a run moves is the user's real one**, since the sandbox container is shared with the installed app. Stress, `--replay` and `--shrink` snapshot `dump_state.settings` and the window frame before forcing anything. Teardown removes every imported theme, sends a `SETTING_RESTORERS` command for each key that moved, and prints one `settings:` line naming what it restored and anything `STILL CHANGED`. It runs on pass, failure, `^C`, SIGTERM and SIGHUP, relaunching the app if it died. A SIGKILL or a hung app leaves the store moved. **A new op that writes a persisted value needs a restorer.**
+- **TRAP: the store a run moves is the user's real one**, since the sandbox container is shared with the installed app. Stress, `--replay`, `--tsan-replay` and `--shrink` snapshot `dump_state.settings` and the window frame before forcing anything. Teardown removes every imported theme, sends a `SETTING_RESTORERS` command for each key that moved, and prints one `settings:` line naming what it restored and anything `STILL CHANGED`. Teardown also clears the slow volume and the fake web server, and closes Settings. It runs on pass, failure, `^C`, SIGTERM and SIGHUP, relaunching the app if it died. A SIGKILL or a hung app leaves the store moved. **A new op that writes a persisted value needs a restorer.**
 - **TRAP: `open -a <path>` resolves by bundle id, not path.** Every build is `com.commonwealthrecordings.Vibe`, so it launches whichever copy Launch Services registered, and a fix-vs-pre-fix comparison tests one binary twice. `VIBE_APP` does not help, since `launch.sh` hands it to `open -a`. Direct-exec and verify with `ps -o comm=`, as `run-torture.sh` does.
 - **TRAP: a second instance answers the channel, then the channel stops answering.** It presents as "app never answered" against a healthy main thread. `pgrep -x Vibe` also matches the iOS Simulator's Vibe (exclude `*CoreSimulator*`), and an Xcode debug session is a second instance too.
 - **Do not debug the harness while a driver is running.** Stop it, confirm no Vibe is up, then investigate. A background run relaunching the app looks like a broken channel.
@@ -187,7 +193,7 @@ Cross-check new metrics against the external tools in `references/health-metrics
 - **TRAP: the sandbox kills clients under launch pressure.** Hundreds of quick client launches make libsecinit fail before `main()`: a `Vibe` `.ips` with `parentProc: Python` and a stack topped by `_libsecinit_appsandbox`. The driver retries a signal-killed client that produced no output and reports `client` only when retries run out. Do the same in any hand loop over `--debug-cmd`.
 - **TRAP: the corpus grant is what makes direct-exec and sanitizer runs possible.** `open -a` grants sandbox access and the grant persists, so the driver launches through `launch.sh` with the corpus folder. Sanitizer options are environment variables, which `open -a` cannot pass, and a direct-exec launch cannot read argv paths. Once the folder is granted, a direct-exec launch reaches every file in it through the channel. `launchctl setenv` is the only way an `open -a` launch sees a variable.
 - **TRAP: never add a TSan `suppressions=` file.** It deadlocks the launch before `main()` (`references/sanitizers.md`). Filter framework noise afterwards.
-- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original, and all raw input. The menu allowlist covers transport, playlist selection and removal, undo and redo, FX, pitch range and selected View actions. It excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. Discovery warns about every missing allowed item, and an unreadable menu fails startup. Add new actions deliberately at the command gate, with a runner test.
+- **Deliberately excluded from every profile**: `convert_to_flac`, which writes beside the source and can trash the original, and all raw input. The menu allowlist covers transport, playlist selection and removal, undo and redo, FX, pitch range and selected View actions. It excludes panels, Finder, clipboard writes, device changes and other OS-facing actions. The Settings allowlist (`SETTINGS_SWITCHES`) is display and analysis switches only, each with a restorer. Its names are the English labels, so `launch()` pins the app to English for the run (`VIBE_LANGUAGE=en` unless set). A child switch is restored under its parents switched on, before them (`SETTINGS_PARENTS`). The gate refuses every other `settings_click`, and every `open_url` off the fake web server. Discovery warns about every missing allowed item, and an unreadable menu fails startup. Add new actions deliberately at the command gate, with a runner test.
 
 ## Supporting files
 

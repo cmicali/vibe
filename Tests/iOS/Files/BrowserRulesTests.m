@@ -68,4 +68,41 @@
     XCTAssertTrue(urls[1].hasDirectoryPath);
 }
 
+#pragma mark - A folder
+
+- (void)testAFolderSaysWhyItShowsNothing {
+    XCTAssertEqual(VibeBrowserFolderEmptyStateFor(3, 3, YES, YES), VibeBrowserFolderEmptyStateNone,
+                   @"rows drawn outrank a relist or its failure");
+    XCTAssertEqual(VibeBrowserFolderEmptyStateFor(3, 0, NO, NO), VibeBrowserFolderEmptyStateNoMatches);
+    XCTAssertEqual(VibeBrowserFolderEmptyStateFor(0, 0, YES, YES), VibeBrowserFolderEmptyStateLoading);
+    XCTAssertEqual(VibeBrowserFolderEmptyStateFor(0, 0, NO, YES), VibeBrowserFolderEmptyStateUnavailable);
+    XCTAssertEqual(VibeBrowserFolderEmptyStateFor(0, 0, NO, NO), VibeBrowserFolderEmptyStateEmpty);
+}
+
+#pragma mark - A row's long press
+
+- (void)testAFileOffersEveryAction {
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, NO, YES),
+                   VibeBrowserRowActionPlay | VibeBrowserRowActionPlayInFolder | VibeBrowserRowActionAddToPlaylist
+                           | VibeBrowserRowActionOpenFolder);
+}
+
+- (void)testAFolderOrAPlaylistFileHasNoPlayInFolder {
+    VibeBrowserRowActions expected = VibeBrowserRowActionPlay | VibeBrowserRowActionAddToPlaylist
+            | VibeBrowserRowActionOpenFolder;
+    XCTAssertEqual(VibeBrowserRowActionsFor(YES, NO, NO, YES), expected);
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, YES, YES), expected);
+}
+
+- (void)testALinkHasNeitherFolderAction {
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, NO, NO),
+                   VibeBrowserRowActionPlay | VibeBrowserRowActionAddToPlaylist);
+}
+
+- (void)testTheAddSheetOnlyAdds {
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, YES),
+                   VibeBrowserRowActionAddToPlaylist | VibeBrowserRowActionOpenFolder);
+    XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, NO), VibeBrowserRowActionAddToPlaylist);
+}
+
 @end

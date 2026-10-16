@@ -9,18 +9,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
-
-// Named apart from AudioTrackTests' fake: two classes of one name collide at
-// link. installMetadataIfUnresolved: consults parsedOK.
-@interface PlaylistWriterFakeMetadata : NSObject
-@property (nonatomic, copy) NSString *title;
-@property (nonatomic, copy) NSString *artist;
-@property (nonatomic) NSTimeInterval duration;
-@property (nonatomic) BOOL parsedOK;
-@end
-
-@implementation PlaylistWriterFakeMetadata
-@end
+#import "FakeTrackMetadata.h"
 
 @interface PlaylistFileTests : PlaylistFileTestCase
 @end
@@ -578,7 +567,7 @@ static AudioTrack *TrackAt(NSString *path) {
 
 static AudioTrack *TaggedTrackAt(NSString *path, NSString *artist, NSString *title, NSTimeInterval duration) {
     AudioTrack *track = TrackAt(path);
-    PlaylistWriterFakeMetadata *metadata = [PlaylistWriterFakeMetadata new];
+    FakeTrackMetadata *metadata = [FakeTrackMetadata new];
     metadata.artist = artist;
     metadata.title = title;
     metadata.duration = duration;

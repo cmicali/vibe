@@ -184,6 +184,9 @@ TagLibAudioFile::TagLibAudioFile(const char *path, bool readProperties)
     }
     _file = openByExtension(path, _stream.get(), readProperties);
     if (!_file || !_file->isValid()) {
+        // TRAP: the refused parser leaves the stream anywhere, and RIFF reads
+        // from tell(). Without the rewind a .m4a WAV parses with no tags.
+        _stream->seek(0);
         _file = openByContent(_stream.get(), readProperties);
     }
     if (_file && !_file->isValid()) {

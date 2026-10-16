@@ -1,49 +1,26 @@
 
-#import <XCTest/XCTest.h>
+#import "IOSShellTestCase.h"
 
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 #import "FolderSessionRules.h"
 
-@interface FileSearchRulesTests : XCTestCase <FileSearchIndexDelegate>
+@interface FileSearchRulesTests : IOSShellTestCase <FileSearchIndexDelegate>
 @property (nonatomic) XCTestExpectation *buildFinished;
-@property (nonatomic) NSMutableArray<NSURL *> *temporaryRoots;
 @end
 
 @implementation FileSearchRulesTests
 
-- (void)setUp {
-    [super setUp];
-    self.temporaryRoots = [NSMutableArray array];
-}
-
-- (void)tearDown {
-    for (NSURL *root in self.temporaryRoots) {
-        [NSFileManager.defaultManager removeItemAtURL:root error:NULL];
-    }
-    [super tearDown];
-}
-
+// An index over the harness's root, holding these files.
 - (FileSearchIndex *)indexWithRelativeFilePaths:(NSArray<NSString *> *)paths {
-    NSURL *root = [NSURL fileURLWithPath:[NSTemporaryDirectory()
-            stringByAppendingPathComponent:NSUUID.UUID.UUIDString] isDirectory:YES];
-    [self.temporaryRoots addObject:root];
-    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:root
-                                         withIntermediateDirectories:YES
-                                                          attributes:nil
-                                                               error:NULL]);
     for (NSString *path in paths) {
-        NSURL *file = [root URLByAppendingPathComponent:path];
-        XCTAssertTrue([NSFileManager.defaultManager
-                createDirectoryAtURL:file.URLByDeletingLastPathComponent
-          withIntermediateDirectories:YES attributes:nil error:NULL]);
-        XCTAssertTrue([[NSData data] writeToURL:file atomically:YES]);
+        [self file:path];
     }
 
     FileSearchIndex *index = [[FileSearchIndex alloc] init];
     index.delegate = self;
     self.buildFinished = [self expectationWithDescription:@"index built"];
-    [index setRoots:@[root]];
+    [index setRoots:@[self.root]];
     [index beginBuildIfNeeded];
     [self waitForExpectations:@[self.buildFinished] timeout:VIBE_TEST_HANG_TIMEOUT];
     index.delegate = nil;
@@ -415,6 +392,70 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     XCTAssertEqual(VibeFolderSessionCarriedOpenIntentGeneration(3, 4), (uint64_t)4);
     XCTAssertEqual(VibeFolderSessionCarriedOpenIntentGeneration(0, 4), (uint64_t)0,
                    @"zero stays zero, so an Add is still promoted");
+}
+
+#pragma mark - The screen's sections
+
+- (void)testTheScopeBarFollowsTheDrawnOrderAndTheAccount {
+    XCTAssertEqualObjects(VibeSearchScopeSections(NO),
+                          (@[@(VibeSearchSectionCount), @(VibeSearchSectionPlaylist), @(VibeSearchSectionFiles)]));
+    XCTAssertEqualObjects(VibeSearchScopeSections(YES).lastObject, @(VibeSearchSectionDropbox));
+    XCTAssertTrue(VibeSearchScopeIncludes(VibeSearchSectionCount, VibeSearchSectionDropbox), @"All");
+    XCTAssertTrue(VibeSearchScopeIncludes(VibeSearchSectionFiles, VibeSearchSectionFiles));
+    XCTAssertFalse(VibeSearchScopeIncludes(VibeSearchSectionFiles, VibeSearchSectionPlaylist));
+}
+
+- (void)testTheFilesSectionShowsHitsOrARunningWalkInScope {
+    XCTAssertTrue(VibeSearchShowsFilesSection(YES, VibeSearchSectionCount, 2, NO));
+    XCTAssertTrue(VibeSearchShowsFilesSection(YES, VibeSearchSectionFiles, 0, YES), @"Searching files…");
+    XCTAssertFalse(VibeSearchShowsFilesSection(YES, VibeSearchSectionCount, 0, NO));
+    XCTAssertFalse(VibeSearchShowsFilesSection(NO, VibeSearchSectionCount, 2, YES), @"the empty query lists no files");
+    XCTAssertFalse(VibeSearchShowsFilesSection(YES, VibeSearchSectionPlaylist, 2, YES));
+}
+
+- (void)testTheDropboxSectionShowsWhileAskingAndAfterAFailure {
+    XCTAssertTrue(VibeSearchShowsDropboxSection(YES, YES, VibeSearchSectionCount, 0, YES, NO));
+    XCTAssertTrue(VibeSearchShowsDropboxSection(YES, YES, VibeSearchSectionDropbox, 0, NO, YES));
+    XCTAssertTrue(VibeSearchShowsDropboxSection(YES, YES, VibeSearchSectionCount, 3, NO, NO));
+    XCTAssertFalse(VibeSearchShowsDropboxSection(YES, YES, VibeSearchSectionCount, 0, NO, NO));
+    XCTAssertFalse(VibeSearchShowsDropboxSection(NO, YES, VibeSearchSectionCount, 3, YES, YES), @"unlinked");
+    XCTAssertFalse(VibeSearchShowsDropboxSection(YES, NO, VibeSearchSectionCount, 3, NO, NO));
+    XCTAssertFalse(VibeSearchShowsDropboxSection(YES, YES, VibeSearchSectionFiles, 3, NO, NO));
+}
+
+- (void)testNoResultsWaitsForEveryHalfInScope {
+    XCTAssertTrue(VibeSearchSettledEmpty(YES, 0, NO, NO, NO));
+    XCTAssertFalse(VibeSearchSettledEmpty(NO, 0, NO, NO, NO), @"the empty query is the browse list");
+    XCTAssertFalse(VibeSearchSettledEmpty(YES, 1, NO, NO, NO));
+    XCTAssertFalse(VibeSearchSettledEmpty(YES, 0, YES, NO, NO), @"files still matching");
+    XCTAssertFalse(VibeSearchSettledEmpty(YES, 0, NO, YES, NO), @"a walk still running");
+    XCTAssertFalse(VibeSearchSettledEmpty(YES, 0, NO, NO, YES), @"Dropbox asking or failed");
+}
+
+#pragma mark - The remembered track
+
+- (void)testAnExactKeyOutranksAFilenameAnywhere {
+    NSArray *keys = @[@"/old/01.wav", @"/b/02.wav", @"/a/01.wav"];
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @"/a/01.wav"), 2u);
+}
+
+- (void)testTheFirstFilenameHitIsTheFallback {
+    NSArray *keys = @[@"/x/02.wav", @"/moved/01.wav", @"/other/01.wav"];
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @"/container-uuid/01.wav"), 1u);
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @"01.wav"), 1u, @"an older build's bare filename");
+}
+
+- (void)testACueRowsWindowRidesOnBothTiers {
+    NSArray *keys = @[@"/a/image.flac#0-100", @"/a/image.flac#100-200"];
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @"/a/image.flac#100-200"), 1u);
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @"/moved/image.flac#100-200"), 1u);
+}
+
+- (void)testNothingRememberedOrMatchedParksNowhere {
+    NSArray *keys = @[@"/a/01.wav", @""];
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, nil), (NSUInteger)NSNotFound);
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @""), (NSUInteger)NSNotFound);
+    XCTAssertEqual(VibeFolderSessionRememberedIndex(keys, @"/a/02.wav"), (NSUInteger)NSNotFound);
 }
 
 @end

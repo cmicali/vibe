@@ -2,7 +2,8 @@
 //  BrowserRules.h
 //  Vibe (iOS)
 //
-//  The Files tab's decisions: the root's rows, and the URLs Recents names.
+//  The Files tab's decisions: the root's rows, a folder's empty state, a
+//  row's long press, and the URLs Recents names.
 //  Header-only and Foundation-only so the macOS suite can test it.
 //
 
@@ -73,6 +74,58 @@ static inline NSUInteger VibeBrowserRootLocationIndex(VibeBrowserRootSection sec
         return NSNotFound;
     }
     return row - first;
+}
+
+#pragma mark - A folder
+
+typedef NS_ENUM(NSInteger, VibeBrowserFolderEmptyState) {
+    VibeBrowserFolderEmptyStateNone,         // rows to show
+    VibeBrowserFolderEmptyStateNoMatches,    // a filter that matches nothing: a search with no results
+    VibeBrowserFolderEmptyStateLoading,      // nothing listed yet, and a relist running
+    VibeBrowserFolderEmptyStateUnavailable,  // nothing listed, and Dropbox could not be reached
+    VibeBrowserFolderEmptyStateEmpty,        // the folder holds nothing that plays
+};
+
+// listedRows: the folder's listing. shownRows: what the filter leaves of it.
+static inline VibeBrowserFolderEmptyState VibeBrowserFolderEmptyStateFor(NSUInteger listedRows,
+                                                                         NSUInteger shownRows,
+                                                                         BOOL refreshing,
+                                                                         BOOL refreshFailed) {
+    if (listedRows > 0) {
+        return shownRows == 0 ? VibeBrowserFolderEmptyStateNoMatches : VibeBrowserFolderEmptyStateNone;
+    }
+    if (refreshing) {
+        return VibeBrowserFolderEmptyStateLoading;
+    }
+    return refreshFailed ? VibeBrowserFolderEmptyStateUnavailable : VibeBrowserFolderEmptyStateEmpty;
+}
+
+#pragma mark - A row's long press
+
+typedef NS_OPTIONS(NSUInteger, VibeBrowserRowActions) {
+    VibeBrowserRowActionPlay = 1 << 0,
+    VibeBrowserRowActionPlayInFolder = 1 << 1,
+    VibeBrowserRowActionAddToPlaylist = 1 << 2,
+    VibeBrowserRowActionOpenFolder = 1 << 3,
+};
+
+// The long press Recents and Search share: Play, Play in Folder for a file,
+// Add to Playlist, and Open Folder. The add sheet only adds. A playlist file
+// is never part of its folder's play. A link has neither folder action,
+// since its folder is the Links store's, named by a hash (folderActions NO).
+static inline VibeBrowserRowActions VibeBrowserRowActionsFor(BOOL isFolder, BOOL appendingSheet, BOOL isM3U,
+                                                             BOOL folderActions) {
+    VibeBrowserRowActions actions = VibeBrowserRowActionAddToPlaylist;
+    if (!appendingSheet) {
+        actions |= VibeBrowserRowActionPlay;
+        if (!isFolder && folderActions && !isM3U) {
+            actions |= VibeBrowserRowActionPlayInFolder;
+        }
+    }
+    if (folderActions) {
+        actions |= VibeBrowserRowActionOpenFolder;
+    }
+    return actions;
 }
 
 #pragma mark - Recents

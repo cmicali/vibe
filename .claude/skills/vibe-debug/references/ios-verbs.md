@@ -28,6 +28,8 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" set_fx_pad 0.8 0.5  # the FX pad's position through the model (x: reverb, then delay past 0.5; y: the low cut's cutoff), or `set_fx_pad off`. Replies {ok, fx}. dump_state.fx is the FX intent per stage (intent, enabled, active, gateTarget), delayTapBPM and unitRenders. ui.fxPadShown follows settings.audioFXEnabled; ui.fxPadEngaged is a finger on a pad
 "$S" set_output_route airplay "Living Room"  # draws the route indicator as any kind (none|speaker|receiver|wired|bluetooth|airplay|carplay|other), model untouched. A page reconfigure or real route event overwrites it, so set it just before the check
 "$S" select_tab playlist # or favorites, files, search
+"$S" browse show <dir>   # the Files tab's stack through Open Folder's road. browse tap <name> is a row's didSelectRow:. A folder pushes and a file plays alone. browse play is the bar's play button, browse back pops, and bare browse reads. Each replies {ok, depth, title, folders, files}, the top screen's rows so far. The listing lands off main. Poll it before a tap. Needs select_tab files first
+"$S" recents             # {ok, items: [{path, folder}], saved}. recents save keeps a copy in memory. recents restore writes it back. A test uses the pair to leave Recents as it found it
 "$S" dump_favorites      # {favorites: [{name, location, path}]}: the starred folders as drawn; nothing is resolved
 "$S" tap_favorite_star   # toggles the open folder in and out of favorites; the add is asynchronous (SKILL.md). Errors with no folder open
 "$S" open_favorite 0     # index into dump_favorites.favorites, through the row's didSelectRow:. Needs select_tab favorites first, since the provider is lazy
