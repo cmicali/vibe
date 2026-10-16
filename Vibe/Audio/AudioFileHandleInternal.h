@@ -14,9 +14,7 @@
 #include "dr_mp3/dr_mp3.h"
 #include "dr_flac/dr_flac.h"
 #include "dr_wav/dr_wav.h"
-// By its path in the vendored tree: TagLib's own vorbisfile.h is found first
-// as "vorbis/vorbisfile.h".
-#include "vorbis/include/vorbis/vorbisfile.h"
+#include <vorbis/vorbisfile.h>
 
 #include <stdatomic.h>
 
@@ -91,16 +89,18 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
     drwav *_wav; // &_wavState once drwav_init has succeeded
     drwav _wavState;
     OggVorbis_File *_vorbis;
-    // The frame libvorbis's next read delivers, counted here: vorbisfile's own
-    // tell follows the pages' granule positions, which damage can set to
+    // The frame libvorbis's next read delivers, counted here. vorbisfile's own
+    // follows the pages' granule positions, and damage can set those to
     // anything.
     SInt64 _vorbisPosition;
     SInt64 _streamCursor;
-    BOOL _streamReadFailed; // a pread failed, which neither decoder can tell from the end
+    BOOL _streamReadFailed; // a pread failed, which no stream decoder can tell from the end
 }
 
 - (BOOL)reportWaitFault:(NSError **)error;
 - (void)closeParser;
+- (BOOL)takeFileFormat:(AudioStreamBasicDescription)description layout:(AVAudioChannelLayout *)layout
+           interleaved:(BOOL)interleaved;
 
 @end
 
@@ -136,8 +136,8 @@ BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait);
 OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount);
 
 // AudioFileHandle.m's byte reads for dr_flac, dr_wav and vorbisfile. The
-// stream opens pass them to the decoders. They stay beside the parser's reads, because the
-// block read they call on every read is static there.
+// stream opens pass them to the decoders. They stay beside the parser's
+// reads, because the block read they call on every read is static there.
 size_t VibeStreamRead(void *user, void *buffer, size_t count);
 drflac_bool32 VibeFLACSeek(void *user, int offset, drflac_seek_origin origin);
 drwav_bool32 VibeWAVSeek(void *user, int offset, drwav_seek_origin origin);

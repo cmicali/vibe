@@ -5,7 +5,6 @@
 #import "AudioPlayerRenderTestCase.h"
 #import "AudioFX.h"
 #import "OutputFormatRules.h"
-#import "TestFilesystemGuard.h"
 #import <Accelerate/Accelerate.h>
 
 // The oracle itself, the bit-perfect matrix, every container and codec, float limits and wide sources.
@@ -96,11 +95,6 @@
         [self checkLossy:name tolerance:kVibeAACDecodeTolerance];
     }
 }
-- (void)testOggVorbis {
-    for (NSString *name in @[@"lossy.ogg",@"alias.oga"]) {
-        [self checkLossy:name tolerance:0];
-    }
-}
 // The shift in frames, within `range` either way, that lines the first
 // channel of `decoded` up best with `source`'s.
 static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channels, NSInteger range) {
@@ -115,44 +109,23 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
     }
     return best;
 }
-// Apple's decode of `url`, interleaved float32, read through ExtAudioFile.
-static NSData *VibeAppleDecode(NSURL *url) {
-    ExtAudioFileRef reader = NULL;
-    if (ExtAudioFileOpenURL((__bridge CFURLRef)url, &reader) != noErr) return nil;
-    AudioStreamBasicDescription file = {0};
-    UInt32 size = sizeof(file);
-    ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileDataFormat, &size, &file);
-    UInt32 channels = file.mChannelsPerFrame;
-    AudioStreamBasicDescription client = {file.mSampleRate, kAudioFormatLinearPCM, kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
-                                          4 * channels, 1, 4 * channels, channels, 32, 0};
-    ExtAudioFileSetProperty(reader, kExtAudioFileProperty_ClientDataFormat, sizeof(client), &client);
-    NSMutableData *pcm = [NSMutableData data];
-    float chunk[4096 * 8];
-    for (;;) {
-        UInt32 frames = 4096;
-        AudioBufferList list = {1, {{channels, (UInt32)(frames * channels * sizeof(float)), chunk}}};
-        if (ExtAudioFileRead(reader, &frames, &list) != noErr || frames == 0) break;
-        [pcm appendBytes:chunk length:frames * channels * sizeof(float)];
-    }
-    ExtAudioFileDispose(reader);
-    return pcm;
-}
-// libvorbis, not CoreAudio, decodes Ogg Vorbis. iOS has no Vorbis decoder,
-// and macOS's starts each file 128 frames late (macOS 27). The source says
-// which is right: the decode lines up with it unshifted. Apple's decode is
-// libvorbis's own, sample for sample, 128 frames on. That comparison is the
-// canary, and fails once Apple's lines up. A seek decodes exactly what the
-// continuous read did there.
-- (void)testOggVorbisDecodesWhatTheFileHolds {
+// libvorbis decodes Ogg Vorbis, not CoreAudio. iOS has no Vorbis decoder,
+// and macOS's starts each file 128 frames late (macOS 27). The player plays
+// the decode exactly. The decode lines up with the source, with no shift.
+// Apple's decode is libvorbis's own, sample for sample, 128 frames on. That
+// comparison is the canary, and fails once Apple's lines up. Seeks land
+// exactly, and an interleaved read matches the planar one.
+- (void)testOggVorbis {
     NSData *source = VibePCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
     for (NSString *name in @[@"lossy.ogg", @"alias.oga"]) {
+        [self checkLossy:name tolerance:0];
         NSURL *url = [self optionalFixture:name];
         AudioFileHandle *file = [self open:url decoder:@"libvorbis"];
         NSData *decoded = [self readToEnd:file];
         NSUInteger frames = decoded.length / sizeof(float) / 2, frameBytes = 2 * sizeof(float);
         XCTAssertEqual(file.length, (AVAudioFramePosition)frames, @"%@", name);
         XCTAssertEqual(VibeBestLag(decoded, source, 2, 256), 0, @"%@ lines up with its source", name);
-        NSData *apple = VibeAppleDecode(url);
+        NSData *apple = [self appleDecodeOf:url];
         NSUInteger shared = MIN(frames - 128, apple.length / frameBytes);
         XCTAssertGreaterThan(shared, frames / 2, @"%@: Apple's decode", name);
         XCTAssertEqualObjects([decoded subdataWithRange:NSMakeRange(128 * frameBytes, shared * frameBytes)],
@@ -177,16 +150,8 @@ static NSData *VibeAppleDecode(NSURL *url) {
     AudioFileHandle *whole = [self open:source decoder:@"libvorbis"];
     NSData *continuous = [self readToEnd:whole];
     NSURL *url = [self streamingCopyOf:source prefix:32 * 1024 name:@"streaming-paged.ogg"];
-    NSUInteger window = 80 * 1024, at = _streamBytes.length - window;
-    [_stream installWindow:[_streamBytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
-    __block AudioFileHandle *file = nil;
-    dispatch_semaphore_t opened = dispatch_semaphore_create(0);
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        file = [[AudioFileHandle alloc] initForReading:url error:NULL];
-        dispatch_semaphore_signal(opened);
-    });
-    XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW,
-            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0, @"opened while it streams");
+    [self installTailWindow:80 * 1024];
+    AudioFileHandle *file = [self openWhileItStreams:url name:@"paged.ogg"];
     XCTAssertEqualObjects(file.decoderName, @"libvorbis");
     XCTAssertEqual(file.length, whole.length);
     [self assertSeekOf:file to:2048 match:continuous name:@"paged.ogg, downloading"];
@@ -198,11 +163,11 @@ static NSData *VibeAppleDecode(NSURL *url) {
         AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat frameCapacity:4096];
         NSError *error = nil;
         while ([file readIntoBuffer:buffer error:&error] && buffer.frameLength > 0) VibeAppendPCM(pcm, buffer);
-        before = pcm;
         readError = error;
+        before = pcm;
         dispatch_semaphore_signal(returned);
     });
-    XCTAssertTrue(VibeSpinUntil(^BOOL { return file.waitingForBytes; }), @"the read waits at the download's edge");
+    [self settleUntil:^BOOL { return file.waitingForBytes; }]; // the read waits at the download's edge
     [file interruptReads];
     XCTAssertEqual(dispatch_semaphore_wait(returned, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
     XCTAssertTrue([AudioFileHandle isInterruption:readError], @"%@", readError);
@@ -213,6 +178,19 @@ static NSData *VibeAppleDecode(NSURL *url) {
     [self assertSeeksOf:file match:continuous block:256 name:@"paged.ogg"];
     XCTAssertTrue([file seekToFrame:0 error:NULL]);
     XCTAssertEqualObjects([self readToEnd:file], continuous);
+}
+// Opens `url` off the test's thread, as an open worker does, and asserts it
+// returns before the download completes.
+- (AudioFileHandle *)openWhileItStreams:(NSURL *)url name:(NSString *)name {
+    __block AudioFileHandle *file = nil;
+    dispatch_semaphore_t opened = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+        dispatch_semaphore_signal(opened);
+    });
+    XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0, @"%@ opened while it streams", name);
+    return file;
 }
 // Vorbis I's 5.1 order is L, C, R, Ls, Rs, LFE. Each channel of the fixture
 // holds a tone of its own, so the decode shows where each landed. The
@@ -418,15 +396,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         AudioFileHandle *whole = [self open:source decoder:@"dr_mp3"];
         NSData *continuous = [self readToEnd:whole];
         NSURL *url = [self streamingCopyOf:source prefix:24576 name:[@"streaming-" stringByAppendingString:name]];
-        [self installTailWindow];
-        __block AudioFileHandle *file = nil;
-        dispatch_semaphore_t opened = dispatch_semaphore_create(0);
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            file = [[AudioFileHandle alloc] initForReading:url error:NULL];
-            dispatch_semaphore_signal(opened);
-        });
-        XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW,
-                (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0, @"%@ opened while it streams", name);
+        [self installTailWindow:8192];
+        AudioFileHandle *file = [self openWhileItStreams:url name:name];
         XCTAssertEqualObjects(file.decoderName, @"dr_mp3", @"%@", name);
         BOOL variable = [name hasPrefix:@"vbr"];
         XCTAssertTrue(file.lengthIsEstimated, @"%@", name);

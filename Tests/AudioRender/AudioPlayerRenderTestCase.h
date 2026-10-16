@@ -85,7 +85,7 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels);
 - (void)playOnTheDecodePoolBitPerfect:(BOOL)bitPerfect play:(void (^)(void))play;
 - (NSURL *)streamingCopyOf:(NSURL *)source prefix:(NSUInteger)prefix name:(NSString *)name;
 - (void)streamTo:(NSUInteger)end;
-- (void)installTailWindow;
+- (void)installTailWindow:(NSUInteger)window;
 - (BOOL)finishStream:(VibeStreamOutcome)outcome;
 - (VibeVoiceSnapshot)currentVoiceSnapshot;
 - (BOOL)renderUntil:(BOOL (^)(void))condition;

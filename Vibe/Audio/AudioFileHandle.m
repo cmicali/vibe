@@ -316,9 +316,8 @@ drflac_bool32 VibeStreamTell(void *user, drflac_int64 *cursor) {
     return DRFLAC_TRUE;
 }
 
-// vorbisfile's reads. It clears errno before each and takes no bytes with
-// errno set for an error, so a lost or failed read sets it, and a clean end
-// clears it.
+// vorbisfile's reads. It takes no bytes with errno set for an error. A lost
+// or failed read sets it, and a clean end clears it.
 size_t VibeVorbisRead(void *buffer, size_t size, size_t count, void *user) {
     AudioFileHandle *handle = (__bridge AudioFileHandle *)user;
     size_t got = VibeStreamRead(user, buffer, size * count);
@@ -496,31 +495,28 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
 }
 
 // The file the reads go to: a descriptor, a transfer's part file, or a
-// read-ahead. NO, with why, when there is none.
-- (BOOL)openFile:(NSURL *)url interrupted:(BOOL (^)(void))interrupted error:(NSError **)error {
+// read-ahead. Nil, with why, when there is none.
+- (instancetype)openFile:(NSURL *)url interrupted:(BOOL (^)(void))interrupted error:(NSError **)error {
     _url = url;
     _descriptor = -1;
     _openInterrupted = interrupted;
     _interruptible = interrupted != nil;
     NSString *name = url.lastPathComponent;
     if (!url.isFileURL) {
-        [self failWithError:error status:kAudioFileUnsupportedFileTypeError
-                description:[NSString stringWithFormat:@"%@ is not a file", name]];
-        return NO;
+        return [self failWithError:error status:kAudioFileUnsupportedFileTypeError
+                       description:[NSString stringWithFormat:@"%@ is not a file", name]];
     }
     _availability = [CloudFileMaterializer availabilityForURL:url];
     NSString *mount = nil;
     if (!_availability && interrupted && interrupted != VibeNeverWaitsForAStream && VibeNetworkReadAheadApplies(url, &mount)) {
         if (!VibeNetworkReadAheadAwaitRoom(name, interrupted)) {
             _waitError = VibeInterruptedError(url);
-            [self failWithError:error status:noErr description:@""];
-            return NO;
+            return [self failWithError:error status:noErr description:@""];
         }
         _availability = VibeNetworkReadAheadStart(url, mount, &_readAheadEnd);
         // The thread's open and its first block, waited for as any read is.
         if (!VibeHandleAwait(self, 0, 1, NULL, 0, NULL)) {
-            [self failWithError:error status:noErr description:@""];
-            return NO;
+            return [self failWithError:error status:noErr description:@""];
         }
         _size = (SInt64)_availability.size;
     } else {
@@ -535,8 +531,7 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
             // between the lookup and the open. Once it has finished, url is
             // the whole file.
             if (!VibeHandleAwaitWhole(self, YES)) {
-                [self failWithError:error status:noErr description:@""];
-                return NO;
+                return [self failWithError:error status:noErr description:@""];
             }
             _availability = nil;
             _descriptor = open(url.fileSystemRepresentation, flags);
@@ -550,11 +545,11 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
             if (error) {
                 *error = failure;
             }
-            return NO;
+            return nil;
         }
         _size = _availability ? (SInt64)_availability.size : info.st_size;
     }
-    return YES;
+    return self;
 }
 
 // CoreAudio's parser over the file's reads, which answers its facts.
@@ -668,7 +663,6 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
     // iOS's Ogg reader refuses Vorbis. macOS's decoder drops each file's first
     // 128 frames (macOS 27, docs/future/audio-quality-gaps.md).
     if (VibeHoldsOggVorbis(self)) {
-        _container = kVibeOggFileType;
         if (![self openVorbisInterleaved:interleaved]) {
             return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
                            description:[NSString stringWithFormat:@"libvorbis refused %@", name]];
@@ -692,19 +686,7 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
     }
-    // The processing format carries the file's layout when it states one, and
-    // a discrete layout for a wider file that does not: a converter between
-    // more than two channels is refused without one.
-    AVAudioChannelLayout *layout = VibeFileChannelLayout(_codec);
-    if (!layout && fileDescription.mChannelsPerFrame > 2) {
-        layout = [AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_DiscreteInOrder | fileDescription.mChannelsPerFrame];
-    }
-    _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&fileDescription channelLayout:layout];
-    _processingFormat = layout
-            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:fileDescription.mSampleRate interleaved:interleaved channelLayout:layout]
-            : [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:fileDescription.mSampleRate
-                                                 channels:fileDescription.mChannelsPerFrame interleaved:interleaved];
-    if (!_fileFormat || !_processingFormat) {
+    if (![self takeFileFormat:fileDescription layout:VibeFileChannelLayout(_codec) interleaved:interleaved]) {
         return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ has a format this player cannot decode", name]];
     }
@@ -722,7 +704,7 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
                                                 || [self openWAV])) {
         return [self openedWithError:error];
     }
-    status = [self decodeToProcessingFormatInLayout:layout];
+    status = [self decodeToProcessingFormatInLayout:_processingFormat.channelLayout];
     if (status != noErr) {
         // What AVAudioFile reported for a file its decoder cannot produce:
         // an MP2 on a platform without the codec opens and fails here.
@@ -755,6 +737,23 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
     }
     _length = length;
     return [self openedWithError:error];
+}
+
+// The file's format and the float32 one its reads decode to. The processing
+// format carries the file's layout when it states one. A wider file that
+// states none gets a discrete layout, since a converter between more than two
+// channels is refused without one. NO when either format cannot be made.
+- (BOOL)takeFileFormat:(AudioStreamBasicDescription)description layout:(AVAudioChannelLayout *)layout
+           interleaved:(BOOL)interleaved {
+    if (!layout && description.mChannelsPerFrame > 2) {
+        layout = [AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_DiscreteInOrder | description.mChannelsPerFrame];
+    }
+    _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&description channelLayout:layout];
+    _processingFormat = layout
+            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:description.mSampleRate interleaved:interleaved channelLayout:layout]
+            : [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:description.mSampleRate
+                                                 channels:description.mChannelsPerFrame interleaved:interleaved];
+    return _fileFormat && _processingFormat;
 }
 
 - (instancetype)initForWriting:(NSURL *)url fileType:(AudioFileTypeID)fileType fileFormat:(AVAudioFormat *)fileFormat
@@ -937,21 +936,17 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
         return [self seekMPEGToFrame:frame error:error];
     }
     OSStatus status;
-    if (_flac || _wav) {
-        // Both clamp the target to the length; past the frames a truncated
-        // file holds it lands at the end, where reads return nothing, as
-        // Apple's does.
-        BOOL landed = (_flac ? drflac_seek_to_pcm_frame(_flac, (drflac_uint64)MAX(0, frame))
-                             : drwav_seek_to_pcm_frame(_wav, (drwav_uint64)MAX(0, frame))) && !_streamReadFailed;
-        status = landed ? noErr : kAudioFilePositionError;
-    } else if (_vorbis) {
-        // vorbisfile refuses a target past the end, so it is clamped there.
-        // Its seek finds the page again from the bytes, so an interrupted read
-        // leaves nothing behind.
-        SInt64 target = MIN(MAX(0, frame), _length);
-        BOOL landed = ov_pcm_seek(_vorbis, target) == 0 && !_streamReadFailed;
-        if (landed) {
-            _vorbisPosition = target;
+    if (_flac || _wav || _vorbis) {
+        // Each lands at the end for a target past it, where reads return
+        // nothing, as Apple's does. dr_flac and dr_wav clamp it themselves.
+        // vorbisfile refuses it, so it is clamped here. vorbisfile's seek finds
+        // its page again from the bytes. An interrupted read leaves nothing.
+        SInt64 target = MAX(0, frame);
+        BOOL landed = (_flac ? drflac_seek_to_pcm_frame(_flac, (drflac_uint64)target)
+                       : _wav ? drwav_seek_to_pcm_frame(_wav, (drwav_uint64)target)
+                       : ov_pcm_seek(_vorbis, MIN(target, _length)) == 0) && !_streamReadFailed;
+        if (landed && _vorbis) {
+            _vorbisPosition = MIN(target, _length);
         }
         status = landed ? noErr : kAudioFilePositionError;
     } else {

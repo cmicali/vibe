@@ -97,9 +97,8 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
 }
 
 // Vorbis I's channel order (section 4.3.9) for three to eight channels, as
-// labels, so the voice bus folds each channel as the file means it. Mono and
-// stereo state none, as elsewhere. A wider stream's order is the encoder's
-// own, so its channels are only numbered.
+// labels. The voice bus then folds each channel as the file means it. Nil for
+// mono and stereo, and for a wider stream, whose order is the encoder's own.
 static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
     enum { L = kAudioChannelLabel_Left, R = kAudioChannelLabel_Right, C = kAudioChannelLabel_Center,
            Ls = kAudioChannelLabel_LeftSurround, Rs = kAudioChannelLabel_RightSurround,
@@ -109,11 +108,8 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
         {L, C, R}, {L, R, Ls, Rs}, {L, C, R, Ls, Rs}, {L, C, R, Ls, Rs, LFE},
         {L, C, R, Ls, Rs, Cs, LFE}, {L, C, R, Ls, Rs, Rls, Rrs, LFE},
     };
-    if (channels <= 2) {
+    if (channels <= 2 || channels > 8) {
         return nil;
-    }
-    if (channels > 8) {
-        return [AVAudioChannelLayout layoutWithLayoutTag:kAudioChannelLayoutTag_DiscreteInOrder | channels];
     }
     size_t size = offsetof(AudioChannelLayout, mChannelDescriptions) + channels * sizeof(AudioChannelDescription);
     AudioChannelLayout *layout = calloc(1, size);
@@ -127,19 +123,16 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
     return result;
 }
 
-// Takes an Ogg Vorbis file for libvorbis, in place of CoreAudio's parser, so
-// vorbisfile answers its facts. The rate and the channels are the first
-// stream's, and a chained stream that changes either is refused, since the
-// bus keeps one format per file. The length is the last page's granule
-// position, which also trims the encoder's padding.
+// Takes an Ogg Vorbis file for libvorbis, in place of CoreAudio's parser.
+// vorbisfile answers the facts. The rate and the channels are the first
+// stream's. The bus keeps one format per file, so a chained file that changes
+// either is refused. The length is the last page's granule position, which
+// trims the encoder's padding too.
 - (BOOL)openVorbisInterleaved:(BOOL)interleaved {
-    _streamCursor = 0;
-    _streamReadFailed = NO;
     _vorbis = calloc(1, sizeof(OggVorbis_File));
     ov_callbacks callbacks = { VibeVorbisRead, VibeVorbisSeek, NULL, VibeVorbisTell };
     if (!_vorbis || ov_open_callbacks((__bridge void *)self, _vorbis, NULL, 0, callbacks) != 0) {
-        free(_vorbis); // a failed open has cleared it
-        _vorbis = NULL;
+        [self closeStreamDecoder]; // a failed open has cleared it, and clearing again is safe
         return NO;
     }
     vorbis_info *info = ov_info(_vorbis, 0);
@@ -149,25 +142,15 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
         vorbis_info *next = ov_info(_vorbis, link);
         uniform = next && next->channels == info->channels && next->rate == info->rate;
     }
-    if (!uniform || length <= 0 || _streamReadFailed || _waitError) {
-        [self closeStreamDecoder];
-        return NO;
-    }
-    AVAudioChannelLayout *layout = VibeVorbisChannelLayout((UInt32)info->channels);
     AudioStreamBasicDescription description = {
-        .mSampleRate = (Float64)info->rate, .mFormatID = 'vorb', .mChannelsPerFrame = (UInt32)info->channels,
+        .mSampleRate = uniform ? (Float64)info->rate : 0, .mFormatID = 'vorb', .mChannelsPerFrame = uniform ? (UInt32)info->channels : 0,
     };
-    _fileFormat = [[AVAudioFormat alloc] initWithStreamDescription:&description channelLayout:layout];
-    _processingFormat = layout
-            ? [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:info->rate interleaved:interleaved channelLayout:layout]
-            : [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatFloat32 sampleRate:info->rate
-                                                 channels:(AVAudioChannelCount)info->channels interleaved:interleaved];
-    if (!_fileFormat || !_processingFormat) {
+    if (!uniform || length <= 0 || _streamReadFailed || _waitError
+            || ![self takeFileFormat:description layout:VibeVorbisChannelLayout(description.mChannelsPerFrame) interleaved:interleaved]) {
         [self closeStreamDecoder];
         return NO;
     }
     _length = (SInt64)length;
-    _vorbisPosition = 0;
     return YES;
 }
 
@@ -186,9 +169,9 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
 }
 
 // libvorbis's decode. vorbisfile hands out each packet's frames from buffers
-// of its own, a channel to each, so they are copied: a channel to each plane,
-// or interleaved. A hole (a page lost to damage) is skipped, and the decode
-// goes on from the next page.
+// of its own, a channel to each. They are copied to a plane each, or
+// interleaved. A hole, a page lost to damage, is skipped, and the decode goes
+// on from the next page.
 - (AVAudioFrameCount)readVorbisInto:(float *const *)planes frameCount:(AVAudioFrameCount)wanted failed:(BOOL *)failed {
     UInt32 channels = _processingFormat.channelCount;
     BOOL interleaved = _processingFormat.isInterleaved;
@@ -203,13 +186,15 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
             *failed = frames < 0;
             break;
         }
-        for (UInt32 c = 0; c < channels; c++) {
-            if (interleaved) {
-                float *to = planes[0] + (size_t)got * channels + c;
-                for (long f = 0; f < frames; f++) {
-                    to[(size_t)f * channels] = pcm[c][f];
+        if (interleaved) {
+            float *to = planes[0] + (size_t)got * channels;
+            for (long f = 0; f < frames; f++) {
+                for (UInt32 c = 0; c < channels; c++) {
+                    *to++ = pcm[c][f];
                 }
-            } else {
+            }
+        } else {
+            for (UInt32 c = 0; c < channels; c++) {
                 memcpy(planes[c] + got, pcm[c], (size_t)frames * sizeof(float));
             }
         }

@@ -537,9 +537,10 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     [_stream noteWrittenBytes:end];
 }
 
-// The stream's last 8 KB, which an MP3's open reads (its ID3v1 check).
-- (void)installTailWindow {
-    NSUInteger window = 8192, at = _streamBytes.length - window;
+// The stream's last `window` bytes as the tail window. An MP3's open reads its
+// last 8 KB (its ID3v1 check).
+- (void)installTailWindow:(NSUInteger)window {
+    NSUInteger at = _streamBytes.length - window;
     [_stream installWindow:[_streamBytes subdataWithRange:NSMakeRange(at, window)] atOffset:at];
 }
 

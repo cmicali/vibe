@@ -34,7 +34,7 @@ The 48 kHz files decode 128 frames shorter than Apple's own declared length. The
 - **What a listener got:** about 3 ms cut from the start of every track. On a gapless Vorbis album, every join skipped 3 ms of the next track. At 44.1 kHz the track before the join also ended with 3 ms that should have been trimmed.
 - **Why the tests missed it:** `testOggVorbis` compared the player against `AudioFileHandle`'s own decode. That decode was Apple's. The shift was on both sides.
 
-**Fixed.** libvorbis and libogg are vendored (`Vibe/ThirdParty/vorbis/`, `ogg/`) and decode Ogg Vorbis on both platforms, through the handle's callbacks in `AudioFileHandle+Stream.m`. CoreAudio's parser never opens a Vorbis file. So Vorbis now plays on iOS too. `testOggVorbisDecodesWhatTheFileHolds` checks the decode against the source and against Apple's decode moved by 128 frames. That half is a canary, which fails once Apple's decoder lines up.
+**Fixed.** libvorbis and libogg are vendored (`Vibe/ThirdParty/vorbis/`, `ogg/`) and decode Ogg Vorbis on both platforms, through the handle's callbacks in `AudioFileHandle+Stream.m`. CoreAudio's parser never opens a Vorbis file. So Vorbis now plays on iOS too. `testOggVorbis` checks the decode against the source and against Apple's decode moved by 128 frames. That half is a canary, which fails once Apple's decoder lines up.
 
 ## 2. CoreAudio ignores the Opus header's output gain
 

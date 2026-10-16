@@ -33,6 +33,8 @@ settingGroups:
     HEADER_SEARCH_PATHS: &vibe-header-search-paths
       - "$(inherited)"
       - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
+      # Ahead of taglib/ogg, whose vorbis/vorbisfile.h is TagLib's own.
+      - "$(SRCROOT)/Vibe/ThirdParty/vorbis/include"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
@@ -238,24 +240,15 @@ targets:
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
       # libogg's framing and libvorbis's decoder, AudioFileHandle's Ogg Vorbis
-      # decoder: their C files alone, built as dr_flac is. Their headers stay
-      # out of the project. Xcode's headermap finds a header by its name from
-      # any target, and libvorbis's vorbisfile.h would answer for TagLib's.
-      # For the same reason libvorbis finds its "vorbis/codec.h" through
-      # -iquote, which is searched before the path that reaches TagLib's
-      # vorbis directory first.
+      # decoder, built as dr_flac is. Their C files alone join the project.
+      # Xcode's headermap finds a header by its name from any target, and
+      # libvorbis's vorbisfile.h would answer for TagLib's.
       - path: Vibe/ThirdParty/ogg
         includes: ["*.c"]
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/vorbis/lib
         includes: ["*.c"]
-        compilerFlags: &vorbis-flags
-          - "-O3"
-          - "-w"                              # vendored C, not ours to restyle
-          - "-Xclang"
-          - "-analyzer-disable-all-checks"
-          - "-iquote"
-          - "$(SRCROOT)/Vibe/ThirdParty/vorbis/include"
+        compilerFlags: *dr-libs-flags
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -574,7 +567,7 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/vorbis/lib
         includes: ["*.c"]
-        compilerFlags: *vorbis-flags
+        compilerFlags: *dr-libs-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy
@@ -987,6 +980,8 @@ targets:
           - "$(SRCROOT)/Vibe/Mac/Convert"
           # PINCache's angle-bracket self-import resolves from the vendored root.
           - "$(SRCROOT)/Vibe/ThirdParty"
+          # libvorbis's headers, which AudioFileHandleInternal.h includes.
+          - "$(SRCROOT)/Vibe/ThirdParty/vorbis/include"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
           # screen's state machine is testable here. The iOS sources compiled in
           # above are Foundation-only too.
@@ -1089,7 +1084,7 @@ targetTemplates:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/vorbis/lib
         includes: ["*.c"]
-        compilerFlags: *vorbis-flags
+        compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
       - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens

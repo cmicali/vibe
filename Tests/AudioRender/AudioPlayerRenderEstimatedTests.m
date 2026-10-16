@@ -50,7 +50,7 @@ static NSData *MP3Frames(NSData *mp3) {
     AudioFileHandle.appleMPEGDecoder = NO;
     NSURL *source = [self writeBytes:bytes name:[@"whole-" stringByAppendingString:name]];
     [self streamingCopyOf:source prefix:prefix name:name];
-    [self installTailWindow];
+    [self installTailWindow:8192];
     return source;
 }
 
@@ -231,7 +231,7 @@ static NSData *MP3Frames(NSData *mp3) {
     }], @"cancels %lu, readers %lu", (unsigned long)atomic_load(&_streamCancels), (unsigned long)stream.readerCount);
 
     [self streamingCopyOf:source prefix:24576 name:@"stalled.mp3"];
-    [self installTailWindow];
+    [self installTailWindow:8192];
     _playError = nil;
     [_player playPause];
     [self settleUntil:^BOOL { return [self count:@"start"] == 2 || self->_playError; }];
