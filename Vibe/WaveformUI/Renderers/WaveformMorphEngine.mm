@@ -22,6 +22,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
     // The fast-path gate. Compare-only; may dangle.
     const void *_lastTargetIdentity;
+    NSUInteger _lastTargetLayout;
     NSUInteger _lastTargetCount;
     BOOL _targetInvalidated;
     NSTimer *_morphTimer;
@@ -51,10 +52,21 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
                    identity:(const void *)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill {
+    [self updateTargetForSize:size identity:identity layout:0 count:count fill:fill remap:nil];
+}
+
+- (void)updateTargetForSize:(CGSize)size
+                   identity:(const void *)identity
+                     layout:(NSUInteger)layout
+                      count:(NSUInteger)count
+                       fill:(void (^)(std::vector<float> &target))fill
+                      remap:(void (^)(std::vector<float> &displayed,
+                                      const std::vector<float> &target))remap {
     // A settled picture resampled for a new width is layout, not new audio:
     // easing it doubles a resize's rebuilds and repaints after it stops.
     BOOL animate = _targetInvalidated || identity != _lastTargetIdentity || _morphTimer != nil;
-    if (!_targetInvalidated && identity == _lastTargetIdentity && count == _lastTargetCount) {
+    BOOL relaid = layout != _lastTargetLayout;
+    if (!_targetInvalidated && identity == _lastTargetIdentity && !relaid && count == _lastTargetCount) {
         // Leave the scratch alone: it holds the stale target, and comparing
         // against it would morph back to it.
         BOOL geometryChanged = !CGSizeEqualToSize(size, _size);
@@ -65,6 +77,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         return;
     }
     _lastTargetIdentity = identity;
+    _lastTargetLayout = layout;
     _lastTargetCount = count;
     _targetInvalidated = NO;
     _scratchSamples.resize(count);
@@ -74,6 +87,11 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         VibeSignpostEnd(waveform_target);
     } else {
         std::fill(_scratchSamples.begin(), _scratchSamples.end(), 0.0f);
+    }
+    // An ease starts from the displayed samples, so they move to the new
+    // layout first.
+    if (relaid && animate && remap && !_displayedSamples.empty()) {
+        remap(_displayedSamples, _scratchSamples);
     }
     [self commitTargetForSize:size hasWaveform:(identity != NULL) animate:animate];
 }
@@ -87,9 +105,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 }
 
 - (void)dipDisplayedSamplesFromFraction:(double)from toFraction:(double)to {
-    if (!_hasWaveform || _displayedSamples.empty()) {
-        return;
-    }
     double count = (double)_displayedSamples.size();
     size_t start = (size_t)MAX(floor(from * count), 0.0);
     size_t end = (size_t)MIN(ceil(to * count), count);
@@ -98,11 +113,21 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     size_t stride = MAX(_samplesPerBar, (NSUInteger)1);
     start -= start % stride;
     end = MIN(end + (stride - end % stride) % stride, _displayedSamples.size());
+    std::vector<std::pair<size_t, size_t>> ranges = {{start, end}};
+    [self dipDisplayedSampleRanges:ranges];
+}
+
+- (void)dipDisplayedSampleRanges:(const std::vector<std::pair<size_t, size_t>> &)ranges {
+    if (!_hasWaveform || _displayedSamples.empty()) {
+        return;
+    }
     BOOL dipped = NO;
-    for (size_t i = start; i < end; i++) {
-        if (_displayedSamples[i] != 0.0f) {
-            _displayedSamples[i] = 0.0f;
-            dipped = YES;
+    for (const auto &range : ranges) {
+        for (size_t i = range.first; i < MIN(range.second, _displayedSamples.size()); i++) {
+            if (_displayedSamples[i] != 0.0f) {
+                _displayedSamples[i] = 0.0f;
+                dipped = YES;
+            }
         }
     }
     if (!dipped) {

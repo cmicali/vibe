@@ -30,8 +30,9 @@ static const CGFloat kCupertinoBarWidth = 1;
 
 // Symmetric samples use the column's energy instead of its peak envelope.
 // The centered setting still decides where the resulting bar stands.
-- (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    [self fillEnergyLevels:out + 1 count:count stride:2 waveform:waveform];
+- (void)fillColumns:(float *)out framesPerColumn:(double)frames first:(int64_t)first count:(NSUInteger)count
+           waveform:(AudioWaveform *)waveform {
+    [self fillEnergyLevels:out + 1 stride:2 framesPerColumn:frames first:first count:count waveform:waveform];
     for (NSUInteger i = 0; i < count; i++) {
         out[i * 2] = -out[i * 2 + 1];
     }

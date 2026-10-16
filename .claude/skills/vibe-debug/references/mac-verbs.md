@@ -179,7 +179,7 @@ The View > Theme items carry `view_theme_<identifier>` ids (`view_theme_vibe`, `
 
 ```bash
 "$V" --debug-cmd work_tally begin    # both platforms: a fresh counting window over the debug signposts
-"$V" --debug-cmd work_tally end      # {active, label, elapsedMs, work:{name:{count,totalMs,maxMs}}}. Nested intervals overlap, so do not add waveform_update to its waveform_target/path children. App-side time only
+"$V" --debug-cmd work_tally end      # {active, label, elapsedMs, work:{name:{count,totalMs,maxMs}}}. Nested intervals overlap, so do not add waveform_update to its waveform_target/raster children. App-side time only
 "$V" --debug-cmd measure_resize 600 1080 240  # one out-and-back width sweep at 60 Hz, 30–600 frames; restores the frame and returns CPU seconds, layout mean/p95/max ms and signpost counts. Pause playback and hold style, track and visibility fixed across before/after
 ```
 

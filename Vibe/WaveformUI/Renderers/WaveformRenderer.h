@@ -13,6 +13,8 @@
 #import "WaveformBarMath.h"
 #import "PlatformColor.h"
 
+#include "WaveformRaster.hpp"
+#include <utility>
 #include <vector>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -29,14 +31,17 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// Normalize's reference is the track's loudest of its 1,024 energy columns:
-// the waveform's own, so no view's width can move it. A streaming load keeps
-// the fixed reference: its loudest column is only the loudest SO FAR, and a
-// reference that rises per delivery shrinks bars already drawn.
-static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize) {
+// Normalize's reference is the track's loudest energy column, by default of
+// its 1,024: the waveform's own, so no view's width can move it. A grid that
+// a zoom step fixes may measure its own. A streaming load keeps the fixed
+// reference: its loudest column is only the loudest SO FAR, and a reference
+// that rises per delivery shrinks bars already drawn.
+static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize,
+                                                        NSUInteger columns = kVibeWaveformEnergyColumns,
+                                                        float reach = 0) {
     float loudest = 0;
-    if (normalize && waveform->isComplete()) {
-        waveform->loudestMeanSquares(kVibeWaveformEnergyColumns, 0, &loudest, NULL);
+    if (normalize && waveform->isComplete() && columns > 0) {
+        waveform->loudestMeanSquares(columns, reach, &loudest, NULL);
         loudest = sqrtf(fmaxf(loudest, 0));
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
@@ -61,34 +66,47 @@ static inline void VibeAimBarGradient(CAGradientLayer *gradient, BOOL centered) 
     gradient.startPoint = CGPointMake(0.5, 1 - VibeBarBaseline(1) - drop);
     gradient.endPoint = CGPointMake(0.5, VibeBarBaseline(1) - drop);
 }
-static inline void VibeFillBarGradient(CGContextRef ctx, CGSize size, NSArray *stops, BOOL centered) {
-    CGGradientRef gradient = CGGradientCreateWithColors(CGBitmapContextGetColorSpace(ctx),
-                                                        (__bridge CFArrayRef)stops, NULL);
-    CGFloat drop = VibeBarRampDrop(centered);
-    CGContextDrawLinearGradient(ctx, gradient,
-            CGPointMake(0, size.height * (1 - VibeBarBaseline(1) - drop)),
-            CGPointMake(0, size.height * (VibeBarBaseline(1) - drop)),
-            kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
-    CGGradientRelease(gradient);
-}
 
-// The envelope bake's bitmap, in the format the iOS scrubber installs: sRGB,
-// premultiplied alpha first in host order, scaled to points. NULL when empty.
-static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) CF_RETURNS_RETAINED;
-static inline CGContextRef _Nullable VibeNewEnvelopeBitmapContext(CGSize size, CGFloat scale) {
-    size_t pixelWidth = (size_t)llround(size.width * scale);
-    size_t pixelHeight = (size_t)llround(size.height * scale);
-    if (pixelWidth == 0 || pixelHeight == 0) {
+// Where a renderer draws, in device pixels: columns [x0, x1) of its bounds'
+// width at scale, and the rows of its height.
+struct VibeRenderPixels {
+    int x0 = 0;
+    int x1 = 0;
+    int height = 0;
+    CGFloat scale = 1;
+
+    int width() const { return x1 - x0; }
+    bool operator==(const VibeRenderPixels &other) const {
+        return x0 == other.x0 && x1 == other.x1 && height == other.height && scale == other.scale;
+    }
+    // The layer frame its picture covers, in its bounds' points.
+    CGRect frameForHeight(CGFloat height) const {
+        return CGRectMake(x0 / scale, 0, (x1 - x0) / scale, height);
+    }
+};
+
+// A layer's picture from 32-bit premultiplied ARGB pixels in host order.
+// TRAP: never an alpha-only image, even for a mask: one draws nothing under
+// renderInContext:, which the registry's bake uses.
+CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height) CF_RETURNS_RETAINED;
+
+// fill(pixels, rowStride) writes rows from the top of the picture. NULL when
+// empty. TRAP: in a geometryFlipped tree (the iOS host) a layer shows its
+// contents upside down, so for a layer whose contentsAreFlipped the rows are
+// handed bottom-up, with a negative stride.
+template <typename Fill>
+static inline CGImageRef _Nullable VibeNewLayerImage(BOOL flipped, size_t width, size_t height,
+                                                     Fill fill) CF_RETURNS_RETAINED;
+template <typename Fill>
+static inline CGImageRef _Nullable VibeNewLayerImage(BOOL flipped, size_t width, size_t height, Fill fill) {
+    if (width == 0 || height == 0) {
         return NULL;
     }
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef ctx = CGBitmapContextCreate(NULL, pixelWidth, pixelHeight, 8, 0, space,
-            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
-    CGColorSpaceRelease(space);
-    if (ctx) {
-        CGContextScaleCTM(ctx, scale, scale);
-    }
-    return ctx;
+    NSMutableData *bytes = [NSMutableData dataWithLength:width * height * sizeof(uint32_t)];
+    uint32_t *pixels = (uint32_t *)bytes.mutableBytes;
+    ptrdiff_t stride = (ptrdiff_t)width;
+    fill(flipped ? pixels + (height - 1) * width : pixels, flipped ? -stride : stride);
+    return VibeNewImageWithPixels(bytes, width, height);
 }
 
 // Both views own their layer trees, so a display change re-stamps them here,
@@ -142,6 +160,11 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 @protected
     // Bar renderers install their geometry callback; flat controls leave this nil.
     WaveformMorphEngine *_morph;
+    // Where the samples land: the window's device pixels, and for a step
+    // style the columns the samples hold and the frames a pixel covers.
+    VibeRenderPixels _pixels;
+    wavecore::StepWindow _window;
+    double _framesPerPixel;
 }
 
 @property (assign) BOOL isDark;
@@ -170,17 +193,36 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width;
 - (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch;
 
-// The energy columns' levels for count bars, Normalize and Gain applied: the
-// one sampling every bar style but 3-Band draws its levels from. Bar i draws
-// column VibeWaveformEnergyColumnIndexForBar(i, count).
-- (std::vector<float>)energyColumnLevelsForBarCount:(NSUInteger)count waveform:(AudioWaveform *)waveform;
-
-// One energy level per bar. Stride permits interleaved envelopes without a
-// temporary sample buffer; the caller supplies their sign and symmetry.
+// The level of each column of count on the grid of frames from first,
+// Normalize and Gain applied: the one energy reading of every style but
+// 3-Band and Spectrum. Stride permits interleaved envelopes; the caller
+// supplies their sign and symmetry.
+- (void)fillEnergyLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
+                   first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform;
+// count bars across the whole track.
 - (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
                waveform:(AudioWaveform *)waveform;
 
 @property (strong) CALayer* parentLayer;
+
+// The part of the bounds to draw, in the parent's points; CGRectNull, the
+// default, is the whole bounds. The iOS scrubber draws its visible stretch
+// of a track far wider than the screen.
+@property (nonatomic) CGRect renderRect;
+
+// The render window for bounds of this size at the parent's scale.
+- (VibeRenderPixels)renderPixelsForSize:(CGSize)size;
+
+// The step styles' one target entry point, once _pixels is current. Reads the
+// window's two steps at columnsPerPixel through fill, stride floats a column,
+// part after part.
+// Laid out by _window, the samples carry over a window or step change by the
+// track's frames. A nil waveform keeps the last window and eases it to zero.
+- (void)updateStepTargetForSize:(CGSize)size waveform:(AudioWaveform * _Nullable)waveform
+                columnsPerPixel:(double)columnsPerPixel stride:(NSUInteger)stride
+                           fill:(void (^)(float *out, const wavecore::StepPart &part))fill;
+// The convert sweep over a step style's columns.
+- (void)dipStepColumnsFromFraction:(double)from toFraction:(double)to stride:(NSUInteger)stride;
 
 // Wiggle's loop count can use an unzoomed reference width while its geometry
 // spans the drawn width. Zero follows the drawn width; other styles ignore it.
@@ -228,26 +270,6 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 // resize or morph rebuild can reposition it; the base only stores it.
 - (void)setHoverHighlightX:(CGFloat)x;
 @property (readonly) CGFloat hoverHighlightX; // < 0 when not hovering
-
-// Whether the envelope bake is pixel-identical to the live tree. A subclass
-// that changes its gradient aim or played-fill quantization must answer for
-// itself — why Basic answers NO despite subclassing Detailed.
-@property (readonly) BOOL supportsEnvelopeBake;
-
-// The bake, for a style that supports it: the iOS scrubber's settled fast
-// path draws the whole envelope as one bitmap, so scrolling translates a
-// texture instead of re-compositing the live tree. Extract samples on main;
-// the bakes touch no layer state and may run on any queue.
-- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform;
-- (nullable CGImageRef)newEnvelopeImageForSize:(CGSize)size
-                                         scale:(CGFloat)scale
-                                       samples:(NSData *)samples CF_RETURNS_RETAINED;
-// NULL when the unplayed side is the played bitmap at
-// unplayedOverPlayedOpacity, which halves the bake's bytes.
-- (nullable CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size
-                                                 scale:(CGFloat)scale
-                                               samples:(NSData *)samples CF_RETURNS_RETAINED;
-- (CGFloat)unplayedOverPlayedOpacity;
 
 // How much taller Normalize draws a complete waveform than the fixed
 // reference draws it while it streams: the whole picture scales by it, since a

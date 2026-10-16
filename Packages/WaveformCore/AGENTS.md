@@ -1,6 +1,6 @@
 # WaveformCore
 
-A waveform engine meant for reuse outside Vibe: the summary of an audio stream, the reads every display is drawn from, and its archive. It is plain C++17 over Accelerate. It names no app type, so another app can take the directory as it is. Vibe compiles its sources straight into both apps and the tests (`project.yml`). In Vibe the summary is `AudioWaveform` (`Vibe/Audio/Waveform/AGENTS.md`).
+A waveform engine meant for reuse outside Vibe: the summary of an audio stream, the reads every display is drawn from, the raster that draws them, and the archive. It is plain C++17 over Accelerate. It names no app type, so another app can take the directory as it is. Vibe compiles its sources straight into both apps and the tests (`project.yml`). In Vibe the summary is `AudioWaveform` (`Vibe/Audio/Waveform/AGENTS.md`).
 
 The public headers are in `Sources/WaveformCore/include`, and each states its contract. The namespace is `wavecore`, a name no variable takes, so it cannot be shadowed by a local `waveform`.
 
@@ -21,6 +21,18 @@ Every read takes frames, never bins.
 - **`loudestMeanSquares`** is the loudest over a fixed column count across the whole stream: a normalize reference no view can move.
 
 The pyramid, the running sums and the loudest answers are built on first use and kept, behind one lock. A shared summary never changes. **TRAP: never append to a summary after a read.** Its pyramid would no longer describe it. Only builders and archive decodes append, before the summary is shared.
+
+## The raster
+
+`WaveformRaster.hpp` turns columns into device pixels, one pixel column at a time, so a picture's working memory is one column whatever its width.
+
+- **A view reads columns only at zoom steps.** Step s holds columns of 2^(s/2) frames on the grid from frame 0. `StepWindowForPixels` picks the step no coarser than the frames a column should cover, the next coarser one, and how near the view is to each. It also picks the columns of each under a window of pixels. A resize, a zoom or a scroll inside a step reads the same columns, so a view that keeps its samples needs no new reads.
+- **Each pixel is a continuous function of the view.** `ForEachColumnShare` lands each column in the pixels it overlaps by its share. The two steps are crossfaded by the window's `coarse`. Columns reduced per pixel instead re-partition the track on every resize, and fine texture reshuffles. Sonic Visualiser avoids that by allowing only fixed zoom levels. The steps avoid it at every zoom.
+- **`RemapStepSamples` moves samples from one window's layout to another's** by the track's frames, the same step first. A view that eases its samples keeps easing through a zoom or a scroll.
+- **`ColumnCoverage` is exact.** A span covers each row by its part, and a span costs its two ends whatever its height. It writes a premultiplied white mask.
+- **`ColumnPaint` paints spans in order.** A row takes each color by the area it shows there, never coverage over coverage, so edges that coincide do not stack into a bolder line.
+
+Rows are written from the top with a signed stride, so a caller whose layer shows its contents flipped writes bottom-up.
 
 ## The archive
 

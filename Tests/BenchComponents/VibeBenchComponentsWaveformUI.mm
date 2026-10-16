@@ -86,6 +86,23 @@ static NSData *VibeBenchComponentsUISublayerFrames(CALayer *parent) {
     return frames;
 }
 
+// A layer's picture as its pixels.
+static NSData *VibeBenchComponentsUIContents(CALayer *layer) {
+    CGImageRef image = (__bridge CGImageRef)layer.contents;
+    return image ? CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))) : [NSData data];
+}
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+// The Detailed family's mask, its coverage drawn into its contents.
+static NSData *VibeBenchComponentsUIMaskCoverage(WaveformRenderer *renderer) {
+    return VibeBenchComponentsUIContents([renderer valueForKey:@"_barMask"]);
+}
+
+// What a band style paints, before the sides' mask.
+static NSData *VibeBenchComponentsUIBandPicture(WaveformRenderer *renderer) {
+    return VibeBenchComponentsUIContents([renderer valueForKey:@"_picture"]);
+}
+#else
 // The Detailed family's bar mask as Core Graphics fills it at 2x, a coverage
 // byte a pixel: two builds' masks compared by what they cover.
 static NSData *VibeBenchComponentsUIMaskCoverage(WaveformRenderer *renderer) {
@@ -113,6 +130,7 @@ static NSData *VibeBenchComponentsUIBakePixels(DetailedWaveformRenderer *rendere
     CGImageRelease(image);
     return pixels;
 }
+#endif
 
 struct VibeBenchComponentsUIRenderer {
     CALayer *parent;
@@ -175,8 +193,9 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         [CATransaction flush];
     });
 
-    // Detailed under Normalize through a live resize: every frame a new bar
-    // count, so a refill and a rebuild. Sixty frames.
+    // Detailed under Normalize through a live resize: every frame redraws the
+    // mask, and a version that reads its levels per bar refills them too.
+    // Sixty frames.
     auto detailed = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "detailed-resize", "frame", [detailed]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(detailed.get(), 800, 11);
@@ -190,11 +209,22 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         for (CGFloat width : {300.0, 801.0, 1600.0, 3000.0, 801.0}) {
             detailed->parent.bounds = CGRectMake(0, 0, width, 60);
             [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
+#if !VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
             [envelopes appendData:[renderer envelopeSamplesForWaveform:detailed->waveform.get()]];
+#endif
             [renderer settleMorphImmediately];
             [masks appendData:VibeBenchComponentsUIMaskCoverage(renderer)];
         }
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-masks.raw", masks);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+        // Normalize off and back on, each settled: the levels it draws.
+        for (BOOL normalize : {NO, YES}) {
+            renderer.normalizesLevels = normalize;
+            [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
+            [renderer settleMorphImmediately];
+            [envelopes appendData:VibeBenchComponentsUIMaskCoverage(renderer)];
+        }
+#else
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-bake.raw",
                                   VibeBenchComponentsUIBakePixels(renderer, detailed->waveform.get()));
         renderer.normalizesLevels = NO;
@@ -203,6 +233,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         renderer.normalizesLevels = YES;
         [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
         [envelopes appendData:[renderer envelopeSamplesForWaveform:detailed->waveform.get()]];
+#endif
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-resize.raw", envelopes);
         return 60;
     }, [detailed]() {
@@ -237,7 +268,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         VibeBenchComponentsUILiveResize(blocks.get());
     });
 
-    // Oversampling uses a width-independent bar count. Resize rebuilds the mask.
+    // Oversampled 4x through the same resize, which redraws the mask.
     auto x4 = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "oversampling-x4-resize", "frame", [x4]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(x4.get(), 800, 19);
@@ -257,9 +288,11 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         [masks appendData:VibeBenchComponentsUIMaskCoverage(x4->renderer)];
         [x4->renderer settleMorphImmediately];
         VibeBenchComponentsUIDump(@"ui-waveform-oversampling-x4-masks.raw", masks);
+#if !VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
         VibeBenchComponentsUIDump(@"ui-waveform-oversampling-x4-bake.raw",
                                   VibeBenchComponentsUIBakePixels((DetailedWaveformRenderer *)x4->renderer,
                                                                   x4->waveform.get()));
+#endif
         return 60;
     }, [x4]() {
         VibeBenchComponentsUILiveResize(x4.get());
@@ -299,8 +332,13 @@ static void VibeBenchComponentsRegisterRenderers(void) {
             threeBand->parent.bounds = CGRectMake(0, 0, width, 60);
             [threeBand->renderer updateWaveform:threeBand->parent.bounds progress:0.4
                                        waveform:threeBand->waveform.get()];
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+            [threeBand->renderer settleMorphImmediately];
+            [envelopes appendData:VibeBenchComponentsUIBandPicture(threeBand->renderer)];
+#else
             [envelopes appendData:[threeBand->renderer envelopeSamplesForWaveform:threeBand->waveform.get()]];
             [threeBand->renderer settleMorphImmediately];
+#endif
         }
         VibeBenchComponentsUIDump(@"ui-waveform-three-band-resize.raw", envelopes);
         return 60;
@@ -336,10 +374,12 @@ static void VibeBenchComponentsRegisterRenderers(void) {
             spectrum->parent.bounds = CGRectMake(0, 0, width, 60);
             [spectrum->renderer updateWaveform:spectrum->parent.bounds progress:0.4 waveform:spectrum->waveform.get()];
             [spectrum->renderer settleMorphImmediately];
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+            [pixels appendData:VibeBenchComponentsUIBandPicture(spectrum->renderer)];
+#else
             [envelopes appendData:[spectrum->renderer envelopeSamplesForWaveform:spectrum->waveform.get()]];
-            CALayer *fill = [spectrum->renderer valueForKey:@"_spectrumFill"];
-            CGImageRef strip = (__bridge CGImageRef)fill.contents;
-            [pixels appendData:CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(strip)))];
+            [pixels appendData:VibeBenchComponentsUIContents([spectrum->renderer valueForKey:@"_spectrumFill"])];
+#endif
         }
         VibeBenchComponentsUIDump(@"ui-waveform-spectrum-envelopes.raw", envelopes);
         VibeBenchComponentsUIDump(@"ui-waveform-spectrum-strip.raw", pixels);

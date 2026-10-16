@@ -67,73 +67,32 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     return line;
 }
 
-// Abutting bars share one outline along their tops and bottoms. This uses
-// fewer path elements than separate rects. Gapped bars keep their rects.
-// points is the caller's scratch.
-static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count,
-                                    std::vector<CGPoint> &points) CF_RETURNS_RETAINED;
-static CGPathRef VibeNewBarMaskPath(const CGRect *rects, NSUInteger count, std::vector<CGPoint> &points) {
-    CGMutablePathRef path = CGPathCreateMutable();
-    if (count < 2 || rects[0].size.width < rects[1].origin.x - rects[0].origin.x) {
-        CGPathAddRects(path, NULL, rects, count);
-        return path;
-    }
-    points.resize(4 * count);
-    CGPoint *point = points.data();
-    CGFloat left = rects[0].origin.x, right = CGRectGetMaxX(rects[count - 1]);
-    CGFloat level = rects[0].origin.y + rects[0].size.height;
-    *point++ = CGPointMake(left, level);
-    for (NSUInteger i = 1; i < count; i++) {
-        CGFloat next = rects[i].origin.y + rects[i].size.height;
-        if (next != level) {
-            *point++ = CGPointMake(rects[i].origin.x, level);
-            *point++ = CGPointMake(rects[i].origin.x, next);
-            level = next;
-        }
-    }
-    *point++ = CGPointMake(right, level);
-    level = rects[count - 1].origin.y;
-    *point++ = CGPointMake(right, level);
-    for (NSUInteger i = count - 1; i > 0; i--) {
-        CGFloat next = rects[i - 1].origin.y;
-        if (next != level) {
-            *point++ = CGPointMake(rects[i].origin.x, level);
-            *point++ = CGPointMake(rects[i].origin.x, next);
-            level = next;
-        }
-    }
-    *point++ = CGPointMake(left, level);
-    CGPathAddLines(path, NULL, points.data(), (size_t)(point - points.data()));
-    CGPathCloseSubpath(path);
-    return path;
-}
-
-// Templated on the two per-call choices so the per-bar loop, a tenth of a
-// resize frame, carries no branch. y-up: adding the negative min preserves
+// Each column's [min, max] as y-up pixels: adding the negative min preserves
 // DC-offset asymmetry; grounded, the bar keeps its height on the baseline.
-template <bool Centered, bool Snap>
-static void VibeFillBars(CGRect *rects, NSUInteger count, const float *samples, CGSize size, CGFloat scale,
-                         CGFloat barWidth, CGFloat minimumHeight) {
-    CGFloat midY = size.height / 2, baseline = VibeBarBaseline(size.height), vscale = VibeBarVScale(size.height);
-    CGFloat barPitch = size.width / (CGFloat)count;
-    for (NSUInteger i = 0; i < count; i++) {
-        CGFloat top = Centered ? midY + samples[i * 2 + 1] * vscale
-                               : baseline + (samples[i * 2 + 1] - samples[i * 2]) * vscale;
-        CGFloat bottom = Centered ? midY + samples[i * 2] * vscale : baseline;
-        if (Snap) {
-            top = round(top * scale) / scale;
-            bottom = round(bottom * scale) / scale;
+// Whole pixels only when settled, or the motion would move in steps.
+static void VibeFillSpans(float *bottoms, float *tops, const float *samples, size_t count, CGFloat height,
+                          CGFloat minimumHeight, BOOL centered, BOOL snap) {
+    CGFloat midY = height / 2, baseline = VibeBarBaseline(height), vscale = VibeBarVScale(height);
+    for (size_t i = 0; i < count; i++) {
+        CGFloat lo = samples[i * 2], hi = samples[i * 2 + 1];
+        CGFloat top = centered ? midY + hi * vscale : baseline + (hi - lo) * vscale;
+        CGFloat bottom = centered ? midY + lo * vscale : baseline;
+        if (snap) {
+            top = round(top);
+            bottom = round(bottom);
         }
-        rects[i] = CGRectMake(barPitch * (CGFloat)i, bottom, barWidth, MAX(top - bottom, minimumHeight));
+        bottoms[i] = (float)bottom;
+        tops[i] = (float)(bottom + MAX(top - bottom, minimumHeight));
     }
 }
 
 @implementation DetailedWaveformRenderer {
     BOOL _wiggle;
     // One mask for the whole stack: masking each gradient would rasterize and
-    // ship the same bar path twice per morph frame.
+    // ship the same picture twice per morph frame.
     CALayer *_waveformContainer;      // mask: _barMask; holds both gradients
-    CAShapeLayer *_barMask;
+    // Its contents are the picture's coverage over the render window.
+    CALayer *_barMask;
     CAGradientLayer *_unplayedGradient;
 
     // masksToBounds; its width is the playhead.
@@ -144,9 +103,11 @@ static void VibeFillBars(CGRect *rects, NSUInteger count, const float *samples, 
     // lit slice is the waveform, not a line over it.
     CALayer *_hoverColumn;
 
+    // The window the mask last covered, so a moved window redraws.
+    VibeRenderPixels _drawnPixels;
     // Kept across morph frames, so a rebuild allocates neither.
-    std::vector<CGRect> _barRects;
-    std::vector<CGPoint> _maskPoints;
+    std::vector<float> _bottoms;
+    std::vector<float> _tops;
 }
 
 + (NSString *)styleIdentifier {
@@ -157,15 +118,14 @@ static void VibeFillBars(CGRect *rects, NSUInteger count, const float *samples, 
     return STR_WAVEFORM_STYLE_DETAILED;
 }
 
-// The cap (kVibeWaveformMaxBars) bounds the mask path against the scrubber's
-// zoomed virtual width.
-static const CGFloat kDetailedBarPitch = 0.5;
+- (double)columnsPerPoint {
+    return _wiggle ? 0 : 2;
+}
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {
-    if (_wiggle && self.samplingWidth > 0) width = self.samplingWidth;
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * (_wiggle ? self.barDensity : 1)
-                                           / (_wiggle ? kWigglePitch : kDetailedBarPitch));
-    return clampRange(count, (NSUInteger)2, _wiggle ? kWiggleMaxLoops : kVibeWaveformMaxBars);
+    if (self.samplingWidth > 0) width = self.samplingWidth;
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * self.barDensity / kWigglePitch);
+    return clampRange(count, (NSUInteger)2, kWiggleMaxLoops);
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -193,7 +153,7 @@ static const CGFloat kDetailedBarPitch = 0.5;
                     return wiggle ? VibeWiggleVScale(height, weakSelf.centered, weakSelf.barWidthScale)
                                   : VibeBarVScale(height);
                 }
-                       rebuild:^{ [weakSelf rebuildMaskPaths]; }];
+                       rebuild:^{ [weakSelf rebuildMask]; }];
         _morph.samplesPerBar = 2;
         [self setupGradientLayers];
         [self updateColors:isDark];
@@ -205,19 +165,13 @@ static const CGFloat kDetailedBarPitch = 0.5;
 - (void)setupGradientLayers {
     CGFloat scale = self.parentLayer.contentsScale;
 
-    // Mask path updates always run with actions disabled: every morph is the
-    // timer-driven rebuild, never a Core Animation path interpolation.
+    // Mask updates always run with actions disabled: every morph is the
+    // timer-driven rebuild, never a Core Animation contents fade.
     _waveformContainer = [CALayer layer];
     _waveformContainer.anchorPoint = CGPointZero;
     _waveformContainer.actions = @{@"bounds": [NSNull null], @"position": [NSNull null]};
     _waveformContainer.contentsScale = scale;
-    _barMask = [CAShapeLayer layer];
-    _barMask.fillColor = _wiggle ? nil : [VibeColor whiteColor].CGColor;
-    if (_wiggle) {
-        _barMask.strokeColor = [VibeColor whiteColor].CGColor;
-        _barMask.lineCap = kCALineCapRound;
-        _barMask.lineJoin = kCALineJoinRound;
-    }
+    _barMask = [CALayer layer];
     _barMask.contentsScale = scale;
     _waveformContainer.mask = _barMask;
     [self.parentLayer addSublayer:_waveformContainer];
@@ -346,54 +300,121 @@ static const CGFloat kDetailedBarPitch = 0.5;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     _waveformContainer.frame = localBounds;
-    _barMask.frame = localBounds;
     _unplayedGradient.frame = localBounds;
     _playedGradient.frame = localBounds;
     [CATransaction commit];
     [self updateProgress:progress waveform:waveform];
 
-    // The oversampling styles draw more bars than device pixels on purpose:
-    // the sub-pixel overlap IS their look. Do not clamp to the pixel count.
-    NSUInteger count = [self numBarsForWidth:bounds.size.width];
-
-    [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
-                           fill:^(std::vector<float> &target) {
-        [self fillEnvelope:target.data() barCount:count waveform:waveform];
-    }];
+    _pixels = [self renderPixelsForSize:bounds.size];
+    double columnsPerPoint = [self columnsPerPoint];
+    if (columnsPerPoint > 0) {
+        [self updateStepTargetForSize:bounds.size waveform:waveform
+                      columnsPerPixel:columnsPerPoint / _pixels.scale stride:2
+                                 fill:^(float *out, const wavecore::StepPart &part) {
+            [self fillColumns:out framesPerColumn:part.framesPerColumn() first:part.first count:part.count
+                     waveform:waveform];
+        }];
+    } else {
+        NSUInteger count = [self numBarsForWidth:bounds.size.width];
+        [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
+                               fill:^(std::vector<float> &target) {
+            [self fillColumns:target.data() framesPerColumn:(double)waveform->totalFrames() / (double)count
+                        first:0 count:count waveform:waveform];
+        }];
+    }
+    // A window moved with nothing else changed, as the scrubber scrolls.
+    if (!(_drawnPixels == _pixels)) {
+        [_morph rebuildNow];
+    }
 }
 
-- (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform {
+- (void)fillColumns:(float *)out framesPerColumn:(double)frames first:(int64_t)first count:(NSUInteger)count
+           waveform:(AudioWaveform *)waveform {
+    if (count == 0) {
+        return;
+    }
     if (_wiggle) {
-        // Keeps the [min, max] layout morphs, dips and bakes share.
-        [self fillEnergyLevels:out + 1 count:count stride:2 waveform:waveform];
+        // Keeps the [min, max] layout morphs and dips share.
+        [self fillEnergyLevels:out + 1 stride:2 framesPerColumn:frames first:first count:count waveform:waveform];
         for (NSUInteger i = 0; i < count; i++) out[i * 2] = 0;
         return;
     }
-    // Each bar keeps its own min and max, scaled so its energy column's peak
-    // draws the column's level: DC-offset asymmetry and fine texture survive.
-    // TRAP: the peak is the column's own, widened by the bar's alone. Past
-    // 1,024 bars a column's bars need not cover its chunks, so their peaks
-    // can miss a transient its energy holds, and quiet bars beside it would
-    // be scaled up to the transient's level; widened by a neighbour's, a bar
-    // straddling into the next column's transient would dip every bar
-    // beside it.
-    std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
-    NSUInteger columns = levels.size(), lastColumn = NSNotFound;
-    double barFrames = (double)waveform->totalFrames() / (double)count;
-    double columnFrames = (double)waveform->totalFrames() / (double)columns;
-    float columnExtent = 0;
-    for (NSUInteger i = 0; i < count; i++) {
-        wavecore::Column m = waveform->column(i * barFrames, (i + 1) * barFrames);
-        NSUInteger column = VibeWaveformEnergyColumnIndexForBar(i, count);
-        if (column != lastColumn) {
-            columnExtent = count > columns
-                    ? waveform->column(column * columnFrames, (column + 1) * columnFrames).extent() : m.extent();
-            lastColumn = column;
+    // Each column keeps its own min and max, scaled so the peaks draw the
+    // energy around them: DC-offset asymmetry and fine texture survive. The
+    // energy is read linearly between the centers of a coarser grid, so no
+    // edge of it shows when zoomed in.
+    std::vector<wavecore::Column> columns(count);
+    waveform->columns(frames, first, count, columns.data());
+    double total = (double)waveform->totalFrames();
+    double energyFrames = fmax(frames * [self energyColumnsPerColumn], total / kVibeWaveformEnergyColumns);
+    double firstEnergy = fmax(0, floor(((double)first + 0.5) * frames / energyFrames - 0.5));
+    double endEnergy = fmin(ceil(total / energyFrames),
+                            floor(((double)first + count - 0.5) * frames / energyFrames - 0.5) + 2);
+    size_t energyCount = endEnergy > firstEnergy ? (size_t)(endEnergy - firstEnergy) : 0;
+    if (energyCount == 0) {
+        std::fill(out, out + count * 2, 0.0f);
+        return;
+    }
+    std::vector<float> levels(energyCount);
+    if ([self columnsPerPoint] > 0) {
+        // A step keeps one energy grid at every width, so it needs no reach,
+        // and Normalize can take the grid's own loudest column: the tallest
+        // column reaches full height.
+        NSUInteger energyColumns = (NSUInteger)llround(total / energyFrames);
+        waveform->meanSquares(energyFrames, (int64_t)firstEnergy, energyCount, 0, levels.data(), NULL);
+        float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, energyColumns);
+        for (float &level : levels) {
+            level = VibeWaveformBarLevel(level, fullScaleRMS, self.gainDB);
         }
-        float extent = fmaxf(columnExtent, m.extent());
-        float scale = extent > 0 ? levels[column] / extent : 0;
-        out[i * 2] = m.lo * scale;
-        out[i * 2 + 1] = m.hi * scale;
+    } else {
+        [self fillEnergyLevels:levels.data() stride:1 framesPerColumn:energyFrames first:(int64_t)firstEnergy
+                         count:energyCount waveform:waveform];
+    }
+    std::vector<wavecore::Column> energy(energyCount);
+    waveform->columns(energyFrames, (int64_t)firstEnergy, energyCount, energy.data());
+    for (NSUInteger i = 0; i < count; i++) {
+        double u = ((double)first + i + 0.5) * frames / energyFrames - 0.5 - firstEnergy;
+        size_t left = (size_t)clampRange(floor(u), 0.0, (double)(energyCount - 1));
+        size_t right = MIN(left + 1, energyCount - 1);
+        float toRight = (float)clampRange(u - (double)left, 0.0, 1.0);
+        float leftPeak = energy[left].extent(), rightPeak = energy[right].extent();
+        float leftGain = leftPeak > 0 ? levels[left] / leftPeak : 0;
+        float rightGain = rightPeak > 0 ? levels[right] / rightPeak : 0;
+        // Silence has no shape to scale: the music beside it reaches across.
+        if (leftPeak == 0) {
+            leftGain = rightGain;
+        } else if (rightPeak == 0) {
+            rightGain = leftGain;
+        }
+        // TRAP: the gain is the energy over its peak, and a column scales its
+        // own peaks by it, capped at the louder energy beside it. A column
+        // holding a transient then draws its energy, and the quiet columns
+        // beside it stay quiet. Scaled to the energy's level directly, they
+        // would be drawn up to the transient's.
+        float extent = columns[i].extent();
+        float gain = leftGain + (rightGain - leftGain) * toRight;
+        float scale = extent > 0 ? fminf(gain, fmaxf(levels[left], levels[right]) / extent) : 0;
+        out[i * 2] = columns[i].lo * scale;
+        out[i * 2 + 1] = columns[i].hi * scale;
+    }
+}
+
+// TRAP: the energy grid is never finer than kEnergyPixels. Its levels change
+// from column to column, and finer than a pixel they alias into a comb that
+// slides as a resize moves it. A multiple of the step's own columns, so a
+// step keeps one grid at every width.
+static const double kEnergyPixels = 4;
+
+- (double)energyColumnsPerColumn {
+    double columnsPerPixel = [self columnsPerPoint] / _pixels.scale;
+    return columnsPerPixel > 0 ? kEnergyPixels * columnsPerPixel : 1;
+}
+
+- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
+    if ([self columnsPerPoint] > 0) {
+        [self dipStepColumnsFromFraction:from toFraction:to stride:2];
+    } else {
+        [super dipBarsFromFraction:from toFraction:to];
     }
 }
 
@@ -402,132 +423,142 @@ static const CGFloat kDetailedBarPitch = 0.5;
     [self setHoverHighlightX:self.hoverHighlightX];
 }
 
-// The live mask reuses its scratch; bitmap workers supply their own. A zero
-// scale keeps morph frames between pixels instead of rounding their motion.
-- (void)fillBarRects:(std::vector<CGRect> &)rects size:(CGSize)size samples:(const float *)samples
-      minimumHeight:(CGFloat)minimumHeight scale:(CGFloat)scale {
-    CGRect *bars = rects.data();
-    NSUInteger count = rects.size();
-    CGFloat barWidth = [self barWidthForWidth:size.width barCount:count];
-    BOOL centered = self.centered;
-    if (centered && scale > 0) VibeFillBars<true, true>(bars, count, samples, size, scale, barWidth, minimumHeight);
-    else if (centered) VibeFillBars<true, false>(bars, count, samples, size, scale, barWidth, minimumHeight);
-    else if (scale > 0) VibeFillBars<false, true>(bars, count, samples, size, scale, barWidth, minimumHeight);
-    else VibeFillBars<false, false>(bars, count, samples, size, scale, barWidth, minimumHeight);
-}
-
-// The morph's rebuild callback. Pixel-rounds only when settled: mid-morph it
-// would quantize the motion into visible steps.
-- (void)rebuildMaskPaths {
+// The morph's rebuild callback: the picture's coverage for the render
+// window, by the style's geometry.
+- (void)rebuildMask {
     const std::vector<float> &samples = [_morph displayedSamples];
+    VibeRenderPixels pixels = _pixels;
+    _drawnPixels = pixels;
+    CGSize size = _morph.size;
     NSUInteger count = samples.size() / 2;
-    if (count == 0) {
-        return;
-    }
-    VibeSignpostBegin(waveform_path);
-    CGPathRef path;
+    BOOL flipped = _barMask.contentsAreFlipped;
+    CGImageRef image = NULL;
     float opacity = 1;
-    if (_wiggle) {
-        if (_morph.barMinHeight == 0) {
-            float peak = 0;
-            for (NSUInteger i = 0; i < count; i++) peak = MAX(peak, samples[i * 2 + 1]);
-            // Fade as the last loops flatten below their pitch; otherwise
-            // their connected baseline stays solid until the final snap.
-            opacity = MIN(1, peak * VibeWiggleVScale(_morph.size.height, self.centered, self.barWidthScale) / kWigglePitch);
+    VibeSignpostBegin(waveform_raster);
+    if (count > 0 && pixels.width() > 0 && pixels.height > 0) {
+        if (_wiggle) {
+            opacity = [self wiggleOpacityForSamples:samples];
+            image = opacity > 0 ? [self newWiggleImageForSamples:samples pixels:pixels size:size flipped:flipped]
+                                : NULL;
+        } else if ([self columnsPerPoint] > 0) {
+            image = [self newColumnImageForSamples:samples pixels:pixels flipped:flipped];
+        } else {
+            image = [self newBarImageForSamples:samples pixels:pixels size:size flipped:flipped];
         }
-        path = opacity > 0 ? VibeNewWigglePath(_morph.size, samples.data(), count, self.centered, self.barWidthScale)
-                           : CGPathCreateMutable();
-    } else {
-        _barRects.resize(count);
-        [self fillBarRects:_barRects size:_morph.size samples:samples.data()
-            minimumHeight:_morph.barMinHeight
-                    scale:_morph.isSettled ? VibeBackingScaleForLayer(self.parentLayer) : 0];
-        path = VibeNewBarMaskPath(_barRects.data(), count, _maskPoints);
     }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    if (_wiggle) _barMask.lineWidth = VibeWiggleStrokeForSize(_morph.size, count, self.barWidthScale);
-    _barMask.path = path;
+    _barMask.frame = pixels.frameForHeight(size.height);
+    _barMask.contents = (__bridge id)image;
     _barMask.opacity = opacity;
     [CATransaction commit];
-    CGPathRelease(path);
-    VibeSignpostEnd(waveform_path);
+    CGImageRelease(image);
+    VibeSignpostEnd(waveform_raster);
 }
 
-#pragma mark - Envelope bitmap
-
-- (NSData *)envelopeSamplesForWaveform:(AudioWaveform *)waveform {
-    // The live count for the host's width (the scrubber's virtual-size host),
-    // so the bake matches the layers it replaces.
-    NSUInteger count = [self numBarsForWidth:self.parentLayer.bounds.size.width];
-    NSMutableData *data = [NSMutableData dataWithLength:count * 2 * sizeof(float)];
-    [self fillEnvelope:(float *)data.mutableBytes barCount:count waveform:waveform];
-    return data;
+- (void)fillSpansForSamples:(const std::vector<float> &)samples height:(CGFloat)height scale:(CGFloat)scale {
+    size_t count = samples.size() / 2;
+    _bottoms.resize(count);
+    _tops.resize(count);
+    VibeFillSpans(_bottoms.data(), _tops.data(), samples.data(), count, height, _morph.barMinHeight * scale,
+                  self.centered, _morph.isSettled);
 }
 
-- (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
-    return [self newEnvelopeImageForSize:size scale:scale samples:samples
-                                   stops:[self gradientCGColorsForColor:self.theme.playedColor]];
-}
-
-// One hue: the played bitmap dimmed. Two: the unplayed side's own bake, at
-// its resting alphas, doubling the cell's bytes past WaveformZoomMath's
-// budget — a deliberate trade.
-- (CGImageRef)newUnplayedEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples {
-    if (self.theme.unplayedSharesPlayedHue) {
+// The two steps' columns, each landing in the pixels it overlaps by its
+// share, the coarser weighted by how near the view is to its scale.
+- (CGImageRef)newColumnImageForSamples:(const std::vector<float> &)samples pixels:(VibeRenderPixels)pixels
+                               flipped:(BOOL)flipped CF_RETURNS_RETAINED {
+    wavecore::StepWindow window = _window;
+    if (samples.size() != window.columnCount() * 2) {
         return NULL;
     }
-    return [self newEnvelopeImageForSize:size scale:scale samples:samples
-                                   stops:[self gradientCGColorsForColor:self.theme.unplayedColor]];
+    [self fillSpansForSamples:samples height:pixels.height scale:pixels.scale];
+    const float *bottoms = _bottoms.data(), *tops = _tops.data();
+    double framesPerPixel = _framesPerPixel;
+    return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
+        wavecore::ColumnCoverage column(pixels.height);
+        for (int x = pixels.x0; x < pixels.x1; x++) {
+            column.clear();
+            size_t offset = 0;
+            for (int p = 0; p < 2; p++) {
+                const wavecore::StepPart &part = window.parts[p];
+                float weight = (float)(p ? window.coarse : 1 - window.coarse);
+                if (weight > 0) {
+                    wavecore::ForEachColumnShare(x, framesPerPixel, part, [&](size_t i, float share) {
+                        column.addSpan(bottoms[offset + i], tops[offset + i], weight * share);
+                    });
+                }
+                offset += part.count;
+            }
+            column.writeMask(out + (x - pixels.x0), stride);
+        }
+    });
 }
 
-- (CGImageRef)newEnvelopeImageForSize:(CGSize)size scale:(CGFloat)scale samples:(NSData *)samples
-                                stops:(NSArray *)stops {
-    NSUInteger count = samples.length / (2 * sizeof(float));
-    CGContextRef ctx = count ? VibeNewEnvelopeBitmapContext(size, scale) : NULL;
+// Bars at the style's pitch and width, each pixel covered by its part of them.
+- (CGImageRef)newBarImageForSamples:(const std::vector<float> &)samples pixels:(VibeRenderPixels)pixels
+                               size:(CGSize)size flipped:(BOOL)flipped CF_RETURNS_RETAINED {
+    NSUInteger count = samples.size() / 2;
+    [self fillSpansForSamples:samples height:pixels.height scale:pixels.scale];
+    const float *bottoms = _bottoms.data(), *tops = _tops.data();
+    double pitch = size.width * pixels.scale / count;
+    double barWidth = [self barWidthForWidth:size.width barCount:count] * pixels.scale;
+    return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
+        wavecore::ColumnCoverage column(pixels.height);
+        for (int x = pixels.x0; x < pixels.x1; x++) {
+            column.clear();
+            long first = MAX(0L, (long)floor((x - barWidth) / pitch));
+            long end = MIN((long)count, (long)ceil((x + 1) / pitch));
+            for (long i = first; i < end; i++) {
+                double overlap = fmin(x + 1, i * pitch + barWidth) - fmax(x, i * pitch);
+                if (overlap > 0) {
+                    column.addSpan(bottoms[i], tops[i], (float)overlap);
+                }
+            }
+            column.writeMask(out + (x - pixels.x0), stride);
+        }
+    });
+}
+
+// Fade as the last loops flatten below their pitch; otherwise their connected
+// baseline stays solid until the final snap.
+- (float)wiggleOpacityForSamples:(const std::vector<float> &)samples {
+    if (_morph.barMinHeight != 0) {
+        return 1;
+    }
+    float peak = 0;
+    for (size_t i = 1; i < samples.size(); i += 2) peak = MAX(peak, samples[i]);
+    return MIN(1, peak * VibeWiggleVScale(_morph.size.height, self.centered, self.barWidthScale) / kWigglePitch);
+}
+
+// The centerline stroked by Core Graphics, the render window's part of it.
+- (CGImageRef)newWiggleImageForSamples:(const std::vector<float> &)samples pixels:(VibeRenderPixels)pixels
+                                  size:(CGSize)size flipped:(BOOL)flipped CF_RETURNS_RETAINED {
+    NSUInteger count = samples.size() / 2;
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx = CGBitmapContextCreate(NULL, (size_t)pixels.width(), (size_t)pixels.height, 8, 0, space,
+            (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGColorSpaceRelease(space);
     if (!ctx) {
         return NULL;
     }
-
-    if (_wiggle) {
-        CGPathRef path = VibeNewWigglePath(size, (const float *)samples.bytes, count, self.centered, self.barWidthScale);
-        CGContextAddPath(ctx, path);
-        CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
-        CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count, self.barWidthScale));
-        CGContextSetLineCap(ctx, kCGLineCapRound);
-        CGContextSetLineJoin(ctx, kCGLineJoinRound);
-        CGContextStrokePath(ctx);
-        CGPathRelease(path);
-        // The gradient colors the stroke's coverage, including antialiasing.
-        CGContextSetBlendMode(ctx, kCGBlendModeSourceIn);
-    } else {
-        std::vector<CGRect> rects(count);
-        std::vector<CGPoint> points;
-        [self fillBarRects:rects size:size samples:(const float *)samples.bytes minimumHeight:1 scale:scale];
-        CGPathRef mask = VibeNewBarMaskPath(rects.data(), count, points);
-        CGContextAddPath(ctx, mask);
-        CGContextClip(ctx);
-        CGPathRelease(mask);
+    if (flipped) {
+        CGContextTranslateCTM(ctx, 0, pixels.height);
+        CGContextScaleCTM(ctx, 1, -1);
     }
-
-    // The live layers' stops over configureGradient:'s band. Basic re-aims its
-    // gradient, so it cannot bake.
-    VibeFillBarGradient(ctx, size, stops, self.centered);
-
+    CGContextScaleCTM(ctx, pixels.scale, pixels.height / size.height);
+    CGContextTranslateCTM(ctx, -pixels.x0 / pixels.scale, 0);
+    CGPathRef path = VibeNewWigglePath(size, samples.data(), count, self.centered, self.barWidthScale);
+    CGContextAddPath(ctx, path);
+    CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
+    CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count, self.barWidthScale));
+    CGContextSetLineCap(ctx, kCGLineCapRound);
+    CGContextSetLineJoin(ctx, kCGLineJoinRound);
+    CGContextStrokePath(ctx);
+    CGPathRelease(path);
     CGImageRef image = CGBitmapContextCreateImage(ctx);
     CGContextRelease(ctx);
     return image;
-}
-
-// Valid because both sides share the ramp shape, so the whole difference is
-// the theme colors' resting alphas.
-- (CGFloat)unplayedOverPlayedOpacity {
-    CGFloat playedTop = CGColorGetAlpha(self.theme.playedColor.CGColor);
-    return playedTop > 0 ? CGColorGetAlpha(self.theme.unplayedColor.CGColor) / playedTop : 1;
-}
-
-- (BOOL)supportsEnvelopeBake {
-    return YES;
 }
 
 @end

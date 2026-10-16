@@ -14,7 +14,6 @@ The view is split like the mac's. `WaveformScrubberView.mm` is the core: the scr
 
 **A pinch frame stretches the bitmap. It does not re-render.** `applyVirtualGeometry` re-places the bitmap at the new virtual bounds (`placeBakedLayer:`), and resize gravity does the scaling. The picture goes slightly soft until the re-bake on release. Every other resize, such as a rotation, stretches the same way and re-bakes at once. A stored bake of another zoom is installed stretched and then re-baked once.
 
-**Wiggle keeps the same loops through a zoom.** The scrubber sets `samplingWidth` to the viewport width divided by the default zoom fraction. Wiggle uses it for its loop count while drawing across the zoomed width. A real viewport resize can still change the count. The finer bar styles sample at their drawn width.
 
 The fraction is written live, so the content size and end stops are honest on every frame. `UIScrollView`'s own `zoomScale` is the wrong shape. It scales both axes and anchors on the pinch centroid, but the playhead must stay at center.
 
@@ -70,7 +69,7 @@ Normalize and Gain are mac settings (`AppSettings+Mac.h`). This scrubber sets `n
 
 **TRAP: never show the renderer's live tree here.** It is a multi-screen layer under a mask of thousands of rects. The render server scan-converts it on the CPU on every frame it moves. Scrolling a bitmap avoids that work.
 
-The Detailed family and 3-Band bake through the envelope-image API (`WaveformRenderer.h`), with samples read on main and pixels drawn off it. Every other style draws whole through `WaveformRendererRegistry`'s `newImageForCodableWaveform:`, once all played and once all unplayed.
+Every style draws whole through `WaveformRendererRegistry`'s `newImageForCodableWaveform:`, off main, once all played and once all unplayed.
 
 **TRAP: `installEnvelopeImage:` must drop the standing bitmap first.** Without the removal, the old layer stays in the scroll's tree for the life of the view. **TRAP: crop the played side inside the install's transaction.** That transaction is top-level and commits at once. Left to the next pass, the new played layer showed at zero width for a frame, and the played side blinked at every swap.
 

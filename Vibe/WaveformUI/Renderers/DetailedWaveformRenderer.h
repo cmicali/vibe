@@ -10,23 +10,26 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface DetailedWaveformRenderer : WaveformRenderer
 
-// Wiggle shares the envelope's layers, progress, morph and bitmap bake.
-// wiggle:YES is valid only on this class, not on its bar-style subclasses.
+// Wiggle shares the envelope's layers, progress and morph. wiggle:YES is
+// valid only on this class, not on its bar-style subclasses.
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark
                        wiggle:(BOOL)wiggle;
 
-// The subclass hooks: the oversampling variants override the count; Basic the
-// count, geometry and gradient.
+// The subclass hooks: the oversampled types override the column count; Basic
+// the count, geometry and gradient.
 //
-// The count follows the drawn width at the style's pitch; the oversampling
-// variants keep fixed counts, since their look is the sub-pixel overlap of
-// more bars than pixels. It counts bars in one mask path, not layers.
+// The Detailed types draw zoom steps' columns at this many a point: 2 here,
+// and 4, 8 and 16 for the oversampled types, whose look is the sub-pixel
+// overlap of more columns than pixels. 0 draws numBarsForWidth: bars instead,
+// as Bars, Cupertino and Wiggle do.
+- (double)columnsPerPoint;
 - (NSUInteger)numBarsForWidth:(CGFloat)width;
 
-// count interleaved, normalized [min, max] pairs: the energy-scaled envelope
-// here, ±level in Cupertino. The one hook behind both the live target and the
-// bake, which must stay pixel-identical.
-- (void)fillEnvelope:(float *)out barCount:(NSUInteger)count waveform:(AudioWaveform *)waveform;
+// count interleaved, normalized [min, max] pairs for the columns of frames
+// from first: the energy-scaled envelope here, ±level in Cupertino. The one
+// hook behind every target, a step's columns or a style's bars.
+- (void)fillColumns:(float *)out framesPerColumn:(double)frames first:(int64_t)first count:(NSUInteger)count
+           waveform:(AudioWaveform *)waveform;
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count;
 

@@ -24,7 +24,7 @@ Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears bo
 
 While the cursor is over a loaded waveform, the waveform marks the column under it. Nothing is drawn on top, and there is no tooltip. The view only passes the cursor's x to `setHoverHighlightX:`, where a negative value clears it. **Each renderer family marks it its own way:**
 
-- **Detailed** adds a flat full-alpha column inside `_waveformContainer`, so the shared bar mask clips it to the envelope. It is a couple of points wide, since one bar is sub-point at 1,024 bars or more.
+- **Detailed** adds a flat full-alpha column inside `_waveformContainer`, so the shared mask clips it to the envelope. It is a couple of points wide, since the columns are finer than a point.
 - **Wiggle** uses the same masked column, spanning a whole loop.
 - **Sonic Cirrus** has discrete bars with gaps, so it snaps to a bar index and recolors that bar's two layers. A fixed-width column could land in a gap.
 - **Progress** grows the pill while hovered, and a hairline column inside it tracks the x.

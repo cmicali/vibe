@@ -28,6 +28,7 @@
 #define VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE 1          // the meter summarizes apart from consuming (1.14 on)
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS 1            // a waveform can hold the three bands' energies
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY 1          // the waveform is WaveformCore's summary, not 8,192 chunks
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER 1           // renderers draw pictures into layer contents; no paths or bakes
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM 1         // SpectrumWaveformRenderer exists
 #define VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER 1            // the resampler is VibeResampler*; VibeConverter* before
 #endif

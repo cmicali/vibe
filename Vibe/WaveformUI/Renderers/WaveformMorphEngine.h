@@ -27,13 +27,26 @@ NS_ASSUME_NONNULL_BEGIN
 // updateWaveform:'s one target entry point. identity is the waveform pointer
 // (NULL: the collapsed all-zero target), compare-only: it cannot false-match
 // because the view retains the old waveform while a new one is allocated.
+// layout names what the samples are: a renderer whose samples are a step's
+// columns over a window changes it with the step or the window.
 //
-// Same identity and count skip the fill; only a geometry change rebuilds.
-// Otherwise fill() runs synchronously on a reused buffer. Then: rebuild
-// instantly on a geometry change. A nil/non-nil flip with unchanged samples
-// also rebuilds: silent tracks need hairlines. Changed content eases.
-// A settled waveform's count change installs at once. A resize mid-morph
-// resamples the displayed bars and keeps easing.
+// Same identity, layout and count skip the fill; only a geometry change
+// rebuilds. Otherwise fill() runs synchronously on a reused buffer. Then:
+// rebuild instantly on a geometry change. A nil/non-nil flip with unchanged
+// samples also rebuilds: silent tracks need hairlines. Changed content eases.
+// A settled waveform's layout or count change installs at once. One that
+// eases carries the displayed samples over first: through remap, which
+// rewrites them for the new layout beside the new target, or without one, by
+// nearest bar.
+- (void)updateTargetForSize:(CGSize)size
+                   identity:(const void * _Nullable)identity
+                     layout:(NSUInteger)layout
+                      count:(NSUInteger)count
+                       fill:(void (^)(std::vector<float> &target))fill
+                      remap:(void (^ _Nullable)(std::vector<float> &displayed,
+                                                const std::vector<float> &target))remap;
+
+// The same with one fixed layout and no remap.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void * _Nullable)identity
                       count:(NSUInteger)count
@@ -48,8 +61,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSUInteger samplesPerBar;
 
 // Zeroes the displayed samples in the span and eases them back to the
-// unchanged target. No-op without a waveform.
+// unchanged target. No-op without a waveform. The fractions are of the
+// samples, for a layout that spans the track once.
 - (void)dipDisplayedSamplesFromFraction:(double)from toFraction:(double)to;
+// The same over [first, end) ranges of the samples.
+- (void)dipDisplayedSampleRanges:(const std::vector<std::pair<size_t, size_t>> &)ranges;
 
 // For a change the fast path cannot see, like a backing-scale flip.
 - (void)rebuildNow;

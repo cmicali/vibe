@@ -198,20 +198,12 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     BOOL complete = waveform.waveform->isComplete();
     CGFloat normalizationGain = complete ? [renderer normalizationGainForWaveform:waveform.waveform] : 1;
     CGFloat decodedFraction = waveform.waveform->decodedFraction();
-    // The fast bake samples on main, like updateWaveform:'s; only the pixel
-    // work leaves. A style without one is drawn whole through the registry,
-    // as the widget draws it: once all played, once all unplayed.
-    NSData *samples = nil;
+    // Drawn whole through the registry, as the widget draws it: once all
+    // played, once all unplayed.
     NSString *style = _styleIdentifier;
     WaveformTheme *theme = _bakeTheme;
     BOOL dark = self.isDark;
     BOOL centered = renderer.centered;
-    if (renderer.supportsEnvelopeBake) {
-        renderer.samplingWidth = self.bounds.size.width / kVibeWaveformDefaultZoomFraction;
-        VibeSignpostBegin(waveform_samples);
-        samples = [renderer envelopeSamplesForWaveform:waveform.waveform];
-        VibeSignpostEnd(waveform_samples);
-    }
     NSString *storeKey = complete ? [self bakeKeyForWaveform:waveform height:size.height
             scale:[self displayScale] dark:dark style:style signature:_themeSignature] : nil;
     NSUInteger epoch = _bakeEpoch;
@@ -220,19 +212,12 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     __weak WaveformScrubberView *weakSelf = self;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         VibeSignpostBegin(waveform_bake);
-        CGImageRef image, unplayedImage;
-        if (samples) {
-            image = [renderer newEnvelopeImageForSize:size scale:scale samples:samples];
-            unplayedImage = [renderer newUnplayedEnvelopeImageForSize:size scale:scale samples:samples];
-        }
-        else {
-            image = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
-                    pointSize:size scale:scale progress:1 dark:dark theme:theme
-                    barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
-            unplayedImage = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
-                    pointSize:size scale:scale progress:0 dark:dark theme:theme
-                    barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
-        }
+        CGImageRef image = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
+                pointSize:size scale:scale progress:1 dark:dark theme:theme
+                barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
+        CGImageRef unplayedImage = [WaveformRendererRegistry newImageForCodableWaveform:waveform identifier:style
+                pointSize:size scale:scale progress:0 dark:dark theme:theme
+                barDensity:1 barWidth:1 centered:centered normalize:YES gainDB:0];
         VibeSignpostEnd(waveform_bake);
         dispatch_async(dispatch_get_main_queue(), ^{
             WaveformScrubberView *strongSelf = weakSelf;
@@ -338,9 +323,8 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     float previousOpacity = _bakedUnplayedOpacity;
     _bakedPlayedImage = (__bridge id)image;
     _bakedUnplayedImage = (__bridge id)(unplayedImage ?: image);
-    // No unplayed bake: the played bitmap dimmed. Otherwise the unplayed
-    // side's own, already at its resting alphas.
-    _bakedUnplayedOpacity = (float)(unplayedImage ? 1 : [_renderer unplayedOverPlayedOpacity]);
+    // The unplayed side's own bake is already at its resting alphas.
+    _bakedUnplayedOpacity = 1;
     // No geometryFlipped here: the bake draws in CG's y-up space, whose top
     // row lands at the layer's top.
     _bakedHost = [CALayer layer];

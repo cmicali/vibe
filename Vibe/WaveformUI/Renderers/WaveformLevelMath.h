@@ -63,10 +63,10 @@ static inline void VibeSpectrumColor(const float *levels, const float primaries[
 }
 
 // A bar's level averages energy over a column no finer than 1/1024 of the
-// track, regardless of the drawn bar count. RMS over less than a beat
-// converges back to peak, and the oversampling styles' short bars would peg
-// on every kick. Only the level is floored. The min/max shape keeps per-bar
-// resolution.
+// track, regardless of the drawn columns. RMS over less than a beat
+// converges back to peak, and the oversampling styles' short columns would
+// peg on every kick. Only the level is floored. The min/max shape keeps each
+// column's own resolution.
 static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 
 // Spectrum's color window is a tent 1/256 of the track from foot to foot,
@@ -77,14 +77,6 @@ static const NSUInteger kVibeWaveformEnergyColumns = 1024;
 // pitch. The tent's leakage is the square of that. Coarser than the level
 // floor, because a bar's height may show each hit while its color should not.
 static const NSUInteger kVibeWaveformSpectrumColorColumns = 256;
-
-// The energy column bar i of count draws, of MIN(count,
-// kVibeWaveformEnergyColumns): its own until the bars are finer than the
-// floor.
-static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
-    return count > kVibeWaveformEnergyColumns
-            ? i * kVibeWaveformEnergyColumns / count : i;
-}
 
 // How much of AudioWaveform.meanSquares's reach count bars take: all of
 // it up to fullCount, fading to none at twice that. Bars about a beat long
@@ -99,7 +91,3 @@ static inline float VibeWaveformWindowReach(NSUInteger count, NSUInteger fullCou
 static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
     return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
 }
-
-// Caps the styles whose count follows the scrubber's zoomed width, which
-// bounds their paths.
-static const NSUInteger kVibeWaveformMaxBars = 8192;
