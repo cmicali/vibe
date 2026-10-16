@@ -2,16 +2,17 @@
 //  AudioFileHandle.h
 //  Vibe
 //
-//  One opened audio file. For reading: a descriptor this process owns,
-//  CoreAudio's parser over it through AudioFileOpenWithCallbacks, and an
-//  ExtAudioFile decoding it to PCM. For writing: an ExtAudioFile encoding PCM
-//  into a file it creates. The surface is AVAudioFile's — the file's facts, a
-//  cursor in file frames, reads from and writes of a PCM buffer — so the
-//  player, the bus, the waveform loader, the converter and the test fixtures
-//  share one class and one lifetime rule: the last reference disposes the
-//  codec (or closes dr_flac or dr_wav), closes the parser and closes the
-//  descriptor, in that order. A FAILED open leaks nothing, which is why no
-//  preflight precedes it. For an open with an `interrupted` block, the last
+//  One opened audio file. For reading: a descriptor this process owns and a
+//  decoder over it. dr_flac, dr_wav and libvorbis parse their own containers.
+//  Any other file opens CoreAudio's parser over the descriptor through
+//  AudioFileOpenWithCallbacks, and dr_mp3 or an ExtAudioFile decodes it. For
+//  writing: an ExtAudioFile encoding PCM into a file it creates. The surface
+//  is AVAudioFile's — the file's facts, a cursor in file frames, reads from
+//  and writes of a PCM buffer — so the player, the bus, the waveform loader,
+//  the converter and the test fixtures share one class and one lifetime rule.
+//  The last reference closes the decoder, then the parser, then the
+//  descriptor. A FAILED open leaks nothing, which is why no preflight
+//  precedes it. For an open with an `interrupted` block, the last
 //  step runs later, on a serial queue of the handle's own. That step closes
 //  the descriptor, or the parser opened by URL that holds one. A close can
 //  wait on a network share's server. The owners of such handles let them go

@@ -492,11 +492,7 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
         NSUInteger waits = [self drive:cramped step:0 reader:^{
             XCTAssertNotNil([[AudioFileHandle alloc] initForReading:cramped.url error:NULL], @"%@", extension);
         }];
-        if (walksToTheEnd) {
-            XCTAssertGreaterThan(waits, 0u, @"%@: the small window left the chunk's header to the download", extension);
-        } else {
-            XCTAssertEqual(waits, 0u, @"%@: dr_wav stops at the data chunk", extension);
-        }
+        XCTAssertEqual(waits > 0, walksToTheEnd, @"%@: only an open that walks to the chunk waits for it", extension);
         [cramped complete];
 
         VibeGrowingFile *file = [self stream:source prefix:head window:window];

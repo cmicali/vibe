@@ -8752,11 +8752,13 @@ static drflac* drflac_open_with_metadata_private(drflac_read_proc onRead, drflac
     block size names that size, but a damaged STREAMINFO can name any size, and then every frame is placed wrong: seeks land elsewhere, and
     the search for an unknown length below finds the wrong end. The first frame's own header names the size, so it's taken from there. In a
     stream of variable block sizes the size only ever multiplies the first frame's number, which is 0, so taking it there changes nothing.
+    The first frame starts where the metadata ends, so the search for its header gives up past that point. A header no frame can satisfy, as
+    a damaged STREAMINFO's sample size makes every one, would otherwise send the search through the whole stream at open.
     */
     if (init.hasStreamInfoBlock && init.container == drflac_container_native) {
         drflac_frame_header firstHeader;
         if (drflac__seek_to_first_frame(pFlac)
-                && drflac__read_next_flac_frame_header(&pFlac->bs, pFlac->bitsPerSample, &firstHeader)
+                && drflac__read_next_flac_frame_header_before(&pFlac->bs, pFlac->bitsPerSample, pFlac->firstFLACFramePosInBytes + 1, &firstHeader)
                 && firstHeader.flacFrameNumber == 0 && firstHeader.pcmFrameNumber == 0
                 && firstHeader.blockSizeInPCMFrames != 0 && firstHeader.blockSizeInPCMFrames <= pFlac->maxBlockSizeInPCMFrames) {
             pFlac->_fixedBlockSizeInPCMFrames = firstHeader.blockSizeInPCMFrames;

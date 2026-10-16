@@ -13,72 +13,43 @@
 
 @implementation AudioFileHandle (Stream)
 
-// The containers whose decoder parses them itself, answering the file's facts
-// as well as its samples.
-typedef NS_ENUM(NSInteger, VibeOwnContainer) {
-    VibeOwnContainerNone,
-    VibeOwnContainerFLAC,
-    VibeOwnContainerWAV,
-    VibeOwnContainerOggVorbis,
-};
-
-// The container a file's first bytes name, read through the handle's reads:
-// FLAC, behind an ID3v2 tag too, for dr_flac. RIFF and RF64 WAVE, Wave64 and
-// AIFF(-C) for dr_wav. Ogg whose first packet is Vorbis's identification for
-// libvorbis. BW64 and RIFX are left to CoreAudio's parser.
-static VibeOwnContainer VibeOwnContainerOf(AudioFileHandle *handle) {
+// Takes the file for the decoder that parses its container, in place of
+// CoreAudio's parser, which never opens it. The file's first bytes name the
+// container. RIFF and RF64 WAVE, Wave64 and AIFF(-C) go to dr_wav. FLAC,
+// behind an ID3v2 tag too, goes to dr_flac. Ogg whose first packet is Vorbis's
+// identification goes to libvorbis. NO leaves the file to the parser: BW64,
+// RIFX and every other container, a coding the decoder does not decode, or a
+// stream it cannot open.
+- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved {
     static const uint8_t wave64[16] = {'r', 'i', 'f', 'f', 0x2E, 0x91, 0xCF, 0x11, 0xA5, 0xD6, 0x28, 0xDB, 0x04, 0xC1, 0x00, 0x00};
     uint8_t head[27 + 255 + 7]; // an Ogg page header, its segment table and the first packet's opening
     UInt32 got = 0;
-    VibeHandleRead((__bridge void *)handle, 0, sizeof head, head, &got);
-    if (got >= 12 && (memcmp(head, "RIFF", 4) == 0 || memcmp(head, "RF64", 4) == 0) && memcmp(head + 8, "WAVE", 4) == 0) {
-        return VibeOwnContainerWAV;
+    VibeHandleRead((__bridge void *)self, 0, sizeof head, head, &got);
+    uint32_t tag = got >= 10 ? VibeID3v2TagBytes(head) : 0;
+    if (tag) {
+        // Fetched past the read block. A cover bigger than the block would
+        // move it off the file's head, which the parser reads next.
+        ssize_t fetched = VibeHandleFetch(self, tag, 4, head, 4);
+        got = fetched < 0 ? 0 : (UInt32)fetched;
     }
-    if (got >= 12 && memcmp(head, "FORM", 4) == 0 && (memcmp(head + 8, "AIFF", 4) == 0 || memcmp(head + 8, "AIFC", 4) == 0)) {
-        return VibeOwnContainerWAV;
-    }
-    if (got >= sizeof wave64 && memcmp(head, wave64, sizeof wave64) == 0) {
-        return VibeOwnContainerWAV;
+    if ((got >= 12 && (memcmp(head, "RIFF", 4) == 0 || memcmp(head, "RF64", 4) == 0) && memcmp(head + 8, "WAVE", 4) == 0)
+            || (got >= 12 && memcmp(head, "FORM", 4) == 0 && (memcmp(head + 8, "AIFF", 4) == 0 || memcmp(head + 8, "AIFC", 4) == 0))
+            || (got >= sizeof wave64 && memcmp(head, wave64, sizeof wave64) == 0)) {
+        return [self openWAVInterleaved:interleaved];
     }
     if (got >= 4 && memcmp(head, "fLaC", 4) == 0) {
-        return VibeOwnContainerFLAC;
+        return [self openFLACInterleaved:interleaved];
     }
-    if (got >= 27 && memcmp(head, "OggS", 4) == 0) {
-        UInt32 packet = 27 + head[26];
-        return got >= packet + 7 && memcmp(head + packet, "\x01vorbis", 7) == 0 ? VibeOwnContainerOggVorbis : VibeOwnContainerNone;
-    }
-    uint32_t tag = got >= 10 ? VibeID3v2TagBytes(head) : 0;
-    uint8_t magic[4];
-    UInt32 read = 0;
-    if (tag && VibeHandleRead((__bridge void *)handle, tag, sizeof magic, magic, &read) == noErr && read == sizeof magic
-            && memcmp(magic, "fLaC", 4) == 0) {
-        return VibeOwnContainerFLAC;
-    }
-    return VibeOwnContainerNone;
-}
-
-// Takes the file for the decoder that parses its container, in place of
-// CoreAudio's parser, which never opens it. NO leaves the file to the parser:
-// a container none of them parses, a coding the decoder does not decode, or a
-// stream it cannot open.
-- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved {
-    switch (VibeOwnContainerOf(self)) {
-        case VibeOwnContainerFLAC:
-            return [self openFLACInterleaved:interleaved];
-        case VibeOwnContainerWAV:
-            return [self openWAVInterleaved:interleaved];
-        case VibeOwnContainerOggVorbis:
-            return [self openVorbisInterleaved:interleaved];
-        case VibeOwnContainerNone:
-            return NO;
-    }
+    UInt32 packet = got >= 27 && memcmp(head, "OggS", 4) == 0 ? 27 + head[26] : 0;
+    return packet && got >= packet + 7 && memcmp(head + packet, "\x01vorbis", 7) == 0 && [self openVorbisInterleaved:interleaved];
 }
 
 // Keeps the decoder just opened when it found a file it plays: a length, no
-// failed read, and formats that can be made. NO closes it.
+// failed read, and formats that can be made. NO closes it. A zeroed
+// description is a coding the decoder does not decode.
 - (BOOL)keepStreamDecoderWithLength:(UInt64)length description:(AudioStreamBasicDescription)description
                              layout:(AVAudioChannelLayout *)layout interleaved:(BOOL)interleaved {
-    if (length == 0 || description.mSampleRate <= 0 || description.mChannelsPerFrame == 0 || _streamReadFailed || _waitError
+    if (length == 0 || description.mSampleRate <= 0 || description.mChannelsPerFrame == 0 || _streamReadFailed
             || ![self takeFileFormat:description layout:layout interleaved:interleaved]) {
         [self closeStreamDecoder];
         return NO;
@@ -121,22 +92,15 @@ static AVAudioChannelLayout *VibeMaskLayout(UInt32 mask, UInt32 channels) {
     return [self keepStreamDecoderWithLength:_flac->totalPCMFrameCount description:description layout:layout interleaved:interleaved];
 }
 
-// The codings dr_wav decodes. Only its own parse can tell them: a
-// WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
-// WAV is one it does not, which goes to CoreAudio's parser and dr_mp3.
-static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
-    drwav_uint16 tag = wav->translatedFormatTag;
-    return tag == DR_WAVE_FORMAT_PCM || tag == DR_WAVE_FORMAT_ALAW || tag == DR_WAVE_FORMAT_MULAW
-            || tag == DR_WAVE_FORMAT_ADPCM || tag == DR_WAVE_FORMAT_DVI_ADPCM
-            || (tag == DR_WAVE_FORMAT_IEEE_FLOAT && (wav->bitsPerSample == 32 || wav->bitsPerSample == 64));
-}
-
 // Microsoft's ADPCM as CoreAudio names it. The SDK names no constant.
 static const AudioFormatID kVibeMicrosoftADPCMFormat = 0x6D730002;
 
 // dr_wav's facts as CoreAudio's parser states them, field for field. The one
 // known difference is a sowt AIFF-C. CoreAudio calls it 16-bit whatever its
-// COMM says, and reads it 1.5 or 2 times too long.
+// COMM says, and reads it 1.5 or 2 times too long. Zeroed for a coding dr_wav
+// does not decode. Only dr_wav's own parse can tell one: a
+// WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
+// WAV is one. It goes to CoreAudio's parser and dr_mp3.
 static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav) {
     UInt32 channels = wav->channels, blockAlign = wav->fmt.blockAlign;
     BOOL aiff = wav->container == drwav_container_aiff;
@@ -167,21 +131,24 @@ static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav) {
             description.mBytesPerPacket = blockAlign;
             description.mFramesPerPacket = (blockAlign - 7 * channels) * 2 / channels + 2;
             break;
-        default: {
+        case DR_WAVE_FORMAT_PCM:
+        case DR_WAVE_FORMAT_IEEE_FLOAT: {
             BOOL isFloat = wav->translatedFormatTag == DR_WAVE_FORMAT_IEEE_FLOAT;
+            if (isFloat && wav->bitsPerSample != 32 && wav->bitsPerSample != 64) {
+                return (AudioStreamBasicDescription){0};
+            }
             BOOL isSigned = !isFloat && (aiff ? !wav->aiff.isUnsigned : wav->bitsPerSample > 8);
             description.mFormatID = kAudioFormatLinearPCM;
             description.mFormatFlags = kAudioFormatFlagIsPacked | (isFloat ? kAudioFormatFlagIsFloat : 0)
                     | (isSigned ? kAudioFormatFlagIsSignedInteger : 0) | (aiff && !wav->aiff.isLE ? kAudioFormatFlagIsBigEndian : 0);
             description.mBitsPerChannel = wav->bitsPerSample;
             description.mBytesPerFrame = description.mBytesPerPacket = (wav->bitsPerSample + 7) / 8 * channels;
+            break;
         }
+        default:
+            return (AudioStreamBasicDescription){0};
     }
     return description;
-}
-
-static uint32_t VibeBigEndian32(const uint8_t *p) {
-    return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
 }
 
 // Apple's tools keep an AIFF's channel layout in a CHAN chunk, CAF's form of
@@ -196,21 +163,21 @@ static drwav_uint64 VibeReadCHANChunk(void *user, drwav_read_proc onRead, drwav_
     }
     uint8_t chunk[kFixedFields + 64 * kDescriptionBytes];
     size_t got = onRead(readUser, chunk, (size_t)header->sizeInBytes);
-    uint32_t count = got >= kFixedFields ? VibeBigEndian32(chunk + 8) : 0;
+    uint32_t count = got >= kFixedFields ? OSReadBigInt32(chunk, 8) : 0;
     if (got < header->sizeInBytes || kFixedFields + (uint64_t)count * kDescriptionBytes > got) {
         return got;
     }
     AudioChannelLayout *layout = calloc(1, offsetof(AudioChannelLayout, mChannelDescriptions) + MAX(count, 1u) * sizeof(AudioChannelDescription));
-    layout->mChannelLayoutTag = VibeBigEndian32(chunk);
-    layout->mChannelBitmap = VibeBigEndian32(chunk + 4);
+    layout->mChannelLayoutTag = OSReadBigInt32(chunk, 0);
+    layout->mChannelBitmap = OSReadBigInt32(chunk, 4);
     layout->mNumberChannelDescriptions = count;
     for (uint32_t i = 0; i < count; i++) {
         const uint8_t *field = chunk + kFixedFields + i * kDescriptionBytes;
         AudioChannelDescription *description = &layout->mChannelDescriptions[i];
-        description->mChannelLabel = VibeBigEndian32(field);
-        description->mChannelFlags = VibeBigEndian32(field + 4);
+        description->mChannelLabel = OSReadBigInt32(field, 0);
+        description->mChannelFlags = OSReadBigInt32(field, 4);
         for (int axis = 0; axis < 3; axis++) {
-            uint32_t bits = VibeBigEndian32(field + 8 + 4 * axis);
+            uint32_t bits = OSReadBigInt32(field, 8 + 4 * axis);
             memcpy(&description->mCoordinates[axis], &bits, sizeof bits);
         }
     }
@@ -233,10 +200,6 @@ static drwav_uint64 VibeReadCHANChunk(void *user, drwav_read_proc onRead, drwav_
     free(stated);
     if (_wav->channels <= 2 || layout.channelCount != _wav->channels) {
         layout = VibeMaskLayout(_wav->fmt.channelMask, _wav->channels);
-    }
-    if (!VibeDrWAVDecodesCoding(_wav)) {
-        [self closeStreamDecoder];
-        return NO;
     }
     return [self keepStreamDecoderWithLength:_wav->totalPCMFrameCount description:VibeWAVDescription(_wav)
                                       layout:layout interleaved:interleaved];
@@ -286,7 +249,7 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
         vorbis_comment_clear(&_vorbis->vc[link]);
     }
     vorbis_info *info = ov_info(_vorbis, 0);
-    BOOL uniform = info && info->channels > 0 && info->rate > 0;
+    BOOL uniform = info != NULL;
     for (int link = 1; uniform && link < ov_streams(_vorbis); link++) {
         vorbis_info *next = ov_info(_vorbis, link);
         uniform = next && next->channels == info->channels && next->rate == info->rate;

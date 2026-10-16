@@ -51,7 +51,6 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
     AVAudioFramePosition _length;
     AudioFileID _parser;
     ExtAudioFileRef _codec; // NULL while dr_mp3, dr_flac, dr_wav or libvorbis decodes
-    AudioFileTypeID _container; // the parser's kAudioFilePropertyFileFormat
     // A file still streaming, or reading ahead: every read waits for its
     // bytes. Set by the open and fixed from then on. Nil for a whole file.
     CloudFileAvailability *_availability;
@@ -98,7 +97,6 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 }
 
 - (BOOL)reportWaitFault:(NSError **)error;
-- (void)closeParser;
 - (BOOL)takeFileFormat:(AudioStreamBasicDescription)description layout:(AVAudioChannelLayout *)layout
            interleaved:(BOOL)interleaved;
 
@@ -132,6 +130,7 @@ NSError *VibeHandleError(OSStatus status, NSString *description);
 BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
                      void *window, uint64_t capacity, uint64_t *copied);
 BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait);
+ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 requested, void *buffer, size_t capacity);
 OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount);
 
 // AudioFileHandle.m's byte reads for dr_flac, dr_wav and vorbisfile. The
