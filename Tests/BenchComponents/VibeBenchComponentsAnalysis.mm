@@ -63,12 +63,24 @@ static void VibeBenchComponentsRegisterWaveform(void) {
             [analyzer finish];
         });
         // The loader's processing side without the analyzers: the downmix
-        // and the chunk merge over the waveform's chunks, then the same with
-        // the band split 3-Band asks for.
+        // and the waveform's own pass, then the same with the band split
+        // 3-Band asks for.
         for (int bands = 0; bands <= VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS; bands++) {
             VibeBenchComponentsAdd(bands ? "chunker+bands" : "chunker", n, "audio s",
                                    VibeBenchComponentsPCMPrepare(name), [name, bands]() {
                 VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
+                std::vector<float> scratch(65536);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+                wavecore::SummaryBuilder builder((uint32_t)pcm->channels, kAudioWaveformStoredChannels, bands,
+                                                 (int64_t)pcm->frames, pcm->rate);
+                for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
+                    NSUInteger numFrames = MIN((NSUInteger)65536, pcm->frames - at);
+                    const float *interleaved = pcm->interleaved.data() + at * pcm->channels;
+                    const float *mono = AudioWaveformMonoMix(interleaved, scratch.data(), numFrames, pcm->channels);
+                    builder.append(interleaved, mono, numFrames);
+                }
+                builder.finish(true);
+#else
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
                 AudioWaveform waveform(bands);
                 std::unique_ptr<AudioWaveformBandSplit> split =
@@ -78,7 +90,6 @@ static void VibeBenchComponentsRegisterWaveform(void) {
                 AudioWaveform waveform;
 #endif
                 NSUInteger chunks = waveform.getNumChunks();
-                std::vector<float> scratch(65536);
                 NSUInteger chunkIndex = 0;
                 NSUInteger chunkEnd = pcm->frames / chunks;
                 AudioWaveformCacheChunk current;
@@ -105,6 +116,7 @@ static void VibeBenchComponentsRegisterWaveform(void) {
                         }
                     }
                 }
+#endif
             });
         }
     }

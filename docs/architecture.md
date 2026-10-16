@@ -26,7 +26,7 @@ Vibe/
     Metadata/          tags, the metadata cache, and the playlist scan
       Artwork/         embedded art and the shared row thumbnails
         FolderArt/     the cover image beside the files, for a file with no art (macOS)
-    Waveform/          waveform data: the decode, the chunks, and the disk cache
+    Waveform/          waveform data: the decode, the summary, and the disk cache
     Analysis/          tempo and key detection
     Levels/            the live output meter behind the equalizer bars
     Mac/Devices/       CoreAudio output devices and bit-perfect output (macOS)

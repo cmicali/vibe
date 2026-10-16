@@ -81,9 +81,9 @@
     // The reach is gone by the floor's 1,024 columns, which no resize moves.
     std::vector<float> levels(MIN(count, kVibeWaveformEnergyColumns));
     float reach = VibeWaveformWindowReach(levels.size(), kVibeWaveformEnergyColumns / 2);
-    waveform->getBarMeanSquares(levels.size(), reach, levels.data(), NULL);
-    float fullScaleRMS = VibeWaveformFullScaleRMSForColumns(waveform, self.normalizesLevels,
-                                                            levels.data(), levels.size());
+    waveform->meanSquares((double)waveform->totalFrames() / (double)levels.size(), 0, levels.size(), reach,
+                          levels.data(), NULL);
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
     float gainDB = self.gainDB;
     for (float &level : levels) {
         level = VibeWaveformBarLevel(level, fullScaleRMS, gainDB);
@@ -175,12 +175,7 @@
     if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
         return 1;
     }
-    std::vector<float> meanSquares(kVibeWaveformEnergyColumns);
-    waveform->getBarMeanSquares(meanSquares.size(),
-                                VibeWaveformWindowReach(meanSquares.size(), kVibeWaveformEnergyColumns / 2),
-                                meanSquares.data(), NULL);
-    float reference = VibeWaveformFullScaleRMSForColumns(waveform, YES, meanSquares.data(),
-                                                         meanSquares.size());
+    float reference = VibeWaveformFullScaleRMSForWaveform(waveform, YES);
     return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
 }
 

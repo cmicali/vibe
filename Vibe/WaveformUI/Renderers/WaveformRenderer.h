@@ -29,15 +29,14 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// Normalize's reference is the loudest of the energy columns the bars draw,
-// read from the mean squares the fill just took. A streaming load keeps the
-// fixed reference: its loudest column is only the loudest SO FAR, and a
+// Normalize's reference is the track's loudest of its 1,024 energy columns:
+// the waveform's own, so no view's width can move it. A streaming load keeps
+// the fixed reference: its loudest column is only the loudest SO FAR, and a
 // reference that rises per delivery shrinks bars already drawn.
-static inline float VibeWaveformFullScaleRMSForColumns(AudioWaveform *waveform, BOOL normalize,
-                                                       const float *meanSquares, NSUInteger columns) {
+static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize) {
     float loudest = 0;
     if (normalize && waveform->isComplete()) {
-        vDSP_maxv(meanSquares, 1, &loudest, columns);
+        waveform->loudestMeanSquares(kVibeWaveformEnergyColumns, 0, &loudest, NULL);
         loudest = sqrtf(fmaxf(loudest, 0));
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);

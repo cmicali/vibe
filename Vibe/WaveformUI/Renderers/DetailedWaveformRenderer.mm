@@ -379,19 +379,21 @@ static const CGFloat kDetailedBarPitch = 0.5;
     // beside it.
     std::vector<float> levels = [self energyColumnLevelsForBarCount:count waveform:waveform];
     NSUInteger columns = levels.size(), lastColumn = NSNotFound;
+    double barFrames = (double)waveform->totalFrames() / (double)count;
+    double columnFrames = (double)waveform->totalFrames() / (double)columns;
     float columnExtent = 0;
     for (NSUInteger i = 0; i < count; i++) {
-        AudioWaveformCacheChunk m = waveform->getChunkAtIndex(i, count);
+        wavecore::Column m = waveform->column(i * barFrames, (i + 1) * barFrames);
         NSUInteger column = VibeWaveformEnergyColumnIndexForBar(i, count);
         if (column != lastColumn) {
-            AudioWaveformCacheChunk c = count > columns ? waveform->getChunkAtIndex(column, columns) : m;
-            columnExtent = fmaxf(fabsf(c.getMin()), fabsf(c.getMax()));
+            columnExtent = count > columns
+                    ? waveform->column(column * columnFrames, (column + 1) * columnFrames).extent() : m.extent();
             lastColumn = column;
         }
-        float extent = fmaxf(columnExtent, fmaxf(fabsf(m.getMin()), fabsf(m.getMax())));
+        float extent = fmaxf(columnExtent, m.extent());
         float scale = extent > 0 ? levels[column] / extent : 0;
-        out[i * 2] = m.getMin() * scale;
-        out[i * 2 + 1] = m.getMax() * scale;
+        out[i * 2] = m.lo * scale;
+        out[i * 2 + 1] = m.hi * scale;
     }
 }
 

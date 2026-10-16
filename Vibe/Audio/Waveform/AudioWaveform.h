@@ -4,16 +4,14 @@
 //
 
 #include <Accelerate/Accelerate.h>
-#include <os/lock.h>
-#include <simd/simd.h>
-#include <cmath>
-#include <vector>
+#include <memory>
 
-// The waveform chunker, BPM and key analyzers share one mono mix per buffer.
-// For mono
-// input it returns the buffer itself, with no copy. Otherwise it averages the
-// channels, which are interleaved as L0 R0 L1 R1 and so on, into scratch, and
-// returns scratch. scratch must hold numFrames floats.
+#include "WaveformSummary.hpp"
+
+// The waveform summary, BPM and key analyzers share one mono mix per buffer.
+// For mono input it returns the buffer itself, with no copy. Otherwise it
+// averages the channels, which are interleaved as L0 R0 L1 R1 and so on, into
+// scratch, and returns scratch. scratch must hold numFrames floats.
 static inline const float* AudioWaveformMonoMix(const float* buffer, float* scratch,
                                                 NSUInteger numFrames, NSUInteger channels) {
     if (channels <= 1) {
@@ -33,188 +31,25 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
     return scratch;
 }
 
-// Low, mid and high, split from the mono mix (AudioWaveformBandSplit).
-static const NSUInteger kAudioWaveformBandCount = 3;
+// Vibe's waveform is WaveformCore's summary (Packages/WaveformCore): peaks
+// and energy in bins of fixed time, read through its pyramid.
+typedef wavecore::Summary AudioWaveform;
 
-// The streaming band split: the chunker hands it each chunk's slice of the
-// mono stream, in order, and it filters the slice and sums each band's
-// squares. The filters' state carries across calls, so the split sees neither
-// block nor chunk edges.
-struct AudioWaveformBandSplit {
-    explicit AudioWaveformBandSplit(double sampleRate);
-
-    // Adds each band's sum of squares over the frames to sums, low to high.
-    void addSumSquares(const float* mono, NSUInteger numFrames, float* sums);
-
-private:
-    // One lane per 2nd-order section: low, mid's highpass, mid's lowpass,
-    // high. Direct form I.
-    simd_double4 b0, b1, b2, a1, a2;
-    simd_double4 x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-};
-
-struct AudioWaveformCacheChunk {
-
-    inline AudioWaveformCacheChunk() noexcept { set(0, 0); }
-    inline AudioWaveformCacheChunk(const float* mono, NSUInteger numFrames) noexcept {
-        set(0, 0);
-        mergeFromMonoBuffer(mono, numFrames);
-    }
-
-    inline float getMin() const noexcept { return values[0]; }
-    inline float getMax() const noexcept { return values[1]; }
-    // Mean of the squared samples across every frame merged in — sqrt of it is
-    // the chunk's RMS. 0 for an empty chunk.
-    inline float getMeanSquare() const noexcept { return values[3] > 0 ? values[2] / values[3] : 0; }
-    inline float getFrameCount() const noexcept { return values[3]; }
-    inline void set(float min, float max) noexcept { set(min, max, 0, 0); }
-    inline void set(float min, float max, float sumSquares, float frameCount) noexcept {
-        values[0] = min; values[1] = max; values[2] = sumSquares; values[3] = frameCount;
-    }
-
-    inline void mergeFromMonoBuffer(const float* mono, NSUInteger numFrames) {
-        if (numFrames == 0) return;
-
-        float minVal, maxVal, meanSquare;
-        vDSP_minv(mono, 1, &minVal, numFrames);
-        vDSP_maxv(mono, 1, &maxVal, numFrames);
-        vDSP_measqv(mono, 1, &meanSquare, numFrames);
-
-        // A corrupt file can decode NaN or Inf, which vDSP propagates into all
-        // three reductions: NaN geometry in the renderers, persisted under the
-        // file's key because the decode still completes.
-        if (!std::isfinite(minVal)) minVal = 0.0f;
-        if (!std::isfinite(maxVal)) maxVal = 0.0f;
-        if (!std::isfinite(meanSquare)) meanSquare = 0.0f;
-
-        if (minVal < values[0]) values[0] = minVal;
-        if (maxVal > values[1]) values[1] = maxVal;
-        values[2] += meanSquare * (float)numFrames;
-        values[3] += (float)numFrames;
-    }
-
-private:
-    // min, max, sum of squared samples, frame count. Keeping the sum and
-    // count preserves the relative weight of unequal pieces when merging.
-    float values[4];
-};
-
-class AudioWaveform {
-public:
-    // The bands are 3-Band's alone, so only a decode asked for them holds them
-    // (VibeWaveformAnalysis.bands).
-    explicit AudioWaveform(bool withBands = false);
-    // bandSums, numChunks * kAudioWaveformBandCount of them, or null for a
-    // waveform without bands.
-    AudioWaveform(NSUInteger numChunks, const void* chunks, const void* bandSums = nullptr);
-    AudioWaveform(const AudioWaveform& other);
-    // Deleted: it would shallow-copy the raw chunks pointer and double free.
-    AudioWaveform& operator=(const AudioWaveform&) = delete;
-    ~AudioWaveform();
-
-    AudioWaveformCacheChunk getChunkAtIndex(NSUInteger index, NSUInteger size);
-    // A chunk's bands' mean squares, low to high, as the archive keeps them;
-    // zeros without bands.
-    void getBandMeanSquares(NSUInteger index, float* meanSquares);
-    inline bool hasBands() const noexcept { return bandSums != nullptr; }
-    // Every one of size bars' mean squares at once, which is what a bar's
-    // level is drawn from: the full mix's into meanSquares, size of them, and
-    // the bands', low to high per bar, into bandMeanSquares; either may be
-    // null, and the bands are zeros without bands. At reach 0 a bar's window
-    // is the bar itself, its edges anywhere in a chunk. At reach 1 it is the
-    // loudest of five bar-long windows spaced a quarter bar apart, centered
-    // on its own window. Each band chooses separately. This reduces height
-    // changes as a resize moves a bar edge across a transient. Intermediate
-    // reach blends the own-window and loudest answers. A window past the track's
-    // edge, or past the end of a load still streaming, is the mean of the
-    // frames it does cover.
-    void getBarMeanSquares(NSUInteger size, float reach, float* meanSquares, float* bandMeanSquares);
-    // Every one of size bars' bands' mean squares, in the same layout, under
-    // a tent window centered on the bar: 1/columns of the track from foot to
-    // foot, never narrower than two bars, clipped to the track. Spectrum's
-    // colors read it: a window the bar's own alternates between the kick's
-    // and the hats' bands from bar to bar, and a box leaks the beat (the
-    // constant in WaveformLevelMath.h). Zeros without bands.
-    void getBandWindowMeanSquares(NSUInteger size, NSUInteger columns, float* bandMeanSquares);
-    // Each band's loudest bar of getBarMeanSquares's answer at this size and
-    // reach, low to high into loudest. Zeros without bands. The answer is
-    // kept for the last size and reach while the chunks stand. A resize then
-    // measures nothing. It is safe on any thread. The widget draws off main.
-    void getLoudestBandMeanSquares(NSUInteger size, float reach, float* loudest);
-    // The loader's own verdict, carried on the data: a decode it accepts can
-    // end a chunk or two short, so the chunks cannot answer this. A fresh
-    // waveform is a load still streaming, and a snapshot copies the answer;
-    // one built from bytes is an archive, which is only written complete.
-    inline bool isComplete() const noexcept { return complete; }
-    inline void markComplete() noexcept { complete = true; }
-    // How far a streaming decode has filled the chunks, which fill in order:
-    // the first with no frames is the edge. Complete or empty waveforms return 1.
-    double getDecodedFraction();
-    inline void setChunkAtIndex(AudioWaveformCacheChunk chunk, NSUInteger index) {
-        if (index < numChunks) { chunks[index] = chunk; chunksChanged(); }
-    }
-    // A no-op without bands.
-    inline void setBandSumSquaresAtIndex(const float* sums, NSUInteger index) {
-        if (bandSums && index < numChunks) {
-            memcpy(&bandSums[index * kAudioWaveformBandCount], sums, kBandBytes);
-            chunksChanged();
-        }
-    }
-    // The chunk and its bands.
-    void copyChunk(NSUInteger from, NSUInteger to);
-    // Each chunk's mean squares, numChunks * kAudioWaveformBandCount of them,
-    // as the archive keeps them: the sums are the means times the chunks'
-    // frames. Gives a waveform without bands its bands.
-    void setBandMeanSquares(const float* meanSquares);
-
-    inline NSUInteger getNumChunks() { return this->numChunks; }
-    inline const void* getBytes() { return (const void *)&chunks[0]; }
-    inline NSUInteger getNumBytes() { return this->numChunks * sizeof(AudioWaveformCacheChunk); }
-    // 0 without bands.
-    inline NSUInteger getNumBandBytes() { return bandSums ? this->numChunks * kBandBytes : 0; }
-
-private:
-    static const size_t kBandBytes = kAudioWaveformBandCount * sizeof(float);
-    // The chunks [start, start + count) column index of size combines.
-    void getColumnRange(NSUInteger index, NSUInteger size, NSUInteger* start, NSUInteger* count);
-    void allocate(NSUInteger count, bool withBands);
-    // Every chunk setter drops what the reads keep. A setter runs only before
-    // the waveform is shared. It takes no lock.
-    inline void chunksChanged() noexcept {
-        bandRunningSums.clear();
-        loudestBandsSize = 0;
-    }
-
-    NSUInteger numChunks;
-    AudioWaveformCacheChunk* chunks;
-    // kAudioWaveformBandCount sums of squares per chunk, or null.
-    float* bandSums;
-    bool complete;
-    // getBandWindowMeanSquares's running sums of the frames and the bands,
-    // built on its first call and kept while the chunks stand, so a resize's
-    // frames do not rebuild them.
-    std::vector<double> bandRunningSums;
-    // getLoudestBandMeanSquares's answer for loudestBandsSize bars at
-    // loudestBandsReach. A size of 0 is none.
-    NSUInteger loudestBandsSize = 0;
-    float loudestBandsReach = 0;
-    float loudestBands[kAudioWaveformBandCount] = {};
-    // Guards what the reads keep. The iOS widget draws a shared waveform off
-    // main.
-    os_unfair_lock keptReadsLock = OS_UNFAIR_LOCK_INIT;
-};
+// Vibe draws one mono lane, so a summary keeps the mix's peaks.
+static const uint32_t kAudioWaveformStoredChannels = 1;
 
 // The entry-format version. It is encoded in every archive and embedded in the
 // disk cache's name, since AudioWaveformCache derives
 // "audio_waveform_cache_v<N>" from it, so both invalidation mechanisms move
-// together. Bump it to invalidate every cached entry, as after a chunk-format
-// change or a BPM-analyzer change that should re-detect. Mismatched entries
-// simply regenerate.
+// together. Bump it to invalidate every cached entry, as after a format change
+// or a BPM-analyzer change that should re-detect. Mismatched entries simply
+// regenerate.
 extern const int kCodableAudioWaveformVersion;
 
 @interface CodableAudioWaveform : NSObject <NSCoding>
 
-@property (nonatomic) AudioWaveform *waveform;
+// Owned: freed with the wrapper.
+@property (nonatomic, readonly) AudioWaveform *waveform;
 
 // The detected tempo; 0 means unknown or undetectable. It is not conceptually
 // waveform data, but it is the product of the same track-window decode pass and
@@ -234,12 +69,10 @@ extern const int kCodableAudioWaveformVersion;
 @property (nonatomic) BOOL bpmAnalyzed;
 @property (nonatomic) BOOL keyAnalyzed;
 
-- (id)initWithWaveform:(AudioWaveform *)waveform;
+// Takes ownership.
+- (instancetype)initWithWaveform:(std::unique_ptr<AudioWaveform>)waveform;
 
-// A deep copy of the current chunk buffer, wrapped in a new object that owns
-// it. It is handed to the main thread on progress ticks, so that the main
-// thread renders an immutable copy while the loader keeps writing the live
-// buffer. Sharing the live buffer would be a data race.
+// A deep copy, wrapped in a new object that owns it.
 - (CodableAudioWaveform *)snapshot;
 
 @end

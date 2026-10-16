@@ -2,7 +2,7 @@
 //  AudioWaveformLoaderTests.mm
 //  VibeTests
 //
-//  Pins the completeness rule: a file one chunk short looks identical on
+//  Pins the completeness rule: a file a little short looks identical on
 //  screen, and a wrong answer either caches a truncated waveform under the
 //  file's hash or freezes the strip mid-load with nothing logged.
 //
@@ -142,12 +142,6 @@
                                                  error:nil];
 }
 
-// A chunk starts at (0, 0) and only widens, so an all-negative window keeps
-// max == 0: content is either bound moving, never max alone.
-static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
-    return chunk.getMin() < 0.0f || chunk.getMax() > 0.0f;
-}
-
 - (void)tearDown {
     if (_streams) {
         [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
@@ -164,22 +158,20 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     [super tearDown];
 }
 
-// A pass that read the whole file and filled every chunk.
-- (struct VibeWaveformDecodePass)completePassWithChunks:(NSUInteger)chunks {
+// A pass that read the whole file.
+- (struct VibeWaveformDecodePass)completePassOfFrames:(AVAudioFramePosition)frames {
     struct VibeWaveformDecodePass pass = {};
-    pass.totalFrames = 441000;
+    pass.totalFrames = frames;
     pass.numChannels = 2;
-    pass.effectiveChunks = chunks;
-    pass.chunksFilled = chunks;
-    pass.framesRead = pass.totalFrames;
+    pass.framesRead = frames;
     pass.readError = NO;
     return pass;
 }
 
-#pragma mark - isDecodeComplete: the two-chunk tolerance
+#pragma mark - isDecodeComplete: the shortfall tolerance
 
-- (void)testDecodeThatFilledEveryChunkIsComplete {
-    struct VibeWaveformDecodePass pass = [self completePassWithChunks:1000];
+- (void)testDecodeThatReadEveryFrameIsComplete {
+    struct VibeWaveformDecodePass pass = [self completePassOfFrames:441000];
     XCTAssertTrue([_loader isDecodeComplete:&pass filename:@"whole.wav"]);
     XCTAssertFalse(pass.readError);
 }
@@ -187,154 +179,79 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
 // The tolerance exists because a VBR mis-tag or slight truncation makes
 // file.length over-report: such a file must land on one side of the line or
 // the other, never frozen mid-load.
-- (void)testDecodeEndingOneOrTwoChunksShortStillCounts {
-    for (NSUInteger shortfall = 1; shortfall <= 2; shortfall++) {
-        struct VibeWaveformDecodePass pass = [self completePassWithChunks:1000];
-        pass.chunksFilled = 1000 - shortfall;
-        pass.framesRead = pass.totalFrames - 1; // EOF landed early
+- (void)testDecodeEndingWithinTheToleranceStillCounts {
+    AVAudioFramePosition tolerance = [AudioWaveformLoader shortfallToleranceForFrames:441000];
+    for (AVAudioFramePosition shortfall : {(AVAudioFramePosition)1, tolerance}) {
+        struct VibeWaveformDecodePass pass = [self completePassOfFrames:441000];
+        pass.framesRead = pass.totalFrames - shortfall;
         XCTAssertTrue([_loader isDecodeComplete:&pass filename:@"short.wav"],
-                      @"%lu chunk(s) short must still count as complete",
-                      (unsigned long)shortfall);
+                      @"%lld frames short must still count as complete", shortfall);
         XCTAssertFalse(pass.readError, @"a tolerated shortfall is not an error");
     }
 }
 
 // The promotion is why the phase is not a pure predicate.
 - (void)testDecodeEndingWellShortIsPromotedToAReadError {
-    struct VibeWaveformDecodePass pass = [self completePassWithChunks:1000];
-    pass.chunksFilled = 900;
-    pass.framesRead = pass.totalFrames - 1;
+    struct VibeWaveformDecodePass pass = [self completePassOfFrames:441000];
+    pass.framesRead = 400000;
     XCTAssertFalse([_loader isDecodeComplete:&pass filename:@"truncated.wav"]);
     XCTAssertTrue(pass.readError, @"an early end must be recorded, not just reported");
 }
 
 // The EOF check and the completeness threshold must agree, or a file lands in
-// neither state. The boundary is the same on both sides: chunksFilled + 2.
+// neither state. The boundary is the same on both sides.
 - (void)testTheEOFToleranceAndTheCompletenessThresholdAgreeAtTheBoundary {
-    struct VibeWaveformDecodePass tolerated = [self completePassWithChunks:1000];
-    tolerated.chunksFilled = 998; // exactly two short
-    tolerated.framesRead = tolerated.totalFrames - 1;
+    AVAudioFramePosition tolerance = [AudioWaveformLoader shortfallToleranceForFrames:441000];
+    struct VibeWaveformDecodePass tolerated = [self completePassOfFrames:441000];
+    tolerated.framesRead = tolerated.totalFrames - tolerance;
     XCTAssertTrue([_loader isDecodeComplete:&tolerated filename:@"edge.wav"]);
 
-    struct VibeWaveformDecodePass rejected = [self completePassWithChunks:1000];
-    rejected.chunksFilled = 997; // one past the tolerance
-    rejected.framesRead = rejected.totalFrames - 1;
+    struct VibeWaveformDecodePass rejected = [self completePassOfFrames:441000];
+    rejected.framesRead = rejected.totalFrames - tolerance - 1;
     XCTAssertFalse([_loader isDecodeComplete:&rejected filename:@"edge.wav"]);
 }
 
-// effectiveChunks is at least 1, and the threshold subtracts 2 from it: an
-// unguarded unsigned subtraction would wrap and make every tiny file complete.
-- (void)testTinyFileThresholdDoesNotWrap {
-    for (NSUInteger chunks = 1; chunks <= 2; chunks++) {
-        struct VibeWaveformDecodePass filled = [self completePassWithChunks:chunks];
+// A tiny file keeps a tolerance of its own, and a file that read nothing is
+// never complete, however small.
+- (void)testATinyFileThatReadNothingIsNotComplete {
+    for (AVAudioFramePosition frames = 1; frames <= 3; frames++) {
+        struct VibeWaveformDecodePass filled = [self completePassOfFrames:frames];
         XCTAssertTrue([_loader isDecodeComplete:&filled filename:@"tiny.wav"]);
 
-        struct VibeWaveformDecodePass empty = [self completePassWithChunks:chunks];
-        empty.chunksFilled = 0;
+        struct VibeWaveformDecodePass empty = [self completePassOfFrames:frames];
         empty.framesRead = 0;
         XCTAssertFalse([_loader isDecodeComplete:&empty filename:@"tiny.wav"],
-                       @"a tiny file that filled nothing is not complete");
+                       @"a tiny file that read nothing is not complete");
     }
 }
 
 - (void)testAReadErrorIsNeverComplete {
-    struct VibeWaveformDecodePass pass = [self completePassWithChunks:1000];
+    struct VibeWaveformDecodePass pass = [self completePassOfFrames:441000];
     pass.readError = YES;
     XCTAssertFalse([_loader isDecodeComplete:&pass filename:@"failed.wav"]);
 }
 
-#pragma mark - makeWaveformForPass: sizing the chunk array
+#pragma mark - builderForPass: the summary's bins
 
-- (void)testOrdinaryFileFillsTheWholeChunkArray {
+// A long file takes the full bin; a short one finer bins, so a one-shot draws
+// at sample detail without a stretch.
+- (void)testTheSummaryIsLaidOutOnTheWindowsLength {
     struct VibeWaveformDecodePass pass = {};
-    pass.totalFrames = 441000;
-    AudioWaveform *waveform = nullptr;
-    NSUInteger numChunks = 0;
-    CodableAudioWaveform *result = [_loader makeWaveformForPass:&pass
-                                                       waveform:&waveform
-                                                      numChunks:&numChunks];
-    XCTAssertNotNil(result);
-    XCTAssertTrue(numChunks > 0);
-    XCTAssertEqual(pass.effectiveChunks, numChunks,
-                   @"a normal file decodes into every chunk at its final position");
-}
+    pass.numChannels = 2;
+    pass.totalFrames = 441000 * 10;
+    std::unique_ptr<wavecore::SummaryBuilder> builder = [_loader builderForPass:&pass sampleRate:44100];
+    std::unique_ptr<AudioWaveform> empty = builder->snapshot();
+    XCTAssertEqual(empty->binFrames(), wavecore::kBaseBinFrames);
+    XCTAssertEqual(empty->totalFrames(), pass.totalFrames, @"a streaming load lands where it will stay");
+    XCTAssertEqual(empty->channels(), kAudioWaveformStoredChannels);
+    XCTAssertFalse(empty->hasBands(), @"only a decode asked for the bands holds them");
 
-// Fewer frames than chunks is the one case that decodes short by design, and
-// the stretch pass below is what makes it span the strip.
-- (void)testFileShorterThanTheChunkArrayClampsEffectiveChunks {
-    struct VibeWaveformDecodePass pass = {};
     pass.totalFrames = 12;
-    AudioWaveform *waveform = nullptr;
-    NSUInteger numChunks = 0;
-    XCTAssertNotNil([_loader makeWaveformForPass:&pass waveform:&waveform numChunks:&numChunks]);
-    XCTAssertEqual(pass.effectiveChunks, (NSUInteger)12);
-    XCTAssertTrue(pass.effectiveChunks < numChunks);
-}
-
-#pragma mark - stretchWaveform: spanning the strip
-
-// Back to front so it is safe in place. Every destination chunk must come from
-// a source chunk that was actually decoded, and the last one from the last.
-- (void)testShortFileIsStretchedAcrossTheFullWidth {
-    struct VibeWaveformDecodePass pass = {};
-    pass.totalFrames = 4;
-    AudioWaveform *waveform = nullptr;
-    NSUInteger numChunks = 0;
-    XCTAssertNotNil([_loader makeWaveformForPass:&pass waveform:&waveform numChunks:&numChunks]);
-    pass.chunksFilled = 4;
-
-    // Distinguishable content in the four decoded chunks, silence after them.
-    for (NSUInteger i = 0; i < 4; i++) {
-        AudioWaveformCacheChunk chunk;
-        chunk.set(-(float)(i + 1), (float)(i + 1));
-        waveform->setChunkAtIndex(chunk, i);
-    }
-    _loader.isComplete = YES;
-    [_loader stretchWaveform:waveform pass:&pass numChunks:numChunks];
-
-    XCTAssertEqual(waveform->getChunkAtIndex(0, numChunks).getMax(), 1.0f);
-    XCTAssertEqual(waveform->getChunkAtIndex(numChunks - 1, numChunks).getMax(), 4.0f,
-                   @"the tail must hold the last decoded chunk, not silence");
-    for (NSUInteger i = 0; i < numChunks; i++) {
-        XCTAssertTrue(ChunkHasContent(waveform->getChunkAtIndex(i, numChunks)),
-                      @"no gap may survive the stretch (chunk %lu)", (unsigned long)i);
-    }
-}
-
-- (void)testOrdinaryFileIsNotStretched {
-    struct VibeWaveformDecodePass pass = {};
-    pass.totalFrames = 441000;
-    AudioWaveform *waveform = nullptr;
-    NSUInteger numChunks = 0;
-    XCTAssertNotNil([_loader makeWaveformForPass:&pass waveform:&waveform numChunks:&numChunks]);
-    pass.chunksFilled = numChunks;
-
-    AudioWaveformCacheChunk marker;
-    marker.set(-0.5f, 0.5f);
-    waveform->setChunkAtIndex(marker, 0);
-    _loader.isComplete = YES;
-    [_loader stretchWaveform:waveform pass:&pass numChunks:numChunks];
-    XCTAssertEqual(waveform->getChunkAtIndex(0, numChunks).getMax(), 0.5f);
-    XCTAssertEqual(waveform->getChunkAtIndex(1, numChunks).getMax(), 0.0f,
-                   @"a full decode must not be remapped");
-}
-
-// An incomplete decode is not stretched: spreading a partial read across the
-// full width would draw a plausible waveform for a file that failed.
-- (void)testIncompleteDecodeIsNotStretched {
-    struct VibeWaveformDecodePass pass = {};
-    pass.totalFrames = 4;
-    AudioWaveform *waveform = nullptr;
-    NSUInteger numChunks = 0;
-    XCTAssertNotNil([_loader makeWaveformForPass:&pass waveform:&waveform numChunks:&numChunks]);
-    pass.chunksFilled = 4;
-    AudioWaveformCacheChunk chunk;
-    chunk.set(-1, 1);
-    waveform->setChunkAtIndex(chunk, 0);
-
-    _loader.isComplete = NO;
-    [_loader stretchWaveform:waveform pass:&pass numChunks:numChunks];
-    XCTAssertEqual(waveform->getChunkAtIndex(numChunks - 1, numChunks).getMax(), 0.0f);
+    XCTAssertEqual([_loader builderForPass:&pass sampleRate:44100]->snapshot()->binFrames(), 1u);
+    VibeWaveformAnalysis bands = {};
+    bands.bands = YES;
+    _loader.analysis = bands;
+    XCTAssertTrue([_loader builderForPass:&pass sampleRate:44100]->snapshot()->hasBands());
 }
 
 #pragma mark - openFileAtPath: and the whole pass, over a written file
@@ -343,13 +260,12 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     return [self writeWAVNamed:name seconds:seconds quietFrom:seconds];
 }
 
-// From quietFrom seconds on, the samples are ±0.25: a window's chunks can be
+// From quietFrom seconds on, the samples are ±0.25: a window's bins can be
 // told from the rest of the file's by their energy alone.
 - (NSString *)writeWAVNamed:(NSString *)name seconds:(double)seconds quietFrom:(double)quietFrom {
     const AVAudioFrameCount quiet = (AVAudioFrameCount)(44100.0 * quietFrom);
-    // Alternating sign every sample, so that *every* chunk — each covering
-    // about ten frames — carries both a negative min and a positive max
-    // whatever the chunk boundaries land on.
+    // Alternating sign every sample, so that *every* bin carries both a
+    // negative min and a positive max wherever its edges land.
     return [self writeWAVNamed:name seconds:seconds sample:^float(AVAudioFrameCount i) {
         float level = i < quiet ? 0.5f : 0.25f;
         return (i % 2 == 0) ? -level : level;
@@ -376,6 +292,17 @@ static BOOL ChunkHasContent(AudioWaveformCacheChunk chunk) {
     NSError *error = nil;
     XCTAssertNotNil(VibeWriteFixture(url, buffer, &error), @"could not write fixture: %@", error);
     return url.path;
+}
+
+// Every bin of the summary, as a column.
+static std::vector<wavecore::Column> BinColumns(AudioWaveform *waveform) {
+    std::vector<wavecore::Column> columns(waveform->binCount());
+    waveform->columns(waveform->binFrames(), 0, columns.size(), columns.data());
+    return columns;
+}
+
+static BOOL ColumnHasContent(const wavecore::Column &column) {
+    return column.lo < 0.0f || column.hi > 0.0f;
 }
 
 - (void)testOpenReportsTheFileShape {
@@ -479,25 +406,24 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     XCTAssertTrue(_loader.isComplete);
 
     AudioWaveform *waveform = result.waveform;
-    NSUInteger numChunks = waveform->getNumChunks();
-    XCTAssertTrue(numChunks > 0);
+    XCTAssertEqual(waveform->frames(), 88200);
+    XCTAssertTrue(waveform->isComplete());
     NSUInteger silent = 0, wrongEnergy = 0;
-    for (NSUInteger i = 0; i < numChunks; i++) {
-        AudioWaveformCacheChunk chunk = waveform->getChunkAtIndex(i, numChunks);
-        if (!ChunkHasContent(chunk)) {
+    for (const wavecore::Column &column : BinColumns(waveform)) {
+        if (!ColumnHasContent(column)) {
             silent++;
         }
-        // Every sample of the fixture is ±0.5, so every chunk's meanSquare is
-        // exactly 0.25 wherever the chunk boundaries land.
-        if (fabsf(chunk.getMeanSquare() - 0.25f) > 1e-4f) {
+        // Every sample of the fixture is ±0.5, so every bin's mean square is
+        // exactly 0.25.
+        if (fabsf(column.meanSquare() - 0.25f) > 1e-4f) {
             wrongEnergy++;
         }
     }
-    XCTAssertEqual(silent, (NSUInteger)0, @"every chunk of a full-scale signal must have content");
-    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of a constant ±0.5 signal carries meanSquare 0.25");
+    XCTAssertEqual(silent, (NSUInteger)0, @"every bin of a full-scale signal must have content");
+    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every bin of a constant ±0.5 signal carries mean square 0.25");
 }
 
-// A cue row's waveform is its window at the full resolution: every chunk is
+// A cue row's waveform is its window at the full resolution: every bin is
 // the quiet second, none the loud one before it or the silence after.
 - (void)testFullLoadOfAWindowCoversOnlyTheWindow {
     NSString *path = [self writeWAVNamed:@"rows.wav" seconds:3.0 quietFrom:1.0];
@@ -508,14 +434,14 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     XCTAssertTrue(_loader.isComplete);
 
     AudioWaveform *waveform = result.waveform;
-    NSUInteger numChunks = waveform->getNumChunks();
+    XCTAssertEqual(waveform->frames(), 44100, @"the window is one second");
     NSUInteger wrongEnergy = 0;
-    for (NSUInteger i = 0; i < numChunks; i++) {
-        if (fabsf(waveform->getChunkAtIndex(i, numChunks).getMeanSquare() - 0.0625f) > 1e-4f) {
+    for (const wavecore::Column &column : BinColumns(waveform)) {
+        if (fabsf(column.meanSquare() - 0.0625f) > 1e-4f) {
             wrongEnergy++;
         }
     }
-    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every chunk of the window is the ±0.25 second");
+    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every bin of the window is the ±0.25 second");
 }
 
 // A second each of 80 Hz, 1 kHz and 8 kHz: each lands in its own band at
@@ -534,14 +460,14 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     CodableAudioWaveform *result = [loader load:path];
     XCTAssertNotNil(result);
     XCTAssertTrue(result.waveform->hasBands());
-    // Six bars: each second's latter half is past the filters' settling.
-    float halves[6 * kAudioWaveformBandCount];
-    result.waveform->getBarMeanSquares(6, 0, nullptr, halves);
+    // Six columns: each second's latter half is past the filters' settling.
+    float halves[6 * wavecore::kBandCount];
+    result.waveform->meanSquares(result.waveform->totalFrames() / 6.0, 0, 6, 0, nullptr, halves);
     for (NSUInteger tone = 0; tone < 3; tone++) {
-        const float *meanSquares = &halves[(tone * 2 + 1) * kAudioWaveformBandCount];
+        const float *meanSquares = &halves[(tone * 2 + 1) * wavecore::kBandCount];
         float own = meanSquares[tone];
         XCTAssertEqualWithAccuracy(own, 0.125f, 0.03f, @"%g Hz", tones[tone]);
-        for (NSUInteger band = 0; band < kAudioWaveformBandCount; band++) {
+        for (NSUInteger band = 0; band < wavecore::kBandCount; band++) {
             if (band != tone) {
                 XCTAssertGreaterThan(own, 10 * meanSquares[band],
                                      @"%g Hz leaks into band %lu", tones[tone], band);
@@ -550,16 +476,19 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     }
 }
 
-- (void)testFullLoadOfAVeryShortFileSpansTheStrip {
+// A very short file keeps every sample: its bins are one frame each, and the
+// view lays it out across its own length, with no stretch.
+- (void)testFullLoadOfAVeryShortFileKeepsEverySample {
     NSString *path = [self writeWAVNamed:@"blip.wav" seconds:0.02]; // 882 frames
     CodableAudioWaveform *result = [_loader load:path];
     XCTAssertNotNil(result);
     XCTAssertTrue(_loader.isComplete);
 
     AudioWaveform *waveform = result.waveform;
-    NSUInteger numChunks = waveform->getNumChunks();
-    XCTAssertTrue(ChunkHasContent(waveform->getChunkAtIndex(numChunks - 1, numChunks)),
-                  @"a short file must be stretched to the last chunk");
+    XCTAssertEqual(waveform->binFrames(), 1u);
+    XCTAssertEqual(waveform->totalFrames(), 882);
+    std::vector<wavecore::Column> bins = BinColumns(waveform);
+    XCTAssertTrue(ColumnHasContent(bins.back()), @"the last sample is there");
 }
 
 
@@ -567,7 +496,7 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
 
 static const time_t kStreamModified = 1700000000;
 
-// A 16-bit stereo WAV of nonperiodic noise, so a chunk read from the wrong
+// A 16-bit stereo WAV of nonperiodic noise, so a bin read from the wrong
 // offset never matches the reference's.
 - (NSURL *)writeNoiseWAVNamed:(NSString *)name seconds:(double)seconds seed:(uint32_t)seed {
     uint32_t frames = (uint32_t)(44100.0 * seconds);
@@ -677,22 +606,26 @@ static const time_t kStreamModified = 1700000000;
     return YES;
 }
 
-static BOOL ChunksEqual(AudioWaveformCacheChunk a, AudioWaveformCacheChunk b) {
-    return a.getMin() == b.getMin() && a.getMax() == b.getMax() && a.getMeanSquare() == b.getMeanSquare();
+// The peaks exactly, and the energy to the archive's float16: a waveform
+// served from the cache matches the decode it was filed from.
+static BOOL ColumnsEqual(const wavecore::Column &a, const wavecore::Column &b) {
+    return a.lo == b.lo && a.hi == b.hi
+            && fabs(a.meanSquare() - b.meanSquare()) <= 2e-3 * a.meanSquare() + 1e-9;
 }
 
-// How many leading chunks of `waveform` are exactly the reference's.
-static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWaveform *reference) {
-    NSUInteger count = reference.waveform->getNumChunks();
+// How many leading bins of `waveform` are the reference's.
+static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWaveform *reference) {
+    NSUInteger count = reference.waveform->binCount();
+    double binFrames = reference.waveform->binFrames();
     NSUInteger i = 0;
-    while (i < count && ChunksEqual(waveform.waveform->getChunkAtIndex(i, count),
-                                    reference.waveform->getChunkAtIndex(i, count))) {
+    while (i < count && ColumnsEqual(waveform.waveform->column(i * binFrames, (i + 1) * binFrames),
+                                     reference.waveform->column(i * binFrames, (i + 1) * binFrames))) {
         i++;
     }
     return i;
 }
 
-// The decode fills in as the download arrives: every snapshot's filled chunks
+// The decode fills in as the download arrives: every snapshot's filled bins
 // are the whole file's exactly and the rest still empty; it completes once the
 // download does, never holding the transfer; and the key it would be filed
 // under, the placeholder's, is the installed file's.
@@ -728,7 +661,7 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     XCTAssertTrue([self await:done]);
     XCTAssertTrue([self eventually:^BOOL { return recorder.snapshots.count >= 2; }]);
 
-    NSUInteger count = reference.waveform->getNumChunks();
+    NSUInteger count = reference.waveform->binCount();
     NSUInteger partial = 0;
     for (NSUInteger i = 0; i < recorder.snapshots.count; i++) {
         float fraction = recorder.fractions[i].floatValue;
@@ -740,14 +673,17 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
         partial++;
         CodableAudioWaveform *snapshot = recorder.snapshots[i];
         XCTAssertFalse(snapshot.waveform->isComplete());
-        XCTAssertGreaterThanOrEqual(MatchingChunks(snapshot, reference), filled, @"snapshot %lu", (unsigned long)i);
-        AudioWaveformCacheChunk last = snapshot.waveform->getChunkAtIndex(count - 1, count);
-        XCTAssertEqual(last.getMeanSquare(), 0.0f, @"what has not arrived is still empty");
+        XCTAssertGreaterThanOrEqual(MatchingBins(snapshot, reference) + 1, filled, @"snapshot %lu", (unsigned long)i);
+        double binFrames = reference.waveform->binFrames();
+        wavecore::Column last = snapshot.waveform->column((count - 1) * binFrames, count * binFrames);
+        XCTAssertEqual(last.meanSquare(), 0.0f, @"what has not arrived is still empty");
+        XCTAssertEqual(snapshot.waveform->totalFrames(), reference.waveform->totalFrames(),
+                       @"a snapshot lays out on the whole length");
     }
     XCTAssertGreaterThanOrEqual(partial, 2u, @"it filled in as the download proceeded");
     XCTAssertTrue(loader.isComplete);
     XCTAssertTrue(result.waveform->isComplete());
-    XCTAssertEqual(MatchingChunks(result, reference), count);
+    XCTAssertEqual(MatchingBins(result, reference), count);
     XCTAssertEqualObjects(url.cacheKey, placeholderKey, @"filed under the key the installed file answers");
 }
 
@@ -955,8 +891,8 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     XCTAssertTrue([self await:stream.event]);
     [self complete:stream from:source as:url];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
-    NSUInteger count = reference.waveform->getNumChunks();
-    XCTAssertEqual(MatchingChunks(recorder.complete, reference), count);
+    NSUInteger count = reference.waveform->binCount();
+    XCTAssertEqual(MatchingBins(recorder.complete, reference), count);
 
     NSString *installedKey = url.cacheKey;
     NSData *zeros = [NSMutableData dataWithLength:[NSData dataWithContentsOfURL:url].length];
@@ -968,18 +904,17 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     [cache loadWaveformForTrack:[AudioTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
     XCTAssertEqual(recorder.failures, 0u, @"a miss would have decoded the zeros and failed");
-    XCTAssertEqual(MatchingChunks(recorder.complete, reference), count);
+    XCTAssertEqual(MatchingBins(recorder.complete, reference), count);
 }
 
 // A headerless MP3 streams on a length counted from its head: a VBR one's an
 // estimate from its frames, here under half its true length; one whose head
 // is one rate and the rest another, that rate's count, as short; a constant
 // one's, its rate's count, right. Each waveform decodes as the bytes arrive,
-// sized by that count, and is complete only once the length is exact and is
-// the count it was sized by: the constant one's first decode, the other two
-// decoded again from disk once the download completes, so the waveform
-// delivered and persisted is always sized by the exact length, under the
-// file's key.
+// laid out on that count, and is complete only once the length is exact: the
+// constant one's pass ends there, the other two read on to the exact length
+// once the download completes. So the waveform delivered and persisted is
+// always laid out on the exact length, under the file's key.
 - (void)testAWaveformDecodesAsTheBytesArriveAndCompletesOnlyOnTheExactLength {
     NSDictionary<NSString *, uint8_t (^)(uint32_t)> *rates = @{
         @"estimated.mp3": ^uint8_t(uint32_t frame) { return frame < 60 ? 13 + frame % 2 : 1 + frame % 2; },
@@ -1016,14 +951,12 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     }
 }
 
-// An estimate within one chunk of the exact length keeps its first pass: every
-// chunk boundary moved by less than a chunk. Here four tail frames
-// at a higher rate, past the head the estimate walks, make it one packet over
-// on a file long enough that a chunk outspans a packet, and the pass sized by
-// it is delivered complete and persisted under the file's key; eight make it
-// two packets over, past a chunk, and the file is decoded again on the exact
-// length as before.
-- (void)testAnEstimateWithinOneChunkKeepsItsFirstDecode {
+// An estimate never costs a second decode: a bin's frames do not depend on
+// the length, so the pass keeps what it read and ends on the exact length.
+// Here four tail frames at a higher rate, past the head the estimate walks,
+// make it one packet over, and eight two packets. Either way the waveform is
+// delivered complete on the exact length and persisted under the file's key.
+- (void)testAnEstimatedLengthEndsOnTheExactLength {
     const uint32_t frames = 12000, packet = 1152;
     for (NSNumber *tail in @[@4, @8]) {
         uint32_t fast = tail.unsignedIntValue;
@@ -1050,10 +983,9 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
         [self complete:stream from:source as:url];
         XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }], @"%@", name);
         XCTAssertEqual(recorder.failures, 0u, @"%@", name);
-        // One packet over keeps the pass sized by the estimate; two decode again.
-        AVAudioFramePosition sizedBy = fast == 4 ? length + packet : length;
         XCTAssertEqualWithAccuracy([[AudioLoadTiming newestJSONForPath:url.path][@"audioSeconds"] doubleValue],
-                                   (double)sizedBy / 48000, 1e-9, @"%@", name);
+                                   (double)length / 48000, 1e-9, @"%@", name);
+        XCTAssertEqual(recorder.complete.waveform->totalFrames(), length, @"%@: laid out on the exact length", name);
         NSData *zeros = [NSMutableData dataWithLength:bytes.length];
         XCTAssertTrue([zeros writeToURL:url atomically:NO]);
         struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
@@ -1075,19 +1007,20 @@ static NSUInteger MatchingChunks(CodableAudioWaveform *waveform, CodableAudioWav
     AudioTrack *track = [AudioTrack withURL:url];
     [cache loadWaveformForTrack:track];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
-    NSUInteger count = first.waveform->getNumChunks();
-    XCTAssertEqual(MatchingChunks(recorder.complete, first), count);
+    NSUInteger count = first.waveform->binCount();
+    XCTAssertEqual(MatchingBins(recorder.complete, first), count);
 
     [self writeNoiseWAVNamed:@"track.wav" seconds:2.5 seed:23];
     CodableAudioWaveform *second = [[[AudioWaveformLoader alloc] init] load:url.path];
     [cache loadWaveformForTrack:track];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2; }]);
-    XCTAssertEqual(MatchingChunks(recorder.complete, first), count, @"the stale memo serves the old version");
+    XCTAssertEqual(MatchingBins(recorder.complete, first), count, @"the stale memo serves the old version");
 
     [AudioTrack invalidateMemoizedCacheKeys];
     [cache loadWaveformForTrack:track];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 3; }]);
-    XCTAssertEqual(MatchingChunks(recorder.complete, second), count, @"re-keyed, it misses and decodes the new one");
+    XCTAssertEqual(MatchingBins(recorder.complete, second), second.waveform->binCount(),
+                   @"re-keyed, it misses and decodes the new one");
     XCTAssertEqual(recorder.failures, 0u);
 }
 

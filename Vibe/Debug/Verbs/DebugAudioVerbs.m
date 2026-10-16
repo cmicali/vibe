@@ -205,7 +205,7 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 return nil; // response written by the completion above
             }),
             // The data the renderers read, for checking a picture against
-            // its source off the app. The columns default to the chunks.
+            // its source off the app. The columns default to 8,192.
             VibeDebugCmd(@"dump_waveform [columns] <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                                             id<VibeDebugPlayerSurface> surface) {
                 // The count comes first, as file_drag_drop's point does: the

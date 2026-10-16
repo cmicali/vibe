@@ -197,7 +197,7 @@ static NSCache<NSString *, NSArray *> *VibeBakeStore(void) {
     CodableAudioWaveform *waveform = self.waveform;
     BOOL complete = waveform.waveform->isComplete();
     CGFloat normalizationGain = complete ? [renderer normalizationGainForWaveform:waveform.waveform] : 1;
-    CGFloat decodedFraction = waveform.waveform->getDecodedFraction();
+    CGFloat decodedFraction = waveform.waveform->decodedFraction();
     // The fast bake samples on main, like updateWaveform:'s; only the pixel
     // work leaves. A style without one is drawn whole through the registry,
     // as the widget draws it: once all played, once all unplayed.

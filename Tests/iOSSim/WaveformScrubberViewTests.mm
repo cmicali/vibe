@@ -133,12 +133,13 @@ static const CGFloat kHeight = 120;
 
 // A loud, varied envelope; complete, as an archive is.
 static CodableAudioWaveform *CompleteWaveform(void) {
-    std::vector<AudioWaveformCacheChunk> chunks(512);
-    for (size_t i = 0; i < chunks.size(); i++) {
-        float level = 0.3f + 0.6f * (float)fabs(sin((double)i / 9.0));
-        chunks[i].set(-level, level, level * level * 64, 64);
+    auto waveform = std::make_unique<AudioWaveform>(64, 1, false, 44100);
+    for (size_t i = 0; i < 512; i++) {
+        float level = 0.3f + 0.6f * (float)fabs(sin((double)i / 9.0)), lo = -level;
+        waveform->appendBin(&lo, &level, level * level * 64, nullptr, 64);
     }
-    return [[CodableAudioWaveform alloc] initWithWaveform:new AudioWaveform(chunks.size(), chunks.data())];
+    waveform->markComplete();
+    return [[CodableAudioWaveform alloc] initWithWaveform:std::move(waveform)];
 }
 
 - (UIScrollView *)scroll {

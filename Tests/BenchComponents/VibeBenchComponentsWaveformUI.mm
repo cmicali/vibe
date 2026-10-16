@@ -32,15 +32,17 @@
 #include <cmath>
 #include <memory>
 
-// A complete waveform of the loader's 8,192 chunks with a loud middle, so
-// normalize has something to raise.
+// A complete waveform with a loud middle, so normalize has something to
+// raise: the loader's 8,192 chunks, or a summary of 8,192 bins of 512 frames.
 static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t seed) {
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+    const NSUInteger chunks = 8192;
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+    auto waveform = std::make_shared<AudioWaveform>(512, 1, true, 44100);
+#elif VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     auto waveform = std::make_shared<AudioWaveform>(true);
 #else
     auto waveform = std::make_shared<AudioWaveform>();
 #endif
-    NSUInteger chunks = waveform->getNumChunks();
     uint32_t state = seed;
     for (NSUInteger i = 0; i < chunks; i++) {
         state = state * 1664525u + 1013904223u;
@@ -48,14 +50,21 @@ static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t see
         float jitter = (float)(state >> 8) / 16777216.0f;
         float peak = envelope * (0.5f + 0.5f * jitter);
         float sumSquares = peak * peak * 0.3f * 512;
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+        // A mix's balance, the lead drifting between the bands.
+        float lo = -peak * 0.9f;
+        double bands[wavecore::kBandCount] = {sumSquares * (0.3f + 0.7f * jitter), sumSquares * 0.06f,
+                                              sumSquares * 0.02f * (1.5f - jitter)};
+        waveform->appendBin(&lo, &peak, sumSquares, bands, 512);
+#else
         AudioWaveformCacheChunk chunk;
         chunk.set(-peak * 0.9f, peak, sumSquares, 512);
         waveform->setChunkAtIndex(chunk, i);
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
-        // A mix's balance, the lead drifting between the bands.
         float bands[kAudioWaveformBandCount] = {sumSquares * (0.3f + 0.7f * jitter), sumSquares * 0.06f,
                                                 sumSquares * 0.02f * (1.5f - jitter)};
         waveform->setBandSumSquaresAtIndex(bands, i);
+#endif
 #endif
     }
     waveform->markComplete();

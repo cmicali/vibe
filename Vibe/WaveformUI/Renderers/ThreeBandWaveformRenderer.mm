@@ -11,10 +11,10 @@
 #include <cmath>
 
 // Smaller mid and high shares keep those weaker bands visible beside lows.
-static const float kBandShareOfFullScale[kAudioWaveformBandCount] = {1.0f, 0.48f, 0.48f};
+static const float kBandShareOfFullScale[wavecore::kBandCount] = {1.0f, 0.48f, 0.48f};
 
 // Spectrum's bars carry their color levels after their heights.
-static const NSUInteger kSpectrumSamplesPerBar = 2 * kAudioWaveformBandCount;
+static const NSUInteger kSpectrumSamplesPerBar = 2 * wavecore::kBandCount;
 
 static const float kUnplayedOpacity = 0.5f;
 
@@ -26,13 +26,13 @@ static const NSUInteger kLayerForBands[8] = {0, 0, 1, 3, 2, 4, 5, 6};
 // Silence keeps the all-bands hairline.
 static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat minimumHeight, CGFloat *half) {
     CGFloat tallest = 0;
-    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+    for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
         half[b] = clampRange((CGFloat)bar[b], 0, 1) * vscale;
         tallest = MAX(tallest, half[b]);
     }
     if (tallest * 2 < minimumHeight) {
         tallest = minimumHeight / 2;
-        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) half[b] = tallest;
+        for (NSUInteger b = 0; b < wavecore::kBandCount; b++) half[b] = tallest;
     }
     return tallest;
 }
@@ -56,7 +56,7 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
     NSUInteger polygonLength = 2 * count + 4;
     points->resize(end * polygonLength);
     for (NSUInteger i = 0; i < count; i++) {
-        CGFloat half[kAudioWaveformBandCount];
+        CGFloat half[wavecore::kBandCount];
         CGFloat tallest = VibeThreeBandHalves(samples + i * stride, vscale, minimumHeight, half);
         CGFloat x = pitch * ((CGFloat)i + 0.5);
         CGFloat lowMid = MIN(half[0], half[1]);
@@ -82,7 +82,7 @@ static void VibeAddThreeBandPaths(CGMutablePathRef *paths, CGMutablePathRef outl
 }
 
 static void VibeSpectrumPrimaries(NSArray<VibeColor *> *colors, float primaries[3][3]) {
-    for (NSUInteger band = 0; band < kAudioWaveformBandCount; band++) {
+    for (NSUInteger band = 0; band < wavecore::kBandCount; band++) {
         CGFloat rgb[3] = {};
         VibeColorGetSRGB(colors[band], &rgb[0], &rgb[1], &rgb[2]);
         for (NSUInteger c = 0; c < 3; c++) {
@@ -107,7 +107,7 @@ static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, c
     std::vector<float> bar(direct ? 0 : count * 3);
     if (!direct) {
         for (NSUInteger i = 0; i < count; i++) {
-            VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, &bar[i * 3]);
+            VibeSpectrumColor(samples + i * kSpectrumSamplesPerBar + wavecore::kBandCount, primaries, &bar[i * 3]);
         }
     }
     NSMutableData *bytes = [NSMutableData dataWithLength:pixels * 4];
@@ -116,7 +116,7 @@ static CGImageRef VibeNewSpectrumStrip(const float *samples, NSUInteger count, c
     for (size_t p = 0; p < pixels; p++, pixel += 4) {
         float rgb[3];
         if (direct) {
-            VibeSpectrumColor(samples + p * kSpectrumSamplesPerBar + kAudioWaveformBandCount, primaries, rgb);
+            VibeSpectrumColor(samples + p * kSpectrumSamplesPerBar + wavecore::kBandCount, primaries, rgb);
         } else {
             double position = clampRange(((double)p + 0.5) * step - 0.5, 0.0, (double)(count - 1));
             NSUInteger left = (NSUInteger)position;
@@ -192,7 +192,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
         _spectrum = [self.class paletteKind] == VibeWaveformPaletteKindSpectrum;
-        _samplesPerBar = _spectrum ? kSpectrumSamplesPerBar : kAudioWaveformBandCount;
+        _samplesPerBar = _spectrum ? kSpectrumSamplesPerBar : wavecore::kBandCount;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
@@ -369,51 +369,44 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
 - (void)fillBandLevels:(float *)out count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     std::vector<float> scratch(_spectrum ? count * kSpectrumSamplesPerBar : 0);
     float *heights = _spectrum ? scratch.data() : out;
-    float *colors = heights + count * kAudioWaveformBandCount;
-    waveform->getBarMeanSquares(count, VibeWaveformWindowReach(count, kFullReachBars), NULL, heights);
-    float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform count:count meanSquares:heights];
+    float *colors = heights + count * wavecore::kBandCount;
+    double barFrames = (double)waveform->totalFrames() / (double)count;
+    waveform->meanSquares(barFrames, 0, count, VibeWaveformWindowReach(count, kFullReachBars), NULL, heights);
+    float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform];
     float gainDB = self.gainDB;
-    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+    for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
         float bandFullScaleRMS = fullScaleRMS * kBandShareOfFullScale[b];
-        for (float *level = heights + b; level < colors; level += kAudioWaveformBandCount) {
+        for (float *level = heights + b; level < colors; level += wavecore::kBandCount) {
             *level = VibeWaveformBarLevel(*level, bandFullScaleRMS, gainDB);
         }
     }
     if (!_spectrum) {
         return;
     }
-    waveform->getBandWindowMeanSquares(count, kVibeWaveformSpectrumColorColumns, colors);
+    double halfWidth = fmax(barFrames, (double)waveform->totalFrames() / kVibeWaveformSpectrumColorColumns / 2);
+    waveform->tentBandMeanSquares(barFrames, 0, count, halfWidth, colors);
     for (NSUInteger i = 0; i < count; i++) {
         float *bar = out + i * kSpectrumSamplesPerBar;
-        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-            bar[b] = heights[i * kAudioWaveformBandCount + b];
-            float meanSquare = fmaxf(colors[i * kAudioWaveformBandCount + b], 0);
-            bar[kAudioWaveformBandCount + b] = sqrtf(meanSquare) / (fullScaleRMS * kBandShareOfFullScale[b]);
+        for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
+            bar[b] = heights[i * wavecore::kBandCount + b];
+            float meanSquare = fmaxf(colors[i * wavecore::kBandCount + b], 0);
+            bar[wavecore::kBandCount + b] = sqrtf(meanSquare) / (fullScaleRMS * kBandShareOfFullScale[b]);
         }
     }
 }
 
-// Normalize against the loudest band relative to its share. Under 1,024 bars
-// the fill's own mean squares give it. From 1,024 bars the waveform's own
-// 1,024 columns give it. The waveform keeps that answer. The reference does
-// not step as a resize crosses 1,024 bars. A resize past that measures
-// nothing. drawn may be NULL from 1,024 bars.
-- (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform count:(NSUInteger)count
-                         meanSquares:(const float *)drawn {
+// Normalize against the loudest band relative to its share, read from the
+// track's own 1,024 columns, so no view's width can move it. The waveform
+// keeps that answer.
+- (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform {
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
-    float maxima[kAudioWaveformBandCount];
-    if (count < kVibeWaveformEnergyColumns) {
-        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-            vDSP_maxv(drawn + b, kAudioWaveformBandCount, &maxima[b], count);
-        }
-    } else {
-        waveform->getLoudestBandMeanSquares(kVibeWaveformEnergyColumns,
-                VibeWaveformWindowReach(kVibeWaveformEnergyColumns, kFullReachBars), maxima);
-    }
+    float maxima[wavecore::kBandCount];
+    waveform->loudestMeanSquares(kVibeWaveformEnergyColumns,
+            VibeWaveformWindowReach(kVibeWaveformEnergyColumns, kFullReachBars), NULL, maxima);
     float loudest = 0;
-    for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
+    for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
         loudest = fmaxf(loudest, sqrtf(maxima[b]) / kBandShareOfFullScale[b]);
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
@@ -467,7 +460,7 @@ static const NSUInteger kFullReachBars = kVibeWaveformMaxBars / 4;
     if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
         return 1;
     }
-    float reference = [self bandFullScaleRMSForWaveform:waveform count:kVibeWaveformEnergyColumns meanSquares:NULL];
+    float reference = [self bandFullScaleRMSForWaveform:waveform];
     return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
 }
 

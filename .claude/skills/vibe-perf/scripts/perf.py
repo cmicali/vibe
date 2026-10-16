@@ -82,6 +82,7 @@ def features(src):
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     resampler = find('AudioResampler.h')
+    summary = next((src / 'Packages').rglob('WaveformSummary.hpp'), None) if (src / 'Packages').is_dir() else None
     metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,
@@ -92,7 +93,8 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE': loader is not None and 'VibeWaveformAnalysis analysis;' in loader.read_text(),
         'VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART': any('displayArtData' in h.read_text() for h in metadata),
         'VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE': levels is not None and 'VibeAudioLevelAnalyzerSummarize' in levels.read_text(),
-        'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text(),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': summary is not None or (waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text()),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY': summary is not None,
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM': three_band is not None and 'SpectrumWaveformRenderer' in three_band.read_text(),
         'VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER': resampler is not None and 'VibeResamplerCreate' in resampler.read_text(),
     }

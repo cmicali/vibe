@@ -33,6 +33,7 @@ settingGroups:
     HEADER_SEARCH_PATHS: &vibe-header-search-paths
       - "$(inherited)"
       - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
+      - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
       - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
@@ -159,6 +160,10 @@ targets:
       # not that half exists yet. See the root AGENTS.md and make check-layout.
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
+      # The reusable waveform core, a package of its own for other apps
+      # (Packages/WaveformCore/AGENTS.md), compiled straight in here.
+      - path: Packages/WaveformCore/Sources
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Loading
@@ -477,6 +482,7 @@ targets:
         codeSign: true
       - sdk: AVFAudio.framework             # AVAudioFormat/PCMBuffer/ChannelLayout; MediaPlayer loads AVFoundation regardless
       - sdk: Accelerate.framework
+      - sdk: libcompression.tbd           # WaveformCore's archive (LZFSE)
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
       - sdk: Carbon.framework               # TIS/UCKeyTranslate: shortcut labels under the current keyboard layout
@@ -501,6 +507,8 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
+      - path: Packages/WaveformCore/Sources
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Loading
@@ -654,6 +662,7 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: AVKit.framework                # AVRoutePickerView (OutputRouteView)
       - sdk: Accelerate.framework
+      - sdk: libcompression.tbd           # WaveformCore's archive (LZFSE)
       - sdk: AudioToolbox.framework
       - sdk: AuthenticationServices.framework  # the Dropbox sign-in sheet
       - sdk: ImageIO.framework
@@ -805,6 +814,8 @@ targets:
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
+      - path: Packages/WaveformCore/Sources
+        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
@@ -941,6 +952,7 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Levels"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
+          - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
           - "$(SRCROOT)/Vibe/Audio/Analysis"
           - "$(SRCROOT)/Vibe/Audio/FX"
           # Header-only activity/animation seams shared by both controls.
@@ -965,6 +977,7 @@ targets:
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
+      - sdk: libcompression.tbd           # WaveformCore's archive (LZFSE)
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
       - sdk: AVFoundation.framework          # AudioWaveformLoader reads (and its tests write) files
       - sdk: AuthenticationServices.framework  # DropboxClient's sign-in, compiled in, never presented
