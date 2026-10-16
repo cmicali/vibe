@@ -7,9 +7,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import torture  # noqa: E402
 
 
-def state(position, status="playing", url="/c/a.wav", buffering=False, display="track"):
+def state(position, status="playing", url="/c/a.wav", buffering=False, display="track", index=0):
     return {"player": {"state": status, "position": position, "buffering": buffering},
-            "currentTrack": {"url": url}, "ui": {"displayState": display}}
+            "currentTrack": {"url": url}, "ui": {"displayState": display},
+            "playlist": {"currentIndex": index}}
 
 
 class FakeApp:
@@ -29,6 +30,16 @@ class PositionTests(unittest.TestCase):
             with self.subTest(second=second):
                 self.assertIsNone(torture.position_stalled(state(3.0), second))
         self.assertIsNone(torture.position_stalled(state(3.0, status="stopped"), state(3.0)))
+
+    def test_a_cue_row_transition_shares_the_url_and_is_not_a_stall(self):
+        # Adjacent cue rows are windows of one file: row 0 at its end, then row 1
+        # at its start, reads as a new row, never as a held position.
+        self.assertIsNone(torture.position_stalled(state(59.9, index=0), state(0.5, index=1)))
+
+    def test_a_position_that_went_backwards_is_a_replay_not_a_stall(self):
+        # Repeat One replays the same row from 0 between two samples.
+        self.assertFalse(torture.position_stalled(state(59.9), state(0.5)))
+        self.assertTrue(torture.position_stalled(state(59.9), state(59.9)))
 
 
 class CheckpointTests(unittest.TestCase):

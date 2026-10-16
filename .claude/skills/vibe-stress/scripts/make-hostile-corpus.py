@@ -155,14 +155,16 @@ def malformed_audio(folder: pathlib.Path, rng):
 
     sources = {"wav": (wav, ".wav", 44), "aiff": (aiff, ".aiff", 54), "rf64": (rf64, ".wav", 80),
                "w64": (w64, ".w64", 128), "flac": (flac, ".flac", 42), "mp3": (mp3, ".mp3", 417),
-               "msadpcm": (msadpcm, ".wav", 82)}
+               "msadpcm": (msadpcm, ".wav", 90)}
 
     def put(data, at, value, width, big_endian=False):
         data[at:at + width] = value.to_bytes(width, "big" if big_endian else "little")
 
     for name, (source, suffix, audio) in sources.items():
         big_endian = name in ("aiff", "flac", "mp3")
-        size_at = {"wav": 40, "aiff": 42, "rf64": 72, "w64": 104, "flac": 5, "mp3": 44, "msadpcm": 78}[name]
+        # Each container's data chunk size field (FLAC: the STREAMINFO block
+        # length, MP3: the Info frame's frame count).
+        size_at = {"wav": 40, "aiff": 42, "rf64": 76, "w64": 96, "flac": 5, "mp3": 44, "msadpcm": 86}[name]
         width = {"w64": 8, "flac": 3}.get(name, 4)
         shapes = {}
         shapes["truncated-in-header"] = source[:audio // 2]
@@ -198,7 +200,7 @@ def malformed_audio(folder: pathlib.Path, rng):
                 put(data, 40, count, 2)
                 shapes[shape] = data
             data = bytearray(source)
-            put(data, 92, 40 * 500 * 3, 4)
+            put(data, 78, 40 * 500 * 3, 4)  # the fact chunk's count
             shapes["fact-count-past-data"] = data
         if name == "aiff":
             data = bytearray(source)
@@ -218,11 +220,15 @@ def malformed_audio(folder: pathlib.Path, rng):
             put(data, 36, frames * 5, 8)
             shapes["ds64-count-past-data"] = data
         if name == "flac":
+            # STREAMINFO's packed word is at 18: 20 bits of rate, 3 of channels,
+            # 5 of depth, then 36 of total samples.
             data = bytearray(source)
-            data[21] = 0xFF  # the rate's high bits
+            data[18:20] = b"\xff\xff"
+            data[20] |= 0xF0
             shapes["extreme-rate"] = data
             data = bytearray(source)
-            data[21 + 4:21 + 8] = b"\xff\xff\xff\xff"  # total samples
+            data[20] |= 0x0F
+            data[21:26] = b"\xff" * 5
             shapes["extreme-count"] = data
             points = b"".join(struct.pack(">QQH", k * 4096, len(source) * (k + 1), 4096) for k in range(4))
             shapes["seek-table-past-end"] = b"fLaC\x00\x00\x00\x22" + info + b"\x83" + len(points).to_bytes(3, "big") \

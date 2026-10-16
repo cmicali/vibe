@@ -1060,6 +1060,50 @@ def args(**overrides):
     return mock.Mock(**values)
 
 
+class SampledCtx(ScriptedCtx):
+    """A real-mode Ctx whose registry samples come from a queue of file lists."""
+
+    def __init__(self, files_per_sample):
+        super().__init__({}, folders=["/corpus/one"])
+        self.queue = list(files_per_sample)
+
+    def sample(self):
+        files = self.queue.pop(0) if len(self.queue) > 1 else self.queue[0]
+        entry = {"n": len(self.samples), "held": False, "files": sorted(files), "rows": {}}
+        self.samples.append(entry)
+        return entry
+
+    def watch(self, describe, predicate, seconds):
+        for _ in range(len(self.queue) + 1):
+            entry = self.sample()
+            if predicate(entry):
+                return entry
+        raise cloud.Failed(f"scripted samples ran out waiting for {describe}")
+
+    def materialization(self, health=None):
+        return {"requestsYielded": 0, "foregroundTransferActive": False}
+
+
+class ScanJoinTests(unittest.TestCase):
+    def test_r7_counts_a_scan_transfer_that_started_during_the_earlier_waits(self):
+        # The scan puts c.flac on the wire while b.flac's landing is awaited,
+        # before any mark r7 could take. The play then joins that transfer,
+        # which went on the wire once. Only a count over every sample sees it.
+        ctx = SampledCtx([["b.flac"], ["c.flac"], ["c.flac"], ["c.flac"], [], []])
+        rows = ["a.flac", "b.flac", "c.flac"]
+        with mock.patch.object(cloud, "suppress_setup_prefetch"), \
+                mock.patch.object(cloud, "real_pick", return_value=(rows, "a.flac")), \
+                mock.patch.object(cloud, "wait_landed",
+                                  side_effect=lambda c, name, describe: c.watch(describe, lambda s: name not in s["files"], 1)), \
+                mock.patch.object(cloud, "real_park"), \
+                mock.patch.object(cloud, "watch_resolution"):
+            summary = cloud.r7_play_joins_the_live_scan(ctx)
+        self.assertIn("joined the live scan of c.flac", summary)
+        self.assertEqual(ctx.sent.count(["play_index", "2"]), 1)
+        started = cloud.started_order(cloud.sample_events(ctx.samples))
+        self.assertEqual(started.count("c.flac"), 1)
+
+
 class RealProviderTests(unittest.TestCase):
     def test_registry_is_one_table_with_a_real_mode_per_scenario(self):
         self.assertEqual(len(cloud.SCENARIOS), 24)

@@ -194,23 +194,32 @@ PROGRESS_INTERVAL = 0.6
 
 
 def settled_playing(state):
-    """The playing track's url when the player is playing a settled open,
-    else None: paused, stopped, buffering or still loading is not scored."""
+    """The playing row, as (url, row index), when the player is playing a
+    settled open, else None: paused, stopped, buffering or still loading is
+    not scored. The row index is part of the identity because a cue sheet's
+    rows share one url."""
     state = state or {}
     player = state.get("player") or {}
     if (player.get("state") != "playing" or player.get("buffering")
             or (state.get("ui") or {}).get("displayState") == "loading"):
         return None
-    return (state.get("currentTrack") or {}).get("url")
+    url = (state.get("currentTrack") or {}).get("url")
+    return (url, (state.get("playlist") or {}).get("currentIndex")) if url else None
+
+
+# A held position reads the same twice. A position that went backwards is a
+# transition the samples straddled (Repeat One replaying the row, or a cue
+# row's window ending), not a stall.
+POSITION_HELD_SECONDS = 0.001
 
 
 def position_stalled(first, second):
-    """True when the same settled track played across both samples and its
-    position did not move; None when the pair is not scored."""
-    track = settled_playing(first)
-    if not track or settled_playing(second) != track:
+    """True when the same settled row played across both samples and its
+    position held still; None when the pair is not scored."""
+    row = settled_playing(first)
+    if not row or settled_playing(second) != row:
         return None
-    return second["player"]["position"] <= first["player"]["position"]
+    return abs(second["player"]["position"] - first["player"]["position"]) <= POSITION_HELD_SECONDS
 
 
 def playback_checkpoint(app):
@@ -228,7 +237,7 @@ def playback_checkpoint(app):
     time.sleep(PROGRESS_INTERVAL)
     second = app.json("dump_state")
     if position_stalled(first, second):
-        return (f"playback stalled: {settled_playing(first)} held at "
+        return (f"playback stalled: {settled_playing(first)[0]} held at "
                 f"{second['player']['position']:.3f}s while playing")
     return None
 

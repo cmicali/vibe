@@ -2469,18 +2469,21 @@ def r7_play_joins_the_live_scan(ctx):
     ctx.cmd("play_index", 1)
     wait_landed(ctx, played, f"{played} to land")
     real_park(ctx, played)
-    mark = len(ctx.samples)
+    # The scan can put its transfer on the wire while the waits above sample,
+    # so the count below reads every sample of the scenario. Nothing but the
+    # scan fetches a row other than the opened and the played one: prefetch
+    # is suppressed, and the open's own row is excluded from the pick.
     live = ctx.watch("a scan transfer on the wire",
-                     lambda s: [name for name in s["files"] if name != played],
+                     lambda s: [name for name in s["files"] if name not in (played, first)],
                      REAL_TRANSFER)
-    target = [name for name in live["files"] if name != played][0]
+    target = [name for name in live["files"] if name not in (played, first)][0]
     yielded = ctx.materialization().get("requestsYielded", 0)
     ctx.cmd("play_index", rows.index(target))
     if target not in ctx.sample()["files"]:
         raise NotStaged(f"the scan of {target} finished before playback could join it")
     wait_landed(ctx, target, f"the joined {target} to land")
     real_park(ctx, target)
-    arrivals = started_order(sample_events(ctx.samples, mark)).count(target)
+    arrivals = started_order(sample_events(ctx.samples)).count(target)
     if arrivals != 1:
         raise Failed(f"{target} went on the wire {arrivals} times. The play "
                      "did not join the scan's claim")
