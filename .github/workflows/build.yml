@@ -60,8 +60,9 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/checks/check-translations.sh --github
 
-  # Three macOS jobs: the free plan runs five macOS jobs at once, and a pull
-  # request's run often overlaps its merge's run. Text-only checks use Linux.
+  # Three macOS jobs on a pull request: the free plan runs five macOS jobs at
+  # once, and a pull request's run often overlaps its merge's run. Text-only
+  # checks use Linux.
   # Each job keeps its own compilation cache (.github/ci.xcconfig), restored
   # from main's last run and saved only by main, so a pull request compiles
   # little more than the files it changed. Analyze Release: findings can
@@ -127,15 +128,8 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
     timeout-minutes: 30
-    env:
-      IOS_TEST_DEVICE: iPhone 17
 
     steps:
-      # A runner's first boot takes minutes. It runs while the analyze build
-      # compiles, and the tests wait for it below.
-      - name: Start booting the test simulator
-        run: xcrun simctl boot "$IOS_TEST_DEVICE"
-
       - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-xcodegen
@@ -148,13 +142,35 @@ jobs:
       - name: Build Release and analyze (iOS)
         run: scripts/build/analyze.sh Release ios
 
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CompilationCache
+          key: ${{ steps.cache.outputs.key }}
+
+  # Not on pull requests. A runner's first simulator boot takes it over for
+  # minutes, and launching the tests takes over a minute more, for 20 seconds
+  # of tests. Main and manual runs still gate on them.
+  ios-tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: ios-tests
+
       # The Debug app the tests are hosted in, built on the way, is the
       # check that catches an AppKit leak into a shared directory.
       - name: Run iOS shell tests (simulator)
-        if: ${{ !cancelled() }}
-        run: |
-          xcrun simctl bootstatus "$IOS_TEST_DEVICE"
-          make test-ios
+        run: make test-ios
 
       - name: iOS test summary
         if: always()
@@ -170,7 +186,7 @@ jobs:
           if-no-files-found: ignore
 
       - uses: actions/cache/save@v6
-        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        if: ${{ !cancelled() }}
         with:
           path: build/CompilationCache
           key: ${{ steps.cache.outputs.key }}

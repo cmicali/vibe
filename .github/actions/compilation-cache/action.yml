@@ -35,9 +35,12 @@ runs:
     # cap it starts again from empty, and that run compiles everything.
     - shell: bash
       run: |
-        mb="$(du -sm build/CompilationCache 2>/dev/null | cut -f1)"
-        echo "compilation cache: ${mb:-0} MB"
-        if [ "${mb:-0}" -gt 3072 ]; then
+        mb=0
+        if [ -d build/CompilationCache ]; then
+          mb="$(du -sm build/CompilationCache | cut -f1)"
+        fi
+        echo "compilation cache: $mb MB"
+        if [ "$mb" -gt 3072 ]; then
           echo "::notice title=Compilation cache::${mb} MB is over the cap, starting from empty"
           rm -rf build/CompilationCache
         fi
