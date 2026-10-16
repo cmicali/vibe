@@ -6,6 +6,7 @@
 #import "ThreeBandWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 #import "VibeStrings.h"
+#import "WaveformZoomMath.h"
 
 #include <vector>
 #include <cmath>
@@ -86,7 +87,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     CALayer *_hoverHost;
     CALayer *_hoverMask;
     CALayer *_hoverColumn;
-    VibeRenderPixels _drawnPixels;
 }
 
 + (NSString *)styleIdentifier {
@@ -233,16 +233,15 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     // a pixel for Spectrum, whose colors change from pixel to pixel.
     double columnsPerPixel = _spectrum ? 1 : 1 / _pixels.scale;
     [self updateStepTargetForSize:bounds.size waveform:waveform columnsPerPixel:columnsPerPixel
-                           stride:_samplesPerBar fill:^(float *out, const wavecore::StepPart &part) {
+                             fill:^(float *out, const wavecore::StepPart &part) {
         [self fillBandLevels:out part:part waveform:waveform];
     }];
-    if (!(_drawnPixels == _pixels)) {
-        [_morph rebuildNow];
-    }
+    [self rebuildIfWindowMoved];
 }
 
-- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-    [self dipStepColumnsFromFraction:from toFraction:to stride:_samplesPerBar];
+// The bands are read from the summary alone.
+- (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform {
+    return VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
 }
 
 // Heights use the reach window. Spectrum colors use a window of their own,
@@ -325,20 +324,17 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
                 float bar[kSpectrumSamplesPerBar] = {};
                 double center = (x + 0.5) * framesPerPixel;
                 float weights = 0;
-                size_t offset = 0;
                 for (int p = 0; p < 2; p++) {
-                    const wavecore::StepPart &part = window.parts[p];
-                    float weight = (float)(p ? window.coarse : 1 - window.coarse);
-                    if (weight > 0 && part.count > 0) {
-                        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(center, part);
-                        const float *left = samples + (offset + pair.left) * stride;
-                        const float *right = samples + (offset + pair.right) * stride;
+                    float weight = window.weight(p);
+                    if (weight > 0 && window.parts[p].count > 0) {
+                        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(center, window.parts[p]);
+                        const float *left = samples + (window.offset(p) + pair.left) * stride;
+                        const float *right = samples + (window.offset(p) + pair.right) * stride;
                         for (NSUInteger k = 0; k < stride; k++) {
                             bar[k] += weight * (left[k] + (right[k] - left[k]) * pair.toRight);
                         }
                         weights += weight;
                     }
-                    offset += part.count;
                 }
                 if (weights > 0) {
                     for (NSUInteger k = 0; k < stride; k++) bar[k] /= weights;

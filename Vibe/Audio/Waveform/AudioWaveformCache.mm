@@ -328,8 +328,9 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     NSUInteger cueStart = track.cueStart, cueEnd = track.cueEnd;
     blocks = [blocks copy];
     return [_detailScheduler submitWork:^{
-        // A stat, on this lane: it can wait on a provider.
-        if (url && ![PlaceholderFiles isDatalessFile:url] && ![PlaceholderFiles isRemotePlaceholderFile:url]) {
+        // A stat, on this lane: it can wait on a provider. A remote
+        // placeholder answers dataless too.
+        if (url && ![PlaceholderFiles isDatalessFile:url]) {
             AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:self];
             loader.cueStart = cueStart;
             loader.cueEnd = cueEnd;

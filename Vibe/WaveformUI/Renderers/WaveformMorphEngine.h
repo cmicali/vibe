@@ -27,10 +27,10 @@ NS_ASSUME_NONNULL_BEGIN
 // updateWaveform:'s one target entry point. identity is the waveform pointer
 // (NULL: the collapsed all-zero target), compare-only: it cannot false-match
 // because the view retains the old waveform while a new one is allocated.
-// layout names what the samples are: a renderer whose samples are a step's
-// columns over a window changes it with the step or the window.
+// relaid says the samples now stand for other frames: a renderer whose
+// samples are a step's columns over a window says so when either changes.
 //
-// Same identity, layout and count skip the fill; only a geometry change
+// Same identity and count, not relaid, skip the fill; only a geometry change
 // rebuilds. Otherwise fill() runs synchronously on a reused buffer. Then:
 // rebuild instantly on a geometry change. A nil/non-nil flip with unchanged
 // samples also rebuilds: silent tracks need hairlines. Changed content eases.
@@ -40,7 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 // nearest bar.
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void * _Nullable)identity
-                     layout:(NSUInteger)layout
+                     relaid:(BOOL)relaid
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill
                       remap:(void (^ _Nullable)(std::vector<float> &displayed,

@@ -22,7 +22,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
     // The fast-path gate. Compare-only; may dangle.
     const void *_lastTargetIdentity;
-    NSUInteger _lastTargetLayout;
     NSUInteger _lastTargetCount;
     BOOL _targetInvalidated;
     NSTimer *_morphTimer;
@@ -52,12 +51,12 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
                    identity:(const void *)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill {
-    [self updateTargetForSize:size identity:identity layout:0 count:count fill:fill remap:nil];
+    [self updateTargetForSize:size identity:identity relaid:NO count:count fill:fill remap:nil];
 }
 
 - (void)updateTargetForSize:(CGSize)size
                    identity:(const void *)identity
-                     layout:(NSUInteger)layout
+                     relaid:(BOOL)relaid
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill
                       remap:(void (^)(std::vector<float> &displayed,
@@ -65,7 +64,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     // A settled picture resampled for a new width is layout, not new audio:
     // easing it doubles a resize's rebuilds and repaints after it stops.
     BOOL animate = _targetInvalidated || identity != _lastTargetIdentity || _morphTimer != nil;
-    BOOL relaid = layout != _lastTargetLayout;
     if (!_targetInvalidated && identity == _lastTargetIdentity && !relaid && count == _lastTargetCount) {
         // Leave the scratch alone: it holds the stale target, and comparing
         // against it would morph back to it.
@@ -77,7 +75,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         return;
     }
     _lastTargetIdentity = identity;
-    _lastTargetLayout = layout;
     _lastTargetCount = count;
     _targetInvalidated = NO;
     _scratchSamples.resize(count);

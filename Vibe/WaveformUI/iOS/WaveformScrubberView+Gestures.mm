@@ -249,6 +249,8 @@ static const CGFloat kZoomScrubSlop = 12.0;
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
     _isPinching = NO;
     [self parkContentOffsetAtProgress];
+    // The margins the pinch went without.
+    [self drawRendererWindowForcing:YES];
     // The whole gesture's end; endScrub declined all of this.
     [self commitScrubSeek];
     _scrubHaptics = nil;

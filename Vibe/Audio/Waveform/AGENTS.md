@@ -49,7 +49,7 @@ Cache-key stats, cache lookups, opens and decodes pass through **fixed-slot util
 
 `cachedWaveformForTrack:completion:` shares entry validation but has its own preview lane: one running, two pending. So a neighbor's uncancellable stat cannot occupy a lookup slot. It starts no open or decode. It answers on main, nil on a miss or admission failure, and rejects a hit invalidated during the read. Its `AudioWorkToken` cancels still-pending work with no completion. The iOS pager uses it only for neighboring previews.
 
-**Deep zoom's reads have a lane of their own** (`loadDetailBlocks:forTrack:waveform:completion:`): one running and one waiting. So a read stuck on a dead mount holds no decode slot, and a zoom cannot starve a decode. Each read opens the file as a decode does and reads the blocks asked for into the waveform's detail (`Packages/WaveformCore/AGENTS.md`). **A file not on disk is skipped**, a provider's or a remote placeholder, since a zoom must never start a download. Nothing is persisted. The iOS scrubber asks for the blocks under its window, each once (`WaveformUI/iOS/AGENTS.md`).
+**Deep zoom's reads have a lane of their own** (`loadDetailBlocks:forTrack:waveform:completion:`): one running and one waiting. So a read stuck on a dead mount holds no decode slot, and a zoom cannot starve a decode. Each read opens the file as a decode does and reads the blocks asked for into the waveform's detail (`Packages/WaveformCore/AGENTS.md`). **A file not on disk is skipped**, a provider's or a remote placeholder, since a zoom must never start a download. Nothing is persisted. The iOS scrubber asks for the blocks its last draw lacked (`WaveformUI/iOS/AGENTS.md`).
 
 ## A superseded load is detached, not aborted
 

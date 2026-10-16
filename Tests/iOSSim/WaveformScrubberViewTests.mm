@@ -204,11 +204,9 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 
 #pragma mark - Zoom and the playhead
 
-// The floor for the waveform on show, as the view derives it.
+// The floor for the waveform and the style on show.
 - (CGFloat)floor {
-    AudioWaveform *waveform = _view.waveform.waveform;
-    return VibeWaveformMinimumVisibleFraction(kWidth, waveform ? waveform->totalFrames() : 0,
-            waveform ? VibeWaveformMinimumFramesPerPoint(waveform->binFrames()) : 0);
+    return [_view minimumVisibleFraction];
 }
 
 - (CGFloat)expectedVirtualWidth {

@@ -33,7 +33,11 @@ Two families and one flat style, split by how progress and hover quantize:
 
 **A style wants a number of columns a point** (`columnsPerPoint`, or the rate it passes to `updateStepTargetForSize:`). Detailed wants 2, and Oversampled 2x, 4x and 8x want 4, 8 and 16. That oversampling is their look, the same at every width. 3-Band wants one a point, so zoomed in it resolves each hit. Spectrum wants one a pixel, since its colors change from pixel to pixel. The Detailed types land each column in the pixels it overlaps by its share, so a pixel's coverage is the mean of its columns' spans (`ColumnCoverage`). 3-Band and Spectrum read their levels linearly between column centers, as their polygons did.
 
-**The samples are laid out by the window's columns** (`_window`, part after part). `updateStepTargetForSize:` hands the morph engine a layout key that changes with the columns. A settled change installs at once. One that eases first moves the displayed samples to the new layout by the track's frames (`RemapStepSamples`), so a resize across a step or a scroll mid-morph keeps its motion.
+**The samples are laid out by the window's columns** (`_window`, part after part). `updateStepTargetForSize:` tells the morph engine when the columns change. A settled change installs at once. One that eases first moves the displayed samples to the new layout by the track's frames (`RemapStepSamples`), so a resize across a step or a scroll mid-morph keeps its motion.
+
+**The base renderer owns the window.** It rebuilds a picture whose window moved with nothing else changed (`rebuildIfWindowMoved`), as the scrubber scrolls. It dips a step style's columns for the convert sweep. It refills the columns when deep zoom's blocks land in the waveform's detail, and they ease to the finer picture.
+
+**Each style says how deep a zoom may show it** (`minimumFramesPerPointForWaveform:`). The bar styles stop where their 1,024 bars stop growing in number, since past that they only widen. 3-Band, Spectrum and Wiggle stop at two bins a point. The Detailed types reach the stream's own frames once the waveform is complete.
 
 ## Level mapping
 
@@ -69,7 +73,7 @@ Two families and one flat style, split by how progress and hover quantize:
 
 ## The convert sweep
 
-**Convert to FLAC's progress is drawn with the waveform itself.** `dipBarsFromFraction:toFraction:` zeroes the displayed samples in the newly crossed span and rebuilds once, so the notch shows at zero. The standard ease then carries them back to the unchanged target, which draws the graded trail. The span rounds outward to whole bars, or for a step style to whole columns of each step (`dipStepColumnsFromFraction:`), so an edge bar is never half-zeroed. Keeping the front and feeding only the new span is `../Mac/AGENTS.md`'s. Reporting the fractions is `Mac/Convert/AGENTS.md`'s.
+**Convert to FLAC's progress is drawn with the waveform itself.** `dipBarsFromFraction:toFraction:` zeroes the displayed samples in the newly crossed span and rebuilds once, so the notch shows at zero. The standard ease then carries them back to the unchanged target, which draws the graded trail. The span rounds outward to whole bars, or for a step style to whole columns of each step, so an edge bar is never half-zeroed. Keeping the front and feeding only the new span is `../Mac/AGENTS.md`'s. Reporting the fractions is `Mac/Convert/AGENTS.md`'s.
 
 ## 3-Band
 

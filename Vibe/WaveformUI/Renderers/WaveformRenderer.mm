@@ -5,6 +5,7 @@
 
 #import "WaveformRenderer.h"
 #import "WaveformMorphEngine.h"
+#import "WaveformZoomMath.h"
 
 CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height) {
     CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)pixels);
@@ -17,10 +18,14 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
     return image;
 }
 
+// The block bars' pitch in points at bar density 1, and their cap.
+static const CGFloat kBlockBarPitch = 4;
+static const NSUInteger kMaxBlockBars = 1024;
+
 @implementation WaveformRenderer {
     CGFloat _hoverHighlightX;
-    // Bumped whenever _window's columns change, for the morph's layout key.
-    NSUInteger _windowGeneration;
+    // The detail's inserts the target was last filled after.
+    uint64_t _detailInserts;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -55,34 +60,43 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
 }
 
 - (void)updateStepTargetForSize:(CGSize)size waveform:(AudioWaveform *)waveform
-                columnsPerPixel:(double)columnsPerPixel stride:(NSUInteger)stride
+                columnsPerPixel:(double)columnsPerPixel
                            fill:(void (^)(float *out, const wavecore::StepPart &part))fill {
     int64_t total = waveform ? waveform->totalFrames() : _window.totalFrames;
     double pixels = size.width * _pixels.scale;
     wavecore::StepWindow window = wavecore::StepWindowForPixels(total, pixels > 0 ? (double)total / pixels : 0,
                                                                 columnsPerPixel, _pixels.x0, _pixels.x1);
     wavecore::StepWindow previous = _window;
-    if (!window.sameColumns(previous)) {
-        _windowGeneration++;
-    }
     _window = window;
-    [_morph updateTargetForSize:size identity:waveform layout:_windowGeneration
+    uint64_t inserts = waveform ? waveform->detail().insertCount() : _detailInserts;
+    if (inserts != _detailInserts) {
+        _detailInserts = inserts;
+        [_morph invalidateTarget];
+    }
+    NSUInteger stride = _morph.samplesPerBar;
+    [_morph updateTargetForSize:size identity:waveform relaid:!window.sameColumns(previous)
                           count:window.columnCount() * stride
                            fill:^(std::vector<float> &target) {
-        float *out = target.data();
-        for (const wavecore::StepPart &part : window.parts) {
-            if (part.count > 0) {
-                fill(out, part);
+        for (int p = 0; p < 2; p++) {
+            if (window.parts[p].count > 0) {
+                fill(target.data() + window.offset(p) * stride, window.parts[p]);
             }
-            out += part.count * stride;
         }
     } remap:^(std::vector<float> &displayed, const std::vector<float> &target) {
         wavecore::RemapStepSamples(previous, window, stride, displayed, target);
     }];
 }
 
-- (void)waveformDetailDidChange {
-    [_morph invalidateTarget];
+- (void)rebuildIfWindowMoved {
+    if (!(_drawnPixels == _pixels)) {
+        [_morph rebuildNow];
+    }
+}
+
+- (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform {
+    // Wider, blockBarCountForWidth: only widens its bars.
+    double barsWidth = kMaxBlockBars * kBlockBarPitch / clampMin(self.barDensity, 0.01);
+    return fmax(VibeWaveformMinimumFramesPerPoint(waveform->binFrames()), (double)waveform->totalFrames() / barsWidth);
 }
 
 - (double)framesPerPixel {
@@ -90,30 +104,14 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
     return pixels > 0 ? (double)_window.totalFrames / pixels : 0;
 }
 
-- (void)dipStepColumnsFromFraction:(double)from toFraction:(double)to stride:(NSUInteger)stride {
-    std::vector<std::pair<size_t, size_t>> ranges;
-    double total = (double)_window.totalFrames;
-    size_t offset = 0;
-    for (const wavecore::StepPart &part : _window.parts) {
-        double frames = part.framesPerColumn(), count = (double)part.count;
-        // Outward to whole columns.
-        double begin = clampRange(floor(from * total / frames) - (double)part.first, 0.0, count);
-        double end = clampRange(ceil(to * total / frames) - (double)part.first, 0.0, count);
-        if (end > begin) {
-            ranges.push_back({(offset + (size_t)begin) * stride, (offset + (size_t)end) * stride});
-        }
-        offset += part.count;
-    }
-    [_morph dipDisplayedSampleRanges:ranges];
-}
 
 - (CGFloat)hoverHighlightX {
     return _hoverHighlightX;
 }
 
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width {
-    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * self.barDensity / 4);
-    return clampRange(count, (NSUInteger)2, (NSUInteger)1024);
+    NSUInteger count = (NSUInteger)llround(clampMin(width, 1) * self.barDensity / kBlockBarPitch);
+    return clampRange(count, (NSUInteger)2, kMaxBlockBars);
 }
 
 - (void)setBarDensity:(CGFloat)density {
@@ -174,12 +172,6 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
     }
 }
 
-- (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
-               waveform:(AudioWaveform *)waveform {
-    [self fillEnergyLevels:out stride:stride framesPerColumn:(double)waveform->totalFrames() / (double)count
-                     first:0 count:count waveform:waveform];
-}
-
 // Abstract: assert where the class is known, and return a nonnull marker so
 // Release registers something rather than crashing.
 + (NSString *)styleIdentifier {
@@ -218,7 +210,24 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
 }
 
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-    [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
+    if (_window.columnCount() == 0) {
+        [_morph dipDisplayedSamplesFromFraction:from toFraction:to];
+        return;
+    }
+    std::vector<std::pair<size_t, size_t>> ranges;
+    double total = (double)_window.totalFrames;
+    size_t stride = _morph.samplesPerBar;
+    for (int p = 0; p < 2; p++) {
+        const wavecore::StepPart &part = _window.parts[p];
+        double frames = part.framesPerColumn(), count = (double)part.count;
+        // Outward to whole columns.
+        double begin = clampRange(floor(from * total / frames) - (double)part.first, 0.0, count);
+        double end = clampRange(ceil(to * total / frames) - (double)part.first, 0.0, count);
+        if (end > begin) {
+            ranges.push_back({(_window.offset(p) + (size_t)begin) * stride, (_window.offset(p) + (size_t)end) * stride});
+        }
+    }
+    [_morph dipDisplayedSampleRanges:ranges];
 }
 
 - (void)settleMorphImmediately {

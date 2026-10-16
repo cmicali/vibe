@@ -47,6 +47,10 @@ struct StepWindow {
     int64_t totalFrames = 0;
 
     size_t columnCount() const { return parts[0].count + parts[1].count; }
+    // Part p's weight in the crossfade, and where its columns start in a
+    // layout of both parts, the finer first.
+    float weight(int p) const { return float(p ? coarse : 1 - coarse); }
+    size_t offset(int p) const { return p ? parts[0].count : 0; }
     // Two windows with the same columns draw from the same samples, whatever
     // their weights.
     bool sameColumns(const StepWindow &other) const {
@@ -84,29 +88,33 @@ inline void ForEachColumnShare(int x, double framesPerPixel, const StepPart &par
     }
 }
 
-// The two columns of part around a frame and how far it lies between their
-// centers, for a value read linearly from column to column. Clamped at the
-// part's ends.
+// The two columns of a grid's [first, first + count) around a frame and how
+// far it lies between their centers, for a value read linearly from column to
+// column. Clamped at the ends.
 struct ColumnPair {
     size_t left;
     size_t right;
     float toRight;
 };
 
-inline ColumnPair ColumnPairAroundFrame(double frame, const StepPart &part) {
-    if (part.count == 0) {
+inline ColumnPair ColumnPairAroundFrame(double frame, double framesPerColumn, int64_t first, size_t count) {
+    if (count == 0) {
         return {0, 0, 0};
     }
-    double u = frame / part.framesPerColumn() - 0.5 - double(part.first);
-    double last = double(part.count - 1);
+    double u = frame / framesPerColumn - 0.5 - double(first);
+    double last = double(count - 1);
     if (!(u > 0)) {
         return {0, 0, 0};
     }
     if (!(u < last)) {
-        return {part.count - 1, part.count - 1, 0};
+        return {count - 1, count - 1, 0};
     }
     double left = std::floor(u);
     return {size_t(left), size_t(left) + 1, float(u - left)};
+}
+
+inline ColumnPair ColumnPairAroundFrame(double frame, const StepPart &part) {
+    return ColumnPairAroundFrame(frame, part.framesPerColumn(), part.first, part.count);
 }
 
 // One pixel column's coverage, accumulated exactly: a partly covered row by
@@ -116,7 +124,6 @@ class ColumnCoverage {
 public:
     explicit ColumnCoverage(int height);
 
-    int height() const { return height_; }
     void clear();
     // [bottom, top] in y-up pixels, times weight.
     void addSpan(double bottom, double top, float weight);
@@ -141,12 +148,12 @@ class ColumnPaint {
 public:
     explicit ColumnPaint(int height);
 
-    int height() const { return height_; }
     void clear();
     // [bottom, top] in y-up pixels, in an opaque color, 0...1 a component.
     void paintSpan(double bottom, double top, float red, float green, float blue);
     // Premultiplied 32-bit ARGB in host order, rows from the top, stepping
-    // rowStride pixels a row.
+    // rowStride pixels a row. Only rows a span covers are written, so out
+    // starts cleared.
     void write(uint32_t *out, ptrdiff_t rowStride);
 
 private:

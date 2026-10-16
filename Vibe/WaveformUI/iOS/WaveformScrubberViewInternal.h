@@ -2,7 +2,7 @@
 //  WaveformScrubberViewInternal.h
 //  Vibe (iOS)
 //
-//  Private to WaveformScrubberView.mm and its Bitmap, Loading and Gestures
+//  Private to WaveformScrubberView.mm and its Loading and Gestures
 //  categories. ObjC++ only, since it brings in WaveformRenderer.h.
 //
 
@@ -26,9 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
     NSString                *_themeSignature;
     // The stretch of content the renderer last drew, in content points.
     CGRect                  _renderWindow;
-    // Deep zoom's blocks asked for this waveform, each once, and whether a
-    // request is out.
-    NSMutableIndexSet       *_detailAsked;
+    // Whether a request for deep zoom's blocks is out.
     BOOL                    _detailRequested;
     CGFloat                 _progress;
     NSUInteger              _progressTracker;

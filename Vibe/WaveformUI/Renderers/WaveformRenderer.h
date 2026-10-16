@@ -37,11 +37,10 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 // reference: its loudest column is only the loudest SO FAR, and a reference
 // that rises per delivery shrinks bars already drawn.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize,
-                                                        NSUInteger columns = kVibeWaveformEnergyColumns,
-                                                        float reach = 0) {
+                                                        NSUInteger columns = kVibeWaveformEnergyColumns) {
     float loudest = 0;
     if (normalize && waveform->isComplete() && columns > 0) {
-        waveform->loudestMeanSquares(columns, reach, &loudest, NULL);
+        waveform->loudestMeanSquares(columns, 0, &loudest, NULL);
         loudest = sqrtf(fmaxf(loudest, 0));
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
@@ -164,6 +163,8 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
     // style the columns the samples hold.
     VibeRenderPixels _pixels;
     wavecore::StepWindow _window;
+    // The window the picture last covered; each rebuild sets it.
+    VibeRenderPixels _drawnPixels;
 }
 
 @property (assign) BOOL isDark;
@@ -193,14 +194,16 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch;
 
 // The level of each column of count on the grid of frames from first,
-// Normalize and Gain applied: the one energy reading of every style but
-// 3-Band and Spectrum. Stride permits interleaved envelopes; the caller
-// supplies their sign and symmetry.
+// Normalize and Gain applied: the energy reading of the bar styles and
+// Wiggle. The step styles read their own grid. Stride permits interleaved
+// envelopes; the caller supplies their sign and symmetry.
 - (void)fillEnergyLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
                    first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform;
-// count bars across the whole track.
-- (void)fillEnergyLevels:(float *)out count:(NSUInteger)count stride:(NSUInteger)stride
-               waveform:(AudioWaveform *)waveform;
+
+// The finest a zoom may show this style, in frames a point. Here the summary
+// alone, and no wider than the width where the bars stop growing in number.
+// The Detailed types reach the stream's own frames once it is complete.
+- (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform;
 
 @property (strong) CALayer* parentLayer;
 
@@ -215,19 +218,19 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (double)framesPerPixel;
 
 // The step styles' one target entry point, once _pixels is current. Reads the
-// window's two steps at columnsPerPixel through fill, stride floats a column,
-// part after part.
+// window's two steps at columnsPerPixel through fill, the morph's samples a
+// column, part after part.
 // Laid out by _window, the samples carry over a window or step change by the
 // track's frames. A nil waveform keeps the last window and eases it to zero.
+// Blocks of the stream landing in the waveform's detail refill it, and the
+// columns ease to the finer picture.
 - (void)updateStepTargetForSize:(CGSize)size waveform:(AudioWaveform * _Nullable)waveform
-                columnsPerPixel:(double)columnsPerPixel stride:(NSUInteger)stride
+                columnsPerPixel:(double)columnsPerPixel
                            fill:(void (^)(float *out, const wavecore::StepPart &part))fill;
-// The convert sweep over a step style's columns.
-- (void)dipStepColumnsFromFraction:(double)from toFraction:(double)to stride:(NSUInteger)stride;
 
-// The waveform's detail gained frames (WaveformCore's Detail): the next
-// update reads its columns again, and they ease to the finer picture.
-- (void)waveformDetailDidChange;
+// Rebuilds when _pixels moved from _drawnPixels with nothing else changed, as
+// the scrubber scrolls. Each picture style calls it last in updateWaveform:.
+- (void)rebuildIfWindowMoved;
 
 // Wiggle's loop count can use an unzoomed reference width while its geometry
 // spans the drawn width. Zero follows the drawn width; other styles ignore it.
@@ -266,7 +269,8 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (void)backingScaleDidChange;
 
 // The Convert to FLAC sweep: dip the bars in [from, to) to the midline and let
-// the morph ease them back. No-op without a morph engine.
+// the morph ease them back. A step style dips the columns under the track's
+// span. No-op without a morph engine.
 - (void)dipBarsFromFraction:(double)from toFraction:(double)to;
 
 // See WaveformMorphEngine.settleImmediately. No-op without a morph engine.

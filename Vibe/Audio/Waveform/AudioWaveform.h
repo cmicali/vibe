@@ -72,7 +72,4 @@ extern const int kCodableAudioWaveformVersion;
 // Takes ownership.
 - (instancetype)initWithWaveform:(std::unique_ptr<AudioWaveform>)waveform;
 
-// A deep copy, wrapped in a new object that owns it.
-- (CodableAudioWaveform *)snapshot;
-
 @end

@@ -39,10 +39,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @optional
 
-// Zoomed past the summary's bins, the view wants these blocks of the
-// waveform's own frames (AudioWaveformCache's loadDetailBlocks:). One request
-// at a time. The owner answers with detailDidLoadForWaveform:, whether or not
-// the blocks could be read.
+// A draw lacked these blocks of the waveform's own frames
+// (AudioWaveformCache's loadDetailBlocks:). One request at a time. The owner
+// answers with detailDidLoadForWaveform:, whether or not the blocks could be
+// read, or it refuses.
 - (void)waveformScrubberView:(WaveformScrubberView *)view
            needsDetailBlocks:(NSIndexSet *)blocks
                   ofWaveform:(CodableAudioWaveform *)waveform;

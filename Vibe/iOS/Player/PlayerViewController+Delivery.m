@@ -113,8 +113,9 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     _pagesView.scrollEnabled = _pagerHoldViews.allObjects.count == 0;
 }
 
-// Deep zoom's frames, for the page bound to playback only: the cache reads
-// them once and the view refills as they land.
+// Deep zoom's frames, for the page bound to playback only: the view refills
+// as they land. A neighbor is refused, and asks again when it next draws as
+// the current page.
 - (void)waveformScrubberView:(WaveformScrubberView *)view
            needsDetailBlocks:(NSIndexSet *)blocks
                   ofWaveform:(CodableAudioWaveform *)waveform {

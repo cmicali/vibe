@@ -71,16 +71,4 @@ const int kCodableAudioWaveformVersion = 6;
     return self;
 }
 
-- (CodableAudioWaveform *)snapshot {
-    if (!_waveform) {
-        return nil;
-    }
-    CodableAudioWaveform *copy = [[CodableAudioWaveform alloc] initWithWaveform:_waveform->copy()];
-    copy.bpm = self.bpm;
-    copy.key = self.key;
-    copy.bpmAnalyzed = self.bpmAnalyzed;
-    copy.keyAnalyzed = self.keyAnalyzed;
-    return copy;
-}
-
 @end

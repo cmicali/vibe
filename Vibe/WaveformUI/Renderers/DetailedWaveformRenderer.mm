@@ -8,6 +8,7 @@
 #import "PlatformTypes.h"
 #import "PlatformColor.h"
 #import "VibeStrings.h"
+#import "WaveformZoomMath.h"
 
 #include <vector>
 #include <cmath>
@@ -103,11 +104,12 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     // lit slice is the waveform, not a line over it.
     CALayer *_hoverColumn;
 
-    // The window the mask last covered, so a moved window redraws.
-    VibeRenderPixels _drawnPixels;
-    // Kept across morph frames, so a rebuild allocates neither.
+    // Kept across morph frames and fills, so neither allocates.
     std::vector<float> _bottoms;
     std::vector<float> _tops;
+    std::vector<wavecore::Column> _columns;
+    std::vector<wavecore::Column> _energy;
+    std::vector<float> _levels;
 }
 
 + (NSString *)styleIdentifier {
@@ -309,7 +311,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     double columnsPerPoint = [self columnsPerPoint];
     if (columnsPerPoint > 0) {
         [self updateStepTargetForSize:bounds.size waveform:waveform
-                      columnsPerPixel:columnsPerPoint / _pixels.scale stride:2
+                      columnsPerPixel:columnsPerPoint / _pixels.scale
                                  fill:^(float *out, const wavecore::StepPart &part) {
             [self fillColumns:out framesPerColumn:part.framesPerColumn() first:part.first count:part.count
                      waveform:waveform];
@@ -322,10 +324,16 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
                         first:0 count:count waveform:waveform];
         }];
     }
-    // A window moved with nothing else changed, as the scrubber scrolls.
-    if (!(_drawnPixels == _pixels)) {
-        [_morph rebuildNow];
+    [self rebuildIfWindowMoved];
+}
+
+- (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform {
+    if ([self columnsPerPoint] > 0 && waveform->isComplete()) {
+        return kVibeWaveformMinimumDetailFramesPerPoint;
     }
+    // Wiggle counts its loops at rest, so a zoom only stretches them.
+    return [self columnsPerPoint] > 0 || _wiggle ? VibeWaveformMinimumFramesPerPoint(waveform->binFrames())
+                                                : [super minimumFramesPerPointForWaveform:waveform];
 }
 
 - (void)fillColumns:(float *)out framesPerColumn:(double)frames first:(int64_t)first count:(NSUInteger)count
@@ -343,8 +351,8 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     // energy around them: DC-offset asymmetry and fine texture survive. The
     // energy is read linearly between the centers of a coarser grid, so no
     // edge of it shows when zoomed in.
-    std::vector<wavecore::Column> columns(count);
-    waveform->columns(frames, first, count, columns.data());
+    _columns.resize(count);
+    waveform->columns(frames, first, count, _columns.data());
     double total = (double)waveform->totalFrames();
     double energyFrames = fmax(frames * [self energyColumnsPerColumn], total / kVibeWaveformEnergyColumns);
     double firstEnergy = fmax(0, floor(((double)first + 0.5) * frames / energyFrames - 0.5));
@@ -355,28 +363,29 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         std::fill(out, out + count * 2, 0.0f);
         return;
     }
-    std::vector<float> levels(energyCount);
+    _energy.resize(energyCount);
+    waveform->columns(energyFrames, (int64_t)firstEnergy, energyCount, _energy.data());
+    _levels.resize(energyCount);
+    const float *levels = _levels.data();
     if ([self columnsPerPoint] > 0) {
         // A step keeps one energy grid at every width, so it needs no reach,
         // and Normalize can take the grid's own loudest column: the tallest
         // column reaches full height.
         NSUInteger energyColumns = (NSUInteger)llround(total / energyFrames);
-        waveform->meanSquares(energyFrames, (int64_t)firstEnergy, energyCount, 0, levels.data(), NULL);
         float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, energyColumns);
-        for (float &level : levels) {
-            level = VibeWaveformBarLevel(level, fullScaleRMS, self.gainDB);
+        for (size_t j = 0; j < energyCount; j++) {
+            _levels[j] = VibeWaveformBarLevel(_energy[j].meanSquare(), fullScaleRMS, self.gainDB);
         }
     } else {
-        [self fillEnergyLevels:levels.data() stride:1 framesPerColumn:energyFrames first:(int64_t)firstEnergy
+        [self fillEnergyLevels:_levels.data() stride:1 framesPerColumn:energyFrames first:(int64_t)firstEnergy
                          count:energyCount waveform:waveform];
     }
-    std::vector<wavecore::Column> energy(energyCount);
-    waveform->columns(energyFrames, (int64_t)firstEnergy, energyCount, energy.data());
+    const wavecore::Column *energy = _energy.data(), *columns = _columns.data();
     for (NSUInteger i = 0; i < count; i++) {
-        double u = ((double)first + i + 0.5) * frames / energyFrames - 0.5 - firstEnergy;
-        size_t left = (size_t)clampRange(floor(u), 0.0, (double)(energyCount - 1));
-        size_t right = MIN(left + 1, energyCount - 1);
-        float toRight = (float)clampRange(u - (double)left, 0.0, 1.0);
+        wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(((double)first + i + 0.5) * frames, energyFrames,
+                                                                    (int64_t)firstEnergy, energyCount);
+        size_t left = pair.left, right = pair.right;
+        float toRight = pair.toRight;
         float leftPeak = energy[left].extent(), rightPeak = energy[right].extent();
         float leftGain = leftPeak > 0 ? levels[left] / leftPeak : 0;
         float rightGain = rightPeak > 0 ? levels[right] / rightPeak : 0;
@@ -408,14 +417,6 @@ static const double kEnergyPixels = 4;
 - (double)energyColumnsPerColumn {
     double columnsPerPixel = [self columnsPerPoint] / _pixels.scale;
     return columnsPerPixel > 0 ? kEnergyPixels * columnsPerPixel : 1;
-}
-
-- (void)dipBarsFromFraction:(double)from toFraction:(double)to {
-    if ([self columnsPerPoint] > 0) {
-        [self dipStepColumnsFromFraction:from toFraction:to stride:2];
-    } else {
-        [super dipBarsFromFraction:from toFraction:to];
-    }
 }
 
 - (void)backingScaleDidChange {
@@ -479,16 +480,14 @@ static const double kEnergyPixels = 4;
         wavecore::ColumnCoverage column(pixels.height);
         for (int x = pixels.x0; x < pixels.x1; x++) {
             column.clear();
-            size_t offset = 0;
             for (int p = 0; p < 2; p++) {
-                const wavecore::StepPart &part = window.parts[p];
-                float weight = (float)(p ? window.coarse : 1 - window.coarse);
+                float weight = window.weight(p);
+                size_t offset = window.offset(p);
                 if (weight > 0) {
-                    wavecore::ForEachColumnShare(x, framesPerPixel, part, [&](size_t i, float share) {
+                    wavecore::ForEachColumnShare(x, framesPerPixel, window.parts[p], [&](size_t i, float share) {
                         column.addSpan(bottoms[offset + i], tops[offset + i], weight * share);
                     });
                 }
-                offset += part.count;
             }
             column.writeMask(out + (x - pixels.x0), stride);
         }

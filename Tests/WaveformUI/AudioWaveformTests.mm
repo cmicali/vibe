@@ -20,11 +20,6 @@
 
 @implementation AudioWaveformTests
 
-// Normalize's reference: the track's own, whatever the view draws.
-static float VibeTestFullScaleRMS(AudioWaveform *waveform, BOOL normalize) {
-    return VibeWaveformFullScaleRMSForWaveform(waveform, normalize);
-}
-
 - (WaveformRenderer *)rendererForStyle:(NSString *)identifier {
     CALayer *host = [CALayer layer];
     host.bounds = CGRectMake(0, 0, 512, 80);
@@ -433,8 +428,8 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
 - (void)testNormalizationOnlyRaisesLevelsAndKeepsSilenceFinite {
     for (float rms : {0.0f, 0.000001f, 0.035f, 0.35f, 0.7f, 1.0f}) {
         auto waveform = VibeTestSteadyWaveform(1, {-rms, rms, rms * rms});
-        float plain = VibeTestFullScaleRMS(waveform.get(), NO);
-        float normalized = VibeTestFullScaleRMS(waveform.get(), YES);
+        float plain = VibeWaveformFullScaleRMSForWaveform(waveform.get(), NO);
+        float normalized = VibeWaveformFullScaleRMSForWaveform(waveform.get(), YES);
         XCTAssertGreaterThan(normalized, 0);
         XCTAssertLessThanOrEqual(normalized, plain);
         if (rms == 0 || rms >= kVibeWaveformFullScaleRMS) XCTAssertEqual(normalized, plain);
@@ -750,11 +745,11 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
 - (void)testNormalizationWaitsForTheWholeTrack {
     auto snapshot = VibeTestSteadyWaveform(8192, {-0.1f, 0.1f, 0.01f}, false);
     XCTAssertFalse(snapshot->isComplete());
-    XCTAssertEqual(VibeTestFullScaleRMS(snapshot.get(), YES), kVibeWaveformFullScaleRMS);
+    XCTAssertEqual(VibeWaveformFullScaleRMSForWaveform(snapshot.get(), YES), kVibeWaveformFullScaleRMS);
 
     auto whole = VibeTestSteadyWaveform(8192, {-0.1f, 0.1f, 0.01f});
     XCTAssertTrue(whole->isComplete());
-    XCTAssertEqualWithAccuracy(VibeTestFullScaleRMS(whole.get(), YES), 0.1f, 1e-6);
+    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(whole.get(), YES), 0.1f, 1e-6);
 }
 
 #pragma mark - Stability

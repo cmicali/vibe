@@ -61,20 +61,34 @@ class Detail {
 public:
     static constexpr int64_t kBlockFrames = 1 << 16;
     static constexpr size_t kMaxBlocks = 16;
+    // TRAP: a read crosses at most half the blocks held. Reads that need more
+    // than are held evict a block they need with each one read in, and ask
+    // for it again forever.
+    static constexpr size_t kMaxReadBlocks = kMaxBlocks / 2;
 
     // The mix's samples for the frames from block * kBlockFrames. A block
     // shorter than kBlockFrames ends the stream.
     void insertBlock(int64_t block, std::vector<float> samples);
     bool hasBlock(int64_t block) const;
+    // Every insert counts, so a reader can tell that columns it read before
+    // may read finer now.
+    uint64_t insertCount() const;
     // Columns of the grid of F frames from firstIndex, of a stream of
     // `frames`, read through the line joining the samples at their frames'
     // centers. So a column narrower than a frame holds the line's span across
-    // it. false, leaving out as it was, when a block they cross is missing.
+    // it. false, leaving out as it was, when the columns cross more than
+    // kMaxReadBlocks or a block that is missing.
     bool columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const;
+    // The blocks the last read that missed some lacked, which a holder reads
+    // in. Taken once, so a block that cannot be read is asked for again only
+    // by a later read.
+    std::vector<int64_t> takeLackedBlocks();
 
 private:
     mutable std::mutex lock_;
     std::vector<std::pair<int64_t, std::shared_ptr<const std::vector<float>>>> blocks_;  // oldest first
+    mutable std::vector<int64_t> lacked_;
+    uint64_t inserts_ = 0;
 };
 
 class Summary {
@@ -152,11 +166,16 @@ private:
         std::vector<float> bandSumSquares;  // kBandCount per bin
     };
 
+    friend class SummaryBuilder;
+
     const Level &level(size_t index) const;
     size_t levelCount() const;
     void buildPyramid() const;
+    // column's read, with or without the extremes.
+    Column read(double first, double last, int channel, bool extremes) const;
     void accumulate(size_t levelIndex, double first, double last, int channel, bool extremes, Column &into) const;
     double binEnd(const Level &level, size_t bin) const;
+    double binWidth(const Level &level, size_t bin) const { return binEnd(level, bin) - double(bin * level.binFrames); }
 
     uint32_t binFrames_;
     uint32_t channels_;
@@ -167,7 +186,8 @@ private:
     bool complete_ = false;
     Level base_;
 
-    // Built on first read and kept: a shared summary never changes.
+    // Built where a summary is made (a copy, a decode, a builder's finish),
+    // or else on first read, and kept: a shared summary never changes.
     mutable std::mutex lazyLock_;
     mutable std::atomic<bool> pyramidBuilt_{false};
     mutable std::vector<Level> pyramid_;
@@ -198,7 +218,6 @@ public:
     ~SummaryBuilder();
 
     void append(const float *interleaved, const float *mono, size_t frames);
-    int64_t frames() const { return frames_; }
     void setExpectedFrames(int64_t frames) { summary_->setTotalFrames(frames); }
     // The whole bins so far, for a streaming load's progressive delivery.
     std::unique_ptr<Summary> snapshot() const { return summary_->copy(); }
@@ -211,9 +230,6 @@ private:
     std::unique_ptr<Summary> summary_;
     std::unique_ptr<BandSplit> split_;
     uint32_t inputChannels_;
-    uint32_t channels_;
-    uint32_t binFrames_;
-    int64_t frames_ = 0;
     uint32_t binFill_ = 0;
     std::array<float, kMaxChannels> lo_;
     std::array<float, kMaxChannels> hi_;

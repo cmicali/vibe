@@ -142,29 +142,6 @@ static CodableAudioWaveform *RoundTrip(CodableAudioWaveform *original) {
     XCTAssertEqual(cMajor.key, 0, @"C major is preserved, not mistaken for absent");
 }
 
-#pragma mark - snapshot
-
-- (void)testSnapshotIsIndependentOfTheOriginal {
-    // Progress ticks hand a snapshot to the main thread while the loader keeps
-    // writing its own summary; sharing it would be a data race.
-    CodableAudioWaveform *live = [[CodableAudioWaveform alloc] initWithWaveform:SampleSummary(false, false)];
-    live.bpm = 90.0f;
-    live.key = 5; // F
-    CodableAudioWaveform *snapshot = [live snapshot];
-    float lo = -1, hi = 1;
-    live.waveform->appendBin(&lo, &hi, 0, nullptr, 4);
-    XCTAssertNotEqual(snapshot.waveform, live.waveform, @"must not share the summary");
-    XCTAssertEqual(snapshot.waveform->binCount(), 300u);
-    XCTAssertEqual(live.waveform->binCount(), 301u);
-    XCTAssertEqual(snapshot.bpm, 90.0f, @"bpm rides along with the snapshot");
-    XCTAssertEqual(snapshot.key, 5, @"key rides along with the snapshot");
-}
-
-- (void)testSnapshotOfAnEmptyWaveformIsNil {
-    CodableAudioWaveform *empty = [[CodableAudioWaveform alloc] initWithWaveform:nullptr];
-    XCTAssertNil([empty snapshot]);
-}
-
 #pragma mark - Analysis flags
 
 - (void)testAnArchiveWithoutAnalysisFlagsReadsAnalyzed {
@@ -182,7 +159,6 @@ static CodableAudioWaveform *RoundTrip(CodableAudioWaveform *original) {
     XCTAssertNotNil(decoded);
     XCTAssertFalse(decoded.bpmAnalyzed);
     XCTAssertTrue(decoded.keyAnalyzed);
-    XCTAssertFalse(decoded.snapshot.bpmAnalyzed, @"a snapshot carries the flags");
 }
 
 @end

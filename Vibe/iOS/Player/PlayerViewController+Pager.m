@@ -20,7 +20,6 @@
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "PlaceholderFiles.h"
-#import "UIImage+DominantColor.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
 // and lands on the placeholder; two gives a whole extra commit of lead.

@@ -181,12 +181,16 @@ void Summary::accumulate(size_t levelIndex, double first, double last, int chann
         for (size_t b = 0; bands_ && b < kBandCount; b++) {
             into.bandSumSquares[b] += L.bandSumSquares[i * kBandCount + b];
         }
-        into.frames += binEnd(L, i) - double(i) * bf;
+        into.frames += binWidth(L, i);
     }
     accumulate(levelIndex - 1, double(i1) * bf, last, channel, extremes, into);
 }
 
 Column Summary::column(double first, double last, int channel) const {
+    return read(first, last, channel, true);
+}
+
+Column Summary::read(double first, double last, int channel, bool extremes) const {
     Column result;
     first = std::max(0.0, first);
     last = std::min(double(frames_), last);
@@ -200,7 +204,7 @@ Column Summary::column(double first, double last, int channel) const {
     }
     result.lo = INFINITY;
     result.hi = -INFINITY;
-    accumulate(start, first, last, channel, true, result);
+    accumulate(start, first, last, channel, extremes, result);
     if (!(result.lo <= result.hi)) {
         result.lo = result.hi = 0;
     }
@@ -217,11 +221,23 @@ void Detail::insertBlock(int64_t block, std::vector<float> samples) {
     if (blocks_.size() > kMaxBlocks) {
         blocks_.erase(blocks_.begin());
     }
+    lacked_.erase(std::remove(lacked_.begin(), lacked_.end(), block), lacked_.end());
+    inserts_++;
 }
 
 bool Detail::hasBlock(int64_t block) const {
     std::lock_guard<std::mutex> lock(lock_);
     return std::any_of(blocks_.begin(), blocks_.end(), [&](const auto &entry) { return entry.first == block; });
+}
+
+uint64_t Detail::insertCount() const {
+    std::lock_guard<std::mutex> lock(lock_);
+    return inserts_;
+}
+
+std::vector<int64_t> Detail::takeLackedBlocks() {
+    std::lock_guard<std::mutex> lock(lock_);
+    return std::exchange(lacked_, {});
 }
 
 bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const {
@@ -234,6 +250,9 @@ bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, i
     int64_t s0 = std::clamp(int64_t(std::floor(first - 0.5)), int64_t(0), frames - 1);
     int64_t s1 = std::clamp(int64_t(std::ceil(last - 0.5)), s0, frames - 1);
     int64_t b0 = s0 / kBlockFrames, b1 = s1 / kBlockFrames;
+    if (size_t(b1 - b0 + 1) > kMaxReadBlocks) {
+        return false;
+    }
     std::vector<std::shared_ptr<const std::vector<float>>> held(size_t(b1 - b0 + 1));
     {
         std::lock_guard<std::mutex> lock(lock_);
@@ -242,19 +261,31 @@ bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, i
                 held[size_t(entry.first - b0)] = entry.second;
             }
         }
-    }
-    for (const auto &block : held) {
-        if (!block) {
+        std::vector<int64_t> missing;
+        for (int64_t b = b0; b <= b1; b++) {
+            if (!held[size_t(b - b0)]) {
+                missing.push_back(b);
+            }
+        }
+        if (!missing.empty()) {
+            lacked_ = std::move(missing);
             return false;
         }
     }
-    // A block short of its frames ends the stream there.
-    auto sample = [&](int64_t i) -> float {
-        i = std::clamp(i, int64_t(0), frames - 1);
-        const std::vector<float> &block = *held[size_t(i / kBlockFrames - b0)];
-        size_t at = size_t(i % kBlockFrames);
-        return block.empty() ? 0.0f : block[std::min(at, block.size() - 1)];
-    };
+    // Samples [s0, s1] in one run. A block short of its frames ends the
+    // stream, its last sample held to the end.
+    std::vector<float> run(size_t(s1 - s0 + 1));
+    for (int64_t b = b0; b <= b1; b++) {
+        const std::vector<float> &block = *held[size_t(b - b0)];
+        int64_t start = b * kBlockFrames;
+        int64_t from = std::max(s0, start), to = std::min(s1 + 1, start + kBlockFrames);
+        size_t at = size_t(from - start), end = std::min(size_t(to - start), block.size());
+        float *dest = run.data() + (from - s0);
+        size_t copied = end > at ? end - at : 0;
+        std::copy_n(block.begin() + ptrdiff_t(std::min(at, block.size())), copied, dest);
+        std::fill(dest + copied, dest + (to - from), block.empty() ? 0.0f : block.back());
+    }
+    auto sample = [&](int64_t i) { return run[size_t(std::clamp(i, s0, s1) - s0)]; };
     auto line = [&](double frame) -> float {
         double u = frame - 0.5;
         double left = std::floor(u);
@@ -272,17 +303,30 @@ bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, i
         float ends[2] = {line(a), line(b)};
         column.lo = std::min(ends[0], ends[1]);
         column.hi = std::max(ends[0], ends[1]);
-        for (int64_t i = int64_t(std::ceil(a - 0.5)); double(i) + 0.5 < b; i++) {
-            float value = sample(i);
-            column.lo = std::min(column.lo, value);
-            column.hi = std::max(column.hi, value);
+        // The samples whose centers the column holds.
+        int64_t c0 = int64_t(std::ceil(a - 0.5)), c1 = int64_t(std::ceil(b - 0.5));
+        if (c1 > c0) {
+            float lo, hi;
+            vDSP_minv(&run[size_t(c0 - s0)], 1, &lo, vDSP_Length(c1 - c0));
+            vDSP_maxv(&run[size_t(c0 - s0)], 1, &hi, vDSP_Length(c1 - c0));
+            column.lo = std::min(column.lo, lo);
+            column.hi = std::max(column.hi, hi);
         }
-        for (int64_t i = int64_t(std::floor(a)); double(i) < b; i++) {
-            double overlap = std::min(b, double(i + 1)) - std::max(a, double(i));
-            double value = sample(i);
-            column.sumSquares += value * value * overlap;
-            column.frames += overlap;
+        // Each frame's square by its part in the column: the two ends by
+        // hand, every frame between whole.
+        int64_t i0 = int64_t(std::floor(a)), i1 = int64_t(std::ceil(b));
+        auto square = [&](int64_t i) { return double(sample(i)) * double(sample(i)); };
+        if (i1 - i0 == 1) {
+            column.sumSquares = square(i0) * (b - a);
+        } else {
+            column.sumSquares = square(i0) * (double(i0 + 1) - a) + square(i1 - 1) * (b - double(i1 - 1));
+            if (i1 - i0 > 2) {
+                float between;
+                vDSP_svesq(&run[size_t(i0 + 1 - s0)], 1, &between, vDSP_Length(i1 - i0 - 2));
+                column.sumSquares += between;
+            }
         }
+        column.frames = b - a;
     }
     return true;
 }
@@ -296,15 +340,6 @@ void Summary::columns(double framesPerColumn, int64_t firstIndex, size_t count, 
         double k = double(firstIndex + int64_t(i));
         out[i] = column(k * framesPerColumn, (k + 1) * framesPerColumn, channel);
     }
-}
-
-// Sums alone, over frames clipped to the summary: the cells of the windowed
-// reads.
-static inline void SumsOnly(const Summary &summary, double first, double last, Column &into) {
-    Column part = summary.column(first, last);
-    into.sumSquares = part.sumSquares;
-    into.frames = part.frames;
-    into.bandSumSquares = part.bandSumSquares;
 }
 
 void Summary::meanSquares(double framesPerColumn, int64_t firstIndex, size_t count, float reach,
@@ -328,8 +363,8 @@ void Summary::meanSquares(double framesPerColumn, int64_t firstIndex, size_t cou
     // The running sums at every cell edge, so a window is two lookups.
     std::vector<double> frames(cells + 1, 0), squares(cells + 1, 0), bandSquares(wantsBands ? (cells + 1) * kBandCount : 0, 0);
     for (size_t j = 0; j < cells; j++) {
-        Column cell;
-        SumsOnly(*this, origin + double(j) * cellFrames, origin + double(j + 1) * cellFrames, cell);
+        // Sums alone, so no cell pays for the extremes.
+        Column cell = read(origin + double(j) * cellFrames, origin + double(j + 1) * cellFrames, kAllChannels, false);
         frames[j + 1] = frames[j] + cell.frames;
         squares[j + 1] = squares[j] + cell.sumSquares;
         for (size_t b = 0; wantsBands && b < kBandCount; b++) {
@@ -401,7 +436,7 @@ void Summary::tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, si
                 const double *at = &(*built)[c * kStride];
                 double *next = &(*built)[(c + 1) * kStride];
                 for (size_t p = 0; p < kPlanes; p++) {
-                    double value = p == kFramesPlane ? binEnd(L, c) - double(c) * double(L.binFrames)
+                    double value = p == kFramesPlane ? binWidth(L, c)
                                                      : double(L.bandSumSquares[c * kBandCount + p - kBandsPlane]);
                     next[p] = at[p] + value;
                     next[kPlanes + p] = at[kPlanes + p] + at[p] + value / 2;
@@ -482,6 +517,7 @@ std::unique_ptr<Summary> Summary::copy() const {
     copy->frames_ = frames_;
     copy->totalFrames_ = totalFrames_;
     copy->complete_ = complete_;
+    copy->buildPyramid();
     return copy;
 }
 
@@ -559,12 +595,12 @@ std::vector<uint8_t> Summary::encode() const {
     }
     // Means, not sums: a long bin's sum would not fit a float16.
     for (size_t i = 0; i < n; i++) {
-        double frames = binEnd(base_, i) - double(i) * double(binFrames_);
+        double frames = binWidth(base_, i);
         *out++ = (_Float16)(frames > 0 ? base_.sumSquares[i] / frames : 0);
     }
     for (size_t b = 0; bands_ && b < kBandCount; b++) {
         for (size_t i = 0; i < n; i++) {
-            double frames = binEnd(base_, i) - double(i) * double(binFrames_);
+            double frames = binWidth(base_, i);
             *out++ = (_Float16)(frames > 0 ? base_.bandSumSquares[i * kBandCount + b] / frames : 0);
         }
     }
@@ -673,6 +709,7 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
     }
     summary->totalFrames_ = header.totalFrames;
     summary->complete_ = header.flags & kFlagComplete;
+    summary->buildPyramid();
     return summary;
 }
 
@@ -680,10 +717,9 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
 
 SummaryBuilder::SummaryBuilder(uint32_t inputChannels, uint32_t storedChannels, bool bands, int64_t expectedFrames,
                                double sampleRate)
-        : inputChannels_(std::max<uint32_t>(1, inputChannels)),
-          channels_(inputChannels == 2 && storedChannels == 2 ? 2 : 1),
-          binFrames_(BinFramesForLength(expectedFrames)) {
-    summary_ = std::make_unique<Summary>(binFrames_, channels_, bands, sampleRate);
+        : summary_(std::make_unique<Summary>(BinFramesForLength(expectedFrames),
+                                             inputChannels == 2 && storedChannels == 2 ? 2 : 1, bands, sampleRate)),
+          inputChannels_(std::max<uint32_t>(1, inputChannels)) {
     summary_->setTotalFrames(expectedFrames);
     if (bands) {
         split_ = std::make_unique<BandSplit>(sampleRate);
@@ -693,13 +729,14 @@ SummaryBuilder::SummaryBuilder(uint32_t inputChannels, uint32_t storedChannels, 
 SummaryBuilder::~SummaryBuilder() = default;
 
 void SummaryBuilder::append(const float *interleaved, const float *mono, size_t frames) {
+    uint32_t binFrames = summary_->binFrames(), channels = summary_->channels();
     size_t offset = 0;
     while (offset < frames) {
-        size_t take = std::min<size_t>(frames - offset, binFrames_ - binFill_);
-        for (uint32_t c = 0; c < channels_; c++) {
+        size_t take = std::min<size_t>(frames - offset, binFrames - binFill_);
+        for (uint32_t c = 0; c < channels; c++) {
             // One stored channel is the mix; two are the file's own.
-            const float *source = channels_ == 1 ? mono + offset : interleaved + offset * inputChannels_ + c;
-            vDSP_Stride stride = channels_ == 1 ? 1 : vDSP_Stride(inputChannels_);
+            const float *source = channels == 1 ? mono + offset : interleaved + offset * inputChannels_ + c;
+            vDSP_Stride stride = channels == 1 ? 1 : vDSP_Stride(inputChannels_);
             float lo, hi;
             vDSP_minv(source, stride, &lo, take);
             vDSP_maxv(source, stride, &hi, take);
@@ -719,9 +756,8 @@ void SummaryBuilder::append(const float *interleaved, const float *mono, size_t 
             split_->addSumSquares(mono + offset, take, bandSumSquares_.data());
         }
         binFill_ += uint32_t(take);
-        frames_ += int64_t(take);
         offset += take;
-        if (binFill_ == binFrames_) {
+        if (binFill_ == binFrames) {
             flushBin();
         }
     }
@@ -741,6 +777,7 @@ std::unique_ptr<Summary> SummaryBuilder::finish(bool complete) {
     if (complete) {
         summary_->markComplete();
     }
+    summary_->buildPyramid();
     return std::move(summary_);
 }
 

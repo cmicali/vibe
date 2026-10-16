@@ -493,13 +493,13 @@
 
 #pragma mark - Phase 4: what counts as complete
 
-// Whether the decode covered enough of the file to cache and to analyze.
-// It also promotes an early EOF to a read error, which is why it is not a
-// pure predicate. Small length discrepancies stay within the tolerance.
 + (AVAudioFramePosition)shortfallToleranceForFrames:(AVAudioFramePosition)totalFrames {
     return MAX((AVAudioFramePosition)2, totalFrames / 4096);
 }
 
+// Whether the decode covered enough of the file to cache and to analyze.
+// It also promotes an early EOF to a read error, which is why it is not a
+// pure predicate. Small length discrepancies stay within the tolerance.
 - (BOOL)isDecodeComplete:(struct VibeWaveformDecodePass *)pass filename:(NSString *)filename {
     AVAudioFramePosition tolerance = [AudioWaveformLoader shortfallToleranceForFrames:pass->totalFrames];
     if (!pass->readError && !self.isCancelled

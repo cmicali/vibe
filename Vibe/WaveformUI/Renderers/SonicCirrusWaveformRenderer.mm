@@ -236,7 +236,8 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
-        [self fillEnergyLevels:target.data() count:count stride:1 waveform:waveform];
+        [self fillEnergyLevels:target.data() stride:1 framesPerColumn:(double)waveform->totalFrames() / (double)count
+                         first:0 count:count waveform:waveform];
     }];
 }
 

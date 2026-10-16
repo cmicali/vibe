@@ -47,9 +47,8 @@ void RemapStepSamples(const StepWindow &from, const StepWindow &to, size_t strid
     // same share of its length.
     double scale = from.totalFrames > 0 && to.totalFrames > 0
             ? double(from.totalFrames) / double(to.totalFrames) : 1;
-    size_t fromOffsets[2] = {0, from.parts[0].count * stride};
-    size_t offset = 0;
-    for (const StepPart &part : to.parts) {
+    for (int t = 0; t < 2; t++) {
+        const StepPart &part = to.parts[t];
         int source = -1, distance = INT_MAX;
         for (int p = 0; p < 2; p++) {
             int d = std::abs(from.parts[p].step - part.step);
@@ -65,15 +64,22 @@ void RemapStepSamples(const StepWindow &from, const StepWindow &to, size_t strid
                 double center = (double(part.first) + double(i) + 0.5) * framesPerColumn * scale;
                 double column = std::floor(center / oldFramesPerColumn) - double(old.first);
                 if (column >= 0 && column < double(old.count)) {
-                    const float *in = &samples[fromOffsets[source] + size_t(column) * stride];
-                    std::copy(in, in + stride, &remapped[offset + i * stride]);
+                    const float *in = &samples[(from.offset(source) + size_t(column)) * stride];
+                    std::copy(in, in + stride, &remapped[(to.offset(t) + i) * stride]);
                 }
             }
         }
-        offset += part.count * stride;
     }
     samples.swap(remapped);
 }
+
+namespace {
+
+uint32_t Byte(float value) {
+    return uint32_t(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+}
+
+}  // namespace
 
 ColumnCoverage::ColumnCoverage(int height)
         : height_(std::max(0, height)), steps_(size_t(height_) + 1, 0.0f), partial_(size_t(height_), 0.0f) {}
@@ -126,8 +132,7 @@ void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride) const {
     float run = 0;
     for (int r = 0; r < height_; r++, out += rowStride) {
         run += steps_[size_t(r)];
-        float value = std::clamp(run + partial_[size_t(r)], 0.0f, 1.0f);
-        *out = uint32_t(value * 255.0f + 0.5f) * 0x01010101u;
+        *out = Byte(run + partial_[size_t(r)]) * 0x01010101u;
     }
 }
 
@@ -146,10 +151,6 @@ void ColumnPaint::paintSpan(double bottom, double top, float red, float green, f
 }
 
 namespace {
-
-uint32_t Byte(float value) {
-    return uint32_t(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
-}
 
 // A row that holds an edge, summed from the stretches crossing it.
 struct PartialRow {
@@ -173,9 +174,6 @@ struct PartialRow {
 }  // namespace
 
 void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
-    for (int r = 0; r < height_; r++) {
-        out[r * rowStride] = 0;
-    }
     // Between two neighbouring span edges one span shows: the last painted
     // over that stretch. Full rows take its color at once. A row that holds
     // an edge sums the stretches crossing it.
@@ -190,6 +188,14 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
         }
     }
     PartialRow partial;
+    const Span *shown = nullptr;
+    auto addPartial = [&](int row, double cover) {
+        if (partial.row != row) {
+            partial.flush(out, rowStride);
+            partial.row = row;
+        }
+        partial.add(float(cover), shown->red, shown->green, shown->blue);
+    };
     // From the top down, so rows arrive in order.
     for (size_t e = edges_.size(); e-- > 1;) {
         double bottom = edges_[e - 1], top = edges_[e];
@@ -197,7 +203,7 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
             continue;
         }
         double middle = 0.5 * (bottom + top);
-        const Span *shown = nullptr;
+        shown = nullptr;
         for (size_t i = spans_.size(); i-- > 0;) {
             if (spans_[i].bottom <= middle && middle < spans_[i].top) {
                 shown = &spans_[i];
@@ -212,19 +218,11 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
         int first = int(std::floor(y0)), full0 = int(std::ceil(y0)), full1 = int(std::floor(y1));
         if (full1 < full0) {
             // Inside one row.
-            if (partial.row != first) {
-                partial.flush(out, rowStride);
-                partial.row = first;
-            }
-            partial.add(float(y1 - y0), shown->red, shown->green, shown->blue);
+            addPartial(first, y1 - y0);
             continue;
         }
         if (double(full0) > y0) {
-            if (partial.row != first) {
-                partial.flush(out, rowStride);
-                partial.row = first;
-            }
-            partial.add(float(double(full0) - y0), shown->red, shown->green, shown->blue);
+            addPartial(first, double(full0) - y0);
         }
         if (full1 > full0) {
             partial.flush(out, rowStride);
@@ -234,11 +232,7 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
             }
         }
         if (y1 > double(full1) && full1 < height_) {
-            if (partial.row != full1) {
-                partial.flush(out, rowStride);
-                partial.row = full1;
-            }
-            partial.add(float(y1 - double(full1)), shown->red, shown->green, shown->blue);
+            addPartial(full1, y1 - double(full1));
         }
     }
     partial.flush(out, rowStride);

@@ -20,8 +20,8 @@ static const CGFloat kVibeWaveformMinimumZoomFraction = 0.000001;
 // floats, and at 2^20 points a float still resolves a quarter of a 3x pixel.
 static const CGFloat kVibeWaveformMaxVirtualWidth = 1 << 20;
 
-// The finest a view reads the summary alone: two columns a point, Detailed's,
-// each no finer than a bin of binFrames, below which it holds nothing finer.
+// The finest a style that reads the summary alone may zoom: two bins of
+// binFrames a point. The summary holds nothing finer than a bin.
 static inline double VibeWaveformMinimumFramesPerPoint(double binFrames) {
     return 2 * binFrames;
 }

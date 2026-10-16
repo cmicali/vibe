@@ -573,4 +573,28 @@ static void VibeInsertBlocks(const Summary &summary, const std::vector<float> &s
     XCTAssertEqualWithAccuracy(coarse.hi, 1, 1e-3);
 }
 
+// A read keeps the blocks it lacked until they are taken, once. A read too
+// wide for the blocks held answers from the bins and asks for nothing.
+- (void)testAReadAsksForTheBlocksItLacked {
+    std::vector<float> samples;
+    const int64_t blockFrames = wavecore::Detail::kBlockFrames;
+    const int64_t readBlocks = int64_t(wavecore::Detail::kMaxReadBlocks);
+    auto summary = VibeSineSummary((readBlocks + 2) * blockFrames, samples);
+    wavecore::Detail &detail = summary->detail();
+    detail.insertBlock(0, std::vector<float>(samples.begin(), samples.begin() + blockFrames));
+    XCTAssertEqual(detail.insertCount(), 1u);
+    std::vector<Column> columns(2);
+    summary->columns(16, blockFrames / 16 - 1, 2, columns.data());
+    XCTAssertTrue(detail.takeLackedBlocks() == std::vector<int64_t>({1}));
+    XCTAssertTrue(detail.takeLackedBlocks().empty(), @"taken once");
+    size_t wide = size_t((readBlocks + 1) * blockFrames / 128);
+    std::vector<Column> across(wide);
+    summary->columns(128, 0, wide, across.data());
+    XCTAssertTrue(detail.takeLackedBlocks().empty());
+    summary->columns(16, blockFrames / 16 - 1, 2, columns.data());
+    detail.insertBlock(1, std::vector<float>(samples.begin() + blockFrames, samples.begin() + 2 * blockFrames));
+    XCTAssertEqual(detail.insertCount(), 2u);
+    XCTAssertTrue(detail.takeLackedBlocks().empty(), @"an insert answers what it lacked");
+}
+
 @end

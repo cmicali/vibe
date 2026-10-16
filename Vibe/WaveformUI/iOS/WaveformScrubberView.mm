@@ -121,9 +121,6 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 // swipe. The track sets the zoom floor, so a new one can move the width.
 - (void)setWaveform:(CodableAudioWaveform *)waveform {
     CGFloat fraction = [self effectiveVisibleFraction];
-    if (waveform != _waveform) {
-        _detailAsked = nil;
-    }
     _waveform = waveform;
     _scroll.scrollEnabled = (waveform != nil);
     if ([self effectiveVisibleFraction] != fraction) {
@@ -162,14 +159,13 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     return VibeBackingScaleOrDefault(self.traitCollection.displayScale);
 }
 
-// Moves with the view's width and the track, which is why the request is
-// kept apart from what is drawn. A complete waveform zooms past its bins on
-// the stream's own frames.
+// Moves with the view's width, the track and the style, which is why the
+// request is kept apart from what is drawn.
 - (CGFloat)minimumVisibleFraction {
     AudioWaveform *waveform = self.waveform.waveform;
     double framesPerPoint = !waveform ? 0
-            : waveform->isComplete() ? kVibeWaveformMinimumDetailFramesPerPoint
-                                     : VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
+            : _renderer ? [_renderer minimumFramesPerPointForWaveform:waveform]
+                        : VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
     return VibeWaveformMinimumVisibleFraction(self.bounds.size.width, waveform ? waveform->totalFrames() : 0,
                                               framesPerPoint);
 }
@@ -223,7 +219,6 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     // The mac's Normalize default, pinned: Normalize and Gain are macOS
     // settings.
     _renderer.normalizesLevels = YES;
-    _renderWindow = CGRectNull;
     [self applyResolvedTheme];
 }
 
@@ -288,15 +283,20 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     [self applyResolvedTheme];
 }
 
-// The new style lands at once, settled: a swap, not a load.
+// The new style lands at once, settled: a swap, not a load. Its zoom floor
+// can move the width.
 - (void)syncWaveformStyle {
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
     if (!_renderer || [style isEqualToString:_styleIdentifier]) {
         return;
     }
+    CGFloat fraction = [self effectiveVisibleFraction];
     [self discardRenderer];
     [self installRendererIfNeeded];
+    if ([self effectiveVisibleFraction] != fraction) {
+        [self applyVirtualGeometry];
+    }
     [self drawRendererWindowForcing:YES];
     [_renderer settleMorphImmediately];
 }
@@ -381,8 +381,9 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 
 // Half a view of margin either side, so a scroll moves pixels already drawn
 // for that far, and content far wider than the screen is never drawn whole.
-// Every step style draws the same pixels for the same content wherever its
-// window lands, so a redraw cannot be seen.
+// None mid-pinch, since every pinch frame draws again. Every step style draws
+// the same pixels for the same content wherever its window lands, so a
+// redraw cannot be seen.
 - (void)drawRendererWindowForcing:(BOOL)force {
     CGRect virtualBounds = [self virtualBounds];
     CGFloat width = self.bounds.size.width;
@@ -395,7 +396,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
         (CGRectIsNull(visible) || CGRectContainsRect(_renderWindow, visible))) {
         return;
     }
-    CGRect window = CGRectIntersection(CGRectInset(visible, -width / 2, 0), virtualBounds);
+    CGRect window = CGRectIntersection(CGRectInset(visible, _isPinching ? 0 : -width / 2, 0), virtualBounds);
     _renderWindow = CGRectIsNull(window) ? CGRectZero : window;
     [CATransaction setDisableActions:YES];
     // Wiggle keeps its loops through a zoom: it counts them at the resting
@@ -407,36 +408,22 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     [self requestDetailForWindow];
 }
 
-// Past the summary's bins, the blocks under the window are asked for, each
-// once, a request at a time. A block that cannot be read is never asked for
-// again, so a file gone from disk cannot loop.
+// Deep zoom's blocks: the ones the draw just lacked, a request at a time.
+// A block the answer could not read is asked for again only when a later
+// draw lacks it, so a file gone from disk cannot loop.
 - (void)requestDetailForWindow {
     AudioWaveform *waveform = self.waveform.waveform;
-    CGFloat virtualWidth = [self virtualWidth];
-    if (_detailRequested || !waveform || !waveform->isComplete() || virtualWidth <= 0 || CGRectIsEmpty(_renderWindow)
+    if (_detailRequested || !waveform
             || ![self.delegate respondsToSelector:@selector(waveformScrubberView:needsDetailBlocks:ofWaveform:)]) {
         return;
     }
-    double framesPerPoint = (double)waveform->totalFrames() / virtualWidth;
-    if (framesPerPoint >= VibeWaveformMinimumFramesPerPoint(waveform->binFrames())) {
-        return;
-    }
-    const double blockFrames = (double)wavecore::Detail::kBlockFrames;
-    NSUInteger first = (NSUInteger)floor(CGRectGetMinX(_renderWindow) * framesPerPoint / blockFrames);
-    NSUInteger last = (NSUInteger)floor(CGRectGetMaxX(_renderWindow) * framesPerPoint / blockFrames);
     NSMutableIndexSet *wanted = [NSMutableIndexSet indexSet];
-    for (NSUInteger block = first; block <= last; block++) {
-        if (![_detailAsked containsIndex:block] && !waveform->detail().hasBlock((int64_t)block)) {
-            [wanted addIndex:block];
-        }
+    for (int64_t block : waveform->detail().takeLackedBlocks()) {
+        [wanted addIndex:(NSUInteger)block];
     }
     if (wanted.count == 0) {
         return;
     }
-    if (!_detailAsked) {
-        _detailAsked = [NSMutableIndexSet indexSet];
-    }
-    [_detailAsked addIndexes:wanted];
     _detailRequested = YES;
     [self.delegate waveformScrubberView:self needsDetailBlocks:wanted ofWaveform:self.waveform];
 }
@@ -446,7 +433,6 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     if (waveform != self.waveform) {
         return;
     }
-    [_renderer waveformDetailDidChange];
     [self drawRendererWindowForcing:YES];
 }
 // The play position IS the view's center, so the line never moves: it follows
@@ -608,6 +594,11 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     if (sizeChanged) {
         // The offset parks below at the new width, then the window follows it.
         _renderWindow = CGRectNull;
+    }
+    // Parked first, so a pinch frame with a seek pending draws once, where
+    // it lands.
+    if (_isPinching) {
+        [self parkContentOffsetAtProgress];
     }
     [self applyScrollAndProgress];
     // The bucket is per pixel of the virtual width, which just moved; without

@@ -194,7 +194,7 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     column.paintSpan(0, 4, 1, 0, 0);
     column.paintSpan(1, 3, 0, 0, 1);
     column.paintSpan(1.5, 2.5, 0, 1, 0);
-    uint32_t pixels[4];
+    uint32_t pixels[4] = {};
     column.write(pixels, 1);
     // Row 0 (top): red alone. Rows 1 and 2: half blue, half green over blue.
     XCTAssertEqual(pixels[0], 0xffff0000u);
@@ -210,7 +210,7 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     for (int i = 0; i < 7; i++) {
         column.paintSpan(0.5, 1.5, i == 6 ? 1 : 0, i == 6 ? 0 : 1, 0);
     }
-    uint32_t pixels[2];
+    uint32_t pixels[2] = {};
     column.write(pixels, 1);
     XCTAssertEqual(pixels[0], 0x80800000u);
     XCTAssertEqual(pixels[1], 0x80800000u);
