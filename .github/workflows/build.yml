@@ -65,9 +65,11 @@ jobs:
 
   # Four macOS jobs on a pull request. The free plan runs five macOS jobs at
   # once, and a pull request's run often overlaps its merge's run. Text-only
-  # checks use Linux. Each job keeps its own compilation cache (.github/ci.xcconfig),
-  # restored from main's last run and saved only by main, so a pull request
-  # compiles little more than the files it changed. Analyze Release: findings
+  # checks use Linux.
+  #
+  # Each job keeps its own compilation cache (.github/ci.xcconfig). A run
+  # restores main's latest, and only main saves. A pull request compiles
+  # little more than the files it changes. Analyze Release, because findings
   # can depend on the configuration.
   macos:
     needs: changes
@@ -99,8 +101,8 @@ jobs:
           codesign --verify --deep --strict --verbose=2 \
             build/AnalyzeDD/Build/Products/Release/Vibe.app
 
-      # x86_64: the analyze build above is arm64, so this one compiles the
-      # Intel slice. The no-updater check reads no architecture.
+      # x86_64: the analyze build above is arm64. This one compiles the Intel
+      # slice. The no-updater check reads no architecture.
       - name: Build AppStore (x86_64) and check it has no updater
         if: ${{ !cancelled() }}
         run: |
@@ -114,7 +116,7 @@ jobs:
           path: build/CICache
           key: ${{ steps.cache.outputs.key }}
 
-  # The text checks that need macOS tools ride here, the shortest job.
+  # The text checks that need macOS tools run here. This is the shortest job.
   ios:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -151,8 +153,8 @@ jobs:
           key: ${{ steps.cache.outputs.key }}
 
   # Nightly and manual runs only. A runner's first simulator boot and the
-  # tests' launch take four to eight minutes, for 20 seconds of tests. On
-  # every push to main that would hold a macOS slot that pull requests wait for.
+  # tests' launch take four to eight minutes, for 20 seconds of tests. On each
+  # push to main, the job would hold a macOS slot that pull requests wait for.
   ios-tests:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-26
@@ -192,8 +194,9 @@ jobs:
           path: build/CICache
           key: ${{ steps.cache.outputs.key }}
 
-  # Each suite has a runner to itself: both are CPU-bound, and the runner has
-  # three cores. The default is two test runners per suite there.
+  # Each suite has a runner to itself. Both are CPU-bound, and a runner has
+  # three cores. The default there is two test runners per suite, and
+  # -parallel-testing-worker-count 3 uses all three cores.
   unit-tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -248,9 +251,9 @@ jobs:
         with:
           job: audio-tests
 
-      # The fixtures are a function of their two scripts and of the runner
+      # The fixtures depend only on their two scripts and on the runner
       # image's encoders. A hit skips ffmpeg, the verifier's compile and the
-      # writes, so the render suite starts as soon as its bundle links.
+      # writes. The render suite then starts as soon as its bundle links.
       - id: fixtures-key
         run: echo "key=audio-fixtures-$ImageOS-$ImageVersion-${{ hashFiles('scripts/test/generate-test-audio.sh', 'scripts/test/verify-bit-perfect.swift') }}" >>"$GITHUB_OUTPUT"
 

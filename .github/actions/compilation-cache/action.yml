@@ -17,7 +17,7 @@ outputs:
 runs:
   using: composite
   steps:
-    # A new Xcode cannot reuse the old one's entries, so it starts a new cache.
+    # A new Xcode cannot reuse the old one's entries. It starts a new cache.
     - id: key
       shell: bash
       run: |
@@ -31,7 +31,7 @@ runs:
         key: ${{ steps.key.outputs.key }}
         restore-keys: ${{ steps.key.outputs.prefix }}
 
-    # Each save adds to what it restored, so the store only grows. Past the
+    # Each save adds to what it restored, and the store only grows. Past the
     # cap it starts again from empty, and that run compiles everything.
     - shell: bash
       run: |

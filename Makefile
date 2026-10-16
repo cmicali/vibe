@@ -115,7 +115,7 @@ test: project check-cloud-scenarios
 	    $(ARGS) test
 
 # The iOS shell's views and controllers (VibeiOSTests), on a simulator, hosted
-# in the Debug app. Its derived data is its own, so it runs beside `make test`.
+# in the Debug app. It has its own derived data and can run beside `make test`.
 # IOS_TEST_DEVICE names the simulator. CI's runner has the default.
 # ARGS='-only-testing:VibeiOSTests/<Class>' narrows a run.
 IOS_TEST_DEVICE ?= iPhone 17

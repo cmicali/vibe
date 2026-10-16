@@ -2,7 +2,7 @@
 // (.github/workflows/build.yml). It turns on Xcode's compilation cache and
 // keeps it, with the SDK stat caches, in one folder under build/. The
 // compilation-cache action carries that folder between runs. A cached compile
-// or analysis replays its diagnostics, so a warning or an analyzer finding is
+// or analysis replays its diagnostics. A warning or an analyzer finding is
 // reported on a hit as on a miss.
 COMPILATION_CACHE_ENABLE_CACHING = YES
 COMPILATION_CACHE_CAS_PATH = $(SRCROOT)/build/CICache/cas
