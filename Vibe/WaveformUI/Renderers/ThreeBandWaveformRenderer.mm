@@ -16,8 +16,10 @@
 // does, the lows outside, and the highs show as each hit's tip.
 static const float kBandCeiling[wavecore::kBandCount] = {1.0f, 0.75f, 0.5f};
 
-// Spectrum's colors weigh the mids and highs up against music's falling
-// spectrum. Only the ratios of its color levels matter.
+// Each band's share of the fixed full scale, from a typical mix's balance.
+// Without Normalize each band is measured against its share, and Spectrum's
+// color levels divide by it. Both weigh the mids and highs up against music's
+// falling spectrum.
 static const float kBandShareOfFullScale[wavecore::kBandCount] = {1.0f, 0.48f, 0.48f};
 
 // Spectrum's columns carry their color levels after their heights.
@@ -284,13 +286,14 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 // Under Normalize each band is measured against its own loudest window in the
 // track, so no view can move it, and a hot master's bands fill their
-// ceilings rather than pegging. Otherwise every band against the fixed full
-// scale.
+// ceilings rather than pegging. Otherwise against its share of the fixed
+// full scale.
 - (void)bandReferences:(float *)references forWaveform:(AudioWaveform *)waveform {
     BOOL normalize = self.normalizesLevels && waveform->isComplete();
     wavecore::Column track = normalize ? waveform->column(0, (double)waveform->totalFrames()) : wavecore::Column();
     for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-        references[b] = track.bandLoudest[b] > 0 ? track.bandLoudest[b] : kVibeWaveformFullScaleRMS;
+        references[b] = track.bandLoudest[b] > 0 ? track.bandLoudest[b]
+                                                 : kVibeWaveformFullScaleRMS * kBandShareOfFullScale[b];
     }
 }
 
