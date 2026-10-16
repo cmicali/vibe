@@ -108,7 +108,6 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     _waveformBandsWanted = _waveformCache.analysisProvider().bands;
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
-    _preparedWaveforms = [NSMutableDictionary dictionary];
     _pagerHoldViews = [NSHashTable weakObjectsHashTable];
 
     _scrollLink = [CADisplayLink displayLinkWithTarget:[VibeWeakProxy proxyWithTarget:self]
@@ -133,7 +132,6 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     BOOL bandsWanted = _waveformCache.analysisProvider().bands;
     if (bandsWanted && !_waveformBandsWanted) {
         [_waveformCoordinator reset];
-        [self clearPreparedWaveforms];
         [self requestCurrentWaveform];
         [self fetchNeighborWaveforms];
     }
@@ -147,7 +145,6 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         [cell.waveformView syncWaveformTheme];
     }
     [self repaintTimesOnVisiblePages];
-    [self refreshWaveformWindow];
 }
 
 - (void)dealloc {
@@ -366,9 +363,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         [self renderHeaderForTrack:_playlist.currentTrack];
         [self scrollToCurrentPageAnimated:NO];
     }
-    else {
-        [self clearPreparedWaveforms];
-    }
 }
 
 - (void)setSceneActive:(BOOL)sceneActive {
@@ -574,7 +568,6 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 - (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
-    [self clearPreparedWaveforms];
     [_pagesView reloadData];
     [self scrollToCurrentPageAnimated:NO];
 }

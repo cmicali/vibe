@@ -127,11 +127,11 @@ void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride) const {
     for (int r = 0; r < height_; r++, out += rowStride) {
         run += steps_[size_t(r)];
         float value = std::clamp(run + partial_[size_t(r)], 0.0f, 1.0f);
-        *out = uint32_t(std::lround(value * 255.0f)) * 0x01010101u;
+        *out = uint32_t(value * 255.0f + 0.5f) * 0x01010101u;
     }
 }
 
-ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)), rows_(size_t(height_) * 4, 0.0f) {}
+ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {}
 
 void ColumnPaint::clear() {
     spans_.clear();
@@ -145,26 +145,63 @@ void ColumnPaint::paintSpan(double bottom, double top, float red, float green, f
     }
 }
 
+namespace {
+
+uint32_t Byte(float value) {
+    return uint32_t(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+}
+
+// A row that holds an edge, summed from the stretches crossing it.
+struct PartialRow {
+    int row = -1;
+    float red = 0, green = 0, blue = 0, alpha = 0;
+
+    void add(float cover, float r, float g, float b) {
+        red += r * cover;
+        green += g * cover;
+        blue += b * cover;
+        alpha += cover;
+    }
+    void flush(uint32_t *out, ptrdiff_t rowStride) {
+        if (row >= 0) {
+            out[row * rowStride] = Byte(alpha) << 24 | Byte(red) << 16 | Byte(green) << 8 | Byte(blue);
+        }
+        *this = PartialRow();
+    }
+};
+
+}  // namespace
+
 void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
-    std::fill(rows_.begin(), rows_.end(), 0.0f);
+    for (int r = 0; r < height_; r++) {
+        out[r * rowStride] = 0;
+    }
     // Between two neighbouring span edges one span shows: the last painted
-    // over that stretch. Each stretch adds its color to the rows it crosses.
+    // over that stretch. Full rows take its color at once. A row that holds
+    // an edge sums the stretches crossing it.
     edges_.clear();
     for (const Span &span : spans_) {
-        edges_.push_back(span.bottom);
-        edges_.push_back(span.top);
+        for (double edge : {span.bottom, span.top}) {
+            // Insertion: a column holds a handful of spans.
+            edges_.push_back(edge);
+            for (size_t i = edges_.size() - 1; i > 0 && edges_[i - 1] > edges_[i]; i--) {
+                std::swap(edges_[i - 1], edges_[i]);
+            }
+        }
     }
-    std::sort(edges_.begin(), edges_.end());
-    for (size_t e = 0; e + 1 < edges_.size(); e++) {
-        double bottom = edges_[e], top = edges_[e + 1];
+    PartialRow partial;
+    // From the top down, so rows arrive in order.
+    for (size_t e = edges_.size(); e-- > 1;) {
+        double bottom = edges_[e - 1], top = edges_[e];
         if (!(top > bottom)) {
             continue;
         }
         double middle = 0.5 * (bottom + top);
         const Span *shown = nullptr;
-        for (const Span &span : spans_) {
-            if (span.bottom <= middle && middle < span.top) {
-                shown = &span;
+        for (size_t i = spans_.size(); i-- > 0;) {
+            if (spans_[i].bottom <= middle && middle < spans_[i].top) {
+                shown = &spans_[i];
+                break;
             }
         }
         if (!shown) {
@@ -172,21 +209,39 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
         }
         // Rows from the top: the stretch is [y0, y1).
         double y0 = double(height_) - top, y1 = double(height_) - bottom;
-        int r0 = int(std::floor(y0)), r1 = std::min(height_ - 1, int(std::ceil(y1)) - 1);
-        for (int r = r0; r <= r1; r++) {
-            float cover = float(std::fmin(y1, double(r + 1)) - std::fmax(y0, double(r)));
-            float *row = &rows_[size_t(r) * 4];
-            row[0] += shown->red * cover;
-            row[1] += shown->green * cover;
-            row[2] += shown->blue * cover;
-            row[3] += cover;
+        int first = int(std::floor(y0)), full0 = int(std::ceil(y0)), full1 = int(std::floor(y1));
+        if (full1 < full0) {
+            // Inside one row.
+            if (partial.row != first) {
+                partial.flush(out, rowStride);
+                partial.row = first;
+            }
+            partial.add(float(y1 - y0), shown->red, shown->green, shown->blue);
+            continue;
+        }
+        if (double(full0) > y0) {
+            if (partial.row != first) {
+                partial.flush(out, rowStride);
+                partial.row = first;
+            }
+            partial.add(float(double(full0) - y0), shown->red, shown->green, shown->blue);
+        }
+        if (full1 > full0) {
+            partial.flush(out, rowStride);
+            uint32_t color = 0xff000000u | Byte(shown->red) << 16 | Byte(shown->green) << 8 | Byte(shown->blue);
+            for (int r = full0; r < full1; r++) {
+                out[r * rowStride] = color;
+            }
+        }
+        if (y1 > double(full1) && full1 < height_) {
+            if (partial.row != full1) {
+                partial.flush(out, rowStride);
+                partial.row = full1;
+            }
+            partial.add(float(y1 - double(full1)), shown->red, shown->green, shown->blue);
         }
     }
-    auto byte = [](float value) { return uint32_t(std::lround(std::clamp(value, 0.0f, 1.0f) * 255.0f)); };
-    for (int r = 0; r < height_; r++, out += rowStride) {
-        const float *row = &rows_[size_t(r) * 4];
-        *out = byte(row[3]) << 24 | byte(row[0]) << 16 | byte(row[1]) << 8 | byte(row[2]);
-    }
+    partial.flush(out, rowStride);
 }
 
 }  // namespace wavecore

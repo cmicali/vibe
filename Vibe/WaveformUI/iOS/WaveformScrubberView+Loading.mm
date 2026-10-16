@@ -85,7 +85,7 @@
     }
     _loadingTrackBounds = [self loadingTrackBounds];
     [_loadingIndicator setProgress:fraction inBounds:_loadingTrackBounds];
-    if (_bakedHost) {
+    if (self.waveform) {
         [self hideLoadingShimmer];
     }
 }

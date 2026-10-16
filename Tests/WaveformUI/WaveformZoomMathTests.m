@@ -1,5 +1,5 @@
 // The request and the drawn fraction are clamped apart: the floor moves with
-// the layout, and a rotation must not rewrite what was persisted.
+// the layout and the track, and neither may rewrite what was persisted.
 
 #import <XCTest/XCTest.h>
 
@@ -10,68 +10,71 @@
 
 @implementation WaveformZoomMathTests
 
-// Shipping layouts; waveform heights are TrackPageCell's.
+// A shipping layout, and a song and a mix at 44.1 kHz.
 static const CGFloat kPhoneWidth = 393;         // iPhone 16 portrait
-static const CGFloat kPhoneHeight = 180;        // kCellWaveformHeight
-static const CGFloat kPhoneScale = 3;
 static const CGFloat kPadWidth = 1366;          // iPad 12.9" landscape
-static const CGFloat kPadHeight = 120;          // kCellWaveformHeightLandscape
-static const CGFloat kPadScale = 2;
+static const double kSongFrames = 280.0 * 44100;
+static const double kMixFrames = 66.0 * 60 * 44100;
 
 static CGFloat PhoneMinimum(void) {
-    return VibeWaveformMinimumVisibleFraction(kPhoneWidth, kPhoneHeight, kPhoneScale);
+    return VibeWaveformMinimumVisibleFraction(kPhoneWidth, kSongFrames, VibeWaveformMinimumFramesPerPoint(256));
 }
 
 #pragma mark - The floor
 
-// Asserted from the definition, not a magic number, so retuning
-// kVibeMaxBakeImageBytes does not falsify the test that guards it.
-- (void)testDeepestZoomBakesWithinBothCeilings {
-    const CGFloat widths[] = {320, 375, 393, 430, 744, 852, 1024, 1366};
-    const CGFloat heights[] = {kPhoneHeight, kPadHeight};
-    const CGFloat scales[] = {1, 2, 3};
+// A zoom never reads finer than two bins a point, Detailed's two columns,
+// and the content is no wider than the float geometry keeps sharp.
+- (void)testDeepestZoomReadsNoFinerThanABinAndStaysInFloatRange {
+    const CGFloat widths[] = {320, 393, 744, 1366};
+    const double lengths[] = {44100, kSongFrames, kMixFrames, 24.0 * 3600 * 48000};
     for (size_t w = 0; w < sizeof(widths) / sizeof(*widths); w++) {
-        for (size_t h = 0; h < sizeof(heights) / sizeof(*heights); h++) {
-            for (size_t s = 0; s < sizeof(scales) / sizeof(*scales); s++) {
-                CGFloat minimum = VibeWaveformMinimumVisibleFraction(widths[w], heights[h], scales[s]);
-                CGFloat virtualWidthPx = widths[w] / minimum * scales[s];
-                CGFloat bytes = virtualWidthPx * heights[h] * scales[s] * 4;
-                XCTAssertLessThanOrEqual(virtualWidthPx, kVibeMaxBakeImagePixels + 1,
-                        @"%g pt @%gx would bake past the texture ceiling", widths[w], scales[s]);
-                XCTAssertLessThanOrEqual(bytes, kVibeMaxBakeImageBytes + 1,
-                        @"%g x %g pt @%gx would bake past the byte budget",
-                        widths[w], heights[h], scales[s]);
+        for (size_t l = 0; l < sizeof(lengths) / sizeof(*lengths); l++) {
+            CGFloat width = widths[w];
+            double frames = lengths[l];
+            double framesPerPoint = VibeWaveformMinimumFramesPerPoint(256);
+            CGFloat minimum = VibeWaveformMinimumVisibleFraction(width, frames, framesPerPoint);
+            if (minimum == 1) {
+                continue;   // no zoom: the whole track already fits
             }
+            CGFloat virtualWidth = width / minimum;
+            XCTAssertGreaterThanOrEqual(frames / virtualWidth, framesPerPoint * (1 - 1e-9),
+                                        @"%g pt over %g frames reads finer than a bin", width, frames);
+            XCTAssertLessThanOrEqual(virtualWidth, kVibeWaveformMaxVirtualWidth * (1 + 1e-9));
         }
     }
 }
 
+// A 4:40 song on a phone zooms to under 2% of the track: four seconds across
+// the view, against the old bitmap budget's 7 to 10%.
 - (void)testShippingLayoutsAffordRealZoom {
-    XCTAssertLessThan(PhoneMinimum(), kVibeWaveformDefaultZoomFraction / 2);
-    XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPadWidth, kPadHeight, kPadScale),
-                      kVibeWaveformDefaultZoomFraction / 2);
+    XCTAssertLessThan(PhoneMinimum(), 0.02);
     XCTAssertGreaterThan(PhoneMinimum(), 0);
+    XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPadWidth, kSongFrames, VibeWaveformMinimumFramesPerPoint(256)),
+                      kVibeWaveformDefaultZoomFraction / 2);
 }
 
-// A shorter waveform fits a wider bitmap in the same bytes, so it earns deeper
-// zoom; a wider view needs a wider bitmap for the same depth, so it gets less.
-- (void)testFloorMovesWithGeometry {
-    XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPhoneWidth, kPadHeight, kPhoneScale),
+// A longer track or finer bins zoom deeper; a wider view, less.
+- (void)testFloorMovesWithTheTrackAndTheWidth {
+    double framesPerPoint = VibeWaveformMinimumFramesPerPoint(256);
+    XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPhoneWidth, kMixFrames, framesPerPoint), PhoneMinimum());
+    XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPhoneWidth, kSongFrames, VibeWaveformMinimumFramesPerPoint(64)),
                       PhoneMinimum());
-    XCTAssertGreaterThan(VibeWaveformMinimumVisibleFraction(kPhoneWidth * 2, kPhoneHeight, kPhoneScale),
-                         PhoneMinimum());
-    XCTAssertGreaterThan(VibeWaveformMinimumVisibleFraction(kPhoneWidth, kPhoneHeight, kPhoneScale * 2),
+    XCTAssertGreaterThan(VibeWaveformMinimumVisibleFraction(kPhoneWidth * 2, kSongFrames, framesPerPoint),
                          PhoneMinimum());
 }
 
-- (void)testDegenerateGeometryAffordsNoZoom {
-    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(0, kPhoneHeight, kPhoneScale), 1);
-    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(kPhoneWidth, 0, kPhoneScale), 1);
-    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(kPhoneWidth, kPhoneHeight, 0), 1);
-    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(-1, -1, -1), 1);
-    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(NAN, kPhoneHeight, kPhoneScale), 1);
-    // A view so wide the un-zoomed track already exceeds the ceilings.
-    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(20000, kPhoneHeight, kPhoneScale), 1);
+// Without a track, only the float range limits the width.
+- (void)testNoTrackLimitsOnlyTheWidth {
+    XCTAssertEqualWithAccuracy(VibeWaveformMinimumVisibleFraction(kPhoneWidth, 0, 0),
+                               kPhoneWidth / kVibeWaveformMaxVirtualWidth, 1e-12);
+}
+
+- (void)testDegenerateInputAffordsNoZoom {
+    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(0, kSongFrames, 512), 1);
+    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(-1, kSongFrames, 512), 1);
+    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(NAN, kSongFrames, 512), 1);
+    // A track so short the whole of it at the floor is narrower than the view.
+    XCTAssertEqual(VibeWaveformMinimumVisibleFraction(kPhoneWidth, 44100, 512), 1);
 }
 
 #pragma mark - The drawn clamp
@@ -120,19 +123,18 @@ static CGFloat PhoneMinimum(void) {
     XCTAssertEqual(VibeWaveformClampRequestedFraction(INFINITY), kVibeWaveformDefaultZoomFraction);
 }
 
-// Why the two clamps are separate: a shallower layout draws shallow WITHOUT
-// changing the stored request, so rotating back restores the depth.
-- (void)testDeepRequestSurvivesAShallowerLayout {
-    CGFloat deep = VibeWaveformMinimumVisibleFraction(kPhoneWidth, kPadHeight, kPhoneScale);
+// Why the two clamps are separate: a short track draws shallow WITHOUT
+// changing the stored request, so the next long one restores the depth.
+- (void)testDeepRequestSurvivesAShortTrack {
+    double framesPerPoint = VibeWaveformMinimumFramesPerPoint(256);
+    CGFloat deep = VibeWaveformMinimumVisibleFraction(kPhoneWidth, kMixFrames, framesPerPoint);
     CGFloat stored = VibeWaveformClampRequestedFraction(deep);
     XCTAssertEqual(stored, deep, @"the request is not the one that gets clamped");
 
-    CGFloat shallowFloor = VibeWaveformMinimumVisibleFraction(kPadWidth, kPhoneHeight, kPadScale);
-    XCTAssertGreaterThan(shallowFloor, deep, @"the layouts must actually differ, or this proves nothing");
+    CGFloat shallowFloor = PhoneMinimum();
+    XCTAssertGreaterThan(shallowFloor, deep, @"the tracks must actually differ, or this proves nothing");
     XCTAssertEqual(VibeWaveformClampVisibleFraction(stored, shallowFloor), shallowFloor);
-
-    CGFloat deepFloor = VibeWaveformMinimumVisibleFraction(kPhoneWidth, kPadHeight, kPhoneScale);
-    XCTAssertEqual(VibeWaveformClampVisibleFraction(stored, deepFloor), deep);
+    XCTAssertEqual(VibeWaveformClampVisibleFraction(stored, deep), deep);
 }
 
 @end

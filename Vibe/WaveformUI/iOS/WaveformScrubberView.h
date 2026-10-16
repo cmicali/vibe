@@ -66,7 +66,7 @@ NS_ASSUME_NONNULL_BEGIN
 // shallows the picture without rewriting it. Persist THIS one.
 @property (nonatomic) CGFloat visibleFraction;
 
-// The request clamped to what this geometry's bake can hold
+// The request clamped to the deepest zoom the waveform can draw
 // (WaveformZoomMath.h).
 @property (nonatomic, readonly) CGFloat effectiveVisibleFraction;
 
@@ -74,8 +74,7 @@ NS_ASSUME_NONNULL_BEGIN
 // owner fans it out, since a reused cell keeps its last renderer.
 - (void)syncWaveformStyle;
 
-// Likewise for the theme, custom colors and the playhead line; re-bakes, since
-// the bitmap holds the old palette.
+// Likewise for the theme, custom colors and the playhead line.
 - (void)syncWaveformTheme;
 
 // THIS page's dominant art color for album_art; nil resolves to Mono. Per view
@@ -86,19 +85,14 @@ NS_ASSUME_NONNULL_BEGIN
 // Ends a track's gesture without discarding its cached pixels or seeking.
 - (void)cancelInteraction;
 
-// A slow playback open keeps the indicator until settlement, even over cached pixels.
+// A slow playback open keeps the indicator until settlement, even over a
+// drawn waveform.
 @property (nonatomic) BOOL playbackLoading;
 
-@end
-
-// WaveformScrubberView+Bitmap.mm.
-@interface WaveformScrubberView (Bitmap)
-
-// Fresh deliveries use showWaveform:; prepared pages pass animated:NO, and
-// install synchronously when a bake of the same picture is stored. The view
-// otherwise decides the entrance from its own state: the
-// first bitmap grows from the midline, the complete one grows from a partial
-// one's heights to its own, and a streaming load's partials swap at a steady pace.
+// Fresh deliveries use showWaveform:, and the renderer eases each one in: the
+// first grows from the midline, a streaming load's newest stretch rises, and
+// the complete one eases to Normalize's heights. A prepared page passes
+// animated:NO and lands at once.
 - (void)prepareForWaveformLoad;
 - (void)showWaveform:(CodableAudioWaveform *)waveform;
 - (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated;

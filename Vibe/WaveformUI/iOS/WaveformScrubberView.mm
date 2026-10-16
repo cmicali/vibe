@@ -52,8 +52,8 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     _rendererHost.anchorPoint = CGPointZero;
     _rendererHost.bounds = [self virtualBounds];
     _rendererHost.position = CGPointZero;
-    _rendererHost.hidden = YES;
     [_scroll.layer addSublayer:_rendererHost];
+    _renderWindow = CGRectNull;
 
     _playheadLine = [CALayer layer];
     _playheadLine.hidden = YES;
@@ -118,27 +118,27 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 
 // With nothing to scrub the pan must fail, or the pager's
 // requireGestureRecognizerToFail: waits forever and an empty strip will not
-// swipe.
+// swipe. The track sets the zoom floor, so a new one can move the width.
 - (void)setWaveform:(CodableAudioWaveform *)waveform {
+    CGFloat fraction = [self effectiveVisibleFraction];
     _waveform = waveform;
     _scroll.scrollEnabled = (waveform != nil);
+    if ([self effectiveVisibleFraction] != fraction) {
+        [self applyVirtualGeometry];
+    }
     [self layoutPlayheadLine];
 }
 
 - (BOOL)isAnimatingWaveformArrival {
-    return [_bakedHost animationForKey:@"arrival"] != nil;
+    return self.waveform && !_renderer.isSettled;
 }
 
-- (BOOL)isShowingBakedWaveform {
-    return _bakedHost != nil;
+- (BOOL)isShowingWaveform {
+    return self.waveform && _renderer;
 }
 
 - (BOOL)isPinching {
     return _isPinching;
-}
-
-- (NSUInteger)bakeRequestCount {
-    return _bakeRequest;
 }
 
 - (BOOL)seekPending {
@@ -150,7 +150,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 }
 
 - (BOOL)isShowingCompleteWaveform:(CodableAudioWaveform *)waveform {
-    return waveform == self.waveform && _bakedHost && _bakedComplete;
+    return waveform == self.waveform && waveform.waveform->isComplete();
 }
 
 #pragma mark - Zoom
@@ -159,12 +159,12 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     return VibeBackingScaleOrDefault(self.traitCollection.displayScale);
 }
 
-// Moves with the view size and display scale, which is why the request is
+// Moves with the view's width and the track, which is why the request is
 // kept apart from what is drawn.
 - (CGFloat)minimumVisibleFraction {
-    return VibeWaveformMinimumVisibleFraction(self.bounds.size.width,
-                                              self.bounds.size.height,
-                                              [self displayScale]);
+    AudioWaveform *waveform = self.waveform.waveform;
+    return VibeWaveformMinimumVisibleFraction(self.bounds.size.width, waveform ? waveform->totalFrames() : 0,
+            waveform ? VibeWaveformMinimumFramesPerPoint(waveform->binFrames()) : 0);
 }
 
 - (CGFloat)effectiveVisibleFraction {
@@ -216,7 +216,15 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     // The mac's Normalize default, pinned: Normalize and Gain are macOS
     // settings.
     _renderer.normalizesLevels = YES;
+    _renderWindow = CGRectNull;
     [self applyResolvedTheme];
+}
+
+// A track change starts from no renderer, so the next waveform grows out of
+// the midline rather than morphing from the last one.
+- (void)discardRenderer {
+    _renderer = nil;
+    _renderWindow = CGRectNull;
 }
 
 // The one resolution site on this view.
@@ -226,21 +234,20 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     }
     AppSettings *settings = AppSettings.sharedInstance;
     BOOL isDark = self.isDark;
-    WaveformTheme *(^resolve)(void) = ^WaveformTheme *{
-        return [WaveformTheme themeForSettings:settings widget:NO isDark:isDark artworkColor:self->_artworkThemeColor];
-    };
-    WaveformTheme *theme = resolve();
+    WaveformTheme *theme = [WaveformTheme themeForSettings:settings widget:NO isDark:isDark
+                                              artworkColor:_artworkThemeColor];
     // No well for it here: the appearance's contrast pole, the mac's default.
     if ([self drawsPlayheadLine]) {
         theme.playheadColor = isDark ? UIColor.whiteColor : UIColor.blackColor;
     }
     _renderer.theme = theme;
-    _bakeTheme = resolve();
     [_renderer updateColors:isDark];
-    // Geometry, not color, but it changes as these settings do, and the
-    // signature that re-bakes and keys the bake store has to carry it.
+    // Geometry, not color, but it changes as these settings do, so the
+    // signature carries it.
     _renderer.centered = [settings waveformCenteredForWidget:NO];
     [self layoutPlayheadLine];
+    // A playhead line plays the whole waveform.
+    [self applyPlayedClip];
     _themeSignature = [self themeSignature];
 }
 
@@ -251,7 +258,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 
 // The resolved palette in both appearances. This page's artwork color counts
 // only where the theme reads it. Under album_art a swipe onto a track with
-// different art re-bakes, and under any other theme late art re-bakes
+// different art recolors, and under any other theme late art changes
 // nothing. The playhead line and Centered ride along.
 - (NSString *)themeSignature {
     AppSettings *settings = AppSettings.sharedInstance;
@@ -271,24 +278,20 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     if (!_renderer || [[self themeSignature] isEqualToString:_themeSignature]) {
         return;
     }
-    // The old palette stays up until the recolored bitmap lands.
-    _bakeEpoch++;
     [self applyResolvedTheme];
-    [self scheduleEnvelopeBakeAfter:0];
 }
 
-
+// The new style lands at once, settled: a swap, not a load.
 - (void)syncWaveformStyle {
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
     if (!_renderer || [style isEqualToString:_styleIdentifier]) {
         return;
     }
-    // The outgoing style's bitmap stays up until the new one lands.
-    _bakeEpoch++;
-    _renderer = nil;
+    [self discardRenderer];
     [self installRendererIfNeeded];
-    [self scheduleEnvelopeBakeAfter:0];
+    [self drawRendererWindowForcing:YES];
+    [_renderer settleMorphImmediately];
 }
 
 // progress 0 sits at -centerX, 1 at virtualWidth - centerX.
@@ -307,6 +310,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 - (void)applyScrollAndProgress {
     [self syncContentOffsetToProgress];
     [self applyPlayedClip];
+    [self drawRendererWindowForcing:NO];
     [self syncLoadingTrackToProgress];
 }
 
@@ -348,31 +352,51 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 
 // What the played side spans: under a playhead line the whole waveform, the
 // line alone marking the position. Progress can leave the unit range at track
-// end or in a bounce, and an out-of-unit contentsRect smears the bake's edge
-// pixels.
+// end or in a bounce, and the played side would reach past the track.
 - (CGFloat)playedProgress {
     return _renderer.theme.playheadColor ? 1 : MAX(0.0, MIN(1.0, _progress));
 }
 
 // The playhead marker unless the theme draws a line. In CONTENT space, so the
 // scroll carries it to the center and nothing here reads the offset.
+//
+// TRAP: no explicit transaction here or in the window's redraw: see
+// setContentOffsetX:. Disabling actions on the implicit one nests the
+// renderers' own transactions inside it.
 - (void)applyPlayedClip {
-    CGFloat width = _bakedHost.bounds.size.width;
-    if (width <= 0) {
+    if (!self.waveform || !_renderer) {
         return;
     }
-    // Its actions are off, so no transaction: see setContentOffsetX:.
-    CGFloat progress = [self playedProgress];
-    CGFloat height = _bakedHost.bounds.size.height;
-    for (CALayer *segment in _bakedHost.sublayers) {
-        CGFloat start = segment.position.x / width;
-        CGFloat end = start + segment.bounds.size.width / width;
-        CGFloat cut = MAX(start, MIN(end, progress));
-        CALayer *played = segment.sublayers.lastObject;
-        played.bounds = CGRectMake(0, 0, (cut - start) * width, height);
-        played.contentsRect = CGRectMake(start, 0, cut - start, 1);
+    [CATransaction setDisableActions:YES];
+    [_renderer updateProgress:[self playedProgress] waveform:self.waveform.waveform];
+    VibeTallyCount(waveform_progress);
+}
+
+// Half a view of margin either side, so a scroll moves pixels already drawn
+// for that far, and content far wider than the screen is never drawn whole.
+// Every step style draws the same pixels for the same content wherever its
+// window lands, so a redraw cannot be seen.
+- (void)drawRendererWindowForcing:(BOOL)force {
+    CGRect virtualBounds = [self virtualBounds];
+    CGFloat width = self.bounds.size.width;
+    if (!self.waveform || !_renderer || virtualBounds.size.width <= 0 || width <= 0) {
+        return;
     }
-    VibeTallyCount(waveform_progress_baked);
+    CGRect visible = CGRectIntersection(CGRectMake(_scroll.contentOffset.x, 0, width, virtualBounds.size.height),
+                                        virtualBounds);
+    if (!force && !CGRectIsNull(_renderWindow) &&
+        (CGRectIsNull(visible) || CGRectContainsRect(_renderWindow, visible))) {
+        return;
+    }
+    CGRect window = CGRectIntersection(CGRectInset(visible, -width / 2, 0), virtualBounds);
+    _renderWindow = CGRectIsNull(window) ? CGRectZero : window;
+    [CATransaction setDisableActions:YES];
+    // Wiggle keeps its loops through a zoom: it counts them at the resting
+    // zoom while drawing across the zoomed width.
+    _renderer.samplingWidth = width / kVibeWaveformDefaultZoomFraction;
+    _renderer.renderRect = _renderWindow;
+    [_renderer updateWaveform:virtualBounds progress:[self playedProgress] waveform:self.waveform.waveform];
+    VibeTallyCount(waveform_window);
 }
 // The play position IS the view's center, so the line never moves: it follows
 // only the theme, the layout and whether there is a waveform to mark.
@@ -483,10 +507,7 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 - (void)resetWaveformContentState {
-    [self removeBakedWaveform];
-    // The new track's first bake must not wait on the old track's rate limit.
-    _lastBakeAt = 0;
-    _firstDeliveryAt = 0;
+    [self discardRenderer];
     [self cancelInteraction];
     self.waveform = nil;
     // Force the repaint even when the bucket is already 0.
@@ -517,7 +538,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 }
 
 // Layout and the zoom both call this: a zoom moves the virtual width with the
-// bounds unchanged.
+// bounds unchanged. Each pinch frame draws again, from the zoom steps' fixed
+// columns, so the picture stays sharp through the gesture.
 - (void)applyVirtualGeometry {
     VibeSignpostBegin(waveform_geometry);
     CGRect virtualBounds = [self virtualBounds];
@@ -529,25 +551,16 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     _scroll.contentInset = UIEdgeInsetsMake(0, centerX, 0, centerX);
     _scroll.contentSize = CGSizeMake(virtualBounds.size.width, self.bounds.size.height);
     _rendererHost.bounds = virtualBounds;
-    // A pinch frame or a resize STRETCHES the bitmap (soft until the re-bake)
-    // rather than blanking it: three property writes.
-    // A reveal's crop and stretch are in the old geometry: land it first.
-    [self finishRevealOf:_revealLayer];
-    if (_bakedHost) {
-        [self placeBakedLayer:_bakedHost];
-    }
     [CATransaction commit];
+    if (sizeChanged) {
+        // The offset parks below at the new width, then the window follows it.
+        _renderWindow = CGRectNull;
+    }
     [self applyScrollAndProgress];
     // The bucket is per pixel of the virtual width, which just moved; without
     // this every playback write during a pinch passes setProgress:'s gate.
     _progressTracker = [self progressBucket];
-    // No epoch bump: a bake landing for the old size is right for that size,
-    // stays up stretched, and the one asked for here follows it.
     if (sizeChanged) {
-        // A pinch re-bakes once, on release (endZoomGesture).
-        if (!_isPinching) {
-            [self scheduleEnvelopeBakeAfter:0];
-        }
         [self layoutLoadingLayer];
         // Tells a trace which layout passes actually moved the width.
         VibeSignpostCount(waveform_resize);
@@ -558,17 +571,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
 - (void)traitsDidChange:(UITraitCollection *)previous {
     BOOL scaleChanged = previous.displayScale != self.traitCollection.displayScale;
     BOOL styleChanged = previous.userInterfaceStyle != self.traitCollection.userInterfaceStyle;
-    if (!scaleChanged && !styleChanged) {
-        return;
-    }
-    // The standing bitmap stays up until the redrawn one lands.
-    _bakeEpoch++;
     if (scaleChanged) {
         VibeApplyContentsScale(self.layer, [self displayScale]);
         [_renderer backingScaleDidChange];
-        // The scale moves the zoom floor with the bounds unchanged, and no
-        // layout pass follows.
-        [self applyVirtualGeometry];
+        [self drawRendererWindowForcing:YES];
         [self layoutPlayheadLine];
     }
     if (styleChanged) {
@@ -576,7 +582,41 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
         [self applyResolvedTheme];
         [_loadingIndicator updateColorsForDark:self.isDark];
     }
-    [self scheduleEnvelopeBakeAfter:0];
+}
+
+#pragma mark - Showing a waveform
+
+- (void)prepareForWaveformLoad {
+    _playbackLoading = NO;
+    [self hideLoadingIndicator];
+    [self resetWaveformContentState];
+    [self installRendererIfNeeded];
+}
+
+- (void)showWaveform:(CodableAudioWaveform *)waveform {
+    [self showWaveform:waveform animated:YES];
+}
+
+- (void)showWaveform:(CodableAudioWaveform *)waveform animated:(BOOL)animated {
+    // A page brought back by a swipe is handed what it already shows.
+    if ([self isShowingCompleteWaveform:waveform]) {
+        return;
+    }
+    VibeSignpostBegin(waveform_delivery);
+    // Per-page cells can hydrate without prepareForWaveformLoad.
+    [self installRendererIfNeeded];
+    BOOL arrival = !self.waveform;
+    self.waveform = waveform;
+    [self drawRendererWindowForcing:YES];
+    if (!animated) {
+        [_renderer settleMorphImmediately];
+    }
+    if (arrival) {
+        // The picture ends the shimmer, not the data: the fill stays; see
+        // hideLoadingShimmer.
+        [self hideLoadingShimmer];
+    }
+    VibeSignpostEnd(waveform_delivery);
 }
 
 @end

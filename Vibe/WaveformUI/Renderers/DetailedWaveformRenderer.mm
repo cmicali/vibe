@@ -474,7 +474,7 @@ static const double kEnergyPixels = 4;
     }
     [self fillSpansForSamples:samples height:pixels.height scale:pixels.scale];
     const float *bottoms = _bottoms.data(), *tops = _tops.data();
-    double framesPerPixel = _framesPerPixel;
+    double framesPerPixel = [self framesPerPixel];
     return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
         wavecore::ColumnCoverage column(pixels.height);
         for (int x = pixels.x0; x < pixels.x1; x++) {

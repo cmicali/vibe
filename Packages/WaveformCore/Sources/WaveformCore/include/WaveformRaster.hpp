@@ -157,7 +157,6 @@ private:
     int height_;
     std::vector<Span> spans_;
     std::vector<double> edges_;
-    std::vector<float> rows_;  // premultiplied RGBA per row, from the top
 };
 
 }  // namespace wavecore

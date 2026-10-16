@@ -59,9 +59,8 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
                            fill:(void (^)(float *out, const wavecore::StepPart &part))fill {
     int64_t total = waveform ? waveform->totalFrames() : _window.totalFrames;
     double pixels = size.width * _pixels.scale;
-    _framesPerPixel = pixels > 0 ? (double)total / pixels : 0;
-    wavecore::StepWindow window = wavecore::StepWindowForPixels(total, _framesPerPixel, columnsPerPixel,
-                                                                _pixels.x0, _pixels.x1);
+    wavecore::StepWindow window = wavecore::StepWindowForPixels(total, pixels > 0 ? (double)total / pixels : 0,
+                                                                columnsPerPixel, _pixels.x0, _pixels.x1);
     wavecore::StepWindow previous = _window;
     if (!window.sameColumns(previous)) {
         _windowGeneration++;
@@ -80,6 +79,11 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
     } remap:^(std::vector<float> &displayed, const std::vector<float> &target) {
         wavecore::RemapStepSamples(previous, window, stride, displayed, target);
     }];
+}
+
+- (double)framesPerPixel {
+    double pixels = [_morph size].width * _pixels.scale;
+    return pixels > 0 ? (double)_window.totalFrames / pixels : 0;
 }
 
 - (void)dipStepColumnsFromFraction:(double)from toFraction:(double)to stride:(NSUInteger)stride {
@@ -218,17 +222,12 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
 }
 
 - (void)backingScaleDidChange {
+    _pixels = [self renderPixelsForSize:[_morph size]];
     [_morph rebuildNow];
 }
 
-// The energy columns' reference at the floor's 1,024, which every style but
-// 3-Band and Spectrum reads its levels through.
-- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform {
-    if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
-        return 1;
-    }
-    float reference = VibeWaveformFullScaleRMSForWaveform(waveform, YES);
-    return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
+- (BOOL)isSettled {
+    return !_morph || _morph.isSettled;
 }
 
 @end

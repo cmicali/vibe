@@ -310,7 +310,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     if (!displayed.empty() && displayed.size() == window.columnCount() * stride && pixels.width() > 0 &&
         pixels.height > 0) {
         const float *samples = displayed.data();
-        double framesPerPixel = _framesPerPixel;
+        double framesPerPixel = [self framesPerPixel];
         CGFloat height = pixels.height;
         CGFloat midY = height / 2, baseline = VibeBarBaseline(height), vscale = VibeBarVScale(height);
         CGFloat minimum = _morph.barMinHeight * pixels.scale;
@@ -374,16 +374,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     [CATransaction commit];
     CGImageRelease(image);
     VibeSignpostEnd(waveform_raster);
-}
-
-// Every band scales by its own reference (bandFullScaleRMSForWaveform:), read
-// at the floor's 1,024 columns.
-- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform {
-    if (!self.normalizesLevels || !waveform || !waveform->isComplete()) {
-        return 1;
-    }
-    float reference = [self bandFullScaleRMSForWaveform:waveform];
-    return reference > 0 ? kVibeWaveformFullScaleRMS / reference : 1;
 }
 
 @end

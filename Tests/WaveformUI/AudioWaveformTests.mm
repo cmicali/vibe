@@ -549,8 +549,7 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     }
 }
 
-// Normalize only raises, and its reference is the track's, so the gain it
-// applies is the same at every width.
+// Normalize only raises, at every width.
 - (void)testLayerStylesOnlyGrowUnderNormalization {
     std::vector<VibeTestBin> bins(1024, {-0.1f, 0.1f, 0.01f});
     bins[511] = {-0.5f, 0.5f, 0.1f};
@@ -558,13 +557,8 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     for (NSString *identifier in @[@"sonic_cirrus", @"cupertino_basic"]) {
         WaveformRenderer *renderer = [self rendererForStyle:identifier];
         CALayer *host = renderer.parentLayer;
-        CGFloat gainAtFirstWidth = 0;
         for (CGFloat width : {257.0, 512.0, 773.0}) {
             host.bounds = CGRectMake(0, 0, width, 80);
-            renderer.normalizesLevels = YES;
-            CGFloat gainHere = [renderer normalizationGainForWaveform:waveform.get()];
-            if (gainAtFirstWidth == 0) gainAtFirstWidth = gainHere;
-            XCTAssertEqual(gainHere, gainAtFirstWidth, @"%@ width %g", identifier, width);
             for (float gain : {-12.0f, 0.0f, 12.0f}) {
                 renderer.gainDB = gain;
                 renderer.normalizesLevels = NO;
@@ -947,17 +941,8 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
                 [fresh settleMorphImmediately];
                 XCTAssertTrue(VibeThreeBandPicture(reused).pixels == VibeThreeBandPicture(fresh).pixels,
                               @"%@ width %g", style, width);
-                XCTAssertEqual([reused normalizationGainForWaveform:waveform],
-                               [fresh normalizationGainForWaveform:waveform]);
             }
-            reused.normalizesLevels = NO;
-            XCTAssertEqual([reused normalizationGainForWaveform:waveform], 1);
-            reused.normalizesLevels = YES;
         }
-        XCTAssertEqualWithAccuracy([reused normalizationGainForWaveform:quiet.get()],
-                                  kVibeWaveformFullScaleRMS / sqrtf(0.001f), 1e-4, @"%@", style);
-        XCTAssertEqualWithAccuracy([reused normalizationGainForWaveform:loud.get()],
-                                  kVibeWaveformFullScaleRMS / fminf(sqrtf(0.1f), kVibeWaveformFullScaleRMS), 1e-6, @"%@", style);
     }
 }
 

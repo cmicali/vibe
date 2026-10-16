@@ -34,7 +34,6 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView showWaveform:waveform];
     // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
-        [self refreshWaveformWindow];
         [_playback offerWaveformToWidget:waveform
                                 forTrack:[_playback.playlist trackAtIndex:index]];
     }
@@ -122,8 +121,6 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
         return;
     }
     _waveformZoom = fraction;
-    // Hidden bakers keep their bitmaps until the next cursor move's refresh;
-    // an arriving page shows its stored one stretched and re-bakes once.
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         [self applyWaveformZoomToCell:cell];
     }

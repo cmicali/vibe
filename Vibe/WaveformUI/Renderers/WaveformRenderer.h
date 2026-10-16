@@ -161,10 +161,9 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
     // Bar renderers install their geometry callback; flat controls leave this nil.
     WaveformMorphEngine *_morph;
     // Where the samples land: the window's device pixels, and for a step
-    // style the columns the samples hold and the frames a pixel covers.
+    // style the columns the samples hold.
     VibeRenderPixels _pixels;
     wavecore::StepWindow _window;
-    double _framesPerPixel;
 }
 
 @property (assign) BOOL isDark;
@@ -212,6 +211,8 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 
 // The render window for bounds of this size at the parent's scale.
 - (VibeRenderPixels)renderPixelsForSize:(CGSize)size;
+// The frames a pixel of _pixels covers, for a step style's _window.
+- (double)framesPerPixel;
 
 // The step styles' one target entry point, once _pixels is current. Reads the
 // window's two steps at columnsPerPixel through fill, stride floats a column,
@@ -255,8 +256,9 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (void)updateWaveform:(CGRect)bounds progress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 - (void)updateProgress:(CGFloat)progress waveform:(AudioWaveform* __nullable)waveform;
 
-// Rebuilds the morph geometry, whose pixel snapping baked in the old scale and
-// which a same-size updateWaveform: skips.
+// Draws the picture again at the parent's new scale, which a same-size
+// updateWaveform: would skip. The samples keep their columns, which are a
+// number a point.
 - (void)backingScaleDidChange;
 
 // The Convert to FLAC sweep: dip the bars in [from, to) to the midline and let
@@ -265,17 +267,13 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 
 // See WaveformMorphEngine.settleImmediately. No-op without a morph engine.
 - (void)settleMorphImmediately;
+// Whether the samples rest on their target; always without a morph engine.
+@property (readonly, getter=isSettled) BOOL settled;
 
 // Lights the waveform's own column at view x; negative clears. Kept so a
 // resize or morph rebuild can reposition it; the base only stores it.
 - (void)setHoverHighlightX:(CGFloat)x;
 @property (readonly) CGFloat hoverHighlightX; // < 0 when not hovering
-
-// How much taller Normalize draws a complete waveform than the fixed
-// reference draws it while it streams: the whole picture scales by it, since a
-// level is linear in the reference below the clamp, which Normalize keeps
-// clear of. 1 where Normalize changes nothing.
-- (CGFloat)normalizationGainForWaveform:(AudioWaveform *)waveform;
 
 @end
 

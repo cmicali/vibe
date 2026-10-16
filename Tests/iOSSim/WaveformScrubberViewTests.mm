@@ -1,6 +1,6 @@
-// WaveformScrubberView and its Bitmap, Gestures and Loading categories, on
-// UIKit. What is drawn is read back from the layer tree: the baked bitmaps
-// are layer contents, and the loading indicator is layers of its own.
+// WaveformScrubberView and its Gestures and Loading categories, on UIKit.
+// What is drawn is the view's layer tree rendered to pixels, and the loading
+// indicator is layers of its own.
 
 #import "IOSSimTestCase.h"
 
@@ -131,10 +131,11 @@ static const CGFloat kHeight = 120;
     [super tearDown];
 }
 
-// A loud, varied envelope; complete, as an archive is.
+// A loud, varied envelope; complete, as an archive is. Long enough that the
+// default zoom and half of it are both drawable.
 static CodableAudioWaveform *CompleteWaveform(void) {
     auto waveform = std::make_unique<AudioWaveform>(64, 1, false, 44100);
-    for (size_t i = 0; i < 512; i++) {
+    for (size_t i = 0; i < 4096; i++) {
         float level = 0.3f + 0.6f * (float)fabs(sin((double)i / 9.0)), lo = -level;
         waveform->appendBin(&lo, &level, level * level * 64, nullptr, 64);
     }
@@ -151,72 +152,73 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     return nil;
 }
 
-- (NSArray *)bakedImages {
-    return VibeLayerImages(self.scroll.layer);
-}
-
-- (void)showAndBake:(CodableAudioWaveform *)waveform {
+- (void)showAndDraw:(CodableAudioWaveform *)waveform {
     [_view prepareForWaveformLoad];
     [_view showWaveform:waveform animated:NO];
-    XCTAssertTrue([self eventually:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }],
-                  @"the bake never installed");
+    XCTAssertTrue([_view isShowingCompleteWaveform:waveform]);
     // The reset ends any interaction, which reports itself: start clean.
     _events = [[ScrubberEvents alloc] init];
     _view.delegate = _events;
 }
 
-// The most saturated tint among the standing bitmaps: the played side's.
-- (VibeImageTint)strongestTint {
-    VibeImageTint best = {0, 0, 0, 0};
-    double bestSpread = -1;
-    for (id image in self.bakedImages) {
-        VibeImageTint tint = VibeTintOfImage((__bridge CGImageRef)image);
-        double spread = MAX(MAX(tint.red, tint.green), tint.blue) - MIN(MIN(tint.red, tint.green), tint.blue);
-        if (tint.coverage > 0 && spread > bestSpread) {
-            best = tint;
-            bestSpread = spread;
-        }
-    }
-    return best;
+// The view's pixels, as its layer tree composites them.
+- (VibeImageTint)renderedTint {
+    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
+    format.scale = 1;
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithBounds:_view.bounds format:format];
+    UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        [self->_view.layer renderInContext:context.CGContext];
+    }];
+    return VibeTintOfImage(image.CGImage);
 }
 
-#pragma mark - The bitmap
+#pragma mark - The picture
 
-- (void)testAWaveformBakesANonblankBitmapAndEnablesScrubbing {
+- (void)testAWaveformDrawsAndEnablesScrubbing {
     XCTAssertFalse(_view.isScrubbingEnabled);
     XCTAssertFalse(self.scroll.scrollEnabled, @"an empty strip must hand the pager its swipe");
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     XCTAssertTrue(_view.isScrubbingEnabled);
     XCTAssertTrue(self.scroll.scrollEnabled);
-    NSArray *images = self.bakedImages;
-    XCTAssertGreaterThan(images.count, 0u);
-    double coverage = 0;
-    for (id image in images) {
-        coverage = MAX(coverage, VibeTintOfImage((__bridge CGImageRef)image).coverage);
-    }
-    XCTAssertGreaterThan(coverage, 0.05, @"the bake drew next to nothing");
+    XCTAssertGreaterThan(self.renderedTint.coverage, 0.05, @"the view drew next to nothing");
 }
 
-- (void)testAResetDropsTheBitmapAndTheWaveform {
-    [self showAndBake:CompleteWaveform()];
+- (void)testAResetDropsThePictureAndTheWaveform {
+    [self showAndDraw:CompleteWaveform()];
     [_view prepareForWaveformLoad];
-    XCTAssertEqual(self.bakedImages.count, 0u);
+    XCTAssertEqual(self.renderedTint.coverage, 0);
     XCTAssertFalse(_view.isScrubbingEnabled);
     XCTAssertEqual(_view.progress, 0);
 }
 
+// The view draws only the stretch around what it shows, and a scroll past
+// that stretch draws the new one.
+- (void)testAScrollDrawsTheStretchItShows {
+    [self showAndDraw:CompleteWaveform()];
+    _view.visibleFraction = 0.2;
+    for (NSNumber *progress in @[@0.1, @0.5, @0.9]) {
+        _view.progress = progress.doubleValue;
+        XCTAssertGreaterThan(self.renderedTint.coverage, 0.2, @"nothing under the playhead at %@", progress);
+    }
+}
+
 #pragma mark - Zoom and the playhead
 
+// The floor for the waveform on show, as the view derives it.
+- (CGFloat)floor {
+    AudioWaveform *waveform = _view.waveform.waveform;
+    return VibeWaveformMinimumVisibleFraction(kWidth, waveform ? waveform->totalFrames() : 0,
+            waveform ? VibeWaveformMinimumFramesPerPoint(waveform->binFrames()) : 0);
+}
+
 - (CGFloat)expectedVirtualWidth {
-    CGFloat scale = _view.traitCollection.displayScale;
-    CGFloat floor = VibeWaveformMinimumVisibleFraction(kWidth, kHeight, scale);
-    return kWidth / VibeWaveformClampVisibleFraction(_view.visibleFraction, floor);
+    return kWidth / VibeWaveformClampVisibleFraction(_view.visibleFraction, self.floor);
 }
 
 // The play position is the view's center: progress p puts the track's point
 // p under it, at the content offset the zoom math predicts.
 - (void)testProgressParksTheContentUnderTheCenteredPlayhead {
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     CGFloat virtualWidth = [self expectedVirtualWidth];
     XCTAssertEqualWithAccuracy(self.scroll.contentSize.width, virtualWidth, 0.5);
     for (NSNumber *progress in @[@0, @0.25, @0.5, @1]) {
@@ -229,11 +231,11 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     XCTAssertEqualWithAccuracy(self.scroll.contentOffset.x, virtualWidth - kWidth / 2, 1.0);
 }
 
-// The request is kept as asked. What is drawn stops at the bake's floor, so a
-// rotation can deepen it again (WaveformUI/iOS/AGENTS.md).
+// The request is kept as asked. What is drawn stops at the track's floor, so
+// a longer track can deepen it again (WaveformUI/iOS/AGENTS.md).
 - (void)testAZoomPastTheFloorDrawsAtTheFloorAndKeepsTheRequest {
-    CGFloat scale = _view.traitCollection.displayScale;
-    CGFloat floor = VibeWaveformMinimumVisibleFraction(kWidth, kHeight, scale);
+    [self showAndDraw:CompleteWaveform()];
+    CGFloat floor = self.floor;
     XCTAssertGreaterThan(floor, kVibeWaveformMinimumZoomFraction);
     _view.visibleFraction = kVibeWaveformMinimumZoomFraction;
     XCTAssertEqual(_view.visibleFraction, kVibeWaveformMinimumZoomFraction);
@@ -252,43 +254,37 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 #pragma mark - The theme
 
 // The root guarantee: the theme beats the style's palette, and it is read
-// again on a sync, re-baking the bitmap.
-- (void)testTheThemeColorsTheBakeAndASyncRecolorsIt {
-    [self showAndBake:CompleteWaveform()];
-    VibeImageTint mono = [self strongestTint];
+// again on a sync. Orange colors the played side, so the track is played.
+- (void)testTheThemeColorsTheWaveformAndASyncRecolorsIt {
+    [self showAndDraw:CompleteWaveform()];
+    _view.progress = 1;
+    VibeImageTint mono = self.renderedTint;
     XCTAssertLessThan(fabs(mono.red - mono.blue), 0.08, @"Mono is gray");
 
     [AppSettings.sharedInstance setWaveformTheme:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE forWidget:NO];
-    NSArray *before = self.bakedImages;
     [_view syncWaveformTheme];
-    XCTAssertTrue([self eventually:^BOOL {
-        return ![self.bakedImages isEqualToArray:before] && self.bakedImages.count > 0;
-    }]);
-    VibeImageTint orange = [self strongestTint];
+    VibeImageTint orange = self.renderedTint;
     XCTAssertGreaterThan(orange.red - orange.blue, 0.3, @"Orange is not orange: %f %f %f",
                          orange.red, orange.green, orange.blue);
 }
 
 // album_art: the art's color arrives on the view, and only that theme reads
-// it. No art resolves to Mono's answer.
+// it. No art resolves to Mono's answer. The art colors what is still to
+// play, which at progress 0 is everything shown.
 - (void)testTheArtworkColorRecolorsOnlyUnderAlbumArt {
     [AppSettings.sharedInstance setWaveformTheme:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART forWidget:NO];
-    [self showAndBake:CompleteWaveform()];
-    VibeImageTint noArt = [self strongestTint];
+    [self showAndDraw:CompleteWaveform()];
+    VibeImageTint noArt = self.renderedTint;
     XCTAssertLessThan(fabs(noArt.red - noArt.blue), 0.08, @"no art draws Mono");
 
-    NSArray *before = self.bakedImages;
     _view.artworkThemeColor = [UIColor colorWithRed:0.1 green:0.8 blue:0.2 alpha:1];
-    XCTAssertTrue([self eventually:^BOOL { return ![self.bakedImages isEqualToArray:before]; }]);
-    VibeImageTint green = [self strongestTint];
+    VibeImageTint green = self.renderedTint;
     XCTAssertGreaterThan(green.green - green.red, 0.25, @"%f %f %f", green.red, green.green, green.blue);
 
     [AppSettings.sharedInstance setWaveformTheme:SETTINGS_VALUE_WAVEFORM_THEME_MONO forWidget:NO];
     [_view syncWaveformTheme];
-    XCTAssertTrue([self eventually:^BOOL {
-        VibeImageTint tint = [self strongestTint];
-        return fabs(tint.red - tint.green) < 0.08;
-    }], @"Mono ignores the art");
+    VibeImageTint mono = self.renderedTint;
+    XCTAssertLessThan(fabs(mono.red - mono.green), 0.08, @"Mono ignores the art");
 }
 
 #pragma mark - Loading
@@ -308,7 +304,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     CodableAudioWaveform *waveform = CompleteWaveform();
     [_view showWaveform:waveform animated:NO];
     XCTAssertTrue([self eventually:^BOOL { return [self->_view isShowingCompleteWaveform:waveform]; }]);
-    XCTAssertGreaterThan(self.hostLayerCount, resting, @"the bitmap took the open's indicator down");
+    XCTAssertGreaterThan(self.hostLayerCount, resting, @"the waveform took the open's indicator down");
 
     _view.playbackLoading = NO;
     XCTAssertEqual(self.hostLayerCount, resting);
@@ -330,7 +326,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     XCTAssertEqual(self.hostLayerCount, resting);
 }
 
-- (void)testAPlainLoadEndsWithTheBitmap {
+- (void)testAPlainLoadEndsWithThePicture {
     [_view prepareForWaveformLoad];
     NSUInteger resting = self.hostLayerCount;
     [_view showLoadingIndicator];
@@ -349,7 +345,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     [_view handleTap:tap];
     XCTAssertEqual(_events.seeks.count, 0u, @"an empty strip seeks nowhere");
 
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     [_view handleTap:tap];
     XCTAssertEqual(_events.seeks.count, 1u);
     XCTAssertEqualWithAccuracy(_events.seeks.firstObject.doubleValue, 100 / [self expectedVirtualWidth], 1e-3);
@@ -365,7 +361,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 
 // A drag commits one seek, on its end, and holds the pager for its length.
 - (void)testADragSeeksOnceWhenItEnds {
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     _view.progress = 0.3;
     id<UIScrollViewDelegate> delegate = (id<UIScrollViewDelegate>)_view;
     [delegate scrollViewWillBeginDragging:self.scroll];
@@ -382,7 +378,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 }
 
 - (void)testACancelledInteractionReleasesThePagerWithoutSeeking {
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     [(id<UIScrollViewDelegate>)_view scrollViewWillBeginDragging:self.scroll];
     [_view cancelInteraction];
     XCTAssertEqual(_events.seeks.count, 0u);
@@ -392,7 +388,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 
 // A pure zoom: no seek, the new request reported once on release.
 - (void)testAPinchZoomsAboutThePlayheadAndReportsTheRequestOnRelease {
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     _view.progress = 0.5;
     CGFloat start = _view.visibleFraction;
     ScriptedPinch *pinch = [[ScriptedPinch alloc] initWithTarget:nil action:NULL];
@@ -420,7 +416,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 // The finger a pinch leaves behind scrubs past the slop, and the pinch's
 // release commits that seek once.
 - (void)testTheFingerLeftByAPinchScrubsPastTheSlop {
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     _view.progress = 0.5;
     ScriptedPinch *pinch = [[ScriptedPinch alloc] initWithTarget:nil action:NULL];
     pinch.scriptedTouches = 2;
@@ -464,7 +460,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     XCTAssertEqual(_view.accessibilityTraits, UIAccessibilityTraitNone);
     [_view accessibilityIncrement];
     XCTAssertEqual(_events.seeks.count, 0u);
-    [self showAndBake:CompleteWaveform()];
+    [self showAndDraw:CompleteWaveform()];
     XCTAssertEqual(_view.accessibilityTraits, UIAccessibilityTraitAdjustable);
     _view.progress = 0.5;
     [_view accessibilityIncrement];
