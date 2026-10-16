@@ -460,10 +460,11 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 }
 
 // A chunk after the audio, a 235 KB tag as a Dropbox AIFF carried, is past
-// the small window. Every chunked container's open walks to that chunk's
-// header, so on the small window it waits for the download. On the window
-// its format takes, it opens on its head and the window with no wait, and
-// the stream decodes as the whole file.
+// the small window. An AIFF's open and a CAF's walk to that chunk's header.
+// On the small window they wait for the download. A WAV's and a W64's stop
+// at the data chunk, so they never wait. On the window its format takes, each
+// opens on its head and the window with no wait. The stream then decodes as
+// the whole file.
 - (void)testAChunkAfterTheAudioOpensFromTheWindow {
     const uint32_t frames = 441000, tag = 235 * 1024;
     const uint64_t head = 64 * 1024, small = 128 * 1024;
@@ -485,12 +486,17 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
         uint64_t size = [NSData dataWithContentsOfURL:source].length;
         uint64_t window = VibeAudioFileTailWindowBytes(extension, size);
         XCTAssertGreaterThan(window, (uint64_t)tag + 24, @"%@", extension);
+        BOOL walksToTheEnd = [@[@"aiff", @"caf"] containsObject:extension];
 
         VibeGrowingFile *cramped = [self stream:source prefix:head window:small];
         NSUInteger waits = [self drive:cramped step:0 reader:^{
             XCTAssertNotNil([[AudioFileHandle alloc] initForReading:cramped.url error:NULL], @"%@", extension);
         }];
-        XCTAssertGreaterThan(waits, 0u, @"%@: the small window left the chunk's header to the download", extension);
+        if (walksToTheEnd) {
+            XCTAssertGreaterThan(waits, 0u, @"%@: the small window left the chunk's header to the download", extension);
+        } else {
+            XCTAssertEqual(waits, 0u, @"%@: dr_wav stops at the data chunk", extension);
+        }
         [cramped complete];
 
         VibeGrowingFile *file = [self stream:source prefix:head window:window];
@@ -500,8 +506,10 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
         }];
         XCTAssertNotNil(handle, @"%@", extension);
         XCTAssertEqual(waits, 0u, @"%@ waited to open", extension);
-        XCTAssertGreaterThanOrEqual(file.availability.furthestOffsetAsked, file.windowOffset, @"%@: the open read the window",
-                                    extension);
+        if (walksToTheEnd) {
+            XCTAssertGreaterThanOrEqual(file.availability.furthestOffsetAsked, file.windowOffset, @"%@: the open read the window",
+                                        extension);
+        }
         __block NSData *pcm = nil;
         [self drive:file step:7919 reader:^{
             pcm = VibeDecode(handle, 4096, INT64_MAX, NULL);

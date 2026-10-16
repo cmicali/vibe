@@ -155,6 +155,7 @@ Vibe decodes FLAC with dr_flac on the Mac and the iPhone. There's no setting, be
 - **Files Apple's decoder refuses play.** These are legal FLAC files that some encoders write: block sizes of 16 or 65,535, rates above 655 kHz such as 705.6 kHz, and 32-bit files.
 - **Damaged files keep their timing.** Vibe's decoder fills a damaged stretch with silence up to the next good frame. A cut-off file ends where the data ends. A file that doesn't say how long it is can still play, because the decoder searches back from the end for the last good frame.
 - **The last moment of a file with an ID3v1 tag.** Apple's decoder drops the last frame (about 30 ms) when an ID3v1 tag follows it. Vibe plays it.
+- **dr_flac opens the file itself.** It states the format and channel layout as CoreAudio would. CoreAudio's parser never reads a FLAC. Opening takes 0.6 ms of CPU time, where it took 2.7 ms for a 16-bit, 44.1 kHz file and 8.5 ms for a 24-bit, 192 kHz one with CoreAudio's parser (VibeBenchComponents, M1 Max).
 
 **The data:**
 
@@ -206,6 +207,7 @@ Vibe decodes WAV, BWF, RF64, Wave64 and AIFF with dr_wav on the Mac and the iPho
 - **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes it anyway. At one in a Microsoft ADPCM file, it plays nothing of the file at all. Vibe's plays silence for the bad block and every other block in its place.
 - **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding in the last block, 464 frames (about 10 ms) in a test file. Vibe's stops where the file says the sound ends.
 - **24 and 32-bit little-endian AIFF.** Apple's decoder reads these as 16-bit and plays them wrong, one and a half or two times as long as the music. Vibe plays them right. Convert to FLAC reads them the same way.
+- **dr_wav opens the file itself.** It states the format and channel layout as CoreAudio would, from an AIFF's channel layout chunk or a WAV's channel mask. CoreAudio's parser reads only a file dr_wav refuses. Opening takes 0.5 ms of CPU time, where it took 1.1 ms with CoreAudio's parser.
 
 **The data:**
 

@@ -8479,7 +8479,7 @@ static void drflac__init_from_info(drflac* pFlac, const drflac_init_info* pInit)
 
     /*
     Every frame of a fixed block size stream but the last has STREAMINFO's minimum block size, which is what a frame number counts in. The
-    maximum should be the same, but isn't always.
+    maximum should be the same, but isn't always. Once the first frame's header can be read, its block size is taken instead.
     */
     pFlac->_fixedBlockSizeInPCMFrames = pInit->minBlockSizeInPCMFrames;
     if (pFlac->_fixedBlockSizeInPCMFrames == 0 || pFlac->_fixedBlockSizeInPCMFrames > pFlac->maxBlockSizeInPCMFrames) {
@@ -8745,6 +8745,23 @@ static drflac* drflac_open_with_metadata_private(drflac_read_proc onRead, drflac
                 }
             }
         }
+    }
+
+    /*
+    A fixed block size stream numbers its frames, and a frame's number times the block size is its first PCM frame. STREAMINFO's minimum
+    block size names that size, but a damaged STREAMINFO can name any size, and then every frame is placed wrong: seeks land elsewhere, and
+    the search for an unknown length below finds the wrong end. The first frame's own header names the size, so it's taken from there. In a
+    stream of variable block sizes the size only ever multiplies the first frame's number, which is 0, so taking it there changes nothing.
+    */
+    if (init.hasStreamInfoBlock && init.container == drflac_container_native) {
+        drflac_frame_header firstHeader;
+        if (drflac__seek_to_first_frame(pFlac)
+                && drflac__read_next_flac_frame_header(&pFlac->bs, pFlac->bitsPerSample, &firstHeader)
+                && firstHeader.flacFrameNumber == 0 && firstHeader.pcmFrameNumber == 0
+                && firstHeader.blockSizeInPCMFrames != 0 && firstHeader.blockSizeInPCMFrames <= pFlac->maxBlockSizeInPCMFrames) {
+            pFlac->_fixedBlockSizeInPCMFrames = firstHeader.blockSizeInPCMFrames;
+        }
+        drflac__seek_to_first_frame(pFlac);
     }
 
     /*

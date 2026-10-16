@@ -536,6 +536,18 @@ AUDIO_PY
         # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
         [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg_out "$render_dir/mixed-8k.f32" -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le
         encode lossy.qta "$render_source" -c:a aac -f mov
+        # WAVE_FORMAT_EXTENSIBLE files with a channel mask, and FLACs at three to eight channels. dr_wav and dr_flac
+        # must state their layouts as CoreAudio's parser does (testOwnDecodersStateWhatCoreAudioStates).
+        for layout in 2.1 3.0 4.0 quad 5.0 5.1 '5.1(side)' 6.0 6.1 7.1 '7.1(wide)' FL+FR+TC; do
+            name=$(printf '%s' "$layout" | tr -d '()+'); name=${name//./-}
+            [ -s "$render_dir/mask-$name.wav" ] || ffmpeg_out "$render_dir/mask-$name.wav" -f lavfi -i anoisesrc=d=0.25:r=48000:a=0.1:seed=7 \
+                -af "aformat=channel_layouts=$layout" -c:a pcm_s16le
+        done
+        for layout in 3-0 quad 5-0 5-1 6-1 7-1; do
+            encode "channels-$layout.flac" "$render_dir/mask-$layout.wav" -c:a flac
+        done
+        # 5.1 in AIFF's CHAN chunk, in an order no WAVE mask names, as Apple's tools write it.
+        [ -s "$render_dir/chan-5-1-b.aif" ] || afconvert -f AIFF -d BEI16 -l MPEG_5_1_B "$render_dir/mask-5-1.wav" "$render_dir/chan-5-1-b.aif"
         # The WAV ADPCMs, which afconvert cannot write.
         encode wav-ima-adpcm.wav "$render_source" -c:a adpcm_ima_wav
         encode wav-ms-adpcm.wav "$render_source" -c:a adpcm_ms

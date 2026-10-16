@@ -267,6 +267,72 @@ static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
     XCTAssertEqualObjects(VibePCM(VibeReadWithAVAudioFile(quieter, NULL)), plain,
                           @"CoreAudio now applies the Opus output gain: drop VibeOpusOutputGain and _opusGain");
 }
+// The stereo fold CoreAudio's mixer makes of `layout`, as the voice bus makes
+// it (VibeMixMap). A file that states no layout folds as discrete channels.
+static NSData *VibeStereoFold(const AudioChannelLayout *layout, UInt32 channels) {
+    AudioChannelLayout discrete = {.mChannelLayoutTag = kAudioChannelLayoutTag_DiscreteInOrder | channels};
+    AudioChannelLayout stereo = {.mChannelLayoutTag = kAudioChannelLayoutTag_Stereo};
+    const AudioChannelLayout *layouts[2] = {layout ?: &discrete, &stereo};
+    NSMutableData *map = [NSMutableData dataWithLength:channels * 2 * sizeof(Float32)];
+    UInt32 size = (UInt32)map.length;
+    return AudioFormatGetProperty(kAudioFormatProperty_MatrixMixMap, sizeof(layouts), layouts, &size, map.mutableBytes) == noErr ? map : nil;
+}
+// dr_flac, dr_wav and libvorbis answer a file's facts in place of CoreAudio's
+// parser. dr_flac's and dr_wav's must be what the parser states: every field
+// of the file's description, and for more than two channels a layout that
+// folds to stereo as the parser's does, an AIFF's CHAN chunk included. A sowt
+// AIFF-C is the one known difference (testDrWAVDecodesAsAppleDoes). MPEG in a
+// WAV, and a WAV past dr_wav's rates, go to the parser.
+- (void)testOwnDecodersStateWhatCoreAudioStates {
+    NSURL *folder = [self fixture:@"noise-48000-24-2.wav"].URLByDeletingLastPathComponent;
+    NSSet *extensions = [NSSet setWithArray:@[@"wav", @"wave", @"bwf", @"w64", @"aif", @"aiff", @"flac"]];
+    NSUInteger compared = 0, wide = 0;
+    for (NSURL *url in [NSFileManager.defaultManager contentsOfDirectoryAtURL:folder includingPropertiesForKeys:nil options:0 error:NULL]) {
+        if (![extensions containsObject:url.pathExtension.lowercaseString]) continue;
+        NSString *name = url.lastPathComponent;
+        AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+        ExtAudioFileRef reader = NULL;
+        if (!file || ExtAudioFileOpenURL((__bridge CFURLRef)url, &reader) != noErr) continue;
+        AudioStreamBasicDescription parsed = {0};
+        UInt32 size = sizeof(parsed);
+        ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileDataFormat, &size, &parsed);
+        NSMutableData *layout = nil;
+        if (ExtAudioFileGetPropertyInfo(reader, kExtAudioFileProperty_FileChannelLayout, &size, NULL) == noErr && size > 0) {
+            layout = [NSMutableData dataWithLength:size];
+            ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileChannelLayout, &size, layout.mutableBytes);
+            const AudioChannelLayout *stated = layout.bytes;
+            if (!stated->mChannelLayoutTag && !stated->mChannelBitmap && !stated->mNumberChannelDescriptions) layout = nil;
+        }
+        ExtAudioFileDispose(reader);
+        if ([@[@"mp3-in.wav", @"mp2-in.wav"] containsObject:name]) {
+            XCTAssertEqualObjects(file.decoderName, @"dr_mp3", @"%@ goes to the parser", name);
+            continue;
+        }
+        if (parsed.mFormatID != kAudioFormatFLAC && parsed.mSampleRate > 384000) { // dr_wav's DRWAV_MAX_SAMPLE_RATE
+            XCTAssertEqualObjects(file.decoderName, @"apple", @"%@, past dr_wav's rates, goes to the parser", name);
+            continue;
+        }
+        XCTAssertTrue([file.decoderName hasPrefix:@"dr_"], @"%@ opened with %@", name, file.decoderName);
+        const AudioStreamBasicDescription *ours = file.fileFormat.streamDescription;
+        XCTAssertEqual(ours->mSampleRate, parsed.mSampleRate, @"%@", name);
+        XCTAssertEqual(ours->mFormatID, parsed.mFormatID, @"%@", name);
+        XCTAssertEqual(ours->mFormatFlags, parsed.mFormatFlags, @"%@", name);
+        XCTAssertEqual(ours->mBytesPerPacket, parsed.mBytesPerPacket, @"%@", name);
+        XCTAssertEqual(ours->mFramesPerPacket, parsed.mFramesPerPacket, @"%@", name);
+        XCTAssertEqual(ours->mBytesPerFrame, parsed.mBytesPerFrame, @"%@", name);
+        XCTAssertEqual(ours->mChannelsPerFrame, parsed.mChannelsPerFrame, @"%@", name);
+        XCTAssertEqual(ours->mBitsPerChannel, parsed.mBitsPerChannel, @"%@", name);
+        if (parsed.mChannelsPerFrame > 2) {
+            // Nil where CoreAudio has no fold for a layout, and the bus keeps the first channels.
+            NSData *theirs = VibeStereoFold(layout.bytes, parsed.mChannelsPerFrame);
+            XCTAssertEqualObjects(VibeStereoFold(file.processingFormat.channelLayout.layout, parsed.mChannelsPerFrame), theirs, @"%@ folds to stereo as CoreAudio's layout does", name);
+            wide += theirs != nil;
+        }
+        compared++;
+    }
+    XCTAssertGreaterThan(compared, 80u);
+    XCTAssertGreaterThan(wide, 15u);
+}
 // The parser open is the metadata fallback's, so a row never reads as a file
 // playback refuses. The second half is the canary: once CoreAudio reports the
 // length, re-check its decode and lift the refusal (AudioFileHandle.m).
@@ -563,6 +629,26 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     uint8_t *streaminfo = (uint8_t *)flac.mutableBytes + 8;
     streaminfo[13] &= 0xF0;
     memset(streaminfo + 14, 0, 4);
+}
+// A fixed block size stream's frames are placed by their number times the
+// block size. dr_flac takes the size from the first frame's header, not
+// STREAMINFO's minimum, which damage can make anything. With the minimum at 1
+// the file still decodes whole and seeks exactly, with its length stated and
+// with it left unknown.
+- (void)testDrFLACPlacesFramesByTheFirstFramesBlockSize {
+    NSURL *url = [self optionalFixture:@"flac-block16.flac"];
+    NSData *reference = [self readToEnd:[self open:url decoder:@"dr_flac"]];
+    for (NSNumber *unknown in @[@NO, @YES]) {
+        NSMutableData *flac = [[NSData dataWithContentsOfURL:url] mutableCopy];
+        uint8_t *streaminfo = (uint8_t *)flac.mutableBytes + 8;
+        streaminfo[0] = 0;
+        streaminfo[1] = 1; // the minimum block size, which is 16
+        if (unknown.boolValue) [self clearLengthOfFLAC:flac];
+        NSString *name = unknown.boolValue ? @"minimum block 1, length unknown" : @"minimum block 1";
+        AudioFileHandle *file = [self open:[self writeBytes:flac name:[name stringByAppendingString:@".flac"]] decoder:@"dr_flac"];
+        XCTAssertEqualObjects([self readToEnd:file], reference, @"%@", name);
+        [self assertSeeksOf:file match:reference block:16 name:name];
+    }
 }
 // Exercise empty residual partitions, large Rice orders and 33-bit side
 // channels. Unknown-length variants must find the last valid frame.
@@ -934,8 +1020,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // describes as 16-bit, made from a big-endian one by swapping each sample:
 // dr_wav decodes the same samples, and the file's description carries their
 // width. The depth report and bit-perfect output's depth check honor all of it.
-// A WAV's 20-bit sample in 3 bytes, which the two agree on, keeps the parser's
-// description.
+// A WAV's 20-bit sample in 3 bytes is described as the parser describes it.
 - (void)testDrWAVDescribesSowtAtItsWidth {
     self.continueAfterFailure = YES;
     for (NSString *name in @[@"aifc-BEI24.aif", @"aifc-BEI32.aif"]) {

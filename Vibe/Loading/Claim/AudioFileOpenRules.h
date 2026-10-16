@@ -61,6 +61,9 @@ static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
 // of 128 kbps audio. A 32nd of the file then holds the index of any AAC at
 // 43 kbps or more. In an AIFF, a WAV, a W64, or a CAF it is any chunk after
 // the audio, most often a tag with its cover (235 KB on a measured AIFF).
+// dr_wav's open of a WAV or W64 stops at the data chunk. A file dr_wav
+// refuses, such as MP3 in a WAV, goes to CoreAudio's parser. That parser
+// walks to the end.
 // The floor is about twice that, and room for a short track's moov with its
 // cover. The cap is a two-hour mix's 1.2 MB with a quarter's headroom,
 // reached from 48 MB. A longer index-last M4A, or a larger chunk on a shorter
