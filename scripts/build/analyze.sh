@@ -89,9 +89,14 @@ if [[ "$LEG" == "macos" || "$LEG" == "all" ]]; then
     analyze_scheme Vibe macos
 fi
 if [[ "$LEG" == "ios" || "$LEG" == "all" ]]; then
+    # No app icon. Rendering the Icon Composer icon for the simulator waits on
+    # a simulator service, up to 100 seconds on a fresh CI runner. Analysis
+    # reads no icon.
     analyze_scheme VibeiOS ios \
         -destination 'generic/platform=iOS Simulator' \
-        CODE_SIGNING_ALLOWED=NO
+        CODE_SIGNING_ALLOWED=NO \
+        ASSETCATALOG_COMPILER_APPICON_NAME= \
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=NO
 fi
 
 case "$LEG" in
