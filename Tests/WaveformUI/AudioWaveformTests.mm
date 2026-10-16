@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <random>
 #include <vector>
 
 @interface AudioWaveformTests : XCTestCase
@@ -754,6 +755,89 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     auto whole = VibeTestSteadyWaveform(8192, {-0.1f, 0.1f, 0.01f});
     XCTAssertTrue(whole->isComplete());
     XCTAssertEqualWithAccuracy(VibeTestFullScaleRMS(whole.get(), YES), 0.1f, 1e-6);
+}
+
+#pragma mark - Stability
+
+// Stationary noise, 64 frames a bin: no rhythm, so any change a resize makes
+// beyond the content's own stretch is the renderer's.
+static std::unique_ptr<AudioWaveform> VibeNoiseWaveform(bool bands) {
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<float> peak(0.2f, 0.9f);
+    std::vector<VibeTestBin> bins(65536);
+    std::vector<std::array<float, 3>> bandLevels;
+    for (VibeTestBin &bin : bins) {
+        float level = peak(rng);
+        bin = {-level * peak(rng), level, level * level * 0.25f};
+        if (bands) {
+            bandLevels.push_back({bin.meanSquare * 0.7f, bin.meanSquare * 0.2f * peak(rng), bin.meanSquare * 0.1f});
+        }
+    }
+    return VibeTestWaveform(bins, bandLevels, true, 64);
+}
+
+// A picture's ink per pixel column, the alpha it lays down.
+static std::vector<double> VibeColumnInk(const VibeTestPicture &picture) {
+    std::vector<double> ink(picture.width, 0);
+    for (size_t row = 0; row < picture.height; row++) {
+        for (size_t x = 0; x < picture.width; x++) ink[x] += picture.alpha(x, row) / 255.0;
+    }
+    return ink;
+}
+
+// The mean change of the ink from each width to the next, on a common time
+// axis, as a share of the mean ink. One point a step, at 2x, as a live
+// resize goes.
+- (double)resizeChangeForStyle:(NSString *)style picture:(VibeTestPicture (^)(WaveformRenderer *))picture {
+    auto waveform = VibeNoiseWaveform([WaveformRendererRegistry readsBandsForIdentifier:style]);
+    WaveformRenderer *renderer = [self rendererForStyle:style];
+    renderer.parentLayer.contentsScale = 2;
+    const int samples = 4096;
+    std::vector<std::vector<double>> axes;
+    double meanInk = 0;
+    for (CGFloat width = 700; width <= 720; width += 1) {
+        CGRect bounds = CGRectMake(0, 0, width, 60);
+        renderer.parentLayer.bounds = bounds;
+        [renderer updateWaveform:bounds progress:1 waveform:waveform.get()];
+        [renderer settleMorphImmediately];
+        std::vector<double> ink = VibeColumnInk(picture(renderer));
+        std::vector<double> axis(samples);
+        for (int j = 0; j < samples; j++) {
+            double u = (j + 0.5) / samples * ink.size() - 0.5;
+            size_t left = (size_t)std::clamp(std::floor(u), 0.0, (double)ink.size() - 1);
+            size_t right = std::min(left + 1, ink.size() - 1);
+            double t = std::clamp(u - (double)left, 0.0, 1.0);
+            axis[(size_t)j] = ink[left] * (1 - t) + ink[right] * t;
+            meanInk += axis[(size_t)j];
+        }
+        axes.push_back(axis);
+    }
+    meanInk /= (double)(axes.size() * samples);
+    double change = 0;
+    for (size_t w = 0; w + 1 < axes.size(); w++) {
+        for (int j = 0; j < samples; j++) change += std::fabs(axes[w][(size_t)j] - axes[w + 1][(size_t)j]);
+    }
+    return change / (double)((axes.size() - 1) * samples) / meanInk;
+}
+
+// What the zoom steps are for: a resize moves little ink. Before them,
+// Detailed moved about 0.024 of it a step, through a comb that slid with the
+// width, and Normalize's reference breathed with the bar count. Each ceiling
+// is about 1.6 times what the style moves now.
+- (void)testAResizeMovesLittleInk {
+    VibeTestPicture (^mask)(WaveformRenderer *) = ^VibeTestPicture(WaveformRenderer *renderer) {
+        return VibePictureOf(VibeMaskLayer(renderer));
+    };
+    VibeTestPicture (^bands)(WaveformRenderer *) = ^VibeTestPicture(WaveformRenderer *renderer) {
+        return VibePictureOf(renderer.parentLayer.sublayers.firstObject.sublayers.firstObject.sublayers.firstObject);
+    };
+    NSDictionary<NSString *, NSNumber *> *ceilings = @{@"detailed": @0.008, @"oversampling_detailed_x4": @0.02,
+                                                       @"three_band": @0.001};
+    for (NSString *style in ceilings) {
+        double change = [self resizeChangeForStyle:style picture:[style isEqualToString:@"three_band"] ? bands : mask];
+        XCTAssertGreaterThan(change, 0, @"%@ drew nothing", style);
+        XCTAssertLessThan(change, ceilings[style].doubleValue, @"%@", style);
+    }
 }
 
 #pragma mark - 3-Band
