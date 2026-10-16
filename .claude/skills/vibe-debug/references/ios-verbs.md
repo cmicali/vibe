@@ -1,6 +1,6 @@
 # iOS channel and touch-driver verbs
 
-The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` gestures, per-session simulators and the build lock, and iPad. The shared verbs in `references/mac-verbs.md` (`play_index`, `check_consistency`, `dump_stats`, `dump_metadata_progress`, the cloud and loading verbs, `work_tally`) answer here too. `SKILL.md`'s "iOS: the simulator loop" carries the rules and traps.
+The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` gestures, per-session simulators and the build lock, and iPad. The shared verbs in `references/mac-verbs.md` (`play_index`, `check_consistency`, `dump_health`, `quiesce`, `clear_render_counters`, `block_player`, `scan_bpm`, `set_loading`, `dump_stats`, `dump_metadata_progress`, the cloud and loading verbs, `work_tally`) answer here too. `dump_health`'s `ui` block counts every scene's windows and has no `trackingAreas`. Its `app` and `pending` blocks lack the mac shell's `tableRows`, `canUndo`, `canRedo`, `openResultsBuffered` and `openBurstQueued`. `quiesce` closes through the model's `clearPlaylist`. `scan_bpm` takes a path inside the container, since there is no CLI client. `set_loading` draws the bound page's indicator. `SKILL.md`'s "iOS: the simulator loop" carries the rules and traps.
 
 ## The channel
 
@@ -25,6 +25,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" check_waveform_preparation refresh  # refresh|transition|interaction|color: live regressions for page waveforms; {ok, measured checks}
 "$S" set_waveform_zoom 0.12  # the DJ zoom (0-1 = fraction of the track visible) through the released-pinch callback. {waveformZoomRequested, waveformZoomEffective} differ when the layout cannot draw the depth asked
 "$S" set_waveform_style wiggle_centered  # {ok, waveformStyle}: the persisted identifier, never the display name; an unknown one lists the valid set. Wiggle is `wiggle_centered` whether Centered is on or off; Centered reads back as settings.waveformCentered
+# The mac verbs with no iOS counterpart drive mac-only features: the window, menus, Settings window, themes and appearance, raw input, output devices and bit-perfect, the pitch fader and key analysis, folder art, FLAC conversion, the playlist table's selection, reorder and undo, the skip buttons and the keyboard's FX sends (iOS has set_fx_pad), shortcuts, and the Save Debug Info report.
 "$S" set_fx_pad 0.8 0.5  # the FX pad's position through the model (x: reverb, then delay past 0.5; y: the low cut's cutoff), or `set_fx_pad off`. Replies {ok, fx}. dump_state.fx is the FX intent per stage (intent, enabled, active, gateTarget), delayTapBPM and unitRenders. ui.fxPadShown follows settings.audioFXEnabled; ui.fxPadEngaged is a finger on a pad
 "$S" set_output_route airplay "Living Room"  # draws the route indicator as any kind (none|speaker|receiver|wired|bluetooth|airplay|carplay|other), model untouched. A page reconfigure or real route event overwrites it, so set it just before the check
 "$S" select_tab playlist # or favorites, files, search

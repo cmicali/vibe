@@ -57,24 +57,6 @@ void VibeInstallDebugScreenshotHook(void);
 // main queue.
 void VibeInstallDebugCommandHook(void);
 
-// The cores of `scan_bpm` and `scan_key`, in DebugBPMScan.mm (ObjC++, for the
-// waveform mono mix). Each decodes the file and runs its analyzer in the
-// calling process, returning one JSON object with a timing split:
-// {"ok","bpm"} where bpm 0 means no confident tempo, {"ok","key","camelot",
-// "index"} where empty names and index -1 mean no confident key, or {"error"}.
-//
-// They touch no app state, so the CLI client runs these verbs locally: they
-// work with no app running and never touch a running instance. The
-// command-table entries run the same functions app-side for callers that
-// post the command file directly.
-//
-// Sandbox: the running app reads only paths it has been granted, and the
-// direct-exec'd client only its container. So scan-bpm.sh and scan-key.sh
-// stream the file through stdin (`scan_bpm -`) and the client stages it in
-// the container tmp.
-NSString *VibeDebugBPMScanJSON(NSString *rawPath);
-NSString *VibeDebugKeyScanJSON(NSString *rawPath);
-
 // The client side, in DebugClient.m. main() invokes it for
 // `Vibe --debug-cmd ...` before NSApplicationMain, so no second app instance
 // ever starts. Returns the process exit code: 0 ok, 1 no response or I/O

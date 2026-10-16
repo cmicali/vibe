@@ -243,6 +243,15 @@
                  @"immediateWaveform": @(immediate), @"playbackStateKept": @(stateKept)});
 }
 
+- (void)debugSetWaveformLoading:(BOOL)shown fraction:(float)fraction {
+    if (!shown) {
+        [_waveformView hideLoadingIndicator];
+        return;
+    }
+    [_waveformView showLoadingIndicator];
+    [_waveformView setLoadingProgress:fraction];
+}
+
 - (void)debugSetWaveformZoom:(CGFloat)fraction {
     if (!_waveformView) {
         return;     // no page bound: nothing to clamp the value against
