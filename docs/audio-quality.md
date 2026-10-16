@@ -89,7 +89,7 @@ Vibe decodes MP3, MP2 and MP1 with dr_mp3 by default, on both platforms. On the 
 **Why:** on Apple silicon, Apple's MP3 decoder only makes 16-bit samples. That costs three things:
 
 - **Quiet passages lose detail.** Rounding to 16 bits adds a thin layer of noise. On loud music it's far below hearing. On a passage at −70 dB, Apple's error sits only 31 dB below the music. Vibe's sits 127 dB below.
-- **Loud masters lose their peaks.** A loud master decodes a little past full scale. Apple's decoder clipped 36,188 samples of the 20-second test master. Vibe keeps them, up to +0.93 dB. Vibe's volume, effects or resampler can then bring them down cleanly.
+- **Loud masters lose their peaks.** A loud master decodes a little past full scale. Apple's decoder clipped 36,188 samples of the 20-second test master. Vibe keeps them, up to +0.93 dB. Vibe's own volume control (macOS, off by default) can then lower them cleanly. At full volume, an integer output format still clips them. Resampling can make them higher.
 - **Some songs lose their last moment.** In an MP3 without gapless info, the last 529 samples (about 12 ms) come from the decoder emptying itself. Apple's decoder makes them silent. Vibe plays them. If the music runs to the very end of the file, Apple's version ends with a small click.
 
 On an Intel Mac, Apple's decoder keeps the quiet detail, but the other two costs remain. Vibe's decoder also uses less than half the CPU. dr_mp3 is one header file under a permissive license, and it needs no extra toolchain.
