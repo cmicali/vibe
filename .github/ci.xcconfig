@@ -1,0 +1,7 @@
+// Every xcodebuild in CI reads this file through XCODE_XCCONFIG_FILE
+// (.github/workflows/build.yml). It turns on Xcode's compilation cache and
+// keeps it in one store under build/, which the compilation-cache action
+// carries between runs. A cached compile or analysis replays its diagnostics,
+// so a warning or an analyzer finding is reported on a hit as on a miss.
+COMPILATION_CACHE_ENABLE_CACHING = YES
+COMPILATION_CACHE_CAS_PATH = $(SRCROOT)/build/CompilationCache

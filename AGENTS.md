@@ -25,7 +25,7 @@ A CUE sheet, beside its files or embedded in a FLAC, plays as rows. Each row is 
 | --- | --- |
 | `make help` | Every target, with the first sentence of its comment. |
 | `make build [CONFIG=Debug]` | macOS app; Release by default, into `build/DerivedData`. |
-| `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. With `CONFIG=Debug`, exactly CI's iOS Debug build. |
+| `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. |
 | `make install-ios [CONFIG=Debug]` | iOS app onto a paired device, signed. `DEVICE=<name or id>` when more than one is paired. |
 | `make run` / `make install` | Launch; copy into `/Applications`. |
 | `make compile-commands` | Writes `compile_commands.json`, which clangd, CLion and clang-tidy read. It covers both apps and `VibeTests`, Debug. Rerun it after adding a file. |
@@ -194,4 +194,4 @@ Playback diagnostics are in `Audio/AGENTS.md`, hardware observation in `Audio/Ma
   - Build a PR branch in its own worktree (`git worktree add .claude/worktrees/<name> -b <branch> origin/main`, gitignored), so the main checkout stays on `main`.
   - For a long loop over a built test bundle, copy it out of `build/` first.
 - **Never post to a GitHub issue or PR thread without asking first, every time.** The threads are public, and the maintainer is the voice in them. Draft the comment in chat and wait. An approval covers that one post. Filing a new issue is confirmed first too. Reading and analysis need no approval.
-- **Intel Macs get correctness and nothing more.** CI builds the x86_64 slice but runs no x86 tests. When an x86_64 or Rosetta difference turns up, make the tests and docs right with arch-guarded assertions and a scoped sentence. Apple's MP3 decoder is one example: 16-bit on arm64, float32 on x86_64 (`docs/audio-quality.md`). Add no Intel-only features, benchmarks, chart redraws or CI legs unless asked.
+- **Intel Macs get correctness and nothing more.** CI compiles the x86_64 slice in its AppStore build. It runs no x86 tests. When an x86_64 or Rosetta difference turns up, make the tests and docs right with arch-guarded assertions and a scoped sentence. Apple's MP3 decoder is one example: 16-bit on arm64, float32 on x86_64 (`docs/audio-quality.md`). Add no Intel-only features, benchmarks, chart redraws or CI legs unless asked.

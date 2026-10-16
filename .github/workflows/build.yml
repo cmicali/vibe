@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+# Turns on Xcode's compilation cache for every xcodebuild in a job.
+env:
+  XCODE_XCCONFIG_FILE: ${{ github.workspace }}/.github/ci.xcconfig
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -56,9 +60,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/checks/check-translations.sh --github
 
-  # Keep four macOS jobs to limit runner contention. Text-only checks use Linux.
-  # Analyze Release: findings can depend on the configuration.
-  analyze-macos:
+  # Three macOS jobs: the free plan runs five macOS jobs at once, and a pull
+  # request's run often overlaps its merge's run. Text-only checks use Linux.
+  # Each job keeps its own compilation cache (.github/ci.xcconfig), restored
+  # from main's last run and saved only by main, so a pull request compiles
+  # little more than the files it changed. Analyze Release: findings can
+  # depend on the configuration.
+  macos:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
@@ -73,39 +81,6 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-version --sdk macosx
 
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Build Release and analyze (macOS)
-        run: scripts/build/analyze.sh Release macos
-
-      - name: Verify code signature
-        run: |
-          codesign --verify --deep --strict --verbose=2 \
-            build/AnalyzeDD/Build/Products/Release/Vibe.app
-
-  analyze-ios:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Build Release and analyze (iOS)
-        run: scripts/build/analyze.sh Release ios
-
-  build-and-check:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
-
-    steps:
-      - uses: actions/checkout@v7
-
       - name: Check string catalog is in sync
         run: make check-strings
 
@@ -116,23 +91,70 @@ jobs:
       - uses: ./.github/actions/setup-xcodegen
         if: ${{ !cancelled() }}
 
-      - name: Build AppStore and check it has no updater
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        if: ${{ !cancelled() }}
+        with:
+          job: macos
+
+      - name: Build Release and analyze (macOS)
+        if: ${{ !cancelled() }}
+        run: scripts/build/analyze.sh Release macos
+
+      - name: Verify code signature
         if: ${{ !cancelled() }}
         run: |
-          make build CONFIG=AppStore ARGS='ARCHS=arm64'
+          codesign --verify --deep --strict --verbose=2 \
+            build/AnalyzeDD/Build/Products/Release/Vibe.app
+
+      # x86_64: the analyze build above is arm64, so this one compiles the
+      # Intel slice. The no-updater check reads no architecture.
+      - name: Build AppStore (x86_64) and check it has no updater
+        if: ${{ !cancelled() }}
+        run: |
+          make build CONFIG=AppStore ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
           PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
             asc_require_no_updater build/DerivedData/Build/Products/AppStore/Vibe.app'
 
-      - name: Build Debug (iOS, simulator)
-        if: ${{ !cancelled() }}
-        run: make build-ios CONFIG=Debug
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CompilationCache
+          key: ${{ steps.cache.outputs.key }}
 
-      # Hosted in the Debug app on a simulator. Here, beside the iOS build,
-      # to keep four macOS jobs, and in its derived data, so the app it just
-      # built is the one the tests run in.
+  ios:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      IOS_TEST_DEVICE: iPhone 17
+
+    steps:
+      # A runner's first boot takes minutes. It runs while the analyze build
+      # compiles, and the tests wait for it below.
+      - name: Start booting the test simulator
+        run: xcrun simctl boot "$IOS_TEST_DEVICE"
+
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: ios
+
+      - name: Build Release and analyze (iOS)
+        run: scripts/build/analyze.sh Release ios
+
+      # The Debug app the tests are hosted in, built on the way, is the
+      # check that catches an AppKit leak into a shared directory.
       - name: Run iOS shell tests (simulator)
         if: ${{ !cancelled() }}
-        run: make test-ios IOS_DERIVED_DATA=build/DerivedData
+        run: |
+          xcrun simctl bootstatus "$IOS_TEST_DEVICE"
+          make test-ios
 
       - name: iOS test summary
         if: always()
@@ -147,6 +169,12 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CompilationCache
+          key: ${{ steps.cache.outputs.key }}
+
   test:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -158,14 +186,15 @@ jobs:
 
       - uses: ./.github/actions/setup-xcodegen
 
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: test
+
       - name: Install fixture encoder
         run: brew install ffmpeg
 
-      - name: Build Debug (macOS, x86_64)
-        run: make build CONFIG=Debug ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
-
       - name: Run unit and audio tests
-        if: ${{ !cancelled() }}
         run: make -k -j3 test test-audio COVERAGE=1
 
       - name: Test summary
@@ -193,3 +222,9 @@ jobs:
           path: build/AudioTestResults.xcresult
           retention-days: 7
           if-no-files-found: ignore
+
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CompilationCache
+          key: ${{ steps.cache.outputs.key }}
