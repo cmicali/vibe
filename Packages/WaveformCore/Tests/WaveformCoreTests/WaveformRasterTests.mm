@@ -31,34 +31,37 @@ static uint32_t VibeAlpha(uint32_t pixel) {
 - (void)testASpanCoversEachRowByItsPart {
     ColumnCoverage column(10);
     // y-up 2.25 to 4.75: rows from the top 5.25 to 7.75.
-    column.addSpan(2.25, 4.75, 1);
-    XCTAssertEqualWithAccuracy(column.at(4), 0, 1e-6);
-    XCTAssertEqualWithAccuracy(column.at(5), 0.75, 1e-6);
-    XCTAssertEqualWithAccuracy(column.at(6), 1, 1e-6);
-    XCTAssertEqualWithAccuracy(column.at(7), 0.75, 1e-6);
-    XCTAssertEqualWithAccuracy(column.at(8), 0, 1e-6);
+    column.addSpan(1, 2.25, 4.75, 1);
+    XCTAssertEqualWithAccuracy(column.at(1, 4), 0, 1e-6);
+    XCTAssertEqualWithAccuracy(column.at(1, 5), 0.75, 1e-6);
+    XCTAssertEqualWithAccuracy(column.at(1, 6), 1, 1e-6);
+    XCTAssertEqualWithAccuracy(column.at(1, 7), 0.75, 1e-6);
+    XCTAssertEqualWithAccuracy(column.at(1, 8), 0, 1e-6);
+    XCTAssertEqual(column.at(0, 6), 0, @"each lane is its own column");
     // Inside one row, and clipped at both ends.
-    column.addSpan(9.1, 9.4, 1);
-    XCTAssertEqualWithAccuracy(column.at(0), 0.3, 1e-6);
+    column.addSpan(1, 9.1, 9.4, 1);
+    XCTAssertEqualWithAccuracy(column.at(1, 0), 0.3, 1e-6);
     ColumnCoverage clipped(4);
-    clipped.addSpan(-5, 50, 0.5f);
-    for (int r = 0; r < 4; r++) XCTAssertEqualWithAccuracy(clipped.at(r), 0.5, 1e-6);
+    clipped.addSpan(0, -5, 50, 0.5f);
+    for (int r = 0; r < 4; r++) XCTAssertEqualWithAccuracy(clipped.at(0, r), 0.5, 1e-6);
     clipped.clear();
-    XCTAssertEqual(clipped.at(2), 0);
+    XCTAssertEqual(clipped.at(0, 2), 0);
 }
 
 // Premultiplied white, clamped, and in the row order the stride asks for.
 - (void)testTheMaskIsClampedWhiteInEitherRowOrder {
     ColumnCoverage column(3);
-    column.addSpan(2, 3, 2);
-    column.addSpan(1, 2, 0.5f);
-    uint32_t pixels[3] = {};
-    column.writeMask(pixels, 1);
-    XCTAssertEqual(pixels[0], 0xffffffffu);
-    XCTAssertEqual(pixels[1], 0x80808080u);
-    XCTAssertEqual(pixels[2], 0u);
+    column.addSpan(0, 2, 3, 2);
+    column.addSpan(0, 1, 2, 0.5f);
+    column.addSpan(1, 0, 3, 1);
+    uint32_t pixels[3][2] = {};
+    column.writeMask(&pixels[0][0], 2, 2);
+    XCTAssertEqual(pixels[0][0], 0xffffffffu);
+    XCTAssertEqual(pixels[1][0], 0x80808080u);
+    XCTAssertEqual(pixels[2][0], 0u);
+    for (int r = 0; r < 3; r++) XCTAssertEqual(pixels[r][1], 0xffffffffu, @"the second column, row %d", r);
     uint32_t flipped[3] = {};
-    column.writeMask(flipped + 2, -1);
+    column.writeMask(flipped + 2, -1, 1);
     XCTAssertEqual(flipped[0], 0u);
     XCTAssertEqual(flipped[1], 0x80808080u);
     XCTAssertEqual(flipped[2], 0xffffffffu);
@@ -153,8 +156,10 @@ static uint32_t VibeAlpha(uint32_t pixel) {
         ColumnCoverage column(40);
         for (int x = 0; x < 300; x++) {
             column.clear();
-            wavecore::ForEachColumnShare(x, fpp, part, [&](size_t i, float share) { column.addSpan(0, tops[i], share); });
-            column.writeMask(&pixels[size_t(x)], 300);
+            wavecore::ForEachColumnShare(x, fpp, part, [&](size_t i, float share) {
+                column.addSpan(0, 0, tops[i], share);
+            });
+            column.writeMask(&pixels[size_t(x)], 300, 1);
         }
         return pixels;
     };

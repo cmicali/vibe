@@ -121,35 +121,38 @@ inline ColumnPair ColumnPairAroundFrame(double frame, const StepPart &part) {
     return ColumnPairAroundFrame(frame, part.framesPerColumn(), part.first, part.count);
 }
 
-// One pixel column's coverage, accumulated exactly: a partly covered row by
-// its part. Spans arrive y-up, 0 at the column's bottom. A span costs its two
-// ends whatever its height. Coverage can exceed 1 until it is written.
+// Up to kLanes neighbouring pixel columns' coverage, accumulated exactly: a
+// partly covered row by its part. Spans arrive y-up, 0 at a column's bottom.
+// A span costs its two ends whatever its height. Coverage can exceed 1 until
+// it is written. The columns' rows are written together, one store a row.
 class ColumnCoverage {
 public:
+    static constexpr int kLanes = 4;
+
     explicit ColumnCoverage(int height);
 
     void clear();
-    // [bottom, top] in y-up pixels, times weight.
-    void addSpan(double bottom, double top, float weight);
-    // The coverage of a row, from the top, unclamped.
-    float at(int rowFromTop) const;
-    // Each covered row from the top, clamped to 0...1, as premultiplied
-    // white: 32-bit ARGB in host order. A row no span covers is left as out
-    // held it, so out starts cleared. out steps rowStride pixels a row, so a
-    // negative stride writes bottom-up.
-    void writeMask(uint32_t *out, ptrdiff_t rowStride);
+    // Column lane's [bottom, top] in y-up pixels, times weight.
+    void addSpan(int lane, double bottom, double top, float weight);
+    // Column lane's coverage of a row, from the top, unclamped.
+    float at(int lane, int rowFromTop) const;
+    // Columns [0, lanes)' covered rows from the top, clamped to 0...1, as
+    // premultiplied white: 32-bit ARGB in host order. A row no span covers is
+    // left as out held it, so out starts cleared. out is column 0's top row,
+    // rowStride pixels a row, so a negative stride writes bottom-up.
+    void writeMask(uint32_t *out, ptrdiff_t rowStride, int lanes);
 
 private:
-    // Full rows as a difference array, partial rows directly. Coverage
-    // changes only at the rows the spans touched, a bit each, so a mask walks
-    // those in order and fills the runs between them, and a clear resets only
-    // them.
+    // Full rows as a difference array, partial rows directly, a row's lanes
+    // together. Coverage changes only at the rows the spans touched, a bit
+    // each, so a mask walks those in order and fills the runs between them,
+    // and a clear resets only them.
     void touch(int row) { touched_[size_t(row) >> 6] |= uint64_t(1) << (row & 63); }
     template <typename Visit> void forEachTouched(Visit visit) const;
 
     int height_;
-    std::vector<float> steps_;      // height + 1
-    std::vector<float> partial_;    // height
+    std::vector<float> steps_;      // (height + 1) × kLanes
+    std::vector<float> partial_;    // height × kLanes
     std::vector<uint64_t> touched_; // a bit a row, height + 1
 };
 

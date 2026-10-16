@@ -5,9 +5,12 @@
 
 #include "WaveformRaster.hpp"
 
+#include <simd/simd.h>
+
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
+#include <cstring>
 #include <iterator>
 
 namespace wavecore {
@@ -83,8 +86,8 @@ uint32_t Byte(float value) {
 }  // namespace
 
 ColumnCoverage::ColumnCoverage(int height)
-        : height_(std::max(0, height)), steps_(size_t(height_) + 1, 0.0f), partial_(size_t(height_), 0.0f),
-          touched_((size_t(height_) + 64) / 64, 0) {}
+        : height_(std::max(0, height)), steps_((size_t(height_) + 1) * kLanes, 0.0f),
+          partial_(size_t(height_) * kLanes, 0.0f), touched_((size_t(height_) + 64) / 64, 0) {}
 
 // Ascending, each row once.
 template <typename Visit>
@@ -98,15 +101,15 @@ void ColumnCoverage::forEachTouched(Visit visit) const {
 
 void ColumnCoverage::clear() {
     forEachTouched([&](int r) {
-        steps_[size_t(r)] = 0;
+        std::fill_n(&steps_[size_t(r) * kLanes], kLanes, 0.0f);
         if (r < height_) {
-            partial_[size_t(r)] = 0;
+            std::fill_n(&partial_[size_t(r) * kLanes], kLanes, 0.0f);
         }
     });
     std::fill(touched_.begin(), touched_.end(), 0);
 }
 
-void ColumnCoverage::addSpan(double bottom, double top, float weight) {
+void ColumnCoverage::addSpan(int lane, double bottom, double top, float weight) {
     if (!(top > bottom) || !(weight != 0)) {
         return;
     }
@@ -118,63 +121,82 @@ void ColumnCoverage::addSpan(double bottom, double top, float weight) {
     }
     int r0 = int(std::floor(y0)), r1 = int(std::floor(y1));
     if (r0 == r1) {
-        partial_[size_t(r0)] += weight * float(y1 - y0);
+        partial_[size_t(r0) * kLanes + size_t(lane)] += weight * float(y1 - y0);
         touch(r0);
         return;
     }
     int full0 = int(std::ceil(y0)), full1 = r1;
     if (double(full0) > y0) {
-        partial_[size_t(r0)] += weight * float(double(full0) - y0);
+        partial_[size_t(r0) * kLanes + size_t(lane)] += weight * float(double(full0) - y0);
         touch(r0);
     }
     if (full1 > full0) {
-        steps_[size_t(full0)] += weight;
-        steps_[size_t(full1)] -= weight;
+        steps_[size_t(full0) * kLanes + size_t(lane)] += weight;
+        steps_[size_t(full1) * kLanes + size_t(lane)] -= weight;
         touch(full0);
         touch(full1);
     }
     if (y1 > double(full1) && full1 < height_) {
-        partial_[size_t(full1)] += weight * float(y1 - double(full1));
+        partial_[size_t(full1) * kLanes + size_t(lane)] += weight * float(y1 - double(full1));
         touch(full1);
     }
 }
 
-float ColumnCoverage::at(int rowFromTop) const {
+float ColumnCoverage::at(int lane, int rowFromTop) const {
     if (rowFromTop < 0 || rowFromTop >= height_) {
         return 0;
     }
     float run = 0;
     for (int r = 0; r <= rowFromTop; r++) {
-        run += steps_[size_t(r)];
+        run += steps_[size_t(r) * kLanes + size_t(lane)];
     }
-    return run + partial_[size_t(rowFromTop)];
+    return run + partial_[size_t(rowFromTop) * kLanes + size_t(lane)];
 }
 
-void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride) {
-    // The same sums in the same order as a pass over every row: a row no span
-    // touched adds nothing to the run.
-    float run = 0;
+void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride, int lanes) {
+    static_assert(kLanes == 4, "a row's lanes are one simd_float4");
+    auto load = [](const float *at) {
+        simd_float4 value;
+        std::memcpy(&value, at, sizeof(value));
+        return value;
+    };
+    // Byte's rounding, a lane each.
+    auto pixels = [](simd_float4 value) {
+        return simd_uint(simd_clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f) * 0x01010101u;
+    };
+    size_t bytes = size_t(std::clamp(lanes, 0, kLanes)) * sizeof(uint32_t);
     int next = 0;
-    auto fill = [&](int end, float value) {
-        uint32_t pixel = Byte(value) * 0x01010101u;
-        if (pixel == 0) {
+    auto fill = [&](int end, simd_uint4 row) {
+        if (simd_reduce_max(row) == 0) {
             return;
         }
-        for (int r = next; r < end; r++) {
-            out[r * rowStride] = pixel;
+        uint32_t *at = out + ptrdiff_t(next) * rowStride;
+        if (bytes == sizeof(row)) {
+            for (int r = next; r < end; r++, at += rowStride) {
+                std::memcpy(at, &row, sizeof(row));
+            }
+        } else {
+            for (int r = next; r < end; r++, at += rowStride) {
+                std::memcpy(at, &row, bytes);
+            }
         }
     };
+    // The same sums in the same order as a pass over every row: a row no span
+    // touched adds nothing to a lane's run.
+    simd_float4 run = 0;
+    simd_uint4 between = 0;
     forEachTouched([&](int r) {
         if (r >= height_) {
             return;
         }
-        fill(r, run);
-        run += steps_[size_t(r)];
+        fill(r, between);
+        run += load(&steps_[size_t(r) * kLanes]);
         next = r;
-        fill(r + 1, run + partial_[size_t(r)]);
+        fill(r + 1, pixels(run + load(&partial_[size_t(r) * kLanes])));
         next = r + 1;
+        between = pixels(run);
     });
-    fill(height_, run);
+    fill(height_, between);
 }
 
 ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {

@@ -470,20 +470,23 @@ static const double kEnergyPixels = 4;
     const double perPixel[2] = {framesPerPixel / window.parts[0].framesPerColumn(),
                                 framesPerPixel / window.parts[1].framesPerColumn()};
     return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
-        wavecore::ColumnCoverage column(pixels.height);
-        for (int x = pixels.x0; x < pixels.x1; x++) {
-            column.clear();
-            for (int p = 0; p < 2; p++) {
-                float weight = window.weight(p);
-                size_t offset = window.offset(p);
-                if (weight > 0) {
-                    wavecore::ForEachColumnShare(x, perPixel[p], window.parts[p].first, window.parts[p].count,
-                                                 [&](size_t i, float share) {
-                        column.addSpan(bottoms[offset + i], tops[offset + i], weight * share);
-                    });
+        wavecore::ColumnCoverage columns(pixels.height);
+        for (int x0 = pixels.x0; x0 < pixels.x1; x0 += wavecore::ColumnCoverage::kLanes) {
+            int lanes = MIN(wavecore::ColumnCoverage::kLanes, pixels.x1 - x0);
+            columns.clear();
+            for (int lane = 0; lane < lanes; lane++) {
+                for (int p = 0; p < 2; p++) {
+                    float weight = window.weight(p);
+                    size_t offset = window.offset(p);
+                    if (weight > 0) {
+                        wavecore::ForEachColumnShare(x0 + lane, perPixel[p], window.parts[p].first,
+                                                     window.parts[p].count, [&](size_t i, float share) {
+                            columns.addSpan(lane, bottoms[offset + i], tops[offset + i], weight * share);
+                        });
+                    }
                 }
             }
-            column.writeMask(out + (x - pixels.x0), stride);
+            columns.writeMask(out + (x0 - pixels.x0), stride, lanes);
         }
     });
 }
@@ -497,18 +500,22 @@ static const double kEnergyPixels = 4;
     double pitch = size.width * pixels.scale / count;
     double barWidth = [self barWidthForWidth:size.width barCount:count] * pixels.scale;
     return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
-        wavecore::ColumnCoverage column(pixels.height);
-        for (int x = pixels.x0; x < pixels.x1; x++) {
-            column.clear();
-            long first = MAX(0L, (long)floor((x - barWidth) / pitch));
-            long end = MIN((long)count, (long)ceil((x + 1) / pitch));
-            for (long i = first; i < end; i++) {
-                double overlap = fmin(x + 1, i * pitch + barWidth) - fmax(x, i * pitch);
-                if (overlap > 0) {
-                    column.addSpan(bottoms[i], tops[i], (float)overlap);
+        wavecore::ColumnCoverage columns(pixels.height);
+        for (int x0 = pixels.x0; x0 < pixels.x1; x0 += wavecore::ColumnCoverage::kLanes) {
+            int lanes = MIN(wavecore::ColumnCoverage::kLanes, pixels.x1 - x0);
+            columns.clear();
+            for (int lane = 0; lane < lanes; lane++) {
+                int x = x0 + lane;
+                long first = MAX(0L, (long)floor((x - barWidth) / pitch));
+                long end = MIN((long)count, (long)ceil((x + 1) / pitch));
+                for (long i = first; i < end; i++) {
+                    double overlap = fmin(x + 1, i * pitch + barWidth) - fmax(x, i * pitch);
+                    if (overlap > 0) {
+                        columns.addSpan(lane, bottoms[i], tops[i], (float)overlap);
+                    }
                 }
             }
-            column.writeMask(out + (x - pixels.x0), stride);
+            columns.writeMask(out + (x0 - pixels.x0), stride, lanes);
         }
     });
 }
