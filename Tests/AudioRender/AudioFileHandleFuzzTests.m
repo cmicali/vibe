@@ -3,8 +3,8 @@
 //
 //  Malformed files through AudioFileHandle: open, read the facts, decode to the
 //  end, seek and decode again, close. Every decoder the handle chooses is fed:
-//  dr_wav, dr_flac, dr_mp3 and Apple's (AAC, ALAC, Vorbis, Opus, CAF, and MPEG
-//  when it is chosen). The sources are the generated fixtures, sliced to a few
+//  dr_wav, dr_flac, dr_mp3, libvorbis and Apple's (AAC, ALAC, Opus, CAF, and
+//  MPEG when it is chosen). The sources are the generated fixtures, sliced to a few
 //  hundred KB, plus a few written here that no encoder on the machine makes.
 //
 //  Seeded. The seed, the source and the mutator are in every failure message,
@@ -25,7 +25,7 @@
 //  |                                   | block sizes 16 to 65535, 705.6 kHz, 33-bit side channels   |         |            |         |
 //  | AudioFileHandleFuzzMPEGTests      | MP3, MP2, MPEG in WAV, each through dr_mp3 and Apple's     | 12      | 4          | 1.1     |
 //  | AudioFileHandleFuzzCoreAudioTests | AAC, ADTS, QuickTime, ALAC in MP4 and CAF, LPCM in CAF,    | 10      | 8          | 1.2     |
-//  |                                   | Ogg Vorbis, Opus, a WAV past dr_wav's 384 kHz              |         |            |         |
+//  |                                   | Ogg Vorbis (libvorbis), Opus, a WAV past dr_wav's 384 kHz  |         |            |         |
 //
 //  Iterations is how often each random mutator runs per source. A named shape
 //  runs once per source it applies to, whatever the count.

@@ -544,6 +544,17 @@ AUDIO_PY
         # is libopus, whose file declares the length it decodes to.
         encode lossy.ogg "$render_source" -c:a vorbis -strict -2
         [ -s "$render_dir/alias.oga" ] || { [ -s "$render_dir/lossy.ogg" ] && cp "$render_dir/lossy.ogg" "$render_dir/alias.oga"; }
+        # The same packets in 100 ms pages, near oggenc's size, where FFmpeg's muxer writes one-second pages. A
+        # streaming open reads the first audio page and the end, and in pages this size the two lie apart.
+        [ -s "$render_dir/lossy.ogg" ] && encode paged.ogg "$render_dir/lossy.ogg" -c:a copy -page_duration 100000
+        # 5.1 Vorbis with a tone in each channel, which libvorbis writes in Vorbis I's channel order. FFmpeg's own
+        # encoder is stereo only, so this needs a build with libvorbis. Without one, its test skips.
+        if [ ! -s "$render_dir/surround.ogg" ] && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libvorbis; then
+            ffmpeg_out "$render_dir/surround.ogg" -f lavfi -i sine=f=500:r=48000:d=2 -f lavfi -i sine=f=700:r=48000:d=2 \
+                -f lavfi -i sine=f=900:r=48000:d=2 -f lavfi -i sine=f=60:r=48000:d=2 -f lavfi -i sine=f=1300:r=48000:d=2 \
+                -f lavfi -i sine=f=1700:r=48000:d=2 -filter_complex '[0][1][2][3][4][5]amerge=inputs=6,aformat=channel_layouts=5.1' \
+                -c:a libvorbis
+        fi
         encode lossy.opus "$render_source" -c:a libopus -b:a 128k
         # FLAC in Ogg, which the handle refuses: CoreAudio decodes its first page only.
         encode ogg-flac.oga "$render_source" -c:a flac

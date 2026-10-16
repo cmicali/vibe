@@ -82,7 +82,9 @@ allowed_always='**/.DS_Store **/*.md Mac/** iOS/**'
 # re-added with per-file compilerFlags, not membership decisions; the .inc
 # filter tables are #included by r8brain's headers, never bundled. Sparkle is
 # prebuilt, excluded only to be re-added as the macOS target's framework.
-allowed_thirdparty='Sparkle/** **/*.xcprivacy **/*.txt **/LICENSE.MPL **/*.inc **/PINDiskCache.m **/PINMemoryCache.m **/r8bsrc.cpp **/pffft_double.c **/dr_mp3.c **/dr_flac.c **/dr_wav.c'
+# libogg and libvorbis are excluded only to be re-added as their C files
+# alone, so their headers stay out of the headermap.
+allowed_thirdparty='Sparkle/** **/*.xcprivacy **/*.txt **/LICENSE.MPL **/*.inc **/PINDiskCache.m **/PINMemoryCache.m **/r8bsrc.cpp **/pffft_double.c **/dr_mp3.c **/dr_flac.c **/dr_wav.c ogg/** vorbis/**'
 
 info_dir_for() {
     local t="$1" p

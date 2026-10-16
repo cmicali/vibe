@@ -52,8 +52,8 @@ static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
 // ahead of its download (a placeholder store's tail window); 0 for none. Every
 // open that reads past its head reads one region at the end (measured,
 // docs/future/streaming-any-source.md). An MP3's ID3v1 check reads 4–128 bytes,
-// an APE footer a few KB more, and a FLAC with no length 64 KB. 128 KB is twice
-// the largest. A container of chunks reads further. Its open walks every chunk
+// an APE footer a few KB more, and a FLAC with no length or an Ogg Vorbis file
+// 64 KB. 128 KB is twice the largest. A container of chunks reads further. Its open walks every chunk
 // header to the end, so the window must reach the last one. In an MP4 that is
 // the moov, which grows with the length: 4 bytes per 1024-sample AAC frame,
 // ~10 KB a minute (61 KB at 6 minutes, 608 KB at 60), against 960 KB a minute

@@ -193,6 +193,8 @@ targets:
           - "**/dr_mp3.c"                     # same
           - "**/dr_flac.c"                    # same
           - "**/dr_wav.c"                     # same
+          - "ogg/**"                          # libogg: re-added below as its C files alone
+          - "vorbis/**"                       # libvorbis: the same
         compilerFlags: &third-party-flags
           - "-Xclang"
           - "-analyzer-disable-all-checks"
@@ -235,6 +237,25 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
+      # libogg's framing and libvorbis's decoder, AudioFileHandle's Ogg Vorbis
+      # decoder: their C files alone, built as dr_flac is. Their headers stay
+      # out of the project. Xcode's headermap finds a header by its name from
+      # any target, and libvorbis's vorbisfile.h would answer for TagLib's.
+      # For the same reason libvorbis finds its "vorbis/codec.h" through
+      # -iquote, which is searched before the path that reaches TagLib's
+      # vorbis directory first.
+      - path: Vibe/ThirdParty/ogg
+        includes: ["*.c"]
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/vorbis/lib
+        includes: ["*.c"]
+        compilerFlags: &vorbis-flags
+          - "-O3"
+          - "-w"                              # vendored C, not ours to restyle
+          - "-Xclang"
+          - "-analyzer-disable-all-checks"
+          - "-iquote"
+          - "$(SRCROOT)/Vibe/ThirdParty/vorbis/include"
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -532,6 +553,8 @@ targets:
           - "**/dr_mp3.c"
           - "**/dr_flac.c"
           - "**/dr_wav.c"
+          - "ogg/**"
+          - "vorbis/**"
         # Same flags as the macOS target above; see the comment there.
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
@@ -546,6 +569,12 @@ targets:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/ogg
+        includes: ["*.c"]
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/vorbis/lib
+        includes: ["*.c"]
+        compilerFlags: *vorbis-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy
@@ -1055,6 +1084,12 @@ targetTemplates:
         compilerFlags: *dr-libs-flags
       - path: Vibe/ThirdParty/dr_wav/dr_wav.c
         compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/ogg
+        includes: ["*.c"]
+        compilerFlags: *dr-libs-flags
+      - path: Vibe/ThirdParty/vorbis/lib
+        includes: ["*.c"]
+        compilerFlags: *vorbis-flags
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
       - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens

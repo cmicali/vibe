@@ -14,7 +14,7 @@
 | The pitch fader's converter | Keep | It measures about −150 dB, the same float32 floor. |
 | Apple's AAC and ALAC decoders | Keep | AAC decodes to float and keeps overs. ALAC is lossless. FAAD2 is GPL. fdk-aac has license problems and no quality advantage. |
 | Apple's Opus decoder | Keep, and fix the gain | It decodes to float and handles pre-skip. See finding 2. |
-| Apple's Vorbis decoder | Replace | Its samples are accurate, but its timeline is wrong. See finding 1. |
+| Apple's Vorbis decoder | Replaced by libvorbis | Its samples are accurate, but its timeline is wrong. See finding 1. |
 
 **Apple's Opus and Vorbis decoders have no 16-bit trap.** Asked for their output formats (`kAudioCodecPropertySupportedOutputFormats`, as `testAppleMPEGDecodersOutputInt16OnlyOnArm64AndAACOutputsFloat` asks the MPEG and AAC decoders), both offer only 32-bit float on arm64. Their decodes of the test files below had 0.01% of samples on the 16-bit grid, the same as the source. Apple's Opus decode matched libopus's to −138 dB, with the same length.
 
@@ -31,13 +31,10 @@
 
 The 48 kHz files decode 128 frames shorter than Apple's own declared length. The 44.1 kHz file keeps its length. It ends with 128 frames from past the end of the audio. Those should have been trimmed.
 
-- **What a listener gets:** about 3 ms cut from the start of every track. On a gapless Vorbis album, every join skips 3 ms of the next track. At 44.1 kHz the track before the join also ends with 3 ms that should have been trimmed.
-- **Why the tests miss it:** `testOggVorbis` compares the player against `AudioFileHandle`'s own decode. That decode is Apple's. The shift is on both sides. `generate-test-audio.sh` makes `lossy.ogg` with ffmpeg's own encoder. Its files show the shift too.
-- **The fix:** vendor a Vorbis decoder. It would read the stream through the handle's callbacks in `AudioFileHandle+Stream.m`, as dr_flac and dr_wav do. CoreAudio's parser still answers the file's facts. libvorbis with vorbisfile (BSD) is the reference decoder. It trims and seeks to the exact granule. stb_vorbis (public domain, one file) fits the dr_ pattern better, but its seeking has a history of bugs that Vibe would then own.
-- **What the fix also removes:** iOS has no Vorbis decoder. Vorbis plays on macOS only. A vendored decoder plays it on both platforms. That removes a platform exception from the root `AGENTS.md`, `Common/PlayableExtensions` and `Audio/AGENTS.md`.
-- **The test to add:** decode a Vorbis fixture and align it against its source WAV. The shift must be 0 and the length must match.
+- **What a listener got:** about 3 ms cut from the start of every track. On a gapless Vorbis album, every join skipped 3 ms of the next track. At 44.1 kHz the track before the join also ended with 3 ms that should have been trimmed.
+- **Why the tests missed it:** `testOggVorbis` compared the player against `AudioFileHandle`'s own decode. That decode was Apple's. The shift was on both sides.
 
-Do not compensate by shifting Apple's decode 128 frames. The cause is Apple's and undocumented. It may differ with the block size.
+**Fixed.** libvorbis and libogg are vendored (`Vibe/ThirdParty/vorbis/`, `ogg/`) and decode Ogg Vorbis on both platforms, through the handle's callbacks in `AudioFileHandle+Stream.m`. CoreAudio's parser never opens a Vorbis file. So Vorbis now plays on iOS too. `testOggVorbisDecodesWhatTheFileHolds` checks the decode against the source and against Apple's decode moved by 128 frames. That half is a canary, which fails once Apple's decoder lines up.
 
 ## 2. CoreAudio ignores the Opus header's output gain
 

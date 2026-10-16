@@ -9,6 +9,7 @@ This page covers what Vibe does to your audio between the file and your output d
 - **MP3 doesn't use Apple's decoder.** On Apple silicon, Apple's MP3 decoder only makes 16-bit samples. [The MP3 decoder](#the-mp3-decoder)
 - **FLAC doesn't use Apple's decoder either.** Vibe's gives the same samples, with much faster seeks and less CPU. [The FLAC decoder](#the-flac-decoder)
 - **Neither do WAV and AIFF.** Vibe's decoder gives the same samples, faster, and reads files Apple's gets wrong. [The WAV and AIFF decoder](#the-wav-and-aiff-decoder)
+- **Ogg Vorbis doesn't use Apple's decoder.** Apple's decoder on the Mac starts every file about 3 ms late, and the iPhone has none. [The Vorbis decoder](#the-vorbis-decoder)
 - **Sample-rate conversion doesn't use Apple's converter.** Vibe's resampler is cleaner and far cheaper. [The resampler](#the-resampler)
 - **The pitch fader uses Vibe's own converter.** It's much cleaner than Apple's Varispeed. [The pitch fader](#the-pitch-fader)
 
@@ -233,6 +234,27 @@ The ADPCM formats are the exception. They take about as long as Apple's decoder,
 - **Reading ahead in ADPCM.** Upstream reads ADPCM a few bytes at a time, one read per sample in a Microsoft ADPCM file. Reading ahead makes those files 15 to 45 times faster to decode.
 - **Seeking to the right block.** Upstream decodes from the start for a seek backwards in an ADPCM file. Vibe's copy goes straight to the block it needs.
 
+## The Vorbis decoder
+
+Vibe decodes Ogg Vorbis with **libvorbis**, the reference decoder from the Xiph.Org Foundation, on the Mac and the iPhone alike. There is no setting.
+
+### Why not Apple's decoder
+
+- **The iPhone has none.** iOS's CoreAudio refuses Ogg Vorbis, so these files did not play there at all.
+- **Apple's decoder on the Mac starts every file 128 frames late.** That is about 3 ms. On a gapless album, every join skipped 3 ms of the next track. On some files it also played 128 frames past the end, which the file says to trim. We found this with every encoder and setting we tried: libvorbis at three qualities and two rates, and FFmpeg's own encoder.
+- **Apart from that, the sound is the same.** Apple's decode equals libvorbis's bit for bit once it is moved by 128 frames. libvorbis's own decode lines up with the source, with no shift at all.
+
+### How it fits in
+
+- **libvorbis reads the file itself.** CoreAudio's parser never opens it. libvorbis reads the length from the last page and trims the encoder's padding, so each track has its exact length.
+- **Seeks land on the exact sample.** In 300 random seeks on each of four test files, every one matched playing from the start.
+- **Surround files keep their channels.** Vorbis stores 5.1 as left, center, right, the two surrounds and the LFE. Vibe labels each channel, so the fold to stereo puts each one in its place.
+- **A file still downloading opens** once its first page of audio and its last 64 KB have arrived.
+- **Damaged files keep playing.** A damaged page is skipped, and decoding goes on from the next one.
+- **It is libvorbis's current code, unmodified.** That includes the fixes made since its last release.
+- **It costs less than Apple's decoder.** Decoding a whole file took 41% less CPU (64% fewer instructions), opening one took 2.9 ms instead of 41 ms, and a seek took 25% less CPU. These are the `decode`, `open` and `seek` component benchmarks on their Vorbis file, on an M1 Max. **Lower is better.**
+- **Not measured yet:** CPU on an iPhone.
+
 ## The resampler
 
 When a file's sample rate differs from the output's, Vibe converts it with r8brain-free-src. It runs at its highest-precision setting, with a steep filter at the top of the band.
@@ -328,6 +350,7 @@ These run on every change, with no audio hardware:
 - **The MP3 decoder** must stay at least 50 times inside the ISO limit. It must match Apple's decoder in length and timing on every kind of MP3 and MP2, including MP3 inside WAV. It must keep a loud master's peaks and seek to the exact sample, including in 8 kbps files. It must decode private-bit frames and 8 kHz mixed blocks as FFmpeg does, cap a damaged frame at +12 dB, and end cut-off files where Apple's does. Switching decoders must drop a prefetched track opened with the old one.
 - **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode. Every seek must land on the exact sample. Files damaged the ways real files get damaged must play as described above. That covers a tag in front, a stale seek table, a garbage seek-table entry, a damaged frame, frame header or first frame, bytes lost inside a frame, a damaged frame the seek table points at, downloads cut off all across a frame, and a file with no length, alone and with a megabyte of zeros after it. Frames split into more than 256 parts must decode exactly. A file more than 2^32 samples long must seek forward and back across that distance.
 - **The WAV and AIFF decoder** must match Apple's decoder on the supported fixtures, including the AIFF-C types Apple's tools write, IMA4, and both ADPCMs in a WAV. Every seek must land on the exact sample. Damaged files must play as described above: a chunk after the sound, a file cut short, a length larger than the file, unfinished sizes, the format after the sound, a damaged ADPCM block, and a Microsoft ADPCM file cut off inside a block. A Microsoft ADPCM file with its own coefficient table must decode with that table, as Apple's decoder does.
+- **The Vorbis decoder** must line up with the source, with no shift. It must equal Apple's decode moved by 128 frames, a test that fails once Apple's decoder lines up too. Every seek must land on the exact sample. A 5.1 file must keep each channel in its place through the fold to stereo. A file still downloading must open, and must recover from an interrupted read.
 - **Lossy files** must match their own decoded audio exactly. An Opus file must play at the output gain its header states. Apple's decoder ignores that gain, and Vibe applies it. A test fails if Apple starts applying it too. AAC gets four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output. Any change there fails it.
 
 On the Mac there's also an optional test that plays through a real output device and records it back, to compare the captured stream with the source. It doesn't test a DAC's analog output.

@@ -77,8 +77,10 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 @interface AudioFileHandle : NSObject
 
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
-// of CoreAudio's verdict on a file shares, the reading inits included, so it
-// refuses what playback refuses (FLAC in Ogg). Only `url` and `parser` answer.
+// of CoreAudio's verdict on a file shares. The reading inits open it too, so
+// it refuses what playback refuses (FLAC in Ogg). Ogg Vorbis is the exception:
+// the reading inits give it to libvorbis and never open the parser. Only
+// `url` and `parser` answer.
 // `interrupted`, held only while the open runs, is asked whenever one of its
 // waits for a streaming file's bytes would block, and YES fails the open with
 // an interruption. A caller ends a blocked open from another thread by making
@@ -104,7 +106,7 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 - (nullable instancetype)initForReading:(NSURL *)url
                             interleaved:(BOOL)interleaved
                             interrupted:(nullable BOOL (^)(void))interrupted
-                                  error:(NSError * _Nullable __autoreleasing * _Nullable)error;
+                                  error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
 // Creates `url` (replacing any file there) as a `fileType` container holding
 // `fileFormat` — PCM, or a codec with its rate, channels and, for FLAC, the
 // source depth in its flags — encoded from buffers in `processingFormat`. The

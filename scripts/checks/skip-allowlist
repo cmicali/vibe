@@ -3,3 +3,5 @@
 #
 # Skips when the generator cannot fetch ISO's compliance stream (needs the network).
 AudioPlayerRenderFidelityTests/testDrMP3PassesTheISOComplianceStreamAtFullAccuracy
+# Skips when ffmpeg has no libvorbis encoder, which Homebrew's build lacks: it writes the 5.1 Vorbis fixture.
+AudioPlayerRenderFidelityTests/testOggVorbisSurroundKeepsItsChannelOrder
