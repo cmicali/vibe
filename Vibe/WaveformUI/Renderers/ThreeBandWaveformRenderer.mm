@@ -24,11 +24,6 @@ static const float kUnplayedOpacity = 0.5f;
 static const NSUInteger kLayerCount = 7;
 static const NSUInteger kBandsForLayer[kLayerCount] = {1, 2, 4, 3, 5, 6, 7};
 
-// A column's window slides to take a hit whole up to this many columns across
-// the track, and not at all from twice as many, where a column is two base
-// bins or fewer and draws each kick as it is.
-static const NSUInteger kFullReachBars = 2048;
-
 // Silence keeps the all-bands hairline.
 static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat minimumHeight, CGFloat *half) {
     CGFloat tallest = 0;
@@ -244,8 +239,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     return VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
 }
 
-// Heights use the reach window. Spectrum colors use a window of their own,
-// floored at kVibeWaveformSpectrumColorColumns and unclamped.
+// Heights are each band's loudest window. Spectrum colors use a window of
+// their own, floored at kVibeWaveformSpectrumColorColumns and unclamped.
 - (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform {
     NSUInteger count = part.count;
     double frames = part.framesPerColumn();
@@ -253,14 +248,16 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     float *heights = _spectrum ? scratch.data() : out;
     float *colors = heights + count * wavecore::kBandCount;
     double total = (double)waveform->totalFrames();
-    float reach = VibeWaveformWindowReach((NSUInteger)llround(total / frames), kFullReachBars);
-    waveform->meanSquares(frames, part.first, count, reach, NULL, heights);
     float fullScaleRMS = [self bandFullScaleRMSForWaveform:waveform];
     float gainDB = self.gainDB;
-    for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-        float bandFullScaleRMS = fullScaleRMS * kBandShareOfFullScale[b];
-        for (float *level = heights + b; level < colors; level += wavecore::kBandCount) {
-            *level = VibeWaveformBarLevel(*level, bandFullScaleRMS, gainDB);
+    for (NSUInteger i = 0; i < count; i++) {
+        // A column at a time, never through the detail, whose frames hold no
+        // bands.
+        double k = (double)(part.first + (int64_t)i);
+        wavecore::Column column = waveform->column(k * frames, (k + 1) * frames);
+        for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
+            heights[i * wavecore::kBandCount + b] =
+                    VibeWaveformBarLevel(column.bandLoudest[b], fullScaleRMS * kBandShareOfFullScale[b], gainDB);
         }
     }
     if (!_spectrum) {
@@ -278,19 +275,16 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     }
 }
 
-// Normalize against the loudest band relative to its share, read from the
-// track's own 1,024 columns, so no view's width can move it. The waveform
-// keeps that answer.
+// Normalize against the loudest band window relative to its share, the
+// track's own, so no view can move it.
 - (float)bandFullScaleRMSForWaveform:(AudioWaveform *)waveform {
     if (!self.normalizesLevels || !waveform->isComplete()) {
         return kVibeWaveformFullScaleRMS;
     }
-    float maxima[wavecore::kBandCount];
-    waveform->loudestMeanSquares(kVibeWaveformEnergyColumns,
-            VibeWaveformWindowReach(kVibeWaveformEnergyColumns, kFullReachBars), NULL, maxima);
+    wavecore::Column track = waveform->column(0, (double)waveform->totalFrames());
     float loudest = 0;
     for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-        loudest = fmaxf(loudest, sqrtf(maxima[b]) / kBandShareOfFullScale[b]);
+        loudest = fmaxf(loudest, track.bandLoudest[b] / kBandShareOfFullScale[b]);
     }
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }

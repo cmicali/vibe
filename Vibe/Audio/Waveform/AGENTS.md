@@ -11,11 +11,10 @@ This directory owns the waveform *data*: the decode that generates it, and its p
 Every read takes frames, never bins, so no caller depends on the bin size. The core's header states each one's contract.
 
 - **`column`** is a stretch of frames: its peaks as an exact union, and its sums exact, a straddling bin counted by its part. A straddling bin's peaks count whole, so a peak never falls between two columns. **A level is never read from a column's peaks.**
-- **`meanSquares`** answers every column of a grid at once, the mix's or the bands'. **With reach, a column takes the loudest of the five column-long windows a quarter column apart around its own.** One of those holds a kick whole, so its height does not depend on where a resize put the edges. Reach is the caller's, 0 to 1. When to fade it out is the renderers' rule (`WaveformUI/Renderers/AGENTS.md`). A window past the frames held is the mean of the frames it covers.
+- **A column's `loudest` is its level**: the RMS of the loudest 20 ms window centred on a bin it covers, in the mix and in each band. It is a union like the peaks, so no hit is averaged away and its height does not depend on where a resize put the edges. Over the whole track it is Normalize's reference, which no view can move.
 - **`tentBandMeanSquares`** is the bands under a tent centred on each column, which Spectrum's colors read.
-- **`loudestMeanSquares`** is the loudest of `meanSquares` over a fixed column count across the whole track. **It is Normalize's reference, and it never depends on a view's width.** A reference read from the drawn bars moved 2 to 11% as a resize changed their count, and the whole picture breathed.
 
-**The pyramid, the tent's running sums and the loudest answers are kept while the summary stands.** A shared summary never changes, so each is built once behind one lock. The iOS widget draws a waveform off main, and the views draw it on main.
+**The pyramid, its loudest windows and the tent's running sums are kept while the summary stands.** A shared summary never changes, so each is built once behind one lock. The iOS widget draws a waveform off main, and the views draw it on main.
 
 ## What rides the pass is an input, not a setting this layer reads
 

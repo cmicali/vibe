@@ -489,15 +489,15 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     XCTAssertNotNil(result);
     XCTAssertTrue(result.waveform->hasBands());
     // Six columns: each second's latter half is past the filters' settling.
-    float halves[6 * wavecore::kBandCount];
-    result.waveform->meanSquares(result.waveform->totalFrames() / 6.0, 0, 6, 0, nullptr, halves);
+    wavecore::Column halves[6];
+    result.waveform->columns(result.waveform->totalFrames() / 6.0, 0, 6, halves);
     for (NSUInteger tone = 0; tone < 3; tone++) {
-        const float *meanSquares = &halves[(tone * 2 + 1) * wavecore::kBandCount];
-        float own = meanSquares[tone];
+        const wavecore::Column &half = halves[tone * 2 + 1];
+        float own = half.bandMeanSquare(tone);
         XCTAssertEqualWithAccuracy(own, 0.125f, 0.03f, @"%g Hz", tones[tone]);
         for (NSUInteger band = 0; band < wavecore::kBandCount; band++) {
             if (band != tone) {
-                XCTAssertGreaterThan(own, 10 * meanSquares[band],
+                XCTAssertGreaterThan(own, 10 * half.bandMeanSquare(band),
                                      @"%g Hz leaks into band %lu", tones[tone], band);
             }
         }

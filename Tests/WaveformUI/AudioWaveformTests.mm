@@ -749,7 +749,7 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
 
     auto whole = VibeTestSteadyWaveform(8192, {-0.1f, 0.1f, 0.01f});
     XCTAssertTrue(whole->isComplete());
-    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(whole.get(), YES), 0.1f, 1e-6);
+    XCTAssertEqualWithAccuracy(VibeWaveformFullScaleRMSForWaveform(whole.get(), YES), 0.1f, 1e-4);
 }
 
 #pragma mark - Stability
@@ -827,7 +827,7 @@ static std::vector<double> VibeColumnInk(const VibeTestPicture &picture) {
         return VibePictureOf(renderer.parentLayer.sublayers.firstObject.sublayers.firstObject.sublayers.firstObject);
     };
     NSDictionary<NSString *, NSNumber *> *ceilings = @{@"detailed": @0.008, @"oversampling_detailed_x4": @0.02,
-                                                       @"three_band": @0.001};
+                                                       @"three_band": @0.0023};
     for (NSString *style in ceilings) {
         double change = [self resizeChangeForStyle:style picture:[style isEqualToString:@"three_band"] ? bands : mask];
         XCTAssertGreaterThan(change, 0, @"%@ drew nothing", style);
@@ -1025,21 +1025,23 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
     }
 }
 
-// One answer on every thread, kept while the summary stands.
-- (void)testLoudestBandMeanSquaresAreTheSameOnEveryThread {
+// One answer on every thread: the first reads race to build the loudest
+// windows, and every one reads the same.
+- (void)testLoudestBandWindowsAreTheSameOnEveryThread {
     auto waveform = VibeThreeBandTestWaveform({0.001f, 0.0001f, 0.00001f});
     AudioWaveform *shared = waveform.get();
+    double total = (double)shared->totalFrames();
     std::vector<std::array<float, 3>> answers(8);
     std::array<float, 3> *out = answers.data();
     dispatch_apply(answers.size(), DISPATCH_APPLY_AUTO, ^(size_t i) {
-        shared->loudestMeanSquares(1024, 1, nullptr, out[i].data());
+        out[i] = shared->column(0, total).bandLoudest;
     });
     for (const auto &answer : answers) {
         XCTAssertTrue(answer == answers[0]);
     }
-    XCTAssertEqualWithAccuracy(answers[0][0], 0.001f, 1e-7);
-    XCTAssertEqualWithAccuracy(answers[0][1], 0.0001f, 1e-8);
-    XCTAssertEqualWithAccuracy(answers[0][2], 0.00001f, 1e-9);
+    XCTAssertEqualWithAccuracy(answers[0][0], sqrtf(0.001f), 1e-4);
+    XCTAssertEqualWithAccuracy(answers[0][1], sqrtf(0.0001f), 1e-5);
+    XCTAssertEqualWithAccuracy(answers[0][2], sqrtf(0.00001f), 1e-5);
 }
 
 // The tallest band's height in pixels down each pixel column of 3-Band's

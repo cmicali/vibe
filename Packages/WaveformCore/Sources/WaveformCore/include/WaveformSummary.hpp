@@ -32,6 +32,9 @@ constexpr int64_t kMinimumBins = 8192;
 // Read extremes through the coarsest level that still puts this many bins in
 // a column, so a column's edges move by at most an eighth of it.
 constexpr double kBinsPerColumn = 8;
+// A level is the loudest window this long a column covers, about a kick's
+// body. A column's mean would average each hit into the frames around it.
+constexpr double kTransientSeconds = 0.02;
 
 // 256 frames, or a finer power of two for a file too short to fill
 // kMinimumBins at 256.
@@ -41,13 +44,18 @@ uint32_t BinFramesForLength(int64_t frames);
 constexpr int kAllChannels = -1;
 
 // What a stretch of frames holds. lo and hi are the extremes of the frames it
-// covers, the sums cover exactly `frames` of them.
+// covers, the sums cover exactly `frames` of them. loudest is the RMS of the
+// loudest kTransientSeconds window centred on a bin it covers, in the mix and
+// in each band. Like the extremes it is a union, so no hit is ever averaged
+// away and no column edge can hide one.
 struct Column {
     float lo = 0;
     float hi = 0;
     double sumSquares = 0;
     double frames = 0;
     std::array<double, kBandCount> bandSumSquares = {0, 0, 0};
+    float loudest = 0;
+    std::array<float, kBandCount> bandLoudest = {0, 0, 0};
 
     float meanSquare() const { return frames > 0 ? float(sumSquares / frames) : 0.0f; }
     float bandMeanSquare(size_t band) const { return frames > 0 ? float(bandSumSquares[band] / frames) : 0.0f; }
@@ -76,8 +84,9 @@ public:
     // Columns of the grid of F frames from firstIndex, of a stream of
     // `frames`, read through the line joining the samples at their frames'
     // centers. So a column narrower than a frame holds the line's span across
-    // it. false, leaving out as it was, when the columns cross more than
-    // kMaxReadBlocks or a block that is missing.
+    // it. Each column's loudest is its own RMS. false, leaving out as it was,
+    // when the columns cross more than kMaxReadBlocks or a block that is
+    // missing.
     bool columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const;
     // The blocks the last read that missed some lacked, which a holder reads
     // in. Taken once, so a block that cannot be read is asked for again only
@@ -121,23 +130,11 @@ public:
     // the mix's own frames where the detail holds every one they cross.
     void columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out,
                  int channel = kAllChannels) const;
-    // Each grid column's mean square, the mix's into mix and the bands' (low
-    // to high per column) into bands; either may be null. With reach, a
-    // column takes the loudest of five column-long windows a quarter column
-    // apart around its own, blended by reach (0 to 1). A window past the
-    // frames held is the mean of what it covers.
-    void meanSquares(double framesPerColumn, int64_t firstIndex, size_t count, float reach,
-                     float *mix, float *bands) const;
     // Each grid column's band mean squares under a tent centred on it,
     // halfWidth frames from centre to foot, into bands (low to high per
     // column). Zeros without bands.
     void tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, size_t count, double halfWidth,
                              float *bands) const;
-    // The loudest of meanSquares over `columns` columns spanning the whole
-    // summary at this reach: a reference that does not depend on any view.
-    // Kept per (columns, reach) while the summary stands.
-    void loudestMeanSquares(size_t columns, float reach, float *mix, float *bands) const;
-
     // The stream's frames for deep zoom, filled by whoever holds the summary.
     // A copy starts without them.
     Detail &detail() const { return detail_; }
@@ -164,6 +161,9 @@ private:
         std::array<std::vector<_Float16>, kMaxChannels> hi;
         std::vector<float> sumSquares;
         std::vector<float> bandSumSquares;  // kBandCount per bin
+        // Derived with the pyramid, never archived: the loudest window's RMS.
+        mutable std::vector<_Float16> loudest;
+        mutable std::vector<_Float16> bandLoudest;  // kBandCount per bin
     };
 
     friend class SummaryBuilder;
@@ -171,9 +171,8 @@ private:
     const Level &level(size_t index) const;
     size_t levelCount() const;
     void buildPyramid() const;
-    // column's read, with or without the extremes.
-    Column read(double first, double last, int channel, bool extremes) const;
-    void accumulate(size_t levelIndex, double first, double last, int channel, bool extremes, Column &into) const;
+    void buildLoudest() const;
+    void accumulate(size_t levelIndex, double first, double last, int channel, Column &into) const;
     double binEnd(const Level &level, size_t bin) const;
     double binWidth(const Level &level, size_t bin) const { return binEnd(level, bin) - double(bin * level.binFrames); }
 
@@ -186,18 +185,12 @@ private:
     bool complete_ = false;
     Level base_;
 
-    // Built where a summary is made (a copy, a decode, a builder's finish),
-    // or else on first read, and kept: a shared summary never changes.
+    // The pyramid and the loudest windows. Built where a summary is made (a
+    // copy, a decode, a builder's finish), or else on first read, and kept: a
+    // shared summary never changes.
     mutable std::mutex lazyLock_;
     mutable std::atomic<bool> pyramidBuilt_{false};
     mutable std::vector<Level> pyramid_;
-    struct Loudest {
-        size_t columns;
-        float reach;
-        float mix;
-        std::array<float, kBandCount> bands;
-    };
-    mutable std::vector<Loudest> loudest_;
     // Running sums per level, for the tent: per bin edge the frames' and
     // bands' first and second running sums. An entry is never replaced, so a
     // reader holding one is safe while another builds a second.

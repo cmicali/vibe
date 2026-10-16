@@ -160,15 +160,12 @@ static const NSUInteger kMaxBlockBars = 1024;
 
 - (void)fillEnergyLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
                    first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    std::vector<float> meanSquares(count);
-    // The reach is gone by the floor's 1,024 columns across the track.
-    double columns = frames > 0 ? (double)waveform->totalFrames() / frames : 0;
-    float reach = VibeWaveformWindowReach((NSUInteger)llround(columns), kVibeWaveformEnergyColumns / 2);
-    waveform->meanSquares(frames, first, count, reach, meanSquares.data(), NULL);
+    std::vector<wavecore::Column> columns(count);
+    waveform->columns(frames, first, count, columns.data());
     float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
     float gainDB = self.gainDB;
     for (NSUInteger i = 0; i < count; i++) {
-        out[i * stride] = VibeWaveformBarLevel(meanSquares[i], fullScaleRMS, gainDB);
+        out[i * stride] = VibeWaveformBarLevel(columns[i].loudest, fullScaleRMS, gainDB);
     }
 }
 

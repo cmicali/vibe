@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <numeric>
 #include <random>
 #include <vector>
 
@@ -240,46 +239,89 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     XCTAssertEqual(copy->column(0, 100).hi, 7.0f, @"the copy must not see writes to the original");
 }
 
-#pragma mark - Windowed energy
+#pragma mark - Loudest windows
 
-// Without reach a column's window is the column, so a ramp reads its own
-// value at the column's centre, in the mix and in every band. With or
-// without, it never runs backwards.
-- (void)testMeanSquaresReadARampAtEachColumnsCentre {
+// Bins of 256 frames at 44.1 kHz, so a loudest window spans three. All are
+// quiet but one loud bin.
+static const double kQuietLevel = 0.1;
+static std::unique_ptr<Summary> VibeHitSummary(size_t bins, size_t hit) {
+    std::vector<float> levels(bins, float(kQuietLevel * kQuietLevel));
+    levels[hit] = 1;
+    return VibeLevelSummary(levels, 256);
+}
+
+// Every window holding the hit's bin: the hit and two quiet bins.
+static const double kHitLevel = std::sqrt((1 + 2 * kQuietLevel * kQuietLevel) / 3);
+
+// A column's level is the loudest window it covers. At every width the hit
+// shows whole in the columns over it, and a column away from it is quiet: no
+// column averages the hit away, and no edge hides it.
+- (void)testALevelIsTheLoudestWindowAColumnCovers {
+    auto summary = VibeHitSummary(400, 200);
+    double total = (double)summary->totalFrames();
+    for (size_t count : {(size_t)1, (size_t)7, (size_t)100, (size_t)333, (size_t)399, (size_t)1000}) {
+        double frames = total / (double)count;
+        std::vector<Column> columns(count);
+        summary->columns(frames, 0, count, columns.data());
+        size_t over = size_t(200.5 * 256 / frames);
+        XCTAssertEqualWithAccuracy(columns[over].loudest, kHitLevel, 1e-3, @"count %zu", count);
+        for (size_t c = 0; c < count; c++) {
+            double first = (double)c * frames / 256, last = (double)(c + 1) * frames / 256;
+            if (last < 198 || first > 203) {
+                XCTAssertEqualWithAccuracy(columns[c].loudest, kQuietLevel, 1e-4, @"count %zu column %zu", count, c);
+            }
+            XCTAssertLessThanOrEqual(columns[c].loudest, kHitLevel + 1e-3);
+        }
+    }
+    // The whole track's is the reference no view can move.
+    XCTAssertEqualWithAccuracy(summary->column(0, total).loudest, kHitLevel, 1e-3);
+}
+
+// Each band keeps its own loudest window.
+- (void)testEachBandKeepsItsLoudestWindow {
+    auto summary = std::make_unique<Summary>(256, 1, true, 44100);
+    for (size_t i = 0; i < 400; i++) {
+        float lo = -1, hi = 1;
+        double low = (i == 200 ? 1 : kQuietLevel * kQuietLevel) * 256;
+        double bands[wavecore::kBandCount] = {low, 0.04 * 256, 0};
+        summary->appendBin(&lo, &hi, low, bands, 256);
+    }
+    Column hit = summary->column(200 * 256, 201 * 256), away = summary->column(0, 100 * 256);
+    XCTAssertEqualWithAccuracy(hit.bandLoudest[0], kHitLevel, 1e-3);
+    XCTAssertEqualWithAccuracy(hit.bandLoudest[1], 0.2, 1e-3);
+    XCTAssertEqual(hit.bandLoudest[2], 0);
+    XCTAssertEqualWithAccuracy(away.bandLoudest[0], kQuietLevel, 1e-4);
+}
+
+// A load still streaming reads what it holds: its front is not dragged toward
+// the silence past it, and past it there is nothing.
+- (void)testAStreamingLoadsFrontReadsItsOwnLevel {
+    auto half = VibeLevelSummary(std::vector<float>(200, 0.25f), 256);
+    half->setTotalFrames(400 * 256);
+    std::vector<Column> columns(40);
+    half->columns(10 * 256, 0, 40, columns.data());
+    XCTAssertEqualWithAccuracy(columns[19].loudest, 0.5, 1e-3);
+    XCTAssertEqual(columns[20].loudest, 0);
+}
+
+// The tent is symmetric about the column's centre, so on a ramp it reads the
+// column's own mean, except at the edge columns, where the track clips it.
+- (void)testTheTentReadsAColumnsOwnMeanOnARamp {
     auto ramp = VibeRampSummary(64);
     for (NSUInteger count : {(NSUInteger)64, (NSUInteger)32, (NSUInteger)8}) {
-        std::vector<float> mix(count), bands(count * wavecore::kBandCount);
-        ramp->meanSquares(64.0 / count, 0, count, 0, mix.data(), bands.data());
-        for (NSUInteger i = 0; i < count; i++) {
-            float centre = ((float)i + 0.5f) * 64 / (float)count - 0.5f;
-            XCTAssertEqualWithAccuracy(mix[i], centre, 1e-4, @"count %lu column %lu", count, i);
-            for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-                XCTAssertEqualWithAccuracy(bands[i * wavecore::kBandCount + b], centre * (b + 1), 1e-3);
-            }
-        }
-    }
-    for (float reach : {0.0f, 0.5f, 1.0f}) {
-        for (NSUInteger count = 1; count <= 200; count++) {
-            std::vector<float> mix(count);
-            ramp->meanSquares(64.0 / count, 0, count, reach, mix.data(), nullptr);
-            for (NSUInteger i = 0; i < count; i++) {
-                XCTAssertTrue(mix[i] >= 0 && mix[i] <= 63 + 1e-3f, @"reach %g count %lu column %lu", reach, count, i);
-                if (i > 0) XCTAssertGreaterThanOrEqual(mix[i], mix[i - 1] - 1e-4f);
-            }
-        }
-    }
-    // The tent is symmetric about the column's centre, so on a ramp it reads
-    // reach 0's value too, except at the edge columns, where the track clips it.
-    for (NSUInteger count : {(NSUInteger)64, (NSUInteger)32, (NSUInteger)8}) {
         double columnFrames = 64.0 / count;
-        std::vector<float> plain(count * wavecore::kBandCount), tent(count * wavecore::kBandCount);
-        ramp->meanSquares(columnFrames, 0, count, 0, nullptr, plain.data());
+        std::vector<Column> columns(count);
+        std::vector<float> tent(count * wavecore::kBandCount);
+        ramp->columns(columnFrames, 0, count, columns.data());
         ramp->tentBandMeanSquares(columnFrames, 0, count, columnFrames, tent.data());
-        for (NSUInteger i = wavecore::kBandCount; i < plain.size() - wavecore::kBandCount; i++) {
-            XCTAssertEqualWithAccuracy(tent[i], plain[i], 1e-3f, @"count %lu value %lu", count, i);
+        for (NSUInteger i = 1; i + 1 < count; i++) {
+            for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
+                XCTAssertEqualWithAccuracy(tent[i * wavecore::kBandCount + b], columns[i].bandMeanSquare(b), 1e-3f,
+                                           @"count %lu column %lu", count, i);
+            }
         }
-        XCTAssertGreaterThanOrEqual(tent[0], plain[0]);
-        XCTAssertLessThanOrEqual(tent.back(), plain.back());
+        XCTAssertGreaterThanOrEqual(tent[0], columns[0].bandMeanSquare(0));
+        XCTAssertLessThanOrEqual(tent[(count - 1) * wavecore::kBandCount], columns[count - 1].bandMeanSquare(0));
     }
 }
 
@@ -342,77 +384,6 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     }
 }
 
-// A window is the mean of the frames it covers, so a steady level reads as
-// itself at every width and reach, and a load still streaming is the mean of
-// the frames it has: its front column is not dragged toward the silence past it.
-- (void)testAWindowIsTheMeanOfTheFramesItCovers {
-    auto whole = VibeLevelSummary(std::vector<float>(64, 0.25f), 4);
-    auto half = std::make_unique<Summary>(4, 1, false, 44100);
-    for (NSUInteger i = 0; i < 32; i++) {
-        float lo = -0.5f, hi = 0.5f;
-        half->appendBin(&lo, &hi, 1, nullptr, 4);
-    }
-    half->setTotalFrames(256);
-    for (float reach : {0.0f, 1.0f}) {
-        for (NSUInteger count = 1; count <= 200; count++) {
-            std::vector<float> level(count), loaded(count), bands(count * wavecore::kBandCount, 1);
-            whole->meanSquares(256.0 / count, 0, count, reach, level.data(), bands.data());
-            half->meanSquares(256.0 / count, 0, count, reach, loaded.data(), nullptr);
-            for (NSUInteger i = 0; i < count; i++) {
-                XCTAssertEqualWithAccuracy(level[i], 0.25f, 1e-5, @"count %lu column %lu", count, i);
-                XCTAssertTrue(loaded[i] == 0 || fabsf(loaded[i] - 0.25f) < 1e-5f, @"count %lu column %lu", count, i);
-                XCTAssertEqual(bands[i * wavecore::kBandCount], 0, @"no bands read as silence");
-            }
-            XCTAssertEqualWithAccuracy(loaded[0], 0.25f, 1e-5);
-            if (count >= 4) XCTAssertEqual(loaded[count - 1], 0);
-        }
-    }
-    float untouched = 7;
-    Summary(256, 1, false, 44100).meanSquares(1, 0, 1, 1, &untouched, nullptr);
-    XCTAssertEqual(untouched, 0);
-}
-
-// What the reach is for. A kick in two bins of every ten, read at about a
-// thousand columns: a column is 0.8 of a beat, so a column with hard edges
-// holds a whole kick, part of one, or two parts, and the columns beat against
-// the kicks in a pattern that runs along the waveform as a resize moves the
-// edges. With reach every column finds a window holding one kick whole.
-- (void)testReachHoldsColumnsStillAgainstABeatAboutAColumnLong {
-    std::vector<float> beat(8192);
-    for (NSUInteger i = 0; i < beat.size(); i++) beat[i] = i % 10 < 2 ? 1.0f : 0.01f;
-    auto summary = VibeLevelSummary(beat, 1);
-    auto spread = [](const std::vector<float> &values) {
-        auto [low, high] = std::minmax_element(values.begin() + 1, values.end() - 1);
-        float mean = std::accumulate(values.begin() + 1, values.end() - 1, 0.0f) / (float)(values.size() - 2);
-        return (*high - *low) / mean;
-    };
-    for (NSUInteger count : {(NSUInteger)1000, (NSUInteger)1001, (NSUInteger)1010}) {
-        std::vector<float> still(count), hard(count);
-        summary->meanSquares(8192.0 / count, 0, count, 1, still.data(), nullptr);
-        summary->meanSquares(8192.0 / count, 0, count, 0, hard.data(), nullptr);
-        XCTAssertGreaterThan(spread(hard), 1.0f, @"count %lu", count);
-        XCTAssertLessThan(spread(still), 0.05f, @"count %lu", count);
-        float columnFrames = 8192.0f / count;
-        float oneKick = (2 + (columnFrames - 2) * 0.01f) / columnFrames;
-        XCTAssertEqualWithAccuracy(still[count / 2], oneKick, oneKick * 0.01f, @"count %lu", count);
-    }
-}
-
-// The reference is the summary's own, kept: the same at every view.
-- (void)testTheLoudestIsKeptPerColumnCountAndReach {
-    std::vector<float> levels(4096, 0.01f);
-    levels[2000] = 0.5f;
-    auto summary = VibeLevelSummary(levels, 4);
-    float loudest = 0, again = 0, reached = 0;
-    summary->loudestMeanSquares(1024, 0, &loudest, nullptr);
-    summary->loudestMeanSquares(1024, 0, &again, nullptr);
-    summary->loudestMeanSquares(1024, 1, &reached, nullptr);
-    XCTAssertEqual(loudest, again);
-    // One loud bin of four in a column.
-    XCTAssertEqualWithAccuracy(loudest, (0.5f + 3 * 0.01f) / 4, 1e-5);
-    XCTAssertGreaterThanOrEqual(reached, loudest - 1e-6f);
-}
-
 #pragma mark - Archive
 
 - (void)testTheArchiveRoundTripsEveryRead {
@@ -444,6 +415,8 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
             XCTAssertEqualWithAccuracy(a.lo, b.lo, 1e-3f);
             XCTAssertEqualWithAccuracy(a.sumSquares, b.sumSquares, 2e-3 * a.sumSquares);
             XCTAssertEqualWithAccuracy(a.bandSumSquares[2], b.bandSumSquares[2], 3e-3 * a.bandSumSquares[2] + 1e-9);
+            XCTAssertEqualWithAccuracy(a.loudest, b.loudest, 2e-3 * a.loudest);
+            XCTAssertEqualWithAccuracy(a.bandLoudest[1], b.bandLoudest[1], 2e-3 * a.bandLoudest[1] + 1e-6);
         }
     }
 }
@@ -531,6 +504,7 @@ static void VibeInsertBlocks(const Summary &summary, const std::vector<float> &s
         XCTAssertLessThan(after[c].hi, hi + 0.06);
         XCTAssertEqualWithAccuracy(after[c].sumSquares, sum, 1e-4);
         XCTAssertEqualWithAccuracy(after[c].frames, 4, 1e-9);
+        XCTAssertEqualWithAccuracy(after[c].loudest, std::sqrt(sum / 4), 1e-4, @"a column finer than a bin is its own level");
         // Without the detail the bins answered, each spanning its whole bin.
         XCTAssertGreaterThanOrEqual(before[c].hi - before[c].lo, after[c].hi - after[c].lo);
     }

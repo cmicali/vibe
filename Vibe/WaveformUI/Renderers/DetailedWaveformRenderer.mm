@@ -348,9 +348,9 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         return;
     }
     // Each column keeps its own min and max, scaled so the peaks draw the
-    // energy around them: DC-offset asymmetry and fine texture survive. The
-    // energy is read linearly between the centers of a coarser grid, so no
-    // edge of it shows when zoomed in.
+    // level around them: DC-offset asymmetry and fine texture survive. The
+    // level, each energy column's loudest window, is read linearly between
+    // the centers of a coarser grid, so no edge of it shows when zoomed in.
     _columns.resize(count);
     waveform->columns(frames, first, count, _columns.data());
     double total = (double)waveform->totalFrames();
@@ -367,18 +367,9 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     waveform->columns(energyFrames, (int64_t)firstEnergy, energyCount, _energy.data());
     _levels.resize(energyCount);
     const float *levels = _levels.data();
-    if ([self columnsPerPoint] > 0) {
-        // A step keeps one energy grid at every width, so it needs no reach,
-        // and Normalize can take the grid's own loudest column: the tallest
-        // column reaches full height.
-        NSUInteger energyColumns = (NSUInteger)llround(total / energyFrames);
-        float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels, energyColumns);
-        for (size_t j = 0; j < energyCount; j++) {
-            _levels[j] = VibeWaveformBarLevel(_energy[j].meanSquare(), fullScaleRMS, self.gainDB);
-        }
-    } else {
-        [self fillEnergyLevels:_levels.data() stride:1 framesPerColumn:energyFrames first:(int64_t)firstEnergy
-                         count:energyCount waveform:waveform];
+    float fullScaleRMS = VibeWaveformFullScaleRMSForWaveform(waveform, self.normalizesLevels);
+    for (size_t j = 0; j < energyCount; j++) {
+        _levels[j] = VibeWaveformBarLevel(_energy[j].loudest, fullScaleRMS, self.gainDB);
     }
     const wavecore::Column *energy = _energy.data(), *columns = _columns.data();
     for (NSUInteger i = 0; i < count; i++) {
@@ -395,10 +386,10 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         } else if (rightPeak == 0) {
             rightGain = leftGain;
         }
-        // TRAP: the gain is the energy over its peak, and a column scales its
-        // own peaks by it, capped at the louder energy beside it. A column
-        // holding a transient then draws its energy, and the quiet columns
-        // beside it stay quiet. Scaled to the energy's level directly, they
+        // TRAP: the gain is the level over its peak, and a column scales its
+        // own peaks by it, capped at the louder level beside it. A column
+        // holding a transient then draws the transient's level, and the quiet
+        // columns beside it stay quiet. Scaled to the level directly, they
         // would be drawn up to the transient's.
         float extent = columns[i].extent();
         float gain = leftGain + (rightGain - leftGain) * toRight;

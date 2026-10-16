@@ -31,18 +31,13 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// Normalize's reference is the track's loudest energy column, by default of
-// its 1,024: the waveform's own, so no view's width can move it. A grid that
-// a zoom step fixes may measure its own. A streaming load keeps the fixed
-// reference: its loudest column is only the loudest SO FAR, and a reference
-// that rises per delivery shrinks bars already drawn.
-static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize,
-                                                        NSUInteger columns = kVibeWaveformEnergyColumns) {
-    float loudest = 0;
-    if (normalize && waveform->isComplete() && columns > 0) {
-        waveform->loudestMeanSquares(columns, 0, &loudest, NULL);
-        loudest = sqrtf(fmaxf(loudest, 0));
-    }
+// Normalize's reference is the track's loudest window: the waveform's own, so
+// no view can move it. A streaming load keeps the fixed reference: its
+// loudest window is only the loudest SO FAR, and a reference that rises per
+// delivery shrinks bars already drawn.
+static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize) {
+    float loudest = normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames()).loudest
+                                                        : 0;
     return VibeWaveformNormalizedFullScaleRMS(loudest);
 }
 
@@ -193,10 +188,10 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (NSUInteger)blockBarCountForWidth:(CGFloat)width;
 - (CGFloat)scaledBarWidth:(CGFloat)width pitch:(CGFloat)pitch;
 
-// The level of each column of count on the grid of frames from first,
-// Normalize and Gain applied: the energy reading of the bar styles and
-// Wiggle. The step styles read their own grid. Stride permits interleaved
-// envelopes; the caller supplies their sign and symmetry.
+// The level of each column of count on the grid of frames from first, its
+// loudest window with Normalize and Gain applied: the bar styles' and
+// Wiggle's. Stride permits interleaved envelopes; the caller supplies their
+// sign and symmetry.
 - (void)fillEnergyLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
                    first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform;
 
