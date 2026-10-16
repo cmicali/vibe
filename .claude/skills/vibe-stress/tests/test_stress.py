@@ -19,8 +19,9 @@ def generator(profile="base", corpus=Path("/corpus"), seed=7):
 
 
 def health(ready=0, failed=0, completed=0, parses=0, lane=0, foreground=False,
-           loading=False, running=0):
-    return {"pending": {"cloudParsesPending": parses, "cloudLaneHeld": lane},
+           loading=False, running=0, holders=0):
+    return {"pending": {"cloudParsesPending": parses, "cloudLaneHeld": lane,
+                        "metadataHolders": holders},
             "app": {"playerLoading": loading},
             "materialization": {"requestsReady": ready, "requestsFailed": failed,
                                 "handleOpensCompleted": completed,
@@ -130,6 +131,9 @@ class NewOperationTests(unittest.TestCase):
             self.assertEqual(clicks, clicks[::-1])
             self.assertTrue(all(argv[2] == "toggle" for argv in argvs
                                 if argv[0] == "settings_click"))
+            # A switch under a parent the op switched off is refused as disabled.
+            self.assertTrue(all({"is hidden", "is disabled"} <= set(tolerated)
+                                for _, argv, tolerated in gen.op_settings() if argv[0] == "settings_click"))
             for argv in argvs:
                 stress.require_command(argv)
 
@@ -189,7 +193,8 @@ class ProgressOracleTests(unittest.TestCase):
 
     def test_a_gate_excuses_the_window(self):
         for gated in (health(ready=5, foreground=True), health(ready=5, lane=1),
-                      health(ready=5, loading=True), health(ready=5, running=1)):
+                      health(ready=5, loading=True), health(ready=5, running=1),
+                      health(ready=5, holders=1)):
             readings = [(state(), health(ready=5))] * (stress.PROGRESS_WINDOW - 1) + [(state(), gated)]
             with self.subTest(gated=gated):
                 self.assertIsNone(stress.progress_stalled(self.samples(readings)))
@@ -231,6 +236,11 @@ class EqualizerTests(unittest.TestCase):
                      (play(1.0), None, play(1.8), meter(30))):
             with self.subTest(pair=pair):
                 self.assertEqual(stress.equalizer_finding(*pair), (False, None))
+
+    def test_a_restart_between_the_samples_is_movement(self):
+        # Repeat One wrapping a short reference: the same file, a smaller position.
+        self.assertEqual(stress.equalizer_finding(play(2.6), meter(10), play(0.3), meter(30)),
+                         (True, None))
 
     def test_findings(self):
         scored, finding = stress.equalizer_finding(play(1.0), meter(10), play(1.0), meter(30))
@@ -482,6 +492,17 @@ class IosOperationTests(unittest.TestCase):
             self.assertEqual(argvs[2], ["search", stress.IOS_NO_MATCH])
             self.assertTrue(int(argvs[4][1]) < 3)
             self.assertEqual(argvs[-1], ["search"])
+
+    def test_search_queries_fit_the_gate_whatever_the_corpus_names(self):
+        # A 33-letter token would make the run abort at its own validator.
+        for seed in range(10):
+            rng, run, steps = ios_run(seed)
+            run.layout = {"": ([], ["x" * 33 + " and-another.wav"])}
+            stress.ios_op_search(rng, run)
+            queries = [argv[1] for argv in commands(steps)
+                       if argv[0] == "search" and len(argv) == 2 and argv[1] != stress.IOS_NO_MATCH]
+            self.assertTrue(queries)
+            self.assertTrue(all(len(query) <= 32 for query in queries))
         rng, run, steps = ios_run(0, hits=0)
         stress.ios_op_search(rng, run)
         self.assertNotIn("open_search_hit", [argv[0] for argv in commands(steps)])

@@ -92,13 +92,13 @@ A failed PCM comparison attaches the reference, the capture, aligned difference 
 
 The fixture generator (`scripts/test/generate-test-audio.sh`) owns the source corpus in its `--render-tests` mode. Tests only create temporary slices and malformed inputs. Stock macOS encoders cover the core formats, CAF and W64 included. MP3, MP2, QTA and Ogg need ffmpeg and are skipped without it; CI installs it. No unit test reads the gitignored `Assets/test_audio_files` corpus. A unit test writes its own fixtures through `AudioFixtures.h` into the per-process temp root. The render suite instead requires its generated core fixtures. The ISO/IEC 11172-4 Layer III compliance stream and its reference decode are ISO's, so the generator fetches them from FFmpeg's FATE mirror and checks pinned hashes. When that fails, `testDrMP3PassesTheISOComplianceStreamAtFullAccuracy` skips.
 
-**A skip is gated.** `make test-summary` and `make test-audio-summary` fail on any skipped test that `scripts/checks/skip-allowlist` does not name. A new deliberate skip is named there in the same change.
+**A skip is gated.** `make test-summary`, `make test-audio-summary` and `make test-ios-summary` fail on any skipped test that `scripts/checks/skip-allowlist` does not name. A new deliberate skip is named there in the same change.
 
 The pump proves the software path, **not** DAC samples, hardware negotiation, exclusivity or iOS session recovery. `make test-audio-loopback` and `make test-audio-device` run the same verifier against a real device for those macOS boundaries. Each needs a Debug app running first (`vibe-debug`). Hardware is never a CI prerequisite.
 
 ## The iOS shell on a simulator
 
-`make test-ios` runs **VibeiOSTests** on an iOS simulator. `IOS_TEST_DEVICE` names it, and the default is `iPhone 17`. CI runs it in the job that builds iOS. The suite lives in `iOSSim/`, which `VibeTests` excludes. It is one directory, like `AudioRender/`, because it is one target's suite. Its classes are named for the code they test.
+`make test-ios` runs **VibeiOSTests** on an iOS simulator. `IOS_TEST_DEVICE` names it, and the default is `iPhone 17`. CI runs it in the job that builds iOS, in that build's derived data (`IOS_DERIVED_DATA`), and reads `make test-ios-summary` after it. The suite lives in `iOSSim/`, which `VibeTests` excludes. It is one directory, like `AudioRender/`, because it is one target's suite. Its classes are named for the code they test.
 
 **It is hosted, unlike the other two.** `TEST_HOST` is the Debug `VibeiOS` app. The card, the root, and the settings screens reach `PlaybackController`, and through it the whole engine. Compiling them in would repeat the app's source list. So the bundle links against the app (`BUNDLE_LOADER`) and compiles only its tests and `TestFilesystemGuard.m`. The guard is in before the app registers its defaults, so the host's settings are the in-memory store too. `HostSmokeTests` checks that the registered defaults landed there. The cost is the app's launch, a few seconds per run. The host's own scene and its one `AudioPlayer` stay up underneath and are never driven. The debug channel is not used.
 

@@ -128,10 +128,24 @@ jobs:
         run: make build-ios CONFIG=Debug
 
       # Hosted in the Debug app on a simulator. Here, beside the iOS build,
-      # to keep four macOS jobs.
+      # to keep four macOS jobs, and in its derived data, so the app it just
+      # built is the one the tests run in.
       - name: Run iOS shell tests (simulator)
         if: ${{ !cancelled() }}
-        run: make test-ios
+        run: make test-ios IOS_DERIVED_DATA=build/DerivedData
+
+      - name: iOS test summary
+        if: always()
+        run: make test-ios-summary
+
+      - name: Upload iOS result bundle
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: iOSTestResults.xcresult
+          path: build/iOSTestResults.xcresult
+          retention-days: 7
+          if-no-files-found: ignore
 
   test:
     needs: changes

@@ -110,7 +110,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithWindow:(nullable NSWindow *)window
                    audioPlayer:(nullable AudioPlayer *)audioPlayer
                  metadataCache:(nullable AudioTrackMetadataCache *)metadataCache
-             metadataScheduler:(VibeScheduler)scheduler;
+             metadataScheduler:(VibeScheduler)scheduler NS_DESIGNATED_INITIALIZER;
+// NSWindowController's own roads would leave the scheduler nil, and the
+// first deferred metadata load would call it.
+- (instancetype)initWithWindow:(nullable NSWindow *)window NS_UNAVAILABLE;
+- (nullable instancetype)initWithCoder:(NSCoder *)coder NS_UNAVAILABLE;
 // The playlist controller and the four handlers that make the shell its
 // follow-up. It reads the player and the table, so the app runs it after it
 // builds both.

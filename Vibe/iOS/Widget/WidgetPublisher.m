@@ -175,12 +175,8 @@ static const CGFloat kWidgetWaveformScale = 3;
     BOOL trackChanged = (track != _publishedTrack);
     BOOL writeArtwork = _widgetPlaced && (trackChanged || (artwork && !_artworkOnDisk));
 
-    VibeWidgetState *last = _published;
-    if (!writeArtwork && !VibeWidgetNeedsPublish(last && !trackChanged, last.hasTrack, last.title, last.artist,
-                                                 last.playing, last.duration, last.position,
-                                                 last.positionDate.timeIntervalSinceReferenceDate,
-                                                 track != nil, track.displayTitle, track.displayArtist, playing,
-                                                 duration, position, startPending,
+    if (!writeArtwork && !VibeWidgetNeedsPublish(_published, trackChanged, track != nil, track.displayTitle,
+                                                 track.displayArtist, playing, duration, position, startPending,
                                                  CFAbsoluteTimeGetCurrent())) {
         return;
     }

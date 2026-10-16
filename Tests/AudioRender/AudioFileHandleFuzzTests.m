@@ -794,7 +794,7 @@ static BOOL FuzzDataSize(NSMutableData *bytes, FuzzSource *source, VibeFuzzRando
 typedef NS_ENUM(NSUInteger, FuzzExpect) {
     FuzzExpectNothingMore,
     FuzzExpectNoLongerThanSource,     // a count past the data is never trusted
-    FuzzExpectSourceDecode,           // a legal shape: dr_wav decodes what the source holds
+    FuzzExpectSourceDecode,           // a legal shape: dr_wav opens it and decodes what the source holds
     FuzzExpectNotDrWAV,               // dr_wav refuses it, so Apple's decoder or nothing has it
 };
 
@@ -1120,9 +1120,17 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
         if (mutant.opened && mutator.expect == FuzzExpectNoLongerThanSource && !mutant.estimated && mutant.length > source.heldFrames) {
             [problems addObject:[NSString stringWithFormat:@"length %lld past the %lld frames the data holds", mutant.length, source.heldFrames]];
         }
-        if (mutant.opened && mutator.expect == FuzzExpectSourceDecode && [mutant.decoder isEqualToString:@"dr_wav"]
-                && ![mutant.pcm isEqualToData:reference.pcm]) {
-            [problems addObject:@"decodes other samples than the source"];
+        if (mutator.expect == FuzzExpectSourceDecode && [reference.decoder isEqualToString:@"dr_wav"]) {
+            // The claim is dr_wav's. A refusal or a handoff is the fix regressing, not a clean answer.
+            if (!mutant.opened) {
+                [problems addObject:@"dr_wav refused a legal shape"];
+            }
+            else if (![mutant.decoder isEqualToString:@"dr_wav"]) {
+                [problems addObject:[NSString stringWithFormat:@"dr_wav handed a legal shape to %@", mutant.decoder]];
+            }
+            else if (![mutant.pcm isEqualToData:reference.pcm]) {
+                [problems addObject:@"decodes other samples than the source"];
+            }
         }
         if (mutant.opened && mutator.expect == FuzzExpectNotDrWAV && [mutant.decoder isEqualToString:@"dr_wav"]) {
             [problems addObject:@"dr_wav accepted it"];

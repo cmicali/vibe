@@ -13,7 +13,7 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 
 ## The snapshot
 
-`VibeWidgetState` is what was true at `positionDate`. The widget advances the playhead itself, so ordinary playback publishes nothing. A publish happens on a track change, a play or pause, a duration or title change, or a seek. The seek test is the lock screen's (`VibeNowPlayingPositionIsDirty`) with a 2 s tolerance. The whole decision is `VibeWidgetNeedsPublish` (`VibeWidgetState.h`). It takes the last snapshot's fields as values.
+`VibeWidgetState` is what was true at `positionDate`. The widget advances the playhead itself, so ordinary playback publishes nothing. A publish happens on a track change, a play or pause, a duration or title change, or a seek. The seek test is the lock screen's (`VibeNowPlayingPositionIsDirty`) with a 2 s tolerance. The whole decision is `VibeWidgetNeedsPublish` (`VibeWidgetState.h`). It takes the last snapshot and the tick's values.
 
 **While a placed widget shows a playing track, the publisher requests a timeline reload every minute** (`updatePlayingReloads`). It writes no new state. WidgetKit controls delivery. The timeline keeps coarse entries through the track’s end if a reload is delayed (`VibeWidget/AGENTS.md`).
 

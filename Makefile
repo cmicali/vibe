@@ -6,7 +6,7 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
-.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-ios test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-ios test-ios-summary test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -116,10 +116,12 @@ test: project check-cloud-scenarios
 	    $(ARGS) test
 
 # The iOS shell's views and controllers (VibeiOSTests), on a simulator, hosted
-# in the Debug app. Its own derived data, so it runs beside `make test`.
+# in the Debug app. IOS_DERIVED_DATA is its own by default, so it runs beside
+# `make test`. CI points it at build-ios's, so the app compiles once there.
 # IOS_TEST_DEVICE names the simulator; CI's runner has the default.
 # ARGS='-only-testing:VibeiOSTests/<Class>' narrows a run.
 IOS_TEST_DEVICE ?= iPhone 17
+IOS_DERIVED_DATA ?= build/iOSTestDerivedData
 IOS_RESULT_BUNDLE ?= build/iOSTestResults.xcresult
 test-ios: project
 	rm -rf $(IOS_RESULT_BUNDLE)
@@ -128,10 +130,14 @@ test-ios: project
 	    -scheme VibeiOSTests \
 	    -configuration Debug \
 	    -destination 'platform=iOS Simulator,name=$(IOS_TEST_DEVICE)' \
-	    -derivedDataPath build/iOSTestDerivedData \
+	    -derivedDataPath $(IOS_DERIVED_DATA) \
 	    -resultBundlePath $(IOS_RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
 	    $(IOS_SIM_SIGN) $(ARGS) test
+
+# The last `make test-ios` as a markdown pass/fail table, with the skip gate.
+test-ios-summary:
+	scripts/checks/test-summary.sh $(IOS_RESULT_BUNDLE)
 
 # One compiled PCM verifier shared by hardware and device-free audio tests.
 build/verify-bit-perfect: scripts/test/verify-bit-perfect.swift

@@ -73,20 +73,15 @@ extern const char *const kVibeWidgetReadNotification;
 // lock screen's, since a widget entry spans seconds.
 static const NSTimeInterval kVibeWidgetPositionTolerance = 2.0;
 
-// Whether a tick publishes a new snapshot. The published fields are the last
-// snapshot's. samePublishedTrack is NO when nothing was published yet. The
-// widget extrapolates steady playback. So only a new track, a play or pause,
-// a changed duration or line, or a jump past the tolerance publishes. Tags
-// landing after the start change the lines, not the identity. While the open
-// runs the playhead is pinned at 0, so the position alone publishes nothing.
-static inline BOOL VibeWidgetNeedsPublish(BOOL samePublishedTrack,
-                                          BOOL publishedHasTrack,
-                                          NSString *_Nullable publishedTitle,
-                                          NSString *_Nullable publishedArtist,
-                                          BOOL publishedPlaying,
-                                          NSTimeInterval publishedDuration,
-                                          NSTimeInterval publishedPosition,
-                                          CFAbsoluteTime publishedAt,
+// Whether a tick publishes a new snapshot. last is the published snapshot,
+// nil when nothing was published yet, and trackChanged says the track is not
+// the one it describes. The widget extrapolates steady playback. So only a
+// new track, a play or pause, a changed duration or line, or a jump past the
+// tolerance publishes. Tags landing after the start change the lines, not
+// the identity. While the open runs the playhead is pinned at 0, so the
+// position alone publishes nothing.
+static inline BOOL VibeWidgetNeedsPublish(VibeWidgetState *_Nullable last,
+                                          BOOL trackChanged,
                                           BOOL hasTrack,
                                           NSString *_Nullable title,
                                           NSString *_Nullable artist,
@@ -95,23 +90,23 @@ static inline BOOL VibeWidgetNeedsPublish(BOOL samePublishedTrack,
                                           NSTimeInterval position,
                                           BOOL startPending,
                                           CFAbsoluteTime now) {
-    if (!samePublishedTrack) {
+    if (!last || trackChanged) {
         return YES;
     }
-    if (publishedHasTrack != hasTrack || publishedPlaying != playing) {
+    if (last.hasTrack != hasTrack || last.playing != playing) {
         return YES;
     }
-    if (fabs(publishedDuration - duration) > 0.5) {
+    if (fabs(last.duration - duration) > 0.5) {
         return YES;
     }
-    if (!VibeNowPlayingStringsEqual(publishedTitle, title) || !VibeNowPlayingStringsEqual(publishedArtist, artist)) {
+    if (!VibeNowPlayingStringsEqual(last.title, title) || !VibeNowPlayingStringsEqual(last.artist, artist)) {
         return YES;
     }
     if (startPending) {
         return NO;
     }
-    return VibeNowPlayingPositionIsDirty(publishedPosition, publishedAt, 1.0, publishedPlaying, position, now,
-                                         kVibeWidgetPositionTolerance);
+    return VibeNowPlayingPositionIsDirty(last.position, last.positionDate.timeIntervalSinceReferenceDate, 1.0,
+                                         last.playing, position, now, kVibeWidgetPositionTolerance);
 }
 
 NS_ASSUME_NONNULL_END

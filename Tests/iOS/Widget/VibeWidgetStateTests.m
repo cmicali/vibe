@@ -73,13 +73,12 @@
     return state;
 }
 
-// The publisher's own call, with the last snapshot's fields unpacked.
+// The publisher's own call, asked whether the track is the published one.
 static BOOL NeedsPublish(VibeWidgetState *_Nullable last, BOOL sameTrack, BOOL hasTrack, NSString *title,
                          NSString *_Nullable artist, BOOL playing, NSTimeInterval duration,
                          NSTimeInterval position, BOOL startPending, CFAbsoluteTime now) {
-    return VibeWidgetNeedsPublish(last && sameTrack, last.hasTrack, last.title, last.artist, last.playing,
-                                  last.duration, last.position, last.positionDate.timeIntervalSinceReferenceDate,
-                                  hasTrack, title, artist, playing, duration, position, startPending, now);
+    return VibeWidgetNeedsPublish(last, !sameTrack, hasTrack, title, artist, playing, duration, position,
+                                  startPending, now);
 }
 
 - (void)testNothingPublishedOrANewTrackPublishes {

@@ -935,14 +935,20 @@ class OpGenerator:
         """Walk a Settings pane and flip allowlisted switches there and back,
         so the run keeps the coverage the store had. The channel refreshes
         the selected pane after every verb, so a pane left open is refreshed
-        under every later op; the batch's health sample closes it."""
+        under every later op; the batch's health sample closes it.
+
+        A switch its parent disabled is refused as disabled: Show BPM and
+        Show key under Show file info, Camelot key colors under Show key, and
+        Normalize waveform under a style that reads no levels. The flip and
+        its unflip are refused alike, so the pair still leaves the store as
+        it found it, and the refusal is tolerated."""
         pane = self.rng.choice(SETTINGS_PANES)
         ops = [("settings", ["settings_open", pane], []),
                ("settings", ["dump_settings_ui"], [])]
         names = [name for owner, name, _ in SETTINGS_SWITCHES if owner == pane]
         if names:
             chosen = self.rng.sample(names, self.rng.randint(1, min(3, len(names))))
-            flips = [("settings", ["settings_click", name, "toggle"], ["is hidden"])
+            flips = [("settings", ["settings_click", name, "toggle"], ["is hidden", "is disabled"])
                      for name in chosen]
             ops += flips + [("settings", ["dump_settings_ui"], [])] + flips[::-1]
         if self.rng.random() < 0.7:
@@ -1520,9 +1526,12 @@ def progress_sample(state, health):
         ("foreground transfer", work.get("foregroundTransferActive")),
         ("cloud lane held", pending.get("cloudLaneHeld")),
         ("player loading", app.get("playerLoading")),
-        # Running work is being attempted: a slow transfer, not a stopped one.
+        # Running work is being attempted: a slow transfer or a slow parse,
+        # not a stopped one. A parse that never returns holds metadataHolders
+        # at rest too, where quiesce's zero pending counters catch it.
         ("transfers running", (work.get("interactiveRunning") or 0)
          + (work.get("backgroundRunning") or 0)),
+        ("parse in flight", pending.get("metadataHolders")),
     ) if held]
     settled = ((work.get("requestsReady") or 0) + (work.get("requestsFailed") or 0)
                + (work.get("handleOpensCompleted") or 0))
@@ -1563,8 +1572,9 @@ def equalizer_finding(first_state, first_eq, second_state, second_eq):
 
     Scored only where the counters are defined: the reference playing in
     both, not buffering, and the bars visible and sourced (a running poller
-    is both). Then the position must advance, the meter must publish, and
-    some band must be nonzero.
+    is both). Then the position must move, the meter must publish, and some
+    band must be nonzero. A position that went backwards is Repeat One
+    restarting a short reference between the samples, which is movement.
     """
     def player(state):
         return (state or {}).get("player") or {}
@@ -1579,7 +1589,7 @@ def equalizer_finding(first_state, first_eq, second_state, second_eq):
             return False, None
     if not url(first_state) or url(first_state) != url(second_state):
         return False, None
-    if player(second_state).get("position", 0) <= player(first_state).get("position", 0):
+    if player(second_state).get("position", 0) == player(first_state).get("position", 0):
         return True, f"playback stopped: position held at {player(second_state).get('position')}"
     published = [(eq.get("audio") or {}).get("publications", 0) for eq in (first_eq, second_eq)]
     if published[1] <= published[0]:
@@ -2711,7 +2721,7 @@ def ios_op_search(rng, run):
     """A query that matches nothing, one from a corpus name with a hit opened,
     then the field cleared."""
     words = sorted({w for _, files in run.layout.values() for f in files
-                    for w in re.findall(r"[A-Za-z0-9]{3,}", Path(f).stem)})
+                    for w in re.findall(r"[A-Za-z0-9]{3,32}", Path(f).stem)})  # the gate's length
     for argv in (["minimize_player"], ["select_tab", "search"], ["search", IOS_NO_MATCH]):
         run.perform({"command": argv})
     if words:

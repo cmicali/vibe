@@ -3,7 +3,7 @@
 //  VibeAudioTests
 //
 //  Seeded mutations of the tag tests' fixtures through the real parse and art
-//  read. A mutant may parse or fail. It must return within a bound and throw
+//  read. A mutant may parse or fail. It must take a bounded CPU time and throw
 //  nothing. The original must parse the same after its fixture's mutants.
 //
 //  Seeded: the seed and the mutation are in every assertion message.
@@ -20,6 +20,7 @@
 // std::min, never MIN: a MIN that evaluates an argument twice draws the
 // generator twice and breaks the bound it computes.
 #include <algorithm>
+#include <time.h>
 
 // The tag's bytes: what tagging changed, found by the common prefix and
 // suffix of the file before and after. The RIFF and FORM size at 4..7 always
@@ -226,8 +227,10 @@ static NSData *Mutate(NSData *original, NSRange region, VibeFuzzRandom *random, 
     [super tearDown];
 }
 
-// The parse and the art read on a worker, timed there on the uptime clock the
-// art loader's backoff uses. NO when the worker outlived the hang guard.
+// The parse and the art read on a worker, timed in that thread's own CPU
+// time. Wall time would count the time a worker sat descheduled under the
+// parallel runner, and fail a healthy parse. NO when the worker outlived the
+// hang guard.
 - (BOOL)parse:(NSURL *)url metadata:(AudioTrackMetadata *__autoreleasing *)metadata
       elapsed:(NSTimeInterval *)elapsed exception:(NSString *__autoreleasing *)exception {
     __block AudioTrackMetadata *parsed = nil;
@@ -235,7 +238,7 @@ static NSData *Mutate(NSData *original, NSRange region, VibeFuzzRandom *random, 
     __block NSString *thrown = nil;
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     dispatch_async(_queue, ^{
-        NSTimeInterval start = NSProcessInfo.processInfo.systemUptime;
+        NSTimeInterval start = (NSTimeInterval)clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) / 1e9;
         try {
             @try {
                 parsed = [AudioTrackMetadata metadataWithURL:url displayArtData:NULL];
@@ -249,7 +252,7 @@ static NSData *Mutate(NSData *original, NSRange region, VibeFuzzRandom *random, 
         catch (...) {
             thrown = @"a C++ exception";
         }
-        took = NSProcessInfo.processInfo.systemUptime - start;
+        took = (NSTimeInterval)clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) / 1e9 - start;
         dispatch_semaphore_signal(done);
     });
     if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW,
@@ -262,8 +265,8 @@ static NSData *Mutate(NSData *original, NSRange region, VibeFuzzRandom *random, 
     return YES;
 }
 
-// Well inside the hang guard, and far past a parse of these small files,
-// even under the sanitizers.
+// CPU seconds. Well inside the hang guard, and far past a parse of these small
+// files, even under the sanitizers.
 static const NSTimeInterval kParseBound = 3;
 
 - (void)testMutatedTagsParseOrFailCleanly {
