@@ -52,14 +52,16 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     ColumnCoverage column(3);
     column.addSpan(2, 3, 2);
     column.addSpan(1, 2, 0.5f);
-    uint32_t pixels[3];
+    uint32_t pixels[3] = {};
     column.writeMask(pixels, 1);
     XCTAssertEqual(pixels[0], 0xffffffffu);
     XCTAssertEqual(pixels[1], 0x80808080u);
     XCTAssertEqual(pixels[2], 0u);
-    column.writeMask(pixels + 2, -1);
-    XCTAssertEqual(pixels[0], 0u);
-    XCTAssertEqual(pixels[2], 0xffffffffu);
+    uint32_t flipped[3] = {};
+    column.writeMask(flipped + 2, -1);
+    XCTAssertEqual(flipped[0], 0u);
+    XCTAssertEqual(flipped[1], 0x80808080u);
+    XCTAssertEqual(flipped[2], 0xffffffffu);
 }
 
 - (void)testTheWindowsStepsBracketTheView {

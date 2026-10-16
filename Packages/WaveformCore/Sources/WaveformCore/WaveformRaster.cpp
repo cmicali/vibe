@@ -82,11 +82,27 @@ uint32_t Byte(float value) {
 }  // namespace
 
 ColumnCoverage::ColumnCoverage(int height)
-        : height_(std::max(0, height)), steps_(size_t(height_) + 1, 0.0f), partial_(size_t(height_), 0.0f) {}
+        : height_(std::max(0, height)), steps_(size_t(height_) + 1, 0.0f), partial_(size_t(height_), 0.0f),
+          touched_((size_t(height_) + 64) / 64, 0) {}
+
+// Ascending, each row once.
+template <typename Visit>
+void ColumnCoverage::forEachTouched(Visit visit) const {
+    for (size_t w = 0; w < touched_.size(); w++) {
+        for (uint64_t bits = touched_[w]; bits; bits &= bits - 1) {
+            visit(int(w * 64) + __builtin_ctzll(bits));
+        }
+    }
+}
 
 void ColumnCoverage::clear() {
-    std::fill(steps_.begin(), steps_.end(), 0.0f);
-    std::fill(partial_.begin(), partial_.end(), 0.0f);
+    forEachTouched([&](int r) {
+        steps_[size_t(r)] = 0;
+        if (r < height_) {
+            partial_[size_t(r)] = 0;
+        }
+    });
+    std::fill(touched_.begin(), touched_.end(), 0);
 }
 
 void ColumnCoverage::addSpan(double bottom, double top, float weight) {
@@ -102,18 +118,23 @@ void ColumnCoverage::addSpan(double bottom, double top, float weight) {
     int r0 = int(std::floor(y0)), r1 = int(std::floor(y1));
     if (r0 == r1) {
         partial_[size_t(r0)] += weight * float(y1 - y0);
+        touch(r0);
         return;
     }
     int full0 = int(std::ceil(y0)), full1 = r1;
     if (double(full0) > y0) {
         partial_[size_t(r0)] += weight * float(double(full0) - y0);
+        touch(r0);
     }
     if (full1 > full0) {
         steps_[size_t(full0)] += weight;
         steps_[size_t(full1)] -= weight;
+        touch(full0);
+        touch(full1);
     }
     if (y1 > double(full1) && full1 < height_) {
         partial_[size_t(full1)] += weight * float(y1 - double(full1));
+        touch(full1);
     }
 }
 
@@ -128,12 +149,31 @@ float ColumnCoverage::at(int rowFromTop) const {
     return run + partial_[size_t(rowFromTop)];
 }
 
-void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride) const {
+void ColumnCoverage::writeMask(uint32_t *out, ptrdiff_t rowStride) {
+    // The same sums in the same order as a pass over every row: a row no span
+    // touched adds nothing to the run.
     float run = 0;
-    for (int r = 0; r < height_; r++, out += rowStride) {
+    int next = 0;
+    auto fill = [&](int end, float value) {
+        uint32_t pixel = Byte(value) * 0x01010101u;
+        if (pixel == 0) {
+            return;
+        }
+        for (int r = next; r < end; r++) {
+            out[r * rowStride] = pixel;
+        }
+    };
+    forEachTouched([&](int r) {
+        if (r >= height_) {
+            return;
+        }
+        fill(r, run);
         run += steps_[size_t(r)];
-        *out = Byte(run + partial_[size_t(r)]) * 0x01010101u;
-    }
+        next = r;
+        fill(r + 1, run + partial_[size_t(r)]);
+        next = r + 1;
+    });
+    fill(height_, run);
 }
 
 ColumnPaint::ColumnPaint(int height) : height_(std::max(0, height)) {}

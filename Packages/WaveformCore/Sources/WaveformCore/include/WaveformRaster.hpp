@@ -129,16 +129,24 @@ public:
     void addSpan(double bottom, double top, float weight);
     // The coverage of a row, from the top, unclamped.
     float at(int rowFromTop) const;
-    // Each row from the top, clamped to 0...1, as premultiplied white:
-    // 32-bit ARGB in host order. out steps rowStride pixels a row, so a
+    // Each covered row from the top, clamped to 0...1, as premultiplied
+    // white: 32-bit ARGB in host order. A row no span covers is left as out
+    // held it, so out starts cleared. out steps rowStride pixels a row, so a
     // negative stride writes bottom-up.
-    void writeMask(uint32_t *out, ptrdiff_t rowStride) const;
+    void writeMask(uint32_t *out, ptrdiff_t rowStride);
 
 private:
-    // Full rows as a difference array, partial rows directly.
+    // Full rows as a difference array, partial rows directly. Coverage
+    // changes only at the rows the spans touched, a bit each, so a mask walks
+    // those in order and fills the runs between them, and a clear resets only
+    // them.
+    void touch(int row) { touched_[size_t(row) >> 6] |= uint64_t(1) << (row & 63); }
+    template <typename Visit> void forEachTouched(Visit visit) const;
+
     int height_;
-    std::vector<float> steps_;    // height + 1
-    std::vector<float> partial_;  // height
+    std::vector<float> steps_;      // height + 1
+    std::vector<float> partial_;    // height
+    std::vector<uint64_t> touched_; // a bit a row, height + 1
 };
 
 // One pixel column painted in order with colors: each later span covers the
