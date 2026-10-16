@@ -1,0 +1,12 @@
+// Every xcodebuild in CI reads this file through XCODE_XCCONFIG_FILE
+// (.github/workflows/build.yml). It turns on Xcode's compilation cache and
+// keeps it in build/CICache, which the compilation-cache action carries
+// between runs. A cached compile or analysis replays its diagnostics. A
+// warning or an analyzer finding is reported on a hit as on a miss.
+COMPILATION_CACHE_ENABLE_CACHING = YES
+COMPILATION_CACHE_CAS_PATH = $(SRCROOT)/build/CICache/cas
+
+// One SDK stat cache for every build in a job. Each derived-data folder would
+// otherwise write its own, about 16 seconds on a runner. A stat cache from
+// another runner is rewritten anyway, so it is not carried between runs.
+SDK_STAT_CACHE_DIR = $(SRCROOT)/build/SDKStatCache

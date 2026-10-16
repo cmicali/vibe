@@ -39,7 +39,7 @@ project:
 	scripts/build/build-lock.sh xcodegen generate
 
 # The macOS app. `project` has already regenerated, so build.sh skips its own.
-# ARGS reaches xcodebuild: CI's Debug build is ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'.
+# ARGS reaches xcodebuild: CI's AppStore build is ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'.
 build: project
 	SKIP_GENERATE=1 scripts/build/build.sh $(CONFIG) $(ARGS)
 
@@ -55,9 +55,8 @@ ifeq ($(VIBE_SIGN_SIM),1)
 IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=-
 endif
 
-# The iOS simulator slice — CI's Debug job; its Release leg is the analyze
-# build — and the check that catches an AppKit leak into a shared directory.
-# arm64 only: the generic destination would add an x86_64 slice, which only an
+# The iOS simulator slice. It catches an AppKit leak into a shared directory.
+# CI builds it on the way to `make test-ios`. arm64 only: the generic destination would add an x86_64 slice, which only an
 # Intel Mac's simulator runs, and the device build is arm64 anyway. Locked:
 # this and `drive-ios.sh start` write the products directory the touch driver
 # installs from.
@@ -116,12 +115,10 @@ test: project check-cloud-scenarios
 	    $(ARGS) test
 
 # The iOS shell's views and controllers (VibeiOSTests), on a simulator, hosted
-# in the Debug app. IOS_DERIVED_DATA is its own by default, so it runs beside
-# `make test`. CI points it at build-ios's, so the app compiles once there.
-# IOS_TEST_DEVICE names the simulator; CI's runner has the default.
+# in the Debug app. It has its own derived data and can run beside `make test`.
+# IOS_TEST_DEVICE names the simulator. CI's runner has the default.
 # ARGS='-only-testing:VibeiOSTests/<Class>' narrows a run.
 IOS_TEST_DEVICE ?= iPhone 17
-IOS_DERIVED_DATA ?= build/iOSTestDerivedData
 IOS_RESULT_BUNDLE ?= build/iOSTestResults.xcresult
 test-ios: project
 	rm -rf $(IOS_RESULT_BUNDLE)
@@ -130,7 +127,7 @@ test-ios: project
 	    -scheme VibeiOSTests \
 	    -configuration Debug \
 	    -destination 'platform=iOS Simulator,name=$(IOS_TEST_DEVICE)' \
-	    -derivedDataPath $(IOS_DERIVED_DATA) \
+	    -derivedDataPath build/iOSTestDerivedData \
 	    -resultBundlePath $(IOS_RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
 	    $(IOS_SIM_SIGN) $(ARGS) test

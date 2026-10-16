@@ -1,0 +1,46 @@
+name: Restore the compilation cache
+description: >
+  Restore one job's Xcode compilation cache into build/CICache, where
+  .github/ci.xcconfig points every CI build. The job saves it again with the
+  key this action outputs.
+
+inputs:
+  job:
+    description: The job's name. Each job keeps its own cache.
+    required: true
+
+outputs:
+  key:
+    description: The key the job saves the cache under.
+    value: ${{ steps.key.outputs.key }}
+
+runs:
+  using: composite
+  steps:
+    # A new Xcode cannot reuse the old one's entries. It starts a new cache.
+    - id: key
+      shell: bash
+      run: |
+        xcode="$(xcodebuild -version | tr -cs 'A-Za-z0-9.' '-')"
+        echo "prefix=cas-${{ inputs.job }}-$xcode" >>"$GITHUB_OUTPUT"
+        echo "key=cas-${{ inputs.job }}-${xcode}${{ github.sha }}" >>"$GITHUB_OUTPUT"
+
+    - uses: actions/cache/restore@v6
+      with:
+        path: build/CICache
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.prefix }}
+
+    # Each save adds to what it restored, and the store only grows. Past the
+    # cap it starts again from empty, and that run compiles everything.
+    - shell: bash
+      run: |
+        mb=0
+        if [ -d build/CICache ]; then
+          mb="$(du -sm build/CICache | cut -f1)"
+        fi
+        echo "compilation cache: $mb MB"
+        if [ "$mb" -gt 3072 ]; then
+          echo "::notice title=Compilation cache::${mb} MB is over the cap, starting from empty"
+          rm -rf build/CICache
+        fi

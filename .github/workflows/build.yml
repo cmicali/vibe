@@ -5,9 +5,16 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Nightly, for the iOS simulator tests (ios-tests).
+  schedule:
+    - cron: "17 9 * * *"
 
 permissions:
   contents: read
+
+# Turns on Xcode's compilation cache for every xcodebuild in a job.
+env:
+  XCODE_XCCONFIG_FILE: ${{ github.workspace }}/.github/ci.xcconfig
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -56,9 +63,15 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/checks/check-translations.sh --github
 
-  # Keep four macOS jobs to limit runner contention. Text-only checks use Linux.
-  # Analyze Release: findings can depend on the configuration.
-  analyze-macos:
+  # Four macOS jobs on a pull request. The free plan runs five macOS jobs at
+  # once, and a pull request's run often overlaps its merge's run. Text-only
+  # checks use Linux.
+  #
+  # Each job keeps its own compilation cache (.github/ci.xcconfig). A run
+  # restores main's latest, and only main saves. A pull request compiles
+  # little more than the files it changes. Analyze Release, because findings
+  # can depend on the configuration.
+  macos:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
@@ -75,6 +88,11 @@ jobs:
 
       - uses: ./.github/actions/setup-xcodegen
 
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: macos
+
       - name: Build Release and analyze (macOS)
         run: scripts/build/analyze.sh Release macos
 
@@ -83,21 +101,23 @@ jobs:
           codesign --verify --deep --strict --verbose=2 \
             build/AnalyzeDD/Build/Products/Release/Vibe.app
 
-  analyze-ios:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: macos-26
-    timeout-minutes: 30
+      # x86_64: the analyze build above is arm64. This one compiles the Intel
+      # slice. The no-updater check reads no architecture.
+      - name: Build AppStore (x86_64) and check it has no updater
+        if: ${{ !cancelled() }}
+        run: |
+          make build CONFIG=AppStore ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
+          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
+            asc_require_no_updater build/DerivedData/Build/Products/AppStore/Vibe.app'
 
-    steps:
-      - uses: actions/checkout@v7
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CICache
+          key: ${{ steps.cache.outputs.key }}
 
-      - uses: ./.github/actions/setup-xcodegen
-
-      - name: Build Release and analyze (iOS)
-        run: scripts/build/analyze.sh Release ios
-
-  build-and-check:
+  # The text checks that need macOS tools run here. This is the shortest job.
+  ios:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
@@ -116,23 +136,44 @@ jobs:
       - uses: ./.github/actions/setup-xcodegen
         if: ${{ !cancelled() }}
 
-      - name: Build AppStore and check it has no updater
+      - id: cache
+        uses: ./.github/actions/compilation-cache
         if: ${{ !cancelled() }}
-        run: |
-          make build CONFIG=AppStore ARGS='ARCHS=arm64'
-          PRODUCT=Vibe bash -c 'set -euo pipefail; source scripts/appstore/asc-build-lib.sh;
-            asc_require_no_updater build/DerivedData/Build/Products/AppStore/Vibe.app'
+        with:
+          job: ios
 
-      - name: Build Debug (iOS, simulator)
+      - name: Build Release and analyze (iOS)
         if: ${{ !cancelled() }}
-        run: make build-ios CONFIG=Debug
+        run: scripts/build/analyze.sh Release ios
 
-      # Hosted in the Debug app on a simulator. Here, beside the iOS build,
-      # to keep four macOS jobs, and in its derived data, so the app it just
-      # built is the one the tests run in.
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CICache
+          key: ${{ steps.cache.outputs.key }}
+
+  # Nightly and manual runs only. A runner's first simulator boot and the
+  # tests' launch take four to eight minutes, for 20 seconds of tests. On each
+  # push to main, the job would hold a macOS slot that pull requests wait for.
+  ios-tests:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: ios-tests
+
+      # The Debug app the tests are hosted in, built on the way, is the
+      # check that catches an AppKit leak into a shared directory.
       - name: Run iOS shell tests (simulator)
-        if: ${{ !cancelled() }}
-        run: make test-ios IOS_DERIVED_DATA=build/DerivedData
+        run: make test-ios
 
       - name: iOS test summary
         if: always()
@@ -147,7 +188,16 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  test:
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() }}
+        with:
+          path: build/CICache
+          key: ${{ steps.cache.outputs.key }}
+
+  # Each suite has a runner to itself. Both are CPU-bound, and a runner has
+  # three cores. The default there is two test runners per suite, and
+  # -parallel-testing-worker-count 3 uses all three cores.
+  unit-tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: macos-26
@@ -158,23 +208,17 @@ jobs:
 
       - uses: ./.github/actions/setup-xcodegen
 
-      - name: Install fixture encoder
-        run: brew install ffmpeg
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: unit-tests
 
-      - name: Build Debug (macOS, x86_64)
-        run: make build CONFIG=Debug ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'
-
-      - name: Run unit and audio tests
-        if: ${{ !cancelled() }}
-        run: make -k -j3 test test-audio COVERAGE=1
+      - name: Run unit tests
+        run: make test COVERAGE=1 ARGS='-parallel-testing-worker-count 3'
 
       - name: Test summary
         if: always()
         run: make test-summary
-
-      - name: Audio test summary
-        if: always()
-        run: make test-audio-summary
 
       - name: Upload result bundle
         if: failure()
@@ -185,6 +229,60 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CICache
+          key: ${{ steps.cache.outputs.key }}
+
+  audio-tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-xcodegen
+
+      - id: cache
+        uses: ./.github/actions/compilation-cache
+        with:
+          job: audio-tests
+
+      # The fixtures depend only on their two scripts and on the runner
+      # image's encoders. A hit skips ffmpeg, the verifier's compile and the
+      # writes. The render suite then starts as soon as its bundle links.
+      - id: fixtures-key
+        run: echo "key=audio-fixtures-$ImageOS-$ImageVersion-${{ hashFiles('scripts/test/generate-test-audio.sh', 'scripts/test/verify-bit-perfect.swift') }}" >>"$GITHUB_OUTPUT"
+
+      - id: fixtures
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            build/audio-fixtures
+            build/verify-bit-perfect
+          key: ${{ steps.fixtures-key.outputs.key }}
+
+      # make rebuilds the verifier when its source is newer, and checkout
+      # dates the source now.
+      - name: Install the fixture encoder unless the fixtures hit
+        run: |
+          if [ '${{ steps.fixtures.outputs.cache-hit }}' = true ]; then
+            touch build/verify-bit-perfect
+          else
+            brew install ffmpeg
+          fi
+
+      # -j2: the bundle compiles while the fixtures generate.
+      - name: Run audio tests
+        run: make -j2 test-audio COVERAGE=1 ARGS='-parallel-testing-worker-count 3'
+
+      - name: Audio test summary
+        if: always()
+        run: make test-audio-summary
+
       - name: Upload audio failures and PCM attachments
         if: failure()
         uses: actions/upload-artifact@v7
@@ -193,3 +291,17 @@ jobs:
           path: build/AudioTestResults.xcresult
           retention-days: 7
           if-no-files-found: ignore
+
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.fixtures.outputs.cache-hit != 'true' }}
+        with:
+          path: |
+            build/audio-fixtures
+            build/verify-bit-perfect
+          key: ${{ steps.fixtures-key.outputs.key }}
+
+      - uses: actions/cache/save@v6
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        with:
+          path: build/CICache
+          key: ${{ steps.cache.outputs.key }}
