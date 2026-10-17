@@ -1483,7 +1483,9 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     return voice;
 }
 
-// State and voice in one acquisition, so they never disagree.
+// State, voice and file in one acquisition, so they never disagree. The file
+// goes with the voice, so a stream's last reader can go. A stopped player
+// that kept it held a link's download and the cloud lane to the last byte.
 - (VibeVoiceID)unpublishVoiceOnQueueEnteringTerminalState:(VibePlayerState)state {
     [self setBufferingNoticeOnQueue:NO];
     [self setBufferingOnQueue:NO outcome:@"its voice retired"];
@@ -1492,6 +1494,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     _stalled = NO;
     VibeVoiceID voice = _voice;
     _voice = 0;
+    _file = nil;
     os_unfair_lock_unlock(&_stateLock);
     [self clearSuccessorOnQueue];
     return voice;
