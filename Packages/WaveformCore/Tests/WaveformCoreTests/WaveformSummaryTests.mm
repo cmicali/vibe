@@ -126,6 +126,52 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     XCTAssertTrue(std::isfinite(column.bandLoudest[0]));
 }
 
+// The split rearranges its four sections for speed. Over any slicing, at any
+// rate, it must give what the sections give run plainly: low's lowpass, low's
+// highpass into high's lowpass, and high's highpass, in direct form I.
+- (void)testTheBandSplitIsItsSectionsRunInOrder {
+    std::mt19937 rng(5);
+    std::normal_distribution<float> noise(0, 0.3f);
+    std::vector<float> mono(20000);
+    for (float &sample : mono) sample = noise(rng);
+    for (double rate : {8000.0, 44100.0, 96000.0, 384000.0}) {
+        double sections[4][5];
+        for (int s = 0; s < 4; s++) {
+            bool highpass = s % 2;
+            double w = 2 * M_PI * (s < 2 ? 300 : 2500) / rate;
+            double alpha = std::sin(w) / (2 * M_SQRT1_2), a0 = 1 + alpha;
+            double edge = (highpass ? 1 + std::cos(w) : 1 - std::cos(w)) / 2 / a0;
+            double section[5] = {edge, (highpass ? -2 : 2) * edge, edge, 2 * std::cos(w) / a0, -(1 - alpha) / a0};
+            std::copy(section, section + 5, sections[s]);
+        }
+        double state[4][4] = {};
+        auto run = [&](int s, double x) {
+            double *z = state[s], *c = sections[s];
+            double y = c[0] * x + c[1] * z[0] + c[2] * z[1] + c[3] * z[2] + c[4] * z[3];
+            z[1] = z[0];
+            z[0] = x;
+            z[3] = z[2];
+            z[2] = y;
+            return y;
+        };
+        wavecore::BandSplit split(rate);
+        for (size_t at = 0; at < mono.size();) {
+            size_t count = std::min<size_t>(mono.size() - at, 1 + rng() % 600);
+            double expected[wavecore::kBandCount] = {}, actual[wavecore::kBandCount] = {};
+            for (size_t i = at; i < at + count; i++) {
+                double bands[wavecore::kBandCount] = {run(0, mono[i]), run(2, run(1, mono[i])), run(3, mono[i])};
+                for (size_t b = 0; b < wavecore::kBandCount; b++) expected[b] += bands[b] * bands[b];
+            }
+            split.addSumSquares(mono.data() + at, count, actual);
+            for (size_t b = 0; b < wavecore::kBandCount; b++) {
+                XCTAssertEqualWithAccuracy(actual[b], expected[b], 1e-5 * expected[b] + 1e-12,
+                                           @"%g Hz, band %zu, frames %zu to %zu", rate, b, at, at + count);
+            }
+            at += count;
+        }
+    }
+}
+
 - (void)testAPartialSummarySpansItsExpectedLength {
     SummaryBuilder builder(false, 4096, 44100);
     std::vector<float> silence(1024, 0);
@@ -280,6 +326,41 @@ static void VibeAssertSameColumns(Summary &a, Summary &b, double framesPerColumn
         XCTAssertEqual(fromSnapshot[i].hi, fromFinished[i].hi, @"bin %zu", i);
         XCTAssertEqual(fromSnapshot[i].loudest, fromFinished[i].loudest, @"bin %zu", i);
         if (fromSnapshot[i].loudest != fromFinished[i].loudest) break;
+    }
+}
+
+// Parent reads must match unions of the snapshot's own bins, including the
+// unfinished windows and groups at the streaming front.
+- (void)testSnapshotParentsMatchTheirBinsAtEveryFront {
+    for (bool bands : {false, true}) {
+        SummaryBuilder builder(bands, 4096, 44100);
+        for (size_t frames : {1u, 3u, 17u, 881u, 32765u, 37u, 98311u, 271u}) {
+            VibeAppendNoise(builder, frames, uint32_t(frames));
+            auto snapshot = builder.snapshot();
+            size_t count = snapshot->binCount();
+            double bin = snapshot->binFrames();
+            std::vector<Column> bins(count);
+            snapshot->columns(bin, 0, count, bins.data());
+            for (size_t width : {4u, 16u, 67u, 1024u}) {
+                for (size_t end = count; end > 0; end = end > width ? end - width : 0) {
+                    size_t first = end > width ? end - width : 0;
+                    Column expected = bins[first];
+                    for (size_t i = first + 1; i < end; i++) {
+                        expected.lo = std::min(expected.lo, bins[i].lo);
+                        expected.hi = std::max(expected.hi, bins[i].hi);
+                        expected.loudest = std::max(expected.loudest, bins[i].loudest);
+                        for (size_t b = 0; b < wavecore::kBandCount; b++) {
+                            expected.bandLoudest[b] = std::max(expected.bandLoudest[b], bins[i].bandLoudest[b]);
+                        }
+                    }
+                    Column actual = snapshot->column(first * bin, end * bin);
+                    XCTAssertEqual(actual.lo, expected.lo);
+                    XCTAssertEqual(actual.hi, expected.hi);
+                    XCTAssertEqual(actual.loudest, expected.loudest);
+                    XCTAssertTrue(actual.bandLoudest == expected.bandLoudest);
+                }
+            }
+        }
     }
 }
 

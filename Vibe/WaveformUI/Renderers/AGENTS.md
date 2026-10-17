@@ -31,7 +31,7 @@ Two families and one flat style, split by how progress and hover quantize:
 - **Each style says when copying stops paying** (the share of the picture to draw, past which it draws it all). Detailed's coverage costs less than a copy. Scrolled by half its width, copying the other half cost a third more than drawing it, so Detailed copies only while under a quarter changes: a load's front. 3-Band paints seven spans a column, so it copies up to three quarters.
 - **A picture's raster is called inline in its renderer.** Called through a pointer, the same loop cost 3 to 9% more.
 
-**Wiggle draws its centerline directly.** Core Graphics strokes `VibeNewWigglePath` into the mask's picture. Never expand it into a filled outline first. That repeats the stroker's work on every resize and morph frame.
+**Wiggle draws its centerline directly.** Core Graphics strokes `VibeNewWigglePath` into the mask's picture. The path includes only the loops near the render window. It keeps a loop beyond each stroke edge to leave the end caps outside the picture. Never expand it into a filled outline first. That repeats the stroker's work on every resize and morph frame.
 
 ## Zoom steps
 

@@ -14,6 +14,10 @@
 #import "AudioWaveformLoader.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
+#import "WaveformRenderer.h"
+#import "WaveformRendererRegistry.h"
+#endif
 
 #include <memory>
 #include <vector>
@@ -97,18 +101,21 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                 [disk->queue waitUntilAllOperationsAreFinished];
                 return 100;
             };
-            for (const char *operation : {"read", "write", "snapshot"}) {
+            for (const char *operation : {"read", "write", "snapshot", "read-draw", "snapshot-draw"}) {
+#if !VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
+                if (std::string(operation).find("-draw") != std::string::npos) continue;
+#endif
                 std::string op = operation;
                 VibeBenchComponentsAdd("waveform-cache", op + (bands ? "-bands" : "-plain") +
                                       ([name hasSuffix:@"60min"] ? "-60min" : ""), "op", prepare,
-                                      [waveform, disk, op]() {
+                                      [waveform, disk, op, bands, name]() {
                     for (int i = 0; i < 100; i++) {
                         @autoreleasepool {
                             if (op == "write") {
                                 [disk->cache setObject:*waveform forKey:@"waveform"];
                             } else {
                                 CodableAudioWaveform *result;
-                                if (op == "read") {
+                                if (op == "read" || op == "read-draw") {
                                     result = (CodableAudioWaveform *)[disk->cache objectForKey:@"waveform"];
                                 } else {
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
@@ -119,12 +126,60 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                                 }
                                 VibeBenchComponentsRequire(result != nil && result.waveform != nullptr,
                                                            "waveform cache read or snapshot failed");
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
+                                if (op.find("-draw") != std::string::npos) {
+                                    CALayer *layer = [CALayer layer];
+                                    layer.bounds = CGRectMake(0, 0, 800, 60);
+                                    layer.contentsScale = 2;
+                                    WaveformRenderer *renderer = [WaveformRendererRegistry
+                                            rendererForResolvedIdentifier:bands ? @"spectrum" : @"detailed"
+                                            layer:layer bounds:layer.bounds isDark:YES];
+                                    VibeBenchComponentsRequire(renderer != nil, "first draw renderer missing");
+                                    [renderer updateWaveform:layer.bounds progress:0.4 waveform:result.waveform];
+                                    [renderer settleMorphImmediately];
+                                    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+                                    CGContextRef context = CGBitmapContextCreate(NULL, 1600, 120, 8, 0, space,
+                                            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+                                    CGColorSpaceRelease(space);
+                                    VibeBenchComponentsRequire(context != NULL, "first draw bitmap allocation failed");
+                                    CGContextScaleCTM(context, 2, 2);
+                                    [layer renderInContext:context];
+                                    if (i == 0 && getenv("VIBE_BENCH_COMPONENTS_UI_DUMP")) {
+                                        NSString *label = [NSString stringWithFormat:@"%@-%s-%d", name, op.c_str(), bands];
+                                        VibeBenchComponentsUIDump([label stringByAppendingString:@".pixels"],
+                                                [NSData dataWithBytes:CGBitmapContextGetData(context)
+                                                               length:CGBitmapContextGetBytesPerRow(context) * 120]);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+                                        auto bytes = result.waveform->encode();
+                                        VibeBenchComponentsUIDump([label stringByAppendingString:@".archive"],
+                                                [NSData dataWithBytes:bytes.data() length:bytes.size()]);
+#endif
+                                    }
+                                    CGContextRelease(context);
+                                    [CATransaction flush];
+                                }
+#endif
                             }
                         }
                     }
                     [disk->queue waitUntilAllOperationsAreFinished];
                 });
             }
+            VibeBenchComponentsAdd("waveform-cache", std::string("fresh-write") + (bands ? "-bands" : "-plain") +
+                                  ([name hasSuffix:@"60min"] ? "-60min" : ""), "op",
+                                  [name]() -> double { return VibeBenchComponentsFile(name) ? 1 : -1; },
+                                  [name, bands]() {
+                @autoreleasepool {
+                    AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(NO);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
+                    loader.analysis = (VibeWaveformAnalysis){.bands = (BOOL)bands};
+#endif
+                    CodableAudioWaveform *fresh = [loader load:VibeBenchComponentsFile(name)];
+                    VibeBenchComponentsRequire(fresh != nil && loader.isComplete, "fresh waveform failed");
+                    NSData *archive = [NSKeyedArchiver archivedDataWithRootObject:fresh requiringSecureCoding:NO error:nil];
+                    VibeBenchComponentsRequire(archive.length > 0, "fresh waveform archive failed");
+                }
+            });
         }
     }
 

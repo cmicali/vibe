@@ -55,13 +55,16 @@ struct VibeBenchComponentsZoomState {
 
 // The scrubber's host: geometryFlipped at 3x, as wide as the zoomed track.
 static void VibeBenchComponentsZoomSetUp(VibeBenchComponentsZoomState *state, Class style, bool bands,
-                                         CGFloat virtualWidth) {
+                                         CGFloat virtualWidth, bool wiggle) {
     state->waveform = VibeBenchComponentsZoomWaveform(bands);
     state->host = [CALayer layer];
     state->host.geometryFlipped = YES;
     state->host.contentsScale = 3;
     state->host.bounds = CGRectMake(0, 0, virtualWidth, kZoomHeight);
-    state->renderer = [[style alloc] initWithLayer:state->host bounds:state->host.bounds isDark:YES];
+    state->renderer = wiggle
+            ? [[DetailedWaveformRenderer alloc] initWithLayer:state->host bounds:state->host.bounds isDark:YES wiggle:YES]
+            : [[style alloc] initWithLayer:state->host bounds:state->host.bounds isDark:YES];
+    if (wiggle) state->renderer.samplingWidth = 812;
     state->renderer.normalizesLevels = YES;
 }
 
@@ -106,10 +109,13 @@ static void VibeBenchComponentsRegisterZoom(void) {
         CGFloat width;
         NSString *picture;
         void (*body)(VibeBenchComponentsZoomState *);
+        bool wiggle = false;
     };
     // 24 s across 6,000 pt reads the bins; across 65,536 pt, 16 frames a
     // point, Detailed reads the frames themselves.
     const Case cases[] = {
+        {"wiggle-scroll", DetailedWaveformRenderer.class, false, 6000, @"_barMask", VibeBenchComponentsZoomScroll, true},
+        {"wiggle-pinch", DetailedWaveformRenderer.class, false, 812, @"_barMask", VibeBenchComponentsZoomPinch, true},
         {"detailed-scroll", DetailedWaveformRenderer.class, false, 6000, @"_barMask", VibeBenchComponentsZoomScroll},
         {"detailed-deep-scroll", DetailedWaveformRenderer.class, false, 65536, @"_barMask",
          VibeBenchComponentsZoomScroll},
@@ -123,7 +129,7 @@ static void VibeBenchComponentsRegisterZoom(void) {
         auto state = std::make_shared<VibeBenchComponentsZoomState>();
         Case item = c;
         VibeBenchComponentsAdd("ui-waveform-zoom", item.name, "frame", [state, item]() -> double {
-            VibeBenchComponentsZoomSetUp(state.get(), item.style, item.bands, item.width);
+            VibeBenchComponentsZoomSetUp(state.get(), item.style, item.bands, item.width, item.wiggle);
             item.body(state.get());
             [state->renderer settleMorphImmediately];
             // The picture last drawn, from the renderer's one picture layer.

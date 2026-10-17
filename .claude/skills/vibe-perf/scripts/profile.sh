@@ -19,4 +19,4 @@ sleep 2
 sample "$PID" "$SECONDS_TO_SAMPLE" 1 -mayDie -file "$OUT" >/dev/null 2>&1 || true
 wait "$PID" || true
 # The "Sort by top of stack" section: self time per function.
-awk '/Sort by top of stack/{on=1} on' "$OUT" | head -40
+awk '/Sort by top of stack/{on=1} on && shown++ < 40' "$OUT"

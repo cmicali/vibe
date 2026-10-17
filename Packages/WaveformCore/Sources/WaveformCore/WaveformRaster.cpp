@@ -237,11 +237,11 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
     size_t sorted = 0;
     for (size_t s = 0; s < count_; s++) {
         for (double edge : {spans_[s].bottom, spans_[s].top}) {
-            // Insertion: a column holds a handful of spans.
-            size_t i = sorted++;
-            for (; i > 0 && edges[i - 1] > edge; i--) {
-                edges[i] = edges[i - 1];
-            }
+            // Coincident band edges divide no area. Sort each position once.
+            size_t i = 0;
+            while (i < sorted && edges[i] < edge) i++;
+            if (i < sorted && edges[i] == edge) continue;
+            for (size_t j = sorted++; j > i; j--) edges[j] = edges[j - 1];
             edges[i] = edge;
         }
     }

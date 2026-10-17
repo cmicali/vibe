@@ -226,4 +226,46 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     XCTAssertEqual(pixels[1], 0x80800000u);
 }
 
+// Quarter-row edges and sixteenth colors integrate exactly. A fine grid
+// gives an independent reference for coincident edges and painter order.
+- (void)testPaintedSpansMatchAreaSamples {
+    std::mt19937 random(731);
+    const int height = 37, quarters = height * 4;
+    for (int trial = 0; trial < 500; trial++) {
+        wavecore::ColumnPaint column(height);
+        std::vector<uint32_t> cells(quarters, 0);
+        size_t count = trial % (wavecore::ColumnPaint::kMaxSpans + 1);
+        for (size_t span = 0; span < count; span++) {
+            int bottom = (int)(random() % (quarters + 40)) - 20;
+            int top = (int)(random() % (quarters + 40)) - 20;
+            if (bottom > top) std::swap(bottom, top);
+            uint32_t r = random() % 17, g = random() % 17, b = random() % 17;
+            column.paintSpan(bottom / 4.0, top / 4.0, r / 16.0f, g / 16.0f, b / 16.0f);
+            for (int q = std::max(0, bottom); q < std::min(quarters, top); q++) {
+                cells[q] = 0x1000000 | r << 16 | g << 8 | b;
+            }
+        }
+        std::vector<uint32_t> pixels(height, 0);
+        bool flipped = trial % 2;
+        column.write(pixels.data() + (flipped ? height - 1 : 0), flipped ? -1 : 1);
+        for (int row = 0; row < height; row++) {
+            unsigned alpha = 0, red = 0, green = 0, blue = 0;
+            for (int q = (height - row - 1) * 4; q < (height - row) * 4; q++) {
+                uint32_t cell = cells[q];
+                alpha += cell >> 24;
+                red += (cell >> 16) & 255;
+                green += (cell >> 8) & 255;
+                blue += cell & 255;
+            }
+            auto byte = [](unsigned value, unsigned denominator) {
+                return (uint32_t)floor(value * 255.0 / denominator + 0.5);
+            };
+            uint32_t expected = byte(alpha, 4) << 24 | byte(red, 64) << 16
+                    | byte(green, 64) << 8 | byte(blue, 64);
+            XCTAssertEqual(pixels[flipped ? height - row - 1 : row], expected,
+                           @"trial %d row %d", trial, row);
+        }
+    }
+}
+
 @end

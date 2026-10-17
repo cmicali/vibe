@@ -28,9 +28,9 @@ static CGFloat VibeWiggleVScale(CGFloat height, BOOL centered, CGFloat widthScal
 // The centerline only: a filled outline makes every resize and morph frame pay
 // for a second, much larger path.
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
-                                  BOOL centered, CGFloat widthScale) CF_RETURNS_RETAINED;
+                                  BOOL centered, CGFloat widthScale, CGRect window) CF_RETURNS_RETAINED;
 static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger count,
-                                  BOOL centered, CGFloat widthScale) {
+                                  BOOL centered, CGFloat widthScale, CGRect window) {
     CGMutablePathRef line = CGPathCreateMutable();
     CGFloat stroke = VibeWiggleStrokeForSize(size, count, widthScale);
     CGFloat amplitude = VibeWiggleVScale(size.height, centered, widthScale);
@@ -39,9 +39,15 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     CGFloat pitch = (size.width - stroke) / count;
     CGFloat radiusX = pitch / 4;
     const CGFloat kCircleControl = 0.5522847498;
-    CGFloat bottom = baseline;
-    CGPathMoveToPoint(line, NULL, stroke / 2, bottom);
-    for (NSUInteger i = 0; i < count; i++) {
+    // Keep a loop beyond each stroke edge. The clipped path's caps and joins
+    // then stay outside the picture, including its antialiased edge.
+    NSUInteger first = (NSUInteger)MAX(0, floor((CGRectGetMinX(window) - stroke - 1) / pitch) - 1);
+    NSUInteger end = (NSUInteger)MIN((CGFloat)count, ceil((CGRectGetMaxX(window) + stroke + 1) / pitch) + 1);
+    first = MIN(first, count);
+    CGFloat bottom = baseline - (centered && first > 0 && first < count
+            ? clampRange(samples[first * 2 + 1], 0, 1) * amplitude : 0);
+    CGPathMoveToPoint(line, NULL, first ? stroke / 2 + (first - 1) * pitch + pitch : stroke / 2, bottom);
+    for (NSUInteger i = first; i < end; i++) {
         CGFloat x = stroke / 2 + i * pitch;
         CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
         CGFloat top = baseline + height;
@@ -568,7 +574,8 @@ static const double kLevelPixels = 4;
         }
         CGContextScaleCTM(ctx, pixels.scale, pixels.height / size.height);
         CGContextTranslateCTM(ctx, -pixels.x0 / pixels.scale, 0);
-        CGPathRef path = VibeNewWigglePath(size, samples.data(), count, self.centered, self.barWidthScale);
+        CGPathRef path = VibeNewWigglePath(size, samples.data(), count, self.centered, self.barWidthScale,
+                pixels.frameForHeight(size.height));
         CGContextAddPath(ctx, path);
         CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
         CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count, self.barWidthScale));

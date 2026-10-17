@@ -513,12 +513,11 @@ void Summary::tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, si
     }
 }
 
-// The finest level of at most kSnapshotBins, as a summary of its own with its
-// levels above built from it. The base is copied whole, and its last loudest
-// windows are taken as they stand, from the builder's own sums. A level
-// above holds only whole groups, so a copy of one trails the last bin
-// appended by less than one of its bins and half a loudest window: a second
-// at most of a stream hours long.
+// Copies the finest level of at most kSnapshotBins and its upper levels.
+// The base keeps its unfinished loudest windows from the builder's sums.
+// An upper level holds only whole groups. It trails the last appended bin
+// by less than one of its bins and half a loudest window. That is at most
+// a second of a stream hours long.
 std::unique_ptr<Summary> Summary::snapshot() const {
     size_t index = 0;
     while (index < pyramid_.size() && level(index).count > kSnapshotBins) {
@@ -527,20 +526,10 @@ std::unique_ptr<Summary> Summary::snapshot() const {
     const Level &from = level(index);
     size_t bins = from.count;
     auto copy = std::make_unique<Summary>(uint32_t(from.binFrames), bands_, sampleRate_);
-    Level &to = copy->base_;
-    auto head = [](const auto &plane, size_t values) {
-        return std::vector<typename std::decay_t<decltype(plane)>::value_type>(
-                plane.begin(), plane.begin() + ptrdiff_t(std::min(values, plane.size())));
-    };
-    to.lo = head(from.lo, bins);
-    to.hi = head(from.hi, bins);
-    to.sumSquares = head(from.sumSquares, bins);
-    to.loudest = head(from.loudest, bins);
-    if (bands_) {
-        to.bandSumSquares = head(from.bandSumSquares, bins * kBandCount);
-        to.bandLoudest = head(from.bandLoudest, bins * kBandCount);
-    }
-    to.count = bins;
+    copy->base_ = from;
+    // Whole groups are already derived. Only the streaming front needs
+    // closing, and no copied level is finer than the bounded snapshot.
+    copy->pyramid_.assign(pyramid_.begin() + ptrdiff_t(index), pyramid_.end());
     if (index == 0) {
         copy->frames_ = frames_;
         copy->window_ = window_;
@@ -711,9 +700,12 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
         }
     }
     auto summary = std::make_unique<Summary>(bf, bands, header.sampleRate);
-    summary->reserve(summary->base_, n);
+    Level &base = summary->base_;
+    base.lo.resize(n);
+    base.hi.resize(n);
+    base.sumSquares.resize(n);
+    base.bandSumSquares.resize(bands ? n * kBandCount : 0);
     const _Float16 *in = raw.data();
-    double bandSums[kBandCount] = {};
     for (uint64_t i = 0; i < n; i++) {
         float lo = float(in[i]), hi = float(in[n + i]);
         if (lo > hi) {
@@ -729,10 +721,14 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
             if (bandRMS < 0) {
                 return nullptr;
             }
-            bandSums[b] = bandRMS * bandRMS * frames;
+            base.bandSumSquares[i * kBandCount + b] = float(bandRMS * bandRMS * frames);
         }
-        summary->appendBin(lo, hi, rms * rms * frames, bands ? bandSums : nullptr, frames);
+        base.lo[i] = in[i];
+        base.hi[i] = in[n + i];
+        base.sumSquares[i] = float(rms * rms * frames);
     }
+    base.count = n;
+    summary->frames_ = header.frames;
     summary->totalFrames_ = header.totalFrames;
     summary->complete_ = header.flags & kFlagComplete;
     summary->buildPyramid();

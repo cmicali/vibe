@@ -1436,6 +1436,104 @@ static WaveformRenderer *VibeHostedRenderer(NSString *identifier, CGRect bounds,
     }
 }
 
+// The complete centerline is the reference for a window-limited path.
+static CGPathRef VibeReferenceWigglePath(CGSize size, const float *samples, NSUInteger count,
+                                  BOOL centered, CGFloat widthScale) {
+    CGMutablePathRef line = CGPathCreateMutable();
+    CGFloat stroke = MIN(1.5, size.width / (MAX((NSUInteger)1, count) * 4)) * widthScale;
+    CGFloat amplitude = MAX(0, VibeBarVScale(size.height) * 2 - 1.5 * widthScale) / (centered ? 2 : 1);
+    if (count == 0 || size.width <= stroke || amplitude == 0) return line;
+    CGFloat baseline = centered ? size.height / 2 : VibeBarBaseline(size.height) + stroke / 2;
+    CGFloat pitch = (size.width - stroke) / count;
+    CGFloat radiusX = pitch / 4;
+    const CGFloat kCircleControl = 0.5522847498;
+    CGFloat bottom = baseline;
+    CGPathMoveToPoint(line, NULL, stroke / 2, bottom);
+    for (NSUInteger i = 0; i < count; i++) {
+        CGFloat x = stroke / 2 + i * pitch;
+        CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
+        CGFloat top = baseline + height;
+        CGFloat nextBottom = baseline - (centered && i + 1 < count
+                ? clampRange(samples[(i + 1) * 2 + 1], 0, 1) * amplitude : 0);
+        CGFloat radiusY = MIN(radiusX, (top - bottom) / 2);
+        CGFloat cx = radiusX * kCircleControl, cy = radiusY * kCircleControl;
+        CGPathAddCurveToPoint(line, NULL, x + cx, bottom,
+                             x + radiusX, bottom + radiusY - cy,
+                             x + radiusX, bottom + radiusY);
+        CGPathAddLineToPoint(line, NULL, x + radiusX, top - radiusY);
+        CGPathAddCurveToPoint(line, NULL, x + radiusX, top - radiusY + cy,
+                             x + 2 * radiusX - cx, top, x + 2 * radiusX, top);
+        radiusY = MIN(radiusX, (top - nextBottom) / 2);
+        cy = radiusY * kCircleControl;
+        CGPathAddCurveToPoint(line, NULL, x + 2 * radiusX + cx, top,
+                             x + 3 * radiusX, top - radiusY + cy,
+                             x + 3 * radiusX, top - radiusY);
+        CGPathAddLineToPoint(line, NULL, x + 3 * radiusX, nextBottom + radiusY);
+        CGPathAddCurveToPoint(line, NULL, x + 3 * radiusX, nextBottom + radiusY - cy,
+                             x + pitch - cx, nextBottom, x + pitch, nextBottom);
+        bottom = nextBottom;
+    }
+    return line;
+}
+
+// A cropped Wiggle must keep the full path's curves and joins at both edges.
+- (void)testWiggleWindowsMatchTheFullPath {
+    std::vector<float> samples = VibeKickNoise(44100);
+    wavecore::SummaryBuilder builder(false, samples.size(), 44100);
+    builder.append(samples.data(), samples.size());
+    auto waveform = builder.finish(true);
+    CGRect bounds = CGRectMake(0, 0, 6000, 180);
+    for (CGFloat scale : {1.0, 2.0, 3.0}) {
+        for (BOOL flipped : {NO, YES}) {
+            for (BOOL centered : {NO, YES}) {
+                for (CGFloat stroke : {0.5, 1.0, 3.0}) {
+                    for (CGFloat x : {0.0, 7.0, 41.5, 900.0, 2990.0, 5610.0}) {
+                        WaveformRenderer *part = VibeHostedRenderer(@"wiggle_centered", bounds, scale, flipped);
+                        part.centered = centered;
+                        part.barWidthScale = stroke;
+                        part.samplingWidth = 812;
+                        part.renderRect = CGRectMake(x, 0, 390, 180);
+                        [part updateWaveform:bounds progress:0.4 waveform:waveform.get()];
+                        [part settleMorphImmediately];
+                        VibeTestPicture crop = VibePictureOf(VibeMaskLayer(part));
+                        XCTAssertGreaterThan(crop.pixels.size(), 0u);
+                        WaveformMorphEngine *morph = [part valueForKey:@"_morph"];
+                        const auto &displayed = [morph displayedSamples];
+                        CGPathRef path = VibeReferenceWigglePath(bounds.size, displayed.data(), displayed.size() / 2,
+                                                                centered, stroke);
+                        std::vector<uint32_t> reference(crop.pixels.size(), 0);
+                        CGContextRef context = CGBitmapContextCreate(reference.data(), crop.width, crop.height, 8,
+                                crop.width * sizeof(uint32_t), VibePictureColorSpace(part.pictureColorSpace),
+                                (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+                        if (flipped) {
+                            CGContextTranslateCTM(context, 0, crop.height);
+                            CGContextScaleCTM(context, 1, -1);
+                        }
+                        CGContextScaleCTM(context, scale, scale);
+                        CGContextTranslateCTM(context, -crop.frame.origin.x, 0);
+                        CGContextAddPath(context, path);
+                        CGContextSetRGBStrokeColor(context, 1, 1, 1, 1);
+                        CGContextSetLineWidth(context, MIN(1.5, bounds.size.width / (displayed.size() / 2 * 4)) * stroke);
+                        CGContextSetLineCap(context, kCGLineCapRound);
+                        CGContextSetLineJoin(context, kCGLineJoinRound);
+                        CGContextStrokePath(context);
+                        CGContextRelease(context);
+                        CGPathRelease(path);
+                        unsigned worst = 0;
+                        for (size_t i = 0; i < reference.size(); i++) {
+                            worst = MAX(worst, (unsigned)abs((int)(crop.pixels[i] >> 24) - (int)(reference[i] >> 24)));
+                        }
+                        // Core Graphics may round a clipped path's coverage by one byte unit.
+                        XCTAssertLessThanOrEqual(worst, 1u, @"scale %g centered %d stroke %g x %g",
+                                                 scale, centered, stroke, x);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 // The iOS scrubber's window, flipped at 3x, moved by steps from a few points
 // to more than its width. Each picture must be the one drawn whole there.
 - (void)testAWindowMovedInPartMatchesOneDrawnWhole {
