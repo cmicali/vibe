@@ -633,12 +633,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     XCTAssertGreaterThan(peak, 0.1f);
     XCTAssertLessThan(worst, 1e-5f, @"max error %g", worst);
 }
-// Where an MP3's ID3v2 tag ends: its first frame, in the generated fixtures.
-static NSUInteger VibeID3v2End(NSData *file) {
-    const uint8_t *b = file.bytes;
-    if (file.length < 10 || memcmp(b, "ID3", 3) != 0) return 0;
-    return 10 + ((NSUInteger)(b[6] & 0x7F) << 21 | (b[7] & 0x7F) << 14 | (b[8] & 0x7F) << 7 | (b[9] & 0x7F));
-}
 // A free format stream states no bit rate, and its frames are as long as the
 // distance between headers. CoreAudio refuses one. Rewritten as free format,
 // a CBR stream decodes exactly as it did, length included.
@@ -649,7 +643,7 @@ static NSUInteger VibeID3v2End(NSData *file) {
     uint8_t *b = bytes.mutableBytes;
     NSUInteger frames = 0;
     // 192 kbps at 48 kHz: every frame is 576 bytes, none padded.
-    for (NSUInteger at = VibeID3v2End(bytes); at + 4 <= bytes.length; at += 576, frames++) {
+    for (NSUInteger at = VibeID3v2Length(bytes, 0); at + 4 <= bytes.length; at += 576, frames++) {
         XCTAssertEqual(b[at], 0xFF);
         XCTAssertEqual(b[at + 2] >> 4, 11, @"192 kbps");
         b[at + 2] &= 0x0F;
@@ -678,7 +672,7 @@ static NSUInteger VibeID3v2End(NSData *file) {
     NSData *source = [NSData dataWithContentsOfURL:url];
     NSMutableData *bytes = [source mutableCopy];
     uint8_t *b = bytes.mutableBytes;
-    NSUInteger start = VibeID3v2End(bytes), rewritten = 0;
+    NSUInteger start = VibeID3v2Length(bytes, 0), rewritten = 0;
     for (NSUInteger at = start + 2 * 576; at + 4 <= bytes.length; at += 6 * 576, rewritten++) {
         XCTAssertEqual(b[at], 0xFF);
         b[at + 2] &= 0x0F;
@@ -705,7 +699,7 @@ static NSUInteger VibeID3v2End(NSData *file) {
     NSURL *cbrURL = [self optionalFixture:@"cbr.mp3"], *plainURL = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
     NSData *cbr = [NSData dataWithContentsOfURL:cbrURL], *plain = [NSData dataWithContentsOfURL:plainURL];
-    NSUInteger cbrStart = VibeID3v2End(cbr), plainStart = VibeID3v2End(plain);
+    NSUInteger cbrStart = VibeID3v2Length(cbr, 0), plainStart = VibeID3v2Length(plain, 0);
     AVAudioFramePosition frames = (AVAudioFramePosition)(plain.length - plainStart) / 576 * 1152;
 
     NSMutableData *vbri = [cbr mutableCopy];
@@ -724,11 +718,7 @@ static NSUInteger VibeID3v2End(NSData *file) {
     const char text[] = " 00000000 00000000 00000000 0000000000000480";
     NSMutableData *comment = [NSMutableData dataWithBytes:"\0engiTunSMPB\0" length:13];
     [comment appendBytes:text length:sizeof(text) - 1];
-    uint8_t header[10] = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, (uint8_t)(10 + comment.length)};
-    uint8_t frame[10] = {'C', 'O', 'M', 'M', 0, 0, 0, (uint8_t)comment.length, 0, 0};
-    NSMutableData *tagged = [NSMutableData dataWithBytes:header length:sizeof(header)];
-    [tagged appendBytes:frame length:sizeof(frame)];
-    [tagged appendData:comment];
+    NSMutableData *tagged = [VibeID3v2Tag(3, 0, VibeID3v2Frame("COMM", 3, (uint32_t)comment.length, 0, comment)) mutableCopy];
     [tagged appendData:[plain subdataWithRange:NSMakeRange(plainStart, plain.length - plainStart)]];
     XCTAssertEqual([self open:[self writeBytes:tagged name:@"itunes-one-frame.mp3"] decoder:@"dr_mp3"].length, frames, @"an iTunes count of one");
 }
@@ -741,7 +731,7 @@ static NSUInteger VibeID3v2End(NSData *file) {
     NSURL *monoURL = [self optionalFixture:@"mono-noinfo.mp3"], *stereoURL = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
     NSData *mono = [NSData dataWithContentsOfURL:monoURL], *stereo = [NSData dataWithContentsOfURL:stereoURL];
-    NSUInteger monoStart = VibeID3v2End(mono), stereoStart = VibeID3v2End(stereo);
+    NSUInteger monoStart = VibeID3v2Length(mono, 0), stereoStart = VibeID3v2Length(stereo, 0);
     NSMutableData *joined = [[mono subdataWithRange:NSMakeRange(monoStart, mono.length - monoStart)] mutableCopy];
     [joined appendData:[stereo subdataWithRange:NSMakeRange(stereoStart, stereo.length - stereoStart)]];
     NSURL *url = [self writeBytes:joined name:@"mode-change.mp3"];
@@ -769,7 +759,7 @@ static NSUInteger VibeID3v2End(NSData *file) {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
     NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
-    NSUInteger start = VibeID3v2End(bytes), frames = (bytes.length - start) / 576;
+    NSUInteger start = VibeID3v2Length(bytes, 0), frames = (bytes.length - start) / 576;
     XCTAssertEqual((bytes.length - start) % 576, 0u, @"192 kbps at 48 kHz: 576-byte frames");
     uint8_t *damaged = (uint8_t *)bytes.mutableBytes + start + (frames - 3) * 576;
     XCTAssertEqual(damaged[0], 0xFF);
@@ -794,15 +784,10 @@ static NSUInteger VibeID3v2End(NSData *file) {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
     NSData *source = [NSData dataWithContentsOfURL:url];
-    NSUInteger start = VibeID3v2End(source);
+    NSUInteger start = VibeID3v2Length(source, 0);
     for (NSNumber *claimed in @[@0xFFFFFFF6u, @0x7FFFFFFFu, @64u]) {
-        uint32_t size = CFSwapInt32HostToBig(claimed.unsignedIntValue);
-        uint8_t frame[10] = {'T', 'I', 'T', '2'};
-        memcpy(frame + 4, &size, sizeof(size));
-        uint8_t header[10] = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, sizeof(frame) + 20};
-        NSMutableData *tagged = [NSMutableData dataWithBytes:header length:sizeof(header)];
-        [tagged appendBytes:frame length:sizeof(frame)];
-        [tagged increaseLengthBy:20];
+        NSData *frame = VibeID3v2Frame("TIT2", 3, claimed.unsignedIntValue, 0, [NSMutableData dataWithLength:20]);
+        NSMutableData *tagged = [VibeID3v2Tag(3, 0, frame) mutableCopy];
         [tagged appendData:[source subdataWithRange:NSMakeRange(start, source.length - start)]];
         NSURL *damaged = [self writeBytes:tagged name:[NSString stringWithFormat:@"id3-size-%@.mp3", claimed]];
         dispatch_semaphore_t opened = dispatch_semaphore_create(0);
@@ -829,38 +814,23 @@ static NSUInteger VibeID3v2End(NSData *file) {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
     NSData *source = [NSData dataWithContentsOfURL:url];
-    NSUInteger start = VibeID3v2End(source);
+    NSUInteger start = VibeID3v2Length(source, 0);
     NSData *audio = [source subdataWithRange:NSMakeRange(start, source.length - start)];
     const char text[] = " 00000000 00000240 00000540 0000000000017700 00000000 00000000";
     NSMutableData *comment = [NSMutableData dataWithBytes:"\0engiTunSMPB\0" length:13];
     [comment appendBytes:text length:sizeof(text) - 1];
-    // A tag of `frames` bytes, its size syncsafe.
-    NSData *(^tag)(uint8_t, uint8_t, NSData *) = ^NSData *(uint8_t version, uint8_t flags, NSData *frames) {
-        uint32_t size = (uint32_t)frames.length;
-        uint8_t header[10] = {'I', 'D', '3', version, 0, flags, 0, 0, (uint8_t)(size >> 7), (uint8_t)(size & 0x7F)};
-        NSMutableData *bytes = [NSMutableData dataWithBytes:header length:sizeof(header)];
-        [bytes appendData:frames];
-        return bytes;
-    };
-    // A frame whose size field says `size`, followed by `body` as stored.
-    NSData *(^frame)(const char *, uint32_t, uint8_t, NSData *) = ^NSData *(const char *name, uint32_t size, uint8_t flags, NSData *body) {
-        uint8_t header[10] = {(uint8_t)name[0], (uint8_t)name[1], (uint8_t)name[2], (uint8_t)name[3], 0, 0, 0, (uint8_t)size, 0, flags};
-        NSMutableData *bytes = [NSMutableData dataWithBytes:header length:sizeof(header)];
-        [bytes appendData:body];
-        return bytes;
-    };
-    NSData *plain = frame("COMM", (uint32_t)comment.length, 0, comment);
-    NSMutableData *escaped = [frame("PRIV", 4, 0, [NSData dataWithBytes:"\xFF\x00\xE0\x01\x02" length:5]) mutableCopy];
+    NSData *plain = VibeID3v2Frame("COMM", 3, (uint32_t)comment.length, 0, comment);
+    NSMutableData *escaped = [VibeID3v2Frame("PRIV", 3, 4, 0, [NSData dataWithBytes:"\xFF\x00\xE0\x01\x02" length:5]) mutableCopy];
     [escaped appendData:plain];
     NSMutableData *own = [NSMutableData dataWithBytes:"\0\0\0" length:3];
     uint8_t decodedLength = (uint8_t)comment.length;
     [own appendBytes:&decodedLength length:1];
     [own appendData:comment];
     NSDictionary<NSString *, NSData *> *variants = @{
-        @"v2.3": tag(3, 0, plain),
-        @"v2.3, flagged unsynchronised": tag(3, 0x80, plain),
-        @"v2.3, unsynchronised": tag(3, 0x80, escaped),
-        @"v2.4, a frame unsynchronised": tag(4, 0x80, frame("COMM", (uint32_t)own.length, 0x03, own)),
+        @"v2.3": VibeID3v2Tag(3, 0, plain),
+        @"v2.3, flagged unsynchronised": VibeID3v2Tag(3, 0x80, plain),
+        @"v2.3, unsynchronised": VibeID3v2Tag(3, 0x80, escaped),
+        @"v2.4, a frame unsynchronised": VibeID3v2Tag(4, 0x80, VibeID3v2Frame("COMM", 4, (uint32_t)own.length, 0x03, own)),
     };
     AVAudioPCMBuffer *whole = [self read:url];
     for (NSString *name in variants) {

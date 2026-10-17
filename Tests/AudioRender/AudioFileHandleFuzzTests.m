@@ -115,11 +115,11 @@ static void FuzzAddChunk(NSMutableData *chunks, NSData *data, NSUInteger at, NSU
     [chunks appendBytes:&chunk length:sizeof(chunk)];
 }
 
-static NSUInteger FuzzID3v2Length(NSData *data, NSUInteger at) {
-    const uint8_t *b = data.bytes;
-    if (at + 10 > data.length || memcmp(b + at, "ID3", 3) != 0) return 0;
-    NSUInteger size = (NSUInteger)(b[at + 6] & 0x7F) << 21 | (b[at + 7] & 0x7F) << 14 | (b[at + 8] & 0x7F) << 7 | (b[at + 9] & 0x7F);
-    return 10 + size + (b[at + 5] & 0x10 ? 10 : 0);
+// A Xing tag within `range`, else an Info tag. location NSNotFound for neither.
+static NSRange FuzzXingRange(NSData *bytes, NSRange range) {
+    range.length = MIN(range.length, bytes.length - MIN(range.location, bytes.length));
+    NSRange xing = [bytes rangeOfData:[@"Xing" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:range];
+    return xing.location != NSNotFound ? xing : [bytes rangeOfData:[@"Info" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:range];
 }
 
 // An MPEG audio frame's bytes from its header, 0 for no valid header.
@@ -247,7 +247,7 @@ static NSData *FuzzWalk(NSData *data, FuzzContainer container, NSRange *audio) {
             break;
         }
         case FuzzMPEG: {
-            NSUInteger tag = FuzzID3v2Length(data, 0);
+            NSUInteger tag = VibeID3v2Length(data, 0);
             if (tag) FuzzAddChunk(chunks, data, 0, 6, 4, YES, 10, tag - 10, tag, 0, "ID3 ");
             NSUInteger first = tag + 4 <= length ? FuzzMPEGFrameBytes(b + tag) : 0;
             if (tag + first < length) *audio = NSMakeRange(tag + first, length - tag - first);
@@ -619,8 +619,7 @@ static NSUInteger FuzzFactFields(FuzzSource *source, BOOL rate, FuzzField *field
         if (n > 24) break;
     }
     if (source.container == FuzzMPEG && source.audio.location >= 4) {
-        NSRange xing = [source.bytes rangeOfData:[@"Xing" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:NSMakeRange(0, source.audio.location)];
-        if (xing.location == NSNotFound) xing = [source.bytes rangeOfData:[@"Info" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:NSMakeRange(0, source.audio.location)];
+        NSRange xing = FuzzXingRange(source.bytes, NSMakeRange(0, source.audio.location));
         if (xing.location != NSNotFound && !rate) fields[n++] = (FuzzField){xing.location + 8, 4, YES};
     }
     return n;
@@ -708,8 +707,7 @@ static BOOL FuzzSeekTablePastEnd(NSMutableData *bytes, FuzzSource *source, VibeF
         return YES;
     }
     if (source.container == FuzzMPEG && source.audio.location > 8) {
-        NSRange xing = [bytes rangeOfData:[@"Xing" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:NSMakeRange(0, source.audio.location)];
-        if (xing.location == NSNotFound) xing = [bytes rangeOfData:[@"Info" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:NSMakeRange(0, source.audio.location)];
+        NSRange xing = FuzzXingRange(bytes, NSMakeRange(0, source.audio.location));
         if (xing.location == NSNotFound) return NO;
         uint32_t flags = (uint32_t)FuzzGet(bytes, xing.location + 4, 4, YES);
         NSUInteger at = xing.location + 8 + (flags & 1 ? 4 : 0);
@@ -797,26 +795,22 @@ static BOOL FuzzDataSize(NSMutableData *bytes, FuzzSource *source, VibeFuzzRando
 
 #pragma mark Named shapes: the MPEG open's own framing (AudioFileHandle+MPEG.m)
 
-// The offsets of the frames that chain from `from`, up to `capacity`. A free format or damaged
-// header ends the chain.
-static NSUInteger FuzzMPEGFrameOffsets(NSData *bytes, NSUInteger from, NSUInteger *offsets, NSUInteger capacity) {
+// The offsets of an MPEG file's frames that chain from past its ID3v2 tag, up to `capacity`. A
+// free format or damaged header ends the chain. 0 for another container.
+static NSUInteger FuzzMPEGFrameOffsets(NSData *bytes, FuzzSource *source, NSUInteger *offsets, NSUInteger capacity) {
     const uint8_t *b = bytes.bytes;
     NSUInteger n = 0;
-    for (NSUInteger at = from, size; n < capacity && at + 4 <= bytes.length && (size = FuzzMPEGFrameBytes(b + at)); at += size) {
+    if (source.container != FuzzMPEG) return 0;
+    for (NSUInteger at = VibeID3v2Length(bytes, 0), size; n < capacity && at + 4 <= bytes.length && (size = FuzzMPEGFrameBytes(b + at)); at += size) {
         offsets[n++] = at;
     }
     return n;
 }
 
-// Where an MPEG file's audio frames begin: past its ID3v2 tag.
-static NSUInteger FuzzMPEGStart(NSData *bytes) {
-    return FuzzID3v2Length(bytes, 0);
-}
-
 // The ID3v2 frame headers in the tag at the file's start, and its version.
 static NSUInteger FuzzID3v2Frames(NSData *bytes, NSUInteger *offsets, NSUInteger capacity, uint8_t *version) {
     const uint8_t *b = bytes.bytes;
-    NSUInteger end = MIN(FuzzID3v2Length(bytes, 0), bytes.length), n = 0;
+    NSUInteger end = MIN(VibeID3v2Length(bytes, 0), bytes.length), n = 0;
     if (end < 10) return 0;
     *version = b[3];
     NSUInteger header = *version == 2 ? 6 : 10;
@@ -887,21 +881,12 @@ static BOOL FuzzITunesComment(NSMutableData *bytes, FuzzSource *source, VibeFuzz
     BOOL unsynchronised = VibeFuzzBelow(random, 3) == 0;
     NSMutableData *frames = [NSMutableData data];
     if (unsynchronised && version == 3) {
-        uint8_t priv[] = {'P', 'R', 'I', 'V', 0, 0, 0, 4, 0, 0, 0xFF, 0x00, 0xE0, 0x01, 0x02};
-        [frames appendBytes:priv length:sizeof(priv)];
+        // 0xFF 0xE0 in a frame before the comment, written escaped: 0xFF 0x00 0xE0.
+        [frames appendData:VibeID3v2Frame("PRIV", 3, 4, 0, [NSData dataWithBytes:"\xFF\x00\xE0\x01\x02" length:5])];
     }
-    uint32_t size = (uint32_t)body.length;
-    uint8_t header[10] = {'C', 'O', 'M', 'M', 0, 0, 0, 0, 0, 0};
-    if (version == 4) { header[4] = (size >> 21) & 0x7F; header[5] = (size >> 14) & 0x7F; header[6] = (size >> 7) & 0x7F; header[7] = size & 0x7F; }
-    else FuzzPut([NSMutableData dataWithBytesNoCopy:header length:10 freeWhenDone:NO], 4, 4, YES, size);
-    [frames appendBytes:header length:10];
-    [frames appendData:body];
-    uint32_t tagSize = (uint32_t)frames.length;
-    uint8_t tag[10] = {'I', 'D', '3', version, 0, unsynchronised ? 0x80 : 0,
-                       (tagSize >> 21) & 0x7F, (tagSize >> 14) & 0x7F, (tagSize >> 7) & 0x7F, tagSize & 0x7F};
-    NSMutableData *prefix = [NSMutableData dataWithBytes:tag length:10];
-    [prefix appendData:frames];
-    NSUInteger existing = VibeFuzzBelow(random, 2) ? FuzzMPEGStart(bytes) : 0;
+    [frames appendData:VibeID3v2Frame("COMM", version, (uint32_t)body.length, 0, body)];
+    NSData *prefix = VibeID3v2Tag(version, unsynchronised ? 0x80 : 0, frames);
+    NSUInteger existing = VibeFuzzBelow(random, 2) ? VibeID3v2Length(bytes, 0) : 0;
     [bytes replaceBytesInRange:NSMakeRange(0, existing) withBytes:prefix.bytes length:prefix.length];
     return YES;
 }
@@ -910,9 +895,8 @@ static BOOL FuzzITunesComment(NSMutableData *bytes, FuzzSource *source, VibeFuzz
 // remainder, each zero, at its maximum or random. Or its tag made a VBRI header with random counts.
 static BOOL FuzzXingFields(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     if (source.container != FuzzMPEG) return NO;
-    NSUInteger start = FuzzMPEGStart(bytes);
-    NSRange xing = [bytes rangeOfData:[@"Xing" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:NSMakeRange(start, MIN(64, bytes.length - MIN(start, bytes.length)))];
-    if (xing.location == NSNotFound) xing = [bytes rangeOfData:[@"Info" dataUsingEncoding:NSASCIIStringEncoding] options:0 range:NSMakeRange(start, MIN(64, bytes.length - MIN(start, bytes.length)))];
+    NSUInteger start = VibeID3v2Length(bytes, 0);
+    NSRange xing = FuzzXingRange(bytes, NSMakeRange(start, 64));
     if (xing.location == NSNotFound || xing.location + 156 > bytes.length) return NO;
     uint32_t extremes[] = {0, 1, 2, 0x7FFFFFFF, 0xFFFFFFFF, (uint32_t)VibeFuzzNext(random)};
     if (arg) {
@@ -944,7 +928,7 @@ static BOOL FuzzXingFields(NSMutableData *bytes, FuzzSource *source, VibeFuzzRan
 // mono, dual channel, stereo or joint stereo.
 static BOOL FuzzFrameHeaders(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     NSUInteger offsets[4096];
-    NSUInteger n = source.container == FuzzMPEG ? FuzzMPEGFrameOffsets(bytes, FuzzMPEGStart(bytes), offsets, 4096) : 0;
+    NSUInteger n = FuzzMPEGFrameOffsets(bytes, source, offsets, 4096);
     if (n < 2) return NO;
     uint8_t *b = bytes.mutableBytes;
     BOOL every = VibeFuzzBelow(random, 2);
@@ -959,7 +943,7 @@ static BOOL FuzzFrameHeaders(NSMutableData *bytes, FuzzSource *source, VibeFuzzR
 // Junk between two frames: random bytes, a false sync, or a run of zeros.
 static BOOL FuzzJunkBetweenFrames(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     NSUInteger offsets[4096];
-    NSUInteger n = source.container == FuzzMPEG ? FuzzMPEGFrameOffsets(bytes, FuzzMPEGStart(bytes), offsets, 4096) : 0;
+    NSUInteger n = FuzzMPEGFrameOffsets(bytes, source, offsets, 4096);
     if (n < 2) return NO;
     NSMutableData *junk = [NSMutableData dataWithLength:1 + VibeFuzzBelow(random, 2048)];
     uint8_t *j = junk.mutableBytes;
@@ -976,7 +960,7 @@ static BOOL FuzzJunkBetweenFrames(NSMutableData *bytes, FuzzSource *source, Vibe
 // or over the last frame's end, with a damaged frame before it or not.
 static BOOL FuzzTrailingTag(NSMutableData *bytes, FuzzSource *source, VibeFuzzRandom *random, NSUInteger arg) {
     NSUInteger offsets[4096];
-    NSUInteger n = source.container == FuzzMPEG ? FuzzMPEGFrameOffsets(bytes, FuzzMPEGStart(bytes), offsets, 4096) : 0;
+    NSUInteger n = FuzzMPEGFrameOffsets(bytes, source, offsets, 4096);
     if (n < 4) return NO;
     static const char *tags[] = {"TAG", "APETAGEX", "LYRICSBEGIN", "ID3\x04"};
     const char *name = tags[VibeFuzzBelow(random, 4)];

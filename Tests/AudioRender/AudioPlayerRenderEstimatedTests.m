@@ -11,9 +11,7 @@
 
 // An MP3's audio frames, its ID3v2 tag left off.
 static NSData *MP3Frames(NSData *mp3) {
-    const uint8_t *b = mp3.bytes;
-    NSUInteger start = mp3.length > 10 && !memcmp(b, "ID3", 3)
-            ? 10 + ((NSUInteger)(b[6] & 0x7F) << 21 | (b[7] & 0x7F) << 14 | (b[8] & 0x7F) << 7 | (b[9] & 0x7F)) : 0;
+    NSUInteger start = VibeID3v2Length(mp3, 0);
     return [mp3 subdataWithRange:NSMakeRange(start, mp3.length - start)];
 }
 

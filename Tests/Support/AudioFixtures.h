@@ -255,6 +255,36 @@ static inline NSURL *VibeWriteSowtAIFF(NSURL *url, NSData *samples, double rate,
     return [aiff writeToURL:url atomically:YES] ? url : nil;
 }
 
+// An ID3v2 tag's whole length at `at`, its header, its size and any footer
+// counted. 0 when no tag starts there.
+static inline NSUInteger VibeID3v2Length(NSData *file, NSUInteger at) {
+    const uint8_t *b = (const uint8_t *)file.bytes + at;
+    if (at + 10 > file.length || memcmp(b, "ID3", 3) != 0) return 0;
+    return 10 + (b[5] & 0x10 ? 10 : 0) + ((NSUInteger)(b[6] & 0x7F) << 21 | (b[7] & 0x7F) << 14 | (b[8] & 0x7F) << 7 | (b[9] & 0x7F));
+}
+
+// An ID3v2.3 or 2.4 frame: its header, its size field saying `size` as
+// `version` writes it (syncsafe in 2.4), then `body` as stored. A size apart
+// from the body's length lets a test write a damaged or escaped frame.
+static inline NSData *VibeID3v2Frame(const char *name, uint8_t version, uint32_t size, uint8_t flags, NSData *body) {
+    uint32_t field = version == 4 ? (size & 0x7F) | (size >> 7 & 0x7F) << 8 | (size >> 14 & 0x7F) << 16 | (size >> 21 & 0x7F) << 24 : size;
+    uint8_t header[10] = {(uint8_t)name[0], (uint8_t)name[1], (uint8_t)name[2], (uint8_t)name[3],
+                          (uint8_t)(field >> 24), (uint8_t)(field >> 16), (uint8_t)(field >> 8), (uint8_t)field, 0, flags};
+    NSMutableData *frame = [NSMutableData dataWithBytes:header length:sizeof(header)];
+    [frame appendData:body];
+    return frame;
+}
+
+// An ID3v2 tag of `frames` with these header flags, its size syncsafe.
+static inline NSData *VibeID3v2Tag(uint8_t version, uint8_t flags, NSData *frames) {
+    uint32_t size = (uint32_t)frames.length;
+    uint8_t header[10] = {'I', 'D', '3', version, 0, flags,
+                          (uint8_t)(size >> 21 & 0x7F), (uint8_t)(size >> 14 & 0x7F), (uint8_t)(size >> 7 & 0x7F), (uint8_t)(size & 0x7F)};
+    NSMutableData *tag = [NSMutableData dataWithBytes:header length:sizeof(header)];
+    [tag appendData:frames];
+    return tag;
+}
+
 // MPEG-1 Layer III, 320 kbps, 44.1 kHz, stereo: a LAME Info frame counting
 // `frames` silent frames after it, which, as for every MP3 with one, makes
 // CoreAudio's open read the file's head and then its last bytes; with an

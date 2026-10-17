@@ -23,7 +23,7 @@
 // a damaged stream it takes that long for the reservoir to fall into step.
 static const SInt64 kVibeMPEGSeekPrerollPackets = 10;
 
-// A stream's packet count until it is settled (estimateMPEGPackets).
+// A stream's packet count until it is settled (estimateMPEGPacketsAtRate:).
 static const SInt64 kVibeMPEGPacketsUncounted = INT64_MAX;
 
 enum {
@@ -56,6 +56,11 @@ typedef struct {
     UInt32 layer, rate, framesPerPacket, channels, bitrate, bytes, padding, fixed, smallest, largest;
 } VibeMPEGFrame;
 
+// A frame's size at `bitrate`, before its padding.
+static inline UInt32 VibeMPEGFrameBytes(const VibeMPEGFrame *frame, UInt32 bitrate) {
+    return frame->layer == 1 ? 12 * bitrate / frame->rate * 4 : frame->framesPerPacket / 8 * bitrate / frame->rate;
+}
+
 // The header at `h`, as ISO/IEC 11172-3 and 13818-3 lay it out.
 static BOOL VibeMPEGParse(const uint8_t h[4], VibeMPEGFrame *frame) {
     static const uint16_t kbps[2][3][15] = {
@@ -79,30 +84,43 @@ static BOOL VibeMPEGParse(const uint8_t h[4], VibeMPEGFrame *frame) {
     frame->channels = (h[3] >> 6) == 3 ? 1 : 2;
     frame->padding = ((h[2] >> 1) & 1) * slot;
     frame->fixed = (UInt32)(h[1] & 0xFE) << 8 | (h[2] & 0x0C);
-    UInt32 (^size)(UInt32) = ^UInt32(UInt32 bitrate) {
-        return layer == 1 ? 12 * bitrate / frame->rate * 4 : frame->framesPerPacket / 8 * bitrate / frame->rate;
-    };
     frame->bitrate = kbps[lsf][layer - 1][index] * 1000u;
-    frame->bytes = index ? size(frame->bitrate) + frame->padding : 0;
-    frame->smallest = size(kbps[lsf][layer - 1][1] * 1000u);
-    frame->largest = (index ? size(kbps[lsf][layer - 1][14] * 1000u) : DRMP3_MAX_FREE_FORMAT_FRAME_SIZE) + slot;
+    frame->bytes = index ? VibeMPEGFrameBytes(frame, frame->bitrate) + frame->padding : 0;
+    frame->smallest = VibeMPEGFrameBytes(frame, kbps[lsf][layer - 1][1] * 1000u);
+    frame->largest = (index ? VibeMPEGFrameBytes(frame, kbps[lsf][layer - 1][14] * 1000u) : DRMP3_MAX_FREE_FORMAT_FRAME_SIZE) + slot;
     return YES;
 }
 
 @implementation AudioFileHandle (MPEG)
 
-// A header of the stream at `at`. A read that waited and lost reads as none.
+// A header of the stream at `at`, or any header while no stream is known
+// (_mpegFixed 0). A read that waited and lost reads as none.
 - (BOOL)mpegHeaderAt:(SInt64)at frame:(VibeMPEGFrame *)frame {
     uint8_t h[4];
     UInt32 got = 0;
     return at + 4 <= _mpegDataEnd && VibeHandleRead((__bridge void *)self, at, 4, h, &got) == noErr && got == 4
-            && VibeMPEGParse(h, frame) && frame->fixed == _mpegFixed;
+            && VibeMPEGParse(h, frame) && (!_mpegFixed || frame->fixed == _mpegFixed);
+}
+
+// Whether a free format frame can end at `next`: at the data's end, or at a
+// header of the stream whose own frame another header follows.
+- (BOOL)mpegFreeFrameEndsAt:(SInt64)next {
+    VibeMPEGFrame other, third;
+    if (next == _mpegDataEnd) {
+        return YES;
+    }
+    if (![self mpegHeaderAt:next frame:&other]) {
+        return NO;
+    }
+    SInt64 after = next + other.bytes;
+    return other.bytes == 0 || after == _mpegDataEnd || [self mpegHeaderAt:after frame:&third];
 }
 
 // The stream's frame at `at`, all of it before the data's end. A frame that
-// states no bit rate runs to the next header of the stream whose own frame
-// another header follows, or to the data's end. A stream can be free format
-// throughout, and damage can leave one frame so.
+// states no bit rate runs to the first place a free format frame can end. A
+// stream can be free format throughout, and damage can leave one frame so.
+// The frame's bytes are read once, and only a 0xFF can start the header that
+// ends it.
 // TRAP: never past dr_mp3's largest free format frame. Its reservoir copy
 // holds that much, and a longer frame overflowed into the side information
 // beside it: a damaged stream whose free format frames were six frames apart.
@@ -110,17 +128,17 @@ static BOOL VibeMPEGParse(const uint8_t h[4], VibeMPEGFrame *frame) {
     if (![self mpegHeaderAt:at frame:frame]) {
         return NO;
     }
-    for (SInt64 next = at + 4; frame->bytes == 0 && next <= at + frame->padding + DRMP3_MAX_FREE_FORMAT_FRAME_SIZE; next++) {
-        VibeMPEGFrame other, third;
-        if (next == _mpegDataEnd) {
-            frame->bytes = (UInt32)(next - at);
-        } else if ([self mpegHeaderAt:next frame:&other]) {
-            SInt64 after = next + other.bytes;
-            if (other.bytes == 0 || after == _mpegDataEnd || [self mpegHeaderAt:after frame:&third]) {
+    if (frame->bytes == 0) {
+        uint8_t window[4 + DRMP3_MAX_FREE_FORMAT_FRAME_SIZE + 1];
+        SInt64 limit = MIN(at + frame->padding + DRMP3_MAX_FREE_FORMAT_FRAME_SIZE, _mpegDataEnd);
+        UInt32 got = 0;
+        if (VibeHandleRead((__bridge void *)self, at, (UInt32)MIN((SInt64)sizeof window, limit - at + 1), window, &got) != noErr) {
+            got = 0;
+        }
+        for (SInt64 next = at + 4; frame->bytes == 0 && next <= limit && !_waitError; next++) {
+            if ((next == _mpegDataEnd || (next - at < got && window[next - at] == 0xFF)) && [self mpegFreeFrameEndsAt:next]) {
                 frame->bytes = (UInt32)(next - at);
             }
-        } else if (_waitError) {
-            return NO;
         }
     }
     return frame->bytes > 4 && at + frame->bytes <= _mpegDataEnd;
@@ -156,14 +174,13 @@ static BOOL VibeMPEGParse(const uint8_t h[4], VibeMPEGFrame *frame) {
 // Each header is read on its own, so a stream waits only for the bytes each
 // one needs. -1 when there is none.
 - (SInt64)syncMPEGFrom:(SInt64)from span:(SInt64)span {
-    UInt32 fixed = _mpegFixed, got = 0;
-    uint8_t h[4];
+    UInt32 fixed = _mpegFixed;
     for (SInt64 at = from; at <= from + span && at + 4 <= _mpegDataEnd; at++) {
         VibeMPEGFrame frame;
-        if (VibeHandleRead((__bridge void *)self, at, 4, h, &got) != noErr || got != 4) {
-            return -1;
-        }
-        if (!VibeMPEGParse(h, &frame) || (fixed && frame.fixed != fixed)) {
+        if (![self mpegHeaderAt:at frame:&frame]) {
+            if (_waitError) {
+                return -1;
+            }
             continue;
         }
         _mpegFixed = frame.fixed;
@@ -325,14 +342,13 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
                 if (!VibeID3v2Read(context, decoded, stop, at, 4, x)) {
                     at = stop;
                 } else {
-                    at += version == 4 ? ((x[0] & 0x7F) << 21 | (x[1] & 0x7F) << 14 | (x[2] & 0x7F) << 7 | (x[3] & 0x7F))
-                            : 4 + (SInt64)OSReadBigInt32(x, 0);
+                    at += version == 4 ? VibeID3v2Syncsafe(x) : 4 + (SInt64)OSReadBigInt32(x, 0);
                 }
             }
             UInt32 header = version == 2 ? 6 : 10;
             while (!found && at + header <= stop && VibeID3v2Read(context, decoded, stop, at, header, h) && h[0]) {
                 SInt64 size = version == 2 ? (SInt64)h[3] << 16 | h[4] << 8 | h[5]
-                        : version == 4 ? (SInt64)(h[4] & 0x7F) << 21 | (h[5] & 0x7F) << 14 | (h[6] & 0x7F) << 7 | (h[7] & 0x7F)
+                        : version == 4 ? (SInt64)VibeID3v2Syncsafe(h + 4)
                         : (SInt64)OSReadBigInt32(h, 4);
                 // TRAP: a damaged size can claim more than the tag holds. In
                 // 32 bits, a header plus a size near 2^32 wrapped to 0, and
@@ -369,15 +385,15 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
 // is the count at their average size. Either is an estimate, since a
 // headerless file can change rate after its intro. 0 when too few frames
 // walk.
-- (SInt64)estimateMPEGPackets:(SInt64)audio rate:(UInt32)rate {
+- (SInt64)estimateMPEGPacketsAtRate:(UInt32)rate {
     if (![self indexMPEGThrough:kVibeMPEGEstimateFrames - 1]) {
         return 0;
     }
-    SInt64 limit = MIN(MIN(_size, (SInt64)_availability.writtenBytes), audio + kVibeMPEGEstimateBytes);
+    SInt64 audio = _mpegOffsets[0], limit = MIN(MIN(_size, (SInt64)_availability.writtenBytes), audio + kVibeMPEGEstimateBytes);
     while (!_mpegWalkEnded && _mpegWalk + kVibeMPEGFrameCapacity <= limit && [self indexMPEGThrough:_mpegIndexed]) {
     }
     UInt64 bytes = (UInt64)(_mpegDataEnd - audio);
-    SInt64 walked = _mpegWalk - _mpegOffsets[0];
+    SInt64 walked = _mpegWalk - audio;
     if (!_mpegConstantBitrate || _mpegFirstBitrate == 0) {
         return walked > 0 ? (SInt64)((bytes * (UInt64)_mpegIndexed + (UInt64)walked / 2) / (UInt64)walked) : 0;
     }
@@ -398,8 +414,8 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
 // is trusted when it fits the file (below). The remainder is trimmed only
 // when the stream holds exactly the packets stated. A stream whose download
 // runs, without a count that fits, opens on an estimate
-// (estimateMPEGPackets:). Otherwise the walk counts every frame at open, as
-// CoreAudio's parser did.
+// (estimateMPEGPacketsAtRate:). Otherwise the walk counts every frame at
+// open, as CoreAudio's parser did.
 //
 // CoreAudio's parser misses the Info frame of a mono or an MPEG-2 file, and
 // stops counting packets where a stream changes mode. It refuses free format.
@@ -410,10 +426,14 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
     _mpegFixed = 0;
     SInt64 first = [self syncMPEGFrom:start span:junk ? kVibeMPEGSyncSpan : 0];
     VibeMPEGFrame frame;
-    uint8_t head[64] = {0};
+    // The first frame's head: its side information, then a Xing, Info or VBRI
+    // tag with a LAME tag after it, in at most 36 + 120 + 36 bytes. Only the
+    // frame's own bytes count. A tag found in the frames after a short one
+    // took that frame for a header and stopped the stream at its count.
+    uint8_t head[192] = {0};
     UInt32 got = 0;
     if (first < 0 || ![self mpegFrameAt:first frame:&frame]
-            || VibeHandleRead((__bridge void *)self, first, (UInt32)MIN((SInt64)sizeof head, frame.bytes), head, &got) != noErr) {
+            || VibeHandleRead((__bridge void *)self, first, MIN((UInt32)sizeof head, frame.bytes), head, &got) != noErr) {
         return NO;
     }
     // The tag after the side information, where LAME writes it.
@@ -422,15 +442,14 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
     SInt64 stated = 0, statedBytes = 0, priming = 0, remainder = 0, frames = 0;
     if (frame.layer == 3 && x + 8 <= got && (memcmp(head + x, "Xing", 4) == 0 || memcmp(head + x, "Info", 4) == 0)) {
         vbr = YES;
-        uint8_t tag[120 + 36] = {0};
-        VibeHandleRead((__bridge void *)self, first + x, sizeof tag, tag, &got);
+        const uint8_t *tag = head + x;
         uint32_t flags = OSReadBigInt32(tag, 4), at = 8;
         if (flags & 1) { stated = OSReadBigInt32(tag, at); at += 4; }
         if (flags & 2) { statedBytes = OSReadBigInt32(tag, at); at += 4; }
         if (flags & 4) at += 100;
         if (flags & 8) at += 4;
         const uint8_t *lame = tag + at;
-        if (at + 24 <= got && (memcmp(lame, "LAME", 4) == 0 || memcmp(lame, "Lavf", 4) == 0 || memcmp(lame, "Lavc", 4) == 0)) {
+        if (x + at + 24 <= got && (memcmp(lame, "LAME", 4) == 0 || memcmp(lame, "Lavf", 4) == 0 || memcmp(lame, "Lavc", 4) == 0)) {
             gapless = YES;
             priming = lame[21] << 4 | lame[22] >> 4;
             remainder = (lame[22] & 0xF) << 8 | lame[23];
@@ -458,7 +477,7 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
             && bytes >= stated * frame.smallest && bytes <= stated * frame.largest + (statedBytes ? 0 : slack);
     if (fits) {
         packets = stated;
-    } else if (_availability.partURL && (estimate = [self estimateMPEGPackets:_mpegWalk rate:frame.rate]) > 0 && !_mpegWalkEnded) {
+    } else if (_availability.partURL && (estimate = [self estimateMPEGPacketsAtRate:frame.rate]) > 0 && !_mpegWalkEnded) {
         packets = kVibeMPEGPacketsUncounted;
     } else {
         estimate = 0;
@@ -662,10 +681,10 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
     // it is handed. It is handed one frame, its size the walk's. So it holds
     // each frame's header before it decodes, and a free format frame's size.
     // Without the size every such frame decoded to nothing.
+    VibeMPEGFrame packet;
     memcpy(_mpeg->header, _mpegPacket, sizeof(_mpeg->header));
-    if ((_mpegPacket[2] >> 4) == 0) {
-        UInt32 padding = ((_mpegPacket[2] >> 1) & 1) * (((_mpegPacket[1] >> 1) & 3) == 3 ? 4 : 1);
-        _mpeg->free_format_bytes = (int)(_mpegPacketBytes - padding);
+    if (VibeMPEGParse(_mpegPacket, &packet) && packet.bitrate == 0) {
+        _mpeg->free_format_bytes = (int)(_mpegPacketBytes - packet.padding);
     }
     int frames = drmp3dec_decode_frame(_mpeg, _mpegPacket, (int)_mpegPacketBytes, _mpegPCM, &info);
     if (frames != (int)_mpegFramesPerPacket) {

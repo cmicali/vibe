@@ -52,14 +52,18 @@ dispatch_queue_t VibeHandleDebugCloseQueue(void) {
 }
 #endif
 
+// An ID3v2 syncsafe integer: 28 bits, 7 to a byte.
+uint32_t VibeID3v2Syncsafe(const uint8_t bytes[4]) {
+    return (uint32_t)(bytes[0] & 0x7F) << 21 | (bytes[1] & 0x7F) << 14 | (bytes[2] & 0x7F) << 7 | (bytes[3] & 0x7F);
+}
+
 // An ID3v2 tag's whole length from the file's first 10 bytes: the syncsafe
 // size in bytes 6-9 excludes the header and a footer. 0 for no tag.
 uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     if (memcmp(header, "ID3", 3) != 0) {
         return 0;
     }
-    return 10 + (header[5] & 0x10 ? 10 : 0)
-            + ((header[6] & 0x7F) << 21 | (header[7] & 0x7F) << 14 | (header[8] & 0x7F) << 7 | (header[9] & 0x7F));
+    return 10 + (header[5] & 0x10 ? 10 : 0) + VibeID3v2Syncsafe(header + 6);
 }
 
 @implementation AudioFileHandle {
@@ -137,8 +141,8 @@ static NSError *VibeInterruptedError(NSURL *url) {
 // interruption; a failure stays. With a buffer, bytes the tail window holds
 // past the download's edge are copied into it, up to `capacity`, their count
 // in *copied; 0 means they are on disk.
-BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
-                     void *window, uint64_t capacity, uint64_t *copied) {
+static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
+                            void *window, uint64_t capacity, uint64_t *copied) {
     if (handle->_waitError) {
         return NO;
     }

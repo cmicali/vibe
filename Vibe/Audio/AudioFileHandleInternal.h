@@ -128,11 +128,10 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 @end
 
 // AudioFileHandle.m's reads and waits, which the decode's open also uses.
+uint32_t VibeID3v2Syncsafe(const uint8_t bytes[4]);
 uint32_t VibeID3v2TagBytes(const uint8_t header[10]);
 AudioFileTypeID VibeFileTypeForExtension(NSString *extension);
 NSError *VibeHandleError(OSStatus status, NSString *description);
-BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
-                     void *window, uint64_t capacity, uint64_t *copied);
 BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait);
 ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 requested, void *buffer, size_t capacity);
 OSStatus VibeHandleRead(void *clientData, SInt64 position, UInt32 requestCount, void *buffer, UInt32 *actualCount);
