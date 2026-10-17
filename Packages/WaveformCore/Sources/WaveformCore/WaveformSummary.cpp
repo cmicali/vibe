@@ -513,8 +513,8 @@ void Summary::tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, si
     }
 }
 
-// The finest level of at most kSnapshotBins, as a summary of its own with its
-// levels above built from it. The base is copied whole, and its last loudest
+// The finest level of at most kSnapshotBins, with its levels above copied.
+// The base is copied whole, and its last loudest
 // windows are taken as they stand, from the builder's own sums. A level
 // above holds only whole groups, so a copy of one trails the last bin
 // appended by less than one of its bins and half a loudest window: a second
@@ -527,20 +527,10 @@ std::unique_ptr<Summary> Summary::snapshot() const {
     const Level &from = level(index);
     size_t bins = from.count;
     auto copy = std::make_unique<Summary>(uint32_t(from.binFrames), bands_, sampleRate_);
-    Level &to = copy->base_;
-    auto head = [](const auto &plane, size_t values) {
-        return std::vector<typename std::decay_t<decltype(plane)>::value_type>(
-                plane.begin(), plane.begin() + ptrdiff_t(std::min(values, plane.size())));
-    };
-    to.lo = head(from.lo, bins);
-    to.hi = head(from.hi, bins);
-    to.sumSquares = head(from.sumSquares, bins);
-    to.loudest = head(from.loudest, bins);
-    if (bands_) {
-        to.bandSumSquares = head(from.bandSumSquares, bins * kBandCount);
-        to.bandLoudest = head(from.bandLoudest, bins * kBandCount);
-    }
-    to.count = bins;
+    copy->base_ = from;
+    // Whole groups are already derived. Only the streaming front needs
+    // closing, and no copied level is finer than the bounded snapshot.
+    copy->pyramid_.assign(pyramid_.begin() + ptrdiff_t(index), pyramid_.end());
     if (index == 0) {
         copy->frames_ = frames_;
         copy->window_ = window_;
