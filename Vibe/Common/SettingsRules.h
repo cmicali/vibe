@@ -90,7 +90,7 @@ static inline NSArray<NSString *> *VibeWaveformSpectrumColorings(void) {
 }
 
 static inline NSString *VibeNormalizedWaveformSpectrumColoring(NSString *_Nullable identifier) {
-    return [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_PRECISE]
+    return identifier && [VibeWaveformSpectrumColorings() containsObject:identifier]
             ? identifier : SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS;
 }
 

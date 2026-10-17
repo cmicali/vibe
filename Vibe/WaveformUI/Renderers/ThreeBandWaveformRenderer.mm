@@ -262,9 +262,11 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     // A column a point for 3-Band, so zoomed in it resolves each hit; a column
     // a pixel for Spectrum, whose colors change from pixel to pixel.
     double columnsPerPixel = _spectrum ? 1 : 1 / _pixels.scale;
+    // By section's fit is the track's, so both parts of a fill share one.
+    __block std::vector<float> sections;
     [self updateStepTargetForSize:bounds.size waveform:waveform columnsPerPixel:columnsPerPixel
                              fill:^(float *out, const wavecore::StepPart &part) {
-        [self fillBandLevels:out part:part waveform:waveform];
+        [self fillBandLevels:out part:part waveform:waveform sections:sections];
     }];
 }
 
@@ -276,8 +278,10 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // Heights are each band's loudest window. Spectrum colors use a window of
 // their own (kVibeWaveformSpectrumColorSeconds), never narrower than a
 // column each side, and unclamped. By section, each column takes the section
-// under its center.
-- (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform {
+// under its center. sections holds the fit once the fill's first part makes
+// it.
+- (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform
+              sections:(std::vector<float> &)sections {
     NSUInteger count = part.count, stride = _morph.samplesPerBar;
     double frames = part.framesPerColumn();
     // Under Normalize each band is measured against its own loudest window,
@@ -306,17 +310,20 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     double total = (double)waveform->totalFrames();
     double sectionFrames = VibeWaveformSectionFramesPerColumn(total, waveform->sampleRate());
     if (self.theme.spectrumColorsBySection && sectionFrames > 0) {
-        // The grid spans the length a streaming load will reach, so a
-        // delivery never moves a column.
-        NSUInteger sections = (NSUInteger)clampRange(ceil(total / sectionFrames), 1.0,
-                                                     (double)kVibeWaveformSectionColumns);
-        float grid[kVibeWaveformSectionColumns * wavecore::kBandCount];
-        waveform->tentBandMeanSquares(sectionFrames, 0, sections, sectionFrames, grid);
-        VibeWaveformSectionMeanSquares(grid, sections, kBandShareOfFullScale);
+        if (sections.empty()) {
+            // The grid spans the length a streaming load will reach, so a
+            // delivery never moves a column.
+            NSUInteger columns = (NSUInteger)clampRange(ceil(total / sectionFrames), 1.0,
+                                                        (double)kVibeWaveformSectionColumns);
+            sections.resize(columns * wavecore::kBandCount);
+            waveform->tentBandMeanSquares(sectionFrames, 0, columns, sectionFrames, sections.data());
+            VibeWaveformSectionMeanSquares(sections.data(), columns, kBandShareOfFullScale);
+        }
+        double last = (double)(sections.size() / wavecore::kBandCount - 1);
         for (NSUInteger i = 0; i < count; i++) {
             double center = ((double)(part.first + (int64_t)i) + 0.5) * frames;
-            NSUInteger section = (NSUInteger)clampRange(floor(center / sectionFrames), 0.0, (double)(sections - 1));
-            memcpy(&_bandMeanSquares[i * wavecore::kBandCount], grid + section * wavecore::kBandCount,
+            NSUInteger section = (NSUInteger)clampRange(floor(center / sectionFrames), 0.0, last);
+            memcpy(&_bandMeanSquares[i * wavecore::kBandCount], &sections[section * wavecore::kBandCount],
                    sizeof(float) * wavecore::kBandCount);
         }
     } else {

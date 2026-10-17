@@ -245,9 +245,10 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     BOOL isDark = self.isDark;
     WaveformTheme *theme = [WaveformTheme themeForSettings:settings widget:NO isDark:isDark
                                               artworkColor:_artworkThemeColor];
-    // No well for it here: the appearance's contrast pole, the mac's default.
+    // No well for it here: the mac's default, the appearance's contrast pole
+    // at 80% opacity.
     if ([self drawsPlayheadLine]) {
-        theme.playheadColor = isDark ? UIColor.whiteColor : UIColor.blackColor;
+        theme.playheadColor = [isDark ? UIColor.whiteColor : UIColor.blackColor colorWithAlphaComponent:0.8];
     }
     _renderer.theme = theme;
     [_renderer updateColors:isDark];
@@ -288,6 +289,9 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
         return;
     }
     [self applyResolvedTheme];
+    // Spectrum's coloring is part of the target. updateColors: only marks it
+    // stale, and only a draw refills it.
+    [self drawRendererWindowForcing:YES];
 }
 
 // The new style lands at once, settled: a swap, not a load. TRAP: lay it out

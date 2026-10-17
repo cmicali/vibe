@@ -36,13 +36,18 @@ static inline float VibeWaveformBarLevel(float rms, float fullScaleRMS, float ga
     return fminf(powf(level * gain, exponent), 1.0f);
 }
 
-// Mix sRGB primaries by the fourth power of the band RMS ratios.
-// Restore the weighted primary brightness. Silence uses the plain mean.
-// Levels may exceed one; only their ratios matter.
-static inline void VibeSpectrumColor(const float *levels, const float primaries[3][3], float *rgb) {
+// Spectrum's weights: the fourth power of each band's RMS level. Levels may
+// exceed one; only their ratios matter.
+static inline simd_float3 VibeSpectrumWeights(const float *levels) {
     simd_float3 level = simd_max(simd_make_float3(levels[0], levels[1], levels[2]), 0);
     simd_float3 energy = level * level;
-    simd_float3 weights = energy * energy;
+    return energy * energy;
+}
+
+// Mix sRGB primaries by VibeSpectrumWeights. Restore the weighted primary
+// brightness. Silence uses the plain mean.
+static inline void VibeSpectrumColor(const float *levels, const float primaries[3][3], float *rgb) {
+    simd_float3 weights = VibeSpectrumWeights(levels);
     float total = weights.x + weights.y + weights.z;
     if (total <= 0) {
         for (int c = 0; c < 3; c++) {
@@ -96,15 +101,12 @@ static inline double VibeWaveformSectionFramesPerColumn(double totalFrames, doub
 // Replaces each column's band mean squares, low to high, with its section's
 // mean. The sections are the fit, constant per section, of each column's mix
 // that has the least squared error plus the penalty per section. A column's
-// mix is VibeSpectrumColor's weights over shares, the bands' shares of full
-// scale. A silent column has no mix, and the fit ignores it. Exact dynamic
-// programming, quadratic in count, which is at most
-// kVibeWaveformSectionColumns.
+// mix is the share of each band in VibeSpectrumWeights, at the levels the
+// renderer reads: RMS over the band's share of full scale. A silent column
+// has no mix, and the fit ignores it. Exact dynamic programming, quadratic in
+// count, which is at most kVibeWaveformSectionColumns.
 static inline void VibeWaveformSectionMeanSquares(float *meanSquares, NSUInteger count, const float shares[3]) {
     count = MIN(count, (NSUInteger)kVibeWaveformSectionColumns);
-    if (count == 0) {
-        return;
-    }
     NSUInteger minimum = MIN((NSUInteger)kVibeWaveformSectionMinColumns, count);
     // Running sums over the columns: how many sound, their mixes and the
     // mixes' squared lengths.
@@ -112,12 +114,12 @@ static inline void VibeWaveformSectionMeanSquares(float *meanSquares, NSUInteger
     double mix[kVibeWaveformSectionColumns + 1][3] = {{0}};
     double squared[kVibeWaveformSectionColumns + 1] = {0};
     for (NSUInteger j = 0; j < count; j++) {
-        double weights[3], total = 0;
+        float levels[3];
         for (int b = 0; b < 3; b++) {
-            double energy = fmax(meanSquares[j * 3 + b], 0) / ((double)shares[b] * shares[b]);
-            weights[b] = energy * energy;
-            total += weights[b];
+            levels[b] = sqrtf(fmaxf(meanSquares[j * 3 + b], 0)) / shares[b];
         }
+        simd_float3 weights = VibeSpectrumWeights(levels);
+        double total = (double)weights.x + weights.y + weights.z;
         sounding[j + 1] = sounding[j] + (total > 0);
         squared[j + 1] = squared[j];
         for (int b = 0; b < 3; b++) {
@@ -134,9 +136,6 @@ static inline void VibeWaveformSectionMeanSquares(float *meanSquares, NSUInteger
     for (NSUInteger j = 1; j <= count; j++) {
         best[j] = INFINITY;
         for (NSUInteger i = 0; i + minimum <= j; i++) {
-            if (best[i] == INFINITY) {
-                continue;
-            }
             double n = sounding[j] - sounding[i], error = squared[j] - squared[i];
             for (int b = 0; n > 0 && b < 3; b++) {
                 double sum = mix[j][b] - mix[i][b];

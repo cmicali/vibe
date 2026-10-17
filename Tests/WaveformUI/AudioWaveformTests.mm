@@ -1238,7 +1238,11 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
 
 - (VibeTestPicture)spectrumPictureForWaveform:(AudioWaveform *)waveform scale:(CGFloat)scale
                                         theme:(WaveformTheme *)theme {
-    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    return [self pictureOfRenderer:[self rendererForStyle:@"spectrum"] waveform:waveform scale:scale theme:theme];
+}
+
+- (VibeTestPicture)pictureOfRenderer:(WaveformRenderer *)renderer waveform:(AudioWaveform *)waveform
+                               scale:(CGFloat)scale theme:(WaveformTheme *)theme {
     renderer.parentLayer.contentsScale = scale;
     renderer.theme = theme;
     [renderer updateColors:YES];
@@ -1338,14 +1342,9 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     }
     waveform->markComplete();
     WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
-    renderer.parentLayer.contentsScale = 1;
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     theme.flatFill = YES;
-    renderer.theme = theme;
-    [renderer updateColors:YES];
-    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:waveform.get()];
-    [renderer settleMorphImmediately];
-    VibeTestPicture precise = VibeThreeBandPicture(renderer);
+    VibeTestPicture precise = [self pictureOfRenderer:renderer waveform:waveform.get() scale:1 theme:theme];
     XCTAssertEqual(precise.width, 512u);
     size_t row = precise.height / 2;
     if (precise.width == 512) {
@@ -1355,11 +1354,7 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     WaveformTheme *bySection = [WaveformTheme monochromeThemeIsDark:YES];
     bySection.flatFill = YES;
     bySection.spectrumColorsBySection = YES;
-    renderer.theme = bySection;
-    [renderer updateColors:YES];
-    [renderer updateWaveform:renderer.parentLayer.bounds progress:0.5 waveform:waveform.get()];
-    [renderer settleMorphImmediately];
-    VibeTestPicture sections = VibeThreeBandPicture(renderer);
+    VibeTestPicture sections = [self pictureOfRenderer:renderer waveform:waveform.get() scale:1 theme:bySection];
     XCTAssertEqual(sections.width, 512u);
     if (sections.width == 512) {
         // A column's colors read between column centers, so the edge blends

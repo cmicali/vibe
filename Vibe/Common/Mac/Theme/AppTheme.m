@@ -622,8 +622,8 @@ static VibeColor *DefaultColorForBase(NSString *base, BOOL isDark) {
                       : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.75];
     }
     if ([base isEqualToString:kVibeThemeColorWaveformPlayhead]) {
-        return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:1]
-                      : [NSColor colorWithRed:0 green:0 blue:0 alpha:1];
+        return isDark ? [NSColor colorWithRed:1 green:1 blue:1 alpha:0.8]
+                      : [NSColor colorWithRed:0 green:0 blue:0 alpha:0.8];
     }
     // Rekord Bin's bands (WaveformTheme).
     if ([base isEqualToString:kVibeThemeColorWaveformLow]) {

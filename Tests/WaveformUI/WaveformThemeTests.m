@@ -169,7 +169,7 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertTrue(SameRGB(dark.playheadColor, NSColor.redColor));
     WaveformTheme *light = [WaveformTheme themeForAppTheme:record isDark:NO artworkColor:nil];
     XCTAssertTrue(SameRGB(light.playheadColor, NSColor.blackColor));
-    XCTAssertEqualWithAccuracy(Alpha(light.playheadColor), 1.0, 0.001);
+    XCTAssertEqualWithAccuracy(Alpha(light.playheadColor), 0.8, 0.001);
 }
 
 #pragma mark 3-Band

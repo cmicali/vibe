@@ -15,6 +15,7 @@
     "defaultArtworkGlyphSize": 0.31
   },
   "waveform": {
-    "style": "spectrum"
+    "style": "spectrum",
+    "spectrumColoring": "precise"
   }
 }
