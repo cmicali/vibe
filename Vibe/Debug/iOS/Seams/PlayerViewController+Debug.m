@@ -25,20 +25,15 @@
 #import "UIImage+DominantColor.h"
 #import <objc/runtime.h>
 
-@interface PlayerViewController (DebugPager)
-- (void)prefetchPageAtIndex:(NSUInteger)index;
-@end
-
 // Implemented by the classes themselves; only the dump reads them.
 @interface WaveformScrubberView (Debug)
-// The settled fast path is up.
-@property (nonatomic, readonly) BOOL isShowingBakedWaveform;
+// A waveform is drawn.
+@property (nonatomic, readonly) BOOL isShowingWaveform;
 - (void)beginZoomGesture;
 - (void)endZoomGesture;
+// The renderer is easing toward a delivery.
 @property (nonatomic, readonly) BOOL isAnimatingWaveformArrival;
 @property (nonatomic, readonly) BOOL isPinching;
-// Bumped by every envelope bake scheduled.
-@property (nonatomic, readonly) NSUInteger bakeRequestCount;
 // A scrub's seek, held until its gesture ends.
 @property (nonatomic, readonly) BOOL seekPending;
 @property (nonatomic, readonly) BOOL isShowingLoadingIndicator;
@@ -64,7 +59,7 @@
         @"routeShown": @(_routeView.alpha > 0 && !_routeView.hidden),
         @"routeSymbol": _routeView.symbolName ?: @"",
         @"routeNameShown": @(_routeView.showsDeviceName),
-        // Freezes the playhead while set; beside waveformBaked it says why a
+        // Freezes the playhead while set; beside waveformShown it says why a
         // waveform is still.
         @"routePickerUp": @(_routePickerPresenting),
         // The pad as drawn: whether the setting shows it, and whether a
@@ -77,7 +72,7 @@
         @"waveformProgress": @(_waveformView.progress),
         @"waveformOverscroll": @(_waveformView.overscroll),
         @"waveformScrollGeom": _waveformView.scrollGeometry ?: @[],
-        @"waveformBaked": @(_waveformView.isShowingBakedWaveform),
+        @"waveformShown": @(_waveformView.isShowingWaveform),
         @"waveformLoading": @(_waveformView.isShowingLoadingIndicator),
         @"isScrubbing": @(_waveformView.isScrubbing),
         @"isPinching": @(_waveformView.isPinching),
@@ -115,8 +110,7 @@
             @"waveformFilled": [_waveformCoordinator snapshotAtIndex:index]
                     ? @([_waveformCoordinator percentLoadedAtIndex:index]) : NSNull.null,
             @"waveformComplete": @([_waveformCoordinator isCompleteAtIndex:index]),
-            @"waveformPrepared": @(_preparedWaveforms[@(index)].isShowingBakedWaveform),
-            @"waveformBaked": @(cell.waveformView.isShowingBakedWaveform),
+            @"waveformShown": @(cell.waveformView.isShowingWaveform),
             @"waveformArriving": @(cell.waveformView.isAnimatingWaveformArrival),
         }];
     }
@@ -143,7 +137,6 @@
     if ([scenario isEqualToString:@"refresh"]) {
         BOOL wasEnabled = [[PlaceholderFiles datalessDiagnostics][@"enabled"] boolValue];
         [PlaceholderFiles setDatalessDiagnosticsEnabled:YES];
-        [self refreshWaveformWindow];
         [self fetchNeighborWaveforms];
         NSUInteger probes = 0;
         for (NSDictionary *counts in [[PlaceholderFiles datalessDiagnostics][@"directories"] allValues]) {
@@ -174,7 +167,7 @@
     NSUInteger current = _playlist.currentIndex;
     if ([scenario isEqualToString:@"interaction"]) {
         WaveformScrubberView *view = _waveformView;
-        if (!settled || !view.isShowingBakedWaveform) {
+        if (!settled || !view.isShowingWaveform) {
             completion(@{@"error": @"Expand and pause a page showing its waveform"});
             return;
         }
@@ -188,22 +181,20 @@
         BOOL seekKept = view.seekPending;
         view.visibleFraction = originalZoom > 0.5 ? originalZoom / 2 : originalZoom * 1.5;
         CGFloat cancelledZoom = view.visibleFraction;
-        NSUInteger bakeRequest = view.bakeRequestCount;
         [self playback:_playback didChangeCurrentIndexFromIndex:current];
         BOOL cancelled = seekKept && !view.isPinching && !view.seekPending && _pagesView.scrollEnabled;
-        BOOL kept = view.isShowingBakedWaveform;
+        BOOL kept = view.isShowingWaveform;
         BOOL zoomSettled = _waveformZoom == cancelledZoom;
-        BOOL bakeRequested = view.bakeRequestCount > bakeRequest;
         [view endZoomGesture];
         [self debugSetWaveformZoom:originalZoom];
         view.progress = originalProgress;
-        completion(@{@"ok": @(cancelled && kept && zoomSettled && bakeRequested),
+        completion(@{@"ok": @(cancelled && kept && zoomSettled),
                      @"gestureCancelled": @(cancelled), @"waveformKept": @(kept),
-                     @"zoomSettled": @(zoomSettled), @"bakeRequested": @(bakeRequested)});
+                     @"zoomSettled": @(zoomSettled)});
         return;
     }
-    if (![scenario isEqualToString:@"transition"] && ![scenario isEqualToString:@"artwork"]) {
-        completion(@{@"error": @"Expected refresh, transition, artwork, interaction or color"});
+    if (![scenario isEqualToString:@"transition"]) {
+        completion(@{@"error": @"Expected refresh, transition, interaction or color"});
         return;
     }
     if (!settled || _playlist.count < 2) {
@@ -211,70 +202,54 @@
         return;
     }
     NSUInteger neighbor = current + 1 < _playlist.count ? current + 1 : current - 1;
-    WaveformScrubberView *prepared = _preparedWaveforms[@(neighbor)];
-    if (!prepared.isShowingBakedWaveform) {
-        completion(@{@"error": @"Wait for the neighboring waveform to be prepared"});
+    if (![_waveformCoordinator isCompleteAtIndex:neighbor]) {
+        completion(@{@"error": @"Wait for the neighboring waveform to be fetched"});
         return;
     }
-    if ([scenario isEqualToString:@"transition"]) {
-        if ([self cellAtIndex:neighbor]) {
-            completion(@{@"error": @"Use a prepared neighbor with no live cell"});
-            return;
-        }
-        // Next renders the new header before scrolling to its cell. Keep
-        // this on one main turn, so an async bake cannot hide a missed store
-        // hit.
-        Playlist *livePlaylist = _playlist;
-        BOOL shuffled = livePlaylist.shuffleEnabled;
-        // It walks the active order: the shuffle history and its cursor.
-        NSArray<AudioTrack *> *neighborhood = livePlaylist.neighborhoodTracks;
-        NSDictionary *effects = _playback.debugPlayer.fx.intentSnapshot[@"stages"];
-        Playlist *previewPlaylist = [[Playlist alloc] init];
-        [previewPlaylist replaceAllWithTracks:livePlaylist.tracks startingAtIndex:neighbor];
-        BOOL immediate = NO, paletteMatched = NO;
-        @try {
-            // An unobserved cursor leaves playback, FX and shuffle history alone.
-            _playlist = previewPlaylist;
-            [self renderHeaderForTrack:_playlist.currentTrack];
-            [self scrollToCurrentPageAnimated:NO];
-            [_pagesView layoutIfNeeded];
-            WaveformScrubberView *arriving = [self cellAtIndex:neighbor].waveformView;
-            immediate = arriving.isShowingBakedWaveform && !arriving.isAnimatingWaveformArrival;
-            paletteMatched = arriving.artworkThemeColor == prepared.artworkThemeColor
-                    || [arriving.artworkThemeColor isEqual:prepared.artworkThemeColor];
-        }
-        @finally {
-            _playlist = livePlaylist;
-            [self renderHeaderForTrack:_playlist.currentTrack];
-            [self scrollToCurrentPageAnimated:NO];
-            [_pagesView layoutIfNeeded];
-        }
-        BOOL stateKept = livePlaylist.shuffleEnabled == shuffled
-                && [neighborhood isEqual:livePlaylist.neighborhoodTracks]
-                && [effects isEqual:_playback.debugPlayer.fx.intentSnapshot[@"stages"]]
-                && livePlaylist.currentIndex == current;
-        completion(@{@"ok": @(immediate && paletteMatched && stateKept),
-                     @"immediateWaveform": @(immediate), @"paletteMatched": @(paletteMatched),
-                     @"playbackStateKept": @(stateKept)});
+    if ([self cellAtIndex:neighbor]) {
+        completion(@{@"error": @"Use a neighbor with no live cell"});
         return;
     }
-    AudioTrack *track = [_playlist trackAtIndex:neighbor];
-    UIColor *color = track.cachedArt.vibeDominantColor;
-    if (!color || [self cellAtIndex:neighbor]) {
-        completion(@{@"error": @"Use a prepared offscreen neighbor with colored artwork"});
+    // Next renders the new header before scrolling to its cell. Keep
+    // this on one main turn, so the arriving page must draw at once.
+    Playlist *livePlaylist = _playlist;
+    BOOL shuffled = livePlaylist.shuffleEnabled;
+    // It walks the active order: the shuffle history and its cursor.
+    NSArray<AudioTrack *> *neighborhood = livePlaylist.neighborhoodTracks;
+    NSDictionary *effects = _playback.debugPlayer.fx.intentSnapshot[@"stages"];
+    Playlist *previewPlaylist = [[Playlist alloc] init];
+    [previewPlaylist replaceAllWithTracks:livePlaylist.tracks startingAtIndex:neighbor];
+    BOOL immediate = NO;
+    @try {
+        // An unobserved cursor leaves playback, FX and shuffle history alone.
+        _playlist = previewPlaylist;
+        [self renderHeaderForTrack:_playlist.currentTrack];
+        [self scrollToCurrentPageAnimated:NO];
+        [_pagesView layoutIfNeeded];
+        WaveformScrubberView *arriving = [self cellAtIndex:neighbor].waveformView;
+        immediate = arriving.isShowingWaveform && !arriving.isAnimatingWaveformArrival;
+    }
+    @finally {
+        _playlist = livePlaylist;
+        [self renderHeaderForTrack:_playlist.currentTrack];
+        [self scrollToCurrentPageAnimated:NO];
+        [_pagesView layoutIfNeeded];
+    }
+    BOOL stateKept = livePlaylist.shuffleEnabled == shuffled
+            && [neighborhood isEqual:livePlaylist.neighborhoodTracks]
+            && [effects isEqual:_playback.debugPlayer.fx.intentSnapshot[@"stages"]]
+            && livePlaylist.currentIndex == current;
+    completion(@{@"ok": @(immediate && stateKept),
+                 @"immediateWaveform": @(immediate), @"playbackStateKept": @(stateKept)});
+}
+
+- (void)debugSetWaveformLoading:(BOOL)shown fraction:(float)fraction {
+    if (!shown) {
+        [_waveformView hideLoadingIndicator];
         return;
     }
-    // Recreate the ordering: waveform ready, display-art decode still
-    // pending. The production completion must refresh the hidden view.
-    [track.metadata discardDecodedArt];
-    prepared.artworkThemeColor = nil;
-    [self prefetchPageAtIndex:neighbor];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
-        BOOL loaded = track.cachedArt != nil;
-        BOOL matched = [self->_preparedWaveforms[@(neighbor)].artworkThemeColor isEqual:color];
-        completion(@{@"ok": @(loaded && matched), @"artworkLoaded": @(loaded),
-                     @"preparedPaletteUpdated": @(matched)});
-    });
+    [_waveformView showLoadingIndicator];
+    [_waveformView setLoadingProgress:fraction];
 }
 
 - (void)debugSetWaveformZoom:(CGFloat)fraction {

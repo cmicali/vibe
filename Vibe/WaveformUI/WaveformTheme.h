@@ -50,11 +50,6 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
 // Key other drawing inputs separately, including flatFill and playheadColor.
 @property (readonly) NSString *paletteSignature;
 
-// Same hue, alphas aside (Mono). The iOS scrubber's fast path then draws the
-// unplayed side as the played bitmap at unplayedOverPlayedOpacity rather than
-// baking its own.
-@property (readonly) BOOL unplayedSharesPlayedHue;
-
 // No vertical ramp: every stop is the side's color as-is. macOS only.
 @property (nonatomic) BOOL flatFill;
 

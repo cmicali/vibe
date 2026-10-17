@@ -188,19 +188,3 @@ UILabel *VibeLabelWithText(UIView *view, NSString *text) {
     }
     return nil;
 }
-
-static void CollectImages(CALayer *layer, NSMutableArray *images) {
-    id contents = layer.contents;
-    if (contents && CFGetTypeID((__bridge CFTypeRef)contents) == CGImageGetTypeID()) {
-        [images addObject:contents];
-    }
-    for (CALayer *sublayer in layer.sublayers) {
-        CollectImages(sublayer, images);
-    }
-}
-
-NSArray *VibeLayerImages(CALayer *layer) {
-    NSMutableArray *images = [NSMutableArray array];
-    CollectImages(layer, images);
-    return images;
-}

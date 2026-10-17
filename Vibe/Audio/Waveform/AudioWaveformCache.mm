@@ -10,6 +10,7 @@
 #import "AudioTrack.h"
 #import "AudioWaveformLoader.h"
 #import "AudioWorkScheduler.h"
+#import "PlaceholderFiles.h"
 
 #include <atomic>
 
@@ -113,6 +114,12 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
                 qualityOfService:QOS_CLASS_UTILITY
                 maximumRunningCount:1
                 maximumPendingCount:2
+                pendingGrace:kWaveformAdmissionGraceSeconds];
+        _detailScheduler = [[AudioWorkScheduler alloc]
+                initWithLabel:@"com.vibe.waveform.detail"
+                qualityOfService:QOS_CLASS_UTILITY
+                maximumRunningCount:1
+                maximumPendingCount:1
                 pendingGrace:kWaveformAdmissionGraceSeconds];
         _decodeScheduler = [[AudioWorkScheduler alloc]
                 initWithLabel:@"com.vibe.waveform.decode"
@@ -310,6 +317,29 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     } failureQueue:dispatch_get_main_queue()
       admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
         completion(nil);
+    }];
+}
+
+- (AudioWorkToken *)loadDetailBlocks:(NSIndexSet *)blocks
+                            forTrack:(AudioTrack *)track
+                            waveform:(CodableAudioWaveform *)waveform
+                          completion:(dispatch_block_t)completion {
+    NSURL *url = track.url;
+    NSUInteger cueStart = track.cueStart, cueEnd = track.cueEnd;
+    blocks = [blocks copy];
+    return [_detailScheduler submitWork:^{
+        // A stat, on this lane: it can wait on a provider. A remote
+        // placeholder answers dataless too.
+        if (url && ![PlaceholderFiles isDatalessFile:url]) {
+            AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:self];
+            loader.cueStart = cueStart;
+            loader.cueEnd = cueEnd;
+            [loader loadDetailBlocks:blocks ofFile:url.path intoWaveform:waveform];
+        }
+        dispatch_async(dispatch_get_main_queue(), completion);
+    } failureQueue:dispatch_get_main_queue()
+      admissionFailure:^(VibeAudioWorkAdmissionFailure failure) {
+        completion();
     }];
 }
 

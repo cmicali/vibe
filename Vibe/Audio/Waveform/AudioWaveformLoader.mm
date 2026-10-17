@@ -2,11 +2,11 @@
 //  AudioWaveformLoader.mm
 //  Vibe
 //
-// One decode of one file, in five phases — the five methods below, in the
-// order decode: calls them: open and validate, size the chunk array, run the
-// pipelined decode, settle what "complete" means, and stretch a short file
-// across the full width. Only the third is long, and it is one thing: a
-// two-slot producer/consumer loop whose halves must not be read apart.
+// One decode of one file, in four phases — the methods below, in the order
+// decode: calls them: open and validate, start the summary, run the
+// pipelined decode, and settle what "complete" means. Only the third is long,
+// and it is one thing: a two-slot producer/consumer loop whose halves must
+// not be read apart.
 //
 
 #import "AudioWaveformLoaderInternal.h"
@@ -22,6 +22,7 @@
 #import <AVFAudio/AVFAudio.h>
 
 #include <array>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -79,6 +80,47 @@
     return result;
 }
 
+- (BOOL)loadDetailBlocks:(NSIndexSet *)blocks ofFile:(NSString *)filename
+            intoWaveform:(CodableAudioWaveform *)waveform {
+    AudioWaveform *summary = waveform.waveform;
+    if (!summary || self.isCancelled) {
+        return NO;
+    }
+    struct VibeWaveformDecodePass pass = {};
+    AudioFileHandle *file = [self openFileAtPath:filename pass:&pass];
+    const AVAudioFrameCount blockFrames = (AVAudioFrameCount)wavecore::Detail::kBlockFrames;
+    AVAudioPCMBuffer *buffer = file ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                                                  frameCapacity:blockFrames] : nil;
+    BOOL ok = buffer != nil;
+    for (NSUInteger block = blocks.firstIndex; ok && block != NSNotFound; block = [blocks indexGreaterThanIndex:block]) {
+        AVAudioFramePosition start = (AVAudioFramePosition)block * blockFrames;
+        if (summary->detail().hasBlock((int64_t)block) || start >= pass.totalFrames) {
+            continue;
+        }
+        NSError *error = nil;
+        AVAudioFrameCount count = (AVAudioFrameCount)MIN((AVAudioFramePosition)blockFrames, pass.totalFrames - start);
+        ok = !self.isCancelled && [file seekToFrame:pass.windowStart + start error:&error]
+                && [file readIntoBuffer:buffer frameCount:count error:&error];
+        if (ok) {
+            // Mixed straight into the block the detail keeps.
+            std::vector<float> samples(buffer.frameLength);
+            const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], samples.data(),
+                                                     buffer.frameLength, pass.numChannels);
+            if (mono != samples.data()) {
+                std::copy_n(mono, buffer.frameLength, samples.data());
+            }
+            summary->detail().insertBlock((int64_t)block, std::move(samples));
+        } else if (error && ![AudioFileHandle isInterruption:error]) {
+            LogError(@"Detail read failed at frame %lld of %@: %@", start, filename, error);
+        }
+    }
+    // As load: does, so a loader kept past its read keeps no descriptor.
+    @synchronized (self) {
+        _file = nil;
+    }
+    return ok;
+}
+
 - (CodableAudioWaveform *)decode:(NSString *)filename {
 
     // Phase timings for this pass. The clock reads compile to constants in
@@ -97,37 +139,33 @@
         return nil;
     }
     BOOL sizedByEstimate = file.lengthIsEstimated;
-    AudioWaveform *waveform = nullptr;
-    NSUInteger numChunks = 0;
-    CodableAudioWaveform *result = nil;
+    std::unique_ptr<wavecore::SummaryBuilder> builder;
     AudioBPMAnalyzer *bpmAnalyzer = nil;
     AudioKeyAnalyzer *keyAnalyzer = nil;
     for (;;) {
-        result = [self makeWaveformForPass:&pass waveform:&waveform numChunks:&numChunks];
-        if (!result) {
-            return nil;
+        if (!builder) {
+            builder = [self builderForPass:&pass sampleRate:file.processingFormat.sampleRate];
+            // Tempo and key detection share the waveform's mono buffers.
+            // Neither needs a second read of the track window.
+            // With one off there is no analyzer, and the entry is filed
+            // without that analysis (bpmAnalyzed, keyAnalyzed). A later
+            // request that runs it misses on the entry and decodes again. The
+            // explicit scan_bpm and scan_key debug paths run the analyzers
+            // directly and ignore this.
+            VibeWaveformAnalysis analysis = self.analysis;
+            bpmAnalyzer = analysis.bpm ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
+            keyAnalyzer = analysis.key ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
         }
-
-        // Tempo and key detection share the waveform's mono buffers. Neither
-        // needs a second read of the track window.
-        // With one off there is no analyzer, and the entry is filed without
-        // that analysis (bpmAnalyzed, keyAnalyzed). A later request that runs
-        // it misses on the entry and decodes again. The explicit scan_bpm and
-        // scan_key debug paths run the analyzers directly and ignore this.
-        VibeWaveformAnalysis analysis = self.analysis;
-        bpmAnalyzer = analysis.bpm ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
-        keyAnalyzer = analysis.key ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
 
         if (![self runDecodePass:&pass
                             file:file
                         filename:filename
-                        waveform:waveform
-                          result:result
+                         builder:builder.get()
                      bpmAnalyzer:bpmAnalyzer
                      keyAnalyzer:keyAnalyzer
                            nanos:&nanos]) {
             // Cancelled mid-decode, so the data really is partial. A cancel
-            // that lands after the loop has read every chunk falls through
+            // that lands after the loop has read every frame falls through
             // instead: the decode is complete and worth caching for the next
             // play of this track. The cache's delivery site filters cancelled
             // loads out of the UI, so discarding here would only lose that
@@ -139,14 +177,11 @@
             break;
         }
         // TRAP: a pass sized by an estimated length (a streaming MP3's with
-        // no VBR header) sized every chunk by it, and its result would be
-        // filed under the file's key, so it is complete only once the length
-        // is exact and within one chunk of the one it was sized by — the
-        // common case, a head whose rate holds. Chunk i starts at i·T/N, so
-        // an estimate off by under a chunk moves every boundary by less than
-        // one: each chunk's audio is off by less than the chunk, within what a
-        // decode ending short already tolerates.
-        // Otherwise the file is decoded again, from disk, on the exact length.
+        // no VBR header) would be filed under the file's key, so it is
+        // complete only once the length is exact. A bin's frames never depend
+        // on the length, so the pass keeps everything it read: it goes on
+        // reading to the exact length, or stops where the file did. Only a
+        // cue window that moved with the length starts over.
         NSError *error = nil;
         if (![file awaitExactLength:&error]) {
             if (![AudioFileHandle isInterruption:error]) {
@@ -156,25 +191,27 @@
             return nil;
         }
         sizedByEstimate = NO;
-        AVAudioFramePosition sized = pass.totalFrames;
-        AVAudioFramePosition exact = (AVAudioFramePosition)[self windowOfFile:file].length;
-        if (llabs(exact - sized) < MAX(1, sized / (AVAudioFramePosition)numChunks)) {
+        NSRange window = [self windowOfFile:file];
+        if ((AVAudioFramePosition)window.location != pass.windowStart) {
+            AVAudioFramePosition sized = pass.totalFrames;
+            pass = {};
+            builder = nullptr;
+            if (![self sizePass:&pass forFile:file filename:filename]) {
+                return nil;
+            }
+            LogInfo(@"Waveform window for %@ moved once its length of %lld frames was exact (sized by %lld); decoding it again",
+                    filename, pass.totalFrames, sized);
+            continue;
+        }
+        pass.totalFrames = (AVAudioFramePosition)window.length;
+        builder->setExpectedFrames(pass.totalFrames);
+        if (pass.framesRead >= pass.totalFrames || pass.reachedEnd) {
             break;
         }
-        pass = {};
-        if (![self sizePass:&pass forFile:file filename:filename]) {
-            return nil;
-        }
-        LogInfo(@"Waveform for %@ was sized by an estimate of %lld frames, not %lld; decoding it again",
-                filename, sized, pass.totalFrames);
     }
 
     self.isComplete = [self isDecodeComplete:&pass filename:filename];
-    if (self.isComplete) {
-        waveform->markComplete();
-    }
-
-    [self stretchWaveform:waveform pass:&pass numChunks:numChunks];
+    CodableAudioWaveform *result = [[CodableAudioWaveform alloc] initWithWaveform:builder->finish(self.isComplete)];
 
     if (self.isComplete && bpmAnalyzer) {
         uint64_t phaseStart = VibeLoadClockNow();
@@ -249,6 +286,7 @@
 // window's start. NO for no audio or a refused seek.
 - (BOOL)sizePass:(struct VibeWaveformDecodePass *)pass forFile:(AudioFileHandle *)file filename:(NSString *)filename {
     NSRange window = [self windowOfFile:file];
+    pass->windowStart = (AVAudioFramePosition)window.location;
     pass->totalFrames = (AVAudioFramePosition)window.length;
     pass->numChannels = file.processingFormat.channelCount;
     if (pass->totalFrames <= 0 || pass->numChannels == 0) {
@@ -265,66 +303,40 @@
     return YES;
 }
 
-#pragma mark - Phase 2: size the chunk array
+#pragma mark - Phase 2: start the summary
 
-// Mints the waveform and settles how many of its chunks this file can fill.
-// The out-parameters are the raw waveform, which the chunker writes through,
-// and its full chunk count, which the stretch pass needs.
-- (CodableAudioWaveform *)makeWaveformForPass:(struct VibeWaveformDecodePass *)pass
-                                     waveform:(AudioWaveform **)outWaveform
-                                    numChunks:(NSUInteger *)outNumChunks {
-    AudioWaveform *waveform = new AudioWaveform(self.analysis.bands);
-    // Wrap it immediately so that ARC manages the lifetime. The decode pass's
-    // blocks capture the result strongly, keeping the waveform alive until
-    // every pending callback has fired.
-    CodableAudioWaveform *result = [[CodableAudioWaveform alloc] initWithWaveform:waveform];
-
-    NSUInteger numChunks = waveform->getNumChunks();
-    if (numChunks == 0) {
-        // The chunk-buffer calloc failed, out of memory. Everything downstream
-        // divides by the chunk count, so bail out rather than SIGFPE.
-        return nil;
-    }
-    // file.length is exact for every CoreAudio format, an estimate made so at
-    // the open, so no prescan is needed; a streaming MP3's own estimate is
-    // checked once its pass ends (decode:). Chunk i covers frames
-    // [i*T/N, (i+1)*T/N), every frame is scanned, and a normal file always
-    // fills exactly numChunks chunks at their final positions, so nothing
-    // moves when the load completes. Only a file with fewer frames than chunks
-    // decodes short and is stretched afterwards.
-    pass->effectiveChunks = pass->totalFrames < (AVAudioFramePosition)numChunks
-            ? (NSUInteger)pass->totalFrames
-            : numChunks;
-
-    *outWaveform = waveform;
-    *outNumChunks = numChunks;
-    return result;
+// The summary the decode fills, laid out on the window's length as it stands.
+// Its bins sit on a grid of frames from the window's start, so a length that
+// changes later moves none of them.
+- (std::unique_ptr<wavecore::SummaryBuilder>)builderForPass:(struct VibeWaveformDecodePass *)pass
+                                                 sampleRate:(double)sampleRate {
+    return std::make_unique<wavecore::SummaryBuilder>(self.analysis.bands, pass->totalFrames, sampleRate);
 }
 
 #pragma mark - Phase 3: the pipelined decode
 
-// Reads the file in large blocks, downmixes each to mono once, and feeds that
-// mono block to the chunker, with its three bands, and to both analyzers on a
-// serial queue one block behind the decode. NO when the pass has nothing worth
-// keeping — a cancel that landed while chunks were still missing, or buffers
-// that would not allocate. A read failure answers YES with the error in
-// pass->readError; isDecodeComplete: still fails the pass, so the partial
-// result is never delivered or persisted — only the progressive snapshots
-// already shown survive, and they survive a NO the same way.
+// Reads the file in large blocks, downmixes each to mono once, and feeds the
+// block to the summary, which splits the bands from the mono, and the mono to
+// both analyzers, on a serial queue one block behind the decode. It continues
+// from pass->framesRead, so a pass sized by an estimate can read on to the
+// exact length. NO when the pass has nothing worth keeping — a cancel that
+// landed while frames were still missing, or buffers that would not allocate.
+// A read failure answers YES with the error in pass->readError;
+// isDecodeComplete: still fails the pass, so the partial result is never
+// delivered or persisted — only the progressive snapshots already shown
+// survive, and they survive a NO the same way.
 - (BOOL)runDecodePass:(struct VibeWaveformDecodePass *)pass
                  file:(AudioFileHandle *)file
              filename:(NSString *)filename
-             waveform:(AudioWaveform *)waveform
-               result:(CodableAudioWaveform *)result
+              builder:(wavecore::SummaryBuilder *)builder
           bpmAnalyzer:(AudioBPMAnalyzer *)bpmAnalyzer
           keyAnalyzer:(AudioKeyAnalyzer *)keyAnalyzer
                 nanos:(VibeLoadPhaseNanos *)nanos {
 
     const AVAudioFramePosition totalFrames = pass->totalFrames;
     const NSUInteger numChannels = pass->numChannels;
-    const NSUInteger effectiveChunks = pass->effectiveChunks;
 
-    // Large reads amortize decoder-call overhead. Chunks are sliced in memory.
+    // Large reads amortize decoder-call overhead. Bins are sliced in memory.
     // Block N+1 decodes here as block N runs through the serial processing
     // queue. Reuse waits for the slot's semaphore to protect its buffer. The
     // serial queue preserves the stream order required by the analyzers.
@@ -340,23 +352,14 @@
     }
 
     // Scratch for the shared interleaved-to-mono mix, one per pipeline slot.
-    // Each decode buffer is downmixed once and fed to both the waveform chunk
-    // and the analyzers. Mono files skip the mix entirely, since
+    // Each decode buffer is downmixed once and fed to both the summary and
+    // the analyzers. Mono files skip the mix entirely, since
     // AudioWaveformMonoMix returns the buffer itself.
     std::vector<float> monoScratches[2];
     if (numChannels > 1) {
         monoScratches[0].resize(kReadBlockFrames);
         monoScratches[1].resize(kReadBlockFrames);
     }
-    // The chunker's three bands, split from the mono block when the waveform
-    // has room for them. One split, not one per slot: only the serial
-    // processing side touches it, and its filters must see the blocks in
-    // stream order.
-    std::unique_ptr<AudioWaveformBandSplit> bandSplit = waveform->hasBands()
-            ? std::make_unique<AudioWaveformBandSplit>(file.processingFormat.sampleRate)
-            : nullptr;
-    AudioWaveformBandSplit *bands = bandSplit.get();
-
     // Everything the processing blocks touch. They run one at a time on the
     // serial queue and the decode loop never reads these until the final
     // drain, so no lock is needed. The phase accumulators are split by
@@ -369,22 +372,17 @@
     // A file whose reads wait for bytes, a stream or a read-ahead, publishes
     // its first block before its next read can stall.
     __block CFAbsoluteTime lastProgressTime = file.waitsForBytes ? 0 : CFAbsoluteTimeGetCurrent();
-    __block NSUInteger chunksFilled = 0;
-    __block NSUInteger chunkIndex = 0;
-    __block AVAudioFramePosition framesProcessed = 0;
-    // Proportional boundaries, with a variance of one frame in chunk size:
-    // chunk i ends at frame (i+1)*T/N.
-    __block AVAudioFramePosition chunkEnd = totalFrames / (AVAudioFramePosition)effectiveChunks;
-    // Accumulates a chunk across block boundaries, since a chunk rarely aligns
-    // with a block edge.
-    __block AudioWaveformCacheChunk currentChunk;
-    __block std::array<float, kAudioWaveformBandCount> currentBandSums = {};
-    __block BOOL currentChunkHasFrames = NO;
+    __block AVAudioFramePosition framesProcessed = pass->framesRead;
+    // A snapshot on its way to main. While one is, no newer one is made: a
+    // main thread that stalled was handed a queue of them, about 1 MB each,
+    // and refilled and retargeted its view for every one already superseded.
+    auto snapshotWaiting = std::make_shared<std::atomic<bool>>(false);
 
     dispatch_semaphore_t slotFree[2] = { dispatch_semaphore_create(1), dispatch_semaphore_create(1) };
     int slot = 0;
     BOOL readError = NO;
-    AVAudioFramePosition framesRead = 0;
+    BOOL reachedEnd = NO;
+    AVAudioFramePosition framesRead = pass->framesRead;
     NSError *error = nil;
 #if DEBUG
     const NSTimeInterval debugDecodeSeconds = AudioWaveformCache.debugDecodeSeconds;
@@ -417,6 +415,7 @@
         }
         if (buffer.frameLength == 0) {
             // EOF; the completeness thresholds below decide what it means.
+            reachedEnd = YES;
             dispatch_semaphore_signal(slotFree[slot]);
             break;
         }
@@ -433,8 +432,8 @@
 
         dispatch_semaphore_t slotDone = slotFree[slot];
         dispatch_async(processQueue, ^{
-            // The downmix and any band split count as baseline: the chunker
-            // needs them whether or not an analyzer is running.
+            // The downmix counts as baseline: the summary needs it whether or
+            // not an analyzer is running.
             uint64_t procStart = VibeLoadClockNow();
             const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch,
                                                      numFrames, numChannels);
@@ -447,53 +446,36 @@
             [keyAnalyzer appendMonoSamples:mono frameCount:numFrames];
             procNanos.keyAppend += VibeLoadClockNow() - procStart;
 
-            // Slice the block at chunk boundaries, merging each segment into
-            // the chunk it belongs to.
+            // The summary slices the block into its bins, and splits the
+            // bands from the mono when it keeps them.
             procStart = VibeLoadClockNow();
-            NSUInteger offset = 0;
-            while (offset < numFrames && chunkIndex < effectiveChunks) {
-                AVAudioFramePosition pos = framesProcessed + (AVAudioFramePosition)offset;
-                NSUInteger take = (NSUInteger)MIN((AVAudioFramePosition)(numFrames - offset),
-                                                  chunkEnd - pos);
-                currentChunk.mergeFromMonoBuffer(mono + offset, take);
-                if (bands) bands->addSumSquares(mono + offset, take, currentBandSums.data());
-                currentChunkHasFrames = YES;
-                offset += take;
-                if (framesProcessed + (AVAudioFramePosition)offset >= chunkEnd) {
-                    waveform->setChunkAtIndex(currentChunk, chunkIndex);
-                    waveform->setBandSumSquaresAtIndex(currentBandSums.data(), chunkIndex);
-                    chunksFilled = ++chunkIndex;
-                    currentChunk = AudioWaveformCacheChunk();
-                    currentBandSums = {};
-                    currentChunkHasFrames = NO;
-                    chunkEnd = totalFrames * (AVAudioFramePosition)(chunkIndex + 1)
-                            / (AVAudioFramePosition)effectiveChunks;
-                }
-            }
+            builder->append(mono, numFrames);
             procNanos.chunk += VibeLoadClockNow() - procStart;
             framesProcessed += numFrames;
 
             // Throttle delegate notifications to about 10 Hz, because each one
-            // triggers a full path rebuild on the main thread.
+            // refills the view's target and redraws its picture on main.
             // AudioWaveformCache delivers the final completion callback
             // separately. A detached decode still persists its final result,
             // but its UI-only snapshot copies and main-queue blocks are waste.
             if (!self.isCancelled && !self.isDetached) {
                 CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-                if (now - lastProgressTime >= 0.1) {
+                if (now - lastProgressTime >= 0.1 && !snapshotWaiting->load()) {
                     lastProgressTime = now;
-                    // Short of 1 with every chunk filled: 1 is the completion's,
+                    // Short of 1 with every frame read: 1 is the completion's,
                     // which AudioWaveformCache delivers, and a pass sized by an
-                    // estimate fills every chunk before its length is exact.
-                    float percentComplete = MIN((float)chunksFilled / (float)effectiveChunks, nextafterf(1, 0));
+                    // estimate reads its length before the length is exact.
+                    float percentComplete = MIN((float)framesProcessed / (float)MAX(totalFrames, 1),
+                                                nextafterf(1, 0));
                     // Snapshot on this queue, the only writer, so that the
                     // main thread renders an immutable copy. Reading the live
-                    // buffer would be a data race, because this queue keeps
-                    // calling setChunkAtIndex and the stretch pass below
-                    // remaps it in place.
-                    CodableAudioWaveform *snapshot = [result snapshot];
+                    // summary would be a data race, because this queue keeps
+                    // appending to it.
+                    CodableAudioWaveform *snapshot = [[CodableAudioWaveform alloc] initWithWaveform:builder->snapshot()];
                     if (!self.isCancelled && !self.isDetached) {
+                        snapshotWaiting->store(true);
                         run_on_main_thread({
+                            snapshotWaiting->store(false);
                             if (!self.isCancelled && !self.isDetached) {
                                 [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
                             }
@@ -508,71 +490,48 @@
     // Drain the pipeline. After this the processing state above is safe to
     // read and the pass is single-threaded again.
     dispatch_sync(processQueue, ^{});
-    nanos->chunk = procNanos.chunk;
-    nanos->bpmAppend = procNanos.bpmAppend;
-    nanos->keyAppend = procNanos.keyAppend;
+    nanos->chunk += procNanos.chunk;
+    nanos->bpmAppend += procNanos.bpmAppend;
+    nanos->keyAppend += procNanos.keyAppend;
 
-    // EOF with a partly accumulated chunk: keep it.
-    if (currentChunkHasFrames && chunkIndex < effectiveChunks) {
-        waveform->setChunkAtIndex(currentChunk, chunkIndex);
-        waveform->setBandSumSquaresAtIndex(currentBandSums.data(), chunkIndex);
-        chunksFilled = chunkIndex + 1;
-    }
-
-    pass->chunksFilled = chunksFilled;
     pass->framesRead = framesRead;
     pass->readError = readError;
+    pass->reachedEnd = reachedEnd;
 
-    return !(self.isCancelled && chunksFilled < effectiveChunks);
+    return !(self.isCancelled && framesRead < totalFrames);
 }
 
 #pragma mark - Phase 4: what counts as complete
 
++ (AVAudioFramePosition)shortfallToleranceForFrames:(AVAudioFramePosition)totalFrames {
+    return MAX((AVAudioFramePosition)2, totalFrames / 4096);
+}
+
 // Whether the decode covered enough of the file to cache and to analyze.
 // It also promotes an early EOF to a read error, which is why it is not a
-// pure predicate. Small length discrepancies stay within the chunk tolerance.
+// pure predicate. Small length discrepancies stay within the tolerance.
 - (BOOL)isDecodeComplete:(struct VibeWaveformDecodePass *)pass filename:(NSString *)filename {
+    AVAudioFramePosition tolerance = [AudioWaveformLoader shortfallToleranceForFrames:pass->totalFrames];
     if (!pass->readError && !self.isCancelled
-            && pass->framesRead < pass->totalFrames
-            && pass->chunksFilled + 2 < pass->effectiveChunks) {
-        // Ending more than about two chunks early means truncation.
-        LogError(@"Audio ended early at chunk %lu of %lu in %@",
-                 (unsigned long)pass->chunksFilled, (unsigned long)pass->effectiveChunks, filename);
+            && pass->framesRead + tolerance < pass->totalFrames) {
+        // Ending more than the tolerance early means truncation.
+        LogError(@"Audio ended early at frame %lld of %lld in %@",
+                 pass->framesRead, pass->totalFrames, filename);
         pass->readError = YES;
     }
 
-    // Match the EOF tolerance above: a read ending up to two chunks short of
+    // Match the EOF tolerance above: a read ending within it of
     // file.length's claim counts as complete, because a VBR mis-tag or slight
     // truncation over-reports the length. A threshold stricter than the EOF
     // tolerance would leave such files neither errored nor complete — frozen
-    // mid-load, never cached, and nothing logged. effectiveChunks is at least
-    // 1; guard the unsigned subtraction for tiny files.
-    NSUInteger completeThreshold = pass->effectiveChunks > 2 ? pass->effectiveChunks - 2 : 1;
-    BOOL complete = !pass->readError && pass->chunksFilled >= completeThreshold;
-    if (complete && pass->chunksFilled < pass->effectiveChunks) {
-        LogWarn(@"Waveform for %@ decoded short: %lu of %lu chunks (file length over-reported)",
-                filename, (unsigned long)pass->chunksFilled, (unsigned long)pass->effectiveChunks);
+    // mid-load, never cached, and nothing logged.
+    BOOL complete = !pass->readError && pass->framesRead > 0
+            && pass->framesRead + tolerance >= pass->totalFrames;
+    if (complete && pass->framesRead < pass->totalFrames) {
+        LogWarn(@"Waveform for %@ decoded short: %lld of %lld frames (file length over-reported)",
+                filename, pass->framesRead, pass->totalFrames);
     }
     return complete;
-}
-
-#pragma mark - Phase 5: stretch a short file
-
-// For a file with fewer frames than chunks, stretch the decoded chunks across
-// the full chunk array, back to front so it is safe in place, so that the
-// waveform spans the full view width rather than leaving a silent tail. A
-// no-op for every ordinary file, which fills the array outright.
-- (void)stretchWaveform:(AudioWaveform *)waveform
-                   pass:(struct VibeWaveformDecodePass *)pass
-              numChunks:(NSUInteger)numChunks {
-    if (!(self.isComplete && pass->effectiveChunks < numChunks && pass->chunksFilled > 0)) {
-        return;
-    }
-    NSUInteger chunksFilled = pass->chunksFilled;
-    for (NSInteger i = (NSInteger)numChunks - 1; i >= 0; i--) {
-        NSUInteger src = (NSUInteger)i * chunksFilled / numChunks;
-        waveform->copyChunk(src, (NSUInteger)i);
-    }
 }
 
 @end

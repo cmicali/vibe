@@ -11,11 +11,13 @@
 #import <simd/simd.h>
 #import "HelperMacros.h"
 
-// Energy, not peaks: on a limited master every coarse bar holds a full-scale
-// transient and the strip reads as a block, while RMS still varies through
-// drops and breakdowns. Full height is -9 dBFS RMS, a loud club master's
-// sustained level; hotter clamps.
-static const float kVibeWaveformFullScaleRMS = 0.35f;
+// A level is the RMS of the loudest short window a bar covers
+// (WaveformCore's Column.loudest), so the hits stand above the sound around
+// them. Not peaks: on a limited master every coarse bar holds a full-scale
+// peak and the strip reads as a block, while the loudest window still rises
+// on each kick. Not a mean: over a coarse bar it averages each hit away. Full
+// height is -6 dBFS over that window, a loud master's kick; hotter clamps.
+static const float kVibeWaveformFullScaleRMS = 0.5f;
 
 // Gain is a display gain ahead of the clamp and also a curve bend: the
 // exponent doubles per this many dB down (expanding a pegged master's
@@ -23,10 +25,9 @@ static const float kVibeWaveformFullScaleRMS = 0.35f;
 static const float kVibeWaveformGainDBPerExponentDoubling = 24.0f;
 
 // fullScaleRMS draws full height at 0 dB: the fixed reference, or under
-// Normalize the track's loudest column capped at it, so normalizing only
-// raises.
-static inline float VibeWaveformBarLevel(float meanSquare, float fullScaleRMS, float gainDB) {
-    float level = sqrtf(fmaxf(meanSquare, 0.0f)) / fullScaleRMS;
+// Normalize one the track measures (WaveformRenderer.h).
+static inline float VibeWaveformBarLevel(float rms, float fullScaleRMS, float gainDB) {
+    float level = fmaxf(rms, 0.0f) / fullScaleRMS;
     if (gainDB == 0) {
         return fminf(level, 1.0f);
     }
@@ -62,44 +63,16 @@ static inline void VibeSpectrumColor(const float *levels, const float primaries[
     memcpy(rgb, &mixed, 3 * sizeof(float));
 }
 
-// A bar's level averages energy over a column no finer than 1/1024 of the
-// track, regardless of the drawn bar count. RMS over
-// less than a beat converges back to peak, and the oversampling styles'
-// one-chunk bars would peg on every kick. Only the level is floored; the
-// min/max shape keeps per-bar resolution.
-static const NSUInteger kVibeWaveformEnergyColumns = 1024;
+// The Detailed types read their levels on a grid no finer than 1/1024 of the
+// track, regardless of the drawn columns. Zoomed in, the stream's own shape
+// then draws under one smooth gain, and the sample line stays the line. Only
+// the level is floored. The min/max shape keeps each column's own resolution.
+static const NSUInteger kVibeWaveformLevelColumns = 1024;
 
-// Spectrum's color window is a tent 1/256 of the track from foot to foot,
-// about two beats on a typical track, so its weight is a beat's. A bar-long
-// box alternates between the kick's and the hats' hues from pixel to pixel,
-// and the comb crawls as a resize slides the windows. A beat-long box still
-// leaks a fifth of the beat, which at narrow widths beats against the pixel
-// pitch. The tent's leakage is the square of that. Coarser than the level
-// floor, because a bar's height may show each hit while its color should not.
-static const NSUInteger kVibeWaveformSpectrumColorColumns = 256;
-
-// The energy column bar i of count draws, of MIN(count,
-// kVibeWaveformEnergyColumns): its own until the bars are finer than the
-// floor.
-static inline NSUInteger VibeWaveformEnergyColumnIndexForBar(NSUInteger i, NSUInteger count) {
-    return count > kVibeWaveformEnergyColumns
-            ? i * kVibeWaveformEnergyColumns / count : i;
-}
-
-// How much of AudioWaveform.getBarMeanSquares's reach count bars take: all of
-// it up to fullCount, fading to none at twice that. Bars about a beat long
-// need it, or their levels ripple as a resize moves their edges; bars short
-// enough to draw each hit do not, and it would fatten every hit by a bar.
-static inline float VibeWaveformWindowReach(NSUInteger count, NSUInteger fullCount) {
-    return clampRange(2 - (float)count / (float)fullCount, 0, 1);
-}
-
-// Normalize only raises levels: its reference cannot exceed the fixed one.
-// Silence keeps the fixed reference to avoid division by zero.
-static inline float VibeWaveformNormalizedFullScaleRMS(float loudest) {
-    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
-}
-
-// The waveform's resolution: a bar finer than a chunk only repeats its
-// neighbor. Caps the styles whose count follows the scrubber's zoomed width.
-static const NSUInteger kVibeWaveformMaxBars = 8192;
+// Spectrum's color window is a tent this many seconds from centre to foot.
+// A column's color is then its bar's mix, while its height still shows each
+// hit. A shorter window leaks the bar's own pattern, and a drum loop shows
+// as stripes a bar apart. At 2 s the beat, the backbeat and a one-bar
+// pattern each leak under 5% from 100 to 174 BPM. The window is fixed in
+// time. As a share of the track, it was a beat long on a short track.
+static const double kVibeWaveformSpectrumColorSeconds = 2.0;

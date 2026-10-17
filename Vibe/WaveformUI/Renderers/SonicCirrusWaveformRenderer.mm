@@ -141,14 +141,17 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
 }
 
 // A count change moves every bar's index, so the boundary is rescaled to keep
-// the played fraction (updateProgress: lands the exact one next) and every
-// bar is repainted.
+// the played fraction (updateProgress: lands the exact one next). A bar's
+// color is its side of the boundary and whether it is hovered, so only the
+// new bars, those the boundary crossed and the bar that was hovered are
+// repainted. A boundary of -1 has a full repaint pending.
 - (void)reconcileBarCount:(NSUInteger)count {
     NSUInteger have = _layers.count / 2;
     if (have == count) {
         return;
     }
     VibeSignpostBegin(waveform_layers);
+    NSInteger oldBoundary = _lastProgressBoundary, oldHover = _hoverBarIndex;
     if (_lastProgressBoundary > 0 && have > 0) {
         _lastProgressBoundary = VibeBlockBoundaryForProgress(
                 (CGFloat)_lastProgressBoundary / (CGFloat)have, (NSInteger)count);
@@ -168,11 +171,18 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
         [self.parentLayer addSublayer:layer];
     }
     _layerFrames.resize(count * 2, CGRectZero);
+    if (count == 0) {
+        std::vector<CGRect>().swap(_layerFrames);
+    }
     // The hover index is against the old count; updateWaveform: re-snaps it
     // from the kept x right after this.
     _hoverBarIndex = -1;
-    for (NSUInteger i = 0; i < count; i++) {
-        [self paintBar:(NSInteger)i];
+    NSInteger crossedFrom = MIN(oldBoundary, _lastProgressBoundary);
+    NSInteger crossedTo = MAX(oldBoundary, _lastProgressBoundary);
+    for (NSInteger i = 0; i < (NSInteger)count; i++) {
+        if (oldBoundary < 0 || i >= (NSInteger)have || i == oldHover || (i >= crossedFrom && i < crossedTo)) {
+            [self paintBar:i];
+        }
     }
     [CATransaction commit];
     VibeSignpostEnd(waveform_layers);
@@ -234,9 +244,10 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // A resize moves the bar under the kept x.
     [self setHoverHighlightX:self.hoverHighlightX];
 
-    [_morph updateTargetForSize:bounds.size identity:waveform count:count
+    [_morph updateTargetForSize:bounds.size window:_pixels.window() identity:waveform count:count
                            fill:^(std::vector<float> &target) {
-        [self fillEnergyLevels:target.data() count:count stride:1 waveform:waveform];
+        [self fillLevels:target.data() stride:1 framesPerColumn:(double)waveform->totalFrames() / (double)count
+                   first:0 count:count waveform:waveform];
     }];
 }
 

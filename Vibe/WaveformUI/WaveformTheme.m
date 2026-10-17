@@ -114,12 +114,6 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
         _bandColors = VibeBuiltInBandColors(NO, isDark);
         _spectrumColors = VibeBuiltInSpectrumColors(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, isDark);
-        CGFloat pr, pg, pb, ur, ug, ub;
-        // Alphas aside on purpose: the scrubber's single-bitmap fast path
-        // recovers the level difference from unplayedOverPlayedOpacity.
-        _unplayedSharesPlayedHue = played == unplayed ||
-                (VibeColorGetSRGB(played, &pr, &pg, &pb) && VibeColorGetSRGB(unplayed, &ur, &ug, &ub) &&
-                 fabs(pr - ur) < 0.001 && fabs(pg - ug) < 0.001 && fabs(pb - ub) < 0.001);
     }
     return self;
 }

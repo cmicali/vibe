@@ -1,6 +1,6 @@
 # iOS channel and touch-driver verbs
 
-The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` gestures, per-session simulators and the build lock, and iPad. The shared verbs in `references/mac-verbs.md` (`play_index`, `check_consistency`, `dump_stats`, `dump_metadata_progress`, the cloud and loading verbs, `work_tally`) answer here too. `SKILL.md`'s "iOS: the simulator loop" carries the rules and traps.
+The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` gestures, per-session simulators and the build lock, and iPad. The shared verbs in `references/mac-verbs.md` (`play_index`, `check_consistency`, `dump_health`, `quiesce`, `clear_render_counters`, `block_player`, `scan_bpm`, `set_loading`, `dump_stats`, `dump_metadata_progress`, the cloud and loading verbs, `work_tally`) answer here too. `dump_health`'s `ui` block counts every scene's windows and has no `trackingAreas`. Its `app` and `pending` blocks lack the mac shell's `tableRows`, `canUndo`, `canRedo`, `openResultsBuffered` and `openBurstQueued`. `quiesce` closes through the model's `clearPlaylist`. `scan_bpm` takes a path inside the container, since there is no CLI client. `set_loading` draws the bound page's indicator. `SKILL.md`'s "iOS: the simulator loop" carries the rules and traps.
 
 ## The channel
 
@@ -8,7 +8,7 @@ Same file protocol and one-JSON-object contract as the mac's, with **no CLI clie
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
-"$S" dump_state          # {player, currentTrack, playlist, ui, fx, settings, widget: {placed}}. player.buffering is a stream's hold; player.bufferingRecord {holds, releases, stalls, heldSeconds} counts since launch, so diff it. ui carries waveformProgress, waveformOverscroll (points past an end, + past the start, - past the end), waveformScrollGeom ([offset, min, max, contentWidth]), waveformBaked, waveformLoading, openSlow, bufferingShown (Buffering… and its spinner, 0.5 s into a hold: on the codec line while it has text, else the artist line), isScrubbing, parked, sceneActive, routePickerUp, playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty, pasteRowShown, pasteRowResolving and linkSheet. settings.widgetWaveformStyle null means Match app
+"$S" dump_state          # {player, currentTrack, playlist, ui, fx, settings, widget: {placed}}. player.buffering is a stream's hold; player.bufferingRecord {holds, releases, stalls, heldSeconds} counts since launch, so diff it. ui carries waveformProgress, waveformOverscroll (points past an end, + past the start, - past the end), waveformScrollGeom ([offset, min, max, contentWidth]), waveformShown, waveformLoading, openSlow, bufferingShown (Buffering… and its spinner, 0.5 s into a hold: on the codec line while it has text, else the artist line), isScrubbing, parked, sceneActive, routePickerUp, playerPresentation ("minimized"|"full"), miniPlayerShown, selectedTab, libraryEmpty, pasteRowShown, pasteRowResolving and linkSheet. settings.widgetWaveformStyle null means Match app
 "$S" dump_equalizer      # references/equalizer-counters.md; set_equalizer_mode likewise
 "$S" dump_audio_path     # the render chain as on the mac, minus the device stage
 "$S" dump_now_playing    # {hasInfo, title, artist, duration, elapsed, rate, hasArtwork}: the mac verb minus playbackState
@@ -22,9 +22,10 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" append <path>       # the same, added to the end through FolderSession.addURLs:. Nothing plays; files already listed are skipped; an add onto an empty playlist becomes an open
 # TRAP: both take a path inside the container, which is not security-scoped, and the data container's UUID changes on every install. Re-resolve it (simctl get_app_container … data) before each call
 "$S" expand_player       # the card without a gesture; also minimize_player
-"$S" check_waveform_preparation refresh  # refresh|transition|artwork|interaction|color: live regressions for neighbor preparation; {ok, measured checks}
+"$S" check_waveform_preparation refresh  # refresh|transition|interaction|color: live regressions for page waveforms; {ok, measured checks}
 "$S" set_waveform_zoom 0.12  # the DJ zoom (0-1 = fraction of the track visible) through the released-pinch callback. {waveformZoomRequested, waveformZoomEffective} differ when the layout cannot draw the depth asked
 "$S" set_waveform_style wiggle_centered  # {ok, waveformStyle}: the persisted identifier, never the display name; an unknown one lists the valid set. Wiggle is `wiggle_centered` whether Centered is on or off; Centered reads back as settings.waveformCentered
+# The mac verbs with no iOS counterpart drive mac-only features: the window, menus, Settings window, themes and appearance, raw input, output devices and bit-perfect, the pitch fader and key analysis, folder art, FLAC conversion, the playlist table's selection, reorder and undo, the skip buttons and the keyboard's FX sends (iOS has set_fx_pad), shortcuts, and the Save Debug Info report.
 "$S" set_fx_pad 0.8 0.5  # the FX pad's position through the model (x: reverb, then delay past 0.5; y: the low cut's cutoff), or `set_fx_pad off`. Replies {ok, fx}. dump_state.fx is the FX intent per stage (intent, enabled, active, gateTarget), delayTapBPM and unitRenders. ui.fxPadShown follows settings.audioFXEnabled; ui.fxPadEngaged is a finger on a pad
 "$S" set_output_route airplay "Living Room"  # draws the route indicator as any kind (none|speaker|receiver|wired|bluetooth|airplay|carplay|other), model untouched. A page reconfigure or real route event overwrites it, so set it just before the check
 "$S" select_tab playlist # or favorites, files, search
@@ -55,7 +56,7 @@ S=.claude/skills/vibe-debug/scripts/debug-ios.sh
 "$S" clear_caches        # blocks until both PINCaches are empty; waits its own 20 s window
 ```
 
-`check_waveform_preparation` preconditions. Run each on a freshly opened folder after `file_cache` has primed its waveforms. Refresh and color need nothing else. Interaction needs an expanded, paused card whose page shows its baked waveform. Transition and artwork need an expanded, paused local playlist of two or more with a prepared neighbor that has no live cell. Run transition on a fresh launch too, since cells already in the reuse pool hide a miss. Artwork also needs colored art on that neighbor and the `album_art` waveform theme.
+`check_waveform_preparation` preconditions. Run each on a freshly opened folder after `file_cache` has primed its waveforms. Refresh and color need nothing else. Interaction needs an expanded, paused card whose page shows its waveform. Transition needs an expanded, paused local playlist of two or more whose neighbor's waveform is fetched and has no live cell. Run transition on a fresh launch too, since cells already in the reuse pool hide a miss.
 
 The `search` reply reports the matching rows. `dump_view_tree` also exposes the drawn table.
 

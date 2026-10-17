@@ -21,6 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
     // Stat and open cannot be interrupted; fixed slots bound blocked workers.
     AudioWorkScheduler              *_lookupScheduler;
     AudioWorkScheduler              *_previewScheduler;
+    // Deep zoom's reads, apart from the decodes, so a stuck one holds no
+    // decode slot.
+    AudioWorkScheduler              *_detailScheduler;
     AudioWorkScheduler              *_decodeScheduler;
     PINCache*                       _waveformCache;
 }

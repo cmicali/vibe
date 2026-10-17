@@ -29,31 +29,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSArray<NSDictionary *> *own = @[
-            // See DebugHealth.h. Reads the player's counts on its serial
-            // queue, so a wedged queue times this out rather than answering
-            // from stale state.
-            VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeDebugHealthJSON(controller);
-            }),
-            // Zeroes the cumulative render counters, so a measurement phase
-            // reads on its own rather than as a delta.
-            VibeDebugCmd(@"clear_render_counters", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                [controller.audioPlayer debugClearRenderCounters];
-                return VibeJSONString(@{@"ok": @YES});
-            }),
-            // Sample dump_health right after it for a reading taken at rest.
-            VibeDebugCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                VibeDebugQuiesce(controller, ^(NSString *response) {
-                    VibeWriteDebugResponse(commandId, response);
-                });
-                return nil; // response written by the poll
-            }),
-            VibeDebugCmd(@"block_player <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                double seconds = tokens.count == 2 ? tokens[1].doubleValue : -1;
-                if (!isfinite(seconds) || seconds <= 0 || seconds > 10) return VibeErrorJSON(@"usage: block_player <seconds 0-10>");
-                [controller.audioPlayer debugBlockQueueForSeconds:seconds];
-                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds)});
-            }),
             VibeDebugCmd(@"dump_debug_info", 30, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSDictionary *snapshot = VibeDebugInfoSnapshot(controller);
                 AudioPlayer *player = controller.audioPlayer;
@@ -171,21 +146,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 else [controller.playerContentView mouseExited:event];
                 return VibeJSONString(@{@"ok": @YES, @"controlsHover": @(shown)});
             }),
-            VibeDebugCmd(@"set_loading <off | indeterminate | fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // Both indicator modes, without a real slow cloud open.
-                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
-                double fraction = -1;
-                if ([arg isEqualToString:@"off"]) {
-                    [controller.trackDisplay hideWaveformLoadingIndicator];
-                    return VibeJSONString(@{@"ok": @YES, @"loading": @"off"});
-                }
-                if (![arg isEqualToString:@"indeterminate"] && !VibeParseDouble(arg, &fraction)) {
-                    return VibeErrorJSON(@"usage: set_loading <off | indeterminate | 0..1>");
-                }
-                [controller.trackDisplay showWaveformLoadingIndicator];
-                [controller.trackDisplay setWaveformLoadingProgress:(float)fraction];
-                return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
-            }),
             VibeDebugCmd(@"set_folder_art <on|off>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 BOOL on;
                 if (!VibeParseOnOff(tokens, &on)) {
@@ -297,18 +257,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             // The CLI client runs the scans locally, so these serve the usage
             // listing and callers that post the command file directly.
-            VibeDebugCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                NSString *errorJSON = nil;
-                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
-                if (!path) {
-                    return errorJSON;
-                }
-                // A full-file decode: off the main thread.
-                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-                    VibeWriteDebugResponse(commandId, VibeDebugBPMScanJSON(path));
-                });
-                return nil; // response written by the block above
-            }),
             VibeDebugCmd(@"scan_key <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSString *errorJSON = nil;
                 NSString *path = VibeExistingFileArgument(tokens, &errorJSON);

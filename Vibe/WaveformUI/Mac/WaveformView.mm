@@ -78,6 +78,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         _styleIdentifier = style;
         _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
                 layer:_rendererHost bounds:self.bounds isDark:self.isDark];
+        [self applyPictureColorSpace];
         [self applyLevelSettings];
         [self applyResolvedTheme];
     }
@@ -375,9 +376,14 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 // TRAP: feed every delivery directly into the running morph. Holding the
 // first leaves an empty strip after a skip; settling partials breaks the ease.
+// A window no one can see settles each one at once, since every eased frame
+// is a full raster on main.
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
     _waveform = waveform;
     [self drawWaveform];
+    if (!(self.window.occlusionState & NSWindowOcclusionStateVisible)) {
+        [_currentWaveformRenderer settleMorphImmediately];
+    }
 }
 
 - (void)setFrameSize:(NSSize)newSize {
@@ -410,10 +416,19 @@ static const CGFloat kWaveformDragHysteresis = 4;
     CGFloat scale = VibeBackingScaleOrDefault(self.window.backingScaleFactor);
     VibeApplyContentsScale(self.layer, scale);
     [_loadingIndicator updateContentsScale:scale];
+    [self applyPictureColorSpace];
     // Settled geometry is snapped to the old pixel grid and the same-size draw
     // skips the rebuild. After the re-stamp above, which the rebuild reads.
     [_currentWaveformRenderer backingScaleDidChange];
     [self layoutPlayheadLine];
+}
+
+// The window's space, which a picture is painted in. A space that is not RGB
+// leaves sRGB: a picture's pixels are RGB.
+- (void)applyPictureColorSpace {
+    CGColorSpaceRef space = self.window.colorSpace.CGColorSpace;
+    _currentWaveformRenderer.pictureColorSpace =
+            space && CGColorSpaceGetModel(space) == kCGColorSpaceModelRGB ? space : NULL;
 }
 
 - (void)viewDidChangeEffectiveAppearance {
@@ -477,5 +492,11 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     [self.delegate waveformView:self didSeek:(float)target];
     return YES;
 }
+
+#if DEBUG
+- (BOOL)debugWaveformEasing {
+    return _currentWaveformRenderer && !_currentWaveformRenderer.isSettled;
+}
+#endif
 
 @end

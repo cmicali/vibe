@@ -22,6 +22,7 @@
 #import "DebugCommonVerbs.h"
 #import "DebugConsistency.h"
 #import "DebugHealth.h"
+#import "DebugMacConsistency.h"
 #import "DebugSettingsUI.h"
 #import "AudioLoadTiming.h"
 

@@ -104,8 +104,23 @@ NSArray<NSDictionary *> *VibeDebugLoadingVerbs(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
+            VibeDebugCmd(@"set_loading <off | indeterminate | fraction>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                // Both indicator modes, without a real slow cloud open.
+                NSString *arg = tokens.count > 1 ? tokens[1].lowercaseString : @"";
+                double fraction = -1;
+                if ([arg isEqualToString:@"off"]) {
+                    [surface debugSetWaveformLoading:NO fraction:-1];
+                    return VibeJSONString(@{@"ok": @YES, @"loading": @"off"});
+                }
+                if (![arg isEqualToString:@"indeterminate"] && !VibeParseDouble(arg, &fraction)) {
+                    return VibeErrorJSON(@"usage: set_loading <off | indeterminate | 0..1>");
+                }
+                [surface debugSetWaveformLoading:YES fraction:(float)fraction];
+                return VibeJSONString(@{@"ok": @YES, @"fraction": @(fraction)});
+            }),
             // The cloud lane's at-rest facts, both zero once a sweep settles.
-            // macOS also reports them in dump_health; this is iOS's only view.
             VibeDebugCmd(@"dump_cloud_health", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                      id<VibeDebugPlayerSurface> surface) {

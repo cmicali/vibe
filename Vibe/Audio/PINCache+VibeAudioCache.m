@@ -5,8 +5,9 @@
 
 #import "PINCache+VibeAudioCache.h"
 
-// Each store has its own budget. Waveform payloads are 128 KiB, plus 48 KiB
-// for archived bands. Metadata and display-art sizes depend on the file.
+// Each store has its own budget. A waveform entry grows with its track, about
+// 50 KiB a minute and double that with bands. Metadata and display-art sizes
+// depend on the file.
 static const NSUInteger kAudioCacheByteLimit = 1024 * 1024 * 1024;
 
 // Changed file identities can orphan entries. Untouched entries age out

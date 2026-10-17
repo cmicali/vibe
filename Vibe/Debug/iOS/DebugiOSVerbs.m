@@ -211,10 +211,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             VibeDebugCmd(@"dump_art", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
             }),
-            VibeDebugCmd(@"check_waveform_preparation <refresh|transition|artwork|interaction|color>", 0,
+            VibeDebugCmd(@"check_waveform_preparation <refresh|transition|interaction|color>", 0,
                          ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 if (tokens.count != 2) {
-                    return VibeErrorJSON(@"usage: check_waveform_preparation <refresh|transition|artwork|interaction|color>");
+                    return VibeErrorJSON(@"usage: check_waveform_preparation <refresh|transition|interaction|color>");
                 }
                 [controller.player debugCheckWaveformPreparation:tokens[1] completion:^(NSDictionary *result) {
                     VibeWriteDebugResponse(commandId, VibeJSONString(result));

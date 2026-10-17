@@ -12,6 +12,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
+#import "DebugCommonVerbs.h"
 
 // The CLI half of the debug command channel. The local verbs (sleep, script,
 // scan_bpm, scan_key, clear_disk_caches, set_analysis) run in this process;

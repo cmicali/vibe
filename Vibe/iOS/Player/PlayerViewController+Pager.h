@@ -28,12 +28,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)applyPlaybackLoadingToVisiblePages;
 
 - (void)requestCurrentWaveform;
-// Bakes the complete neighbors in hidden scrubbers; reads nothing.
-- (void)refreshWaveformWindow;
 // Cache-only reads of the adjacent pages, which follow the cursor: on a move,
 // after the current page's request, and when the frame-budget hold releases.
 - (void)fetchNeighborWaveforms;
-- (void)clearPreparedWaveforms;
 
 // Repaints a cell from the latest snapshot, or starts the loading line when
 // there is none yet.

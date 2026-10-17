@@ -20,7 +20,6 @@
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "PlaceholderFiles.h"
-#import "UIImage+DominantColor.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
 // and lands on the placeholder; two gives a whole extra commit of lead.
@@ -59,7 +58,6 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
     // A fresh cell's labels are at their defaults, and paused, no tick comes.
     [self updatePlaybackUI];
     [self updatePlayButton];
-    [self refreshWaveformWindow];
 }
 
 // A provider's dataless file is not asked for: its decode would hold a slot
@@ -136,9 +134,8 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 - (void)hydrateWaveformInCell:(TrackPageCell *)cell atIndex:(NSUInteger)index {
     CodableAudioWaveform *snapshot = [_waveformCoordinator snapshotAtIndex:index];
     if (snapshot) {
-        // A bake already stored for this page installs synchronously, keyed
-        // by the view's own geometry: a fresh cell's is unset until it lays
-        // out, and the lookup then missed and baked what the store held.
+        // Laid out first, so the scrubber draws at its own width, not a fresh
+        // cell's zero.
         [cell layoutIfNeeded];
         [cell.waveformView showWaveform:snapshot
                               animated:![_waveformCoordinator isCompleteAtIndex:index]];
@@ -169,62 +166,6 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
             [cell.waveformView showLoadingIndicator];
         }
     });
-}
-
-- (void)releasePreparedWaveformAtIndex:(NSUInteger)index {
-    [_preparedWaveforms[@(index)] removeFromSuperview];
-    [_preparedWaveforms removeObjectForKey:@(index)];
-}
-
-- (void)clearPreparedWaveforms {
-    for (NSNumber *key in _preparedWaveforms.allKeys) {
-        [self releasePreparedWaveformAtIndex:key.unsignedIntegerValue];
-    }
-}
-
-- (void)refreshWaveformWindow {
-    if (!self.isPresented || _waveformCoordinator.isHeld || !_waveformView || _playlist.count == 0) {
-        return;
-    }
-    [_boundPage layoutIfNeeded];
-    CGSize size = _waveformView.bounds.size;
-    if (size.width <= 0 || size.height <= 0) {
-        return;
-    }
-    NSUInteger current = _playlist.currentIndex;
-    NSRange window = [self pageWindowWithRadius:1];
-    // Releasing a baker releases no pixels: its bake is in the scrubber's store.
-    for (NSNumber *key in _preparedWaveforms.allKeys) {
-        NSUInteger index = key.unsignedIntegerValue;
-        if (index == current || !NSLocationInRange(index, window)) {
-            [self releasePreparedWaveformAtIndex:index];
-        }
-    }
-    for (NSUInteger index = window.location; index < NSMaxRange(window); index++) {
-        // A page with a live cell gets no baker: the cell is handed every
-        // delivery and bakes into the store itself, and a baker beside it
-        // would bake the same picture a second time before the cell's lands.
-        if (index == current || [self cellAtIndex:index]
-                || ![_waveformCoordinator isCompleteAtIndex:index]) {
-            continue;
-        }
-        WaveformScrubberView *view = _preparedWaveforms[@(index)];
-        if (!view) {
-            view = [[WaveformScrubberView alloc] initWithFrame:(CGRect){CGPointZero, size}];
-            view.hidden = YES;
-            // Inherit the card's appearance and display scale offscreen.
-            [self.view addSubview:view];
-            _preparedWaveforms[@(index)] = view;
-        }
-        view.frame = (CGRect){CGPointZero, size};
-        view.visibleFraction = _waveformZoom;
-        view.artworkThemeColor = [self artworkForPageAtIndex:index].vibeDominantColor;
-        [view syncWaveformStyle];
-        [view layoutIfNeeded];
-        // A page already baked, by its live cell or before its cell was
-        // recycled, is a store hit and bakes nothing.
-        [view showWaveform:[_waveformCoordinator snapshotAtIndex:index] animated:NO];
-    }
 }
 
 - (void)fetchNeighborWaveforms {
@@ -395,7 +336,6 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
     if (!_pagesView.isDragging && !_pagesView.isDecelerating) {
         [self scrollToCurrentPageAnimated:NO];
     }
-    [self refreshWaveformWindow];
 }
 
 // Re-pages alongside the transition. The in-flight flag keeps
@@ -520,7 +460,6 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
         }
         [self->_artHeldPages addIndex:index];
         [self refreshPageAtIndex:index];
-        [self refreshWaveformWindow];
         if ([self->_playlist isCurrentTrack:track]) {
             [self->_playback publishNowPlaying];
         }
@@ -619,7 +558,6 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
     _waveformCoordinator.held = held;
     [self updateScrollLinkState];
     if (!held) {
-        [self refreshWaveformWindow];
         [self fetchNeighborWaveforms];
     }
 }

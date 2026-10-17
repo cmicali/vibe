@@ -39,6 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 // pages and the persistence are a real gesture's. What is drawn is clamped
 // further by each view's geometry; read back waveformZoomEffective.
 - (void)debugSetWaveformZoom:(CGFloat)fraction;
+// The bound page's loading indicator; see VibeDebugPlayerSurface.
+- (void)debugSetWaveformLoading:(BOOL)shown fraction:(float)fraction;
 
 // Draws the route indicator as `kind` with no session behind it, the only way
 // to see the off-device renderings in the simulator. The model is untouched;
