@@ -715,6 +715,28 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertEqualObjects(url.cacheKey, placeholderKey, @"filed under the key the installed file answers");
 }
 
+// A main thread that stalls through a decode is handed one snapshot, not a
+// queue of them, each a target fill for a picture already superseded.
+- (void)testAStalledMainIsHandedOneSnapshot {
+    NSString *path = [self writeWAVNamed:@"paced.wav" seconds:60];
+    WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:recorder];
+    // Paced, so the stall below sees a block land every 0.1 s.
+    NSTimeInterval pace = AudioWaveformCache.debugDecodeSeconds;
+    AudioWaveformCache.debugDecodeSeconds = 3;
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [loader load:path];
+        dispatch_semaphore_signal(done);
+    });
+    [NSThread sleepForTimeInterval:1.5];
+    // One pass of the main queue delivers whatever queued during the stall.
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true);
+    XCTAssertEqual(recorder.snapshots.count, 1u, @"one waited for main, and none queued behind it");
+    XCTAssertTrue([self await:done]);
+    AudioWaveformCache.debugDecodeSeconds = pace;
+}
+
 // A cancel ends a decode parked at the download's edge at once, in the open
 // or in a read, freeing its slot without completing.
 - (void)testCancellingAStreamingLoadParkedAtTheEdgeEndsItPromptly {

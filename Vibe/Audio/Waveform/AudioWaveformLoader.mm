@@ -22,6 +22,7 @@
 #import <AVFAudio/AVFAudio.h>
 
 #include <array>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -372,6 +373,10 @@
     // its first block before its next read can stall.
     __block CFAbsoluteTime lastProgressTime = file.waitsForBytes ? 0 : CFAbsoluteTimeGetCurrent();
     __block AVAudioFramePosition framesProcessed = pass->framesRead;
+    // A snapshot on its way to main. While one is, no newer one is made: a
+    // main thread that stalled was handed a queue of them, about 1 MB each,
+    // and refilled and retargeted its view for every one already superseded.
+    auto snapshotWaiting = std::make_shared<std::atomic<bool>>(false);
 
     dispatch_semaphore_t slotFree[2] = { dispatch_semaphore_create(1), dispatch_semaphore_create(1) };
     int slot = 0;
@@ -455,7 +460,7 @@
             // but its UI-only snapshot copies and main-queue blocks are waste.
             if (!self.isCancelled && !self.isDetached) {
                 CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
-                if (now - lastProgressTime >= 0.1) {
+                if (now - lastProgressTime >= 0.1 && !snapshotWaiting->load()) {
                     lastProgressTime = now;
                     // Short of 1 with every frame read: 1 is the completion's,
                     // which AudioWaveformCache delivers, and a pass sized by an
@@ -468,7 +473,9 @@
                     // appending to it.
                     CodableAudioWaveform *snapshot = [[CodableAudioWaveform alloc] initWithWaveform:builder->snapshot()];
                     if (!self.isCancelled && !self.isDetached) {
+                        snapshotWaiting->store(true);
                         run_on_main_thread({
+                            snapshotWaiting->store(false);
                             if (!self.isCancelled && !self.isDetached) {
                                 [self.delegate audioWaveformLoader:self waveform:snapshot didLoadData:percentComplete];
                             }
