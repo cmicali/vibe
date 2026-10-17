@@ -84260,7 +84260,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_spectrum.blue": {
-      "comment": "Settings, Spectrum waveform color choice: shades of blue, from dark blue for bass to near white for highs, like a CDJ's blue waveform. The color name.",
+      "comment": "Settings, Spectrum waveform color choice: shades of blue, from navy for bass through teal to white for highs, like a DJ program's blue waveform. The color name.",
       "localizations": {
         "bg": {
           "stringUnit": {
