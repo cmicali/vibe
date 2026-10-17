@@ -192,6 +192,31 @@ static void SetColumn(float *meanSquares, NSUInteger j, float low, float mid, fl
     XCTAssertEqual(VibeWaveformSectionSplit(levels, 1), 0u);
 }
 
+// The levels put the edge 7 cells into a kick that starts at cell 20. The
+// peaks move it back to the attack, through a loud side before it that is not
+// as loud, and through the kick's soft start. Leaving, the edge moves back to the end of the last loud run.
+// Sides alike in their peaks keep the edge where the levels put it.
+- (void)testSnapPutsTheEdgeOnTheHit {
+    float peaks[40];
+    for (NSUInteger i = 0; i < 40; i++) {
+        peaks[i] = i < 20 ? 0.3f : 1.0f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 27), 20u);
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 14), 20u, @"an edge early of the hit moves on to it");
+    for (NSUInteger i = 0; i < 20; i++) {
+        peaks[i] = i == 19 ? 0.4f : i == 18 ? 0.2f : 0.05f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 27), 18u, @"a soft start joins its hit");
+    for (NSUInteger i = 0; i < 40; i++) {
+        peaks[i] = i < 20 ? 1.0f : 0.05f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 26), 20u);
+    for (NSUInteger i = 0; i < 40; i++) {
+        peaks[i] = i % 4 ? 0.9f : 1.0f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 26), 26u, @"pinned peaks mark no hit");
+}
+
 // The peak shape is absent at rest zoom, whole at deep zoom, and
 // halfway an octave in.
 - (void)testPeakShapeFadesInAsColumnsNarrow {

@@ -8,6 +8,7 @@
 #import "VibeStrings.h"
 #import "WaveformZoomMath.h"
 
+#include <algorithm>
 #include <functional>
 #include <vector>
 #include <cmath>
@@ -74,9 +75,10 @@ static NSArray *VibeThreeBandSideColors(CGFloat level, BOOL flat) {
 
 // The grid fits the sections. Each edge then moves to the change in the
 // bands' levels within two columns of it, read a bin at a time, never past
-// halfway to a neighbor's. A section is colored by the mean of the grid
-// columns whose centers it holds. The grid spans the length a streaming load
-// will reach, so a delivery never moves a column.
+// halfway to a neighbor's. The peaks then put it on the hit itself
+// (VibeWaveformSectionSnapToHit). A section is colored by the mean of the
+// grid columns whose centers it holds. The grid spans the length a streaming
+// load will reach, so a delivery never moves a column.
 std::vector<VibeSpectrumSection> VibeSpectrumSections(AudioWaveform *waveform) {
     std::vector<VibeSpectrumSection> sections;
     double total = (double)waveform->totalFrames();
@@ -91,7 +93,9 @@ std::vector<VibeSpectrumSection> VibeSpectrumSections(AudioWaveform *waveform) {
     NSUInteger count = VibeWaveformSectionStarts(grid.data(), columns, kBandShareOfFullScale, starts);
     sections.resize(count);
     double cell = waveform->binFrames();
-    std::vector<float> levels;
+    // A kick's build, in cells: how far an edge may move onto its hit.
+    int64_t reach = std::max((int64_t)1, (int64_t)ceil(0.1 * waveform->sampleRate() / cell));
+    std::vector<float> levels, peaks;
     for (NSUInteger s = 0; s < count; s++) {
         double edge = starts[s] * gridFrames;
         sections[s].start = edge;
@@ -112,9 +116,18 @@ std::vector<VibeSpectrumSection> VibeSpectrumSections(AudioWaveform *waveform) {
             }
         }
         NSUInteger split = VibeWaveformSectionSplit(levels.data(), cells);
-        if (split > 0) {
-            sections[s].start = (double)(first + (int64_t)split) * cell;
+        if (split == 0) {
+            continue;
         }
+        // The peaks a reach either side of the split place it on the hit.
+        int64_t at = first + (int64_t)split;
+        int64_t from = std::max(first, at - reach), to = std::min(last, at + reach);
+        peaks.resize((size_t)(to - from));
+        for (int64_t c = from; c < to; c++) {
+            peaks[(size_t)(c - from)] = waveform->column((double)c * cell, (double)(c + 1) * cell).extent();
+        }
+        at = from + (int64_t)VibeWaveformSectionSnapToHit(peaks.data(), peaks.size(), (NSUInteger)(at - from));
+        sections[s].start = (double)at * cell;
     }
     std::vector<double> sums(count * wavecore::kBandCount, 0.0);
     std::vector<NSUInteger> held(count, 0);
@@ -135,6 +148,28 @@ std::vector<VibeSpectrumSection> VibeSpectrumSections(AudioWaveform *waveform) {
         }
     }
     return sections;
+}
+
+// The section a column of frames [first, last) is colored by: the one under
+// its center, unless an edge falls inside the column. Such a column is as tall
+// as the loudest peak on either side, so it takes the side that holds that
+// peak. By its center alone, a kick's first column drew tall in the color
+// before it. under follows the centers, so columns are passed in order.
+static NSUInteger VibeSectionOfColumn(const std::vector<VibeSpectrumSection> &sections, NSUInteger &under,
+                                      double first, double last, AudioWaveform *waveform) {
+    double center = (first + last) / 2;
+    while (under + 1 < sections.size() && center >= sections[under + 1].start) {
+        under++;
+    }
+    if (under + 1 < sections.size() && sections[under + 1].start < last) {
+        double edge = sections[under + 1].start;
+        return waveform->column(edge, last).extent() > waveform->column(first, edge).extent() ? under + 1 : under;
+    }
+    if (under > 0 && sections[under].start > first) {
+        double edge = sections[under].start;
+        return waveform->column(first, edge).extent() > waveform->column(edge, last).extent() ? under - 1 : under;
+    }
+    return under;
 }
 
 static id VibePinned(CALayer *layer, CGFloat scale) {
@@ -171,6 +206,9 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     std::vector<float> _peaks;
     // The colors are part of the target, so a coloring change refills it.
     BOOL _colorsBySection;
+    // How much of the peaks' shape the heights take, by the pixel; set by
+    // each draw before its fill.
+    double _peakShapeWeight;
 }
 
 + (NSString *)styleIdentifier {
@@ -327,8 +365,17 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
     _pixels = [self renderPixelsForSize:bounds.size];
     // A column a point for 3-Band, so zoomed in it resolves each hit; a column
-    // a pixel for Spectrum, whose colors change from pixel to pixel.
-    double columnsPerPixel = _spectrum ? 1 : 1 / _pixels.scale;
+    // a pixel for Spectrum, whose colors change from pixel to pixel. As the
+    // peak shape fades in, 3-Band moves to a column a pixel too. A column a
+    // point is three pixels at 3x, and read between its neighbors' centers
+    // each attack rose over them.
+    // The peak shape's weight is by the pixel, so both styles fade it in at
+    // the same zoom. By the column, 3-Band's wider columns took half of it.
+    double pixels = bounds.size.width * _pixels.scale;
+    _peakShapeWeight = waveform && pixels > 0
+            ? VibeWaveformPeakShapeWeight((double)waveform->totalFrames() / waveform->sampleRate() / pixels)
+            : 0;
+    double columnsPerPixel = _spectrum ? 1 : 1 / _pixels.scale + _peakShapeWeight * (1 - 1 / _pixels.scale);
     // By section's fit is the track's, so both parts of a fill share one.
     __block std::vector<VibeSpectrumSection> sections;
     [self updateStepTargetForSize:bounds.size waveform:waveform columnsPerPixel:columnsPerPixel
@@ -385,9 +432,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         }
         _peaks[i] = column.extent();
     }
-    double weight = VibeWaveformPeakShapeWeight(frames / waveform->sampleRate());
-    if (weight > 0) {
-        [self shapeHeights:out part:part waveform:waveform weight:(float)weight heights:heights];
+    if (_peakShapeWeight > 0) {
+        [self shapeHeights:out part:part waveform:waveform weight:(float)_peakShapeWeight heights:heights];
     }
     if (!_spectrum) {
         return;
@@ -397,13 +443,10 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         sections = VibeSpectrumSections(waveform);
     }
     if (self.theme.spectrumColorsBySection && !sections.empty()) {
-        // The columns run in order, so the section under each follows on.
-        NSUInteger section = 0;
+        NSUInteger under = 0;
         for (NSUInteger i = 0; i < count; i++) {
-            double center = ((double)(part.first + (int64_t)i) + 0.5) * frames;
-            while (section + 1 < sections.size() && center >= sections[section + 1].start) {
-                section++;
-            }
+            double k = (double)(part.first + (int64_t)i);
+            NSUInteger section = VibeSectionOfColumn(sections, under, k * frames, (k + 1) * frames, waveform);
             memcpy(&_bandMeanSquares[i * wavecore::kBandCount], sections[section].meanSquares,
                    sizeof(float) * wavecore::kBandCount);
         }
@@ -422,21 +465,19 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 }
 
 // Precise's tents stop at the section edges, as By section's colors do. A
-// tent that would cross one is moved inside its section, whole, or narrowed
-// to a section shorter than it. Crossing, it colored the two seconds before a
+// tent that would cross one is moved inside its column's section
+// (VibeSectionOfColumn), whole, or narrowed to a section shorter than it. Crossing, it colored the two seconds before a
 // kick came back by the kick. The columns a moved tent covers share one, so
 // each is read once.
 - (void)keepTents:(int64_t)first count:(NSUInteger)count framesPerColumn:(double)frames halfWidth:(double)halfWidth
        inSections:(const std::vector<VibeSpectrumSection> &)sections waveform:(AudioWaveform *)waveform {
     double total = (double)waveform->totalFrames();
-    NSUInteger section = 0;
+    NSUInteger under = 0;
     double readCenter = -1, readWidth = -1;
     float read[wavecore::kBandCount] = {};
     for (NSUInteger i = 0; i < count && !sections.empty(); i++) {
-        double center = ((double)(first + (int64_t)i) + 0.5) * frames;
-        while (section + 1 < sections.size() && center >= sections[section + 1].start) {
-            section++;
-        }
+        double k = (double)(first + (int64_t)i), center = (k + 0.5) * frames;
+        NSUInteger section = VibeSectionOfColumn(sections, under, k * frames, (k + 1) * frames, waveform);
         double start = sections[section].start;
         double end = section + 1 < sections.size() ? sections[section + 1].start : total;
         double width = fmax(frames, fmin(halfWidth, (end - start) / 2));
@@ -544,8 +585,14 @@ static const double kPeakShapeReachSeconds = 0.06;
                                 center, framesPerColumn[p], window.parts[p].first, window.parts[p].count);
                         const float *left = samples + (window.offset(p) + pair.left) * stride;
                         const float *right = samples + (window.offset(p) + pair.right) * stride;
+                        // Spectrum's colors come from the column that gives
+                        // the pixel more of its height. Read between the two,
+                        // the pixel rising into a kick took the color before
+                        // it.
+                        const float *colors = left[0] * (1 - pair.toRight) >= right[0] * pair.toRight ? left : right;
                         for (NSUInteger k = 0; k < stride; k++) {
-                            bar[k] += weight * (left[k] + (right[k] - left[k]) * pair.toRight);
+                            float level = spectrum && k > 0 ? colors[k] : left[k] + (right[k] - left[k]) * pair.toRight;
+                            bar[k] += weight * level;
                         }
                         weights += weight;
                     }

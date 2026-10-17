@@ -82,21 +82,88 @@ static const NSUInteger kVibeWaveformLevelColumns = 1024;
 // time. As a share of the track, it was a beat long on a short track.
 static const double kVibeWaveformSpectrumColorSeconds = 2.0;
 
+// An edge the levels place, moved onto the hit that makes it. peaks are the
+// mix's peaks in count cells, and at is the cell the levels start the second
+// side on. The bands' levels lag a kick's attack by its 40 to 60 ms build,
+// so a split by levels lands inside the kick. When the second side's peaks
+// are louder, the edge moves to the start of the loud run around it. When
+// they are quieter, to the end of the run before it. A run is the cells at
+// least half the loudest peak. A hit's soft start, still rising and louder
+// than the quiet side, joins its run. Sides within a quarter of each other
+// are left alone, since their peaks mark no hit.
+static inline NSUInteger VibeWaveformSectionSnapToHit(const float *peaks, NSUInteger count, NSUInteger at) {
+    if (count < 2 || at == 0 || at >= count) {
+        return at;
+    }
+    double before = 0, after = 0;
+    float loudest = 0;
+    for (NSUInteger i = 0; i < count; i++) {
+        if (i < at) {
+            before += peaks[i];
+        } else {
+            after += peaks[i];
+        }
+        loudest = fmaxf(loudest, peaks[i]);
+    }
+    before /= (double)at;
+    after /= (double)(count - at);
+    float loud = loudest / 2;
+    if (after > before * 1.25) {
+        if (peaks[at] >= loud) {
+            while (at > 0 && peaks[at - 1] >= loud) {
+                at--;
+            }
+        } else {
+            while (at < count && peaks[at] < loud) {
+                at++;
+            }
+        }
+        // The quiet side's level, without the hit's own cells.
+        double quiet = 0;
+        for (NSUInteger i = 0; i < at; i++) {
+            quiet += peaks[i];
+        }
+        quiet = at > 0 ? quiet / (double)at : 0;
+        while (at > 0 && peaks[at - 1] > quiet * 1.5 && peaks[at - 1] <= peaks[MIN(at, count - 1)]) {
+            at--;
+        }
+    } else if (before > after * 1.25) {
+        if (peaks[at - 1] >= loud) {
+            while (at < count && peaks[at] >= loud) {
+                at++;
+            }
+        } else {
+            while (at > 0 && peaks[at - 1] < loud) {
+                at--;
+            }
+        }
+        double quiet = 0;
+        for (NSUInteger i = at; i < count; i++) {
+            quiet += peaks[i];
+        }
+        quiet = at < count ? quiet / (double)(count - at) : 0;
+        while (at > 0 && at < count && peaks[at] > quiet * 1.5 && peaks[at] <= peaks[at - 1]) {
+            at++;
+        }
+    }
+    return MIN(MAX(at, (NSUInteger)1), count - 1);
+}
+
 // 3-Band's and Spectrum's heights take the peaks' shape once their columns
 // are finer than a kick's build. Zoomed out, a column's loudest window is its
 // height, and it rises on each hit. Zoomed in, a kick's low band builds over
 // 40 to 60 ms after its attack, so it rose late and round while the peaks
-// jump at once. The peaks' weight fades in from columns of the first figure to
-// columns of the second, by octaves, so a pinch changes the outline
+// jump at once. The peaks' weight fades in from pixels of the first figure to
+// pixels of the second, by octaves, so a pinch changes the outline
 // continuously.
 static const double kVibeWaveformPeakShapeFromSeconds = 0.02;
 static const double kVibeWaveformPeakShapeToSeconds = 0.005;
-static inline double VibeWaveformPeakShapeWeight(double secondsPerColumn) {
-    if (!(secondsPerColumn > 0)) {
+static inline double VibeWaveformPeakShapeWeight(double secondsPerPixel) {
+    if (!(secondsPerPixel > 0)) {
         return 0;
     }
     double octaves = log2(kVibeWaveformPeakShapeFromSeconds / kVibeWaveformPeakShapeToSeconds);
-    return fmin(fmax(log2(kVibeWaveformPeakShapeFromSeconds / secondsPerColumn) / octaves, 0), 1);
+    return fmin(fmax(log2(kVibeWaveformPeakShapeFromSeconds / secondsPerPixel) / octaves, 0), 1);
 }
 
 // By section's grid. A column is half a second, about a beat, or 1/512 of a

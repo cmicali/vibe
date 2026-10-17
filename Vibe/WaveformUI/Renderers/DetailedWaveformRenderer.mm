@@ -115,6 +115,9 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     std::vector<float> _tops;
     std::vector<wavecore::Column> _columns;
     std::vector<float> _levels;
+    // The step columns a pixel the last draw asked for
+    // (columnsPerPixelForWaveform:width:), which the level grid follows.
+    double _columnsPerPixel;
     std::unique_ptr<wavecore::ColumnCoverage> _coverage;
     VibeStepPicture _picture;
 }
@@ -318,7 +321,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     double columnsPerPoint = [self columnsPerPoint];
     if (columnsPerPoint > 0) {
         [self updateStepTargetForSize:bounds.size waveform:waveform
-                      columnsPerPixel:columnsPerPoint / _pixels.scale
+                      columnsPerPixel:[self columnsPerPixelForWaveform:waveform width:bounds.size.width]
                                  fill:^(float *out, const wavecore::StepPart &part) {
             [self fillColumns:out framesPerColumn:part.framesPerColumn() first:part.first count:part.count
                      waveform:waveform];
@@ -331,6 +334,25 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
                         first:0 count:count waveform:waveform];
         }];
     }
+}
+
+// The oversampled types' columns a pixel, but none finer than a pixel once
+// they are finer than a bin. There a column is a slice of the stream's own
+// line, and a pixel holding several draws the mean of their slices, so the
+// line went faint. Over the bins every column holds its whole bin. The floor
+// rises with the zoom, so the step moves continuously.
+- (double)columnsPerPixelForWaveform:(AudioWaveform *)waveform width:(CGFloat)width {
+    double columnsPerPixel = [self columnsPerPoint] / _pixels.scale;
+    double pixels = width * _pixels.scale;
+    if (waveform && pixels > 0 && columnsPerPixel > 1) {
+        double framesPerPixel = (double)waveform->totalFrames() / pixels;
+        double framesPerColumn = framesPerPixel / columnsPerPixel, bin = waveform->binFrames();
+        if (framesPerColumn < bin) {
+            columnsPerPixel = framesPerPixel / fmax(framesPerColumn, fmin(bin, framesPerPixel));
+        }
+    }
+    _columnsPerPixel = columnsPerPixel;
+    return columnsPerPixel;
 }
 
 - (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform {
@@ -409,8 +431,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
 static const double kLevelPixels = 4;
 
 - (double)levelColumnsPerColumn {
-    double columnsPerPixel = [self columnsPerPoint] / _pixels.scale;
-    return columnsPerPixel > 0 ? kLevelPixels * columnsPerPixel : 1;
+    return _columnsPerPixel > 0 ? kLevelPixels * _columnsPerPixel : 1;
 }
 
 - (void)backingScaleDidChange {
