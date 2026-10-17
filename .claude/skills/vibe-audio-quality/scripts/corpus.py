@@ -47,6 +47,9 @@ TAGLIB_TAG = 'v2.3.2'
 # A file the corpus itself gets wrong, with the reason. It counts as known, not failed.
 KNOWN = {
     'fate': {
+        'mp3-conformance/he_mode.mp3': "FFmpeg's reference writes each frame at its own channel count: 10 mono frames, "
+                                       '100 stereo, then mono again. Vibe plays the stream as stereo and puts a mono '
+                                       "frame in both channels. Laid out as FFmpeg's, the decode matches to an RMS of 4.4e-5.",
         'vorbis/6.ogg': "FFmpeg's reference interleaves the six channels in WAVE order. Vibe keeps Vorbis I's order and "
                         'labels each channel. Put in WAVE order, the decode matches to an RMS of 3.6e-6.',
     },

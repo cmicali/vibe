@@ -18,7 +18,6 @@
 #import <XCTest/XCTest.h>
 #import <CommonCrypto/CommonDigest.h>
 #import "AudioFileHandle.h"
-#import "AudioFileHandleInternal.h"
 #import "PlayableExtensions.h"
 
 // Layer III's synthesis delay: a reference decode keeps it, and the handle
@@ -62,6 +61,14 @@ static NSData *VibeReference(NSURL *url, UInt32 *bits) {
     return samples;
 }
 
+// An ID3v2 tag's whole length from its first 10 bytes, 0 for none. The
+// handle's own is private, and the test reads only public headers, so it
+// builds against an older release too.
+static uint64_t VibeCorpusID3v2Bytes(const uint8_t *h) {
+    if (memcmp(h, "ID3", 3) != 0) return 0;
+    return 10 + (h[5] & 0x10 ? 10 : 0) + ((uint64_t)(h[6] & 0x7F) << 21 | (h[7] & 0x7F) << 14 | (h[8] & 0x7F) << 7 | (h[9] & 0x7F));
+}
+
 // A FLAC's STREAMINFO: its sample size, and the MD5 of its samples when the
 // encoder wrote one.
 typedef struct {
@@ -76,8 +83,8 @@ static VibeFLACInfo VibeFLACInfoOf(NSURL *url) {
     NSData *head = [handle readDataUpToLength:64 * 1024 error:NULL];
     const uint8_t *b = head.bytes;
     uint64_t at = 0;
-    while (head.length >= at + 10 && VibeID3v2TagBytes(b + at)) {
-        at += VibeID3v2TagBytes(b + at);
+    while (head.length >= at + 10 && VibeCorpusID3v2Bytes(b + at)) {
+        at += VibeCorpusID3v2Bytes(b + at);
     }
     if (at != 0) {
         [handle seekToOffset:at error:NULL];

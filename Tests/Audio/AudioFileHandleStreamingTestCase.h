@@ -62,7 +62,7 @@ NSData *_Nullable VibeWithoutVBRHeader(NSData *mp3);
 - (NSData *)referenceOf:(NSURL *)source from:(AVAudioFramePosition)frame frames:(AVAudioFramePosition)frames;
 // Exact, but for AAC, which is held to four float epsilons.
 - (void)assertPCM:(NSData *)pcm equals:(NSData *)reference context:(NSString *)context;
-// The tail-reading opens, by the decoder each reaches, and a WAV.
+// The tail-reading opens, by the decoder each reaches, and a WAV and MP3s.
 - (NSDictionary<NSURL *, NSString *> *)tailFixtures;
 // Files on the test's network mount read ahead.
 - (VibeReadAheadScript *)readAhead;

@@ -52,14 +52,18 @@ dispatch_queue_t VibeHandleDebugCloseQueue(void) {
 }
 #endif
 
+// An ID3v2 syncsafe integer: 28 bits, 7 to a byte.
+uint32_t VibeID3v2Syncsafe(const uint8_t bytes[4]) {
+    return (uint32_t)(bytes[0] & 0x7F) << 21 | (bytes[1] & 0x7F) << 14 | (bytes[2] & 0x7F) << 7 | (bytes[3] & 0x7F);
+}
+
 // An ID3v2 tag's whole length from the file's first 10 bytes: the syncsafe
 // size in bytes 6-9 excludes the header and a footer. 0 for no tag.
 uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     if (memcmp(header, "ID3", 3) != 0) {
         return 0;
     }
-    return 10 + (header[5] & 0x10 ? 10 : 0)
-            + ((header[6] & 0x7F) << 21 | (header[7] & 0x7F) << 14 | (header[8] & 0x7F) << 7 | (header[9] & 0x7F));
+    return 10 + (header[5] & 0x10 ? 10 : 0) + VibeID3v2Syncsafe(header + 6);
 }
 
 @implementation AudioFileHandle {
@@ -137,8 +141,8 @@ static NSError *VibeInterruptedError(NSURL *url) {
 // interruption; a failure stays. With a buffer, bytes the tail window holds
 // past the download's edge are copied into it, up to `capacity`, their count
 // in *copied; 0 means they are on disk.
-BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
-                     void *window, uint64_t capacity, uint64_t *copied) {
+static BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
+                            void *window, uint64_t capacity, uint64_t *copied) {
     if (handle->_waitError) {
         return NO;
     }
@@ -337,7 +341,7 @@ long VibeVorbisTell(void *user) {
 
 // The type CoreAudio registers for an extension: the hint AudioFileOpenURL
 // takes from a path. 0 when none is registered.
-static AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
+AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
     // A strong local, not a bridged temporary: ARC frees that at the end of
     // its statement, leaving the lookup below reading freed memory.
     NSString *lowered = extension.lowercaseString;
@@ -653,7 +657,9 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     // takes. TRAP: iOS's Ogg reader refuses Vorbis, and macOS's decoder drops
     // each Vorbis file's first 128 frames (macOS 27,
     // docs/future/audio-quality-gaps.md).
-    if ([self openOwnDecoderInterleaved:interleaved] || _waitError) {
+    _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
+    if ([self openOwnDecoderInterleaved:interleaved mpeg:!_openedUnderApple] || _waitError) {
+        _mpegChoiceApplies = _mpeg != NULL;
         return [self openedWithError:error];
     }
     if (![self openParserWithError:error]) {
@@ -679,10 +685,6 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     }
     UInt32 formatID = fileDescription.mFormatID;
     _mpegChoiceApplies = formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3;
-    _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
-    if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
-        return [self openedWithError:error];
-    }
     status = [self decodeToProcessingFormatInLayout:_processingFormat.channelLayout];
     if (status != noErr) {
         // What AVAudioFile reported for a file its decoder cannot produce:
@@ -714,7 +716,8 @@ static float VibeOpusOutputGain(AudioFileID parser) {
             && offset >= 0 && offset <= _size) {
         length = (SInt64)(MIN(bytes, (UInt64)(_size - offset)) / fileDescription.mBytesPerFrame);
     }
-    _length = length;
+    // A damaged header can state a negative length.
+    _length = MAX(0, length);
     return [self openedWithError:error];
 }
 
@@ -839,8 +842,10 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     }
     free(_readBlock);
     free(_mpeg);
-    free(_mpegRead);
+    free(_mpegPacket);
     free(_mpegPCM);
+    free(_mpegOffsets);
+    free(_mpegSizes);
     [self closeStreamDecoder];
     AudioFileID parser = _parserOwnsFile ? _parser : NULL;
     if (!parser) {
