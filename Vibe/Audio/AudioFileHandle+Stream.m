@@ -135,6 +135,11 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
         [self closeStreamDecoder]; // a failed open has cleared it, and clearing again is safe
         return NO;
     }
+    // vorbisfile keeps every link's comments, an embedded cover among them,
+    // until it closes. Nothing reads them after the open.
+    for (int link = 0; link < ov_streams(_vorbis); link++) {
+        vorbis_comment_clear(&_vorbis->vc[link]);
+    }
     vorbis_info *info = ov_info(_vorbis, 0);
     ogg_int64_t length = ov_pcm_total(_vorbis, -1);
     BOOL uniform = info && info->channels > 0 && info->rate > 0;

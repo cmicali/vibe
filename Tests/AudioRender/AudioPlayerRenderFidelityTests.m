@@ -6,6 +6,7 @@
 #import "AudioFX.h"
 #import "OutputFormatRules.h"
 #import <Accelerate/Accelerate.h>
+#include <ogg/ogg.h>
 
 // The oracle itself, the bit-perfect matrix, every container and codec, float limits and wide sources.
 @interface AudioPlayerRenderFidelityTests : AudioPlayerRenderTests
@@ -206,12 +207,17 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
     const double tones[] = {500, 900, 700, 1300, 1700, 60}; // the generator's front left, center, front right, back left, back right, LFE
     XCTAssertEqual(layout->mNumberChannelDescriptions, 6u);
     NSData *decoded = [self readToEnd:file];
+    double own[6] = {0}; // each channel's own tone
     for (NSUInteger c = 0; c < 6; c++) {
         XCTAssertEqual(layout->mChannelDescriptions[c].mChannelLabel, labels[c], @"channel %lu's label", (unsigned long)c);
         for (NSUInteger t = 0; t < 6; t++) {
             double amplitude = VibeToneAmplitude(decoded, 6, c, 48000, tones[t], NSMakeRange(4800, 48000));
-            if (t == c) XCTAssertGreaterThan(amplitude, 0.1, @"channel %lu holds %g Hz", (unsigned long)c, tones[t]);
-            else XCTAssertLessThan(amplitude, 0.005, @"channel %lu holds %g Hz", (unsigned long)c, tones[t]);
+            if (t == c) {
+                own[c] = amplitude;
+                XCTAssertGreaterThan(amplitude, 0.1, @"channel %lu holds %g Hz", (unsigned long)c, tones[t]);
+            } else {
+                XCTAssertLessThan(amplitude, 0.005, @"channel %lu holds %g Hz", (unsigned long)c, tones[t]);
+            }
         }
     }
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
@@ -221,21 +227,12 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
     for (NSUInteger side = 0; side < 2; side++) {
         for (NSUInteger t = 0; t < 6; t++) {
             double amplitude = VibeToneAmplitude(capture, 2, side, 48000, tones[t], NSMakeRange(9600, 48000));
-            double expected = folded[side][t] * VibeToneAmplitude(decoded, 6, t, 48000, tones[t], NSMakeRange(4800, 48000));
+            double expected = folded[side][t] * own[t];
             XCTAssertEqualWithAccuracy(amplitude, expected, 0.005, @"side %lu, %g Hz", (unsigned long)side, tones[t]);
         }
     }
 }
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
-// An Ogg page's CRC: polynomial 0x04C11DB7, unreflected, with its own field zeroed.
-static uint32_t VibeOggCRC(const uint8_t *bytes, size_t length) {
-    uint32_t crc = 0;
-    for (size_t i = 0; i < length; i++) {
-        crc ^= (uint32_t)bytes[i] << 24;
-        for (int bit = 0; bit < 8; bit++) crc = crc & 0x80000000u ? crc << 1 ^ 0x04C11DB7u : crc << 1;
-    }
-    return crc;
-}
 // The Opus file with its OpusHead output gain set to `q78` (dB × 256), and
 // its first page's CRC made good again.
 static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
@@ -246,9 +243,8 @@ static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
     if (patched.length < length || memcmp(page + packet, "OpusHead", 8) != 0) return nil;
     page[packet + 16] = (uint8_t)q78;
     page[packet + 17] = (uint8_t)((uint16_t)q78 >> 8);
-    memset(page + 22, 0, 4);
-    uint32_t crc = VibeOggCRC(page, length);
-    for (int i = 0; i < 4; i++) page[22 + i] = (uint8_t)(crc >> (8 * i));
+    ogg_page first = {.header = page, .header_len = (long)packet, .body = page + packet, .body_len = (long)(length - packet)};
+    ogg_page_checksum_set(&first);
     return patched;
 }
 // RFC 7845's output gain, which Apple's decoder ignores. The handle applies
