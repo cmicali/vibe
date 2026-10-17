@@ -84,6 +84,21 @@ static inline NSString *VibeWaveformSpectrumPaletteDisplayName(NSString *palette
     return STR_SETTINGS_WAVEFORM_SPECTRUM_RGB;
 }
 
+// Spectrum's colorings in every chooser's order. Sections is the default.
+static inline NSArray<NSString *> *VibeWaveformSpectrumColorings(void) {
+    return @[SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS, SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_PRECISE];
+}
+
+static inline NSString *VibeNormalizedWaveformSpectrumColoring(NSString *_Nullable identifier) {
+    return [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_PRECISE]
+            ? identifier : SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS;
+}
+
+static inline NSString *VibeWaveformSpectrumColoringDisplayName(NSString *coloring) {
+    return [coloring isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS]
+            ? STR_SETTINGS_WAVEFORM_SPECTRUM_SECTIONS : STR_SETTINGS_WAVEFORM_SPECTRUM_PRECISE;
+}
+
 static inline VibeFolderOpenSort VibeNormalizedFolderOpenSort(NSString *_Nullable identifier) {
     if ([identifier isEqualToString:SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST]) {
         return VibeFolderOpenSortNewestFirst;

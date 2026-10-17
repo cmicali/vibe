@@ -14,6 +14,7 @@
     XCTAssertEqualObjects(theme.waveformTheme, @"mono");
     XCTAssertTrue(theme.waveformShadeOverlaps);
     XCTAssertEqualObjects(theme.waveformSpectrumPalette, @"rgb");
+    XCTAssertEqualObjects(theme.waveformSpectrumColoring, @"sections");
     XCTAssertEqualObjects(theme.windowTint, @"artwork");
     XCTAssertEqualObjects(theme.playlistTint, @"mono");
     XCTAssertEqualObjects(theme.windowBackgroundStyle, @"glass");

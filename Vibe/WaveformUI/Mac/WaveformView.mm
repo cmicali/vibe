@@ -123,6 +123,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
         return;
     }
     [self applyResolvedTheme];
+    // Spectrum's coloring is part of the target. Otherwise the fast path
+    // skips the fill.
+    [self drawWaveform];
     // updateColors: left the -1 boundary sentinel; this repaints everything.
     [self updateRendererProgress];
 }

@@ -251,6 +251,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // Spectrum's palette: rgb (default), blue, green, or custom, which draws the
 // Low/Mid/High wells 3-Band also reads.
 @property (nonatomic, copy) NSString *waveformSpectrumPalette;
+// Spectrum's coloring: sections (default), one color per section, or precise.
+@property (nonatomic, copy) NSString *waveformSpectrumColoring;
 // YES draws the whole waveform as played under a line at the playhead; NO
 // (default) dims the unplayed side.
 @property (nonatomic) BOOL waveformPlayheadLine;

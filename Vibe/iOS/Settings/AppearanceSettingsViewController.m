@@ -8,6 +8,7 @@
 #import "AppSettings.h"
 #import "PlaybackController.h"
 #import "SettingsChoiceViewController.h"
+#import "SettingsRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformThemeSettingsViewController.h"
@@ -33,6 +34,7 @@ typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowStyle = 0,
     VibeWaveformRowType,
     VibeWaveformRowTheme,
+    VibeWaveformRowColoring,
     VibeWaveformRowPlayheadLine,
     VibeWaveformRowCentered,
 };
@@ -95,17 +97,22 @@ static NSString *const kValueCellIdentifier  = @"value";
 
 // Top to bottom. Under Match app the widget's group is Style alone, since
 // the widget then draws every setting of the card's. Type shows only for a
-// style that has types.
+// style that has types, and Coloring only for Spectrum.
 - (NSArray<NSNumber *> *)waveformRowsForWidget:(BOOL)widget {
     if (widget && !AppSettings.sharedInstance.widgetWaveformStyle) {
         return @[@(VibeWaveformRowStyle)];
     }
-    BOOL types = [WaveformRendererRegistry typeIdentifiersForIdentifier:
-            [self currentWaveformStyleForWidget:widget]].count > 0;
-    return types ? @[@(VibeWaveformRowStyle), @(VibeWaveformRowType), @(VibeWaveformRowTheme),
-                     @(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)]
-                 : @[@(VibeWaveformRowStyle), @(VibeWaveformRowTheme),
-                     @(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)];
+    NSString *style = [self currentWaveformStyleForWidget:widget];
+    NSMutableArray<NSNumber *> *rows = [NSMutableArray arrayWithObject:@(VibeWaveformRowStyle)];
+    if ([WaveformRendererRegistry typeIdentifiersForIdentifier:style].count > 0) {
+        [rows addObject:@(VibeWaveformRowType)];
+    }
+    [rows addObject:@(VibeWaveformRowTheme)];
+    if ([WaveformRendererRegistry paletteKindForIdentifier:style] == VibeWaveformPaletteKindSpectrum) {
+        [rows addObject:@(VibeWaveformRowColoring)];
+    }
+    [rows addObjectsFromArray:@[@(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)]];
+    return rows;
 }
 
 - (VibeWaveformRow)waveformRowAtIndex:(NSInteger)index widget:(BOOL)widget {
@@ -200,6 +207,11 @@ static NSString *const kValueCellIdentifier  = @"value";
         content.secondaryText = [WaveformRendererRegistry
                 typeDisplayNameForIdentifier:[self currentWaveformStyleForWidget:widget]];
     }
+    else if (row == VibeWaveformRowColoring) {
+        content.text = STR_SETTINGS_WAVEFORM_SPECTRUM_COLORING;
+        content.secondaryText = VibeWaveformSpectrumColoringDisplayName(
+                [settings waveformSpectrumColoringForWidget:widget]);
+    }
     else {
         content.text = STR_SETTINGS_SECTION_WAVEFORM_THEME;
         content.secondaryText = [WaveformThemeSettingsViewController currentThemeDisplayNameForWidget:widget];
@@ -233,6 +245,7 @@ static NSString *const kValueCellIdentifier  = @"value";
             next = row == VibeWaveformRowStyle ? (widget ? [self widgetWaveformStylePicker] : [self waveformStylePicker])
                  : row == VibeWaveformRowType ? [self waveformTypePickerForWidget:widget]
                  : row == VibeWaveformRowTheme ? [[WaveformThemeSettingsViewController alloc] initForWidget:widget]
+                 : row == VibeWaveformRowColoring ? [self spectrumColoringPickerForWidget:widget]
                  : nil;
             break;
         }
@@ -311,6 +324,23 @@ static NSString *const kValueCellIdentifier  = @"value";
         } else {
             AppSettings.sharedInstance.waveformStyle = types[(NSUInteger)index];
         }
+        VibeNotifyDisplaySettingsChanged();
+    }];
+}
+
+- (SettingsChoiceViewController *)spectrumColoringPickerForWidget:(BOOL)widget {
+    NSArray<NSString *> *colorings = VibeWaveformSpectrumColorings();
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:colorings.count];
+    for (NSString *coloring in colorings) {
+        [names addObject:VibeWaveformSpectrumColoringDisplayName(coloring)];
+    }
+    NSString *current = [AppSettings.sharedInstance waveformSpectrumColoringForWidget:widget];
+    return [[SettingsChoiceViewController alloc]
+            initWithTitle:STR_SETTINGS_WAVEFORM_SPECTRUM_COLORING
+                  choices:names
+            selectedIndex:(NSInteger)[colorings indexOfObject:current]
+                 onSelect:^(NSInteger index) {
+        [AppSettings.sharedInstance setWaveformSpectrumColoring:colorings[(NSUInteger)index] forWidget:widget];
         VibeNotifyDisplaySettingsChanged();
     }];
 }

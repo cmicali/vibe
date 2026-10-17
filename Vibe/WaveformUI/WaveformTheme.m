@@ -125,6 +125,9 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     for (VibeColor *color in colors) {
         [signature appendFormat:@"%@,", VibeHexStringFromColor(color) ?: @""];
     }
+    if (_spectrumColorsBySection) {
+        [signature appendString:@"sections"];
+    }
     return signature;
 }
 
@@ -156,6 +159,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         } else {
             resolved.spectrumColors = [self spectrumColorsForIdentifier:theme.waveformSpectrumPalette isDark:isDark
                                                             customBands:wells];
+            resolved.spectrumColorsBySection = [theme.waveformSpectrumColoring
+                    isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
         }
     }
     if (theme.waveformPlayheadLine) {
@@ -187,6 +192,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     }
     resolved.bandColors = [self bandColorsForIdentifier:bandTheme isDark:isDark customBands:custom];
     resolved.spectrumColors = [self spectrumColorsForIdentifier:spectrumPalette isDark:isDark customBands:custom];
+    resolved.spectrumColorsBySection = [[settings waveformSpectrumColoringForWidget:widget]
+            isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
     return resolved;
 }
 #endif

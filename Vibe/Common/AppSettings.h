@@ -48,6 +48,11 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN      @"green"
 #define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM     @"custom"
 
+// Spectrum's coloring. Sections, the default, gives each section of the
+// track one color. Precise colors each moment by its own mix.
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_PRECISE   @"precise"
+#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS  @"sections"
+
 // The crossfade slider in milliseconds: off is 10, the declick minimum, then
 // tenths of a second up to three. The getter snaps any other stored value to
 // the nearest step.
@@ -100,6 +105,11 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 // Normalized on read: an unknown identifier snaps to RGB.
 - (NSString *)waveformSpectrumPaletteForWidget:(BOOL)widget;
 - (void)setWaveformSpectrumPalette:(NSString *)identifier forWidget:(BOOL)widget;
+
+// Spectrum's coloring. Normalized on read: an unknown identifier snaps to
+// Sections.
+- (NSString *)waveformSpectrumColoringForWidget:(BOOL)widget;
+- (void)setWaveformSpectrumColoring:(NSString *)identifier forWidget:(BOOL)widget;
 
 // The custom palette's bands per appearance, which 3-Band's and Spectrum's
 // Custom share. band is 0 for low, 1 for mid and 2 for high. Stored opaque as

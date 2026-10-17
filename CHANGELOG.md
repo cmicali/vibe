@@ -3,6 +3,7 @@
 * Added Open URL… to play a web link or an iCloud Drive share link
 * Added a Buffering… status while a song waits for a slow network share or download
 * Added the Spectrum waveform style for RGB-style waveforms
+* Added By section coloring to the Spectrum waveform, so each part of a song keeps one color
 * Cleaned up waveform styles: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
 * Changed Previous on the first song to restart it
 * Improved network share playback: a dropped connection pauses with "Connection lost", and a slow server no longer stalls track changes

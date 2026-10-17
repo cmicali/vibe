@@ -508,6 +508,11 @@ static const CGFloat kImageBadgeInset = 1.5;
     for (NSString *palette in VibeWaveformSpectrumPalettes()) {
         [self addItem:VibeWaveformSpectrumPaletteDisplayName(palette) value:palette to:_spectrumPalettePopUp];
     }
+    _spectrumColoringPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
+                                                 action:@selector(spectrumColoringChanged:)];
+    for (NSString *coloring in VibeWaveformSpectrumColorings()) {
+        [self addItem:VibeWaveformSpectrumColoringDisplayName(coloring) value:coloring to:_spectrumColoringPopUp];
+    }
 
     _waveformGradientSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectWaveformTheme
             write:^(AppTheme *theme, BOOL on) { theme.waveformGradient = on; }];
@@ -535,6 +540,8 @@ static const CGFloat kImageBadgeInset = 1.5;
     _waveformThemeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR control:_waveformThemePopUp];
     _spectrumPaletteRow = [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_COLOR
                                                 control:_spectrumPalettePopUp];
+    _spectrumColoringRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_SPECTRUM_COLORING
+                                                 control:_spectrumColoringPopUp];
     NSArray<NSString *> *bands = @[kVibeThemeColorWaveformLow, kVibeThemeColorWaveformMid,
                                    kVibeThemeColorWaveformHigh];
     NSArray<NSString *> *bandCaptions = @[STR_SETTINGS_WAVEFORM_BAND_LOW, STR_SETTINGS_WAVEFORM_BAND_MID,
@@ -557,6 +564,7 @@ static const CGFloat kImageBadgeInset = 1.5;
         [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CENTERED control:_waveformCenteredSwitch],
         _waveformThemeRow,
         _spectrumPaletteRow,
+        _spectrumColoringRow,
         _customDarkRow,
         _customLightRow,
         _bandsDarkRow,

@@ -366,6 +366,18 @@ static NSArray<VibeColor *> *SpectrumPalette(NSString *identifier, BOOL isDark) 
                           @"no band style, so the palette is not resolved");
 }
 
+- (void)testSpectrumTakesTheThemesColoring {
+    AppTheme *precise = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum",
+                                                           @"waveformSpectrumColoring": @"precise"}];
+    AppTheme *sections = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum"}];
+    WaveformTheme *byMoment = [WaveformTheme themeForAppTheme:precise isDark:YES artworkColor:nil];
+    WaveformTheme *bySection = [WaveformTheme themeForAppTheme:sections isDark:YES artworkColor:nil];
+    XCTAssertFalse(byMoment.spectrumColorsBySection);
+    XCTAssertTrue(bySection.spectrumColorsBySection);
+    XCTAssertNotEqualObjects(byMoment.paletteSignature, bySection.paletteSignature,
+                             @"a bake keyed by the palette re-bakes on a coloring change");
+}
+
 // Hover moves weighted RGB brightness toward the contrast pole by up to 0.25.
 - (void)testHoverContrastHolds {
     NSColor *orange = [NSColor colorWithRed:1 green:0.45 blue:0 alpha:1];

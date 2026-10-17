@@ -76,3 +76,90 @@ static const NSUInteger kVibeWaveformLevelColumns = 1024;
 // pattern each leak under 5% from 100 to 174 BPM. The window is fixed in
 // time. As a share of the track, it was a beat long on a short track.
 static const double kVibeWaveformSpectrumColorSeconds = 2.0;
+
+// By section's grid. A column is half a second, about a beat, or 1/512 of a
+// track too long for that. A section is at least 8 columns long. The grid
+// follows the track, not the drawn columns, so a resize or a zoom never moves
+// a section's edge. An enum, since C sizes arrays only by a constant
+// expression.
+enum { kVibeWaveformSectionColumns = 512, kVibeWaveformSectionMinColumns = 8 };
+static const double kVibeWaveformSectionColumnSeconds = 0.5;
+// The cost of one more section, against each column's squared distance from
+// its section's mix. Raising it merges sections.
+static const double kVibeWaveformSectionPenalty = 1.0;
+
+// The frames of one grid column for a track of totalFrames.
+static inline double VibeWaveformSectionFramesPerColumn(double totalFrames, double sampleRate) {
+    return fmax(kVibeWaveformSectionColumnSeconds * sampleRate, totalFrames / (double)kVibeWaveformSectionColumns);
+}
+
+// Replaces each column's band mean squares, low to high, with its section's
+// mean. The sections are the fit, constant per section, of each column's mix
+// that has the least squared error plus the penalty per section. A column's
+// mix is VibeSpectrumColor's weights over shares, the bands' shares of full
+// scale. A silent column has no mix, and the fit ignores it. Exact dynamic
+// programming, quadratic in count, which is at most
+// kVibeWaveformSectionColumns.
+static inline void VibeWaveformSectionMeanSquares(float *meanSquares, NSUInteger count, const float shares[3]) {
+    count = MIN(count, (NSUInteger)kVibeWaveformSectionColumns);
+    if (count == 0) {
+        return;
+    }
+    NSUInteger minimum = MIN((NSUInteger)kVibeWaveformSectionMinColumns, count);
+    // Running sums over the columns: how many sound, their mixes and the
+    // mixes' squared lengths.
+    double sounding[kVibeWaveformSectionColumns + 1] = {0};
+    double mix[kVibeWaveformSectionColumns + 1][3] = {{0}};
+    double squared[kVibeWaveformSectionColumns + 1] = {0};
+    for (NSUInteger j = 0; j < count; j++) {
+        double weights[3], total = 0;
+        for (int b = 0; b < 3; b++) {
+            double energy = fmax(meanSquares[j * 3 + b], 0) / ((double)shares[b] * shares[b]);
+            weights[b] = energy * energy;
+            total += weights[b];
+        }
+        sounding[j + 1] = sounding[j] + (total > 0);
+        squared[j + 1] = squared[j];
+        for (int b = 0; b < 3; b++) {
+            double share = total > 0 ? weights[b] / total : 0;
+            mix[j + 1][b] = mix[j][b] + share;
+            squared[j + 1] += share * share;
+        }
+    }
+    // best[j] is the least cost of the first j columns. start[j] is where its
+    // last section starts.
+    double best[kVibeWaveformSectionColumns + 1];
+    NSUInteger start[kVibeWaveformSectionColumns + 1] = {0};
+    best[0] = 0;
+    for (NSUInteger j = 1; j <= count; j++) {
+        best[j] = INFINITY;
+        for (NSUInteger i = 0; i + minimum <= j; i++) {
+            if (best[i] == INFINITY) {
+                continue;
+            }
+            double n = sounding[j] - sounding[i], error = squared[j] - squared[i];
+            for (int b = 0; n > 0 && b < 3; b++) {
+                double sum = mix[j][b] - mix[i][b];
+                error -= sum * sum / n;
+            }
+            double cost = best[i] + error + kVibeWaveformSectionPenalty;
+            if (cost < best[j]) {
+                best[j] = cost;
+                start[j] = i;
+            }
+        }
+    }
+    for (NSUInteger end = count; end > 0; end = start[end]) {
+        NSUInteger begin = start[end];
+        for (int b = 0; b < 3; b++) {
+            double sum = 0;
+            for (NSUInteger j = begin; j < end; j++) {
+                sum += meanSquares[j * 3 + b];
+            }
+            float mean = (float)(sum / (double)(end - begin));
+            for (NSUInteger j = begin; j < end; j++) {
+                meanSquares[j * 3 + b] = mean;
+            }
+        }
+    }
+}
