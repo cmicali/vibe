@@ -3,6 +3,7 @@
 //
 
 #import "AudioPlayerRenderTestCase.h"
+#import "AudioFileMaterializationCoordinator.h"
 #import "AudioFileOpenRules.h"
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
@@ -130,6 +131,23 @@ static const NSUInteger kLinkFrameBytes = 6, kLinkHeaderBytes = 44;
     NSDictionary *comparison = VibeComparePCM(VibeAudibleFrames(reference, 2), VibeAudibleFrames(_capture, 2), 2, 0, 0);
     XCTAssertTrue([comparison[@"pass"] boolValue], @"%@", comparison);
     XCTAssertEqualObjects([NSData dataWithContentsOfURL:url], [NSData dataWithContentsOfURL:[self fixture:kLinkFixture]]);
+}
+
+// A link that ends while its download still runs lets it go. The stopped
+// player keeps no handle, so the foreground hold drops and the download is
+// cancelled rather than read to its last byte.
+- (void)testALinkEndedMidDownloadLetsItsStreamGo {
+    NSURL *url = [self link];
+    [self stallAt:1.0];
+    [self playLink:url];
+    XCTAssertTrue([self renderUntil:^BOOL { return self->_player.isBuffering; }]);
+    AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
+    XCTAssertTrue(coordinator.isForegroundTransferActive);
+    [_player finishCurrentTrack];
+    XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"finish"] == 1; }]);
+    [self settleUntil:^BOOL { return !coordinator.isForegroundTransferActive; }];
+    XCTAssertFalse(coordinator.isForegroundTransferActive, @"the stopped player still holds the stream");
+    XCTAssertTrue(_player.isStopped);
 }
 
 // A seek past the download's edge lands once the bytes come. A seek back into what has arrived lands at once. Both play the
