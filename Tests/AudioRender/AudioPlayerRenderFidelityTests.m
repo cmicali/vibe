@@ -232,6 +232,31 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
         }
     }
 }
+// A chained Ogg file is whole Ogg streams one after another. A chain whose
+// streams share their rate and channels plays as one track: both streams'
+// frames in order, their length together, every seek exact. The bus keeps
+// one format per file. So a chain whose channels change goes to CoreAudio's
+// parser, and libvorbis never decodes it. macOS 27's parser then plays the
+// first stream alone, and iOS's refuses Vorbis.
+- (void)testOggVorbisChains {
+    NSURL *lossy = [self optionalFixture:@"lossy.ogg"], *paged = [self optionalFixture:@"paged.ogg"];
+    NSURL *surround = [self optionalFixture:@"surround.ogg"];
+    NSData *one = [self readToEnd:[self open:lossy decoder:@"libvorbis"]];
+    NSMutableData *twice = [one mutableCopy];
+    [twice appendData:one];
+    NSMutableData *uniform = [[NSData dataWithContentsOfURL:lossy] mutableCopy];
+    [uniform appendData:[NSData dataWithContentsOfURL:paged]]; // the same packets, under another serial number
+    AudioFileHandle *chain = [self open:[self writeBytes:uniform name:@"chain.ogg"] decoder:@"libvorbis"];
+    XCTAssertEqual(chain.length, (AVAudioFramePosition)(twice.length / (2 * sizeof(float))), @"the chain's length is both streams'");
+    NSData *decoded = [self readToEnd:chain];
+    XCTAssertEqualObjects(decoded, twice, @"a chain plays its streams one after the other");
+    [self assertSeeksOf:chain match:decoded block:256 name:@"chain.ogg"];
+
+    NSMutableData *changing = [[NSData dataWithContentsOfURL:lossy] mutableCopy];
+    [changing appendData:[NSData dataWithContentsOfURL:surround]];
+    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:[self writeBytes:changing name:@"chain-2-then-6.ogg"] error:NULL];
+    XCTAssertNotEqualObjects(file.decoderName, @"libvorbis", @"a chain whose channels change");
+}
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
 // The Opus file with its OpusHead output gain set to `q78` (dB × 256), and
 // its first page's CRC made good again.

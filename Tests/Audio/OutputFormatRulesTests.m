@@ -433,6 +433,20 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     }
 }
 
+// 16 and 24-bit files at one rate take the same widest integer depth. So a
+// 24-bit track that follows a 16-bit one needs no switch, and the gapless
+// splice joins them.
+- (void)testIntegerOutputSplicesSixteenAndTwentyFourBitFilesWithoutASwitch {
+    AudioStreamRangedDescription dac[16];
+    UInt32 counts[] = {(UInt32)USBDACList(dac), 2}; // every format, then only 44.1 kHz at 16 and 24 bits
+    for (int i = 0; i < 2; i++) {
+        AudioStreamBasicDescription first = {0}, next = {0};
+        XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, counts[i], &first));
+        XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 24, NO), 44100, dac, counts[i], &next));
+        XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(first, next, 44100), @"%u formats", (unsigned)counts[i]);
+    }
+}
+
 - (void)testStaleMixerRateRequiresASwitchEvenWhenThePhysicalFormatMatches {
     AudioStreamBasicDescription physical = VibePCM(48000, 32, YES);
     XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(physical, physical, 44100));

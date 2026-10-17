@@ -559,12 +559,16 @@ AUDIO_PY
         # The same packets in 100 ms pages, near oggenc's size, where FFmpeg's muxer writes one-second pages. A
         # streaming open reads the first audio page and the end, and in pages this size the two lie apart.
         [ -s "$render_dir/lossy.ogg" ] && encode paged.ogg "$render_dir/lossy.ogg" -c:a copy -page_duration 100000
-        # 5.1 Vorbis with a tone in each channel, which libvorbis writes in Vorbis I's channel order. FFmpeg's own
-        # encoder is stereo only, so this needs a build with libvorbis. Without one, its test skips.
-        if [ ! -s "$render_dir/surround.ogg" ] && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libvorbis; then
-            ffmpeg_out "$render_dir/surround.ogg" -f lavfi \
+        # 5.1 Vorbis with a tone in each channel, in Vorbis I's channel order. FFmpeg's own encoder is stereo only,
+        # and Homebrew's ffmpeg has no libvorbis. So ffmpeg writes the 5.1 WAV and oggenc (vorbis-tools), which is
+        # libvorbis, encodes it. The WAV is removed, or every WAV test would read it.
+        if [ ! -s "$render_dir/surround.ogg" ]; then
+            ffmpeg_out "$render_dir/.surround.wav" -f lavfi \
                 -i 'aevalsrc=0.125*sin(2*PI*500*t)|0.125*sin(2*PI*700*t)|0.125*sin(2*PI*900*t)|0.125*sin(2*PI*60*t)|0.125*sin(2*PI*1300*t)|0.125*sin(2*PI*1700*t):c=5.1:s=48000:d=2' \
-                -c:a libvorbis
+                -c:a pcm_s16le -fflags +bitexact
+            oggenc --quiet -o "$render_dir/.partial.surround.ogg" "$render_dir/.surround.wav" \
+                && mv -f "$render_dir/.partial.surround.ogg" "$render_dir/surround.ogg"
+            rm -f "$render_dir/.surround.wav" "$render_dir/.partial.surround.ogg"
         fi
         encode lossy.opus "$render_source" -c:a libopus -b:a 128k
         # FLAC in Ogg, which the handle refuses: CoreAudio decodes its first page only.

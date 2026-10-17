@@ -276,6 +276,37 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     }
 }
 
+// A FLAC whose STREAMINFO states a sample size no frame states, as damage
+// can leave it. dr_flac looks for the first frame's header to take its block
+// size, and every header fails. That search stops where the first frame
+// starts. So the open reads only the head of a file still downloading, and
+// never waits for the rest.
+- (void)testAFLACNoFrameMatchesStillOpensOnItsHead {
+    AudioStreamBasicDescription flac = {.mSampleRate = 44100, .mFormatID = kAudioFormatFLAC,
+                                        .mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData, .mChannelsPerFrame = 2};
+    NSError *error = nil;
+    NSURL *written = VibeWriteEncoded([self sourceNamed:@"sixteen.flac"], kAudioFileFLACType, flac, &error);
+    XCTAssertNotNil(written, @"%@", error);
+    NSMutableData *bytes = [[NSData dataWithContentsOfURL:written] mutableCopy];
+    uint8_t *b = bytes.mutableBytes;
+    XCTAssertEqual(memcmp(b, "fLaC", 4), 0);
+    // Bits per sample less one, 5 bits across bytes 20 and 21: 24, where every frame states 16.
+    b[20] = (uint8_t)((b[20] & 0xFE) | (23 >> 4));
+    b[21] = (uint8_t)((b[21] & 0x0F) | ((23 & 0xF) << 4));
+    NSURL *source = [self sourceNamed:@"wrong-depth.flac"];
+    XCTAssertTrue([bytes writeToURL:source atomically:YES]);
+    XCTAssertGreaterThan(bytes.length, 4u * 64 * 1024, @"the file runs well past the head");
+
+    VibeGrowingFile *file = [self stream:source prefix:64 * 1024];
+    __block AudioFileHandle *handle = nil;
+    NSUInteger waits = [self drive:file step:0 reader:^{
+        handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
+    }];
+    XCTAssertEqual(waits, 0u, @"the open waited for the download");
+    XCTAssertEqualObjects(handle.decoderName, @"dr_flac");
+    [file complete];
+}
+
 // Every MP3 open reads its last bytes (an ID3v1 check), so on a prefix with no
 // tail window it waits for the tail, and opens once the file is complete.
 - (void)testAnMP3OpenWaitsForTheTailThenOpensWhenTheFileCompletes {
