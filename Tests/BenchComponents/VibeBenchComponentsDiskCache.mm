@@ -108,7 +108,7 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                 std::string op = operation;
                 VibeBenchComponentsAdd("waveform-cache", op + (bands ? "-bands" : "-plain") +
                                       ([name hasSuffix:@"60min"] ? "-60min" : ""), "op", prepare,
-                                      [waveform, disk, op, bands]() {
+                                      [waveform, disk, op, bands, name]() {
                     for (int i = 0; i < 100; i++) {
                         @autoreleasepool {
                             if (op == "write") {
@@ -144,6 +144,17 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                                     VibeBenchComponentsRequire(context != NULL, "first draw bitmap allocation failed");
                                     CGContextScaleCTM(context, 2, 2);
                                     [layer renderInContext:context];
+                                    if (i == 0 && getenv("VIBE_BENCH_COMPONENTS_UI_DUMP")) {
+                                        NSString *label = [NSString stringWithFormat:@"%@-%s-%d", name, op.c_str(), bands];
+                                        VibeBenchComponentsUIDump([label stringByAppendingString:@".pixels"],
+                                                [NSData dataWithBytes:CGBitmapContextGetData(context)
+                                                               length:CGBitmapContextGetBytesPerRow(context) * 120]);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+                                        auto bytes = result.waveform->encode();
+                                        VibeBenchComponentsUIDump([label stringByAppendingString:@".archive"],
+                                                [NSData dataWithBytes:bytes.data() length:bytes.size()]);
+#endif
+                                    }
                                     CGContextRelease(context);
                                     [CATransaction flush];
                                 }
