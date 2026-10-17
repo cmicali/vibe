@@ -384,11 +384,13 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     VibeTallyCount(waveform_progress);
 }
 
-// Half a view of margin either side, so a scroll moves pixels already drawn
-// for that far, and content far wider than the screen is never drawn whole.
-// None mid-pinch, since every pinch frame draws again. Every step style draws
-// the same pixels for the same content wherever its window lands, so a
-// redraw cannot be seen.
+// A margin around what the view shows, so a scroll moves pixels already
+// drawn, and content far wider than the screen is never drawn whole. Half a
+// view either side, or once a scroll leaves the window a whole view ahead and
+// a quarter behind: playback then redraws after a view of travel, not half
+// of one. None mid-pinch, since every pinch frame draws again. Every step
+// style draws the same pixels for the same content wherever its window
+// lands, so a redraw cannot be seen.
 - (void)drawRendererWindowForcing:(BOOL)force {
     CGRect virtualBounds = [self virtualBounds];
     CGFloat width = self.bounds.size.width;
@@ -401,7 +403,15 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
         (CGRectIsNull(visible) || CGRectContainsRect(_renderWindow, visible))) {
         return;
     }
-    CGRect window = CGRectIntersection(CGRectInset(visible, _isPinching ? 0 : -width / 2, 0), virtualBounds);
+    CGFloat before = _isPinching ? 0 : width / 2, after = before;
+    if (!force && !_isPinching && !CGRectIsNull(_renderWindow) && !CGRectIsNull(visible)) {
+        BOOL forward = CGRectGetMidX(visible) > CGRectGetMidX(_renderWindow);
+        before = forward ? width / 4 : width;
+        after = forward ? width : width / 4;
+    }
+    CGRect window = CGRectIntersection(CGRectMake(CGRectGetMinX(visible) - before, 0,
+                                                  CGRectGetWidth(visible) + before + after, virtualBounds.size.height),
+                                       virtualBounds);
     _renderWindow = CGRectIsNull(window) ? CGRectZero : window;
     [CATransaction setDisableActions:YES];
     // Wiggle keeps its loops through a zoom: it counts them at the resting
