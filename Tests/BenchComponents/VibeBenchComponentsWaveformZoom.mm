@@ -11,7 +11,7 @@
 
 #import "VibeBenchComponents.h"
 
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
 
 #import <QuartzCore/QuartzCore.h>
 #import "DetailedWaveformRenderer.h"
@@ -37,8 +37,8 @@ static std::shared_ptr<AudioWaveform> VibeBenchComponentsZoomWaveform(bool bands
         double beat = std::fmod((double)i / 22050.0, 1.0);
         samples[(size_t)i] *= (float)(0.15 + 0.7 * std::exp(-beat * 12));
     }
-    auto builder = VibeBenchComponentsMixBuilder(bands, frames, 44100);
-    VibeBenchComponentsAppendMix(*builder, samples.data(), samples.size());
+    auto builder = std::make_unique<wavecore::SummaryBuilder>(bands, frames, 44100);
+    builder->append(samples.data(), samples.size());
     std::shared_ptr<AudioWaveform> waveform(builder->finish(true));
     for (int64_t block = 0; block * blockFrames < frames; block++) {
         auto begin = samples.begin() + (ptrdiff_t)(block * blockFrames);
@@ -133,8 +133,13 @@ static void VibeBenchComponentsRegisterZoom(void) {
             item.body(state.get());
             [state->renderer settleMorphImmediately];
             // The picture last drawn, from the renderer's one picture layer.
-            VibeBenchComponentsUIDump([NSString stringWithFormat:@"ui-waveform-zoom-%s.raw", item.name],
-                                      VibeBenchComponentsUIContents([state->renderer valueForKey:item.picture]));
+            if (getenv("VIBE_BENCH_COMPONENTS_UI_DUMP")) {
+                CALayer *layer = [state->renderer valueForKey:item.picture];
+                CGImageRef image = (__bridge CGImageRef)layer.contents;
+                VibeBenchComponentsRequire(image != NULL, "zoom picture missing");
+                VibeBenchComponentsUIDump([NSString stringWithFormat:@"ui-waveform-zoom-%s.raw", item.name],
+                        CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))));
+            }
             return 30;
         }, [state, item]() {
             item.body(state.get());
