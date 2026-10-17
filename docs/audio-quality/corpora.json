@@ -48,15 +48,13 @@
         "decoded": 40,
         "refused": 0,
         "valid": 36,
-        "exact": 35,
+        "exact": 36,
         "warnings": 0,
         "known": 0,
-        "failures": 1
+        "failures": 0
       }
     },
-    "failures": [
-      "l3_10203.mp3: reference: RMS 2.79e-05, max 0.000261 (full accuracy)"
-    ],
+    "failures": [],
     "known": {}
   },
   "fate": {
@@ -146,13 +144,13 @@
       },
       "mp3-conformance": {
         "files": 11,
-        "decoded": 10,
-        "refused": 1,
+        "decoded": 11,
+        "refused": 0,
         "valid": 11,
-        "exact": 9,
+        "exact": 10,
         "warnings": 0,
-        "known": 0,
-        "failures": 2
+        "known": 1,
+        "failures": 0
       },
       "mpegaudio": {
         "files": 2,
@@ -235,11 +233,9 @@
         "failures": 0
       }
     },
-    "failures": [
-      "mp3-conformance/he_free.mp3: refused",
-      "mp3-conformance/he_mode.mp3: reference: 261504 frames, none in common with the 0 decoded"
-    ],
+    "failures": [],
     "known": {
+      "mp3-conformance/he_mode.mp3": "FFmpeg's reference writes each frame at its own channel count: 10 mono frames, 100 stereo, then mono again. Vibe plays the stream as stereo and puts a mono frame in both channels. Laid out as FFmpeg's, the decode matches to an RMS of 4.4e-5.",
       "vorbis/6.ogg": "FFmpeg's reference interleaves the six channels in WAVE order. Vibe keeps Vorbis I's order and labels each channel. Put in WAVE order, the decode matches to an RMS of 3.6e-6."
     }
   },
@@ -293,7 +289,7 @@
         "refused": 121,
         "valid": 0,
         "exact": 0,
-        "warnings": 18,
+        "warnings": 17,
         "known": 0,
         "failures": 0
       },
@@ -303,7 +299,7 @@
         "refused": 152,
         "valid": 0,
         "exact": 0,
-        "warnings": 15,
+        "warnings": 13,
         "known": 0,
         "failures": 0
       }
@@ -322,7 +318,7 @@
         "refused": 16,
         "valid": 0,
         "exact": 0,
-        "warnings": 8,
+        "warnings": 2,
         "known": 0,
         "failures": 0
       }
