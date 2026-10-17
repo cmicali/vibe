@@ -46,7 +46,7 @@ static CGPathRef VibeNewWigglePath(CGSize size, const float *samples, NSUInteger
     first = MIN(first, count);
     CGFloat bottom = baseline - (centered && first > 0 && first < count
             ? clampRange(samples[first * 2 + 1], 0, 1) * amplitude : 0);
-    CGPathMoveToPoint(line, NULL, stroke / 2 + first * pitch, bottom);
+    CGPathMoveToPoint(line, NULL, first ? stroke / 2 + (first - 1) * pitch + pitch : stroke / 2, bottom);
     for (NSUInteger i = first; i < end; i++) {
         CGFloat x = stroke / 2 + i * pitch;
         CGFloat height = clampRange(samples[i * 2 + 1], 0, 1) * amplitude;
