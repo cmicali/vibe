@@ -312,9 +312,14 @@ static NSData *VibeStereoFold(const AudioChannelLayout *layout, UInt32 channels)
     if (ExtAudioFileOpenURL((__bridge CFURLRef)url, &reader) != noErr) {
         return NO;
     }
+    // The parser's own statement. ExtAudioFile's file format drops a 32-bit
+    // FLAC's source-depth flag.
+    AudioFileID parser = NULL;
+    UInt32 size = sizeof(parser);
+    ExtAudioFileGetProperty(reader, kExtAudioFileProperty_AudioFile, &size, &parser);
     AudioStreamBasicDescription parsed = {0};
-    UInt32 size = sizeof(parsed);
-    ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileDataFormat, &size, &parsed);
+    size = sizeof(parsed);
+    AudioFileGetProperty(parser, kAudioFilePropertyDataFormat, &size, &parsed);
     NSMutableData *layout = nil;
     if (ExtAudioFileGetPropertyInfo(reader, kExtAudioFileProperty_FileChannelLayout, &size, NULL) == noErr && size > 0) {
         layout = [NSMutableData dataWithLength:size];
@@ -349,7 +354,9 @@ static NSData *VibeStereoFold(const AudioChannelLayout *layout, UInt32 channels)
 // open's must be what the parser states, an AIFF's CHAN chunk included. A
 // sowt AIFF-C and an extensible WAV's valid bits are two known differences
 // (testDrWAVDescribesEachSampleAtItsWidth). No fixture has valid bits below
-// its container. The MPEG open states CoreAudio's length too, but for a mono
+// its container. A FLAC of a depth the source-depth flags do not name is the
+// third (testDrFLACStatesTheNarrowestDepthThatHoldsTheFile). No fixture has
+// one. The MPEG open states CoreAudio's length too, but for a mono
 // or an MPEG-2 file with an Info frame, which CoreAudio misses. It then
 // trims the LAME tag's priming and remainder, and the two such fixtures play
 // their source's two seconds exactly. A WAV past dr_wav's rates goes to the
@@ -1322,6 +1329,39 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     XCTAssertLessThan(eighthDecoded.length, eighthApple.length, @"an eighth coefficient pair: it ends at its fact count");
     XCTAssertEqualObjects(eighthDecoded, [eighthApple subdataWithRange:NSMakeRange(0, MIN(eighthDecoded.length, eighthApple.length))],
                           @"an eighth coefficient pair decodes as Apple's decoder does");
+}
+// dr_flac states the narrowest source-depth flag that holds a FLAC's depth.
+// The handle decodes to float32, which holds 24 bits. Bit-perfect output then
+// reports a 32-bit FLAC as DepthInsufficient on a 32-bit device format, never
+// Active. The other depths are STREAMINFO's alone, which is all the open reads.
+- (void)testDrFLACStatesTheNarrowestDepthThatHoldsTheFile {
+    NSURL *url = [self fixture:@"flac-32-partition-order.flac"];
+    AudioFileHandle *file = [self open:url decoder:@"dr_flac"];
+    AudioStreamBasicDescription source = *file.fileFormat.streamDescription;
+    XCTAssertEqual(VibeSourceBitDepth(source), 32u);
+
+    AudioStreamRangedDescription offered[2] = {VibeRangedPCMFormat(source.mSampleRate, 24, NO), VibeRangedPCMFormat(source.mSampleRate, 32, NO)};
+    AudioStreamBasicDescription chosen = {0};
+    XCTAssertTrue(VibeBitPerfectChooseFormat(source, source.mSampleRate, offered, 2, &chosen));
+    XCTAssertEqual(chosen.mBitsPerChannel, 32u);
+    VibeBitPerfectReport report = {
+        .enabled = YES, .eligibleDevice = YES, .hasTrack = YES, .formatConfirmed = YES, .rateExact = YES,
+        .channelsMatch = YES, .softwareVolume = 1.0f, .balance = 0.5f, .playerVolume = 1.0f,
+        .depthOK = VibePhysicalFormatSatisfies(chosen, source, *file.processingFormat.streamDescription),
+        .sourceBits = VibeSourceBitDepth(source),
+    };
+    XCTAssertEqual(VibeBitPerfectFold(report), VibeBitPerfectStatusDepthInsufficient);
+
+    NSDictionary<NSNumber *, NSNumber *> *stated = @{@8: @16, @12: @16, @16: @16, @18: @20, @20: @20, @22: @24, @24: @24, @28: @32};
+    for (NSNumber *bits in stated) {
+        NSMutableData *flac = [[NSData dataWithContentsOfURL:url] mutableCopy];
+        uint8_t *streaminfo = (uint8_t *)flac.mutableBytes + 8, sizeLess1 = (uint8_t)(bits.unsignedIntValue - 1);
+        streaminfo[12] = (uint8_t)((streaminfo[12] & 0xFE) | sizeLess1 >> 4);
+        streaminfo[13] = (uint8_t)((streaminfo[13] & 0x0F) | (sizeLess1 & 0xF) << 4);
+        NSString *name = [NSString stringWithFormat:@"flac-%@.flac", bits];
+        AudioFileHandle *narrower = [self open:[self writeBytes:flac name:name] decoder:@"dr_flac"];
+        XCTAssertEqual(VibeSourceBitDepth(*narrower.fileFormat.streamDescription), stated[bits].unsignedIntValue, @"%@", name);
+    }
 }
 // A little-endian (sowt) AIFF-C of 24 or 32 bits, which CoreAudio's parser
 // describes as 16-bit, made from a big-endian one by swapping each sample:
