@@ -7,6 +7,12 @@
 
 #import "DebugInternal.h"
 #import "MainPlayerController+Settings.h"
+#import "MainPlayerController+Playlist.h"
+#import "AppDelegate+Debug.h"
+#import "OpenRequestCoordinator.h"
+#import "OpenRequestCoordinator+Debug.h"
+#import "WaveformView+Debug.h"
+#import "PlaylistTableView.h"
 
 #if DEBUG
 
@@ -129,6 +135,76 @@
 
 - (NSUInteger)debugCheckPlatform:(NSMutableArray<NSDictionary *> *)violations {
     return VibeDebugCheckMac(violations, self);
+}
+
+// Views recurse through the view tree and layers through the layer tree, so a
+// layer-backed subview's layer is counted once, as a sublayer of its
+// superview's.
+static void VibeCountViews(NSView *view, NSUInteger *views, NSUInteger *trackingAreas) {
+    (*views)++;
+    *trackingAreas += view.trackingAreas.count;
+    for (NSView *sub in view.subviews) {
+        VibeCountViews(sub, views, trackingAreas);
+    }
+}
+
+- (NSDictionary *)debugHealthUI {
+    // TRAP: NSApp.windows includes closed windows the app keeps for reuse
+    // (AppDelegate's settingsWindowController, the shared NSColorPanel), so
+    // counting their views makes one visit to Settings read as a permanent
+    // leak. Views, layers and tracking areas count VISIBLE windows only;
+    // `windows` stays over NSApp.windows so stranded windows still show.
+    NSUInteger views = 0, trackingAreas = 0, layers = 0, visibleWindows = 0;
+    for (NSWindow *window in NSApp.windows) {
+        NSView *content = window.contentView;
+        if (!content || !window.isVisible) {
+            continue;
+        }
+        visibleWindows++;
+        VibeCountViews(content, &views, &trackingAreas);
+        if (content.layer) {
+            layers += VibeDebugLayerCount(content.layer);
+        }
+    }
+    return @{
+        @"windows": @(NSApp.windows.count),
+        @"visibleWindows": @(visibleWindows),
+        @"views": @(views),
+        @"layers": @(layers),
+        @"trackingAreas": @(trackingAreas),
+    };
+}
+
+- (NSDictionary *)debugHealthApp {
+    return @{
+        @"tableRows": @(self.playlistTableView.numberOfRows),
+        @"canUndo": @(self.window.undoManager.canUndo),
+        @"canRedo": @(self.window.undoManager.canRedo),
+    };
+}
+
+- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts {
+    NSMutableDictionary<NSString *, NSNumber *> *out = [NSMutableDictionary dictionary];
+    out[@"openResultsBuffered"] = @([OpenRequestCoordinator.sharedCoordinator debugBufferedResultCount]);
+    AppDelegate *appDelegate = (AppDelegate *)NSApp.delegate;
+    if ([appDelegate isKindOfClass:AppDelegate.class]) {
+        out[@"openBurstQueued"] = @([appDelegate debugQueuedOpenCount]);
+    }
+    out[@"waveformEasing"] = @([self.waveformView debugWaveformEasing] ? 1 : 0);
+    return out;
+}
+
+- (void)debugCloseFile {
+    [self closeFile:nil];
+}
+
+- (void)debugSetWaveformLoading:(BOOL)shown fraction:(float)fraction {
+    if (!shown) {
+        [self.trackDisplay hideWaveformLoadingIndicator];
+        return;
+    }
+    [self.trackDisplay showWaveformLoadingIndicator];
+    [self.trackDisplay setWaveformLoadingProgress:fraction];
 }
 
 @end

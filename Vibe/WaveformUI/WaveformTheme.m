@@ -80,8 +80,10 @@ static NSArray<VibeColor *> *VibeBuiltInSpectrumColors(NSString *palette, BOOL i
         NSDictionary<NSString *, NSArray<NSArray<NSString *> *> *> *hex = @{
             SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB: @[@[@"D8300F", @"15802A", @"2A60E0"],
                                                             @[@"FF4018", @"30C828", @"5296FF"]],
-            SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE: @[@[@"003A5C", @"0077B6", @"5BA4D0"],
-                                                             @[@"006890", @"00A8E8", @"C8E0E8"]],
+            // Traktor's Ultraviolet sampled at each band's center: navy
+            // lows, teal mids, white highs.
+            SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE: @[@[@"1C1E4A", @"0F7A80", @"4FB8C8"],
+                                                             @[@"292B64", @"18969A", @"FFFFFF"]],
             SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN: @[@[@"0A4A1F", @"158A3A", @"5DB878"],
                                                               @[@"0E6B2C", @"2ECC5B", @"C8F0CF"]],
         };
@@ -114,12 +116,6 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         _hoverColor = [WaveformTheme hoverColorForPlayed:played isDark:isDark];
         _bandColors = VibeBuiltInBandColors(NO, isDark);
         _spectrumColors = VibeBuiltInSpectrumColors(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, isDark);
-        CGFloat pr, pg, pb, ur, ug, ub;
-        // Alphas aside on purpose: the scrubber's single-bitmap fast path
-        // recovers the level difference from unplayedOverPlayedOpacity.
-        _unplayedSharesPlayedHue = played == unplayed ||
-                (VibeColorGetSRGB(played, &pr, &pg, &pb) && VibeColorGetSRGB(unplayed, &ur, &ug, &ub) &&
-                 fabs(pr - ur) < 0.001 && fabs(pg - ug) < 0.001 && fabs(pb - ub) < 0.001);
     }
     return self;
 }
@@ -130,6 +126,9 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
             arrayByAddingObjectsFromArray:_spectrumColors];
     for (VibeColor *color in colors) {
         [signature appendFormat:@"%@,", VibeHexStringFromColor(color) ?: @""];
+    }
+    if (_spectrumColorsBySection) {
+        [signature appendString:@"sections"];
     }
     return signature;
 }
@@ -162,6 +161,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         } else {
             resolved.spectrumColors = [self spectrumColorsForIdentifier:theme.waveformSpectrumPalette isDark:isDark
                                                             customBands:wells];
+            resolved.spectrumColorsBySection = [theme.waveformSpectrumColoring
+                    isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
         }
     }
     if (theme.waveformPlayheadLine) {
@@ -193,6 +194,8 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
     }
     resolved.bandColors = [self bandColorsForIdentifier:bandTheme isDark:isDark customBands:custom];
     resolved.spectrumColors = [self spectrumColorsForIdentifier:spectrumPalette isDark:isDark customBands:custom];
+    resolved.spectrumColorsBySection = [[settings waveformSpectrumColoringForWidget:widget]
+            isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
     return resolved;
 }
 #endif

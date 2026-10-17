@@ -169,6 +169,26 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                     @"cleared": @[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName],
                 });
             }),
+            VibeDebugCmd(@"scan_bpm <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                              id<VibeDebugPlayerSurface> surface) {
+                NSString *errorJSON = nil;
+                NSString *path = VibeExistingFileArgument(tokens, &errorJSON);
+                if (!path) {
+                    return errorJSON;
+                }
+                // A full-file decode: off the main thread.
+                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    VibeWriteDebugResponse(commandId, VibeDebugBPMScanJSON(path));
+                });
+                return nil; // response written by the block above
+            }),
+            // Zeroes the cumulative render counters, so a measurement phase
+            // reads on its own rather than as a delta.
+            VibeDebugCmd(@"clear_render_counters", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                                   id<VibeDebugPlayerSurface> surface) {
+                [surface.debugPlayer debugClearRenderCounters];
+                return VibeJSONString(@{@"ok": @YES});
+            }),
             // Every recent waveform decode, playback's or file_cache's. See
             // AudioLoadTiming.h.
             VibeDebugCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
@@ -205,7 +225,7 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 return nil; // response written by the completion above
             }),
             // The data the renderers read, for checking a picture against
-            // its source off the app. The columns default to the chunks.
+            // its source off the app. The columns default to 8,192.
             VibeDebugCmd(@"dump_waveform [columns] <file>", 60, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                                             id<VibeDebugPlayerSurface> surface) {
                 // The count comes first, as file_drag_drop's point does: the

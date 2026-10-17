@@ -2446,7 +2446,7 @@ IOS_VERB_TIMEOUTS = {"open_url": 60, "search": 15}
 # The navigation bar is left out, since a track change can scroll the list
 # and collapse a large title.
 IOS_ANCHORS = ("tabBar", "strip", "tabsSafeAreaInsets")
-# dump_cloud_health's counters that must reach zero at rest. iOS has no quiesce.
+# dump_cloud_health's counters that must reach zero at rest.
 IOS_PENDING = ("cloudParsesPending", "cloudLaneHeld")
 IOS_MATERIALIZATION_PENDING = ("claims", "waiters", "backgroundPending", "backgroundRunning",
                                "interactivePending", "interactiveRunning",

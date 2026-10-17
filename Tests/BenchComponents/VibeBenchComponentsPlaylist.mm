@@ -47,6 +47,50 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
             }
         });
     }
+
+    VibeBenchComponentsAdd("playlist-edit", "100k-bulk-1k", "edit", [prepare]() -> double {
+        prepare();
+        return 4;
+    }, [playlist]() {
+        Playlist *list = *playlist;
+        NSMutableIndexSet *source = [NSMutableIndexSet indexSet];
+        for (NSUInteger i = 0; i < 1000; i++) [source addIndex:i * 97];
+        NSArray<AudioTrack *> *removed = [list removeTracksAtIndexes:source];
+        VibeBenchComponentsRequire(removed.count == 1000, "bulk removal lost rows");
+        [list insertTracks:removed atIndexes:source];
+        NSIndexSet *destination = [NSIndexSet indexSetWithIndexesInRange:NSMakeRange(50000, 1000)];
+        VibeBenchComponentsRequire([list moveTracksAtIndexes:source toIndexes:destination] &&
+                                   [list moveTracksAtIndexes:destination toIndexes:source] && list.count == 100000,
+                                   "bulk move failed");
+    });
+    VibeBenchComponentsAdd("playlist-lookup", "100k", "lookup", [prepare]() -> double {
+        prepare();
+        return 2000;
+    }, [playlist]() {
+        for (NSUInteger i = 0; i < 1000; i++) {
+            NSUInteger index = (i * 7919) % 100000;
+            AudioTrack *track = [*playlist trackAtIndex:index];
+            VibeBenchComponentsRequire([*playlist getIndexForTrack:track] == (NSInteger)index &&
+                                       [[*playlist indexesOfTracksWithURL:track.url] containsIndex:index],
+                                       "playlist lookup lost a row");
+        }
+    });
+    VibeBenchComponentsAdd("playlist", "100k-shuffle-walk", "shuffle", [prepare]() -> double {
+        prepare();
+        return 1;
+    }, [playlist]() {
+        Playlist *list = *playlist;
+        list.currentIndex = 0;
+        __block uint32_t seed = 12345;
+        list.randomBelow = ^uint32_t(uint32_t upper) {
+            seed = seed * 1664525u + 1013904223u;
+            return seed % upper;
+        };
+        list.shuffleEnabled = YES;
+        for (int i = 0; i < 1000; i++) VibeBenchComponentsRequire([list next], "shuffle ended early");
+        for (int i = 0; i < 1000; i++) VibeBenchComponentsRequire([list previous], "shuffle history ended early");
+        list.shuffleEnabled = NO;
+    });
 }
 
 VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterPlaylist)

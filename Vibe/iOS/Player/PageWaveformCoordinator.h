@@ -53,7 +53,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger targetIndex;
 
 // The pager's frame-budget hold. Held, deliveries are RECORDED but not
-// forwarded (each repaint tears a scrubber's bake down), failures are
+// forwarded (each repaint redraws a scrubber), failures are
 // deferred, and requests are DROPPED (each cancels the one load, so a swipe
 // across N pages finishes no decode). Releasing forwards what arrived; the
 // caller re-requests the page it settled on.

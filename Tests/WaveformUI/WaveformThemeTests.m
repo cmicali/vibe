@@ -169,7 +169,7 @@ static CGFloat Alpha(VibeColor *color) {
     XCTAssertTrue(SameRGB(dark.playheadColor, NSColor.redColor));
     WaveformTheme *light = [WaveformTheme themeForAppTheme:record isDark:NO artworkColor:nil];
     XCTAssertTrue(SameRGB(light.playheadColor, NSColor.blackColor));
-    XCTAssertEqualWithAccuracy(Alpha(light.playheadColor), 1.0, 0.001);
+    XCTAssertEqualWithAccuracy(Alpha(light.playheadColor), 0.8, 0.001);
 }
 
 #pragma mark 3-Band
@@ -364,6 +364,18 @@ static NSArray<VibeColor *> *SpectrumPalette(NSString *identifier, BOOL isDark) 
     XCTAssertEqualObjects([WaveformTheme themeForAppTheme:detailed isDark:YES artworkColor:nil].spectrumColors,
                           SpectrumPalette(SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, YES),
                           @"no band style, so the palette is not resolved");
+}
+
+- (void)testSpectrumTakesTheThemesColoring {
+    AppTheme *precise = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum",
+                                                           @"waveformSpectrumColoring": @"precise"}];
+    AppTheme *sections = [[AppTheme alloc] initWithRecord:@{@"waveformStyle": @"spectrum"}];
+    WaveformTheme *byMoment = [WaveformTheme themeForAppTheme:precise isDark:YES artworkColor:nil];
+    WaveformTheme *bySection = [WaveformTheme themeForAppTheme:sections isDark:YES artworkColor:nil];
+    XCTAssertFalse(byMoment.spectrumColorsBySection);
+    XCTAssertTrue(bySection.spectrumColorsBySection);
+    XCTAssertNotEqualObjects(byMoment.paletteSignature, bySection.paletteSignature,
+                             @"a bake keyed by the palette re-bakes on a coloring change");
 }
 
 // Hover moves weighted RGB brightness toward the contrast pole by up to 0.25.

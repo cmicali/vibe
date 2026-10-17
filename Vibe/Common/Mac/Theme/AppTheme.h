@@ -121,7 +121,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeRecordIdentifierKey;
 // The color pairs' base names: each record key less its Dark/Light suffix.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayed;
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformUnplayed;
-// The line waveformPlayheadLine draws. Unset, white on dark and black on light.
+// The line waveformPlayheadLine draws. Unset, white on dark and black on
+// light, at 80% opacity.
 FOUNDATION_EXPORT NSString *const kVibeThemeColorWaveformPlayhead;
 // 3-Band's bands, in place of the played and unplayed pair; stored opaque.
 // Unset, Rekord Bin's.
@@ -251,6 +252,8 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 // Spectrum's palette: rgb (default), blue, green, or custom, which draws the
 // Low/Mid/High wells 3-Band also reads.
 @property (nonatomic, copy) NSString *waveformSpectrumPalette;
+// Spectrum's coloring: sections (default), one color per section, or precise.
+@property (nonatomic, copy) NSString *waveformSpectrumColoring;
 // YES draws the whole waveform as played under a line at the playhead; NO
 // (default) dims the unplayed side.
 @property (nonatomic) BOOL waveformPlayheadLine;

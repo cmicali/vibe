@@ -9,7 +9,7 @@
     NSMutableArray<AudioTrack *> *_tracks;
     // Keeps getIndexForTrack: O(1): the metadata sweep resolves a row per
     // track, and a scan would make the sweep O(n²). Every mutator patches
-    // both indexes; those that move rows renumber from the first one moved.
+    // both indexes over the rows whose positions change.
     NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
     // The same, keyed by URL, for the BPM and key deliveries on every track
     // start. A file can occupy several rows, so the value is a row set.
@@ -287,12 +287,10 @@
     [rows addIndex:index];
 }
 
-// Remove, insert and move bracket their edit with these two: the edit moves
-// every row from first on, so those rows are renumbered in place and the rows
-// above it keep their entries. O(n - first), within NSMutableArray's own
-// edit's cost.
-- (void)unindexRowsFrom:(NSUInteger)first {
-    for (NSUInteger row = first; row < _tracks.count; row++) {
+// Remove and insert shift the tail. A move only renumbers the span between
+// its source and destination. Entries outside that span stay valid.
+- (void)unindexRowsFrom:(NSUInteger)first to:(NSUInteger)end {
+    for (NSUInteger row = first; row < end; row++) {
         NSURL *url = _tracks[row].url;
         if (url) {
             [_indexesByURL[url] removeIndex:row];
@@ -300,8 +298,8 @@
     }
 }
 
-- (void)indexRowsFrom:(NSUInteger)first {
-    for (NSUInteger row = first; row < _tracks.count; row++) {
+- (void)indexRowsFrom:(NSUInteger)first to:(NSUInteger)end {
+    for (NSUInteger row = first; row < end; row++) {
         [self indexTrack:_tracks[row] atIndex:row];
     }
 }
@@ -517,12 +515,12 @@
         return nil;
     }
     NSArray<AudioTrack *> *removed = [_tracks objectsAtIndexes:indexes];
-    [self unindexRowsFrom:indexes.firstIndex];
+    [self unindexRowsFrom:indexes.firstIndex to:_tracks.count];
     [_tracks removeObjectsAtIndexes:indexes];
     for (AudioTrack *track in removed) {
         [_trackIndexes removeObjectForKey:track];
     }
-    [self indexRowsFrom:indexes.firstIndex];
+    [self indexRowsFrom:indexes.firstIndex to:_tracks.count];
     // Dropped as unindexURL:atIndex: drops them.
     for (AudioTrack *track in removed) {
         NSURL *url = track.url;
@@ -558,7 +556,7 @@
     // ascending per-row loop, and the event carries the landed set.
     NSUInteger first = MIN(indexes.firstIndex, _tracks.count);
     NSIndexSet *landed = indexes;
-    [self unindexRowsFrom:first];
+    [self unindexRowsFrom:first to:_tracks.count];
     if (indexes.lastIndex < _tracks.count + tracks.count) {
         [_tracks insertObjects:tracks atIndexes:indexes];
     } else {
@@ -572,7 +570,7 @@
         }];
         landed = clamped;
     }
-    [self indexRowsFrom:first];
+    [self indexRowsFrom:first to:_tracks.count];
     [self playOrderDidGainTracks:tracks];
     // The cursor follows its object; into an empty list it stays 0. Ivar, not
     // setter: one edit, one event.
@@ -616,10 +614,11 @@
     AudioTrack *current = self.currentTrack;
     NSArray<AudioTrack *> *moved = [_tracks objectsAtIndexes:sourceIndexes];
     NSUInteger first = MIN(sourceIndexes.firstIndex, destinationIndexes.firstIndex);
-    [self unindexRowsFrom:first];
+    NSUInteger end = MAX(sourceIndexes.lastIndex, destinationIndexes.lastIndex) + 1;
+    [self unindexRowsFrom:first to:end];
     [_tracks removeObjectsAtIndexes:sourceIndexes];
     [_tracks insertObjects:moved atIndexes:destinationIndexes];
-    [self indexRowsFrom:first];
+    [self indexRowsFrom:first to:end];
     // The cursor follows its object. Ivar, not setter: one edit, one event.
     NSInteger resolvedCurrent = [self getIndexForTrack:current];
     if (resolvedCurrent >= 0) {

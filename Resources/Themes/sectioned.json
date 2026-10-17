@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "name": "Sectioned",
+  "description": "RGB's look, with each section of the track in one color and a playhead line. The Spectrum waveform's RGB bands over a frosted window. The window is near black in dark mode and light gray in light mode. A waveform symbol stands where a missing cover would be.",
+  "window": {
+    "backgroundColorDark": "#000000F2",
+    "backgroundColorLight": "#D7D7D7F2",
+    "backgroundStyle": "frosted",
+    "tint": "mono"
+  },
+  "player": {
+    "buttonGradient": "hover",
+    "defaultArtwork": "glyph",
+    "defaultArtworkGlyph": "waveform",
+    "defaultArtworkGlyphSize": 0.31
+  },
+  "waveform": {
+    "style": "spectrum",
+    "playheadLine": true
+  }
+}

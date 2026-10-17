@@ -38,9 +38,12 @@
             [departed removeLastObject];
             [playlist insertTracks:@[back] atIndexes:RowSet(next((uint32_t)count + 3))];
         } else if (count > 1) {
-            NSUInteger from = next((uint32_t)count);
-            NSUInteger to = next((uint32_t)count);
-            [playlist moveTracksAtIndexes:RowSet(from) toIndexes:RowSet(to)];
+            NSUInteger moving = 1 + next((uint32_t)MIN(count, 5));
+            NSMutableIndexSet *from = [NSMutableIndexSet indexSet];
+            NSMutableIndexSet *to = [NSMutableIndexSet indexSet];
+            while (from.count < moving) [from addIndex:next((uint32_t)count)];
+            while (to.count < moving) [to addIndex:next((uint32_t)count)];
+            [playlist moveTracksAtIndexes:from toIndexes:to];
         }
         NSMutableDictionary<NSURL *, NSMutableIndexSet *> *expected = [NSMutableDictionary dictionary];
         for (NSUInteger row = 0; row < playlist.count; row++) {

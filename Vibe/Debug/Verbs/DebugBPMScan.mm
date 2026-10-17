@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "DebugMacEntry.h"
+#import "DebugCommonVerbs.h"
 
 #if DEBUG
 
@@ -17,7 +17,7 @@
 
 #include <vector>
 
-// See DebugMacEntry.h for the contract. The decode mirrors the waveform loader's
+// See DebugCommonVerbs.h for the contract. The decode mirrors the waveform loader's
 // — interleaved float32 through the shared mono mix — so the result is what
 // an in-app load would detect.
 

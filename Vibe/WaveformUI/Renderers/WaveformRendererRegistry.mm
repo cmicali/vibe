@@ -32,28 +32,31 @@ static NSString *DetailedStyleIdentifier(void) {
 // Fine transients, so the Detailed family's sampling differences survive a
 // thumbnail. The bands keep a mix's measured balance — lows near the whole,
 // mids ~12 dB and highs ~17 dB under — each drifting on its own, so 3-Band's
-// thumbnail shows every ring.
+// thumbnail shows every ring. Its loudest window sits under the fixed
+// reference, near a typical master's, so Normalize visibly raises it.
 static AudioWaveform *VibePreviewWaveform(void) {
     static AudioWaveform *waveform;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        waveform = new AudioWaveform(true);
-        NSUInteger chunks = waveform->getNumChunks();
-        for (NSUInteger i = 0; i < chunks; i++) {
-            float x = (float)i / (float)chunks;
+        // One frame a bin: the preview's resolution is its bin count. A bin
+        // lasts as long as a real summary's, so a loudest window spans three
+        // bins as it does there. At 44.1 kHz it would span 882 and average
+        // every hit away.
+        const NSUInteger bins = 8192;
+        waveform = new AudioWaveform(1, true, 44100.0 / wavecore::kBaseBinFrames);
+        for (NSUInteger i = 0; i < bins; i++) {
+            float x = (float)i / (float)bins;
             float envelope = 0.08f + 0.48f * powf(fabsf(sinf(x * 23)), 2)
                     + 0.16f * fabsf(sinf(x * 109));
-            float level = envelope * (0.25f + 0.75f * fabsf(sinf(i * 0.73f) * sinf(i * 0.19f)));
+            float level = 0.8f * envelope * (0.25f + 0.75f * fabsf(sinf(i * 0.73f) * sinf(i * 0.19f)));
             float meanSquare = level * level * 0.5f;
-            AudioWaveformCacheChunk chunk;
-            chunk.set(-level * (0.6f + 0.4f * fabsf(sinf(x * 17))), level, meanSquare, 1);
-            waveform->setChunkAtIndex(chunk, i);
-            float bands[kAudioWaveformBandCount] = {
+            float lo = -level * (0.6f + 0.4f * fabsf(sinf(x * 17))), hi = level;
+            double bands[wavecore::kBandCount] = {
                 meanSquare * (0.2f + 0.8f * powf(fabsf(sinf(x * 31)), 2)),
                 meanSquare * 0.06f * (0.2f + 0.8f * fabsf(sinf(x * 13 + 1))),
                 meanSquare * 0.02f * (0.1f + 0.9f * fabsf(sinf(i * 0.37f))),
             };
-            waveform->setBandSumSquaresAtIndex(bands, i);
+            waveform->appendBin(lo, hi, meanSquare, bands, 1);
         }
         waveform->markComplete();
     });

@@ -11,6 +11,7 @@
 #import "PlayerViewController+Pager.h"
 
 #import "AudioTrack.h"
+#import "AudioWaveformCache.h"
 #import "Formatters.h"
 #import "PlaceholderFiles.h"
 #import "PlaybackController+NowPlaying.h"
@@ -31,10 +32,10 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index {
     BOOL complete = [pipeline isCompleteAtIndex:index];
-    [[self cellAtIndex:index].waveformView showWaveform:waveform];
+    // Eased only where someone can see it: every eased frame is a full raster.
+    [[self cellAtIndex:index].waveformView showWaveform:waveform animated:_sceneActive && self.isPresented];
     // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
-        [self refreshWaveformWindow];
         [_playback offerWaveformToWidget:waveform
                                 forTrack:[_playback.playlist trackAtIndex:index]];
     }
@@ -113,6 +114,24 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     _pagesView.scrollEnabled = _pagerHoldViews.allObjects.count == 0;
 }
 
+// Deep zoom's frames, for the page bound to playback only: the view refills
+// as they land. A neighbor is refused, and asks again when it next draws as
+// the current page.
+- (void)waveformScrubberView:(WaveformScrubberView *)view
+           needsDetailBlocks:(NSIndexSet *)blocks
+                  ofWaveform:(CodableAudioWaveform *)waveform {
+    NSUInteger index = _playlist.currentIndex;
+    AudioTrack *track = [_playlist trackAtIndex:index];
+    if (view != _waveformView || !track || [_waveformCoordinator snapshotAtIndex:index] != waveform) {
+        [view detailDidLoadForWaveform:waveform];
+        return;
+    }
+    __weak WaveformScrubberView *weakView = view;
+    [_waveformCache loadDetailBlocks:blocks forTrack:track waveform:waveform completion:^{
+        [weakView detailDidLoadForWaveform:waveform];
+    }];
+}
+
 #pragma mark - Waveform zoom
 
 // One zoom for the whole pager, so a swipe cannot change it.
@@ -122,8 +141,6 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
         return;
     }
     _waveformZoom = fraction;
-    // Hidden bakers keep their bitmaps until the next cursor move's refresh;
-    // an arriving page shows its stored one stretched and re-bakes once.
     for (TrackPageCell *cell in _pagesView.visibleCells) {
         [self applyWaveformZoomToCell:cell];
     }

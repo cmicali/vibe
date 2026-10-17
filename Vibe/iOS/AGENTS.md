@@ -81,7 +81,7 @@ The scene's root: a `UITabBarController` child, the mini player in its `bottomAc
 
 **TRAP: what scales under a moving card is a snapshot of the tabs, never the tabs view.** Scaling the view moves its edges off the screen's, and UIKit removes the safe-area insets and edge margins. The bars and rows then re-lay out, and the screen jumps under the card. A snapshot has no layout to lose (`beginBackdropSnapshot`, taken as the card starts moving and dropped once it rests). **The mini player strip stays installed under the card** (`refreshMiniPlayer`). Removing the accessory shrinks every tab's bottom inset, and a list scrolled to its end is clamped up under the snapshot. `check-layout-stability.sh` on a playlist scrolled to its end is the oracle for both.
 
-**TRAP: the card moves by transform, never by frame.** Its pages carry `WaveformScrubberView`s, which re-bake on any bounds change.
+**TRAP: the card moves by transform, never by frame.** Its pages carry `WaveformScrubberView`s, which redraw on any bounds change.
 
 **TRAP: `shouldAutomaticallyForwardAppearanceMethods` is per-parent.** Turning it off for the card turns it off for the tabs, so both are forwarded by hand. Each begin snapshots its exact children and the end consumes that snapshot, because `_expanded` can change between them.
 

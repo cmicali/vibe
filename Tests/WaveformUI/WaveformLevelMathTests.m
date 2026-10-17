@@ -12,35 +12,34 @@
 
 @implementation WaveformLevelMathTests
 
-// The mean square whose RMS sits at the given fraction of full scale.
-static float MeanSquareAtFraction(float fraction) {
-    float rms = fraction * kVibeWaveformFullScaleRMS;
-    return rms * rms;
+// The RMS at the given fraction of full scale.
+static float RMSAtFraction(float fraction) {
+    return fraction * kVibeWaveformFullScaleRMS;
 }
 
 - (void)testZeroGainIsThePlainMapping {
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.5f), kVibeWaveformFullScaleRMS, 0), 0.5f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.1f), kVibeWaveformFullScaleRMS, 0), 0.1f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(1.0f), kVibeWaveformFullScaleRMS, 0), 1.0f, 1e-6f);
-    XCTAssertEqual(VibeWaveformBarLevel(MeanSquareAtFraction(1.7f), kVibeWaveformFullScaleRMS, 0), 1.0f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(0.5f), kVibeWaveformFullScaleRMS, 0), 0.5f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(0.1f), kVibeWaveformFullScaleRMS, 0), 0.1f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(1.0f), kVibeWaveformFullScaleRMS, 0), 1.0f, 1e-6f);
+    XCTAssertEqual(VibeWaveformBarLevel(RMSAtFraction(1.7f), kVibeWaveformFullScaleRMS, 0), 1.0f);
     XCTAssertEqual(VibeWaveformBarLevel(0, kVibeWaveformFullScaleRMS, 0), 0);
     XCTAssertEqual(VibeWaveformBarLevel(-1, kVibeWaveformFullScaleRMS, 0), 0);
 }
 
 - (void)testGainScalesTheLevelAndClampsAtFullScale {
-    float quiet = MeanSquareAtFraction(0.1f);
+    float quiet = RMSAtFraction(0.1f);
     XCTAssertGreaterThan(VibeWaveformBarLevel(quiet, kVibeWaveformFullScaleRMS, 6), VibeWaveformBarLevel(quiet, kVibeWaveformFullScaleRMS, 0));
     XCTAssertLessThan(VibeWaveformBarLevel(quiet, kVibeWaveformFullScaleRMS, -6), VibeWaveformBarLevel(quiet, kVibeWaveformFullScaleRMS, 0));
-    XCTAssertEqual(VibeWaveformBarLevel(MeanSquareAtFraction(0.5f), kVibeWaveformFullScaleRMS, 12), 1.0f);
-    XCTAssertEqual(VibeWaveformBarLevel(MeanSquareAtFraction(1.0f), kVibeWaveformFullScaleRMS, 12), 1.0f);
-    XCTAssertLessThanOrEqual(VibeWaveformBarLevel(MeanSquareAtFraction(4), kVibeWaveformFullScaleRMS, -12), 1.0f);
+    XCTAssertEqual(VibeWaveformBarLevel(RMSAtFraction(0.5f), kVibeWaveformFullScaleRMS, 12), 1.0f);
+    XCTAssertEqual(VibeWaveformBarLevel(RMSAtFraction(1.0f), kVibeWaveformFullScaleRMS, 12), 1.0f);
+    XCTAssertLessThanOrEqual(VibeWaveformBarLevel(RMSAtFraction(4), kVibeWaveformFullScaleRMS, -12), 1.0f);
 }
 
 // A bar to one 6 dB under it is 2 at 0 dB, measured below the clamp so only
 // the curve speaks.
 - (void)testGainDownExpandsAndGainUpCompressesTheRange {
-    float loud = MeanSquareAtFraction(0.2f);
-    float softer = MeanSquareAtFraction(0.1f);
+    float loud = RMSAtFraction(0.2f);
+    float softer = RMSAtFraction(0.1f);
     float plain = VibeWaveformBarLevel(loud, kVibeWaveformFullScaleRMS, 0) / VibeWaveformBarLevel(softer, kVibeWaveformFullScaleRMS, 0);
     float down = VibeWaveformBarLevel(loud, kVibeWaveformFullScaleRMS, -6) / VibeWaveformBarLevel(softer, kVibeWaveformFullScaleRMS, -6);
     float up = VibeWaveformBarLevel(loud, kVibeWaveformFullScaleRMS, 6) / VibeWaveformBarLevel(softer, kVibeWaveformFullScaleRMS, 6);
@@ -51,43 +50,32 @@ static float MeanSquareAtFraction(float fraction) {
     // 6 dB step is 2^2 and at +24 it is 2^0.5 — probed 20 dB quieter there,
     // where +24 dB of gain still leaves both bars under the clamp.
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loud, kVibeWaveformFullScaleRMS, -24) / VibeWaveformBarLevel(softer, kVibeWaveformFullScaleRMS, -24), 4.0f, 1e-4f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.02f), kVibeWaveformFullScaleRMS, 24)
-                               / VibeWaveformBarLevel(MeanSquareAtFraction(0.01f), kVibeWaveformFullScaleRMS, 24), sqrtf(2.0f), 1e-4f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(0.02f), kVibeWaveformFullScaleRMS, 24)
+                               / VibeWaveformBarLevel(RMSAtFraction(0.01f), kVibeWaveformFullScaleRMS, 24), sqrtf(2.0f), 1e-4f);
 }
 
 // A quiet track's loudest column draws full height at 0 dB, with the gain
 // still applied over normalization — the bend included.
 - (void)testAQuietNormalizedReferenceDrawsTheLoudestColumnFull {
-    float loudest = MeanSquareAtFraction(0.5f);
-    float reference = sqrtf(loudest);
+    float loudest = RMSAtFraction(0.5f);
     XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, kVibeWaveformFullScaleRMS, 0), 0.5f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, reference, 0), 1.0f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(MeanSquareAtFraction(0.25f), reference, 0), 0.5f, 1e-6f);
-    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, reference, -6),
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, loudest, 0), 1.0f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(RMSAtFraction(0.25f), loudest, 0), 0.5f, 1e-6f);
+    XCTAssertEqualWithAccuracy(VibeWaveformBarLevel(loudest, loudest, -6),
                                powf(powf(10, -6.0f / 20), exp2f(6.0f / 24)), 1e-5f);
-    XCTAssertEqual(VibeWaveformBarLevel(loudest, reference, 6), 1.0f);
+    XCTAssertEqual(VibeWaveformBarLevel(loudest, loudest, 6), 1.0f);
 }
 
 - (void)testLevelIsMonotonicInEnergyAtEveryGain {
     for (float gain = -12; gain <= 12; gain += 3) {
         float previous = 0;
         for (float fraction = 0.05f; fraction <= 2.0f; fraction += 0.05f) {
-            float level = VibeWaveformBarLevel(MeanSquareAtFraction(fraction), kVibeWaveformFullScaleRMS, gain);
+            float level = VibeWaveformBarLevel(RMSAtFraction(fraction), kVibeWaveformFullScaleRMS, gain);
             XCTAssertGreaterThanOrEqual(level, previous, @"gain %g, fraction %g", gain, fraction);
             XCTAssertLessThanOrEqual(level, 1.0f);
             previous = level;
         }
     }
-}
-
-// The reach fades out as the bars get short: full up to the given count,
-// none from twice that.
-- (void)testWindowReachFadesOutAsBarsGetShort {
-    XCTAssertEqual(VibeWaveformWindowReach(2, 512), 1);
-    XCTAssertEqual(VibeWaveformWindowReach(512, 512), 1);
-    XCTAssertEqual(VibeWaveformWindowReach(768, 512), 0.5f);
-    XCTAssertEqual(VibeWaveformWindowReach(1024, 512), 0);
-    XCTAssertEqual(VibeWaveformWindowReach(8192, 512), 0);
 }
 
 #pragma mark - Spectrum
@@ -122,6 +110,94 @@ static const float kPureRGB[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     AssertRGB(rgb, 1, 0, 0.0625f);
     VibeSpectrumColor((const float[]){-1, 0.5f, 0}, kPureRGB, rgb);
     AssertRGB(rgb, 0, 1, 0);
+}
+
+#pragma mark - Sections
+
+static const float kNoShares[3] = {1, 1, 1};
+
+static void SetColumn(float *meanSquares, NSUInteger j, float low, float mid, float high) {
+    meanSquares[j * 3] = low;
+    meanSquares[j * 3 + 1] = mid;
+    meanSquares[j * 3 + 2] = high;
+}
+
+// Every column of [begin, end) holds the same three mean squares.
+static BOOL ColumnsAgree(const float *meanSquares, NSUInteger begin, NSUInteger end) {
+    for (NSUInteger j = begin + 1; j < end; j++) {
+        if (memcmp(meanSquares + j * 3, meanSquares + begin * 3, 3 * sizeof(float)) != 0) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+- (void)testSectionsSplitWhereTheMixChanges {
+    float columns[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        // A light shimmer on each side, so neither side is uniform already.
+        float shimmer = j % 2 ? 0.05f : 0;
+        if (j < 200) {
+            SetColumn(columns, j, 1, 0, shimmer);
+        } else {
+            SetColumn(columns, j, shimmer, 0, 1);
+        }
+    }
+    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(columns, 0, 200));
+    XCTAssertTrue(ColumnsAgree(columns, 200, kVibeWaveformSectionColumns));
+    XCTAssertGreaterThan(columns[0], columns[2], @"the low section stays low");
+    XCTAssertGreaterThan(columns[200 * 3 + 2], columns[200 * 3], @"the high section stays high");
+    XCTAssertEqualWithAccuracy(columns[2], 0.025f, 1e-6f, @"a section is its columns' mean");
+}
+
+// Kick and hats alternating every column cost the same split or not, so a
+// section never follows the beat.
+- (void)testSectionsDoNotFollowTheBeat {
+    float columns[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        SetColumn(columns, j, j % 2 ? 0 : 1, 0, j % 2 ? 1 : 0);
+    }
+    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(columns, 0, kVibeWaveformSectionColumns));
+}
+
+// A fill of two columns cannot pay for a section of the minimum length, so it
+// joins its neighbors. Silence joins whatever surrounds it.
+- (void)testSectionsOutlastAFillAndSilence {
+    float columns[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        BOOL blip = j >= 100 && j < 102;
+        BOOL silent = j >= 300 && j < 340;
+        SetColumn(columns, j, silent || blip ? 0 : 1, blip ? 1 : 0, 0);
+    }
+    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(columns, 0, kVibeWaveformSectionColumns));
+}
+
+// The mix weighs each band against its share, as the colors do.
+- (void)testSectionsWeighTheBandsByTheirShares {
+    float plain[kVibeWaveformSectionColumns * 3], shared[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        SetColumn(plain, j, 1, 0, j < 256 ? 0 : 0.1f);
+        SetColumn(shared, j, 1, 0, j < 256 ? 0 : 0.1f);
+    }
+    VibeWaveformSectionMeanSquares(plain, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(plain, 0, kVibeWaveformSectionColumns),
+                  @"highs at a tenth of the lows' energy barely move the mix");
+    const float halfHighs[3] = {1, 1, 0.5f};
+    VibeWaveformSectionMeanSquares(shared, kVibeWaveformSectionColumns, halfHighs);
+    XCTAssertTrue(ColumnsAgree(shared, 0, 256));
+    XCTAssertTrue(ColumnsAgree(shared, 256, kVibeWaveformSectionColumns));
+    XCTAssertNotEqual(shared[2], shared[256 * 3 + 2], @"at half the share the highs count four times over");
+}
+
+// Half a second a column until a track would need more than the grid holds.
+- (void)testSectionColumnsAreHalfASecondUntilTheGridFills {
+    double rate = 44100;
+    XCTAssertEqual(VibeWaveformSectionFramesPerColumn(60 * rate, rate), 0.5 * rate);
+    XCTAssertEqual(VibeWaveformSectionFramesPerColumn(256 * rate, rate), 0.5 * rate);
+    XCTAssertEqual(VibeWaveformSectionFramesPerColumn(3600 * rate, rate), 3600 * rate / (double)kVibeWaveformSectionColumns);
 }
 
 - (void)testSpectrumKeepsThePrimariesBrightness {

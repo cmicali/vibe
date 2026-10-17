@@ -34,6 +34,7 @@ static const CGFloat kZoomScrubSlop = 12.0;
         // reading a position out of it, or the waveform slides off center.
         [self parkContentOffsetAtProgress];
         [self applyPlayedClip];
+        [self drawRendererWindowForcing:NO];
         return;
     }
     if (self.isScrubbing) {
@@ -43,6 +44,7 @@ static const CGFloat kZoomScrubSlop = 12.0;
         [self emitScrubTickIfNeeded];
     }
     [self applyPlayedClip];
+    [self drawRendererWindowForcing:NO];
 }
 
 // Shared with the pinch's scrub, so a gesture changing hands keeps its ratchet.
@@ -152,7 +154,7 @@ static const CGFloat kZoomScrubSlop = 12.0;
 
 // Zoom anchors at the playhead for free: re-parking the offset after a width
 // change opens the picture about the center. The fraction is written LIVE, so
-// every reader of virtualWidth stays correct; only the bake is deferred.
+// every reader of virtualWidth stays correct, and each frame draws again.
 
 // TRAP: without this a pinch cannot START during a scrub: the scroll's pan has
 // already recognized, and by default one gesture belongs to one recognizer.
@@ -246,9 +248,9 @@ static const CGFloat kZoomScrubSlop = 12.0;
     // out of it that no seek follows.
     [_scroll setContentOffset:_scroll.contentOffset animated:NO];
     _isPinching = NO;
-    // The bitmap is stretched and soft: re-bake at the zoom it landed on.
-    [self scheduleEnvelopeBakeAfter:0];
     [self parkContentOffsetAtProgress];
+    // The margins the pinch went without.
+    [self drawRendererWindowForcing:YES];
     // The whole gesture's end; endScrub declined all of this.
     [self commitScrubSeek];
     _scrubHaptics = nil;
