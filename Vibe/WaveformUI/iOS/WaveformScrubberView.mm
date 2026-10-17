@@ -223,8 +223,13 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 }
 
 // A track change starts from no renderer, so the next waveform grows out of
-// the midline rather than morphing from the last one.
+// the midline rather than morphing from the last one. Its layers go now: left
+// to its dealloc, the old picture stayed up while anything still held it.
 - (void)discardRenderer {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _rendererHost.sublayers = nil;
+    [CATransaction commit];
     _renderer = nil;
     _renderWindow = CGRectNull;
 }
