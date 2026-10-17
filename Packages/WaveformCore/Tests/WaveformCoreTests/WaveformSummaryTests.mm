@@ -527,6 +527,25 @@ static const double kHitLevel = std::sqrt((1 + 2 * kQuietLevel * kQuietLevel) / 
     }
 }
 
+// A quiet stream keeps its level through the archive. Its mean square once
+// rounded to zero in float16, so a -80 dBFS sine reloaded as silence.
+- (void)testQuietAudioKeepsItsLevelThroughTheArchive {
+    std::vector<float> mono(48000);
+    for (size_t i = 0; i < mono.size(); i++) mono[i] = 1e-4f * std::sin(2 * M_PI * 1000 * i / 48000.0);
+    SummaryBuilder builder(1, 1, true, (int64_t)mono.size(), 48000);
+    builder.append(mono.data(), mono.data(), mono.size());
+    auto summary = builder.finish(true);
+    std::vector<uint8_t> blob = summary->encode();
+    auto decoded = Summary::decode(blob.data(), blob.size());
+    XCTAssertTrue(decoded != nullptr);
+    if (!decoded) return;
+    Column a = summary->column(0, 48000), b = decoded->column(0, 48000);
+    XCTAssertGreaterThan(a.loudest, 7e-5f);
+    XCTAssertEqualWithAccuracy(b.loudest, a.loudest, 2e-3 * a.loudest);
+    XCTAssertEqualWithAccuracy(b.sumSquares, a.sumSquares, 2e-3 * a.sumSquares);
+    XCTAssertEqualWithAccuracy(b.bandLoudest[1], a.bandLoudest[1], 3e-3 * a.bandLoudest[1]);
+}
+
 // A long file's coarser bins archive too. A decode that refused them filed
 // every long file for nothing, and each load decoded it again.
 - (void)testCoarseBinsRoundTripTheArchive {

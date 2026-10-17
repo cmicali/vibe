@@ -667,7 +667,7 @@ std::vector<_Float16> Unshuffle(const std::vector<uint8_t> &bytes, size_t count,
 }
 
 constexpr char kArchiveMagic[4] = {'W', 'F', 'S', 'M'};
-constexpr uint16_t kArchiveVersion = 1;
+constexpr uint16_t kArchiveVersion = 2;
 enum : uint16_t { kFlagBands = 1, kFlagComplete = 2, kFlagCompressed = 4 };
 // Far past any real file (a day at 192 kHz in 256-frame bins), so a corrupt
 // count cannot ask for gigabytes.
@@ -686,15 +686,19 @@ std::vector<uint8_t> Summary::encode() const {
         std::copy(base_.hi[c].begin(), base_.hi[c].end(), out);
         out += n;
     }
-    // Means, not sums: a long bin's sum would not fit a float16.
-    for (size_t i = 0; i < n; i++) {
+    // Each bin's RMS, not its sum or its mean square. A long bin's sum would
+    // not fit a float16, and a quiet bin's mean square rounded to zero in one:
+    // a -80 dBFS sine lost its level on a cache reload, though its peaks kept.
+    auto rms = [&](double sumSquares, size_t i) {
         double frames = binWidth(base_, i);
-        *out++ = (_Float16)(frames > 0 ? base_.sumSquares[i] / frames : 0);
+        return (_Float16)(frames > 0 ? std::sqrt(std::max(0.0, sumSquares) / frames) : 0);
+    };
+    for (size_t i = 0; i < n; i++) {
+        *out++ = rms(base_.sumSquares[i], i);
     }
     for (size_t b = 0; bands_ && b < kBandCount; b++) {
         for (size_t i = 0; i < n; i++) {
-            double frames = binWidth(base_, i);
-            *out++ = (_Float16)(frames > 0 ? base_.bandSumSquares[i * kBandCount + b] / frames : 0);
+            *out++ = rms(base_.bandSumSquares[i * kBandCount + b], i);
         }
     }
     size_t rawBytes = raw.size() * sizeof(_Float16);
@@ -790,18 +794,18 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
             }
         }
         uint32_t frames = uint32_t(std::min<int64_t>(bf, header.frames - int64_t(i * bf)));
-        float mean = float(in[2 * header.channels * n + i]);
-        if (mean < 0) {
+        double rms = float(in[2 * header.channels * n + i]);
+        if (rms < 0) {
             return nullptr;
         }
         for (size_t b = 0; bands && b < kBandCount; b++) {
-            float bandMean = float(in[(2 * header.channels + 1 + b) * n + i]);
-            if (bandMean < 0) {
+            double bandRMS = float(in[(2 * header.channels + 1 + b) * n + i]);
+            if (bandRMS < 0) {
                 return nullptr;
             }
-            bandSums[b] = double(bandMean) * frames;
+            bandSums[b] = bandRMS * bandRMS * frames;
         }
-        summary->appendBin(lo.data(), hi.data(), double(mean) * frames, bands ? bandSums.data() : nullptr, frames);
+        summary->appendBin(lo.data(), hi.data(), rms * rms * frames, bands ? bandSums.data() : nullptr, frames);
     }
     summary->totalFrames_ = header.totalFrames;
     summary->complete_ = header.flags & kFlagComplete;
