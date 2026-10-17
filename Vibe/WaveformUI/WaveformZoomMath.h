@@ -20,10 +20,12 @@ static const CGFloat kVibeWaveformMinimumZoomFraction = 0.000001;
 // floats, and at 2^20 points a float still resolves a quarter of a 3x pixel.
 static const CGFloat kVibeWaveformMaxVirtualWidth = 1 << 20;
 
-// The finest a style that reads the summary alone may zoom: two bins of
-// binFrames a point. The summary holds nothing finer than a bin.
+// The finest a style that reads the summary alone may zoom: a bin of
+// binFrames a point, three pixels a bin at 3x. The summary holds nothing
+// finer than a bin, and the step styles read their levels linearly between
+// columns, so a bin wider than this would show as a ramp.
 static inline double VibeWaveformMinimumFramesPerPoint(double binFrames) {
-    return 2 * binFrames;
+    return binFrames;
 }
 
 // The finest with the stream's own frames read in for deep zoom: eight

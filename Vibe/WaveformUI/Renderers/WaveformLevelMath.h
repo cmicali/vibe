@@ -82,21 +82,21 @@ static const NSUInteger kVibeWaveformLevelColumns = 1024;
 // time. As a share of the track, it was a beat long on a short track.
 static const double kVibeWaveformSpectrumColorSeconds = 2.0;
 
-// Spectrum's outline takes the peaks' shape once its columns are finer than
-// a kick's build. Zoomed out, a column's loudest window is the outline, and it
-// rises on each hit. Zoomed in, a kick's low band builds over 40 to 60 ms
-// after its attack, so the outline rose late and round while the peaks jump
-// at once. The peaks' weight fades in from columns of the first figure to
+// 3-Band's and Spectrum's heights take the peaks' shape once their columns
+// are finer than a kick's build. Zoomed out, a column's loudest window is its
+// height, and it rises on each hit. Zoomed in, a kick's low band builds over
+// 40 to 60 ms after its attack, so it rose late and round while the peaks
+// jump at once. The peaks' weight fades in from columns of the first figure to
 // columns of the second, by octaves, so a pinch changes the outline
 // continuously.
-static const double kVibeSpectrumPeakShapeFromSeconds = 0.02;
-static const double kVibeSpectrumPeakShapeToSeconds = 0.005;
-static inline double VibeSpectrumPeakShapeWeight(double secondsPerColumn) {
+static const double kVibeWaveformPeakShapeFromSeconds = 0.02;
+static const double kVibeWaveformPeakShapeToSeconds = 0.005;
+static inline double VibeWaveformPeakShapeWeight(double secondsPerColumn) {
     if (!(secondsPerColumn > 0)) {
         return 0;
     }
-    double octaves = log2(kVibeSpectrumPeakShapeFromSeconds / kVibeSpectrumPeakShapeToSeconds);
-    return fmin(fmax(log2(kVibeSpectrumPeakShapeFromSeconds / secondsPerColumn) / octaves, 0), 1);
+    double octaves = log2(kVibeWaveformPeakShapeFromSeconds / kVibeWaveformPeakShapeToSeconds);
+    return fmin(fmax(log2(kVibeWaveformPeakShapeFromSeconds / secondsPerColumn) / octaves, 0), 1);
 }
 
 // By section's grid. A column is half a second, about a beat, or 1/512 of a

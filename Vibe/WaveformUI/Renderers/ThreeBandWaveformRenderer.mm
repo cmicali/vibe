@@ -342,12 +342,12 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     return VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
 }
 
-// Heights are each band's loudest window. Spectrum's outline is the tallest
-// band, shaped by the peaks at deep zoom. Spectrum colors use a window of
+// Heights are each band's loudest window, shaped by the peaks at deep zoom.
+// Spectrum's outline is the tallest band. Spectrum colors use a window of
 // their own (kVibeWaveformSpectrumColorSeconds), never narrower than a
-// column each side, and unclamped. By section, each column takes the section
-// under its center. sections holds them once the fill's first part finds
-// them.
+// column each side, unclamped and kept inside the column's section. By
+// section, each column takes the section under its center. sections holds
+// them once the fill's first part finds them.
 - (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform
               sections:(std::vector<VibeSpectrumSection> &)sections {
     NSUInteger count = part.count, stride = _morph.samplesPerBar;
@@ -372,32 +372,28 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
             bands[b] = kBandCeiling[b] * VibeWaveformBarLevel(column.bandLoudest[b], references[b], gainDB);
         }
     };
-    if (_spectrum) {
-        _peaks.resize(count);
-    }
+    _peaks.resize(count);
     for (NSUInteger i = 0; i < count; i++) {
         // A column at a time, never through the detail, whose frames hold no
         // bands.
         double k = (double)(part.first + (int64_t)i);
         wavecore::Column column = waveform->column(k * frames, (k + 1) * frames);
-        if (!_spectrum) {
-            heights(column, out + i * stride);
-            continue;
-        }
         float bands[wavecore::kBandCount];
-        heights(column, bands);
-        out[i * stride] = fmaxf(bands[0], fmaxf(bands[1], bands[2]));
+        heights(column, _spectrum ? bands : out + i * stride);
+        if (_spectrum) {
+            out[i * stride] = fmaxf(bands[0], fmaxf(bands[1], bands[2]));
+        }
         _peaks[i] = column.extent();
+    }
+    double weight = VibeWaveformPeakShapeWeight(frames / waveform->sampleRate());
+    if (weight > 0) {
+        [self shapeHeights:out part:part waveform:waveform weight:(float)weight heights:heights];
     }
     if (!_spectrum) {
         return;
     }
-    double weight = VibeSpectrumPeakShapeWeight(frames / waveform->sampleRate());
-    if (weight > 0) {
-        [self shapeOutline:out part:part waveform:waveform weight:(float)weight heights:heights];
-    }
     _bandMeanSquares.resize(count * wavecore::kBandCount);
-    if (self.theme.spectrumColorsBySection && sections.empty()) {
+    if (sections.empty()) {
         sections = VibeSpectrumSections(waveform);
     }
     if (self.theme.spectrumColorsBySection && !sections.empty()) {
@@ -414,6 +410,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     } else {
         double halfWidth = fmax(frames, kVibeWaveformSpectrumColorSeconds * waveform->sampleRate());
         waveform->tentBandMeanSquares(frames, part.first, count, halfWidth, _bandMeanSquares.data());
+        [self keepTents:part.first count:count framesPerColumn:frames halfWidth:halfWidth
+             inSections:sections waveform:waveform];
     }
     for (NSUInteger i = 0; i < count; i++) {
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
@@ -423,32 +421,71 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     }
 }
 
-// A kick's low band builds for 40 to 60 ms after its attack. Each column's
-// peak is scaled by the level and the peak within this far of it, so the
-// attack stands at the level it builds to.
-static const double kPeakShapeReachSeconds = 0.1;
+// Precise's tents stop at the section edges, as By section's colors do. A
+// tent that would cross one is moved inside its section, whole, or narrowed
+// to a section shorter than it. Crossing, it colored the two seconds before a
+// kick came back by the kick. The columns a moved tent covers share one, so
+// each is read once.
+- (void)keepTents:(int64_t)first count:(NSUInteger)count framesPerColumn:(double)frames halfWidth:(double)halfWidth
+       inSections:(const std::vector<VibeSpectrumSection> &)sections waveform:(AudioWaveform *)waveform {
+    double total = (double)waveform->totalFrames();
+    NSUInteger section = 0;
+    double readCenter = -1, readWidth = -1;
+    float read[wavecore::kBandCount] = {};
+    for (NSUInteger i = 0; i < count && !sections.empty(); i++) {
+        double center = ((double)(first + (int64_t)i) + 0.5) * frames;
+        while (section + 1 < sections.size() && center >= sections[section + 1].start) {
+            section++;
+        }
+        double start = sections[section].start;
+        double end = section + 1 < sections.size() ? sections[section + 1].start : total;
+        double width = fmax(frames, fmin(halfWidth, (end - start) / 2));
+        double inside = clampRange(center, start + width, fmax(start + width, end - width));
+        if (inside == center && width == halfWidth) {
+            continue;
+        }
+        if (inside != readCenter || width != readWidth) {
+            // One column whose center is inside: column 0 of a grid twice as wide.
+            waveform->tentBandMeanSquares(2 * inside, 0, 1, width, read);
+            readCenter = inside;
+            readWidth = width;
+        }
+        memcpy(&_bandMeanSquares[i * wavecore::kBandCount], read, sizeof(read));
+    }
+}
 
-// Spectrum's outline, raised toward its peaks' shape: each column's peak
-// scaled so the loudest peak within reach draws the tallest band's level
-// there. A window per column, not a grid, so no grid edge can fall inside an
-// attack. Never lower than the bands, and never above the level within
-// reach, so the quiet columns beside a hit stay quiet. weight fades the
-// shape in.
-- (void)shapeOutline:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform
+// A kick's low band builds for 40 to 60 ms after its attack. Each column's
+// peak is scaled by the level and the peak this far ahead of it, so the
+// attack stands at the level it builds to.
+static const double kPeakShapeReachSeconds = 0.06;
+
+// The heights raised toward the peaks' shape: each column's peak scaled so
+// the loudest peak just ahead draws each band's level there, or for Spectrum
+// the tallest band's. A window per column, not a grid, so no grid edge can
+// fall inside an attack. Only ahead: a window behind as well raised a kick's
+// body to the hi-hat after it, and its tail to its plateau. Never lower than
+// the bands, and never above the level ahead, so the quiet columns before a
+// hit stay quiet. weight fades the shape in.
+- (void)shapeHeights:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform
               weight:(float)weight heights:(const std::function<void(const wavecore::Column &, float *)> &)heights {
     NSUInteger count = part.count, stride = _morph.samplesPerBar;
+    NSUInteger shaped = _spectrum ? 1 : wavecore::kBandCount;
     double frames = part.framesPerColumn();
     double reach = kPeakShapeReachSeconds * waveform->sampleRate();
     for (NSUInteger i = 0; i < count; i++) {
         double center = ((double)part.first + i + 0.5) * frames;
-        wavecore::Column around = waveform->column(center - reach, center + reach);
-        float bands[wavecore::kBandCount];
-        heights(around, bands);
-        float level = fmaxf(bands[0], fmaxf(bands[1], bands[2]));
+        wavecore::Column around = waveform->column(center - frames / 2, center + reach);
+        float levels[wavecore::kBandCount];
+        heights(around, levels);
+        if (_spectrum) {
+            levels[0] = fmaxf(levels[0], fmaxf(levels[1], levels[2]));
+        }
         float peak = around.extent();
-        float shaped = peak > 0 ? fminf(_peaks[i] / peak, 1) * level : 0;
-        float tallest = out[i * stride];
-        out[i * stride] = tallest + weight * fmaxf(shaped - tallest, 0);
+        float share = peak > 0 ? fminf(_peaks[i] / peak, 1) : 0;
+        for (NSUInteger b = 0; b < shaped; b++) {
+            float height = out[i * stride + b];
+            out[i * stride + b] = height + weight * fmaxf(share * levels[b] - height, 0);
+        }
     }
 }
 

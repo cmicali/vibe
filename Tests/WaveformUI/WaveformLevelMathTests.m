@@ -192,15 +192,15 @@ static void SetColumn(float *meanSquares, NSUInteger j, float low, float mid, fl
     XCTAssertEqual(VibeWaveformSectionSplit(levels, 1), 0u);
 }
 
-// Spectrum's peak shape is absent at rest zoom, whole at deep zoom, and
+// The peak shape is absent at rest zoom, whole at deep zoom, and
 // halfway an octave in.
-- (void)testSpectrumPeakShapeFadesInAsColumnsNarrow {
-    XCTAssertEqual(VibeSpectrumPeakShapeWeight(0.5), 0);
-    XCTAssertEqual(VibeSpectrumPeakShapeWeight(0.02), 0);
-    XCTAssertEqualWithAccuracy(VibeSpectrumPeakShapeWeight(0.01), 0.5, 1e-9);
-    XCTAssertEqual(VibeSpectrumPeakShapeWeight(0.005), 1);
-    XCTAssertEqual(VibeSpectrumPeakShapeWeight(0.001), 1);
-    XCTAssertEqual(VibeSpectrumPeakShapeWeight(0), 0, @"no column, no shape");
+- (void)testPeakShapeFadesInAsColumnsNarrow {
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.5), 0);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.02), 0);
+    XCTAssertEqualWithAccuracy(VibeWaveformPeakShapeWeight(0.01), 0.5, 1e-9);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.005), 1);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.001), 1);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0), 0, @"no column, no shape");
 }
 
 // Half a second a column until a track would need more than the grid holds.
