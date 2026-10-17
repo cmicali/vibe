@@ -16,7 +16,7 @@
 // Takes the file for the decoder that parses its container, in place of
 // CoreAudio's parser, which never opens it. The file's first bytes name the
 // container. RIFF and RF64 WAVE, Wave64 and AIFF(-C) go to dr_wav. FLAC,
-// behind an ID3v2 tag too, goes to dr_flac. Ogg whose first packet is Vorbis's
+// behind ID3v2 tags too, goes to dr_flac. Ogg whose first packet is Vorbis's
 // identification goes to libvorbis. NO leaves the file to the parser: BW64,
 // RIFX and every other container, a coding the decoder does not decode, or a
 // stream it cannot open.
@@ -25,11 +25,13 @@
     uint8_t head[27 + 255 + 7]; // an Ogg page header, its segment table and the first packet's opening
     UInt32 got = 0;
     VibeHandleRead((__bridge void *)self, 0, sizeof head, head, &got);
-    uint32_t tag = got >= 10 ? VibeID3v2TagBytes(head) : 0;
-    if (tag) {
-        // Fetched past the read block. A cover bigger than the block would
-        // move it off the file's head, which the parser reads next.
-        ssize_t fetched = VibeHandleFetch(self, tag, 4, head, 4);
+    // Every tag, as dr_flac skips them. Fetched past the read block: a cover
+    // bigger than the block would move it off the file's head, which the
+    // parser reads next.
+    SInt64 at = 0;
+    for (uint32_t tag; got >= 10 && (tag = VibeID3v2TagBytes(head)); ) {
+        at += tag;
+        ssize_t fetched = VibeHandleFetch(self, at, 10, head, 10);
         got = fetched < 0 ? 0 : (UInt32)fetched;
     }
     if ((got >= 12 && (memcmp(head, "RIFF", 4) == 0 || memcmp(head, "RF64", 4) == 0) && memcmp(head + 8, "WAVE", 4) == 0)
@@ -95,13 +97,21 @@ static AVAudioChannelLayout *VibeMaskLayout(UInt32 mask, UInt32 channels) {
 // Microsoft's ADPCM as CoreAudio names it. The SDK names no constant.
 static const AudioFormatID kVibeMicrosoftADPCMFormat = 0x6D730002;
 
-// dr_wav's facts as CoreAudio's parser states them, field for field. The one
-// known difference is a sowt AIFF-C. CoreAudio calls it 16-bit whatever its
-// COMM says, and reads it 1.5 or 2 times too long. Zeroed for a coding dr_wav
-// does not decode. Only dr_wav's own parse can tell one: a
+// What an AIFF's chunks state that dr_wav keeps no copy of.
+typedef struct {
+    AudioChannelLayout *layout; // the CHAN chunk's, malloc'd
+    UInt16 sampleSize;          // the COMM chunk's, before dr_wav rounds it up to whole bytes
+} VibeAIFFStated;
+
+// dr_wav's facts as CoreAudio's parser states them, field for field. A PCM
+// sample narrower than its bytes is high-aligned in them: 20 bits in 3. A
+// WAV states that width. An AIFF's COMM does, and dr_wav rounds it up to the
+// bytes. A sowt AIFF-C is the one known difference. CoreAudio calls it 16-bit
+// whatever its COMM says, and reads it 1.5 or 2 times too long. Zeroed for a
+// coding dr_wav does not decode. Only dr_wav's own parse can tell one: a
 // WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
 // WAV is one. It goes to CoreAudio's parser and dr_mp3.
-static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav) {
+static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav, UInt16 aiffSampleSize) {
     UInt32 channels = wav->channels, blockAlign = wav->fmt.blockAlign;
     BOOL aiff = wav->container == drwav_container_aiff;
     AudioStreamBasicDescription description = {.mSampleRate = wav->sampleRate, .mChannelsPerFrame = channels, .mFramesPerPacket = 1};
@@ -138,11 +148,14 @@ static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav) {
                 return (AudioStreamBasicDescription){0};
             }
             BOOL isSigned = !isFloat && (aiff ? !wav->aiff.isUnsigned : wav->bitsPerSample > 8);
+            UInt32 bytes = (wav->bitsPerSample + 7) / 8;
+            UInt32 bits = aiff && aiffSampleSize && (aiffSampleSize + 7u) / 8 == bytes ? aiffSampleSize : wav->bitsPerSample;
             description.mFormatID = kAudioFormatLinearPCM;
-            description.mFormatFlags = kAudioFormatFlagIsPacked | (isFloat ? kAudioFormatFlagIsFloat : 0)
-                    | (isSigned ? kAudioFormatFlagIsSignedInteger : 0) | (aiff && !wav->aiff.isLE ? kAudioFormatFlagIsBigEndian : 0);
-            description.mBitsPerChannel = wav->bitsPerSample;
-            description.mBytesPerFrame = description.mBytesPerPacket = (wav->bitsPerSample + 7) / 8 * channels;
+            description.mFormatFlags = (bits < bytes * 8 ? kAudioFormatFlagIsAlignedHigh : kAudioFormatFlagIsPacked)
+                    | (isFloat ? kAudioFormatFlagIsFloat : 0) | (isSigned ? kAudioFormatFlagIsSignedInteger : 0)
+                    | (aiff && !wav->aiff.isLE ? kAudioFormatFlagIsBigEndian : 0);
+            description.mBitsPerChannel = bits;
+            description.mBytesPerFrame = description.mBytesPerPacket = bytes * channels;
             break;
         }
         default:
@@ -151,13 +164,24 @@ static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav) {
     return description;
 }
 
-// Apple's tools keep an AIFF's channel layout in a CHAN chunk, CAF's form of
-// an AudioChannelLayout, big-endian. CoreAudio's parser reads it, and so does
-// this, as dr_wav meets the chunk. `user` holds the layout, malloc'd.
-static drwav_uint64 VibeReadCHANChunk(void *user, drwav_read_proc onRead, drwav_seek_proc onSeek, void *readUser,
+// An AIFF's chunks as dr_wav meets them, into the VibeAIFFStated at `user`.
+// COMM's sample size is bytes 6 and 7. Apple's tools keep the channel layout
+// in a CHAN chunk, CAF's form of an AudioChannelLayout, big-endian.
+// CoreAudio's parser reads both.
+static drwav_uint64 VibeReadAIFFChunk(void *user, drwav_read_proc onRead, drwav_seek_proc onSeek, void *readUser,
                                       const drwav_chunk_header *header, drwav_container container, const drwav_fmt *fmt) {
     enum { kFixedFields = 12, kDescriptionBytes = 20 };
-    if (container != drwav_container_aiff || memcmp(header->id.fourcc, "CHAN", 4) != 0
+    VibeAIFFStated *stated = user;
+    if (container != drwav_container_aiff) {
+        return 0;
+    }
+    if (memcmp(header->id.fourcc, "COMM", 4) == 0 && header->sizeInBytes >= 8) {
+        uint8_t comm[8];
+        size_t got = onRead(readUser, comm, sizeof comm);
+        stated->sampleSize = got == sizeof comm ? OSReadBigInt16(comm, 6) : 0;
+        return got;
+    }
+    if (memcmp(header->id.fourcc, "CHAN", 4) != 0
             || header->sizeInBytes < kFixedFields || header->sizeInBytes > kFixedFields + 64 * kDescriptionBytes) {
         return 0;
     }
@@ -181,8 +205,8 @@ static drwav_uint64 VibeReadCHANChunk(void *user, drwav_read_proc onRead, drwav_
             memcpy(&description->mCoordinates[axis], &bits, sizeof bits);
         }
     }
-    free(*(AudioChannelLayout **)user);
-    *(AudioChannelLayout **)user = layout;
+    free(stated->layout);
+    stated->layout = layout;
     return got;
 }
 
@@ -190,18 +214,18 @@ static drwav_uint64 VibeReadCHANChunk(void *user, drwav_read_proc onRead, drwav_
 // only when it is no more. The layout is an AIFF's CHAN chunk, or a WAV's
 // channel mask.
 - (BOOL)openWAVInterleaved:(BOOL)interleaved {
-    AudioChannelLayout *stated = NULL;
-    if (!drwav_init_ex(&_wavState, VibeStreamRead, VibeWAVSeek, VibeStreamTell, VibeReadCHANChunk, (__bridge void *)self, &stated, 0, NULL)) {
-        free(stated);
+    VibeAIFFStated stated = {0};
+    if (!drwav_init_ex(&_wavState, VibeStreamRead, VibeWAVSeek, VibeStreamTell, VibeReadAIFFChunk, (__bridge void *)self, &stated, 0, NULL)) {
+        free(stated.layout);
         return NO;
     }
     _wav = &_wavState;
-    AVAudioChannelLayout *layout = stated ? [[AVAudioChannelLayout alloc] initWithLayout:stated] : nil;
-    free(stated);
+    AVAudioChannelLayout *layout = stated.layout ? [[AVAudioChannelLayout alloc] initWithLayout:stated.layout] : nil;
+    free(stated.layout);
     if (_wav->channels <= 2 || layout.channelCount != _wav->channels) {
         layout = VibeMaskLayout(_wav->fmt.channelMask, _wav->channels);
     }
-    return [self keepStreamDecoderWithLength:_wav->totalPCMFrameCount description:VibeWAVDescription(_wav)
+    return [self keepStreamDecoderWithLength:_wav->totalPCMFrameCount description:VibeWAVDescription(_wav, stated.sampleSize)
                                       layout:layout interleaved:interleaved];
 }
 
