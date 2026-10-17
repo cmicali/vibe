@@ -11,6 +11,7 @@
 #import "AudioFileHandle+Debug.h"
 #endif
 
+#import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>
 
 #include <errno.h>
@@ -83,6 +84,7 @@ uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     _Atomic bool _readsInterrupted;
     _Atomic bool _waitingForBytes;
     BOOL (^_openInterrupted)(void); // the open's caller's, while it runs
+    float _opusGain; // the Opus header's output gain as a factor, 0 for none
 }
 
 + (BOOL)appleMPEGDecoder {
@@ -381,6 +383,26 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
 }
 #endif
 
+// RFC 7845 section 5.1: an Ogg Opus file's header carries an output gain,
+// and a player must apply it. Apple's decoder ignores it (macOS 27). The
+// parser serves the header, the OpusHead packet, as the file's magic cookie.
+// The gain is Q7.8 dB at byte 16. Answers it as a factor, or 0 when it is
+// 0 dB or the cookie is no OpusHead.
+static float VibeOpusOutputGain(AudioFileID parser) {
+    UInt32 size = 0;
+    if (AudioFileGetPropertyInfo(parser, kAudioFilePropertyMagicCookieData, &size, NULL) != noErr || size < 19) {
+        return 0;
+    }
+    NSMutableData *cookie = [NSMutableData dataWithLength:size];
+    const uint8_t *head = cookie.bytes;
+    if (AudioFileGetProperty(parser, kAudioFilePropertyMagicCookieData, &size, cookie.mutableBytes) != noErr
+            || size < 19 || memcmp(head, "OpusHead", 8) != 0) {
+        return 0;
+    }
+    int16_t gain = (int16_t)(head[16] | head[17] << 8);
+    return gain ? powf(10, gain / 256.0f / 20) : 0;
+}
+
 - (instancetype)initForReading:(NSURL *)url error:(NSError **)error {
     return [self initForReading:url interleaved:NO error:error];
 }
@@ -645,6 +667,9 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
                        description:[NSString stringWithFormat:@"No decoder for %@'s format (%d)", name, (int)status]];
     }
     _bytesPerFrame = _processingFormat.streamDescription->mBytesPerFrame;
+    if (_container == kVibeOggFileType && formatID == kAudioFormatOpus) {
+        _opusGain = VibeOpusOutputGain(_parser);
+    }
     SInt64 length = 0;
     size = sizeof(length);
     if (ExtAudioFileGetProperty(_codec, kExtAudioFileProperty_FileLengthFrames, &size, &length) != noErr) {
@@ -965,6 +990,15 @@ static void VibeLogOpenRefusal(NSURL *url, int descriptor, SInt64 size, AudioFil
         }
         if (frames == 0) {
             break; // the end
+        }
+        if (_opusGain) {
+            const float low = -kVibeDecodeSampleBound, high = kVibeDecodeSampleBound;
+            for (UInt32 b = 0; b < list->mNumberBuffers; b++) {
+                float *samples = list->mBuffers[b].mData;
+                vDSP_Length count = list->mBuffers[b].mDataByteSize / sizeof(float);
+                vDSP_vsmul(samples, 1, &_opusGain, samples, 1, count);
+                vDSP_vclip(samples, 1, &low, &high, samples, 1, count);
+            }
         }
         total += frames;
     }

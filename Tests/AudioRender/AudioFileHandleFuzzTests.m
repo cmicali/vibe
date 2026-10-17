@@ -874,7 +874,7 @@ static void FuzzCheckSamples(AVAudioPCMBuffer *buffer, AudioFileHandle *handle, 
     BOOL floatPCM = file->mFormatID == kAudioFormatLinearPCM && (file->mFormatFlags & kAudioFormatFlagIsFloat);
     if (floatPCM || buffer.frameLength == 0) return;
     float bound = FuzzIntegerCoding(file, handle.decoderName) ? 1.0f + FLT_EPSILON
-                : [handle.decoderName isEqualToString:@"dr_mp3"] ? 4.0f : INFINITY; // kVibeMPEGSampleBound
+                : [handle.decoderName isEqualToString:@"dr_mp3"] ? 4.0f : INFINITY; // kVibeDecodeSampleBound
     NSUInteger channels = buffer.format.channelCount, planes = buffer.format.isInterleaved ? 1 : channels;
     NSUInteger perPlane = buffer.format.isInterleaved ? buffer.frameLength * channels : buffer.frameLength;
     for (NSUInteger p = 0; p < planes; p++) {
