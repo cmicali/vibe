@@ -18,7 +18,7 @@ python3 $S/corpus.py run fate --no-record  # check without touching the page's r
 python3 $S/corpus.py fetch mp3-iso         # only download
 ```
 
-A corpus downloads into `build/audio-quality/corpora/<name>/`. Only the files Vibe plays are kept, by `Common/PlayableExtensions.m`'s list, beside the reference decodes. **Nothing downloaded is ever committed.** `make clean` deletes the downloads. The next run fetches them again.
+A corpus downloads into `build/audio-quality/corpora/<name>/`. Only the files Vibe plays are kept, by the list in `Vibe/Common/PlayableExtensions.m`, beside the reference decodes. **Nothing downloaded is ever committed.** `make clean` deletes the downloads. The next run fetches them again.
 
 | Name | What it holds | What it checks |
 | --- | --- | --- |
@@ -52,6 +52,10 @@ Each source is pinned in `corpus.py`: a commit, a tag or ISO's dated archive. Mc
 - **An integer reference cannot hold an over.** Vibe's decode is clipped to the reference's range before the comparison.
 - **The FLAC MD5 is skipped above 24 bits.** The decode is float32, which holds 24.
 - **Apple's decoders are not held to exact seeks.**
+
+## Comparing with a release
+
+The handle fuzz can write its mutants to a folder. Set `TEST_RUNNER_VIBE_FUZZ_EXPORT` while `AudioFileHandleFuzzTests` runs (`Tests/AGENTS.md`). `AudioQualityCorpusTests.m` reads only public headers, so it also builds in a release's worktree. Point it at the folder with `TEST_RUNNER_VIBE_AUDIO_QUALITY_CORPUS` and `TEST_RUNNER_VIBE_AUDIO_QUALITY_RESULTS`, in that worktree and in this one. Compare the two records file by file. A file that decodes less here than in the release is a regression, unless the release was wrong. The MPEG open was checked against 1.15 this way.
 
 ## Reading the results
 

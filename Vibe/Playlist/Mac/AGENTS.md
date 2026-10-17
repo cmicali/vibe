@@ -38,7 +38,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 **A registry change or a structural edit reconfigures the visible number cells in place** (`reconfigureVisibleNumberCells`, with `makeIfNecessary:NO`). Never use `reloadData` or a row reload here. Either rebuilds the playing row's `EqualizerIndicatorView` out from under its demand balancing.
 
-**The indicator and the loading pill are always white in this gutter.** `PlaylistTableView` sets that at construction. Both are centered from the row edge to the artwork's bleed. The table derives AppKit's leading padding from the first column rect rather than assuming it.
+**The loading pill is always white in this gutter.** `PlaylistTableView` sets that at construction. The indicator takes the theme's equalizer color, which the row view pushes. Both are centered from the row edge to the artwork's bleed. The table derives AppKit's leading padding from the first column rect rather than assuming it.
 
 **The gutter is an optional column** (`showPlaylistNumberColumn`, applied in `applyColumnVisibility`). Hiding it hides all three states. The playing row keeps its wash. With no cell, the indicator detaches and its level demand drops to zero by the ordinary rule. The art column then leads the row and inherits the leading padding. So `cellViewForColumn:` re-derives the cover's leading bleed on every fetch, because a reused cell outlives a toggle.
 

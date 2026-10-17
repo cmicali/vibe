@@ -14,12 +14,13 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
 
 ## Directories
 
-- [audio-quality/](audio-quality/): the charts and tables that `audio-quality.md` shows, and `response.json`, the resampler's frequency response curves. `scripts/docs/audio_quality.py` draws them and holds the other numbers.
+- [audio-quality/](audio-quality/): the charts and tables that `audio-quality.md` shows, `response.json`, the resampler's frequency response curves, and `corpora.json`, the public corpora results that the `vibe-audio-quality` skill writes. `scripts/docs/audio_quality.py` draws them and holds the other numbers.
 - [bugs/](bugs/): `open-issues.md`, bugs seen in testing that are not fixed or not explained.
 - [future/](future/): plans and studies for work that is not built, or only partly built. Each file opens with its status.
   - `agent-build-slots.md`: separate build slots for agents working at once.
   - `audio-quality-gaps.md`: gaps in audio quality that an audit of the playback path found, and the order to fix them.
   - `carplay.md`: CarPlay.
+  - `cm-libs.md`: moving the reusable code into the shared `cm_libs` toolbox.
   - `cloud-services-order.md`: which cloud file services to handle next, in order.
   - `dropbox-shared-links.md`: browsing a shared Dropbox folder link on iOS.
   - `ios-google-drive.md`: Google Drive as a Files-tab source on iOS.

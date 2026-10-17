@@ -652,9 +652,10 @@ static float VibeOpusOutputGain(AudioFileID parser) {
         return nil;
     }
     NSString *name = url.lastPathComponent;
-    // FLAC, WAV, AIFF and Ogg Vorbis go to the decoders that parse them, which
-    // answer the facts too. CoreAudio's parser opens only what none of them
-    // takes. TRAP: iOS's Ogg reader refuses Vorbis, and macOS's decoder drops
+    // FLAC, WAV, AIFF, Ogg Vorbis and, under the dr_mp3 choice, MPEG go to the
+    // decoders that parse them, which answer the facts too. CoreAudio's parser
+    // opens only what none of them takes.
+    // TRAP: iOS's Ogg reader refuses Vorbis, and macOS's decoder drops
     // each Vorbis file's first 128 frames (macOS 27,
     // docs/future/audio-quality-gaps.md).
     _openedUnderApple = atomic_load(&sAppleMPEGDecoder);

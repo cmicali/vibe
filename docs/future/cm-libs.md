@@ -25,7 +25,7 @@ Only five files in the moving code read `AppSettings`: one in folder art, four i
 
 1. **The name is `cm_libs`. The prefix for new code is `CMM`.** `CM` alone is CoreMedia's.
 2. **No rename.** Moves are pure `git mv`, with history carried by `git filter-repo`. The `Vibe` C prefix stays. The unprefixed classes (`AudioPlayer`, `AudioFileHandle`, `WaveformView`) are listed by a check. A scripted prefix is a later PR if ever wanted. The rename the earlier plan folded into the move would touch 441 names, 678 files and 88 of #294's 111 files.
-3. **#294 merges here first.** The waveform data then moves once.
+3. **#294 merged here first.** The waveform data moves once.
 4. **Pieces are cut by job, not by Vibe's directories.** Split a piece when that saves a consumer a dependency. Merge parts that only work together. The rules and the full list of about thirty pieces are in the cm_libs plan.
 5. **Compile in tree.** Apps add `cm_libs` as a git submodule, include `cm_libs.yml`, and list the templates they want. The sources compile into the app exactly as today. Static libraries and SwiftPM are later switches, with their triggers below.
 
@@ -33,7 +33,7 @@ Only five files in the moving code read `AppSettings`: one in folder art, four i
 
 **Git submodule, sources compiled in tree, source lists owned by the toolbox as XcodeGen target templates.**
 
-Today every engine file is a translation unit of the app target. There is no LTO. Cross-file inlining happens only through headers. The per-file `-O3` on dr_libs, r8brain and PFFFT, and `-Os` on WaveformCore, apply in every configuration. The audio tests compile four render files at `-O2` and force `VIBE_VERBOSE_LOGGING=1`. `VibeTests` links an incomplete `AudioTrackMetadata` decoy. Compiling in tree keeps all of that unchanged, so the run-time cost is zero by construction.
+Today every engine file is a translation unit of the app target. There is no LTO. Cross-file inlining happens only through headers. The per-file `-O3` on dr_libs, r8brain, PFFFT and WaveformCore applies in every configuration. The audio tests compile four render files at `-O2` and force `VIBE_VERBOSE_LOGGING=1`. `VibeTests` links an incomplete `AudioTrackMetadata` decoy. Compiling in tree keeps all of that unchanged, so the run-time cost is zero by construction.
 
 | Shape | Run time | What it costs |
 | --- | --- | --- |
@@ -132,7 +132,7 @@ The moves are planned in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob
 4. `third_party/`.
 5. `core/`, and the portable pieces: DSP, Analysis, Tags, Playlists, ShareLinks.
 6. `files/`.
-7. The waveform data, after #294 merges here.
+7. The waveform data.
 8. `audio/` and `media/`.
 9. The waveform drawing and `ui/Controls`. The other app can start after this.
 10. `system/` and `dev/`.

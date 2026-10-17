@@ -78,6 +78,7 @@ Tests/                 unit tests, laid out like Vibe/
   Support/             shared test helpers
   BenchComponents/     the component benchmarks, not tests
   iOSDriver/           the touch driver for the iOS simulator, not tests
+  iOSSim/              the iOS shell's tests, hosted in the app on a simulator
 Resources/             string catalogs, built-in themes, the app icon, the welcome track
 docs/                  docs for users and contributors (docs/README.md lists them)
 scripts/               build, check, string, release, App Store, web, and benchmark scripts
@@ -85,6 +86,8 @@ functions/             the website's Cloudflare Pages Functions, which count upd
 project.yml            the XcodeGen spec for every target
 Makefile               every build, test, and check command
 ```
+
+`Packages/WaveformCore/` sits beside `Vibe/`. It is the waveform engine, kept free of app types for reuse: the summary, its reads, the zoom steps and the raster. Both apps and the tests compile its sources.
 
 ## The subsystems
 
@@ -100,7 +103,7 @@ Each feature beside the engine has its own directory and doc:
 
 - **`FX/`**: `AudioFX` is the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `AudioVarispeed` is the pitch fader's stage, on macOS only. Doc: `Audio/FX/AGENTS.md`.
 - **`Metadata/`**: `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. `TagLibAudioFile` reads tags through TagLib. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `Audio/Metadata/AGENTS.md` and `Audio/Metadata/Artwork/FolderArt/AGENTS.md`.
-- **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. Doc: `Audio/Waveform/AGENTS.md`.
+- **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The data is `Packages/WaveformCore`'s summary. Docs: `Audio/Waveform/AGENTS.md` and `Packages/WaveformCore/AGENTS.md`.
 - **`Analysis/`**: `AudioBPMAnalyzer` and `AudioKeyAnalyzer` ride the waveform's decode pass. Neither reads the file a second time. Key detection runs on macOS only. Doc: `Audio/Analysis/AGENTS.md`.
 - **`Levels/`**: `AudioLevelMeter` reads the final output inside the render and feeds the equalizer bars. Doc: `Audio/Levels/AGENTS.md`.
 - **`Mac/Devices/`**: `AudioDeviceManager` tracks the output devices. `AudioPlayer+Devices` binds the output unit to one. `AudioPlayer+BitPerfect` is bit-perfect and exclusive output. Doc: `Audio/Mac/Devices/AGENTS.md`.
@@ -156,7 +159,7 @@ Each feature beside the engine has its own directory and doc:
 
 `Resources/` holds the string catalogs, the built-in themes (`Themes/*.json`), the app icon, and the bundled welcome track. `make strings` writes the keys, English text and comments in `Localizable.xcstrings`. Translations are edited in the catalog. Read `Resources/AGENTS.md`, and `Resources/Themes-README.md` before making a theme.
 
-`scripts/` holds what the `Makefile` runs. Each job has its own directory: `build/`, `checks/`, `strings/`, `test/`, `release/`, `appstore/`, `web/`, `screenshots/`, `bench/`, and `analysis/`. Most scripts have a `make` target, and the `Makefile` comments each one. Releases go through the `vibe-release` skill.
+`scripts/` holds what the `Makefile` runs. Each job has its own directory: `build/`, `checks/`, `strings/`, `test/`, `release/`, `appstore/`, `web/`, `screenshots/`, `bench/`, `analysis/`, and `docs/`. Most scripts have a `make` target, and the `Makefile` comments each one. Releases go through the `vibe-release` skill.
 
 ## From open to sound
 
@@ -208,7 +211,7 @@ Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registr
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser (`initParserForReading:`) for its facts, and Apple's decoders play it. AAC, ALAC and Opus are such files. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too, and CoreAudio's parser then frames it.
+`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64 and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file, and any file those decoders refuse, opens CoreAudio's parser for its facts (`openParserWithError:`). Apple's decoders then play it. AAC, ALAC and Opus are such files. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too, and CoreAudio's parser then frames it.
 
 A handle reads its bytes in one of three ways:
 
@@ -287,6 +290,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |
 | Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBusRender.m`, `Audio/AudioMasterBus.m` |
 | Sample-rate conversion | [audio-quality.md](audio-quality.md) | `Audio/AudioResampler.mm` |
+| Decoder conformance against public test files | the `vibe-audio-quality` skill, [audio-quality.md](audio-quality.md) | `Tests/AudioRender/AudioQualityCorpusTests.m` |
 | DJ effects or pitch | `Audio/FX/AGENTS.md` | `Audio/FX/AudioFX.m`, `Audio/FX/AudioVarispeed.m` |
 | Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m` |
 | The iOS audio session and routes | `Audio/iOS/AGENTS.md` | `Audio/iOS/AudioSessionController.m` |
@@ -299,7 +303,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | Artwork and row thumbnails | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/Artwork/AudioTrackArtwork.m` |
 | Cover images beside the files | `Audio/Metadata/Artwork/FolderArt/AGENTS.md` | `Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
 | Tempo or key detection | `Audio/Analysis/AGENTS.md` | `Audio/Analysis/AudioBPMAnalyzer.mm`, `Audio/Analysis/AudioKeyAnalyzer.mm` |
-| Waveform data or its cache | `Audio/Waveform/AGENTS.md` | `Audio/Waveform/AudioWaveformLoader.mm` |
+| Waveform data or its cache | `Audio/Waveform/AGENTS.md`, `Packages/WaveformCore/AGENTS.md` | `Audio/Waveform/AudioWaveformLoader.mm` |
 | How a waveform looks, or a new style | `WaveformUI/AGENTS.md`, `WaveformUI/Renderers/AGENTS.md` | `WaveformUI/Renderers/WaveformRendererRegistry.mm` |
 | The equalizer bars | `Controls/AGENTS.md`, `Audio/Levels/AGENTS.md` | `Controls/EqualizerIndicatorView.m` |
 | How files open on macOS | `Mac/App/AGENTS.md` | `Mac/App/AppDelegate.m` |

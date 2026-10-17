@@ -14,7 +14,7 @@ Every outer corner uses the theme's `resolvedWindowCornerRadius`: the contentVie
 
 ## The transport buttons
 
-**The transport row is themed in one pass**, `MainPlayerContentView.applyThemedTransportButtons`, which is the `TransportButtons` live effect's whole body. Each of the playlist toggle, play and next buttons draws the theme's custom image when its Dark/Light pair names one. An unset side takes the other side's image. Otherwise it draws its glyph, a free-text SF Symbol name with the factory glyph as the fallback (`ResolvedGlyph`). The glyph takes the theme's resting color, and `SymbolButton` derives hover and disabled from it (`setSymbolColorsFromRestingColor:`).
+**The transport row is themed in one pass**, `MainPlayerContentView.applyThemedTransportButtons`, which is the `TransportButtons` live effect's whole body. Each of the playlist toggle, play and next buttons draws the theme's custom image when its Dark/Light pair names one. An unset side takes the other side's image. Otherwise it draws its glyph. That is a free-text SF Symbol name, with the factory glyph as the fallback (`NSImage availableSymbolName:fallback:`). The glyph takes the theme's resting color, and `SymbolButton` derives hover and disabled from it (`setSymbolColorsFromRestingColor:`).
 
 **The buttons' Dark/Light pair is keyed by what is under them, never by the appearance.** With the gradient on, the backdrop is dark whatever the cover. With it off, `ArtworkDisplayController` samples the lower band of every image it installs through `VibeImageLowerBandIsDark` (`Common/PlatformImage.h`). It pushes the answer into `setTransportBackdropDark:hasArtwork:`. A track's crop is sampled on the render worker. The placeholder is sampled on main, and again on every appearance flip (`refreshTintWashes`), because its pixels follow the appearance. Where the band is transparent, the sampler answers with the backdrop, as dark as the appearance, so the clear, window and glyph squares and a transparent custom image all read right. Unset color slots are white and black at the resting strength, so a bright cover gets dark glyphs by default.
 
@@ -81,7 +81,7 @@ The line has **two independent inputs**: codec text and FX state. `TrackDisplayC
 
 `AppSettings.showBPM` and `.showKey` each blank their own half of the BPM line upstream of the render. `effectiveTempoDidChange` passes 0 for a hidden tempo and -1 for a hidden key, so the separator goes with either half. Neither touches detection, tags or the delay's BPM-synced taps. The FX write is unconditional, since a hidden readout must not change the audio.
 
-Two adjustments are optical. Symbols draw at **bold** weight, because the default stroke is a hairline at this size. The two dial glyphs get their own size multiplier, because they spend much of their box on tick marks.
+Two adjustments are optical. Symbols draw at **bold** weight, because the default stroke is a hairline at this size. The two dial glyphs and the 1/8 delay's bare echo get their own size multiplier. The dials spend much of their box on tick marks, and the echo is narrow arcs.
 
 Symbols render a step brighter than the codec text, at full `secondaryLabelColor`, matching the time labels. **So both corner labels carry their dimming in the text color**, not a field-wide alpha (the theme's `resolvedInfoColor` in `cornerTextAttributes`). A field alpha would dim the symbols too. The symbols are template images, so their tint follows the label through appearance changes.
 

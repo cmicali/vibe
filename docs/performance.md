@@ -36,7 +36,7 @@ The 1.14 engine seeks without stopping the output. In 1.15, Vibe's FLAC decoder 
 
 ## Decoding
 
-Vibe's decoders replaced Apple's for MP3 in 1.14, and for FLAC, WAV and AIFF in 1.15. AAC still uses Apple's decoder.
+Vibe's decoders replaced Apple's for MP3 in 1.14, and for FLAC, WAV and AIFF in 1.15. In 1.16, libvorbis replaced Apple's Vorbis decoder. AAC still uses Apple's decoder.
 
 **Why:** they keep every bit of the audio and use less CPU. Each one is measured against Apple's decoder in [audio quality](audio-quality.md).
 
@@ -103,16 +103,16 @@ Peak memory fell from 107 MB to 68 MB in 1.10. That release fixed several leaks 
 
 ## Drawing the waveform
 
-In October 2026, the Spectrum waveform style got cheaper to draw. Spectrum now mixes its color and brightness in one SIMD vector. A strip with one bar per pixel skips the color interpolation. A finished waveform remembers the loudest of each band's 1,024 columns. Resizing doesn't scan for it again.
+In October 2026 (#248), the Spectrum waveform style got cheaper to draw. Spectrum then mixed its color and brightness in one SIMD vector. A strip with one bar per pixel skipped the color interpolation. A finished waveform remembers the loudest of each band's 1,024 columns. Resizing doesn't scan for it again.
 
 **Why:** resizing the window redraws the waveform every frame. Spectrum was the most expensive style to resize.
 
-**The data:** resizing a normalized Spectrum waveform takes 26% fewer instructions and 24% less CPU. It went from 138.7 to 102.0 million instructions, and from 5.7 to 4.3 ms. With display gain at −6 or +6 dB, it takes 9% fewer instructions and 7–8% less CPU. Each resize draws 60 frames from 700 to 936 points wide at 2x. The saved envelopes, masks and strips are byte-identical to before. These are CPU and instruction counts on an M4 Max. They don't measure the GPU, and iOS wasn't measured on a device.
+**The data:** resizing a normalized Spectrum waveform takes 26% fewer instructions and 24% less CPU. It went from 138.7 to 102.0 million instructions, and from 5.7 to 4.3 ms. With display gain at −6 or +6 dB, it takes 9% fewer instructions and 7–8% less CPU. Each resize draws 60 frames from 700 to 936 points wide at 2x. The saved envelopes, masks and strips were byte-identical to before. Since #294, Spectrum draws a picture at fixed zoom steps, and the strip is gone. These are CPU and instruction counts on an M4 Max. They don't measure the GPU, and iOS wasn't measured on a device.
 
 Two other ideas didn't help, and were dropped. Rewriting the waveform's energy windows with more SIMD didn't reduce the work. Building the whole app with `-O3` showed no clear gain either. To repeat the comparison:
 
 ```bash
-python3 .claude/skills/vibe-perf/scripts/perf.py compare 2e8059a2 --filter '^ui-waveform\.' --rounds 5 --reps 20
+python3 .claude/skills/vibe-perf/scripts/perf.py compare 2e8059a2 17c92b91 --filter '^ui-waveform\.' --rounds 5 --reps 20
 ```
 
 ## More charts
@@ -187,17 +187,17 @@ VibeBenchComponents (`Tests/BenchComponents/`) drives the production code in-pro
 | --- | --- | --- |
 | Audio files | `open`, `load`, `decode`, `decode-il`, `decode-window`, `seek`, `skip-forward`, `skip-backward`, `encode-flac` | Open and close, first playable block, full planar and interleaved decode, 30-second window reads, random seeks, five-second skips in both directions, 16- and 24-bit FLAC encoding. MP3 includes dr_mp3 and Apple's decoder. |
 | Waveform generation | `waveform*`, `chunker*`, `bpm`, `key` | Full decode and chunking, mono downmix, bands, tempo and key analysis. CUE windows run with and without analysis. Detail reads measure empty storage, hits and eviction where the zoom engine exists. |
-| Waveform storage | `waveform-cache` | Real archives read and written through PINDiskCache, with and without bands, for three-minute and hour-long files. Progress snapshots are measured separately at both lengths. |
+| Waveform storage | `waveform-cache` | Real archives read and written through PINDiskCache, with and without bands, for three-minute and hour-long files. Progress snapshots are measured separately at both lengths. So are fresh archive writes and the first draw after a read or a snapshot. |
 | Audio processing | `resample`, `pitch`, `levels`, `fx-host`, `fx-render` | Downsampling, upsampling and equal-rate copies in mono and stereo, both pitch implementations, all three meter modes at 48 and 96 kHz, FX hosting, idle FX, each effect and all effects together. |
 | Artwork and tags | `metadata`, `metadata-cache-*`, `art-*`, `cachekey` | Tag parsing, real metadata archive reads and writes, embedded image extraction, bounded decoding at 128, 640 and 1024 px, dominant color, thumbnail decode and delivery, thumbnail memory hits, file cache keys. |
 | Libraries and caches | `pincache`, `scan`, `walk`, `m3u`, `cue`, `playlist*` | Cache reads, writes and eviction, metadata scheduling, folder walks, M3U resolution, writing and restoration, CUE parsing, single and bulk playlist edits, identity and URL lookups, seeded shuffle and navigation. |
-| Waveform drawing | `ui-waveform*` | Every registered style: layer geometry, progress and hover, steady and resizing rasterization, scroll, pinch and track changes. Full-resolution detail drawing and shared envelope bakes run where their APIs exist. |
+| Waveform drawing | `ui-waveform*` | Every registered style: layer geometry, progress and hover, steady and resizing rasterization, scroll, pinch and track changes. The iOS scrubber's scroll and pinch run at 3x. Full-resolution detail drawing and shared envelope bakes run where their APIs exist. |
 | macOS UI | `ui-cell`, `ui-table`, `ui-tick`, `ui-format`, `ui-track`, `settings` | Text drawing, table refresh, artwork placeholders, display formatting and settings interactions. |
 
 The file matrix includes CBR and VBR MP3, MP2, AAC in MP4 and ADTS, FLAC, WAV, AIFF, ALAC, Opus and Vorbis. It covers CAF, Wave64, RF64, float WAV and 5.1 WAV too. It also includes mono at 22.05 kHz, MP3 at 48 kHz, hour-long CBR and VBR MP3s, a ten-minute MP3 without a Xing header, and FLAC at 88.2, 96, 176.4, 192 and 352.8 kHz. These are regular cases in the shared harness, not a separate comparison script.
 
-The workloads are fixed. Elapsed time still varies with scheduling, filesystem caching and CPU frequency. Instruction counts cover all threads in this process. Repetitions reuse warm filesystem pages. They do not measure physical storage throughput or cloud downloads. Drawing includes synchronous CPU rasterization at 2x. GPU work and WindowServer composition run outside these counters. Shared iOS rendering code runs on the Mac here. UIKit layout and device performance need separate measurement. End-to-end player transitions, voice overlap, render deadlines, cloud admission, network waits, output-device changes, FX control ramps and tail expiry remain app or audio-render-suite work. The component suite does not claim to time every application path. A waveform detail case has no 1.15 counterpart. It is reported as version-specific work rather than a speed delta.
+The workloads are fixed. Elapsed time still varies with scheduling, filesystem caching and CPU frequency. Instruction counts cover all threads in this process. Repetitions reuse warm filesystem pages. They do not measure physical storage throughput or cloud downloads. Drawing includes synchronous CPU rasterization at 2x. The iOS scrubber's zoom cases draw at 3x. GPU work and WindowServer composition run outside these counters. Shared iOS rendering code runs on the Mac here. UIKit layout and device performance need separate measurement. End-to-end player transitions, voice overlap, render deadlines, cloud admission, network waits, output-device changes, FX control ramps and tail expiry remain app or audio-render-suite work. The component suite does not claim to time every application path. A waveform detail case has no 1.15 counterpart. It is reported as version-specific work rather than a speed delta.
 
-Today's harness is built against each version's own code. A benchmark a version can't compile is left out. Some lines start late because of that. The level meter starts at 1.10, the metadata sweep at 1.14, the playlist-file, folder-walk and playlist-edit benchmarks at 1.15, and the pitch converter at 1.16. The `vibe-perf` skill explains how `perf.py releases` grafts the harness onto each version.
+Today's harness is built against each version's own code. A benchmark a version can't compile is left out. Some lines start late because of that. The level meter starts at 1.10, the metadata sweep at 1.14, and the playlist-file, folder-walk and playlist-edit benchmarks at 1.15. The pitch converter will start at 1.16. The `vibe-perf` skill explains how `perf.py releases` grafts the harness onto each version.
 
 Each number is the median of five runs, one process per version, after a warm-up. Decoding, analysis and the pitch converter are CPU time per minute of audio. Opening and seeking are CPU time per operation. The waveform pass is wall time, because it runs on two threads. The tag parse, the disk cache and the libraries are wall time per file, entry or job. CPU time and instruction counts sit beside wall time in `results.json`. Check their run-to-run spread before blaming a small difference on the code.
