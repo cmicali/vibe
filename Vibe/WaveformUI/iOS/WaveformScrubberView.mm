@@ -123,9 +123,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     CGFloat fraction = [self effectiveVisibleFraction];
     _waveform = waveform;
     _scroll.scrollEnabled = (waveform != nil);
-    if ([self effectiveVisibleFraction] != fraction) {
-        [self applyVirtualGeometry];
-    }
+    [self applyVirtualGeometryIfFractionMovedFrom:fraction];
     [self layoutPlayheadLine];
 }
 
@@ -185,8 +183,12 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     }
     CGFloat previous = [self effectiveVisibleFraction];
     _visibleFraction = fraction;
-    // A request the floor swallows costs no layout.
-    if ([self effectiveVisibleFraction] != previous) {
+    [self applyVirtualGeometryIfFractionMovedFrom:previous];
+}
+
+// A change the floor swallows costs no layout.
+- (void)applyVirtualGeometryIfFractionMovedFrom:(CGFloat)fraction {
+    if ([self effectiveVisibleFraction] != fraction) {
         [self applyVirtualGeometry];
     }
 }
@@ -299,9 +301,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     CGFloat fraction = [self effectiveVisibleFraction];
     [self discardRenderer];
     [self installRendererIfNeeded];
-    if ([self effectiveVisibleFraction] != fraction) {
-        [self applyVirtualGeometry];
-    }
+    [self applyVirtualGeometryIfFractionMovedFrom:fraction];
     [self drawRendererWindowForcing:YES];
     [_renderer settleMorphImmediately];
 }
