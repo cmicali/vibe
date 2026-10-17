@@ -666,15 +666,17 @@ static NSUInteger VibeID3v2End(NSData *file) {
     XCTAssertEqualObjects(continuous, [self readToEnd:whole]);
     [self assertSeeksOf:file match:continuous block:1152 name:@"free format"];
 }
-// Every sixth frame of a CBR stream rewritten as free format, from the frame
-// after its Info frame's next. Those frames are 3,456 bytes apart, more than
-// dr_mp3's largest free format frame. The open took them for a free format
-// stream of 3,456-byte frames, and dr_mp3's reservoir copy overran its
-// buffer. They are damage: the stream plays its other frames.
-- (void)testDrMP3NeverTakesFreeFormatFramesPastItsLargest {
-    NSURL *url = [self optionalFixture:@"cbr.mp3"];
+// Every sixth frame of a CBR stream rewritten as free format, as damage can
+// leave a bit rate. Each such frame runs to the next header and decodes as
+// the frame it was, as CoreAudio's parser plays it. A free format frame whose
+// next header lies past dr_mp3's largest frame is damage. Taken whole, it
+// overran dr_mp3's reservoir copy into the side information beside it. The
+// stream plays on past it.
+- (void)testDrMP3MeasuresEachFreeFormatFrameUpToItsLargest {
+    NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
-    NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
+    NSData *source = [NSData dataWithContentsOfURL:url];
+    NSMutableData *bytes = [source mutableCopy];
     uint8_t *b = bytes.mutableBytes;
     NSUInteger start = VibeID3v2End(bytes), rewritten = 0;
     for (NSUInteger at = start + 2 * 576; at + 4 <= bytes.length; at += 6 * 576, rewritten++) {
@@ -683,9 +685,52 @@ static NSUInteger VibeID3v2End(NSData *file) {
     }
     XCTAssertGreaterThan(rewritten, 10u);
     AudioFileHandle *whole = [self open:url decoder:@"dr_mp3"];
-    AudioFileHandle *file = [self open:[self writeBytes:bytes name:@"free-far-apart.mp3"] decoder:@"dr_mp3"];
-    XCTAssertGreaterThan(file.length, whole.length / 2, @"the stream's own frames, not free format ones");
-    XCTAssertGreaterThan([self readToEnd:file].length, 0u);
+    AudioFileHandle *file = [self open:[self writeBytes:bytes name:@"free-among-others.mp3"] decoder:@"dr_mp3"];
+    XCTAssertEqual(file.length, whole.length);
+    XCTAssertEqualObjects([self readToEnd:file], [self readToEnd:whole], @"each free format frame as the frame it was");
+
+    // 3,000 bytes after the third rewritten frame, frame 14: its next header
+    // is past dr_mp3's largest free format frame.
+    [bytes replaceBytesInRange:NSMakeRange(start + 15 * 576, 0) withBytes:[NSMutableData dataWithLength:3000].bytes length:3000];
+    file = [self open:[self writeBytes:bytes name:@"free-far-apart.mp3"] decoder:@"dr_mp3"];
+    XCTAssertEqual(file.length, whole.length - 1152, @"the far frame dropped as damage");
+    XCTAssertEqual([self readToEnd:file].length, (NSUInteger)file.length * 2 * sizeof(float));
+}
+// A stated frame count is trusted only when it fits the file. Otherwise the
+// walk counts the frames. A VBRI header damaged to one frame played one
+// frame. An Info frame kept from the first of two streams joined stopped at
+// its end. An iTunes comment stating one frame did the same. 1.15, through
+// CoreAudio's parser, played each whole.
+- (void)testDrMP3TrustsAStatedCountOnlyWhenTheFileBearsItOut {
+    NSURL *cbrURL = [self optionalFixture:@"cbr.mp3"], *plainURL = [self optionalFixture:@"cbr-noinfo.mp3"];
+    AudioFileHandle.appleMPEGDecoder = NO;
+    NSData *cbr = [NSData dataWithContentsOfURL:cbrURL], *plain = [NSData dataWithContentsOfURL:plainURL];
+    NSUInteger cbrStart = VibeID3v2End(cbr), plainStart = VibeID3v2End(plain);
+    AVAudioFramePosition frames = (AVAudioFramePosition)(plain.length - plainStart) / 576 * 1152;
+
+    NSMutableData *vbri = [cbr mutableCopy];
+    uint8_t *b = vbri.mutableBytes;
+    XCTAssertEqual(memcmp(b + cbrStart + 36, "Info", 4), 0);
+    memcpy(b + cbrStart + 36, "VBRI", 4);
+    uint8_t count[8] = {0, 0, 0, 0, 0, 0, 0, 1}; // bytes 0, frames 1
+    memcpy(b + cbrStart + 36 + 10, count, sizeof(count));
+    XCTAssertEqual([self open:[self writeBytes:vbri name:@"vbri-one-frame.mp3"] decoder:@"dr_mp3"].length, frames, @"a VBRI count of one");
+
+    NSMutableData *joined = [cbr mutableCopy];
+    [joined appendData:[plain subdataWithRange:NSMakeRange(plainStart, plain.length - plainStart)]];
+    AudioFileHandle *file = [self open:[self writeBytes:joined name:@"joined.mp3"] decoder:@"dr_mp3"];
+    XCTAssertEqual(file.length, 2 * frames - 576, @"both streams, the first's priming trimmed, its remainder not");
+
+    const char text[] = " 00000000 00000000 00000000 0000000000000480";
+    NSMutableData *comment = [NSMutableData dataWithBytes:"\0engiTunSMPB\0" length:13];
+    [comment appendBytes:text length:sizeof(text) - 1];
+    uint8_t header[10] = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, (uint8_t)(10 + comment.length)};
+    uint8_t frame[10] = {'C', 'O', 'M', 'M', 0, 0, 0, (uint8_t)comment.length, 0, 0};
+    NSMutableData *tagged = [NSMutableData dataWithBytes:header length:sizeof(header)];
+    [tagged appendBytes:frame length:sizeof(frame)];
+    [tagged appendData:comment];
+    [tagged appendData:[plain subdataWithRange:NSMakeRange(plainStart, plain.length - plainStart)]];
+    XCTAssertEqual([self open:[self writeBytes:tagged name:@"itunes-one-frame.mp3"] decoder:@"dr_mp3"].length, frames, @"an iTunes count of one");
 }
 // A stream can change its mode from frame to frame. CoreAudio stops counting
 // at the change. Vibe plays it with the most channels a frame holds, a mono

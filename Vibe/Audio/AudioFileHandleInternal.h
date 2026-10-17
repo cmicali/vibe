@@ -68,10 +68,8 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
     SInt64 _mpegWalk;
     SInt64 _mpegDataEnd;
     BOOL _mpegWalkEnded;
-    // What every frame of the stream shares (VibeMPEGFrame.fixed), and a free
-    // format stream's frame size before its padding.
+    // What every frame of the stream shares (VibeMPEGFrame.fixed).
     UInt32 _mpegFixed;
-    UInt32 _mpegFreeBytes;
     UInt32 _mpegFirstBitrate;
     BOOL _mpegConstantBitrate;
     UInt32 _mpegChannels; // the most any frame walked holds
