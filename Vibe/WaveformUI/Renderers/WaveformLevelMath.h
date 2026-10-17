@@ -82,6 +82,23 @@ static const NSUInteger kVibeWaveformLevelColumns = 1024;
 // time. As a share of the track, it was a beat long on a short track.
 static const double kVibeWaveformSpectrumColorSeconds = 2.0;
 
+// Spectrum's outline takes the peaks' shape once its columns are finer than
+// a kick's build. Zoomed out, a column's loudest window is the outline, and it
+// rises on each hit. Zoomed in, a kick's low band builds over 40 to 60 ms
+// after its attack, so the outline rose late and round while the peaks jump
+// at once. The peaks' weight fades in from columns of the first figure to
+// columns of the second, by octaves, so a pinch changes the outline
+// continuously.
+static const double kVibeSpectrumPeakShapeFromSeconds = 0.02;
+static const double kVibeSpectrumPeakShapeToSeconds = 0.005;
+static inline double VibeSpectrumPeakShapeWeight(double secondsPerColumn) {
+    if (!(secondsPerColumn > 0)) {
+        return 0;
+    }
+    double octaves = log2(kVibeSpectrumPeakShapeFromSeconds / kVibeSpectrumPeakShapeToSeconds);
+    return fmin(fmax(log2(kVibeSpectrumPeakShapeFromSeconds / secondsPerColumn) / octaves, 0), 1);
+}
+
 // By section's grid. A column is half a second, about a beat, or 1/512 of a
 // track too long for that. A section is at least 8 columns long. The grid
 // follows the track, not the drawn columns, so a resize or a zoom never moves
@@ -98,14 +115,16 @@ static inline double VibeWaveformSectionFramesPerColumn(double totalFrames, doub
     return fmax(kVibeWaveformSectionColumnSeconds * sampleRate, totalFrames / (double)kVibeWaveformSectionColumns);
 }
 
-// Replaces each column's band mean squares, low to high, with its section's
-// mean. The sections are the fit, constant per section, of each column's mix
-// that has the least squared error plus the penalty per section. A column's
-// mix is the share of each band in VibeSpectrumWeights, at the levels the
-// renderer reads: RMS over the band's share of full scale. A silent column
-// has no mix, and the fit ignores it. Exact dynamic programming, quadratic in
-// count, which is at most kVibeWaveformSectionColumns.
-static inline void VibeWaveformSectionMeanSquares(float *meanSquares, NSUInteger count, const float shares[3]) {
+// Each section's first column, in order from 0, into starts; answers how many.
+// The sections are the fit, constant per section, of each column's mix that
+// has the least squared error plus the penalty per section. A column's mix is
+// the share of each band in VibeSpectrumWeights, at the levels the renderer
+// reads: RMS over the band's share of full scale, from its band mean squares,
+// low to high. A silent column has no mix, and the fit ignores it. Exact
+// dynamic programming, quadratic in count, which is at most
+// kVibeWaveformSectionColumns.
+static inline NSUInteger VibeWaveformSectionStarts(const float *meanSquares, NSUInteger count, const float shares[3],
+                                                   NSUInteger *starts) {
     count = MIN(count, (NSUInteger)kVibeWaveformSectionColumns);
     NSUInteger minimum = MIN((NSUInteger)kVibeWaveformSectionMinColumns, count);
     // Running sums over the columns: how many sound, their mixes and the
@@ -148,17 +167,45 @@ static inline void VibeWaveformSectionMeanSquares(float *meanSquares, NSUInteger
             }
         }
     }
+    NSUInteger sections = 0;
     for (NSUInteger end = count; end > 0; end = start[end]) {
-        NSUInteger begin = start[end];
+        sections++;
+    }
+    NSUInteger i = sections;
+    for (NSUInteger end = count; end > 0; end = start[end]) {
+        starts[--i] = start[end];
+    }
+    return sections;
+}
+
+// Where a change in the bands' levels splits count cells, three levels each:
+// the cell in [1, count) that starts the second side, fitting each side its
+// own mean with the least squared error. The section grid is too coarse to
+// find an edge. This puts it on the hit that changes the mix: the first kick
+// back in, not the column it falls in. 0 when count is under 2.
+static inline NSUInteger VibeWaveformSectionSplit(const float *levels, NSUInteger count) {
+    if (count < 2) {
+        return 0;
+    }
+    double total[3] = {0};
+    for (NSUInteger i = 0; i < count * 3; i++) {
+        total[i % 3] += levels[i];
+    }
+    // The error is the levels' squares less each side's sum squared over its
+    // count, so the best split has the most of the latter.
+    double left[3] = {0}, best = -INFINITY;
+    NSUInteger split = 1;
+    for (NSUInteger t = 1; t < count; t++) {
+        double explained = 0;
         for (int b = 0; b < 3; b++) {
-            double sum = 0;
-            for (NSUInteger j = begin; j < end; j++) {
-                sum += meanSquares[j * 3 + b];
-            }
-            float mean = (float)(sum / (double)(end - begin));
-            for (NSUInteger j = begin; j < end; j++) {
-                meanSquares[j * 3 + b] = mean;
-            }
+            left[b] += levels[(t - 1) * 3 + b];
+            double right = total[b] - left[b];
+            explained += left[b] * left[b] / (double)t + right * right / (double)(count - t);
+        }
+        if (explained > best) {
+            best = explained;
+            split = t;
         }
     }
+    return split;
 }

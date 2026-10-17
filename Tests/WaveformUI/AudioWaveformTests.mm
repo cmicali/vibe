@@ -1369,6 +1369,66 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     }
 }
 
+// The grid finds the sections, and each edge moves to the change itself: the
+// first kick back in, not the grid column it falls in.
+- (void)testSpectrumSectionEdgeLandsOnTheFirstKickBackIn {
+    // A frame a bin at 8 Hz: a section column is four bins.
+    auto waveform = std::make_unique<AudioWaveform>(1, true, 8);
+    for (NSUInteger i = 0; i < 1024; i++) {
+        BOOL kick = i >= 514 && (i - 514) % 4 == 0;
+        double bands[wavecore::kBandCount] = {kick ? 1.0 : 0.0, 0.0, 0.04};
+        waveform->appendBin(-0.1f, 0.1f, 0.01, bands, 1);
+    }
+    waveform->markComplete();
+    std::vector<VibeSpectrumSection> sections = VibeSpectrumSections(waveform.get());
+    XCTAssertEqual(sections.size(), 2u);
+    if (sections.size() == 2) {
+        XCTAssertEqual(sections[0].start, 0);
+        XCTAssertEqual(sections[1].start, 514, @"not the grid's 512 or 516");
+        XCTAssertGreaterThan(sections[1].meanSquares[0], sections[1].meanSquares[2]);
+        XCTAssertEqual(sections[0].meanSquares[0], 0, @"no kick colors the hats");
+    }
+}
+
+// The rows a picture inks down one pixel column.
+static size_t VibeInkedRows(const VibeTestPicture &picture, size_t x) {
+    size_t rows = 0;
+    for (size_t row = 0; row < picture.height; row++) {
+        rows += picture.alpha(x, row) >= 128;
+    }
+    return rows;
+}
+
+// A kick whose peaks jump at once while its low band builds over 12 bins,
+// 70 ms. At deep zoom the outline takes the peaks' shape, so it stands at
+// nearly full height from the attack. The bins before it stay quiet.
+- (void)testSpectrumOutlineTakesThePeaksAttackAtDeepZoom {
+    std::vector<VibeTestBin> bins(1024, {-0.01f, 0.01f, 0.0001f});
+    std::vector<std::array<float, 3>> bands(1024, {1e-6f, 1e-6f, 1e-6f});
+    for (size_t k = 0; k < 40; k++) {
+        float body = 0.7f * fminf((float)(k + 1) / 12, 1);
+        bins[512 + k] = {-0.9f, 0.9f, body * body};
+        bands[512 + k] = {body * body, 1e-4f, 1e-4f};
+    }
+    auto waveform = VibeTestWaveform(bins, bands);
+    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    renderer.normalizesLevels = YES;
+    CALayer *host = renderer.parentLayer;
+    host.contentsScale = 2;
+    host.bounds = CGRectMake(0, 0, 1024, 80);
+    renderer.theme = [WaveformTheme monochromeThemeIsDark:YES];
+    [renderer updateColors:YES];
+    [renderer updateWaveform:host.bounds progress:1 waveform:waveform.get()];
+    [renderer settleMorphImmediately];
+    VibeTestPicture picture = VibeThreeBandPicture(renderer);
+    XCTAssertEqual(picture.width, 2048u, @"half a bin a pixel: 2.9 ms columns");
+    if (picture.width == 2048) {
+        size_t plateau = VibeInkedRows(picture, 2 * 540);
+        XCTAssertGreaterThan(VibeInkedRows(picture, 2 * 512 + 2), plateau * 8 / 10, @"the attack stands at once");
+        XCTAssertLessThan(VibeInkedRows(picture, 2 * 500), plateau / 10, @"the bins before it stay quiet");
+    }
+}
+
 // Spectrum's outline is the tallest band: 3-Band's outer ring.
 - (void)testSpectrumOutlineIsTheTallestBand {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};

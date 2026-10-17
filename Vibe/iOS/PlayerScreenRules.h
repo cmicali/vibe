@@ -98,6 +98,26 @@ static inline VibePlayerScrubAction VibePlayerScrubActionFor(NSTimeInterval play
     return parked ? VibePlayerScrubActionOpenParked : VibePlayerScrubActionSeekPlayer;
 }
 
+#pragma mark - The playhead
+
+// The player's position moves a render buffer at a time, about 23 ms. At
+// deep zoom that is 2 pt, and a waveform moved by it on each display frame
+// judders. So the waveform's position runs on at real time from where it was
+// last shown, and moves a tenth of the way to the player's each frame. A miss
+// past the snap distance, from a seek, a stall or a track change, jumps to the
+// player's. A first frame passes a negative shown position.
+static const NSTimeInterval kVibePlayheadSnapSeconds = 0.15;
+static const double kVibePlayheadPull = 0.1;
+static inline NSTimeInterval VibePlayheadShownPosition(NSTimeInterval shown, NSTimeInterval elapsed,
+                                                       NSTimeInterval player) {
+    NSTimeInterval running = shown + elapsed;
+    NSTimeInterval miss = player - running;
+    if (shown < 0 || !(elapsed >= 0) || fabs(miss) > kVibePlayheadSnapSeconds) {
+        return player;
+    }
+    return running + miss * kVibePlayheadPull;
+}
+
 #pragma mark - The pager
 
 // The page's own index, so the last page arrives dimmed. Under Repeat All no

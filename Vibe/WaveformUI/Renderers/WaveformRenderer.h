@@ -34,10 +34,11 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// Normalize's reference is the whole track's column: the waveform's own, so
-// no view can move it. A streaming load keeps the fixed reference, which an
-// empty column stands for. Its loudest window is only the loudest SO FAR, and
-// a reference that rises per delivery shrinks bars already drawn.
+// The mix styles' Normalize reference is the whole track's column: the
+// waveform's own, so no view can move it. A streaming load keeps the fixed
+// reference, which an empty column stands for. Its loudest window is only the
+// loudest SO FAR, and a reference that rises per delivery shrinks bars
+// already drawn.
 static inline wavecore::Column VibeWaveformNormalizeColumn(AudioWaveform *waveform, BOOL normalize) {
     return normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames())
                                                 : wavecore::Column();

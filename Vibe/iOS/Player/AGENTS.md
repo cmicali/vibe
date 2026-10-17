@@ -22,6 +22,8 @@ The track pager and the chrome over it. It observes `PlaybackController` and own
 
 **The time labels belong to a scrub while one runs.** `+Delivery` renders `didScrubToProgress:` as the landing time, and `updatePlaybackUI` bails on `isScrubbing`. The duration falls back to the track's own, so scrubbing a parked track reads correctly.
 
+**The playhead display link runs the waveform's position on at real time** (`VibePlayheadShownPosition`, `PlayerScreenRules.h`). The player's position moves a render buffer at a time, about 23 ms. At deep zoom that is 2 pt, so a waveform written the player's position on each frame judders. Each frame pulls the shown position a tenth of the way to the player's. A miss past 0.15 s, from a seek, a stall or a track change, jumps to it. Pausing the link starts the next frame from the player's.
+
 **The waveform zoom is one value for the whole pager.** `+Delivery`'s `didChangeVisibleFraction:` stores it in `VibeiOSWaveformZoom`, and every `willDisplayCell:` re-applies it. What is stored is the user's request, never what a view drew (`WaveformUI/iOS/AGENTS.md`).
 
 ## Output route
