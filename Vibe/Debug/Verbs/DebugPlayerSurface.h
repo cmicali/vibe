@@ -82,7 +82,24 @@ NS_ASSUME_NONNULL_BEGIN
 // wall-clock comparisons.
 - (double)debugPlaybackRate;
 
+// dump_health's "ui" block: windows, views and layers, counted over what is
+// visible (DebugHealth.h).
+- (NSDictionary *)debugHealthUI;
+
+// The waveform's loading indicator, shown or hidden without a slow open:
+// the mac's header, the iOS bound page. A negative fraction is indeterminate.
+- (void)debugSetWaveformLoading:(BOOL)shown fraction:(float)fraction;
+
+// quiesce's teardown: the shell's close (the mac's closeFile:, the iOS
+// model's clearPlaylist).
+- (void)debugCloseFile;
+
 @optional
+
+// This platform's own "app" and "pending" fields in dump_health. Pending
+// counts must reach zero at rest, which quiesce polls.
+- (NSDictionary *)debugHealthApp;
+- (NSDictionary<NSString *, NSNumber *> *)debugPendingCounts;
 
 // This platform's own checks, appended after the shared ones. Returns how
 // many ran, for the reply's "checked" count.

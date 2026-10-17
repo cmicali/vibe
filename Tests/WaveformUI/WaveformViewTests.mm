@@ -13,6 +13,7 @@
 #import "DrawnViewTestSupport.h"
 #import "WaveformViewInternal.h"
 #import "WaveformView+Loading.h"
+#import "WaveformTestSupport.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
@@ -53,13 +54,7 @@ static const CGFloat kHeight = 60;
 
 // A loud, constant waveform, so every bar reaches the midline.
 static CodableAudioWaveform *LoudWaveform(void) {
-    AudioWaveformCacheChunk chunks[64];
-    for (AudioWaveformCacheChunk &chunk : chunks) {
-        chunk.set(-0.8f, 0.8f, 0.64f * 100, 100);
-    }
-    AudioWaveform *waveform = new AudioWaveform(64, chunks);
-    waveform->markComplete();
-    return [[CodableAudioWaveform alloc] initWithWaveform:waveform];
+    return [[CodableAudioWaveform alloc] initWithWaveform:VibeTestSteadyWaveform(64, {-0.8f, 0.8f, 0.64f})];
 }
 
 static NSColor *Opaque(NSColor *color) {

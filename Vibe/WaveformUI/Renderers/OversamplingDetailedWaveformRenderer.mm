@@ -5,18 +5,16 @@
 
 #import "OversamplingDetailedWaveformRenderer.h"
 
-// Fixed counts at every width: the sub-pixel overlap is the look. 1,024 is
-// Detailed's count at its 512pt design width.
-static const NSUInteger kOversamplingBaseBars = 1024;
-
+// Twice, four and eight times Detailed's columns: the sub-pixel overlap is
+// the look, the same at every width.
 @implementation x2OversamplingDetailedWaveformRenderer
 
 + (NSString *)styleIdentifier {
     return @"oversampling_detailed_x2";
 }
 
-- (NSUInteger)numBarsForWidth:(CGFloat)width {
-    return kOversamplingBaseBars * 2;
+- (double)columnsPerPoint {
+    return 4;
 }
 
 @end
@@ -27,8 +25,8 @@ static const NSUInteger kOversamplingBaseBars = 1024;
     return @"oversampling_detailed_x4";
 }
 
-- (NSUInteger)numBarsForWidth:(CGFloat)width {
-    return kOversamplingBaseBars * 4;
+- (double)columnsPerPoint {
+    return 8;
 }
 
 @end
@@ -39,9 +37,8 @@ static const NSUInteger kOversamplingBaseBars = 1024;
     return @"oversampling_detailed_x8";
 }
 
-- (NSUInteger)numBarsForWidth:(CGFloat)width {
-    return kOversamplingBaseBars * 8;
+- (double)columnsPerPoint {
+    return 16;
 }
 
 @end
-

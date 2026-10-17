@@ -2,8 +2,8 @@
 //  WaveformZoomMath.h
 //  Vibe
 //
-//  How deep the iOS scrubber's pinch zoom may go, from geometry alone. Shared
-//  only because it has no UIKit in it; the mac view has no zoom.
+//  How deep the iOS scrubber's pinch zoom may go. Shared only because it has
+//  no UIKit in it; the mac view has no zoom.
 //
 
 #import <Foundation/Foundation.h>
@@ -12,37 +12,38 @@
 // and the value a launch with nothing persisted comes up at.
 static const CGFloat kVibeWaveformDefaultZoomFraction = 0.48;
 
-// The STORED request's floor, independent of geometry, so a corrupt defaults
+// The STORED request's floor, independent of the track, so a corrupt defaults
 // value cannot persist something absurd. What is DRAWN is clamped further.
-static const CGFloat kVibeWaveformMinimumZoomFraction = 0.01;
+static const CGFloat kVibeWaveformMinimumZoomFraction = 0.000001;
 
-// A CALayer whose contents exceed the GPU texture ceiling renders BLANK. The
-// bake reads this too, dropping its scale past it rather than failing, but a
-// zoom that needs that is drawn softer than the device can show, so the depth
-// stops here.
-static const CGFloat kVibeMaxBakeImagePixels = 16384;
+// The widest content, in points. The render server keeps layer geometry in
+// floats, and at 2^20 points a float still resolves a quarter of a 3x pixel.
+static const CGFloat kVibeWaveformMaxVirtualWidth = 1 << 20;
 
-// What one baked envelope bitmap may occupy; up to three pager cells hold a
-// played and an unplayed one each, plus the iOS scrubber's bake store's three
-// entries of the same pair, which are usually the bitmaps the cells and
-// bakers already hold. The texture ceiling alone would allow 35MB a bitmap
-// (16384 x 540px x 4 for a 180pt waveform at 3x), over 100MB across the pager.
-static const CGFloat kVibeMaxBakeImageBytes = 24 * 1024 * 1024;
+// The finest a style that reads the summary alone may zoom: two bins of
+// binFrames a point. The summary holds nothing finer than a bin.
+static inline double VibeWaveformMinimumFramesPerPoint(double binFrames) {
+    return 2 * binFrames;
+}
 
-// The deepest zoom whose bake (the whole track at viewWidth / fraction) fits
-// both ceilings. 1.0 — no zoom — when even the un-zoomed track will not fit,
-// and for degenerate input.
-static inline CGFloat VibeWaveformMinimumVisibleFraction(CGFloat viewWidthPt,
-                                                         CGFloat viewHeightPt,
-                                                         CGFloat scale) {
+// The finest with the stream's own frames read in for deep zoom: eight
+// points a frame, where the line through the samples is the picture.
+static const double kVibeWaveformMinimumDetailFramesPerPoint = 0.125;
+
+// The deepest zoom: the track at no fewer than minimumFramesPerPoint frames a
+// point, and no wider than kVibeWaveformMaxVirtualWidth. Without a track, the
+// width alone. 1.0, no zoom, when even the whole track is wider, and for
+// degenerate input.
+static inline CGFloat VibeWaveformMinimumVisibleFraction(CGFloat viewWidthPt, double totalFrames,
+                                                         double minimumFramesPerPoint) {
     // Negated so a NaN lands here rather than on a division.
-    if (!(viewWidthPt > 0) || !(viewHeightPt > 0) || !(scale > 0)) {
+    if (!(viewWidthPt > 0)) {
         return 1;
     }
-    CGFloat heightPx = viewHeightPt * scale;
-    CGFloat widthPx = MIN(kVibeMaxBakeImagePixels,
-                          kVibeMaxBakeImageBytes / (4 * heightPx));
-    CGFloat maxVirtualWidthPt = widthPx / scale;
+    CGFloat maxVirtualWidthPt = kVibeWaveformMaxVirtualWidth;
+    if (totalFrames > 0 && minimumFramesPerPoint > 0) {
+        maxVirtualWidthPt = MIN(maxVirtualWidthPt, (CGFloat)(totalFrames / minimumFramesPerPoint));
+    }
     if (!(maxVirtualWidthPt > viewWidthPt)) {
         return 1;
     }
@@ -50,8 +51,9 @@ static inline CGFloat VibeWaveformMinimumVisibleFraction(CGFloat viewWidthPt,
 }
 
 // What the view DRAWS at; 1.0 is the whole track across the view. Never written
-// back to the request: the floor moves with the layout, and clamping the
-// stored value would shallow a persisted zoom for good on one rotation.
+// back to the request: the floor moves with the layout and the track, and
+// clamping the stored value would shallow a persisted zoom for good on one
+// short track.
 static inline CGFloat VibeWaveformClampVisibleFraction(CGFloat requested,
                                                        CGFloat minimum) {
     if (!(minimum > 0) || !(minimum < 1)) {

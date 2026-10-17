@@ -19,10 +19,11 @@
 static void VibeBenchComponentsParse(NSURL *url) {
 #if VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART
     NSData *displayArt = nil;
-    (void)[AudioTrackMetadata metadataWithURL:url displayArtData:&displayArt];
+    AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:url displayArtData:&displayArt];
 #else
-    (void)[AudioTrackMetadata metadataWithURL:url];
+    AudioTrackMetadata *metadata = [AudioTrackMetadata metadataWithURL:url];
 #endif
+    VibeBenchComponentsRequire(metadata != nil, "metadata parse failed");
 }
 
 // The corpus library's files, every one or one extension's.
@@ -37,7 +38,9 @@ static void VibeBenchComponentsLibraryURLs(NSString *extension, std::vector<NSUR
 }
 
 static void VibeBenchComponentsRegisterMetadata(void) {
-    for (NSString *name in @[@"mp3-320", @"flac-16-44", @"aac-256", @"wav-24-96"]) {
+    for (NSString *name in @[@"mp3-320", @"flac-16-44", @"aac-256", @"wav-24-96", @"aiff-16-44",
+                            @"alac-16-44", @"opus", @"vorbis", @"mp3-320-60min", @"mp3-v0-noxing", @"caf-16-44",
+                            @"w64-16-44", @"rf64-16-44", @"wav-f32-44", @"wav-5.1-44", @"aac-adts", @"mp2-320"]) {
         auto file = std::make_shared<VibeBenchComponentsFileState>();
         // Ten per repetition.
         VibeBenchComponentsAdd("metadata", name.UTF8String, "parse", [name, file]() -> double {
@@ -69,7 +72,7 @@ static void VibeBenchComponentsRegisterMetadata(void) {
         return urls->empty() ? -1 : (double)urls->size();
     }, [urls]() {
         for (NSURL *url : *urls) {
-            (void)url.cacheKey;
+            VibeBenchComponentsRequire(url.cacheKey != nil, "file cache key missing");
         }
     });
 }

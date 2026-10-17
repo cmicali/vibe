@@ -17,6 +17,7 @@
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugConsistency.h"
+#import "DebugHealth.h"
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "AppStats.h"
@@ -337,6 +338,21 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"checked": @(checked),
                     @"violations": violations,
                 });
+            }),
+            // See DebugHealth.h. Reads the player's counts on its serial
+            // queue, so a wedged queue times this out rather than answering
+            // from stale state.
+            VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                         id<VibeDebugPlayerSurface> surface) {
+                return VibeDebugHealthJSON(surface);
+            }),
+            // Sample dump_health right after it for a reading taken at rest.
+            VibeDebugCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                                     id<VibeDebugPlayerSurface> surface) {
+                VibeDebugQuiesce(surface, ^(NSString *response) {
+                    VibeWriteDebugResponse(commandId, response);
+                });
+                return nil; // response written by the poll
             }),
             // Ends the app without a signal, the only way to end one Xcode is
             // debugging (the debugger traps SIGTERM), and on macOS the only

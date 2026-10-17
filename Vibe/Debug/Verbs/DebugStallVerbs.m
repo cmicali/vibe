@@ -160,6 +160,18 @@ NSArray<NSDictionary *> *VibeDebugStallVerbs(void) {
                 return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds), @"depth": @(depth),
                                         @"alternating": @(alternating)});
             }),
+            // The player's serial queue sleeps, as one stuck behind a slow
+            // device call would, for up to 10 s.
+            VibeDebugCmd(@"block_player <seconds>", 0,
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                     id<VibeDebugPlayerSurface> surface) {
+                double seconds = 0;
+                if (tokens.count != 2 || !VibeParseDouble(tokens[1], &seconds) || seconds <= 0 || seconds > 10) {
+                    return VibeErrorJSON(@"usage: block_player <seconds 0-10>");
+                }
+                [surface.debugPlayer debugBlockQueueForSeconds:seconds];
+                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds)});
+            }),
             // The next real render spins inside the pipeline until the hold
             // lifts, so the render clock stops and the beta watcher samples the
             // IO thread. Bounded like block_main; audible as a gap.

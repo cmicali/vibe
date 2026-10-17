@@ -150,6 +150,7 @@ static NSImage *PreviewGlyphImage(NSString *glyph) {
             [theme.waveformTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
     _waveformThemeRow.hidden = kind != VibeWaveformPaletteKindTheme;
     _spectrumPaletteRow.hidden = kind != VibeWaveformPaletteKindSpectrum;
+    _spectrumColoringRow.hidden = kind != VibeWaveformPaletteKindSpectrum;
     _customDarkRow.hidden = !customTheme;
     _customLightRow.hidden = !customTheme || single;
     _bandsDarkRow.hidden = !bandWells;
@@ -247,6 +248,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self refreshWaveformBarSizing];
     [self selectValue:theme.waveformTheme in:_waveformThemePopUp];
     [self selectValue:theme.waveformSpectrumPalette in:_spectrumPalettePopUp];
+    [self selectValue:theme.waveformSpectrumColoring in:_spectrumColoringPopUp];
     _waveformShadeOverlapsSwitch.state = StateForBOOL(theme.waveformShadeOverlaps);
     _waveformGradientSwitch.state = StateForBOOL(theme.waveformGradient);
     _waveformCenteredSwitch.state = StateForBOOL(theme.waveformCentered);
@@ -600,6 +602,11 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
 - (void)spectrumPaletteChanged:(id)sender {
     [self chooseFromPopUp:_spectrumPalettePopUp revealing:nil wells:@[] effect:VibeSettingsLiveEffectWaveformTheme
                     write:^(AppTheme *theme, NSString *identifier) { theme.waveformSpectrumPalette = identifier; }];
+}
+
+- (void)spectrumColoringChanged:(id)sender {
+    [self chooseFromPopUp:_spectrumColoringPopUp revealing:nil wells:@[] effect:VibeSettingsLiveEffectWaveformTheme
+                    write:^(AppTheme *theme, NSString *identifier) { theme.waveformSpectrumColoring = identifier; }];
 }
 
 #pragma mark - Editor: playlist

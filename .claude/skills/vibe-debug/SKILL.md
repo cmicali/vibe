@@ -165,7 +165,7 @@ Build with `make build-ios CONFIG=Debug`. Every iOS verb, the driver's gestures,
 - **Dropbox needs no account in the simulator.** `set_fake_dropbox <host directory> [<transfer-seconds>]` makes that directory the account. `fake_dropbox_fault` scripts the streaming faults, and `scripts/dropbox-streaming.sh` runs every streaming scenario with JSON assertions (`references/ios-verbs.md`, "Streaming scenarios").
 - **TRAP: a folder added with `add_search_folder` is not security-scoped**, so the scope round trip goes unexercised. It is still persisted and restored at the next launch. Remove what a test adds, and check `dump_search` after a relaunch.
 - **TRAP: `tap_favorite_star`'s add is asynchronous.** `ok:true` means the handler ran. Poll `dump_favorites` for the row.
-- **Check `ui.waveformBaked` after `expand_player`.** The bitmap is the scrubber's only picture (`Vibe/WaveformUI/iOS/AGENTS.md`). `false` with a loaded track means its bake never landed.
+- **Check `ui.waveformShown` after `expand_player`.** The scrubber draws its waveform in the turn it is handed one (`Vibe/WaveformUI/iOS/AGENTS.md`). `false` with a loaded track means no waveform reached the page.
 - **Logs stream from the host.** The simulator writes into the mac's unified log, and `simctl spawn … log stream` is refused. Use the same `/usr/bin/log stream` line as macOS.
 - **Simulator blind spots** (interruptions, route changes, background audio past lock, the lock-screen card) need a real device. Report them as unverified rather than driving a phone.
 

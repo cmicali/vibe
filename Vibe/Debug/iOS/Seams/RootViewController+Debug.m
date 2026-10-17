@@ -27,6 +27,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "PlaylistViewController.h"
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
+#import "DebugHealth.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "AudioFX.h"
@@ -482,6 +483,48 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
         }
     }
     return 1;
+}
+
+static NSUInteger VibeCountViews(UIView *view) {
+    NSUInteger total = 1;
+    for (UIView *sub in view.subviews) {
+        total += VibeCountViews(sub);
+    }
+    return total;
+}
+
+// Every scene's windows; views and layers over the visible ones, as the mac
+// counts.
+- (NSDictionary *)debugHealthUI {
+    NSUInteger windows = 0, visibleWindows = 0, views = 0, layers = 0;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) {
+            continue;
+        }
+        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+            windows++;
+            if (window.hidden) {
+                continue;
+            }
+            visibleWindows++;
+            views += VibeCountViews(window);
+            layers += VibeDebugLayerCount(window.layer);
+        }
+    }
+    return @{
+        @"windows": @(windows),
+        @"visibleWindows": @(visibleWindows),
+        @"views": @(views),
+        @"layers": @(layers),
+    };
+}
+
+- (void)debugCloseFile {
+    [self.playback clearPlaylist];
+}
+
+- (void)debugSetWaveformLoading:(BOOL)shown fraction:(float)fraction {
+    [self.player debugSetWaveformLoading:shown fraction:fraction];
 }
 
 // No pitch control on iOS; the same constant Now Playing publishes.

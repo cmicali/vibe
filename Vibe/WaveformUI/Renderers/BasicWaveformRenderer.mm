@@ -21,11 +21,8 @@
     return STR_WAVEFORM_STYLE_BASIC;
 }
 
-// The bake paints Detailed's band-pinned gradient and a continuous played
-// crop; this style re-aims its fade and fills whole blocks. Never gate the
-// bake on isKindOfClass:Detailed.
-- (BOOL)supportsEnvelopeBake {
-    return NO;
+- (double)columnsPerPoint {
+    return 0;
 }
 
 - (NSUInteger)numBarsForWidth:(CGFloat)width {

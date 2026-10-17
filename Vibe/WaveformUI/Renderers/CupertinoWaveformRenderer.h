@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 // theirs.
 
 // Cupertino: the Apple Podcasts waveform — one-point bars at Basic's pitch,
-// each mirrored about the midline at its energy level. Basic's block
+// each mirrored about the midline at its level. Basic's block
 // quantization is the point of the inheritance: a bar a point wide is a
 // device pixel or two, so a continuous fill or a thin hover column would
 // light a pixel of one or nothing, and both advance a whole bar at a time.

@@ -83,34 +83,34 @@ static std::atomic<double> sDebugDecodeSeconds{0};
             completion(nil);
             return;
         }
-        NSUInteger chunks = waveform->getNumChunks();
-        NSUInteger count = columns ? MIN(columns, chunks) : chunks;
+        // Omitted, 8,192 columns across the whole window.
+        NSUInteger count = columns ? columns : 8192;
+        double framesPerColumn = (double)waveform->totalFrames() / (double)count;
         NSMutableArray *mins = [NSMutableArray arrayWithCapacity:count];
         NSMutableArray *maxes = [NSMutableArray arrayWithCapacity:count];
-        NSMutableArray *meanSquares = [NSMutableArray arrayWithCapacity:count];
-        NSMutableArray *frames = [NSMutableArray arrayWithCapacity:count];
-        NSMutableArray *bands[kAudioWaveformBandCount];
-        for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-            bands[b] = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *loudest = [NSMutableArray arrayWithCapacity:count];
+        NSMutableArray *bandLoudest[wavecore::kBandCount];
+        for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
+            bandLoudest[b] = [NSMutableArray arrayWithCapacity:count];
         }
-        std::vector<float> bandMeanSquares(count * kAudioWaveformBandCount);
-        waveform->getBarMeanSquares(count, 0, nullptr, bandMeanSquares.data());
-        for (NSUInteger i = 0; i < count; i++) {
-            AudioWaveformCacheChunk chunk = waveform->getChunkAtIndex(i, count);
-            [mins addObject:@(chunk.getMin())];
-            [maxes addObject:@(chunk.getMax())];
-            [meanSquares addObject:@(chunk.getMeanSquare())];
-            [frames addObject:@(chunk.getFrameCount())];
-            for (NSUInteger b = 0; b < kAudioWaveformBandCount; b++) {
-                [bands[b] addObject:@(bandMeanSquares[i * kAudioWaveformBandCount + b])];
+        std::vector<wavecore::Column> grid(count);
+        waveform->columns(framesPerColumn, 0, count, grid.data());
+        for (const wavecore::Column &column : grid) {
+            [mins addObject:@(column.lo)];
+            [maxes addObject:@(column.hi)];
+            [loudest addObject:@(column.loudest)];
+            for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
+                [bandLoudest[b] addObject:@(column.bandLoudest[b])];
             }
         }
         completion(@{
             @"path": url.path, @"wasCached": @(wasCached), @"complete": @(waveform->isComplete()),
-            @"chunks": @(chunks), @"columns": @(count), @"hasBands": @(waveform->hasBands()),
+            @"bins": @(waveform->binCount()), @"binFrames": @(waveform->binFrames()),
+            @"frames": @(waveform->totalFrames()), @"sampleRate": @(waveform->sampleRate()),
+            @"columns": @(count), @"hasBands": @(waveform->hasBands()),
             @"bpm": @(codable.bpm), @"key": @(codable.key),
-            @"min": mins, @"max": maxes, @"meanSquare": meanSquares, @"frames": frames,
-            @"bands": @{@"low": bands[0], @"mid": bands[1], @"high": bands[2]},
+            @"min": mins, @"max": maxes, @"loudest": loudest,
+            @"bandLoudest": @{@"low": bandLoudest[0], @"mid": bandLoudest[1], @"high": bandLoudest[2]},
         });
     }];
 }

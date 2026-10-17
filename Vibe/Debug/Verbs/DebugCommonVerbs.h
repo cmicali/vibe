@@ -31,6 +31,25 @@ NSArray<NSDictionary *> *VibeDebugLoadingVerbs(void); // DebugLoadingVerbs.m
 // its own "player" fields.
 NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> surface);
 
+// The cores of `scan_bpm` and `scan_key`, in DebugBPMScan.mm (ObjC++, for the
+// waveform mono mix). Each decodes the file and runs its analyzer in the
+// calling process, returning one JSON object with a timing split:
+// {"ok","bpm"} where bpm 0 means no confident tempo, {"ok","key","camelot",
+// "index"} where empty names and index -1 mean no confident key, or {"error"}.
+//
+// They touch no app state, so the mac's CLI client runs these verbs locally:
+// they work with no app running and never touch a running instance. The
+// command-table entries run the same functions app-side, for callers that
+// post the command file directly and for the iOS app. scan_key is the mac's
+// alone, since key analysis is.
+//
+// Sandbox: the running app reads only paths it has been granted, and the
+// direct-exec'd client only its container. So scan-bpm.sh and scan-key.sh
+// stream the file through stdin (`scan_bpm -`) and the client stages it in
+// the container tmp.
+FOUNDATION_EXTERN NSString *VibeDebugBPMScanJSON(NSString *rawPath);
+FOUNDATION_EXTERN NSString *VibeDebugKeyScanJSON(NSString *rawPath);
+
 // "playing", "paused" or "stopped". Reads "playing" during an in-flight open,
 // as the transport control does, since loading reports isPlaying.
 NSString *VibeDebugPlayerStateName(AudioPlayer *player);

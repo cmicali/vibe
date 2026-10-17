@@ -58,6 +58,13 @@ static inline BOOL VibeWaveformAnalysisCovers(VibeWaveformAnalysis have, VibeWav
 @property (atomic) NSUInteger cueStart;
 @property (atomic) NSUInteger cueEnd;
 
+// Reads blocks of the window into the waveform's detail at full resolution,
+// as the mix, for deep zoom (WaveformCore's Detail). Skips blocks already
+// held. Set the window first. NO when the file cannot be opened or read, or
+// the loader was cancelled.
+- (BOOL)loadDetailBlocks:(NSIndexSet *)blocks ofFile:(NSString *)filename
+            intoWaveform:(CodableAudioWaveform *)waveform;
+
 // Permanent, and it ends a streaming file's waits for bytes at once.
 - (void)cancel;
 - (void)detach;

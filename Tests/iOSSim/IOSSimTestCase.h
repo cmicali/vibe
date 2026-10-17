@@ -74,7 +74,5 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXTERN NSArray<UILabel *> *VibeLabelsIn(UIView *view);
 // The first visible label under view showing exactly text.
 FOUNDATION_EXTERN UILabel *_Nullable VibeLabelWithText(UIView *view, NSString *text);
-// Every CGImage held as a layer's contents under layer.
-FOUNDATION_EXTERN NSArray *VibeLayerImages(CALayer *layer);
 
 NS_ASSUME_NONNULL_END

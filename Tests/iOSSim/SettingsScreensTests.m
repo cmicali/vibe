@@ -221,8 +221,8 @@ static void Flip(UISwitch *toggle) {
     XCTAssertEqualObjects(_playback.calls, @[@"applyTrackTransitionSettings"], @"the modes are cleared through the model");
 }
 
-// Type shows only for a style with types. Under Match app the widget's group
-// is Style alone.
+// Type shows only for a style with types, and Coloring only for Spectrum.
+// Both sit under Style. Under Match app the widget's group is Style alone.
 - (void)testTheWaveformGroupsFollowTheStyle {
     AppearanceSettingsViewController *screen = (AppearanceSettingsViewController *)[self show:
             [[AppearanceSettingsViewController alloc] initWithPlayback:_playback.asPlayback]];
@@ -235,6 +235,17 @@ static void Flip(UISwitch *toggle) {
     }
     XCTAssertEqualObjects(Texts(screen, 2), expected);
     XCTAssertEqualObjects(Texts(screen, 3), @[STR_SETTINGS_THEME_WAVEFORM_STYLE]);
+
+    for (NSString *style in WaveformRendererRegistry.styleIdentifiers) {
+        if ([WaveformRendererRegistry paletteKindForIdentifier:style] == VibeWaveformPaletteKindSpectrum) {
+            AppSettings.sharedInstance.waveformStyle = style;
+        }
+    }
+    [screen.tableView reloadData];
+    XCTAssertEqualObjects(Texts(screen, 2), (@[STR_SETTINGS_THEME_WAVEFORM_STYLE, STR_SETTINGS_WAVEFORM_SPECTRUM_COLORING,
+                                              STR_SETTINGS_SECTION_WAVEFORM_THEME, STR_SETTINGS_WAVEFORM_PLAYHEAD_LINE,
+                                              STR_SETTINGS_WAVEFORM_CENTERED]),
+                          @"a style's own settings sit under Style");
 
     AppSettings.sharedInstance.widgetWaveformStyle = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
     [screen.tableView reloadData];
