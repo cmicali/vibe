@@ -18,6 +18,7 @@
 #import "OversamplingDetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -73,10 +74,15 @@ static void VibeBenchComponentsZoomDraw(VibeBenchComponentsZoomState *state, CGF
     [state->renderer updateWaveform:bounds progress:0.4 waveform:state->waveform.get()];
 }
 
-// Thirty scroll frames a screen apart, each drawing a fresh window.
+// Thirty scroll frames a screen apart, each drawing a fresh window. A track
+// too narrow for thirty turns back at its end. A window past the end is
+// CGRectNull, which draws the whole track once and then nothing.
 static void VibeBenchComponentsZoomScroll(VibeBenchComponentsZoomState *state) {
+    int stops = std::max(2, (int)((state->host.bounds.size.width - 3 * kZoomScreen) / kZoomScreen) + 1);
     for (int i = 0; i < 30; i++) {
-        VibeBenchComponentsZoomDraw(state, kZoomScreen * (1.5 + i), YES);
+        int turn = i % (2 * (stops - 1));
+        int stop = turn < stops ? turn : 2 * (stops - 1) - turn;
+        VibeBenchComponentsZoomDraw(state, kZoomScreen * (1.5 + stop), YES);
     }
     [CATransaction flush];
 }

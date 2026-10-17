@@ -59,7 +59,7 @@ The renderer tree hangs off a `geometryFlipped` sublayer that gives the shared m
 
 ## Style and theme
 
-The style comes from `AppSettings.waveformStyle` through the registry's fallback chain, as on the mac. The settings screen writes it (`Vibe/iOS/Settings/AGENTS.md`). `syncWaveformStyle` is the live swap. It rebuilds only when the resolved style differs from the current renderer's, since the pager calls it on every cell and on each `willDisplayCell:`. The new style lands settled, in the same turn.
+The style comes from `AppSettings.waveformStyle` through the registry's fallback chain, as on the mac. The settings screen writes it (`Vibe/iOS/Settings/AGENTS.md`). `syncWaveformStyle` is the live swap. It rebuilds only when the resolved style differs from the current renderer's, since the pager calls it on every cell and on each `willDisplayCell:`. The new style lands settled, in the same turn. **TRAP: the swap lays the view out again whatever the zoom floor did.** Installing sizes the renderer's host before the renderer exists, at the floor of no style. Two Detailed types share a deeper floor, so a swap between them at deep zoom kept a host far narrower than the content, and the played side ended far from the playhead.
 
 Normalize and Gain are mac settings (`AppSettings+Mac.h`). This scrubber sets `normalizesLevels` on at renderer creation and never reads a level setting.
 

@@ -241,6 +241,26 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     XCTAssertEqualWithAccuracy(self.scroll.contentSize.width, kWidth / floor, 0.5);
 }
 
+// Two Detailed types share a floor far deeper than the bins'. A swap between
+// them at that depth keeps the zoom, and the new renderer must span the same
+// content: its host was sized before it existed, at the floor of no style.
+- (void)testAStyleSwapAtDeepZoomKeepsTheRendererAcrossTheContent {
+    [self showAndDraw:CompleteWaveform()];
+    _view.visibleFraction = 0.001;
+    _view.progress = 0.4;
+    CGFloat width = self.scroll.contentSize.width;
+    CALayer *host = [_view valueForKey:@"_rendererHost"];
+    XCTAssertEqualWithAccuracy(host.bounds.size.width, width, 0.01);
+    AppSettings.sharedInstance.waveformStyle = @"detailed";
+    [_view syncWaveformStyle];
+    [self.window layoutIfNeeded];
+    [_view layoutIfNeeded];
+    XCTAssertEqualWithAccuracy(self.scroll.contentSize.width, width, 0.01);
+    XCTAssertEqualWithAccuracy(host.bounds.size.width, width, 0.01, @"the new renderer spans the content");
+    CALayer *clip = [[_view valueForKey:@"_renderer"] valueForKey:@"_playedClip"];
+    XCTAssertEqualWithAccuracy(clip.bounds.size.width, width * 0.4, 0.01, @"the played side ends at the playhead");
+}
+
 - (void)testAGarbageZoomRequestReadsAsTheDefault {
     for (NSNumber *garbage in @[@0, @(-1), @2, @(NAN)]) {
         _view.visibleFraction = 0.3;

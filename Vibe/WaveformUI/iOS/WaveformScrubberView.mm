@@ -290,19 +290,21 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     [self applyResolvedTheme];
 }
 
-// The new style lands at once, settled: a swap, not a load. Its zoom floor
-// can move the width.
+// The new style lands at once, settled: a swap, not a load. TRAP: lay it out
+// again whatever its zoom floor did. Installing sized the host before the
+// renderer existed, at the floor of no style. Two Detailed types share a
+// floor far deeper, so a swap at deep zoom left a host 2,048 pt wide under
+// 320,000 pt of content, and the played side ended far from the playhead.
+// The layout draws the new renderer, since discarding cleared its window.
 - (void)syncWaveformStyle {
     NSString *style = [WaveformRendererRegistry
             resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
     if (!_renderer || [style isEqualToString:_styleIdentifier]) {
         return;
     }
-    CGFloat fraction = [self effectiveVisibleFraction];
     [self discardRenderer];
     [self installRendererIfNeeded];
-    [self applyVirtualGeometryIfFractionMovedFrom:fraction];
-    [self drawRendererWindowForcing:YES];
+    [self applyVirtualGeometry];
     [_renderer settleMorphImmediately];
 }
 
