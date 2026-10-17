@@ -28,6 +28,9 @@
 #import "ThreeBandWaveformRenderer.h"
 #endif
 #import "WaveformMorphEngine.h"
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
+#import "WaveformRendererRegistry.h"
+#endif
 
 #include <cmath>
 #include <memory>
@@ -122,7 +125,9 @@ static NSData *VibeBenchComponentsUIMaskCoverage(WaveformRenderer *renderer) {
     CGContextRelease(ctx);
     return coverage;
 }
+#endif
 
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
 // Typed as Detailed, which declared the bake before the base class did.
 static NSData *VibeBenchComponentsUIBakePixels(DetailedWaveformRenderer *renderer, AudioWaveform *waveform) {
     CGImageRef image = [renderer newEnvelopeImageForSize:renderer.parentLayer.bounds.size scale:2
@@ -133,11 +138,34 @@ static NSData *VibeBenchComponentsUIBakePixels(DetailedWaveformRenderer *rendere
 }
 #endif
 
+// What a renderer draws, settled: its picture. A version from before
+// pictures answers its envelope's samples.
+static NSData *VibeBenchComponentsUISamples(WaveformRenderer *renderer, AudioWaveform *waveform) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+    [renderer settleMorphImmediately];
+    return [renderer.class readsBands] ? VibeBenchComponentsUIBandPicture(renderer)
+                                       : VibeBenchComponentsUIMaskCoverage(renderer);
+#else
+    return [renderer envelopeSamplesForWaveform:waveform];
+#endif
+}
+
+static CGContextRef VibeBenchComponentsUIBitmap(CGSize size) {
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = CGBitmapContextCreate(NULL, (size_t)llround(size.width * 2),
+            (size_t)llround(size.height * 2), 8, 0, space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGColorSpaceRelease(space);
+    VibeBenchComponentsRequire(context != NULL, "waveform bitmap allocation failed");
+    CGContextScaleCTM(context, 2, 2);
+    return context;
+}
+
 struct VibeBenchComponentsUIRenderer {
     CALayer *parent;
     WaveformRenderer *renderer;
     WaveformMorphEngine *morph;
     std::shared_ptr<AudioWaveform> waveform;
+    std::shared_ptr<AudioWaveform> nextWaveform;
 };
 
 // A 2x host layer of this width and the waveform a benchmark draws; answers
@@ -227,6 +255,126 @@ static void VibeBenchComponentsUIDeliver(VibeBenchComponentsUILoad *load) {
 #endif
 
 static void VibeBenchComponentsRegisterRenderers(void) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
+    // Keep coverage in step with the production registry, including style variants.
+    for (NSString *identifier in [[WaveformRendererRegistry availableIdentifiers] sortedArrayUsingSelector:@selector(compare:)]) {
+        for (const char *operation : {"progress", "draw", "resize-draw", "scroll-draw", "pinch-draw", "load-draw", "detail-draw", "bake"}) {
+            std::string op = operation;
+            if (op == "detail-draw" && !VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER) continue;
+#if !VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
+            if (op == "bake") continue;
+#endif
+            auto state = std::make_shared<VibeBenchComponentsUIRenderer>();
+            VibeBenchComponentsAdd("ui-waveform-" + op, identifier.UTF8String, "frame", [state, identifier, op]() -> double {
+                CGRect bounds = VibeBenchComponentsUIHost(state.get(), op == "bake" ? 3200 :
+                        op == "detail-draw" ? 65536 : op == "scroll-draw" ? 8000 : 800, 31);
+                if (op == "load-draw") state->nextWaveform = VibeBenchComponentsUIWaveform(43);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+                if (op == "detail-draw") {
+                    VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(@"flac-16-44");
+                    if (!pcm) return -1;
+                    size_t blockFrames = wavecore::Detail::kBlockFrames;
+                    size_t frames = blockFrames * wavecore::Detail::kMaxBlocks;
+                    VibeBenchComponentsRequire(pcm->frames >= frames, "deep zoom fixture too short");
+                    auto builder = VibeBenchComponentsMixBuilder(true, (int64_t)frames, pcm->rate);
+                    VibeBenchComponentsAppendMix(*builder, pcm->mono.data(), frames);
+                    state->waveform = builder->finish(true);
+                    for (size_t at = 0; at < frames; at += blockFrames) {
+                        state->waveform->detail().insertBlock(at / blockFrames,
+                                std::vector<float>(pcm->mono.begin() + at, pcm->mono.begin() + at + blockFrames));
+                    }
+                }
+#endif
+                state->renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:identifier layer:state->parent
+                                                                                  bounds:bounds isDark:YES];
+                VibeBenchComponentsRequire(state->renderer != nil, "waveform renderer missing");
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+                if (op == "scroll-draw" || op == "pinch-draw" || op == "detail-draw") {
+                    state->renderer.renderRect = CGRectMake(0, 0, 800, 60);
+                }
+#endif
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
+                if (op == "bake" && !state->renderer.supportsEnvelopeBake) return -1;
+#endif
+                [state->renderer updateWaveform:bounds progress:0 waveform:state->waveform.get()];
+                [state->renderer settleMorphImmediately];
+                if (getenv("VIBE_BENCH_COMPONENTS_UI_DUMP") && op != "progress") {
+                    [state->renderer updateProgress:0.4 waveform:state->waveform.get()];
+                    [state->renderer setHoverHighlightX:bounds.size.width * 0.6];
+                    CGSize canvas = bounds.size;
+                    if (op == "scroll-draw" || op == "detail-draw") canvas.width = 800;
+                    CGContextRef context = VibeBenchComponentsUIBitmap(canvas);
+                    [state->parent renderInContext:context];
+                    CGImageRef image;
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
+                    if (op == "bake") image = [state->renderer newEnvelopeImageForSize:bounds.size scale:2
+                                                      samples:[state->renderer envelopeSamplesForWaveform:state->waveform.get()]];
+                    else
+#endif
+                        image = CGBitmapContextCreateImage(context);
+                    VibeBenchComponentsRequire(image != NULL, "waveform preview failed");
+                    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:image];
+                    VibeBenchComponentsUIDump([NSString stringWithFormat:@"ui-waveform-%s-%@.png", op.c_str(), identifier],
+                                             [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}]);
+                    CGImageRelease(image);
+                    CGContextRelease(context);
+                }
+                [CATransaction flush];
+                return 60;
+            }, [state, op]() {
+                CGRect canvas = CGRectMake(0, 0, op == "resize-draw" ? 1000 : 800, 60);
+                CGContextRef context = op == "draw" || op.find("-draw") != std::string::npos ? VibeBenchComponentsUIBitmap(canvas.size) : NULL;
+                for (int i = 0; i < 60; i++) {
+                    @autoreleasepool {
+                        CGFloat offset = 0;
+                        if (op == "bake") {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
+                            NSData *samples = [state->renderer envelopeSamplesForWaveform:state->waveform.get()];
+                            CGImageRef image = [state->renderer newEnvelopeImageForSize:state->parent.bounds.size
+                                                                               scale:2 samples:samples];
+                            VibeBenchComponentsRequire(image != NULL, "waveform envelope bake failed");
+                            CGImageRelease(image);
+#endif
+                        } else {
+                            if (op == "scroll-draw" || op == "pinch-draw" || op == "detail-draw") {
+                                CGFloat width = op == "detail-draw" ? 65536 :
+                                                op == "scroll-draw" ? 8000 : 800 * std::pow(20.0, i / 59.0);
+                                offset = op == "pinch-draw" ? (width - 800) * 0.4 : (width - 800) * i / 59.0;
+                                state->parent.bounds = CGRectMake(0, 0, width, 60);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+                                state->renderer.renderRect = CGRectMake(offset, 0, 800, 60);
+#endif
+                                [state->renderer updateWaveform:state->parent.bounds progress:0.4 waveform:state->waveform.get()];
+                                [state->renderer settleMorphImmediately];
+                            } else if (op == "load-draw") {
+                                [state->renderer updateWaveform:state->parent.bounds progress:0.4
+                                                     waveform:(i % 2 ? state->waveform : state->nextWaveform).get()];
+                                [state->renderer settleMorphImmediately];
+                            } else if (op == "resize-draw") {
+                                state->parent.bounds = CGRectMake(0, 0, 700 + 4 * i, 60);
+                                [state->renderer updateWaveform:state->parent.bounds progress:0.4 waveform:state->waveform.get()];
+                            } else {
+                                [state->renderer updateProgress:(i + 1) / 60.0 waveform:state->waveform.get()];
+                                [state->renderer setHoverHighlightX:i * state->parent.bounds.size.width / 60.0];
+                            }
+                            if (context) {
+                                CGContextClearRect(context, canvas);
+                                CGContextSaveGState(context);
+                                CGContextTranslateCTM(context, -offset, 0);
+                                [state->parent renderInContext:context];
+                                CGContextRestoreGState(context);
+                            }
+                        }
+                    }
+                }
+                CGContextRelease(context);
+                [state->renderer settleMorphImmediately];
+                [CATransaction flush];
+            });
+        }
+    }
+#endif
+
     // Sonic Cirrus at its 1,024-bar cap: a convert dip, its settle and a
     // same-geometry rebuild, ten times — thirty rebuilds over 2,048 layers.
     auto cirrus = std::make_shared<VibeBenchComponentsUIRenderer>();
@@ -275,31 +423,21 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         for (CGFloat width : {300.0, 801.0, 1600.0, 3000.0, 801.0}) {
             detailed->parent.bounds = CGRectMake(0, 0, width, 60);
             [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
-#if !VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
-            [envelopes appendData:[renderer envelopeSamplesForWaveform:detailed->waveform.get()]];
-#endif
+            [envelopes appendData:VibeBenchComponentsUISamples(renderer, detailed->waveform.get())];
             [renderer settleMorphImmediately];
             [masks appendData:VibeBenchComponentsUIMaskCoverage(renderer)];
         }
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-masks.raw", masks);
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
-        // Normalize off and back on, each settled: the levels it draws.
-        for (BOOL normalize : {NO, YES}) {
-            renderer.normalizesLevels = normalize;
-            [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
-            [renderer settleMorphImmediately];
-            [envelopes appendData:VibeBenchComponentsUIMaskCoverage(renderer)];
-        }
-#else
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-bake.raw",
                                   VibeBenchComponentsUIBakePixels(renderer, detailed->waveform.get()));
+#endif
         renderer.normalizesLevels = NO;
         [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
-        [envelopes appendData:[renderer envelopeSamplesForWaveform:detailed->waveform.get()]];
+        [envelopes appendData:VibeBenchComponentsUISamples(renderer, detailed->waveform.get())];
         renderer.normalizesLevels = YES;
         [renderer updateWaveform:detailed->parent.bounds progress:0.4 waveform:detailed->waveform.get()];
-        [envelopes appendData:[renderer envelopeSamplesForWaveform:detailed->waveform.get()]];
-#endif
+        [envelopes appendData:VibeBenchComponentsUISamples(renderer, detailed->waveform.get())];
         VibeBenchComponentsUIDump(@"ui-waveform-detailed-resize.raw", envelopes);
         return 60;
     }, [detailed]() {
@@ -354,7 +492,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         [masks appendData:VibeBenchComponentsUIMaskCoverage(x4->renderer)];
         [x4->renderer settleMorphImmediately];
         VibeBenchComponentsUIDump(@"ui-waveform-oversampling-x4-masks.raw", masks);
-#if !VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
         VibeBenchComponentsUIDump(@"ui-waveform-oversampling-x4-bake.raw",
                                   VibeBenchComponentsUIBakePixels((DetailedWaveformRenderer *)x4->renderer,
                                                                   x4->waveform.get()));
@@ -434,13 +572,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
             threeBand->parent.bounds = CGRectMake(0, 0, width, 60);
             [threeBand->renderer updateWaveform:threeBand->parent.bounds progress:0.4
                                        waveform:threeBand->waveform.get()];
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+            [envelopes appendData:VibeBenchComponentsUISamples(threeBand->renderer, threeBand->waveform.get())];
             [threeBand->renderer settleMorphImmediately];
-            [envelopes appendData:VibeBenchComponentsUIBandPicture(threeBand->renderer)];
-#else
-            [envelopes appendData:[threeBand->renderer envelopeSamplesForWaveform:threeBand->waveform.get()]];
-            [threeBand->renderer settleMorphImmediately];
-#endif
         }
         VibeBenchComponentsUIDump(@"ui-waveform-three-band-resize.raw", envelopes);
         return 60;

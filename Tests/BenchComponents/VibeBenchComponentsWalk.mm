@@ -33,9 +33,7 @@ static void VibeBenchComponentsRegisterWalk(void) {
                     [folder, sort]() {
             NSUInteger folders = 0;
             NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[*folder] sortedBy:sort folderCount:&folders];
-            if (rows.count != 10000) {
-                printf("warning: walk found %lu rows\n", (unsigned long)rows.count);
-            }
+            VibeBenchComponentsRequire(rows.count == 10000, "folder walk lost rows");
         });
     }
 
@@ -46,7 +44,8 @@ static void VibeBenchComponentsRegisterWalk(void) {
     }, []() {
         NSUInteger folders = 0;
         NSURL *library = [NSURL fileURLWithPath:[VibeBenchComponentsCorpus() stringByAppendingPathComponent:@"library"] isDirectory:YES];
-        (void)[FolderWalk expandAndFilterList:@[library] sortedBy:VibeFolderOpenSortName folderCount:&folders];
+        NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[library] sortedBy:VibeFolderOpenSortName folderCount:&folders];
+        VibeBenchComponentsRequire(rows.count == 600, "library walk lost rows");
     });
 }
 

@@ -57,6 +57,13 @@ EXTRAS = {
     'alac-16-44.m4a': ['-c:a', 'alac', '-sample_fmt', 's16p'],
     'opus.opus': ['-c:a', 'libopus', '-b:a', '160k'],
     'vorbis.ogg': ['-c:a', 'vorbis', '-strict', 'experimental', '-q:a', '6'],
+    'caf-16-44.caf': ['-c:a', 'pcm_s16le'],
+    'w64-16-44.w64': ['-c:a', 'pcm_s16le', '-f', 'w64'],
+    'rf64-16-44.wav': ['-c:a', 'pcm_s16le', '-rf64', 'always'],
+    'wav-f32-44.wav': ['-c:a', 'pcm_f32le'],
+    'wav-5.1-44.wav': ['-c:a', 'pcm_s16le', '-ac', '6'],
+    'aac-adts.aac': ['-c:a', 'aac', '-b:a', '256k', '-f', 'adts'],
+    'mp2-320.mp2': ['-c:a', 'mp2', '-b:a', '320k'],
 }
 
 
@@ -82,6 +89,8 @@ def features(src):
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     resampler = find('AudioResampler.h')
+    registry = find('WaveformRendererRegistry.h')
+    renderer = find('WaveformRenderer.h') or find('AudioWaveformRenderer.h')
     summary = next((src / 'Packages').rglob('WaveformSummary.hpp'), None) if (src / 'Packages').is_dir() else None
     raster = next((src / 'Packages').rglob('WaveformRaster.hpp'), None) if (src / 'Packages').is_dir() else None
     metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
@@ -94,12 +103,19 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE': loader is not None and 'VibeWaveformAnalysis analysis;' in loader.read_text(),
         'VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART': any('displayArtData' in h.read_text() for h in metadata),
         'VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE': levels is not None and 'VibeAudioLevelAnalyzerSummarize' in levels.read_text(),
-        'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': summary is not None or (waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text()),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': summary is not None or
+            (waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text()),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY': summary is not None,
         'VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER': raster is not None,
         'VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY': summary is not None and 'kMaxChannels' not in summary.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM': three_band is not None and 'SpectrumWaveformRenderer' in three_band.read_text(),
         'VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER': resampler is not None and 'VibeResamplerCreate' in resampler.read_text(),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW': registry is not None and
+            'rendererForResolvedIdentifier:' in registry.read_text(),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE': renderer is not None and
+            'supportsEnvelopeBake' in renderer.read_text(),
+        'VIBE_BENCH_COMPONENTS_APPLE_MPEG': handle is not None and 'appleMPEGDecoder' in handle.read_text(),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW': loader is not None and 'NSUInteger cueStart' in loader.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]
@@ -289,9 +305,9 @@ def compare(args):
             print(f'round {r + 1}/{rounds}: {side}', flush=True)
             got = run_binary(binary, filter_re, reps, PERF / f'{side}.json', quiet=True)
             for name, bench in got.items():
-                entry = samples[side].setdefault(name, {k: [] for k in ('wall_ms', 'cpu_ms', 'instructions', 'cycles')})
+                entry = samples[side].setdefault(name, {k: [] for k in ('wall_ms', 'cpu_ms', 'instructions', 'cycles', 'syscalls')})
                 entry['unit'], entry['units'] = bench['unit'], bench['units']
-                for key in ('wall_ms', 'cpu_ms', 'instructions', 'cycles'):
+                for key in ('wall_ms', 'cpu_ms', 'instructions', 'cycles', 'syscalls'):
                     entry[key] += bench[key]
     lines = [f'VibeBenchComponents: {base_ref} → {head_label}, {rounds} rounds × {reps} reps, medians', '',
              '| benchmark | Minstr base | Minstr head | Δ instr | CPU ms base | CPU ms head | Δ CPU | wall ms base | wall ms head | Δ wall |',
@@ -301,7 +317,7 @@ def compare(args):
         bi, hi, bc, hc, bw, hw = b['minstr'], h['minstr'], b['cpu_ms'], h['cpu_ms'], b['wall_ms'], h['wall_ms']
         lines.append(f'| {name} | {bi:.1f} | {hi:.1f} | {pct(bi, hi):+.1f}% | {bc:.1f} | {hc:.1f} | {pct(bc, hc):+.1f}% '
                      f'| {bw:.1f} | {hw:.1f} | {pct(bw, hw):+.1f}% |')
-    # No result: built, but skipped for a missing corpus file or FAILED on a timed-out wait.
+    # A built benchmark can skip an unavailable fixture or feature.
     missing = [name for name in sorted(names['base'] | names['head'])
                if name not in samples['base'] or name not in samples['head']]
     if missing:
