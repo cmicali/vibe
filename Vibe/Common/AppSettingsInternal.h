@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_WAVEFORM_CUSTOM_UNPLAYED_LIGHT      @"Settings.waveformCustomUnplayedColorLight"
 #define SETTING_WAVEFORM_BAND_THEME                 @"Settings.waveformBandTheme"
 #define SETTING_WAVEFORM_SPECTRUM_PALETTE           @"Settings.waveformSpectrumPalette"
+#define SETTING_WAVEFORM_SPECTRUM_COLORING          @"Settings.waveformSpectrumColoring"
 #define SETTING_WAVEFORM_CUSTOM_LOW_DARK            @"Settings.waveformCustomLowColorDark"
 #define SETTING_WAVEFORM_CUSTOM_MID_DARK            @"Settings.waveformCustomMidColorDark"
 #define SETTING_WAVEFORM_CUSTOM_HIGH_DARK           @"Settings.waveformCustomHighColorDark"

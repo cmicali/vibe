@@ -112,6 +112,94 @@ static const float kPureRGB[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     AssertRGB(rgb, 0, 1, 0);
 }
 
+#pragma mark - Sections
+
+static const float kNoShares[3] = {1, 1, 1};
+
+static void SetColumn(float *meanSquares, NSUInteger j, float low, float mid, float high) {
+    meanSquares[j * 3] = low;
+    meanSquares[j * 3 + 1] = mid;
+    meanSquares[j * 3 + 2] = high;
+}
+
+// Every column of [begin, end) holds the same three mean squares.
+static BOOL ColumnsAgree(const float *meanSquares, NSUInteger begin, NSUInteger end) {
+    for (NSUInteger j = begin + 1; j < end; j++) {
+        if (memcmp(meanSquares + j * 3, meanSquares + begin * 3, 3 * sizeof(float)) != 0) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+- (void)testSectionsSplitWhereTheMixChanges {
+    float columns[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        // A light shimmer on each side, so neither side is uniform already.
+        float shimmer = j % 2 ? 0.05f : 0;
+        if (j < 200) {
+            SetColumn(columns, j, 1, 0, shimmer);
+        } else {
+            SetColumn(columns, j, shimmer, 0, 1);
+        }
+    }
+    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(columns, 0, 200));
+    XCTAssertTrue(ColumnsAgree(columns, 200, kVibeWaveformSectionColumns));
+    XCTAssertGreaterThan(columns[0], columns[2], @"the low section stays low");
+    XCTAssertGreaterThan(columns[200 * 3 + 2], columns[200 * 3], @"the high section stays high");
+    XCTAssertEqualWithAccuracy(columns[2], 0.025f, 1e-6f, @"a section is its columns' mean");
+}
+
+// Kick and hats alternating every column cost the same split or not, so a
+// section never follows the beat.
+- (void)testSectionsDoNotFollowTheBeat {
+    float columns[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        SetColumn(columns, j, j % 2 ? 0 : 1, 0, j % 2 ? 1 : 0);
+    }
+    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(columns, 0, kVibeWaveformSectionColumns));
+}
+
+// A fill of two columns cannot pay for a section of the minimum length, so it
+// joins its neighbors. Silence joins whatever surrounds it.
+- (void)testSectionsOutlastAFillAndSilence {
+    float columns[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        BOOL blip = j >= 100 && j < 102;
+        BOOL silent = j >= 300 && j < 340;
+        SetColumn(columns, j, silent || blip ? 0 : 1, blip ? 1 : 0, 0);
+    }
+    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(columns, 0, kVibeWaveformSectionColumns));
+}
+
+// The mix weighs each band against its share, as the colors do.
+- (void)testSectionsWeighTheBandsByTheirShares {
+    float plain[kVibeWaveformSectionColumns * 3], shared[kVibeWaveformSectionColumns * 3];
+    for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
+        SetColumn(plain, j, 1, 0, j < 256 ? 0 : 0.1f);
+        SetColumn(shared, j, 1, 0, j < 256 ? 0 : 0.1f);
+    }
+    VibeWaveformSectionMeanSquares(plain, kVibeWaveformSectionColumns, kNoShares);
+    XCTAssertTrue(ColumnsAgree(plain, 0, kVibeWaveformSectionColumns),
+                  @"highs at a tenth of the lows' energy barely move the mix");
+    const float halfHighs[3] = {1, 1, 0.5f};
+    VibeWaveformSectionMeanSquares(shared, kVibeWaveformSectionColumns, halfHighs);
+    XCTAssertTrue(ColumnsAgree(shared, 0, 256));
+    XCTAssertTrue(ColumnsAgree(shared, 256, kVibeWaveformSectionColumns));
+    XCTAssertNotEqual(shared[2], shared[256 * 3 + 2], @"at half the share the highs count four times over");
+}
+
+// Half a second a column until a track would need more than the grid holds.
+- (void)testSectionColumnsAreHalfASecondUntilTheGridFills {
+    double rate = 44100;
+    XCTAssertEqual(VibeWaveformSectionFramesPerColumn(60 * rate, rate), 0.5 * rate);
+    XCTAssertEqual(VibeWaveformSectionFramesPerColumn(256 * rate, rate), 0.5 * rate);
+    XCTAssertEqual(VibeWaveformSectionFramesPerColumn(3600 * rate, rate), 3600 * rate / (double)kVibeWaveformSectionColumns);
+}
+
 - (void)testSpectrumKeepsThePrimariesBrightness {
     float rgb[3];
     VibeSpectrumColor((const float[]){0, 0, 0}, kPureRGB, rgb);

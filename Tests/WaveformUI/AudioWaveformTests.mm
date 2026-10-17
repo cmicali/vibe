@@ -1238,7 +1238,11 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
 
 - (VibeTestPicture)spectrumPictureForWaveform:(AudioWaveform *)waveform scale:(CGFloat)scale
                                         theme:(WaveformTheme *)theme {
-    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    return [self pictureOfRenderer:[self rendererForStyle:@"spectrum"] waveform:waveform scale:scale theme:theme];
+}
+
+- (VibeTestPicture)pictureOfRenderer:(WaveformRenderer *)renderer waveform:(AudioWaveform *)waveform
+                               scale:(CGFloat)scale theme:(WaveformTheme *)theme {
     renderer.parentLayer.contentsScale = scale;
     renderer.theme = theme;
     [renderer updateColors:YES];
@@ -1321,6 +1325,47 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
         XCTAssertEqual(rgb[512], rgb[513]);
         XCTAssertNotEqual(rgb[512], VibeSRGBOf(theme.spectrumColors[0]));
         XCTAssertNotEqual(rgb[512], VibeSRGBOf(theme.spectrumColors[2]));
+    }
+}
+
+// Each half is one section, its shimmer and all. Precise blends the halves
+// across its tent. The coloring is part of the target, so a theme change
+// under the same waveform refills it.
+- (void)testSpectrumBySectionColorsEachSectionByItsWholeMix {
+    // A frame a bin at 8 Hz: a section column is four bins, and Precise's
+    // tent reaches 16 bins each side.
+    auto waveform = std::make_unique<AudioWaveform>(1, true, 8);
+    for (NSUInteger i = 0; i < 1024; i++) {
+        double shimmer = i % 2 ? 0.1 : 0;
+        double bands[wavecore::kBandCount] = {i < 512 ? 1.0 : shimmer, 0.0, i < 512 ? shimmer : 0.2};
+        waveform->appendBin(-0.1f, 0.1f, 0.01, bands, 1);
+    }
+    waveform->markComplete();
+    WaveformRenderer *renderer = [self rendererForStyle:@"spectrum"];
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    VibeTestPicture precise = [self pictureOfRenderer:renderer waveform:waveform.get() scale:1 theme:theme];
+    XCTAssertEqual(precise.width, 512u);
+    size_t row = precise.height / 2;
+    if (precise.width == 512) {
+        XCTAssertNotEqual(precise.rgb(250, row), precise.rgb(100, row), @"Precise blends across the edge");
+    }
+
+    WaveformTheme *bySection = [WaveformTheme monochromeThemeIsDark:YES];
+    bySection.flatFill = YES;
+    bySection.spectrumColorsBySection = YES;
+    VibeTestPicture sections = [self pictureOfRenderer:renderer waveform:waveform.get() scale:1 theme:bySection];
+    XCTAssertEqual(sections.width, 512u);
+    if (sections.width == 512) {
+        // A column's colors read between column centers, so the edge blends
+        // over a pixel.
+        for (size_t x = 0; x < 255; x++) {
+            XCTAssertEqual(sections.rgb(x, row), sections.rgb(0, row), @"x %zu", x);
+        }
+        for (size_t x = 258; x < 512; x++) {
+            XCTAssertEqual(sections.rgb(x, row), sections.rgb(511, row), @"x %zu", x);
+        }
+        XCTAssertNotEqual(sections.rgb(0, row), sections.rgb(511, row));
     }
 }
 

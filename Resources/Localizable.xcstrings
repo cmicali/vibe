@@ -84260,7 +84260,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.waveform_spectrum.blue": {
-      "comment": "Settings, Spectrum waveform color choice: shades of blue, from dark blue for bass to near white for highs, like a CDJ's blue waveform. The color name.",
+      "comment": "Settings, Spectrum waveform color choice: shades of blue, from navy for bass through teal to white for highs, like a DJ program's blue waveform. The color name.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -84440,6 +84440,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "藍色"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.waveform_spectrum.coloring": {
+      "comment": "Settings, the macOS theme editor's Player group and the iOS Appearance screen's Waveform group: row choosing how the Spectrum waveform style picks its colors along the track. Shown only for Spectrum.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coloring"
           }
         }
       },
@@ -84631,6 +84643,18 @@
       },
       "extractionState": "manual"
     },
+    "settings.appearance.waveform_spectrum.precise": {
+      "comment": "Settings, Spectrum waveform coloring choice: every moment of the track takes the color of its own mix of bass, mids and highs, so the color changes often.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precise"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
     "settings.appearance.waveform_spectrum.rgb": {
       "comment": "Settings, Spectrum waveform color choice: bass draws red, mids green and highs blue, as on a DJ deck's spectrum display. Keep the letters RGB.",
       "localizations": {
@@ -84812,6 +84836,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "RGB"
+          }
+        }
+      },
+      "extractionState": "manual"
+    },
+    "settings.appearance.waveform_spectrum.sections": {
+      "comment": "Settings, Spectrum waveform coloring choice: the track is split into its sections, such as the intro, a breakdown or a drop, and each section draws in one steady color. The default.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "By section"
           }
         }
       },

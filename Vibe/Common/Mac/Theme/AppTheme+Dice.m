@@ -49,6 +49,7 @@ static id RandomPick(NSArray *choices) {
     self.waveformSpectrumPalette = RandomPick(@[SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB,
                                                 SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE,
                                                 SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN]);
+    self.waveformSpectrumColoring = RandomPick(VibeWaveformSpectrumColorings());
     self.waveformGradient = RandomChance(50);
     self.waveformCentered = RandomChance(75);
     self.buttonGradient = RandomPick(VibeButtonGradientModes());

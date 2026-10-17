@@ -603,6 +603,27 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         });
     }
 
+    // Through KVC, so a version without the coloring skips it.
+    auto sections = std::make_shared<VibeBenchComponentsUIRenderer>();
+    VibeBenchComponentsAdd("ui-waveform", "spectrum-sections-resize", "frame", [sections]() -> double {
+        WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+        if (![theme respondsToSelector:NSSelectorFromString(@"setSpectrumColorsBySection:")]) {
+            return -1;
+        }
+        [theme setValue:@YES forKey:@"spectrumColorsBySection"];
+        CGRect bounds = VibeBenchComponentsUIHost(sections.get(), 800, 13);
+        sections->renderer = [[SpectrumWaveformRenderer alloc] initWithLayer:sections->parent bounds:bounds
+                                                                      isDark:YES];
+        sections->renderer.theme = theme;
+        [sections->renderer updateColors:YES];
+        sections->renderer.normalizesLevels = YES;
+        [sections->renderer updateWaveform:bounds progress:0.4 waveform:sections->waveform.get()];
+        [sections->renderer settleMorphImmediately];
+        return 60;
+    }, [sections]() {
+        VibeBenchComponentsUILiveResize(sections.get());
+    });
+
     auto spectrum = std::make_shared<VibeBenchComponentsUIRenderer>();
     VibeBenchComponentsAdd("ui-waveform", "spectrum-resize", "frame", [spectrum]() -> double {
         CGRect bounds = VibeBenchComponentsUIHost(spectrum.get(), 800, 13);
