@@ -727,36 +727,69 @@ static NSUInteger VibeID3v2End(NSData *file) {
     }
 }
 // iTunes states its priming and remainder in an iTunSMPB comment rather than
-// a LAME tag, and CoreAudio honors it. Here the comment is an ID3v2.3 COMM
-// frame before a stream with no Info frame.
+// a LAME tag, and CoreAudio honors it. Here the comment is a COMM frame
+// before a stream with no Info frame, in four tags. The plain ID3v2.3 tag and
+// the one only flagged unsynchronised are held to CoreAudio's length. In the
+// third, a frame before the comment holds 0xFF 0xE0, which unsynchronisation
+// writes as 0xFF 0x00 0xE0, and the frame sizes count the decoded bytes. In
+// the fourth, an ID3v2.4 comment flags its own unsynchronisation and a data
+// length.
 - (void)testDrMP3ReadsTheITunesGaplessComment {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
     AudioFileHandle.appleMPEGDecoder = NO;
     NSData *source = [NSData dataWithContentsOfURL:url];
+    NSUInteger start = VibeID3v2End(source);
+    NSData *audio = [source subdataWithRange:NSMakeRange(start, source.length - start)];
     const char text[] = " 00000000 00000240 00000540 0000000000017700 00000000 00000000";
     NSMutableData *comment = [NSMutableData dataWithBytes:"\0engiTunSMPB\0" length:13];
     [comment appendBytes:text length:sizeof(text) - 1];
-    uint8_t frame[10] = {'C', 'O', 'M', 'M', 0, 0, 0, (uint8_t)comment.length, 0, 0};
-    uint32_t tagSize = (uint32_t)(sizeof(frame) + comment.length);
-    uint8_t header[10] = {'I', 'D', '3', 3, 0, 0, 0, 0, (uint8_t)(tagSize >> 7), (uint8_t)(tagSize & 0x7F)};
-    NSMutableData *tagged = [NSMutableData dataWithBytes:header length:sizeof(header)];
-    [tagged appendBytes:frame length:sizeof(frame)];
-    [tagged appendData:comment];
-    NSUInteger start = VibeID3v2End(source);
-    [tagged appendData:[source subdataWithRange:NSMakeRange(start, source.length - start)]];
-    NSURL *gapless = [self writeBytes:tagged name:@"itunes-gapless.mp3"];
-    ExtAudioFileRef reader = NULL;
-    SInt64 length = -1;
-    UInt32 size = sizeof(length);
-    XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)gapless, &reader), noErr);
-    ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileLengthFrames, &size, &length);
-    ExtAudioFileDispose(reader);
-    XCTAssertEqual(length, 96000, @"CoreAudio trims the comment's 576 and 1344 frames");
-    AudioFileHandle *file = [self open:gapless decoder:@"dr_mp3"];
-    XCTAssertEqual(file.length, length);
-    AVAudioPCMBuffer *trimmed = [self read:gapless], *whole = [self read:url];
-    for (NSUInteger c = 0; c < 2; c++) {
-        XCTAssertEqual(memcmp(trimmed.floatChannelData[c], whole.floatChannelData[c] + 576, 96000 * sizeof(float)), 0);
+    // A tag of `frames` bytes, its size syncsafe.
+    NSData *(^tag)(uint8_t, uint8_t, NSData *) = ^NSData *(uint8_t version, uint8_t flags, NSData *frames) {
+        uint32_t size = (uint32_t)frames.length;
+        uint8_t header[10] = {'I', 'D', '3', version, 0, flags, 0, 0, (uint8_t)(size >> 7), (uint8_t)(size & 0x7F)};
+        NSMutableData *bytes = [NSMutableData dataWithBytes:header length:sizeof(header)];
+        [bytes appendData:frames];
+        return bytes;
+    };
+    // A frame whose size field says `size`, followed by `body` as stored.
+    NSData *(^frame)(const char *, uint32_t, uint8_t, NSData *) = ^NSData *(const char *name, uint32_t size, uint8_t flags, NSData *body) {
+        uint8_t header[10] = {(uint8_t)name[0], (uint8_t)name[1], (uint8_t)name[2], (uint8_t)name[3], 0, 0, 0, (uint8_t)size, 0, flags};
+        NSMutableData *bytes = [NSMutableData dataWithBytes:header length:sizeof(header)];
+        [bytes appendData:body];
+        return bytes;
+    };
+    NSData *plain = frame("COMM", (uint32_t)comment.length, 0, comment);
+    NSMutableData *escaped = [frame("PRIV", 4, 0, [NSData dataWithBytes:"\xFF\x00\xE0\x01\x02" length:5]) mutableCopy];
+    [escaped appendData:plain];
+    NSMutableData *own = [NSMutableData dataWithBytes:"\0\0\0" length:3];
+    uint8_t decodedLength = (uint8_t)comment.length;
+    [own appendBytes:&decodedLength length:1];
+    [own appendData:comment];
+    NSDictionary<NSString *, NSData *> *variants = @{
+        @"v2.3": tag(3, 0, plain),
+        @"v2.3, flagged unsynchronised": tag(3, 0x80, plain),
+        @"v2.3, unsynchronised": tag(3, 0x80, escaped),
+        @"v2.4, a frame unsynchronised": tag(4, 0x80, frame("COMM", (uint32_t)own.length, 0x03, own)),
+    };
+    AVAudioPCMBuffer *whole = [self read:url];
+    for (NSString *name in variants) {
+        NSMutableData *tagged = [variants[name] mutableCopy];
+        [tagged appendData:audio];
+        NSURL *gapless = [self writeBytes:tagged name:[NSString stringWithFormat:@"itunes-gapless-%lu.mp3", (unsigned long)name.hash]];
+        if ([name hasPrefix:@"v2.3"] && ![name isEqualToString:@"v2.3, unsynchronised"]) {
+            ExtAudioFileRef reader = NULL;
+            SInt64 length = -1;
+            UInt32 size = sizeof(length);
+            XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)gapless, &reader), noErr);
+            ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileLengthFrames, &size, &length);
+            ExtAudioFileDispose(reader);
+            XCTAssertEqual(length, 96000, @"%@: CoreAudio trims the comment's 576 and 1344 frames", name);
+        }
+        XCTAssertEqual([self open:gapless decoder:@"dr_mp3"].length, 96000, @"%@", name);
+        AVAudioPCMBuffer *trimmed = [self read:gapless];
+        for (NSUInteger c = 0; c < 2; c++) {
+            XCTAssertEqual(memcmp(trimmed.floatChannelData[c], whole.floatChannelData[c] + 576, 96000 * sizeof(float)), 0, @"%@", name);
+        }
     }
 }
 // dr_mp3 never clamps, so one frame whose global gain a flipped bit raised by

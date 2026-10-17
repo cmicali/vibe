@@ -200,31 +200,111 @@ static BOOL VibeMPEGParse(const uint8_t h[4], UInt32 freeBytes, VibeMPEGFrame *f
     return _mpegIndexed > packet;
 }
 
+// A COMM frame's body: encoding, language, description, text. UTF-16 ends
+// the description with two zero bytes, and its BOMs and zero bytes are
+// dropped here, so its ASCII reads as Latin-1. YES when it is iTunSMPB with
+// four hex words.
+static BOOL VibeITunesGaplessText(const uint8_t *body, SInt64 size, SInt64 *priming, SInt64 *remainder, SInt64 *frames) {
+    SInt64 wide = body[0] == 1 || body[0] == 2, i = 4;
+    char text[512];
+    size_t length = 0;
+    while (i + wide < size && (body[i] || (wide && body[i + 1]))) {
+        if (body[i] && body[i] < 0x80) text[length++] = (char)body[i];
+        i++;
+    }
+    if (length != 8 || memcmp(text, "iTunSMPB", 8) != 0) {
+        return NO;
+    }
+    length = 0;
+    for (i += 1 + wide; i < size; i++) {
+        if (body[i] && body[i] < 0x80) text[length++] = (char)body[i];
+    }
+    text[length] = 0;
+    unsigned long long words[4] = {0};
+    char *cursor = text;
+    for (int count = 0; count < 4; count++) {
+        char *after = NULL;
+        words[count] = strtoull(cursor, &after, 16);
+        if (after == cursor) return NO;
+        cursor = after;
+    }
+    *priming = (SInt64)words[1];
+    *remainder = (SInt64)words[2];
+    *frames = (SInt64)words[3];
+    return YES;
+}
+
+// Undoes ID3v2 unsynchronisation in place: the writer put a zero byte after
+// every 0xFF that could read as a frame sync. Answers the length left.
+static SInt64 VibeID3v2Resync(uint8_t *bytes, SInt64 length) {
+    SInt64 to = 0;
+    for (SInt64 from = 0; from < length; from++) {
+        bytes[to++] = bytes[from];
+        if (bytes[from] == 0xFF && from + 1 < length && bytes[from + 1] == 0) {
+            from++;
+        }
+    }
+    return to;
+}
+
+// `count` of a tag's bytes at `at`: the file's, or a decoded tag's when one
+// is held.
+static BOOL VibeID3v2Read(void *context, const uint8_t *decoded, SInt64 length, SInt64 at, SInt64 count, uint8_t *out) {
+    if (decoded) {
+        if (at < 0 || count > length - at) return NO;
+        memcpy(out, decoded + at, (size_t)count);
+        return YES;
+    }
+    UInt32 got = 0;
+    return VibeHandleRead(context, at, (UInt32)count, out, &got) == noErr && got == count;
+}
+
 // iTunes' gapless comment, in the ID3v2 tags before `end`: an ID3v2.2 COM or
 // later COMM frame described as "iTunSMPB", whose text is hex words. The
 // second is the priming, the third the remainder and the fourth the frames
-// between. A tag unsynchronised as a whole is skipped. NO when none states
-// it.
+// between. NO when none states it.
+//
+// TRAP: unsynchronisation. An ID3v2.2 or 2.3 tag can be unsynchronised as a
+// whole, and its frame sizes count the decoded bytes. So that tag is decoded
+// first, up to kVibeID3v2DecodedTagBytes, and walked in memory. An ID3v2.4
+// frame flags its own, and can carry a data length first. Skipping either
+// left an iTunes file playing its encoder's padding.
 static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *priming, SInt64 *remainder, SInt64 *frames) {
+    enum { kVibeID3v2DecodedTagBytes = 16 * 1024 * 1024 };
     void *context = (__bridge void *)handle;
     uint8_t h[10];
     UInt32 got = 0;
-    for (SInt64 tag = 0; tag + 10 <= end && VibeHandleRead(context, tag, 10, h, &got) == noErr && got == 10;) {
+    BOOL found = NO;
+    for (SInt64 tag = 0; !found && tag + 10 <= end && VibeHandleRead(context, tag, 10, h, &got) == noErr && got == 10;) {
         uint32_t bytes = VibeID3v2TagBytes(h);
         if (!bytes) {
             break;
         }
         UInt32 version = h[3];
+        BOOL whole = (h[5] & 0x80) && version <= 3;
         SInt64 at = tag + 10, stop = MIN(end, tag + bytes);
-        if (!(h[5] & 0x80) && version >= 2 && version <= 4) {
+        uint8_t *decoded = NULL;
+        if (whole && stop - at <= kVibeID3v2DecodedTagBytes && (decoded = malloc((size_t)MAX(1, stop - at)))) {
+            if (VibeID3v2Read(context, NULL, 0, at, stop - at, decoded)) {
+                stop = VibeID3v2Resync(decoded, stop - at);
+                at = 0;
+            } else {
+                free(decoded);
+                decoded = NULL;
+            }
+        }
+        if (version >= 2 && version <= 4 && (!whole || decoded)) {
             if (h[5] & 0x40 && version >= 3) {
                 uint8_t x[4];
-                if (VibeHandleRead(context, at, 4, x, &got) != noErr || got != 4) break;
-                at += version == 4 ? ((x[0] & 0x7F) << 21 | (x[1] & 0x7F) << 14 | (x[2] & 0x7F) << 7 | (x[3] & 0x7F))
-                        : 4 + (SInt64)OSReadBigInt32(x, 0);
+                if (!VibeID3v2Read(context, decoded, stop, at, 4, x)) {
+                    at = stop;
+                } else {
+                    at += version == 4 ? ((x[0] & 0x7F) << 21 | (x[1] & 0x7F) << 14 | (x[2] & 0x7F) << 7 | (x[3] & 0x7F))
+                            : 4 + (SInt64)OSReadBigInt32(x, 0);
+                }
             }
             UInt32 header = version == 2 ? 6 : 10;
-            while (at + header <= stop && VibeHandleRead(context, at, header, h, &got) == noErr && got == header && h[0]) {
+            while (!found && at + header <= stop && VibeID3v2Read(context, decoded, stop, at, header, h) && h[0]) {
                 SInt64 size = version == 2 ? (SInt64)h[3] << 16 | h[4] << 8 | h[5]
                         : version == 4 ? (SInt64)(h[4] & 0x7F) << 21 | (h[5] & 0x7F) << 14 | (h[6] & 0x7F) << 7 | (h[7] & 0x7F)
                         : (SInt64)OSReadBigInt32(h, 4);
@@ -234,49 +314,26 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
                 if (size > stop - at - header) {
                     break;
                 }
-                BOOL comment = version == 2 ? memcmp(h, "COM", 3) == 0 : memcmp(h, "COMM", 4) == 0 && h[9] == 0;
+                // ID3v2.4's frame flags: unsynchronised (0x02) and a data
+                // length first (0x01) are read. Compression and encryption,
+                // in either version, are not.
+                UInt32 flags = version == 2 ? 0 : h[9];
+                BOOL comment = version == 2 ? memcmp(h, "COM", 3) == 0
+                        : memcmp(h, "COMM", 4) == 0 && (flags & ~(version == 4 ? 0x03u : 0u)) == 0;
                 uint8_t body[512];
-                if (comment && size >= 5 && size <= (SInt64)sizeof body
-                        && VibeHandleRead(context, at + header, (UInt32)size, body, &got) == noErr && got == size) {
-                    // Encoding, language, description, text. UTF-16 ends the
-                    // description with two zero bytes, and its BOMs and zero
-                    // bytes are dropped here, so its ASCII reads as Latin-1.
-                    UInt32 wide = body[0] == 1 || body[0] == 2, i = 4;
-                    char text[512];
-                    size_t length = 0;
-                    while (i + wide < size && (body[i] || (wide && body[i + 1]))) {
-                        if (body[i] && body[i] < 0x80) text[length++] = (char)body[i];
-                        i++;
-                    }
-                    BOOL described = length == 8 && memcmp(text, "iTunSMPB", 8) == 0;
-                    length = 0;
-                    for (i += 1 + wide; i < size; i++) {
-                        if (body[i] && body[i] < 0x80) text[length++] = (char)body[i];
-                    }
-                    text[length] = 0;
-                    unsigned long long words[4] = {0};
-                    char *cursor = text;
-                    int count = 0;
-                    while (described && count < 4) {
-                        char *after = NULL;
-                        words[count] = strtoull(cursor, &after, 16);
-                        if (after == cursor) break;
-                        cursor = after;
-                        count++;
-                    }
-                    if (count == 4) {
-                        *priming = (SInt64)words[1];
-                        *remainder = (SInt64)words[2];
-                        *frames = (SInt64)words[3];
-                        return YES;
-                    }
+                SInt64 length = size;
+                if (comment && size >= 5 && size <= (SInt64)sizeof body && VibeID3v2Read(context, decoded, stop, at + header, size, body)) {
+                    if (flags & 0x02) length = VibeID3v2Resync(body, length);
+                    SInt64 skip = flags & 0x01 ? 4 : 0;
+                    found = length - skip >= 5 && VibeITunesGaplessText(body + skip, length - skip, priming, remainder, frames);
                 }
                 at += header + size;
             }
         }
+        free(decoded);
         tag += bytes;
     }
-    return NO;
+    return found;
 }
 
 // The frames of a stream with no VBR header whose download runs: an estimate
