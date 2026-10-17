@@ -57,7 +57,6 @@ void BandSplit::addSumSquares(const float *mono, size_t frames, double *sums) {
     size_t i = 0;
     // Two samples a pass, so the history is renamed rather than moved: the
     // same arithmetic in the same order, a fifth fewer instructions.
-    #pragma clang loop unroll_count(4)
     for (; i + 2 <= frames; i += 2) {
         double xa = mono[i], xb = mono[i + 1];
         simd_double4 inA = {xa, xa, y2[1], xa};
