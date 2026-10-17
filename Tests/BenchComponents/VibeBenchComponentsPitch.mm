@@ -98,10 +98,12 @@ static void VibeBenchComponentsRegisterAppleVarispeed(void) {
             if (!*unit) {
                 *unit = VibeBenchComponentsHostVarispeed(source.get());
             }
-            return *unit ? kPitchSeconds : -1;
+            VibeBenchComponentsRequire(*unit != NULL, "Apple varispeed hosting failed");
+            return kPitchSeconds;
         }, [source, unit, percent]() {
-            AudioUnitReset(*unit, kAudioUnitScope_Global, 0);
-            AudioUnitSetParameter(*unit, kVarispeedParam_PlaybackRate, kAudioUnitScope_Global, 0, 1.0f + percent / 100.0f, 0);
+            VibeBenchComponentsRequire(AudioUnitReset(*unit, kAudioUnitScope_Global, 0) == noErr &&
+                    AudioUnitSetParameter(*unit, kVarispeedParam_PlaybackRate, kAudioUnitScope_Global, 0,
+                                          1.0f + percent / 100.0f, 0) == noErr, "Apple varispeed setup failed");
             source->cursor = 0;
             std::vector<float> left(kPitchSlice), right(kPitchSlice);
             struct {
@@ -115,7 +117,8 @@ static void VibeBenchComponentsRegisterAppleVarispeed(void) {
                 list.buffers[0] = (AudioBuffer){1, kPitchSlice * 4, left.data()};
                 list.buffers[1] = (AudioBuffer){1, kPitchSlice * 4, right.data()};
                 AudioUnitRenderActionFlags flags = 0;
-                AudioUnitRender(*unit, &flags, &stamp, 0, kPitchSlice, (AudioBufferList *)&list);
+                VibeBenchComponentsRequire(AudioUnitRender(*unit, &flags, &stamp, 0, kPitchSlice,
+                                           (AudioBufferList *)&list) == noErr, "Apple varispeed render failed");
                 stamp.mSampleTime += kPitchSlice;
             }
         });
@@ -148,14 +151,16 @@ static void VibeBenchComponentsRegisterPitch(void) {
             return kPitchSeconds;
         }, [source, percent]() {
             VibeVarispeed *stage = VibeVarispeedCreate(2, kPitchSlice);
+            VibeBenchComponentsRequire(stage != NULL, "varispeed creation failed");
             VibeVarispeedTable *replaced = NULL;
-            VibeVarispeedSetPitch(stage, percent, &replaced);
+            VibeBenchComponentsRequire(VibeVarispeedSetPitch(stage, percent, &replaced), "varispeed pitch setup failed");
             source->cursor = 0;
             std::vector<float> left(kPitchSlice), right(kPitchSlice);
             VibeStereoBufferList out = { 2, {{ 1, kPitchSlice * 4, left.data() }, { 1, kPitchSlice * 4, right.data() }} };
             AudioTimeStamp stamp = {};
             for (uint32_t done = 0; done < (uint32_t)(kPitchSeconds * kPitchRate); done += kPitchSlice) {
-                VibeVarispeedRender(stage, VibeBenchComponentsStageInput, source.get(), &stamp, kPitchSlice, (AudioBufferList *)&out);
+                VibeBenchComponentsRequire(VibeVarispeedRender(stage, VibeBenchComponentsStageInput, source.get(), &stamp,
+                        kPitchSlice, (AudioBufferList *)&out) == noErr, "varispeed render failed");
             }
             VibeVarispeedFree(stage);
         });

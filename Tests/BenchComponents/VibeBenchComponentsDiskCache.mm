@@ -10,6 +10,10 @@
 
 #import <PINCache/PINDiskCache.h>
 #import <PINOperation/PINOperation.h>
+#import "AudioWaveform.h"
+#import "AudioWaveformLoader.h"
+#import "AudioTrackMetadata.h"
+#import "AudioTrackMetadataInternal.h"
 
 #include <memory>
 #include <vector>
@@ -22,6 +26,9 @@ struct VibeBenchComponentsDiskCache {
     NSString *root;
     std::vector<NSString *> keys;
     NSUInteger next = 0;
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+    std::unique_ptr<wavecore::SummaryBuilder> waveformBuilder;
+#endif
 };
 
 // Vibe's audio caches' terms: least recently used, not TTL, an age limit.
@@ -59,6 +66,101 @@ static void VibeBenchComponentsFillDiskCache(VibeBenchComponentsDiskCache *state
 }
 
 static void VibeBenchComponentsRegisterDiskCache(void) {
+    for (NSString *name in @[@"flac-16-44", @"mp3-320-60min"]) {
+        for (int bands = 0; bands <= (VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE); bands++) {
+            auto waveform = std::make_shared<CodableAudioWaveform *>();
+            auto disk = std::make_shared<VibeBenchComponentsDiskCache>();
+            auto prepare = [waveform, disk, bands, name]() -> double {
+                NSString *path = VibeBenchComponentsFile(name);
+                if (!path) return -1;
+                AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(NO);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
+                loader.analysis = (VibeWaveformAnalysis){.bands = (BOOL)bands};
+#endif
+                *waveform = [loader load:path];
+                VibeBenchComponentsRequire(*waveform != nil && loader.isComplete, "waveform cache fixture failed");
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+                VibeBenchComponentsReader *reader = [[VibeBenchComponentsReader alloc] initWithPath:path interleaved:YES];
+                VibeBenchComponentsRequire(reader != nil, "snapshot fixture open failed");
+                disk->waveformBuilder = std::make_unique<wavecore::SummaryBuilder>(bands, reader.length,
+                                                                                  reader.processingFormat.sampleRate);
+                AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:reader.processingFormat frameCapacity:65536];
+                std::vector<float> scratch(65536);
+                while ([reader read:buffer]) {
+                    const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch.data(), buffer.frameLength,
+                                                             reader.processingFormat.channelCount);
+                    disk->waveformBuilder->append(mono, buffer.frameLength);
+                }
+#endif
+                VibeBenchComponentsFillDiskCache(disk.get(), 0, 1024 * 1024 * 1024);
+                [disk->cache setObject:*waveform forKey:@"waveform"];
+                [disk->queue waitUntilAllOperationsAreFinished];
+                return 100;
+            };
+            for (const char *operation : {"read", "write", "snapshot"}) {
+                std::string op = operation;
+                VibeBenchComponentsAdd("waveform-cache", op + (bands ? "-bands" : "-plain") +
+                                      ([name hasSuffix:@"60min"] ? "-60min" : ""), "op", prepare,
+                                      [waveform, disk, op]() {
+                    for (int i = 0; i < 100; i++) {
+                        @autoreleasepool {
+                            if (op == "write") {
+                                [disk->cache setObject:*waveform forKey:@"waveform"];
+                            } else {
+                                CodableAudioWaveform *result;
+                                if (op == "read") {
+                                    result = (CodableAudioWaveform *)[disk->cache objectForKey:@"waveform"];
+                                } else {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+                                    result = [[CodableAudioWaveform alloc] initWithWaveform:disk->waveformBuilder->snapshot()];
+#else
+                                    result = [*waveform snapshot];
+#endif
+                                }
+                                VibeBenchComponentsRequire(result != nil && result.waveform != nullptr,
+                                                           "waveform cache read or snapshot failed");
+                            }
+                        }
+                    }
+                    [disk->queue waitUntilAllOperationsAreFinished];
+                });
+            }
+        }
+    }
+
+    for (NSString *name in @[@"mp3-320", @"flac-16-44"]) {
+        for (const char *operation : {"read", "write"}) {
+            auto disk = std::make_shared<VibeBenchComponentsDiskCache>();
+            auto metadata = std::make_shared<AudioTrackMetadata *>();
+            std::string op = operation;
+            VibeBenchComponentsAdd("metadata-cache-" + op, name.UTF8String, "op", [name, disk, metadata]() -> double {
+                NSString *path = VibeBenchComponentsFile(name);
+                if (!path) return -1;
+#if VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART
+                NSData *art = nil;
+                *metadata = [AudioTrackMetadata metadataWithURL:[NSURL fileURLWithPath:path] displayArtData:&art];
+#else
+                *metadata = [AudioTrackMetadata metadataWithURL:[NSURL fileURLWithPath:path]];
+#endif
+                VibeBenchComponentsRequire(*metadata != nil, "metadata archive fixture failed");
+                VibeBenchComponentsFillDiskCache(disk.get(), 0, 1024 * 1024 * 1024);
+                [disk->cache setObject:*metadata forKey:@"metadata"];
+                [disk->queue waitUntilAllOperationsAreFinished];
+                return 100;
+            }, [disk, metadata, op]() {
+                for (int i = 0; i < 100; i++) {
+                    @autoreleasepool {
+                        if (op == "write") [disk->cache setObject:*metadata forKey:@"metadata"];
+                        else VibeBenchComponentsRequire([disk->cache objectForKey:@"metadata"] != nil,
+                                                        "metadata archive read failed");
+                    }
+                }
+                [disk->queue waitUntilAllOperationsAreFinished];
+                VibeBenchComponentsRequire([disk->cache containsObjectForKey:@"metadata"], "metadata cache write failed");
+            });
+        }
+    }
+
     // Include the bookkeeping scheduled by a disk cache hit.
     auto hits = std::make_shared<VibeBenchComponentsDiskCache>();
     VibeBenchComponentsAdd("pincache", "hit-300", "hit", [hits]() -> double {
@@ -66,7 +168,7 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
         return 300;
     }, [hits]() {
         for (NSString *key : hits->keys) {
-            (void)[hits->cache objectForKey:key];
+            VibeBenchComponentsRequire([hits->cache objectForKey:key] != nil, "disk cache hit missed");
         }
         [hits->queue waitUntilAllOperationsAreFinished];
     });
@@ -80,7 +182,7 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
         VibeBenchComponentsDiskCache *state = parallel.get();
         dispatch_apply(4, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^(size_t worker) {
             for (NSString *key : state->keys) {
-                (void)[state->cache objectForKey:key];
+                VibeBenchComponentsRequire([state->cache objectForKey:key] != nil, "parallel disk cache hit missed");
             }
         });
         [state->queue waitUntilAllOperationsAreFinished];
