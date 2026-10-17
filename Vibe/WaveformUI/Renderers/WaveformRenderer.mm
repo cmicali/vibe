@@ -164,7 +164,7 @@ static const NSUInteger kMaxBlockBars = 1024;
 - (void)fillLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
              first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
     _fillColumns.resize(count);
-    waveform->columns(frames, first, count, _fillColumns.data(), wavecore::kAllChannels, AudioWaveform::Fill::kUnions);
+    waveform->columns(frames, first, count, _fillColumns.data());
     [self fillLevels:out stride:stride columns:_fillColumns.data() count:count waveform:waveform];
 }
 

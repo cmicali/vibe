@@ -4,13 +4,11 @@ This directory owns the waveform *data*: the decode that generates it, and its p
 
 `AudioWaveform` is WaveformCore's summary (`Packages/WaveformCore/AGENTS.md`), named for Vibe in `AudioWaveform.h`. **Its bins are a fixed span of frames, counted from the start of the decoded window**: 256 frames, a finer power of two for a file too short to fill 8,192 bins, or a coarser one for a file too long to fit 2^18. A decode settles its bin size from the expected length before its first bin, so a length that turns out different moves no bin. Per bin it stores the mix's peak min and max, and the energy as a sum of squared samples. When its decode was asked for them, it stores the same sum for each of three frequency bands. Reads go through a pyramid the builder keeps as bins arrive. `AudioWaveformLoader` generates the data asynchronously through `AudioFileHandle` and hands immutable snapshots to main for progressive rendering. A snapshot costs the same however far the decode has got (`Packages/WaveformCore/AGENTS.md`). `AudioWaveformCache` owns the loader lifecycle and persists through PINCache.
 
-**Vibe keeps the mix's peaks, not each channel's** (`kAudioWaveformStoredChannels`). Vibe draws one mono lane, and a second channel's peaks cost about 65% more disk for nothing on screen. The core can keep two for an app that draws both.
-
 ## The reads
 
 Every read takes frames, never bins, so no caller depends on the bin size. The core's header states each one's contract.
 
-- **`column`** is a stretch of frames: its peaks as an exact union, and its sums exact, a straddling bin counted by its part. The renderers ask for the unions alone (`Fill::kUnions`). A straddling bin's peaks count whole, so a peak never falls between two columns. **A level is never read from a column's peaks.**
+- **`column`** is a stretch of frames: its peaks as an exact union. A straddling bin's peaks count whole, so a peak never falls between two columns. **A level is never read from a column's peaks.**
 - **A column's `loudest` is its level**: the RMS of the loudest 20 ms window centred on a bin it covers, in the mix and in each band. It is a union like the peaks, so no hit is averaged away and its height does not depend on where a resize put the edges. Over the whole track it is Normalize's reference, which no view can move.
 - **`tentBandMeanSquares`** is the bands under a tent centred on each column, which Spectrum's colors read.
 

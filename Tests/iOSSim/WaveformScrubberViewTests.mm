@@ -134,10 +134,10 @@ static const CGFloat kHeight = 120;
 // A loud, varied envelope; complete, as an archive is. Long enough that the
 // default zoom and half of it are both drawable.
 static CodableAudioWaveform *CompleteWaveform(void) {
-    auto waveform = std::make_unique<AudioWaveform>(64, 1, false, 44100);
+    auto waveform = std::make_unique<AudioWaveform>(64, false, 44100);
     for (size_t i = 0; i < 4096; i++) {
-        float level = 0.3f + 0.6f * (float)fabs(sin((double)i / 9.0)), lo = -level;
-        waveform->appendBin(&lo, &level, level * level * 64, nullptr, 64);
+        float level = 0.3f + 0.6f * (float)fabs(sin((double)i / 9.0));
+        waveform->appendBin(-level, level, level * level * 64, nullptr, 64);
     }
     waveform->markComplete();
     return [[CodableAudioWaveform alloc] initWithWaveform:std::move(waveform)];

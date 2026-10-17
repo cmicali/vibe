@@ -35,9 +35,6 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
 // and energy in bins of fixed time, read through its pyramid.
 typedef wavecore::Summary AudioWaveform;
 
-// Vibe draws one mono lane, so a summary keeps the mix's peaks.
-static const uint32_t kAudioWaveformStoredChannels = 1;
-
 // The entry-format version. It is encoded in every archive and embedded in the
 // disk cache's name, since AudioWaveformCache derives
 // "audio_waveform_cache_v<N>" from it, so both invalidation mechanisms move

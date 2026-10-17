@@ -243,7 +243,6 @@
     std::unique_ptr<AudioWaveform> empty = builder->snapshot();
     XCTAssertEqual(empty->binFrames(), wavecore::kBaseBinFrames);
     XCTAssertEqual(empty->totalFrames(), pass.totalFrames, @"a streaming load lands where it will stay");
-    XCTAssertEqual(empty->channels(), kAudioWaveformStoredChannels);
     XCTAssertFalse(empty->hasBands(), @"only a decode asked for the bands holds them");
 
     pass.totalFrames = 12;
@@ -335,7 +334,7 @@ static BOOL ColumnHasContent(const wavecore::Column &column) {
     _loader.cueStart = 37;   // frame 21756
     _loader.cueEnd = 0;
     CodableAudioWaveform *waveform = [[CodableAudioWaveform alloc]
-            initWithWaveform:std::make_unique<AudioWaveform>(256, 1, false, 44100)];
+            initWithWaveform:std::make_unique<AudioWaveform>(256, false, 44100)];
     NSMutableIndexSet *blocks = [NSMutableIndexSet indexSetWithIndex:1];
     [blocks addIndex:9];   // past the window: skipped
     XCTAssertTrue([_loader loadDetailBlocks:blocks ofFile:path intoWaveform:waveform]);
@@ -436,19 +435,18 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     AudioWaveform *waveform = result.waveform;
     XCTAssertEqual(waveform->frames(), 88200);
     XCTAssertTrue(waveform->isComplete());
-    NSUInteger silent = 0, wrongEnergy = 0;
+    NSUInteger silent = 0, wrongLevel = 0;
     for (const wavecore::Column &column : BinColumns(waveform)) {
         if (!ColumnHasContent(column)) {
             silent++;
         }
-        // Every sample of the fixture is ±0.5, so every bin's mean square is
-        // exactly 0.25.
-        if (fabsf(column.meanSquare() - 0.25f) > 1e-4f) {
-            wrongEnergy++;
+        // Every sample of the fixture is ±0.5, so every window's RMS is 0.5.
+        if (fabsf(column.loudest - 0.5f) > 1e-3f) {
+            wrongLevel++;
         }
     }
     XCTAssertEqual(silent, (NSUInteger)0, @"every bin of a full-scale signal must have content");
-    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every bin of a constant ±0.5 signal carries mean square 0.25");
+    XCTAssertEqual(wrongLevel, (NSUInteger)0, @"every bin of a constant ±0.5 signal is at level 0.5");
 }
 
 // A cue row's waveform is its window at the full resolution: every bin is
@@ -463,17 +461,17 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
 
     AudioWaveform *waveform = result.waveform;
     XCTAssertEqual(waveform->frames(), 44100, @"the window is one second");
-    NSUInteger wrongEnergy = 0;
+    NSUInteger wrongLevel = 0;
     for (const wavecore::Column &column : BinColumns(waveform)) {
-        if (fabsf(column.meanSquare() - 0.0625f) > 1e-4f) {
-            wrongEnergy++;
+        if (fabsf(column.loudest - 0.25f) > 1e-3f) {
+            wrongLevel++;
         }
     }
-    XCTAssertEqual(wrongEnergy, (NSUInteger)0, @"every bin of the window is the ±0.25 second");
+    XCTAssertEqual(wrongLevel, (NSUInteger)0, @"every bin of the window is the ±0.25 second");
 }
 
 // A second each of 80 Hz, 1 kHz and 8 kHz: each lands in its own band at
-// about the tone's power, at least 10 dB over the other two.
+// about the tone's level, at least 10 dB over the other two.
 - (void)testEachToneLandsInItsOwnBand {
     static const double tones[] = {80, 1000, 8000};
     NSString *path = [self writeWAVNamed:@"tones.wav" seconds:3 sample:^float(AVAudioFrameCount i) {
@@ -488,16 +486,17 @@ static NSUInteger DescriptorsOpenOn(NSString *path) {
     CodableAudioWaveform *result = [loader load:path];
     XCTAssertNotNil(result);
     XCTAssertTrue(result.waveform->hasBands());
-    // Six columns: each second's latter half is past the filters' settling.
-    wavecore::Column halves[6];
-    result.waveform->columns(result.waveform->totalFrames() / 6.0, 0, 6, halves);
+    // Twelve columns. Each second's third quarter is past the filters'
+    // settling, and its loudest windows reach no other tone.
+    wavecore::Column quarters[12];
+    result.waveform->columns(result.waveform->totalFrames() / 12.0, 0, 12, quarters);
     for (NSUInteger tone = 0; tone < 3; tone++) {
-        const wavecore::Column &half = halves[tone * 2 + 1];
-        float own = half.bandMeanSquare(tone);
-        XCTAssertEqualWithAccuracy(own, 0.125f, 0.03f, @"%g Hz", tones[tone]);
+        const wavecore::Column &settled = quarters[tone * 4 + 2];
+        float own = settled.bandLoudest[tone];
+        XCTAssertEqualWithAccuracy(own, sqrtf(0.125f), 0.045f, @"%g Hz", tones[tone]);
         for (NSUInteger band = 0; band < wavecore::kBandCount; band++) {
             if (band != tone) {
-                XCTAssertGreaterThan(own, 10 * half.bandMeanSquare(band),
+                XCTAssertGreaterThan(own, sqrtf(10) * settled.bandLoudest[band],
                                      @"%g Hz leaks into band %lu", tones[tone], band);
             }
         }
@@ -634,20 +633,21 @@ static const time_t kStreamModified = 1700000000;
     return YES;
 }
 
-// The peaks exactly, and the energy to the archive's float16: a waveform
-// served from the cache matches the decode it was filed from.
-static BOOL ColumnsEqual(const wavecore::Column &a, const wavecore::Column &b) {
-    return a.lo == b.lo && a.hi == b.hi
-            && fabs(a.meanSquare() - b.meanSquare()) <= 2e-3 * a.meanSquare() + 1e-9;
+// The peaks exactly, and the level to the archive's float16: a waveform
+// served from the cache matches the decode it was filed from. A snapshot's
+// front has not read its whole loudest windows yet, so it compares peaks.
+static BOOL ColumnsEqual(const wavecore::Column &a, const wavecore::Column &b, BOOL levels) {
+    return a.lo == b.lo && a.hi == b.hi && (!levels || fabsf(a.loudest - b.loudest) <= 2e-3f * a.loudest + 1e-6f);
 }
 
 // How many leading bins of `waveform` are the reference's.
-static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWaveform *reference) {
+static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWaveform *reference,
+                               BOOL levels = YES) {
     NSUInteger count = reference.waveform->binCount();
     double binFrames = reference.waveform->binFrames();
     NSUInteger i = 0;
     while (i < count && ColumnsEqual(waveform.waveform->column(i * binFrames, (i + 1) * binFrames),
-                                     reference.waveform->column(i * binFrames, (i + 1) * binFrames))) {
+                                     reference.waveform->column(i * binFrames, (i + 1) * binFrames), levels)) {
         i++;
     }
     return i;
@@ -701,10 +701,10 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
         partial++;
         CodableAudioWaveform *snapshot = recorder.snapshots[i];
         XCTAssertFalse(snapshot.waveform->isComplete());
-        XCTAssertGreaterThanOrEqual(MatchingBins(snapshot, reference) + 1, filled, @"snapshot %lu", (unsigned long)i);
+        XCTAssertGreaterThanOrEqual(MatchingBins(snapshot, reference, NO) + 1, filled, @"snapshot %lu", (unsigned long)i);
         double binFrames = reference.waveform->binFrames();
         wavecore::Column last = snapshot.waveform->column((count - 1) * binFrames, count * binFrames);
-        XCTAssertEqual(last.meanSquare(), 0.0f, @"what has not arrived is still empty");
+        XCTAssertEqual(last.loudest, 0.0f, @"what has not arrived is still empty");
         XCTAssertEqual(snapshot.waveform->totalFrames(), reference.waveform->totalFrames(),
                        @"a snapshot lays out on the whole length");
     }

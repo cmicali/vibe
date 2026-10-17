@@ -26,7 +26,7 @@ static inline std::unique_ptr<AudioWaveform> VibeTestWaveform(
         const std::vector<std::array<float, wavecore::kBandCount>> &bandMeanSquares = {},
         bool complete = true, uint32_t binFrames = 1) {
     double sampleRate = 44100.0 * binFrames / wavecore::kBaseBinFrames;
-    auto waveform = std::make_unique<AudioWaveform>(binFrames, 1, !bandMeanSquares.empty(), sampleRate);
+    auto waveform = std::make_unique<AudioWaveform>(binFrames, !bandMeanSquares.empty(), sampleRate);
     for (size_t i = 0; i < bins.size(); i++) {
         double bands[wavecore::kBandCount] = {};
         if (!bandMeanSquares.empty()) {
@@ -34,7 +34,7 @@ static inline std::unique_ptr<AudioWaveform> VibeTestWaveform(
                 bands[b] = (double)bandMeanSquares[i][b] * binFrames;
             }
         }
-        waveform->appendBin(&bins[i].lo, &bins[i].hi, (double)bins[i].meanSquare * binFrames,
+        waveform->appendBin(bins[i].lo, bins[i].hi, (double)bins[i].meanSquare * binFrames,
                             bandMeanSquares.empty() ? nullptr : bands, binFrames);
     }
     if (complete) {

@@ -43,7 +43,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
         // bins as it does there. At 44.1 kHz it would span 882 and average
         // every hit away.
         const NSUInteger bins = 8192;
-        waveform = new AudioWaveform(1, 1, true, 44100.0 / wavecore::kBaseBinFrames);
+        waveform = new AudioWaveform(1, true, 44100.0 / wavecore::kBaseBinFrames);
         for (NSUInteger i = 0; i < bins; i++) {
             float x = (float)i / (float)bins;
             float envelope = 0.08f + 0.48f * powf(fabsf(sinf(x * 23)), 2)
@@ -56,7 +56,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
                 meanSquare * 0.06f * (0.2f + 0.8f * fabsf(sinf(x * 13 + 1))),
                 meanSquare * 0.02f * (0.1f + 0.9f * fabsf(sinf(i * 0.37f))),
             };
-            waveform->appendBin(&lo, &hi, meanSquare, bands, 1);
+            waveform->appendBin(lo, hi, meanSquare, bands, 1);
         }
         waveform->markComplete();
     });

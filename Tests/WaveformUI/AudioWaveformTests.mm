@@ -1278,12 +1278,11 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
                                                   theme:(WaveformTheme *)theme {
     // A frame a bin, at a rate that puts the tent's feet two bins from its
     // centre.
-    auto waveform = std::make_unique<AudioWaveform>(1, 1, true, 2.0 / kVibeWaveformSpectrumColorSeconds);
+    auto waveform = std::make_unique<AudioWaveform>(1, true, 2.0 / kVibeWaveformSpectrumColorSeconds);
     for (NSUInteger i = 0; i < 1024; i++) {
         bool low = (i / period) % 2 == 0;
-        float lo = -0.1f, hi = 0.1f;
         double bands[wavecore::kBandCount] = {low ? 1.0 : 0.0, 0.0, low ? 0.0 : 0.2};
-        waveform->appendBin(&lo, &hi, 0.01, bands, 1);
+        waveform->appendBin(-0.1f, 0.1f, 0.01, bands, 1);
     }
     waveform->markComplete();
     VibeTestPicture picture = [self spectrumPictureForWaveform:waveform.get() scale:scale theme:theme];

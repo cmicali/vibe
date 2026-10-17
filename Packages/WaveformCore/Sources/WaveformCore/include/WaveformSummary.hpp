@@ -2,8 +2,8 @@
 //  WaveformSummary.hpp
 //  WaveformCore
 //
-//  A waveform summary: per-bin peaks and energy on a grid of absolute time,
-//  the multi-level reads every display is drawn from, and its archive form.
+//  A waveform summary: a mono mix's peaks and energy per bin, on a grid of
+//  absolute time, the reads every display is drawn from, and its archive.
 //  Plain C++17 over Accelerate and Compression. No app types.
 //
 
@@ -23,8 +23,6 @@ namespace wavecore {
 
 // Low, mid and high (BandSplit).
 constexpr size_t kBandCount = 3;
-// Channels a summary stores. A file with more stores its mono mix.
-constexpr uint32_t kMaxChannels = 2;
 // The finest bin a long file stores: 5.8 ms at 44.1 kHz.
 constexpr uint32_t kBaseBinFrames = 256;
 // Short files take finer bins, down to one frame, until they hold this many.
@@ -38,9 +36,6 @@ constexpr int64_t kMaximumBins = int64_t(1) << 18;
 // level that fits. So a snapshot costs the same for an hour as for a minute,
 // and never holds fewer than kMinimumBins.
 constexpr size_t kSnapshotBins = 4 * kMinimumBins;
-// Read extremes through the coarsest level that still puts this many bins in
-// a column, so a column's edges move by at most an eighth of it.
-constexpr double kBinsPerColumn = 8;
 // A level is the loudest window this long a column covers, about a kick's
 // body. A column's mean would average each hit into the frames around it.
 constexpr double kTransientSeconds = 0.02;
@@ -50,25 +45,16 @@ constexpr double kTransientSeconds = 0.02;
 // kMaximumBins.
 uint32_t BinFramesForLength(int64_t frames);
 
-// Asks for the union of every stored channel.
-constexpr int kAllChannels = -1;
-
 // What a stretch of frames holds. lo and hi are the extremes of the frames it
-// covers, the sums cover exactly `frames` of them. loudest is the RMS of the
-// loudest kTransientSeconds window centred on a bin it covers, in the mix and
-// in each band. Like the extremes it is a union, so no hit is ever averaged
-// away and no column edge can hide one.
+// covers. loudest is the RMS of the loudest kTransientSeconds window centred
+// on a bin it covers, in the mix and in each band. All are unions, so no hit
+// is ever averaged away and no column edge can hide one.
 struct Column {
     float lo = 0;
     float hi = 0;
-    double sumSquares = 0;
-    double frames = 0;
-    std::array<double, kBandCount> bandSumSquares = {0, 0, 0};
     float loudest = 0;
     std::array<float, kBandCount> bandLoudest = {0, 0, 0};
 
-    float meanSquare() const { return frames > 0 ? float(sumSquares / frames) : 0.0f; }
-    float bandMeanSquare(size_t band) const { return frames > 0 ? float(bandSumSquares[band] / frames) : 0.0f; }
     float extent() const { return std::fmax(std::fabs(lo), std::fabs(hi)); }
 };
 
@@ -112,12 +98,11 @@ private:
 
 class Summary {
 public:
-    Summary(uint32_t binFrames, uint32_t channels, bool bands, double sampleRate);
+    Summary(uint32_t binFrames, bool bands, double sampleRate);
     Summary(const Summary &) = delete;
     Summary &operator=(const Summary &) = delete;
 
-    uint32_t binFrames() const { return binFrames_; }
-    uint32_t channels() const { return channels_; }
+    uint32_t binFrames() const { return uint32_t(base_.binFrames); }
     bool hasBands() const { return bands_; }
     double sampleRate() const { return sampleRate_; }
     size_t binCount() const { return base_.count; }
@@ -129,19 +114,15 @@ public:
     int64_t totalFrames() const { return complete_ ? frames_ : std::max(totalFrames_, frames_); }
     bool isComplete() const { return complete_; }
 
-    // What a read fills: every field, or the unions alone (extremes and
-    // loudest windows), which is all a picture draws and skips the sums.
-    enum class Fill { kEverything, kUnions };
-    // Frames [first, last), clipped to the frames held. Extremes are exact
-    // unions, a straddling base bin taken whole so a peak is never lost.
-    // Sums are exact, a straddling base bin counted by its part.
-    Column column(double first, double last, int channel = kAllChannels, Fill fill = Fill::kEverything) const;
+    // Frames [first, last), clipped to the frames held: the exact union of
+    // the base bins it touches, a straddling bin taken whole so a peak is
+    // never lost.
+    Column column(double first, double last) const;
     // Column k of the grid covers [k F, (k + 1) F). count columns from
     // firstIndex into out. The grid counts from frame 0, so a scroll or a
     // window never moves a column's frames. Columns finer than a bin read
     // the mix's own frames where the detail holds every one they cross.
-    void columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out,
-                 int channel = kAllChannels, Fill fill = Fill::kEverything) const;
+    void columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out) const;
     // Each grid column's band mean squares under a tent centred on it,
     // halfWidth frames from centre to foot, into bands (low to high per
     // column). Zeros without bands.
@@ -158,8 +139,7 @@ public:
 
     // For builders and tests. A bin holds binFrames frames except the last.
     // Before the summary is shared only.
-    void appendBin(const float *lo, const float *hi, double sumSquares, const double *bandSumSquares,
-                   uint32_t frames);
+    void appendBin(float lo, float hi, double sumSquares, const double *bandSumSquares, uint32_t frames);
     void setTotalFrames(int64_t frames) { totalFrames_ = frames; }
     void markComplete() { complete_ = true; }
 
@@ -167,8 +147,10 @@ private:
     struct Level {
         uint64_t binFrames = 0;
         size_t count = 0;
-        std::array<std::vector<_Float16>, kMaxChannels> lo;
-        std::array<std::vector<_Float16>, kMaxChannels> hi;
+        std::vector<_Float16> lo;
+        std::vector<_Float16> hi;
+        // The loudest windows and the archive read the sums. The tent reads
+        // the bands' at every level.
         std::vector<float> sumSquares;
         std::vector<float> bandSumSquares;  // kBandCount per bin
         // Derived with the pyramid, never archived: the loudest window's RMS.
@@ -185,13 +167,10 @@ private:
     void derive(bool final) const;
     void reduceGroups(Level &up, const Level &below, size_t groups, size_t count) const;
     std::unique_ptr<Summary> snapshot() const;
-    void uniteBins(size_t b0, size_t b1, int channel, Column &into) const;
-    void accumulate(size_t levelIndex, double first, double last, Column &into) const;
+    void uniteBins(size_t b0, size_t b1, Column &into) const;
     double binEnd(const Level &level, size_t bin) const;
     double binWidth(const Level &level, size_t bin) const { return binEnd(level, bin) - double(bin * level.binFrames); }
 
-    uint32_t binFrames_;
-    uint32_t channels_;
     bool bands_;
     double sampleRate_;
     int64_t frames_ = 0;
@@ -219,19 +198,15 @@ private:
     mutable Detail detail_;
 };
 
-// Builds a summary from a decode's stream, in order. The mono mix carries the
-// energy and the bands; the interleaved samples carry each channel's peaks.
+// Builds a summary from a decode's mono mix, in order: its peaks, its energy
+// and its bands.
 class BandSplit;
 class SummaryBuilder {
 public:
-    // inputChannels is the stride of append's interleaved samples. With
-    // storedChannels 2 a stereo input keeps each channel's peaks. Otherwise
-    // the summary keeps the mix's.
-    SummaryBuilder(uint32_t inputChannels, uint32_t storedChannels, bool bands, int64_t expectedFrames,
-                   double sampleRate);
+    SummaryBuilder(bool bands, int64_t expectedFrames, double sampleRate);
     ~SummaryBuilder();
 
-    void append(const float *interleaved, const float *mono, size_t frames);
+    void append(const float *mono, size_t frames);
     void setExpectedFrames(int64_t frames) { summary_->setTotalFrames(frames); }
     // The bins so far at the finest level of at most kSnapshotBins, for a
     // streaming load's progressive delivery.
@@ -244,10 +219,9 @@ private:
 
     std::unique_ptr<Summary> summary_;
     std::unique_ptr<BandSplit> split_;
-    uint32_t inputChannels_;
     uint32_t binFill_ = 0;
-    std::array<float, kMaxChannels> lo_;
-    std::array<float, kMaxChannels> hi_;
+    float lo_ = 0;
+    float hi_ = 0;
     double sumSquares_ = 0;
     std::array<double, kBandCount> bandSumSquares_ = {0, 0, 0};
 };

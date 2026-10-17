@@ -285,8 +285,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         // A column at a time, never through the detail, whose frames hold no
         // bands.
         double k = (double)(part.first + (int64_t)i);
-        wavecore::Column column = waveform->column(k * frames, (k + 1) * frames, wavecore::kAllChannels,
-                                                   AudioWaveform::Fill::kUnions);
+        wavecore::Column column = waveform->column(k * frames, (k + 1) * frames);
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
             out[i * stride + b] = kBandCeiling[b] * VibeWaveformBarLevel(column.bandLoudest[b], references[b], gainDB);
         }

@@ -90,7 +90,6 @@
     const AVAudioFrameCount blockFrames = (AVAudioFrameCount)wavecore::Detail::kBlockFrames;
     AVAudioPCMBuffer *buffer = file ? [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
                                                                   frameCapacity:blockFrames] : nil;
-    std::vector<float> scratch(pass.numChannels > 1 ? blockFrames : 0);
     BOOL ok = buffer != nil;
     for (NSUInteger block = blocks.firstIndex; ok && block != NSNotFound; block = [blocks indexGreaterThanIndex:block]) {
         AVAudioFramePosition start = (AVAudioFramePosition)block * blockFrames;
@@ -102,9 +101,14 @@
         ok = !self.isCancelled && [file seekToFrame:pass.windowStart + start error:&error]
                 && [file readIntoBuffer:buffer frameCount:count error:&error];
         if (ok) {
-            const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch.data(),
+            // Mixed straight into the block the detail keeps.
+            std::vector<float> samples(buffer.frameLength);
+            const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], samples.data(),
                                                      buffer.frameLength, pass.numChannels);
-            summary->detail().insertBlock((int64_t)block, std::vector<float>(mono, mono + buffer.frameLength));
+            if (mono != samples.data()) {
+                std::copy_n(mono, buffer.frameLength, samples.data());
+            }
+            summary->detail().insertBlock((int64_t)block, std::move(samples));
         } else if (error && ![AudioFileHandle isInterruption:error]) {
             LogError(@"Detail read failed at frame %lld of %@: %@", start, filename, error);
         }
@@ -305,8 +309,7 @@
 // changes later moves none of them.
 - (std::unique_ptr<wavecore::SummaryBuilder>)builderForPass:(struct VibeWaveformDecodePass *)pass
                                                  sampleRate:(double)sampleRate {
-    return std::make_unique<wavecore::SummaryBuilder>((uint32_t)pass->numChannels, kAudioWaveformStoredChannels,
-                                                      self.analysis.bands, pass->totalFrames, sampleRate);
+    return std::make_unique<wavecore::SummaryBuilder>(self.analysis.bands, pass->totalFrames, sampleRate);
 }
 
 #pragma mark - Phase 3: the pipelined decode
@@ -441,7 +444,7 @@
             // The summary slices the block into its bins, and splits the
             // bands from the mono when it keeps them.
             procStart = VibeLoadClockNow();
-            builder->append(buffer.floatChannelData[0], mono, numFrames);
+            builder->append(mono, numFrames);
             procNanos.chunk += VibeLoadClockNow() - procStart;
             framesProcessed += numFrames;
 

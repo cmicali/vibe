@@ -352,7 +352,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     // linearly between that grid's centers, so no edge of it shows when
     // zoomed in.
     _columns.resize(count);
-    waveform->columns(frames, first, count, _columns.data(), wavecore::kAllChannels, AudioWaveform::Fill::kUnions);
+    waveform->columns(frames, first, count, _columns.data());
     double total = (double)waveform->totalFrames();
     double levelFrames = fmax(frames * [self levelColumnsPerColumn], total / kVibeWaveformLevelColumns);
     double firstLevel = fmax(0, floor(((double)first + 0.5) * frames / levelFrames - 0.5));

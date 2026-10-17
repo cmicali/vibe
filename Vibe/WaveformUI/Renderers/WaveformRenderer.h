@@ -36,9 +36,8 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 // empty column stands for. Its loudest window is only the loudest SO FAR, and
 // a reference that rises per delivery shrinks bars already drawn.
 static inline wavecore::Column VibeWaveformNormalizeColumn(AudioWaveform *waveform, BOOL normalize) {
-    return normalize && waveform->isComplete()
-            ? waveform->column(0, (double)waveform->totalFrames(), wavecore::kAllChannels, AudioWaveform::Fill::kUnions)
-            : wavecore::Column();
+    return normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames())
+                                                : wavecore::Column();
 }
 // The mix styles' Normalize only raises levels: its reference cannot exceed
 // the fixed one. Silence keeps the fixed reference.

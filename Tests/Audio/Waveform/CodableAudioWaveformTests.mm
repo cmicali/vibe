@@ -17,11 +17,10 @@
 
 // A complete summary of a few hundred bins, with or without bands.
 static std::unique_ptr<AudioWaveform> SampleSummary(bool bands, bool complete = true) {
-    auto summary = std::make_unique<AudioWaveform>(4, 1, bands, 44100);
+    auto summary = std::make_unique<AudioWaveform>(4, bands, 44100);
     for (int i = 0; i < 300; i++) {
-        float lo = -0.25f - (float)(i % 3) * 0.1f, hi = 0.5f;
         double bandSums[wavecore::kBandCount] = {0.04, 0.01, 0.002};
-        summary->appendBin(&lo, &hi, 0.1, bandSums, 4);
+        summary->appendBin(-0.25f - (float)(i % 3) * 0.1f, 0.5f, 0.1, bandSums, 4);
     }
     if (complete) summary->markComplete();
     return summary;
@@ -78,8 +77,9 @@ static CodableAudioWaveform *RoundTrip(CodableAudioWaveform *original) {
     wavecore::Column column = decoded.waveform->column(8, 12);
     XCTAssertEqualWithAccuracy(column.lo, -0.45f, 1e-3);
     XCTAssertEqualWithAccuracy(column.hi, 0.5f, 1e-3);
-    XCTAssertEqualWithAccuracy(column.meanSquare(), 0.025f, 1e-4);
-    XCTAssertEqualWithAccuracy(column.bandMeanSquare(0), 0.01f, 1e-4);
+    // Every bin alike, so every window's RMS is a bin's.
+    XCTAssertEqualWithAccuracy(column.loudest, sqrtf(0.025f), 1e-3);
+    XCTAssertEqualWithAccuracy(column.bandLoudest[0], 0.1f, 1e-3);
     XCTAssertEqual(decoded.bpm, 128);
     XCTAssertEqual(decoded.key, 9);
 }

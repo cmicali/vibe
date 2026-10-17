@@ -4,8 +4,8 @@ A waveform engine for audio apps: a compact summary of an audio stream, the read
 
 ## What it does
 
-- **A summary on a grid of absolute time.** Each bin covers a fixed span of frames counted from the start of the stream: 256, a finer power of two for a short file, or a coarser one for a file too long for 2^18 bins. A bin never moves when the length turns out different. Bins keep the peaks of each stored channel (the mix, or up to two channels), the mix's energy, and optionally three bands' energies (low, mid, high, split at 300 Hz and 2.5 kHz). Peaks are float16.
-- **Exact reads at any width.** A column's peaks are the union of what it covers, read through a pyramid its builder keeps as bins arrive. Its sums count a straddling bin by its part. A progressive snapshot costs the same however long the stream, and a summary never exceeds 2^18 bins, about 3.5 MB. A grid of columns counts from frame 0, so a scroll never moves a column's frames. A column's level is its loudest 20 ms window, so a hit is never averaged away at any zoom.
+- **A summary on a grid of absolute time.** Each bin covers a fixed span of frames counted from the start of the stream: 256, a finer power of two for a short file, or a coarser one for a file too long for 2^18 bins. A bin never moves when the length turns out different. Bins keep the mono mix's peaks and energy, and optionally three bands' energies (low, mid, high, split at 300 Hz and 2.5 kHz). Peaks are float16.
+- **Exact reads at any width.** A column's peaks are the union of what it covers, read through a pyramid its builder keeps as bins arrive. A progressive snapshot costs the same however long the stream, and a summary never exceeds 2^18 bins, about 3.5 MB. A grid of columns counts from frame 0, so a scroll never moves a column's frames. A column's level is its loudest 20 ms window, so a hit is never averaged away at any zoom.
 - **Zoom steps.** A view reads columns only at steps of 2^(s/2) frames and crossfades the two steps around its scale. A resize or a zoom inside a step only resamples the same columns, so every pixel changes continuously and fine texture never reshuffles.
 - **Exact coverage.** `ColumnCoverage` lands spans in a pixel column by their exact area, and `ColumnPaint` paints colored spans in order without stacking their edges. Both work one pixel column at a time, so a picture of any width needs one column of memory.
 - **Deep zoom.** A summary's `Detail` holds blocks of the stream's own frames, filled on demand. Columns finer than a bin read them through the line joining the samples. A read that misses blocks leaves them for the holder to fetch.
@@ -19,9 +19,9 @@ With Swift Package Manager, depend on the package's directory or repository and 
 #include "WaveformSummary.hpp"
 #include "WaveformRaster.hpp"
 
-// Build: feed decoded audio in order, interleaved and as its mono mix.
-wavecore::SummaryBuilder builder(channels, /*stored*/ 1, /*bands*/ false, expectedFrames, sampleRate);
-builder.append(interleaved, mono, frameCount);
+// Build: feed the decoded audio's mono mix in order.
+wavecore::SummaryBuilder builder(/*bands*/ false, expectedFrames, sampleRate);
+builder.append(mono, frameCount);
 std::unique_ptr<wavecore::Summary> summary = builder.finish(/*complete*/ true);
 
 // Read: the two zoom steps under a window of pixels, then each step's columns.
