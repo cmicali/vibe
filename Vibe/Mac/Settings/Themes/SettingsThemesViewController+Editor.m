@@ -557,19 +557,20 @@ static const CGFloat kImageBadgeInset = 1.5;
 
     return @[
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_STYLE control:_waveformPopUp],
+        // A style's own settings sit under its picker.
         _waveformTypeRow,
+        _spectrumColoringRow,
+        _shadeOverlapsRow,
         [SettingsRowView rowWithContentView:[self waveformPreviewView]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_DENSITY control:densityCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_BAR_WIDTH control:widthCluster],
         [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_CENTERED control:_waveformCenteredSwitch],
         _waveformThemeRow,
         _spectrumPaletteRow,
-        _spectrumColoringRow,
         _customDarkRow,
         _customLightRow,
         _bandsDarkRow,
         _bandsLightRow,
-        _shadeOverlapsRow,
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_WAVEFORM_GRADIENT control:_waveformGradientSwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_PLAYHEAD_LINE control:_waveformPlayheadSwitch],
         _playheadColorsRow,

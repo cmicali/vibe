@@ -33,8 +33,8 @@ typedef NS_ENUM(NSInteger, VibeNowPlayingRow) {
 typedef NS_ENUM(NSInteger, VibeWaveformRow) {
     VibeWaveformRowStyle = 0,
     VibeWaveformRowType,
-    VibeWaveformRowTheme,
     VibeWaveformRowColoring,
+    VibeWaveformRowTheme,
     VibeWaveformRowPlayheadLine,
     VibeWaveformRowCentered,
 };
@@ -96,8 +96,9 @@ static NSString *const kValueCellIdentifier  = @"value";
 }
 
 // Top to bottom. Under Match app the widget's group is Style alone, since
-// the widget then draws every setting of the card's. Type shows only for a
-// style that has types, and Coloring only for Spectrum.
+// the widget then draws every setting of the card's. A style's own settings
+// sit under Style. Type shows only for a style that has types. Coloring
+// shows only for Spectrum.
 - (NSArray<NSNumber *> *)waveformRowsForWidget:(BOOL)widget {
     if (widget && !AppSettings.sharedInstance.widgetWaveformStyle) {
         return @[@(VibeWaveformRowStyle)];
@@ -107,11 +108,10 @@ static NSString *const kValueCellIdentifier  = @"value";
     if ([WaveformRendererRegistry typeIdentifiersForIdentifier:style].count > 0) {
         [rows addObject:@(VibeWaveformRowType)];
     }
-    [rows addObject:@(VibeWaveformRowTheme)];
     if ([WaveformRendererRegistry paletteKindForIdentifier:style] == VibeWaveformPaletteKindSpectrum) {
         [rows addObject:@(VibeWaveformRowColoring)];
     }
-    [rows addObjectsFromArray:@[@(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)]];
+    [rows addObjectsFromArray:@[@(VibeWaveformRowTheme), @(VibeWaveformRowPlayheadLine), @(VibeWaveformRowCentered)]];
     return rows;
 }
 
