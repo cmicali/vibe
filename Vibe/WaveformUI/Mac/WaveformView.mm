@@ -488,4 +488,10 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     return YES;
 }
 
+#if DEBUG
+- (BOOL)debugWaveformEasing {
+    return _currentWaveformRenderer && !_currentWaveformRenderer.isSettled;
+}
+#endif
+
 @end

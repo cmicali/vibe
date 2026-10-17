@@ -717,29 +717,6 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     XCTAssertEqual(rebuilds, 41u, @"An unchanged draw must do no work");
 }
 
-- (void)testALoadsLaterSnapshotsInstallAtOnce {
-    __block NSUInteger rebuilds = 0;
-    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
-            initWithVScale:^CGFloat(CGFloat height) { return height; }
-            rebuild:^{ rebuilds++; }];
-    NSObject *first = [NSObject new], *second = [NSObject new], *complete = [NSObject new];
-    auto level = ^(float value) {
-        return ^(std::vector<float> &samples) { std::fill(samples.begin(), samples.end(), value); };
-    };
-    morph.targetIsPartial = YES;
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)first count:60 fill:level(0.5f)];
-    XCTAssertFalse(morph.isSettled, @"A load's first snapshot still grows into view");
-    rebuilds = 0;
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)second count:60 fill:level(0.75f)];
-    XCTAssertTrue(morph.isSettled);
-    XCTAssertEqual(rebuilds, 1u);
-    XCTAssertEqual([morph displayedSamples][0], 0.75f);
-    morph.targetIsPartial = NO;
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)complete count:60 fill:level(1.0f)];
-    XCTAssertFalse(morph.isSettled, @"The completing delivery eases: Normalize raises the bars then");
-    [morph settleImmediately];
-}
-
 - (void)testResizePreservesAGainMorphAndItsPairedSamples {
     WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
             initWithVScale:^CGFloat(CGFloat height) { return height; } rebuild:^{}];

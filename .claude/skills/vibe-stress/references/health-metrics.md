@@ -14,6 +14,7 @@ App-owned work that must unwind at rest. `quiesce` polls until all are zero and 
 | `retiredFades` | `AudioPlayer`'s voices still fading out after a track change, seek or stop |
 | `cloudParsesPending`, `cloudLaneHeld` | the metadata cloud lane |
 | `priorityRecordsPending` | priority metadata records |
+| `waveformEasing` (macOS) | the waveform view's renderer still easing. A cleared picture keeps its buffers until it settles flat, about 0.35 s. At a 5,000-point window that is a 12.5 MB picture, which a resting sample taken mid-ease counted as live heap |
 | `datalessProbesInFlight`, `handleOpensInFlight` | attempt gauges, not containers. Probe accounting starts before the worker handoff and survives detachment from its claim. Handle-open accounting starts before dispatch. A failed quiesce can therefore tell stuck classification from downloading or opening |
 
 **The two cloud counters are not scored for growth, and must not be.** A cloud folder's sweep legitimately holds dozens of pending parses, and the lane is held for every foreground open. `quiesce` refuses to settle until both are zero, and `check_consistency` tests the conditions, not the magnitudes. `dump_cloud_health` and `dump_health` report both on both platforms.

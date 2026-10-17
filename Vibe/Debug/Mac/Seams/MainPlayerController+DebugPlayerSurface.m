@@ -11,6 +11,7 @@
 #import "AppDelegate+Debug.h"
 #import "OpenRequestCoordinator.h"
 #import "OpenRequestCoordinator+Debug.h"
+#import "WaveformView+Debug.h"
 #import "PlaylistTableView.h"
 
 #if DEBUG
@@ -189,6 +190,7 @@ static void VibeCountViews(NSView *view, NSUInteger *views, NSUInteger *tracking
     if ([appDelegate isKindOfClass:AppDelegate.class]) {
         out[@"openBurstQueued"] = @([appDelegate debugQueuedOpenCount]);
     }
+    out[@"waveformEasing"] = @([self.waveformView debugWaveformEasing] ? 1 : 0);
     return out;
 }
 

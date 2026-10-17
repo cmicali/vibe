@@ -76,7 +76,6 @@ static const NSUInteger kMaxBlockBars = 1024;
         [_morph invalidateTarget];
     }
     NSUInteger stride = _morph.samplesPerBar;
-    _morph.targetIsPartial = waveform && !waveform->isComplete();
     [_morph updateTargetForSize:size identity:waveform relaid:!window.sameColumns(previous)
                           count:window.columnCount() * stride
                            fill:^(std::vector<float> &target) {

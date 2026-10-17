@@ -318,7 +318,6 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         }];
     } else {
         NSUInteger count = [self numBarsForWidth:bounds.size.width];
-        _morph.targetIsPartial = waveform && !waveform->isComplete();
         [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
                                fill:^(std::vector<float> &target) {
             [self fillColumns:target.data() framesPerColumn:(double)waveform->totalFrames() / (double)count

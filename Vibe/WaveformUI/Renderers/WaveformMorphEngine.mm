@@ -22,7 +22,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
     // The fast-path gate. Compare-only; may dangle.
     const void *_lastTargetIdentity;
-    BOOL _lastTargetPartial;
     NSUInteger _lastTargetCount;
     BOOL _targetInvalidated;
     NSTimer *_morphTimer;
@@ -67,11 +66,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         count = 0;
     }
     // A settled picture resampled for a new width is layout, not new audio:
-    // easing it doubles a resize's rebuilds and repaints after it stops. The
-    // next snapshot of a load installs at once: easing each one repainted the
-    // picture 60 times a second for a whole load, where snapshots come 10.
-    BOOL nextSnapshot = _targetIsPartial && _lastTargetPartial && identity != _lastTargetIdentity;
-    BOOL animate = !nextSnapshot && (_targetInvalidated || identity != _lastTargetIdentity || _morphTimer != nil);
+    // easing it doubles a resize's rebuilds and repaints after it stops.
+    BOOL animate = _targetInvalidated || identity != _lastTargetIdentity || _morphTimer != nil;
     if (!_targetInvalidated && identity == _lastTargetIdentity && !relaid && count == _lastTargetCount) {
         // Leave the scratch alone: it holds the stale target, and comparing
         // against it would morph back to it.
@@ -83,7 +79,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         return;
     }
     _lastTargetIdentity = identity;
-    _lastTargetPartial = identity && _targetIsPartial;
     _lastTargetCount = count;
     _targetInvalidated = NO;
     _scratchSamples.resize(count);
@@ -170,9 +165,6 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         std::swap(_targetSamples, _scratchSamples);
     }
     if (!animate) {
-        // Settled before the rebuild, which reads isSettled.
-        [_morphTimer invalidate];
-        _morphTimer = nil;
         _displayedSamples = _targetSamples;
         [self releaseSamplesIfEmpty];
         [self runRebuild];

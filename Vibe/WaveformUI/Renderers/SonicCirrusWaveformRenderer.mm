@@ -244,7 +244,6 @@ static const CGFloat kUnplayedBottomAlphaRatio = 0.618;
     // A resize moves the bar under the kept x.
     [self setHoverHighlightX:self.hoverHighlightX];
 
-    _morph.targetIsPartial = waveform && !waveform->isComplete();
     [_morph updateTargetForSize:bounds.size identity:waveform count:count
                            fill:^(std::vector<float> &target) {
         [self fillLevels:target.data() stride:1 framesPerColumn:(double)waveform->totalFrames() / (double)count
