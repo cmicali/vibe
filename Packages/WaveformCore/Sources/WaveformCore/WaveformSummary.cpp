@@ -513,12 +513,11 @@ void Summary::tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, si
     }
 }
 
-// The finest level of at most kSnapshotBins, with its levels above copied.
-// The base is copied whole, and its last loudest
-// windows are taken as they stand, from the builder's own sums. A level
-// above holds only whole groups, so a copy of one trails the last bin
-// appended by less than one of its bins and half a loudest window: a second
-// at most of a stream hours long.
+// Copies the finest level of at most kSnapshotBins and its upper levels.
+// The base keeps its unfinished loudest windows from the builder's sums.
+// An upper level holds only whole groups. It trails the last appended bin
+// by less than one of its bins and half a loudest window. That is at most
+// a second of a stream hours long.
 std::unique_ptr<Summary> Summary::snapshot() const {
     size_t index = 0;
     while (index < pyramid_.size() && level(index).count > kSnapshotBins) {
