@@ -1,0 +1,333 @@
+{
+  "flac": {
+    "title": "IETF CELLAR FLAC test files",
+    "source": "github.com/ietf-wg-cellar/flac-test-files aa7b0c6cf329",
+    "checked": "2026-10-17",
+    "groups": {
+      "faulty": {
+        "files": 11,
+        "decoded": 9,
+        "refused": 2,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 3,
+        "known": 0,
+        "failures": 0
+      },
+      "subset": {
+        "files": 64,
+        "decoded": 64,
+        "refused": 0,
+        "valid": 64,
+        "exact": 64,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "uncommon": {
+        "files": 11,
+        "decoded": 9,
+        "refused": 2,
+        "valid": 5,
+        "exact": 5,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      }
+    },
+    "failures": [],
+    "known": {}
+  },
+  "mp3-iso": {
+    "title": "ISO/IEC 14496-26 Layer III conformance",
+    "source": "standards.iso.org 14496-26 ed. 2 (2023-01-25)",
+    "checked": "2026-10-17",
+    "groups": {
+      "": {
+        "files": 40,
+        "decoded": 40,
+        "refused": 0,
+        "valid": 36,
+        "exact": 35,
+        "warnings": 0,
+        "known": 0,
+        "failures": 1
+      }
+    },
+    "failures": [
+      "l3_10203.mp3: reference: RMS 2.79e-05, max 0.000261 (full accuracy)"
+    ],
+    "known": {}
+  },
+  "fate": {
+    "title": "FFmpeg FATE audio samples",
+    "source": "fate-suite.ffmpeg.org, aac, audio-reference, audiomatch, caf, cover_art, gapless, id3v2, lossless-audio, mp3-conformance, mpegaudio, ogg, ogg-flac, ogg-opus, ogg-vorbis, opus, vorbis, w64, wav",
+    "checked": "2026-10-17",
+    "groups": {
+      "aac": {
+        "files": 48,
+        "decoded": 40,
+        "refused": 8,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 1,
+        "known": 0,
+        "failures": 0
+      },
+      "audio-reference": {
+        "files": 5,
+        "decoded": 5,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "audiomatch": {
+        "files": 56,
+        "decoded": 56,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "caf": {
+        "files": 3,
+        "decoded": 3,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "cover_art": {
+        "files": 3,
+        "decoded": 3,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 1,
+        "known": 0,
+        "failures": 0
+      },
+      "gapless": {
+        "files": 3,
+        "decoded": 3,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "id3v2": {
+        "files": 3,
+        "decoded": 2,
+        "refused": 1,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "lossless-audio": {
+        "files": 9,
+        "decoded": 1,
+        "refused": 8,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "mp3-conformance": {
+        "files": 11,
+        "decoded": 10,
+        "refused": 1,
+        "valid": 11,
+        "exact": 9,
+        "warnings": 0,
+        "known": 0,
+        "failures": 2
+      },
+      "mpegaudio": {
+        "files": 2,
+        "decoded": 1,
+        "refused": 1,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "ogg-flac": {
+        "files": 1,
+        "decoded": 0,
+        "refused": 1,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "ogg-opus": {
+        "files": 1,
+        "decoded": 1,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "ogg-vorbis": {
+        "files": 2,
+        "decoded": 2,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 1,
+        "known": 0,
+        "failures": 0
+      },
+      "ogg": {
+        "files": 1,
+        "decoded": 1,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "vorbis": {
+        "files": 21,
+        "decoded": 21,
+        "refused": 0,
+        "valid": 20,
+        "exact": 19,
+        "warnings": 0,
+        "known": 1,
+        "failures": 0
+      },
+      "w64": {
+        "files": 1,
+        "decoded": 1,
+        "refused": 0,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "wav": {
+        "files": 3,
+        "decoded": 2,
+        "refused": 1,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      }
+    },
+    "failures": [
+      "mp3-conformance/he_free.mp3: refused",
+      "mp3-conformance/he_mode.mp3: reference: 261504 frames, none in common with the 0 decoded"
+    ],
+    "known": {
+      "vorbis/6.ogg": "FFmpeg's reference interleaves the six channels in WAVE order. Vibe keeps Vorbis I's order and labels each channel. Put in WAVE order, the decode matches to an RMS of 3.6e-6."
+    }
+  },
+  "wav": {
+    "title": "McGill WAVE and AIFF samples, EBU BW64 tests",
+    "source": "mmsp.ece.mcgill.ca, ebu/libbw64 d3dae5c74dea",
+    "checked": "2026-10-17",
+    "groups": {
+      "bw64": {
+        "files": 10,
+        "decoded": 7,
+        "refused": 3,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "mcgill-aiff": {
+        "files": 27,
+        "decoded": 23,
+        "refused": 4,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      },
+      "mcgill-wave": {
+        "files": 33,
+        "decoded": 31,
+        "refused": 2,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 0,
+        "known": 0,
+        "failures": 0
+      }
+    },
+    "failures": [],
+    "known": {}
+  },
+  "browser": {
+    "title": "Chromium and Firefox media tests",
+    "source": "chromium e21a6b229410, firefox d0e0fc69c10b",
+    "checked": "2026-10-17",
+    "groups": {
+      "chromium": {
+        "files": 206,
+        "decoded": 85,
+        "refused": 121,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 18,
+        "known": 0,
+        "failures": 0
+      },
+      "firefox": {
+        "files": 287,
+        "decoded": 135,
+        "refused": 152,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 15,
+        "known": 0,
+        "failures": 0
+      }
+    },
+    "failures": [],
+    "known": {}
+  },
+  "taglib": {
+    "title": "TagLib test data",
+    "source": "taglib v2.3.2",
+    "checked": "2026-10-17",
+    "groups": {
+      "": {
+        "files": 71,
+        "decoded": 55,
+        "refused": 16,
+        "valid": 0,
+        "exact": 0,
+        "warnings": 8,
+        "known": 0,
+        "failures": 0
+      }
+    },
+    "failures": [],
+    "known": {}
+  }
+}

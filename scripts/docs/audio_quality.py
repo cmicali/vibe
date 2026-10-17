@@ -332,6 +332,26 @@ def pitch_quality():
                      ('CPU, % of one core', [('0.20–0.24%', 0.24), ('0.07%', 0.07)], 'lower')])
 
 
+def corpus_results():
+    """The public corpora the vibe-audio-quality skill runs, from docs/audio-quality/corpora.json."""
+    path = OUT / 'corpora.json'
+    recorded = json.loads(path.read_text()) if path.exists() else {}
+    rows = []
+    for corpus in recorded.values():
+        g = {key: sum(group.get(key, 0) for group in corpus['groups'].values())
+             for key in ('files', 'decoded', 'refused', 'valid', 'exact', 'warnings', 'known', 'failures')}
+        rows.append((corpus['title'], [
+            str(g['files']), str(g['decoded']), str(g['refused']),
+            f'{g["exact"]} of {g["valid"]}' if g['valid'] else None, str(g['warnings']), str(g.get('known', 0)),
+            (str(g['failures']), 'good' if g['failures'] == 0 else 'bad'), corpus['checked']], None))
+    rows = rows or [('No corpus checked yet', [None] * 8, None)]
+    return table('Public test corpora',
+                 'A valid file has a reference decode or a FLAC MD5. It must match it, decode to the length the '
+                 'handle states and seek exactly. Every file must finish with finite samples. Known is a file the '
+                 'corpus itself gets wrong. Green is no failures.',
+                 ['Files', 'Decoded', 'Refused', 'Valid files\nright', 'Warnings', 'Known', 'Failures', 'Checked'], rows)
+
+
 def pitch_top_end():
     rows = [('−16%', -123, -131), ('−8%', -3.0, -7.8), ('−1%', 0.0, -0.05), ('+1%', 0.0, -1.49),
             ('+8%', 0.0, -0.77), ('+16%', 0.0, -0.33)]
@@ -369,6 +389,7 @@ CHARTS = {
     'resampler-bass': resampler_bass,
     'pitch-quality': pitch_quality,
     'pitch-top-end': pitch_top_end,
+    'corpus-results': corpus_results,
 }
 
 

@@ -357,4 +357,18 @@ These run on every change, with no audio hardware:
 
 On the Mac there's also an optional test that plays through a real output device and records it back, to compare the captured stream with the source. It doesn't test a DAC's analog output.
 
-The charts and tables on this page are drawn by `python3 scripts/docs/audio_quality.py`. The numbers live in that script, and the frequency response curves in `audio-quality/response.json`.
+### Public test corpora
+
+Public collections of real and deliberately broken files check the decoders against answers someone else wrote down. Each one is downloaded on demand and never committed. The `vibe-audio-quality` skill fetches one and runs every file Vibe plays through it:
+
+- **IETF CELLAR FLAC test files.** Every valid file states the MD5 of its samples, so the decode is checked bit for bit. The faulty ones must only finish.
+- **ISO/IEC 14496-26 Layer III conformance.** MPEG-1, 2 and 2.5 streams, each checked against ISO's own reference decode to the ISO accuracy limits.
+- **FFmpeg's FATE samples.** The MP3 conformance streams and Xiph's Vorbis vectors come with reference decodes. The rest of the folders are odd and damaged files.
+- **McGill's WAVE and AIFF samples, and EBU's BW64 tests.** Unusual headers, sizes that lie, and chunks out of order.
+- **Chromium's and Firefox's media tests, and TagLib's test data.** Files that once broke a browser or a tag reader.
+
+A valid file must also decode to the length the handle states, and land every seek on the same samples. A warning is a file of unknown validity that did something odd, such as decode to a length other than the one stated.
+
+![Public test corpora](audio-quality/corpus-results.svg)
+
+The charts and tables on this page are drawn by `python3 scripts/docs/audio_quality.py`. The numbers live in that script, and the frequency response curves in `audio-quality/response.json`. The corpus results live in `audio-quality/corpora.json`, which the `vibe-audio-quality` skill writes.

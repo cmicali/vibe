@@ -3,3 +3,5 @@
 #
 # Skips when the generator cannot fetch ISO's compliance stream (needs the network).
 AudioPlayerRenderFidelityTests/testDrMP3PassesTheISOComplianceStreamAtFullAccuracy
+# Runs only when the vibe-audio-quality skill names a downloaded corpus.
+AudioQualityCorpusTests/testCorpus
