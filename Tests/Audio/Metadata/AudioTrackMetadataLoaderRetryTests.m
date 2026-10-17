@@ -50,8 +50,11 @@
         @(VibeAudioFileMaterializationRoleMetadataScan),
         @(VibeAudioFileMaterializationRoleMetadataScan),
     ]));
+    // Parses run on several workers, so only the start order is promised.
     @synchronized (parseLock) {
-        XCTAssertEqualObjects(parsedURLs, (@[second.url, first.url]));
+        XCTAssertEqual(parsedURLs.count, 2u);
+        XCTAssertEqualObjects([NSSet setWithArray:parsedURLs],
+                              ([NSSet setWithObjects:first.url, second.url, nil]));
     }
     XCTAssertTrue(first.metadata.parsedOK);
     XCTAssertTrue(second.metadata.parsedOK);

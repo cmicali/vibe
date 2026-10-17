@@ -969,6 +969,13 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
 - (void)yieldClaim:(VibeAudioFileMaterializationClaim *)claim {
     NSAssert(claim.state != VibeMaterializationClaimStateProbing,
              @"An unclassified claim must settle through its probe");
+    // Cancel before settling, so a waiter that hears Yielded finds the cancel
+    // already requested. The settle delivers on another queue.
+    if (claim.state == VibeMaterializationClaimStateRefreshing
+            || claim.state == VibeMaterializationClaimStateRunning) {
+        claim.runWasCancelled = YES;
+        [claim.operation cancel];
+    }
     if (claim.state == VibeMaterializationClaimStatePending) {
         [self settleClaim:claim
                    result:VibeAudioFileMaterializationResultYielded
@@ -982,11 +989,6 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
         [self countSettledRequest:VibeAudioFileMaterializationResultYielded];
         [waiter.token settleWithResult:VibeAudioFileMaterializationResultYielded
                                  error:nil elapsed:MAX(0, now - waiter.submittedAt)];
-    }
-    if (claim.state == VibeMaterializationClaimStateRefreshing
-            || claim.state == VibeMaterializationClaimStateRunning) {
-        claim.runWasCancelled = YES;
-        [claim.operation cancel];
     }
 }
 
