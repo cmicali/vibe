@@ -97,11 +97,17 @@ static BOOL VibeMPEGParse(const uint8_t h[4], UInt32 freeBytes, VibeMPEGFrame *f
 }
 
 // Whether kVibeMPEGSyncFrames frames of the stream chain from `at`, or reach
-// the data's end exactly.
+// the data's end exactly, or a tag that ends a file: ID3v1, APE, Lyrics3 or
+// an ID3v2 tag appended. TRAP: without the tags, the frames between damage
+// and a file's ID3v1 tag were dropped, since too few chained to the end.
 - (BOOL)mpegFramesChainFrom:(SInt64)at {
     VibeMPEGFrame frame;
     for (int n = 0; n < kVibeMPEGSyncFrames; n++) {
-        if (at == _mpegDataEnd) {
+        uint8_t tag[8];
+        UInt32 got = 0;
+        if (at == _mpegDataEnd || (n > 0 && VibeHandleRead((__bridge void *)self, at, sizeof tag, tag, &got) == noErr && got >= 3
+                                   && (memcmp(tag, "TAG", 3) == 0 || memcmp(tag, "ID3", 3) == 0
+                                       || (got == sizeof tag && (memcmp(tag, "APETAGEX", 8) == 0 || memcmp(tag, "LYRICSBE", 8) == 0))))) {
             return n > 0;
         }
         if (![self mpegFrameAt:at frame:&frame]) {

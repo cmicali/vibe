@@ -696,6 +696,31 @@ static NSUInteger VibeID3v2End(NSData *file) {
                               (both.frameLength - settled) * sizeof(float)), 0, @"the stereo frames, channel %lu", (unsigned long)c);
     }
 }
+// A damaged frame three from the end, then an ID3v1 tag. The walk takes up
+// again at the next frame that a chain follows. Only two frames follow, and
+// the chain ends at the tag. Each variant keeps every undamaged frame.
+- (void)testDrMP3KeepsTheFramesBetweenDamageAndATrailingTag {
+    NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
+    AudioFileHandle.appleMPEGDecoder = NO;
+    NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
+    NSUInteger start = VibeID3v2End(bytes), frames = (bytes.length - start) / 576;
+    XCTAssertEqual((bytes.length - start) % 576, 0u, @"192 kbps at 48 kHz: 576-byte frames");
+    uint8_t *damaged = (uint8_t *)bytes.mutableBytes + start + (frames - 3) * 576;
+    XCTAssertEqual(damaged[0], 0xFF);
+    damaged[0] = 0;
+    NSMutableData *id3v1 = [NSMutableData dataWithBytes:"TAG" length:3];
+    [id3v1 increaseLengthBy:125];
+    NSMutableData *ape = [NSMutableData dataWithBytes:"APETAGEX" length:8];
+    [ape increaseLengthBy:24];
+    for (NSData *tail in @[NSData.data, id3v1, ape]) {
+        NSMutableData *file = [bytes mutableCopy];
+        [file appendData:tail];
+        NSURL *written = [self writeBytes:file name:[NSString stringWithFormat:@"damaged-end-%lu.mp3", (unsigned long)tail.length]];
+        AudioFileHandle *handle = [self open:written decoder:@"dr_mp3"];
+        XCTAssertEqual(handle.length, (AVAudioFramePosition)(frames - 1) * 1152, @"a tail of %lu bytes", (unsigned long)tail.length);
+        XCTAssertEqual([self readToEnd:handle].length, (NSUInteger)handle.length * 2 * sizeof(float), @"a tail of %lu bytes", (unsigned long)tail.length);
+    }
+}
 // A damaged ID3v2.3 frame size near 2^32 plus its header wrapped to 0, and
 // the open's walk of the tag for iTunes' comment never moved. The open must
 // finish and play the stream untrimmed.
