@@ -283,6 +283,41 @@ static void VibeAssertSameColumns(Summary &a, Summary &b, double framesPerColumn
     }
 }
 
+// Parent reads must match unions of the snapshot's own bins, including the
+// unfinished windows and groups at the streaming front.
+- (void)testSnapshotParentsMatchTheirBinsAtEveryFront {
+    for (bool bands : {false, true}) {
+        SummaryBuilder builder(bands, 4096, 44100);
+        for (size_t frames : {1u, 3u, 17u, 881u, 32765u, 37u, 98311u, 271u}) {
+            VibeAppendNoise(builder, frames, uint32_t(frames));
+            auto snapshot = builder.snapshot();
+            size_t count = snapshot->binCount();
+            double bin = snapshot->binFrames();
+            std::vector<Column> bins(count);
+            snapshot->columns(bin, 0, count, bins.data());
+            for (size_t width : {4u, 16u, 67u, 1024u}) {
+                for (size_t end = count; end > 0; end = end > width ? end - width : 0) {
+                    size_t first = end > width ? end - width : 0;
+                    Column expected = bins[first];
+                    for (size_t i = first + 1; i < end; i++) {
+                        expected.lo = std::min(expected.lo, bins[i].lo);
+                        expected.hi = std::max(expected.hi, bins[i].hi);
+                        expected.loudest = std::max(expected.loudest, bins[i].loudest);
+                        for (size_t b = 0; b < wavecore::kBandCount; b++) {
+                            expected.bandLoudest[b] = std::max(expected.bandLoudest[b], bins[i].bandLoudest[b]);
+                        }
+                    }
+                    Column actual = snapshot->column(first * bin, end * bin);
+                    XCTAssertEqual(actual.lo, expected.lo);
+                    XCTAssertEqual(actual.hi, expected.hi);
+                    XCTAssertEqual(actual.loudest, expected.loudest);
+                    XCTAssertTrue(actual.bandLoudest == expected.bandLoudest);
+                }
+            }
+        }
+    }
+}
+
 // A builder derives its pyramid and loudest windows as bins arrive. Its
 // summary must equal one that derives them in one pass over the same bins.
 // Samples in sixteenths square and sum exactly in any order, so the test
