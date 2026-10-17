@@ -24,10 +24,19 @@ public:
     void addSumSquares(const float *mono, size_t frames, double *sums);
 
 private:
-    // One lane per 2nd-order section: low, mid's highpass, mid's lowpass,
-    // high. Direct form I.
-    simd_double4 b0, b1, b2, a1, a2;
-    simd_double4 x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    // Each crossover's poles, run two samples ahead. a1 and minusA2 are the
+    // input taps. ahead2 and ahead4 are the feedback.
+    struct Recursion {
+        double a1, minusA2, ahead2, ahead4;
+    };
+    Recursion low_, high_;
+    // Mid's taps on the low recursion, then on the high one.
+    std::array<double, 5> mid_;
+    // Each band's sum takes back the gain its taps leave out.
+    std::array<double, kBandCount> gains_;
+    // Pairs of consecutive samples, oldest first: the last two inputs, and
+    // each recursion's last four outputs.
+    simd_double2 x2_ = 0, low2_ = 0, low4_ = 0, high2_ = 0, high4_ = 0;
 };
 
 }  // namespace wavecore
