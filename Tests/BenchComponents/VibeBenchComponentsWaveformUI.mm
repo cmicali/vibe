@@ -246,7 +246,7 @@ static void VibeBenchComponentsRegisterRenderers(void) {
                 }
                 [CATransaction flush];
                 return 60;
-            }, [state, op]() {
+            }, [state, op, identifier]() {
                 CGRect canvas = CGRectMake(0, 0, op == "resize-draw" ? 1000 : 800, 60);
                 CGContextRef context = op == "draw" || op.find("-draw") != std::string::npos ? VibeBenchComponentsUIBitmap(canvas.size) : NULL;
                 for (int i = 0; i < 60; i++) {
@@ -288,6 +288,11 @@ static void VibeBenchComponentsRegisterRenderers(void) {
                                 CGContextTranslateCTM(context, -offset, 0);
                                 [state->parent renderInContext:context];
                                 CGContextRestoreGState(context);
+                                if (getenv("VIBE_BENCH_COMPONENTS_UI_DUMP")) {
+                                    VibeBenchComponentsUIDump([NSString stringWithFormat:@"ui-waveform-%s-%@-%02d.raw",
+                                            op.c_str(), identifier, i], [NSData dataWithBytes:CGBitmapContextGetData(context)
+                                            length:CGBitmapContextGetBytesPerRow(context) * CGBitmapContextGetHeight(context)]);
+                                }
                             }
                         }
                     }
