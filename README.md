@@ -23,7 +23,7 @@ brew install cmicali/tap/vibe
 
 - **Waveform view**: every track is drawn as a full waveform across the window. Click anywhere on it to seek.
 - **Cached browsing**: tags, artwork and waveforms are read in the background and cached for later opens.
-- **Custom audio engine**: MP3, MP2, AAC, FLAC, ALAC, MP4/M4A/M4B/M4R, QTA (Voice Memos, Mac only), AIFF, WAV, W64, CAF, Ogg Opus, and Ogg Vorbis (Mac only). Vibe plays them through its own CoreAudio engine with high-quality sample-rate conversion.
+- **Custom audio engine**: MP3, MP2, AAC, FLAC, ALAC, MP4/M4A/M4B/M4R, QTA (Voice Memos, Mac only), AIFF, WAV, W64, CAF, Ogg Opus, and Ogg Vorbis. Vibe plays them through its own CoreAudio engine with high-quality sample-rate conversion.
 - **Bit-perfect output**: requests the track's sample rate and reports whether the output path preserves its samples. Exclusive mode requests sole access to the device (Mac).
 - **No library to import**: drop a file or a folder from your disk, iCloud Drive or Dropbox and it plays. There is no database to rebuild.
 - **DJ tools**: BPM detection and performance FX on both platforms. The Mac also has pitch control, key analysis, and bar-aligned skips.

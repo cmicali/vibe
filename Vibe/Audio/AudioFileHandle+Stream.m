@@ -2,9 +2,9 @@
 //  AudioFileHandle+Stream.m
 //  Vibe
 //
-//  dr_flac's and dr_wav's decode of a FLAC, WAV or AIFF file: the opens, the
-//  adopt, the close and the reads. The byte reads they decode from are
-//  AudioFileHandle.m's (VibeStreamRead). The ivars are
+//  dr_flac's, dr_wav's and libvorbis's decode of a FLAC, WAV, AIFF or Ogg
+//  Vorbis file: the opens, the adopt, the close and the reads. The byte reads
+//  they decode from are AudioFileHandle.m's (VibeStreamRead). The ivars are
 //  AudioFileHandleInternal.h's.
 //
 
@@ -96,6 +96,69 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
     return YES;
 }
 
+// Vorbis I's channel order (section 4.3.9) for three to eight channels, as
+// labels. The voice bus then folds each channel as the file means it. Nil for
+// mono and stereo, and for a wider stream, whose order is the encoder's own.
+static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
+    enum { L = kAudioChannelLabel_Left, R = kAudioChannelLabel_Right, C = kAudioChannelLabel_Center,
+           Ls = kAudioChannelLabel_LeftSurround, Rs = kAudioChannelLabel_RightSurround,
+           Cs = kAudioChannelLabel_CenterSurround, Rls = kAudioChannelLabel_RearSurroundLeft,
+           Rrs = kAudioChannelLabel_RearSurroundRight, LFE = kAudioChannelLabel_LFEScreen };
+    static const AudioChannelLabel orders[6][8] = {
+        {L, C, R}, {L, R, Ls, Rs}, {L, C, R, Ls, Rs}, {L, C, R, Ls, Rs, LFE},
+        {L, C, R, Ls, Rs, Cs, LFE}, {L, C, R, Ls, Rs, Rls, Rrs, LFE},
+    };
+    if (channels <= 2 || channels > 8) {
+        return nil;
+    }
+    size_t size = offsetof(AudioChannelLayout, mChannelDescriptions) + channels * sizeof(AudioChannelDescription);
+    AudioChannelLayout *layout = calloc(1, size);
+    layout->mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
+    layout->mNumberChannelDescriptions = channels;
+    for (UInt32 c = 0; c < channels; c++) {
+        layout->mChannelDescriptions[c].mChannelLabel = orders[channels - 3][c];
+    }
+    AVAudioChannelLayout *result = [[AVAudioChannelLayout alloc] initWithLayout:layout];
+    free(layout);
+    return result;
+}
+
+// Takes an Ogg Vorbis file for libvorbis, in place of CoreAudio's parser.
+// vorbisfile answers the facts. The rate and the channels are the first
+// stream's. The bus keeps one format per file, so a chained file that changes
+// either is refused. The length is the last page's granule position, which
+// trims the encoder's padding too.
+- (BOOL)openVorbisInterleaved:(BOOL)interleaved {
+    _vorbis = calloc(1, sizeof(OggVorbis_File));
+    ov_callbacks callbacks = { VibeVorbisRead, VibeVorbisSeek, NULL, VibeVorbisTell };
+    if (!_vorbis || ov_open_callbacks((__bridge void *)self, _vorbis, NULL, 0, callbacks) != 0) {
+        [self closeStreamDecoder]; // a failed open has cleared it, and clearing again is safe
+        return NO;
+    }
+    // vorbisfile keeps every link's comments, an embedded cover among them,
+    // until it closes. Nothing reads them after the open.
+    for (int link = 0; link < ov_streams(_vorbis); link++) {
+        vorbis_comment_clear(&_vorbis->vc[link]);
+    }
+    vorbis_info *info = ov_info(_vorbis, 0);
+    ogg_int64_t length = ov_pcm_total(_vorbis, -1);
+    BOOL uniform = info && info->channels > 0 && info->rate > 0;
+    for (int link = 1; uniform && link < ov_streams(_vorbis); link++) {
+        vorbis_info *next = ov_info(_vorbis, link);
+        uniform = next && next->channels == info->channels && next->rate == info->rate;
+    }
+    AudioStreamBasicDescription description = {
+        .mSampleRate = uniform ? (Float64)info->rate : 0, .mFormatID = 'vorb', .mChannelsPerFrame = uniform ? (UInt32)info->channels : 0,
+    };
+    if (!uniform || length <= 0 || _streamReadFailed || _waitError
+            || ![self takeFileFormat:description layout:VibeVorbisChannelLayout(description.mChannelsPerFrame) interleaved:interleaved]) {
+        [self closeStreamDecoder];
+        return NO;
+    }
+    _length = (SInt64)length;
+    return YES;
+}
+
 - (void)closeStreamDecoder {
     drflac_close(_flac);
     _flac = NULL;
@@ -103,22 +166,66 @@ static BOOL VibeDrWAVDecodesCoding(const drwav *wav) {
         drwav_uninit(_wav);
         _wav = NULL;
     }
+    if (_vorbis) {
+        ov_clear(_vorbis);
+        free(_vorbis);
+        _vorbis = NULL;
+    }
 }
 
-// dr_flac's or dr_wav's decode, straight into the buffer in one call: a channel
-// to each plane, or interleaved. Each reads all that is asked but at the end of
+// libvorbis's decode. vorbisfile hands out each packet's frames from buffers
+// of its own, a channel to each. They are copied to a plane each, or
+// interleaved. A hole, a page lost to damage, is skipped, and the decode goes
+// on from the next page.
+- (AVAudioFrameCount)readVorbisInto:(float *const *)planes frameCount:(AVAudioFrameCount)wanted failed:(BOOL *)failed {
+    UInt32 channels = _processingFormat.channelCount;
+    BOOL interleaved = _processingFormat.isInterleaved;
+    AVAudioFrameCount got = 0;
+    while (got < wanted) {
+        float **pcm = NULL;
+        long frames = ov_read_float(_vorbis, &pcm, (int)MIN(wanted - got, (AVAudioFrameCount)INT_MAX), NULL);
+        if (frames == OV_HOLE) {
+            continue;
+        }
+        if (frames <= 0) {
+            *failed = frames < 0;
+            break;
+        }
+        if (interleaved) {
+            float *to = planes[0] + (size_t)got * channels;
+            for (long f = 0; f < frames; f++) {
+                for (UInt32 c = 0; c < channels; c++) {
+                    *to++ = pcm[c][f];
+                }
+            }
+        } else {
+            for (UInt32 c = 0; c < channels; c++) {
+                memcpy(planes[c] + got, pcm[c], (size_t)frames * sizeof(float));
+            }
+        }
+        got += (AVAudioFrameCount)frames;
+    }
+    _vorbisPosition += got;
+    return got;
+}
+
+// dr_flac's, dr_wav's or libvorbis's decode, into the buffer: a channel to
+// each plane, or interleaved. Each reads all that is asked but at the end of
 // the stream. Reads stop at the length, where dr_flac's would read on.
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error {
     float *const *planes = buffer.floatChannelData;
     drflac_uint64 frames = (drflac_uint64)MIN((SInt64)wanted, MAX(0, _length - self.framePosition));
     drflac_uint64 got;
-    if (!_processingFormat.isInterleaved) {
+    BOOL failed = NO;
+    if (_vorbis) {
+        got = [self readVorbisInto:planes frameCount:(AVAudioFrameCount)frames failed:&failed];
+    } else if (!_processingFormat.isInterleaved) {
         got = _flac ? drflac_read_pcm_frames_f32_planar(_flac, frames, planes) : drwav_read_pcm_frames_f32_planar(_wav, frames, planes);
     } else {
         got = _flac ? drflac_read_pcm_frames_f32(_flac, frames, planes[0]) : drwav_read_pcm_frames_f32(_wav, frames, planes[0]);
     }
     buffer.frameLength = (AVAudioFrameCount)got;
-    if (_streamReadFailed && !_waitError) {
+    if ((_streamReadFailed || failed) && !_waitError) {
         if (error) {
             *error = VibeHandleError(kAudioFilePositionError, [NSString stringWithFormat:@"Reading %@ failed", _url.lastPathComponent]);
         }

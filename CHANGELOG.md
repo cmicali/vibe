@@ -30,6 +30,7 @@
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
 * mac: Improved bit-perfect output to use the device's widest bit depth: cleaner volume changes, and gapless between 16 and 24-bit songs
+* mac: Fixed Ogg Vorbis songs losing their first 3 ms
 * mac: Improved the Settings window: clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor
 * Changed the Cupertino theme to darken only cover art behind the playback buttons, and lightened that gradient on both platforms
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
@@ -39,6 +40,7 @@
 * ios: Added ability to play Dropbox, Google Drive, and iCloud drive share link URLs directly
 * ios: Improved the Files tab: places are grouped under Locations, and a copied link plays from it
 * ios: Improved Settings: On track end and Time display choose in place, and the 3-Band palettes are named by their colors
+* ios: Added Ogg Vorbis playback
 
 # v1.15
 
