@@ -114,13 +114,9 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertEqual(VibeSourceBitDepth(Compressed(kAudioFormatFLAC, 0, 44100)), 24u);
 }
 
-- (void)testLossySourcesHaveNoDepthAndAreNotLossless {
+- (void)testLossySourcesHaveNoDepth {
     XCTAssertEqual(VibeSourceBitDepth(Compressed(kAudioFormatMPEGLayer3, 0, 44100)), 0u);
     XCTAssertEqual(VibeSourceBitDepth(Compressed(kAudioFormatMPEG4AAC, 0, 44100)), 0u);
-    XCTAssertFalse(VibeSourceIsLossless(Compressed(kAudioFormatMPEGLayer3, 0, 44100)));
-    XCTAssertTrue(VibeSourceIsLossless(VibePCM(44100, 16, NO)));
-    XCTAssertTrue(VibeSourceIsLossless(Compressed(kAudioFormatFLAC, 3, 44100)));
-    XCTAssertTrue(VibeSourceIsLossless(Compressed(kAudioFormatAppleLossless, 1, 44100)));
 }
 
 #pragma mark - Satisfaction
@@ -251,37 +247,41 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
 
 #pragma mark - The depth rule, as-is
 
-- (void)testSixteenBitSourceChoosesI16EvenOverACurrentI32 {
+- (void)testIntegerSourcesTakeTheWidestIntegerDepth {
     AudioStreamRangedDescription dac[16];
     UInt32 n = (UInt32)USBDACList(dac);
     AudioStreamBasicDescription chosen = {0};
     XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, n, &chosen));
-    XCTAssertEqual(chosen.mBitsPerChannel, 16u);
+    XCTAssertEqual(chosen.mBitsPerChannel, 32u);
     XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
     XCTAssertEqual(chosen.mSampleRate, 44100);
-}
-
-- (void)testTwentyFourBitSourceChoosesI24 {
-    AudioStreamRangedDescription dac[16];
-    UInt32 n = (UInt32)USBDACList(dac);
-    AudioStreamBasicDescription chosen = {0};
+    XCTAssertTrue(VibePhysicalFormatSatisfies(chosen, VibePCM(44100, 16, NO), Decode(44100)));
     XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(96000, 24, NO), 96000, dac, n, &chosen));
-    XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+    XCTAssertEqual(chosen.mBitsPerChannel, 32u);
     XCTAssertEqual(chosen.mSampleRate, 96000);
+
+    // USBDACList opens with 44.1 kHz at 16 and 24 bits.
+    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, 2, &chosen));
+    XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+    XCTAssertFalse(VibePhysicalFormatIsFloat(chosen));
+    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, 1, &chosen));
+    XCTAssertEqual(chosen.mBitsPerChannel, 16u, @"16 bits when that is all the device offers");
 }
 
-- (void)testOddDepthsTakeTheSmallestAbove {
-    AudioStreamRangedDescription dac[16];
-    UInt32 n = (UInt32)USBDACList(dac);
+- (void)testOddAndUnknownLosslessDepthsNeverGoBelowTheSource {
+    AudioStreamRangedDescription formats[16];
+    USBDACList(formats); // the first two: 44.1 kHz at 16 and 24 bits
     AudioStreamBasicDescription chosen = {0};
-    // 20-bit ALAC → i24, the smallest above.
-    XCTAssertTrue(VibeBitPerfectChooseFormat(Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_20BitSourceData, 44100),
-            44100, dac, n, &chosen));
+    AudioStreamBasicDescription twenty = Compressed(kAudioFormatAppleLossless, kAppleLosslessFormatFlag_20BitSourceData, 44100);
+    XCTAssertTrue(VibeBitPerfectChooseFormat(twenty, 44100, formats, 2, &chosen));
     XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+    XCTAssertFalse(VibeBitPerfectChooseFormat(twenty, 44100, formats, 1, &chosen), @"16 bits cannot carry 20");
     AudioFormatID lossless[] = { kAudioFormatAppleLossless, kAudioFormatFLAC };
     for (NSUInteger i = 0; i < sizeof(lossless) / sizeof(lossless[0]); i++) {
-        XCTAssertTrue(VibeBitPerfectChooseFormat(Compressed(lossless[i], 0, 44100), 44100, dac, n, &chosen));
-        XCTAssertEqual(chosen.mBitsPerChannel, 24u); // unknown lossless depth retains its 24-bit assumption
+        XCTAssertTrue(VibeBitPerfectChooseFormat(Compressed(lossless[i], 0, 44100), 44100, formats, 2, &chosen));
+        XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+        // An unknown lossless depth keeps its 24-bit assumption.
+        XCTAssertFalse(VibeBitPerfectChooseFormat(Compressed(lossless[i], 0, 44100), 44100, formats, 1, &chosen));
     }
 }
 
@@ -407,15 +407,17 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertFalse(VibePhysicalFormatsEquivalent(original, changed));
 }
 
-- (void)testSameRateDepthChangeNeedsAnOutputSwitchOnAnIntegerDAC {
+// A gapless splice between them can arm.
+- (void)testSixteenAndTwentyFourBitTracksShareAFormatOnAnIntegerDAC {
     AudioStreamRangedDescription dac[16];
     UInt32 n = (UInt32)USBDACList(dac);
-    AudioStreamBasicDescription first = {0}, next = {0};
+    AudioStreamBasicDescription first = {0}, next = {0}, other = {0};
     XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 16, NO), 44100, dac, n, &first));
     XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(44100, 24, NO), 44100, dac, n, &next));
-    XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(first, next, 44100));
-    XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(next, first, 44100));
-    XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(first, first, 44100));
+    XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(first, next, 44100));
+    XCTAssertFalse(VibeBitPerfectOutputNeedsSwitch(next, first, 44100));
+    XCTAssertTrue(VibeBitPerfectChooseFormat(VibePCM(48000, 16, NO), 48000, dac, n, &other));
+    XCTAssertTrue(VibeBitPerfectOutputNeedsSwitch(first, other, 44100), @"another rate still switches");
 }
 
 - (void)testFloatOutputCanSpliceDifferentDepthsAndLossyFilesWithoutASwitch {
@@ -488,7 +490,7 @@ static VibeBitPerfectReport Perfect(void) {
         .enabled = YES, .eligibleDevice = YES, .hasTrack = YES,
         .rateExact = YES, .formatConfirmed = YES, .channelsMatch = YES,
         .depthOK = YES, .softwareVolume = 1.0f, .balance = 0.5f, .playerVolume = 1.0f,
-        .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
+        .hogWanted = YES, .exclusive = YES, .sourceBits = 16,
     };
 }
 
@@ -554,7 +556,7 @@ static VibeBitPerfectReport Perfect(void) {
 // each report carries every breaker below it in the order as well.
 - (void)testFoldPriority {
     VibeBitPerfectReport r = Perfect();
-    r.sourceLossless = NO;
+    r.sourceBits = 0;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSourceLossy);
     r.exclusive = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusExclusiveRefused);

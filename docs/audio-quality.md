@@ -48,11 +48,11 @@ Vibe plays at whatever rate your output device is set to. A file at another rate
 Turn it on in Settings > Audio Output > Bit-perfect output. It's remembered per device, and it needs a specific device, not "System Output". Before each track plays, Vibe sets up your device:
 
 - **The sample rate is set to the file's.** If the device can't run at that rate, Vibe picks the lowest exact multiple it can. A 44.1 kHz file on a device that only offers 88.2 kHz gets doubled, cleanly. If there's no multiple either, it plays at the device's rate, and the status says it isn't bit-perfect.
-- **The device format gets enough precision.** Integer files ask for the smallest integer format that holds them, then float. Float and lossy files ask for the widest float format. Everything passes through 32-bit float. That limits 32-bit integer and 64-bit float sources, whatever the device takes.
+- **The device format gets enough precision.** Integer files ask for the device's widest integer format, then float. The extra bits are zero, so the samples are unchanged. A change Vibe makes to them, by its volume or a declick, is then rounded at that depth instead of at 16 bits. Float and lossy files ask for the widest float format. Everything passes through 32-bit float. That limits 32-bit integer and 64-bit float sources, whatever the device takes.
 - **DJ effects and pitch are off.** Crossfades shrink to the declick. Declick and volume can still change samples. Turn declick off and keep volume at full for exact playback through transitions.
 - **Exclusive output** is a separate switch. It locks the device so no other app can play through it.
 
-The caption shows the confirmed device format and anything that stops exact output. That covers rate conversion, channel mapping, too little precision, mute, volume, an unconfirmed device and a refused exclusive lock. Lossy files get their own status, because the decoded samples aren't the compressed file.
+When output is exact, the caption shows the device's sample rate and the file's bit depth. Otherwise it names what stops exact output. That covers rate conversion, channel mapping, too little precision, mute, volume, an unconfirmed device and a refused exclusive lock. Lossy files get their own status, because the decoded samples aren't the compressed file.
 
 By default the mode is allowed on built-in, USB, FireWire, Thunderbolt, PCI, HDMI, DisplayPort, AVB and virtual devices. Bluetooth, AirPlay and aggregate devices are left out. Settings > Advanced can override that. Being allowed doesn't prove a device keeps the samples.
 
