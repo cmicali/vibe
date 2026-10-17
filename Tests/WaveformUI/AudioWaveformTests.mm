@@ -1436,6 +1436,54 @@ static WaveformRenderer *VibeHostedRenderer(NSString *identifier, CGRect bounds,
     }
 }
 
+// A cropped Wiggle must keep the full path's curves and joins at both edges.
+- (void)testWiggleWindowsMatchTheFullPath {
+    std::vector<float> samples = VibeKickNoise(44100);
+    wavecore::SummaryBuilder builder(false, samples.size(), 44100);
+    builder.append(samples.data(), samples.size());
+    auto waveform = builder.finish(true);
+    CGRect bounds = CGRectMake(0, 0, 6000, 180);
+    for (CGFloat scale : {1.0, 2.0, 3.0}) {
+        for (BOOL centered : {NO, YES}) {
+            for (CGFloat stroke : {0.5, 1.0, 3.0}) {
+                WaveformRenderer *whole = VibeHostedRenderer(@"wiggle_centered", bounds, scale, YES);
+                whole.centered = centered;
+                whole.barWidthScale = stroke;
+                whole.samplingWidth = 812;
+                [whole updateWaveform:bounds progress:0.4 waveform:waveform.get()];
+                [whole settleMorphImmediately];
+                VibeTestPicture full = VibePictureOf(VibeMaskLayer(whole));
+                XCTAssertGreaterThan(full.pixels.size(), 0u);
+                for (CGFloat x : {0.0, 7.0, 41.5, 900.0, 2990.0, 5610.0}) {
+                    WaveformRenderer *part = VibeHostedRenderer(@"wiggle_centered", bounds, scale, YES);
+                    part.centered = centered;
+                    part.barWidthScale = stroke;
+                    part.samplingWidth = 812;
+                    part.renderRect = CGRectMake(x, 0, 390, 180);
+                    [part updateWaveform:bounds progress:0.4 waveform:waveform.get()];
+                    [part settleMorphImmediately];
+                    VibeTestPicture crop = VibePictureOf(VibeMaskLayer(part));
+                    size_t offset = (size_t)llround(crop.frame.origin.x * scale);
+                    XCTAssertGreaterThan(crop.pixels.size(), 0u);
+                    XCTAssertEqual(crop.height, full.height);
+                    XCTAssertLessThanOrEqual(offset + crop.width, full.width);
+                    uint32_t worst = 0;
+                    for (size_t row = 0; row < crop.height; row++) {
+                        for (size_t column = 0; column < crop.width; column++) {
+                            worst = MAX(worst, (uint32_t)abs((int)crop.alpha(column, row)
+                                    - (int)full.alpha(column + offset, row)));
+                        }
+                    }
+                    // Core Graphics rounds some coverage differently at a clip edge,
+                    // even when both renders stroke the complete path.
+                    XCTAssertLessThanOrEqual(worst, 1u, @"scale %g centered %d stroke %g x %g",
+                                             scale, centered, stroke, x);
+                }
+            }
+        }
+    }
+}
+
 // The iOS scrubber's window, flipped at 3x, moved by steps from a few points
 // to more than its width. Each picture must be the one drawn whole there.
 - (void)testAWindowMovedInPartMatchesOneDrawnWhole {
