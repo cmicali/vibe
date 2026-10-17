@@ -721,20 +721,24 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     NSString *path = [self writeWAVNamed:@"paced.wav" seconds:60];
     WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:recorder];
-    // Paced, so the stall below sees a block land every 0.1 s.
+    // Paced, so the decode makes a snapshot every 0.1 s while main waits.
     NSTimeInterval pace = AudioWaveformCache.debugDecodeSeconds;
-    AudioWaveformCache.debugDecodeSeconds = 3;
+    AudioWaveformCache.debugDecodeSeconds = 1;
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         [loader load:path];
         dispatch_semaphore_signal(done);
     });
-    [NSThread sleepForTimeInterval:1.5];
-    // One pass of the main queue delivers whatever queued during the stall.
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true);
-    XCTAssertEqual(recorder.snapshots.count, 1u, @"one waited for main, and none queued behind it");
+    // Main stalls through the whole decode, then drains its queue in order:
+    // every delivery queued during the stall runs before the marker.
     XCTAssertTrue([self await:done]);
     AudioWaveformCache.debugDecodeSeconds = pace;
+    __block BOOL drained = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        drained = YES;
+    });
+    XCTAssertTrue([self eventually:^BOOL { return drained; }]);
+    XCTAssertEqual(recorder.snapshots.count, 1u, @"one waited for main, and none queued behind it");
 }
 
 // A cancel ends a decode parked at the download's edge at once, in the open
