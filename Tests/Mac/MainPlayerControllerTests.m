@@ -479,8 +479,8 @@
     XCTAssertTrue(_player.levelsEnabled, @"the refused release did not go negative");
 }
 
-// The device runs every integer file at its widest depth, so the Active
-// caption names the file's depth, which is what reaches the device unchanged.
+// The device runs every integer file at its widest depth. The Active caption
+// names the file's depth instead. That depth reaches the device unchanged.
 - (void)testTheActiveCaptionShowsTheFilesDepthNotTheDevices {
     _player.bitPerfectReport = (VibeBitPerfectReport){.status = VibeBitPerfectStatusActive, .sampleRate = 96000,
                                                       .bitsPerChannel = 32, .sourceBits = 16};

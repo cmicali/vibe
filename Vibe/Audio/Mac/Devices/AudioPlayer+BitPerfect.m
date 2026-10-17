@@ -504,7 +504,6 @@ static const useconds_t kFormatSwitchPollMicroseconds = 5000;
             report.rateExact = (physical.mSampleRate == source.mSampleRate);
             report.depthOK = VibePhysicalFormatSatisfies(physical, source,
                                                          *file.processingFormat.streamDescription);
-            report.sourceLossless = VibeSourceIsLossless(source);
             report.sourceBits = VibeSourceBitDepth(source);
         }
     }
@@ -649,7 +648,6 @@ static NSString *VibeBitPerfectStatusName(VibeBitPerfectStatus status) {
         @"channelsMatch": @(r.channelsMatch),
         @"hogWanted": @(r.hogWanted),
         @"exclusive": @(r.exclusive),
-        @"sourceLossless": @(r.sourceLossless),
     };
 }
 

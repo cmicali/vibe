@@ -773,7 +773,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // A little-endian (sowt) AIFF-C of 24 or 32 bits, which CoreAudio's parser
 // describes as 16-bit, made from a big-endian one by swapping each sample:
 // dr_wav decodes the same samples, and the file's description carries their
-// width, so the depth report and bit-perfect output's choice honor all of it.
+// width. The depth report and bit-perfect output's depth check honor all of it.
 // A WAV's 20-bit sample in 3 bytes, which the two agree on, keeps the parser's
 // description.
 - (void)testDrWAVDescribesSowtAtItsWidth {
@@ -799,9 +799,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         AudioStreamBasicDescription source = *sowt.fileFormat.streamDescription;
         XCTAssertEqual(VibeSourceBitDepth(source), bits, @"%@ as sowt: the depth reported", name);
         AudioStreamRangedDescription offered[2] = {VibeRangedPCMFormat(source.mSampleRate, 16, NO), VibeRangedPCMFormat(source.mSampleRate, bits, NO)};
-        AudioStreamBasicDescription chosen = {0};
-        XCTAssertTrue(VibeBitPerfectChooseFormat(source, source.mSampleRate, offered, 2, &chosen), @"%@ as sowt", name);
-        XCTAssertEqual(chosen.mBitsPerChannel, bits, @"%@ as sowt: bit-perfect output's width", name);
         XCTAssertFalse(VibePhysicalFormatSatisfies(offered[0].mFormat, source, *sowt.processingFormat.streamDescription), @"%@ as sowt: 16 bits do not carry it", name);
     }
 

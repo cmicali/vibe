@@ -114,13 +114,9 @@ static NSUInteger USBDACList(AudioStreamRangedDescription *out) {
     XCTAssertEqual(VibeSourceBitDepth(Compressed(kAudioFormatFLAC, 0, 44100)), 24u);
 }
 
-- (void)testLossySourcesHaveNoDepthAndAreNotLossless {
+- (void)testLossySourcesHaveNoDepth {
     XCTAssertEqual(VibeSourceBitDepth(Compressed(kAudioFormatMPEGLayer3, 0, 44100)), 0u);
     XCTAssertEqual(VibeSourceBitDepth(Compressed(kAudioFormatMPEG4AAC, 0, 44100)), 0u);
-    XCTAssertFalse(VibeSourceIsLossless(Compressed(kAudioFormatMPEGLayer3, 0, 44100)));
-    XCTAssertTrue(VibeSourceIsLossless(VibePCM(44100, 16, NO)));
-    XCTAssertTrue(VibeSourceIsLossless(Compressed(kAudioFormatFLAC, 3, 44100)));
-    XCTAssertTrue(VibeSourceIsLossless(Compressed(kAudioFormatAppleLossless, 1, 44100)));
 }
 
 #pragma mark - Satisfaction
@@ -494,7 +490,7 @@ static VibeBitPerfectReport Perfect(void) {
         .enabled = YES, .eligibleDevice = YES, .hasTrack = YES,
         .rateExact = YES, .formatConfirmed = YES, .channelsMatch = YES,
         .depthOK = YES, .softwareVolume = 1.0f, .balance = 0.5f, .playerVolume = 1.0f,
-        .hogWanted = YES, .exclusive = YES, .sourceLossless = YES,
+        .hogWanted = YES, .exclusive = YES, .sourceBits = 16,
     };
 }
 
@@ -560,7 +556,7 @@ static VibeBitPerfectReport Perfect(void) {
 // each report carries every breaker below it in the order as well.
 - (void)testFoldPriority {
     VibeBitPerfectReport r = Perfect();
-    r.sourceLossless = NO;
+    r.sourceBits = 0;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusSourceLossy);
     r.exclusive = NO;
     XCTAssertEqual(VibeBitPerfectFold(r), VibeBitPerfectStatusExclusiveRefused);

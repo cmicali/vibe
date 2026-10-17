@@ -84,7 +84,7 @@ typedef struct {
     VibeBitPerfectStatus status;
     double sampleRate;      // the device's, after the switch
     UInt32 bitsPerChannel;  // the physical format's width
-    UInt32 sourceBits;      // the file's depth (VibeSourceBitDepth), which the Active caption shows
+    UInt32 sourceBits;      // the file's depth (VibeSourceBitDepth), 0 for lossy; the Active caption shows it
     BOOL isFloat;
     float softwareVolume;
     float balance;         // 0 = left, 0.5 = center, 1 = right
@@ -100,7 +100,6 @@ typedef struct {
     BOOL muted;
     BOOL hogWanted;
     BOOL exclusive;
-    BOOL sourceLossless;
 } VibeBitPerfectReport;
 
 static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
@@ -115,14 +114,13 @@ static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPer
             && a.rateExact == b.rateExact
             && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
             && a.depthOK == b.depthOK && a.muted == b.muted
-            && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
-            && a.sourceLossless == b.sourceLossless;
+            && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive;
 }
 
 // PCM: mBitsPerChannel. ALAC and FLAC: the kAppleLosslessFormatFlag_*
 // source-depth flags, or 24 assumed when the flags say nothing. Lossy and
-// unknown: 0, meaning "no native depth to honor" — which is also what makes a
-// source lossless below, so the two cannot list different formats.
+// unknown: 0, meaning no native depth to honor. The fold's SourceLossy is that
+// 0, so the chooser and the report cannot disagree about a file.
 static inline UInt32 VibeSourceBitDepth(AudioStreamBasicDescription source) {
     if (source.mFormatID == kAudioFormatLinearPCM) {
         return source.mBitsPerChannel;
@@ -137,10 +135,6 @@ static inline UInt32 VibeSourceBitDepth(AudioStreamBasicDescription source) {
         }
     }
     return 0;
-}
-
-static inline BOOL VibeSourceIsLossless(AudioStreamBasicDescription source) {
-    return VibeSourceBitDepth(source) > 0;
 }
 
 static inline BOOL VibePhysicalFormatIsFloat(AudioStreamBasicDescription format) {
@@ -299,7 +293,7 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    BOOL preferFloat = (VibeSourceIsFloat(source) || !VibeSourceIsLossless(source)) ? haveFloat : !haveInteger;
+    BOOL preferFloat = (VibeSourceIsFloat(source) || depth == 0) ? haveFloat : !haveInteger;
     *chosen = preferFloat ? floatPick : integerPick;
     return YES;
 }
@@ -339,7 +333,7 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (r.hogWanted && !r.exclusive) {
         return VibeBitPerfectStatusExclusiveRefused;
     }
-    if (!r.sourceLossless) {
+    if (r.sourceBits == 0) {
         return VibeBitPerfectStatusSourceLossy;
     }
     return VibeBitPerfectStatusActive;
