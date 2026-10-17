@@ -106,9 +106,12 @@ typedef struct {
 // dr_wav's facts as CoreAudio's parser states them, field for field. A PCM
 // sample narrower than its bytes is high-aligned in them: 20 bits in 3. A
 // WAV states that width. An AIFF's COMM does, and dr_wav rounds it up to the
-// bytes. A sowt AIFF-C is the one known difference. CoreAudio calls it 16-bit
-// whatever its COMM says, and reads it 1.5 or 2 times too long. Zeroed for a
-// coding dr_wav does not decode. Only dr_wav's own parse can tell one: a
+// bytes. An extensible WAV's valid bits do, and they can fill fewer bytes
+// than the container: 24 in 32 (Microsoft's WAVEFORMATEXTENSIBLE). There are
+// two known differences. CoreAudio calls a sowt AIFF-C 16-bit whatever its
+// COMM says, and reads it 1.5 or 2 times too long. It ignores an extensible
+// WAV's valid bits and states the container. Zeroed for a coding dr_wav does
+// not decode. Only dr_wav's own parse can tell one: a
 // WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
 // WAV is one. It goes to CoreAudio's parser and dr_mp3.
 static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav, UInt16 aiffSampleSize) {
@@ -149,7 +152,8 @@ static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav, UInt16 a
             }
             BOOL isSigned = !isFloat && (aiff ? !wav->aiff.isUnsigned : wav->bitsPerSample > 8);
             UInt32 bytes = (wav->bitsPerSample + 7) / 8;
-            UInt32 bits = aiff && aiffSampleSize && (aiffSampleSize + 7u) / 8 == bytes ? aiffSampleSize : wav->bitsPerSample;
+            UInt32 stated = aiff ? ((aiffSampleSize + 7u) / 8 == bytes ? aiffSampleSize : 0) : wav->fmt.validBitsPerSample;
+            UInt32 bits = !isFloat && stated > 0 && stated < wav->bitsPerSample ? stated : wav->bitsPerSample;
             description.mFormatID = kAudioFormatLinearPCM;
             description.mFormatFlags = (bits < bytes * 8 ? kAudioFormatFlagIsAlignedHigh : kAudioFormatFlagIsPacked)
                     | (isFloat ? kAudioFormatFlagIsFloat : 0) | (isSigned ? kAudioFormatFlagIsSignedInteger : 0)
