@@ -11,6 +11,9 @@
 //  and the failing mutant is attached to the result bundle.
 //  TEST_RUNNER_VIBE_FUZZ_SEED re-runs one base seed, and
 //  TEST_RUNNER_VIBE_FUZZ_ITERATIONS multiplies every random mutator's count.
+//  TEST_RUNNER_VIBE_FUZZ_EXPORT names a folder each mutant is also written to,
+//  under the default decoder choice, so another build can decode the same files
+//  (the vibe-audio-quality skill's comparison with a release).
 //
 //  Budgets at the default count. Each family is a subclass, so the parallel
 //  runner gives each its own process. Each must stay under 30 seconds in CI.
@@ -1218,6 +1221,7 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
     NSUInteger _multiplier;
     BOOL _priorAppleMPEGDecoder;
     NSUInteger _attachments;
+    NSString *_export;
 }
 
 - (void)setUp {
@@ -1225,6 +1229,7 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
     self.continueAfterFailure = YES;
     _baseSeed = VibeFuzzBaseSeed(0xF022DEC0DE5EED01ULL);
     _multiplier = MAX(1, NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_ITERATIONS"].integerValue);
+    _export = NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_EXPORT"];
     _root = [FuzzScratch() URLByAppendingPathComponent:NSUUID.UUID.UUIDString isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:_root withIntermediateDirectories:YES attributes:nil error:NULL];
     _priorAppleMPEGDecoder = AudioFileHandle.appleMPEGDecoder;
@@ -1309,6 +1314,10 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
             // NO: the shape does not apply to this container.
             if (!mutator.mutate(bytes, source, &random, mutator.arg)) break;
             if ([bytes isEqualToData:source.bytes]) continue;
+            if (_export && !appleMPEG) {
+                NSString *name = [NSString stringWithFormat:@"%@-%s-%016llx.%@", source.name.stringByDeletingPathExtension, mutator.name, seed, source.extension];
+                [bytes writeToFile:[_export stringByAppendingPathComponent:name] atomically:NO];
+            }
             FuzzDecode *mutant = [FuzzDecode new];
             mutant.bytes = bytes;
             mutant.name = [NSString stringWithFormat:@"%s-%lu.%@", mutator.name, (unsigned long)i, source.extension];

@@ -31,7 +31,8 @@ enum {
     // walks on through the frames already on disk, up to the first MB.
     kVibeMPEGEstimateFrames = 16,
     kVibeMPEGEstimateBytes = 1024 * 1024,
-    // More than any frame: a free format one is at most 2,881 bytes.
+    // More than any frame: MPEG-2.5 Layer II at 160 kbps is 2,881 bytes, and
+    // a free format frame at most DRMP3_MAX_FREE_FORMAT_FRAME_SIZE.
     kVibeMPEGFrameCapacity = 4096,
     // A frame is the stream's first, or where a walk takes up again after
     // damage, only when this many frames follow it, unless the data ends.
@@ -138,11 +139,15 @@ static BOOL VibeMPEGParse(const uint8_t h[4], UInt32 freeBytes, VibeMPEGFrame *f
         _mpegFixed = frame.fixed;
         if (!fixed && (frame.fixed & 1)) {
             // Free format: the next header of the same stream ends the frame.
+            // TRAP: never past dr_mp3's largest. Its reservoir copy holds that
+            // much, and a longer frame overflowed into the side information
+            // beside it: a damaged stream whose free format frames were six
+            // frames apart.
             UInt32 padding = ((h[2] >> 1) & 1) * (frame.layer == 1 ? 4 : 1);
             uint8_t n[4];
             VibeMPEGFrame other;
             _mpegFreeBytes = 0;
-            for (SInt64 next = at + 4; next < at + kVibeMPEGFrameCapacity && next + 4 <= _mpegDataEnd; next++) {
+            for (SInt64 next = at + 4; next <= at + padding + DRMP3_MAX_FREE_FORMAT_FRAME_SIZE && next + 4 <= _mpegDataEnd; next++) {
                 if (VibeHandleRead(context, next, 4, n, &got) != noErr || got != 4) {
                     break;
                 }
@@ -233,6 +238,12 @@ static BOOL VibeITunesGaplessText(const uint8_t *body, SInt64 size, SInt64 *prim
         words[count] = strtoull(cursor, &after, 16);
         if (after == cursor) return NO;
         cursor = after;
+    }
+    // TRAP: the words are 64-bit, and a damaged one overflowed the length's
+    // arithmetic. A priming or remainder past 65,536 frames, over a second at
+    // MP3's highest rate, or frames past 2^40, is no gapless comment.
+    if (words[1] > 1 << 16 || words[2] > 1 << 16 || words[3] > 1ULL << 40) {
+        return NO;
     }
     *priming = (SInt64)words[1];
     *remainder = (SInt64)words[2];
@@ -513,7 +524,7 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
     // An uncounted stream's estimate is not the end: a seek past it is
     // kept, its length raised ahead of the cursor as a read raises it.
     BOOL uncounted = _mpegPacketCount == kVibeMPEGPacketsUncounted;
-    _mpegPosition = uncounted ? MAX(0, frame) : MIN(MAX(0, frame), _length);
+    _mpegPosition = MIN(uncounted ? MAX(0, frame) : MIN(MAX(0, frame), _length), INT64_MAX / 2);
     if (uncounted && _mpegPosition >= _length) {
         __atomic_store_n(&_length, _mpegPosition + 1, __ATOMIC_RELAXED);
     }

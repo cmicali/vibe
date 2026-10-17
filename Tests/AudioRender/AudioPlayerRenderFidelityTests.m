@@ -666,6 +666,27 @@ static NSUInteger VibeID3v2End(NSData *file) {
     XCTAssertEqualObjects(continuous, [self readToEnd:whole]);
     [self assertSeeksOf:file match:continuous block:1152 name:@"free format"];
 }
+// Every sixth frame of a CBR stream rewritten as free format, from the frame
+// after its Info frame's next. Those frames are 3,456 bytes apart, more than
+// dr_mp3's largest free format frame. The open took them for a free format
+// stream of 3,456-byte frames, and dr_mp3's reservoir copy overran its
+// buffer. They are damage: the stream plays its other frames.
+- (void)testDrMP3NeverTakesFreeFormatFramesPastItsLargest {
+    NSURL *url = [self optionalFixture:@"cbr.mp3"];
+    AudioFileHandle.appleMPEGDecoder = NO;
+    NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
+    uint8_t *b = bytes.mutableBytes;
+    NSUInteger start = VibeID3v2End(bytes), rewritten = 0;
+    for (NSUInteger at = start + 2 * 576; at + 4 <= bytes.length; at += 6 * 576, rewritten++) {
+        XCTAssertEqual(b[at], 0xFF);
+        b[at + 2] &= 0x0F;
+    }
+    XCTAssertGreaterThan(rewritten, 10u);
+    AudioFileHandle *whole = [self open:url decoder:@"dr_mp3"];
+    AudioFileHandle *file = [self open:[self writeBytes:bytes name:@"free-far-apart.mp3"] decoder:@"dr_mp3"];
+    XCTAssertGreaterThan(file.length, whole.length / 2, @"the stream's own frames, not free format ones");
+    XCTAssertGreaterThan([self readToEnd:file].length, 0u);
+}
 // A stream can change its mode from frame to frame. CoreAudio stops counting
 // at the change. Vibe plays it with the most channels a frame holds, a mono
 // frame in both. Here a mono stream runs into a stereo one: each decodes as
