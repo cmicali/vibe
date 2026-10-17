@@ -529,6 +529,26 @@ static const double kHitLevel = std::sqrt((1 + 2 * kQuietLevel * kQuietLevel) / 
     }
 }
 
+// A long file's coarser bins archive too. A decode that refused them filed
+// every long file for nothing, and each load decoded it again.
+- (void)testCoarseBinsRoundTripTheArchive {
+    auto summary = std::make_unique<Summary>(4096, 1, true, 44100);
+    for (int i = 0; i < 100; i++) {
+        float lo = -0.005f * i, hi = 0.005f * i;
+        double bands[wavecore::kBandCount] = {1.0 * i, 2.0 * i, 3.0 * i};
+        summary->appendBin(&lo, &hi, 0.25 * i, bands, 4096);
+    }
+    summary->markComplete();
+    std::vector<uint8_t> blob = summary->encode();
+    auto decoded = Summary::decode(blob.data(), blob.size());
+    XCTAssertTrue(decoded != nullptr);
+    if (decoded) {
+        XCTAssertEqual(decoded->binFrames(), 4096u);
+        XCTAssertEqual(decoded->frames(), summary->frames());
+        XCTAssertTrue(decoded->hasBands());
+    }
+}
+
 // An archive has no checksum, so every malformed field is refused rather than
 // read: a refused entry decodes again, a read one poisons every view.
 - (void)testTheArchiveRefusesWhatItCannotTrust {

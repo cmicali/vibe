@@ -746,8 +746,10 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
     if (std::memcmp(header.magic, kArchiveMagic, 4) != 0 || header.version != kArchiveVersion) {
         return nullptr;
     }
+    // Any power of two: a long file takes bins coarser than kBaseBinFrames. The
+    // bin count bounds the memory, and the frames must end in the last bin.
     uint32_t bf = header.binFrames;
-    bool powerOfTwo = bf > 0 && bf <= kBaseBinFrames && (bf & (bf - 1)) == 0;
+    bool powerOfTwo = bf > 0 && (bf & (bf - 1)) == 0;
     uint64_t n = header.binCount;
     if (!powerOfTwo || header.channels < 1 || header.channels > kMaxChannels || n > kMaxArchivedBins ||
         !std::isfinite(header.sampleRate) || header.sampleRate <= 0 || header.totalFrames < 0) {
