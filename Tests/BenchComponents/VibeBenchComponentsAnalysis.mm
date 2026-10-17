@@ -123,22 +123,22 @@ static void VibeBenchComponentsRegisterWaveform(void) {
             [analyzer finish];
         });
         // The loader's processing side without the analyzers: the downmix
-        // and the chunk merge over the waveform's chunks, then the same with
-        // the band split 3-Band asks for.
+        // and the waveform's own pass, then the same with the band split
+        // 3-Band asks for.
         for (int bands = 0; bands <= VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS; bands++) {
             VibeBenchComponentsAdd(bands ? "chunker+bands" : "chunker", n, "audio s",
                                    VibeBenchComponentsPCMPrepare(name), [name, bands]() {
                 VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
                 std::vector<float> scratch(65536);
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
-                wavecore::SummaryBuilder builder(bands, pcm->frames, pcm->rate);
+                auto builder = VibeBenchComponentsMixBuilder(bands, (int64_t)pcm->frames, pcm->rate);
                 for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
-                    NSUInteger count = MIN((NSUInteger)65536, pcm->frames - at);
-                    const float *mono = AudioWaveformMonoMix(pcm->interleaved.data() + at * pcm->channels,
-                                                             scratch.data(), count, pcm->channels);
-                    builder.append(mono, count);
+                    NSUInteger numFrames = MIN((NSUInteger)65536, pcm->frames - at);
+                    const float *interleaved = pcm->interleaved.data() + at * pcm->channels;
+                    const float *mono = AudioWaveformMonoMix(interleaved, scratch.data(), numFrames, pcm->channels);
+                    VibeBenchComponentsAppendMix(*builder, mono, numFrames);
                 }
-                builder.finish(true);
+                builder->finish(true);
 #else
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
                 AudioWaveform waveform(bands);
