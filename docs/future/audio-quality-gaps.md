@@ -81,8 +81,6 @@ Several stages make samples above 0 dBFS:
 
 All of that stays exact in float inside Vibe. But Vibe's volume control is off by default. At full volume the device's conversion to integer clips every over.
 
-[audio-quality.md](../audio-quality.md) says kept peaks let "Vibe's volume control, effects or resampler" bring them down cleanly. That sentence is wrong about the resampler. It makes overs and never lowers them. The volume control is opt-in. Rewrite that sentence when this lands, or now.
-
 **The options.** Each one trades level for clean peaks. Each one needs a decision.
 
 - A fixed headroom, such as −3 dB, applied only when the path already changes samples: resampling, a downmix, FX or pitch. Bit-exact playback is untouched.
