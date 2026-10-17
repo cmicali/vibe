@@ -9,7 +9,7 @@ A waveform engine for audio apps: a compact summary of an audio stream, the read
 - **Zoom steps.** A view reads columns only at steps of 2^(s/2) frames and crossfades the two steps around its scale. A resize or a zoom inside a step only resamples the same columns, so every pixel changes continuously and fine texture never reshuffles.
 - **Exact coverage.** `ColumnCoverage` lands spans in a pixel column by their exact area, and `ColumnPaint` paints colored spans in order without stacking their edges. Both work one pixel column at a time, so a picture of any width needs one column of memory.
 - **Deep zoom.** A summary's `Detail` holds blocks of the stream's own frames, filled on demand. Columns finer than a bin read them through the line joining the samples. A read that misses blocks leaves them for the holder to fetch.
-- **An archive.** About 250 KB for a 4:40 song: a header and float16 planes, delta-filtered and LZFSE-compressed. The decoder refuses anything malformed.
+- **An archive.** About 250 KB for a 4:40 song: a header and float16 planes, their high bytes LZFSE-compressed and their low bytes LZ4-compressed. The decoder refuses anything malformed.
 
 ## Using it
 

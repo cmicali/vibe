@@ -167,11 +167,13 @@ targets:
       # Its summary and band split are the decode's per-sample work, and its
       # raster every picture's: optimized in every configuration, as the
       # decoders are, so a Debug build loads and draws as a shipped one does.
-      # -Os is what Release uses anyway.
+      # -O3, because -Os vectorizes none of its loops. Measured, it cut a
+      # cache read's CPU by a third and 3-Band's load frames by a quarter,
+      # for 16 KB of code. Every picture stayed byte for byte the same.
       - path: Packages/WaveformCore/Sources
         excludes: ["**/.DS_Store", "**/*.md"]
         compilerFlags: &waveform-core-flags
-          - "-Os"
+          - "-O3"
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Loading
