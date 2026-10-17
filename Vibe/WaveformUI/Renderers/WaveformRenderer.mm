@@ -7,13 +7,16 @@
 #import "WaveformMorphEngine.h"
 #import "WaveformZoomMath.h"
 
+CGColorSpaceRef VibePictureColorSpace(CGColorSpaceRef space) {
+    static CGColorSpaceRef sRGB = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    return space ?: sRGB;
+}
+
 CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height, CGColorSpaceRef space) {
     CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)pixels);
-    CGColorSpaceRef sRGB = space ? NULL : CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGImageRef image = CGImageCreate(width, height, 8, 32, width * sizeof(uint32_t), space ?: sRGB,
+    CGImageRef image = CGImageCreate(width, height, 8, 32, width * sizeof(uint32_t), VibePictureColorSpace(space),
                                      (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
                                      provider, NULL, false, kCGRenderingIntentDefault);
-    CGColorSpaceRelease(sRGB);
     CGDataProviderRelease(provider);
     return image;
 }
@@ -26,8 +29,6 @@ static const NSUInteger kMaxBlockBars = 1024;
     CGFloat _hoverHighlightX;
     // The detail's inserts the target was last filled after.
     uint64_t _detailInserts;
-    // fillLevels:'s columns, kept across fills so a resize allocates none.
-    std::vector<wavecore::Column> _fillColumns;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {

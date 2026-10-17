@@ -62,10 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)displayScale;
 - (CGFloat)minimumVisibleFraction;
 - (CGFloat)virtualWidth;
-- (CGRect)virtualBounds;
-- (void)installRendererIfNeeded;
 - (CGFloat)progressForContentOffset:(CGFloat)x;
-- (void)applyScrollAndProgress;
 - (void)parkContentOffsetAtProgress;
 - (void)applyPlayedClip;
 // Draws the stretch around what the view shows once it leaves the window

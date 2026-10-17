@@ -446,7 +446,7 @@
             framesProcessed += numFrames;
 
             // Throttle delegate notifications to about 10 Hz, because each one
-            // triggers a full path rebuild on the main thread.
+            // refills the view's target and redraws its picture on main.
             // AudioWaveformCache delivers the final completion callback
             // separately. A detached decode still persists its final result,
             // but its UI-only snapshot copies and main-queue blocks are waste.

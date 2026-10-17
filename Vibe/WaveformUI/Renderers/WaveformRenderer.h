@@ -85,9 +85,13 @@ struct VibeRenderPixels {
     }
 };
 
+// The space a picture is painted in: space, or sRGB for NULL.
+CGColorSpaceRef VibePictureColorSpace(CGColorSpaceRef _Nullable space);
+
 // A layer's picture from 32-bit premultiplied ARGB pixels in host order, in
-// space, or sRGB for NULL. TRAP: never an alpha-only image, even for a mask:
-// one draws nothing under renderInContext:, which the registry's bake uses.
+// VibePictureColorSpace(space). TRAP: never an alpha-only image, even for a
+// mask: one draws nothing under renderInContext:, which the registry's bake
+// uses.
 CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height,
                                   CGColorSpaceRef _Nullable space) CF_RETURNS_RETAINED;
 
@@ -168,6 +172,9 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
     wavecore::StepWindow _window;
     // The window the picture last covered; each rebuild sets it.
     VibeRenderPixels _drawnPixels;
+    // The columns fillLevels: last read, kept across fills so a resize
+    // allocates none.
+    std::vector<wavecore::Column> _fillColumns;
 }
 
 @property (assign) BOOL isDark;

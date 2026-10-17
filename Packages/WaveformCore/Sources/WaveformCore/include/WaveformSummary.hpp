@@ -128,7 +128,6 @@ public:
     // load's bins land where they will stay.
     int64_t totalFrames() const { return complete_ ? frames_ : std::max(totalFrames_, frames_); }
     bool isComplete() const { return complete_; }
-    double decodedFraction() const;
 
     // What a read fills: every field, or the unions alone (extremes and
     // loudest windows), which is all a picture draws and skips the sums.
@@ -202,11 +201,11 @@ private:
 
     // The pyramid and the loudest windows, derived as bins arrive by a
     // builder, whole by a decode, or else on first read, and kept: a shared
-    // summary never changes. derived_ bins have their loudest windows.
+    // summary never changes. base_.loudest holds the bins whose loudest
+    // windows are derived.
     mutable std::mutex lazyLock_;
     mutable std::atomic<bool> pyramidBuilt_{false};
     mutable std::vector<Level> pyramid_;
-    mutable size_t derived_ = 0;
     // The loudest window's sums, slid a bin at a time over [start, end).
     mutable struct {
         size_t start = 0, end = 0;

@@ -45,7 +45,7 @@ static CGFloat PhoneMinimum(void) {
 }
 
 // A 4:40 song on a phone zooms to under 2% of the track: four seconds across
-// the view, against the old bitmap budget's 7 to 10%.
+// the view.
 - (void)testShippingLayoutsAffordRealZoom {
     XCTAssertLessThan(PhoneMinimum(), 0.02);
     XCTAssertGreaterThan(PhoneMinimum(), 0);

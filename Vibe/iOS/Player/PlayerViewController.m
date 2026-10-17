@@ -446,8 +446,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 // Paused unless the playhead moves where someone can see it. A swipe or a
 // size transition counts as unseen and takes the frame-budget hold (+Pager):
-// the swipe needs those frames, and during a resize the bake is down, so each
-// write re-composites the live tree.
+// the swipe needs those frames, and during a resize each write re-composites
+// the live tree.
 - (void)updateScrollLinkState {
     _scrollLink.paused = !(_playback.isPlaying && _sceneActive && self.isPresented
                            && !_pagerScrolling && !_pagerProgrammaticScrolling

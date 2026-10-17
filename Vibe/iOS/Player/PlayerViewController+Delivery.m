@@ -32,7 +32,8 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
            didUpdateWaveform:(CodableAudioWaveform *)waveform
                     forIndex:(NSUInteger)index {
     BOOL complete = [pipeline isCompleteAtIndex:index];
-    [[self cellAtIndex:index].waveformView showWaveform:waveform];
+    // Eased only where someone can see it: every eased frame is a full raster.
+    [[self cellAtIndex:index].waveformView showWaveform:waveform animated:_sceneActive && self.isPresented];
     // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
         [_playback offerWaveformToWidget:waveform

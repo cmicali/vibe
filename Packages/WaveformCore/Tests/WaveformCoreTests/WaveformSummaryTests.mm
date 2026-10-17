@@ -139,16 +139,14 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     XCTAssertTrue(std::isfinite(column.bandSumSquares[0]));
 }
 
-- (void)testDecodedFractionIsWhatTheBinsHoldOfTheExpectedLength {
+- (void)testAPartialSummarySpansItsExpectedLength {
     SummaryBuilder builder(1, 1, false, 4096, 44100);
     std::vector<float> silence(1024, 0);
     builder.append(silence.data(), silence.data(), silence.size());
     auto partial = builder.snapshot();
-    XCTAssertEqual(partial->decodedFraction(), 0.25);
     XCTAssertEqual(partial->totalFrames(), 4096, @"a partial waveform spans its expected length");
     XCTAssertFalse(partial->isComplete());
     auto complete = builder.finish(true);
-    XCTAssertEqual(complete->decodedFraction(), 1);
     XCTAssertEqual(complete->totalFrames(), 1024, @"a complete waveform spans what was read");
 }
 

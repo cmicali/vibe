@@ -12,7 +12,7 @@
 
 Loading and empty are mutually exclusive, and `prepareForWaveformLoad` clears both.
 
-**TRAP: feed every delivery directly into the running morph, completion included.** Holding the first leaves an empty strip after a skip as the outgoing bars collapse. Settling partials breaks the continuous ease. The morph eases from the displayed bars at 60 Hz, so a newer snapshot bends the motion rather than snapping it. The loader already limits partial snapshots to about 10 Hz, so the view adds no pacing of its own. Normalize's completing raise uses the same morph. The iOS scrubber paces and reveals its bitmaps its own way.
+**TRAP: feed every delivery directly into the running morph, completion included.** Holding the first leaves an empty strip after a skip as the outgoing bars collapse. Settling partials breaks the continuous ease. A window no one can see settles each delivery at once, since every eased frame is a full raster on main. The morph eases from the displayed bars at 60 Hz, so a newer snapshot bends the motion rather than snapping it. The loader already limits partial snapshots to about 10 Hz, so the view adds no pacing of its own. Normalize's completing raise uses the same morph.
 
 ## Progress
 

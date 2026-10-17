@@ -108,7 +108,6 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     std::vector<float> _bottoms;
     std::vector<float> _tops;
     std::vector<wavecore::Column> _columns;
-    std::vector<wavecore::Column> _levelColumns;
     std::vector<float> _levels;
 }
 
@@ -364,13 +363,11 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         std::fill(out, out + count * 2, 0.0f);
         return;
     }
-    _levelColumns.resize(levelCount);
-    waveform->columns(levelFrames, (int64_t)firstLevel, levelCount, _levelColumns.data(), wavecore::kAllChannels,
-                      AudioWaveform::Fill::kUnions);
     _levels.resize(levelCount);
-    [self fillLevels:_levels.data() stride:1 columns:_levelColumns.data() count:levelCount waveform:waveform];
+    [self fillLevels:_levels.data() stride:1 framesPerColumn:levelFrames first:(int64_t)firstLevel count:levelCount
+            waveform:waveform];
     const float *levels = _levels.data();
-    const wavecore::Column *levelColumns = _levelColumns.data(), *columns = _columns.data();
+    const wavecore::Column *levelColumns = _fillColumns.data(), *columns = _columns.data();
     for (NSUInteger i = 0; i < count; i++) {
         wavecore::ColumnPair pair = wavecore::ColumnPairAroundFrame(((double)first + i + 0.5) * frames, levelFrames,
                                                                     (int64_t)firstLevel, levelCount);
@@ -432,7 +429,7 @@ static const double kLevelPixels = 4;
         std::vector<float>().swap(_bottoms);
         std::vector<float>().swap(_tops);
         std::vector<wavecore::Column>().swap(_columns);
-        std::vector<wavecore::Column>().swap(_levelColumns);
+        std::vector<wavecore::Column>().swap(_fillColumns);
         std::vector<float>().swap(_levels);
     }
     if (count > 0 && pixels.width() > 0 && pixels.height > 0) {
@@ -530,34 +527,36 @@ static const double kLevelPixels = 4;
     return MIN(1, peak * VibeWiggleVScale(_morph.size.height, self.centered, self.barWidthScale) / kWigglePitch);
 }
 
-// The centerline stroked by Core Graphics, the render window's part of it.
+// The centerline stroked by Core Graphics, the render window's part of it,
+// into the one image factory's pixels. The rows are handed top-down, and the
+// CTM flips them for a flipped layer.
 - (CGImageRef)newWiggleImageForSamples:(const std::vector<float> &)samples pixels:(VibeRenderPixels)pixels
                                   size:(CGSize)size flipped:(BOOL)flipped CF_RETURNS_RETAINED {
     NSUInteger count = samples.size() / 2;
-    CGColorSpaceRef sRGB = self.pictureColorSpace ? NULL : CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef ctx = CGBitmapContextCreate(NULL, (size_t)pixels.width(), (size_t)pixels.height, 8, 0,
-            self.pictureColorSpace ?: sRGB, (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
-    CGColorSpaceRelease(sRGB);
-    if (!ctx) {
-        return NULL;
-    }
-    if (flipped) {
-        CGContextTranslateCTM(ctx, 0, pixels.height);
-        CGContextScaleCTM(ctx, 1, -1);
-    }
-    CGContextScaleCTM(ctx, pixels.scale, pixels.height / size.height);
-    CGContextTranslateCTM(ctx, -pixels.x0 / pixels.scale, 0);
-    CGPathRef path = VibeNewWigglePath(size, samples.data(), count, self.centered, self.barWidthScale);
-    CGContextAddPath(ctx, path);
-    CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
-    CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count, self.barWidthScale));
-    CGContextSetLineCap(ctx, kCGLineCapRound);
-    CGContextSetLineJoin(ctx, kCGLineJoinRound);
-    CGContextStrokePath(ctx);
-    CGPathRelease(path);
-    CGImageRef image = CGBitmapContextCreateImage(ctx);
-    CGContextRelease(ctx);
-    return image;
+    CGColorSpaceRef space = self.pictureColorSpace;
+    return VibeNewLayerImage(space, NO, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
+        CGContextRef ctx = CGBitmapContextCreate(out, (size_t)pixels.width(), (size_t)pixels.height, 8,
+                (size_t)stride * sizeof(uint32_t), VibePictureColorSpace(space),
+                (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+        if (!ctx) {
+            return;
+        }
+        if (flipped) {
+            CGContextTranslateCTM(ctx, 0, pixels.height);
+            CGContextScaleCTM(ctx, 1, -1);
+        }
+        CGContextScaleCTM(ctx, pixels.scale, pixels.height / size.height);
+        CGContextTranslateCTM(ctx, -pixels.x0 / pixels.scale, 0);
+        CGPathRef path = VibeNewWigglePath(size, samples.data(), count, self.centered, self.barWidthScale);
+        CGContextAddPath(ctx, path);
+        CGContextSetRGBStrokeColor(ctx, 1, 1, 1, 1);
+        CGContextSetLineWidth(ctx, VibeWiggleStrokeForSize(size, count, self.barWidthScale));
+        CGContextSetLineCap(ctx, kCGLineCapRound);
+        CGContextSetLineJoin(ctx, kCGLineJoinRound);
+        CGContextStrokePath(ctx);
+        CGPathRelease(path);
+        CGContextRelease(ctx);
+    });
 }
 
 @end

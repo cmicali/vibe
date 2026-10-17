@@ -376,9 +376,14 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 // TRAP: feed every delivery directly into the running morph. Holding the
 // first leaves an empty strip after a skip; settling partials breaks the ease.
+// A window no one can see settles each one at once, since every eased frame
+// is a full raster on main.
 - (void)showWaveform:(CodableAudioWaveform *)waveform {
     _waveform = waveform;
     [self drawWaveform];
+    if (!(self.window.occlusionState & NSWindowOcclusionStateVisible)) {
+        [_currentWaveformRenderer settleMorphImmediately];
+    }
 }
 
 - (void)setFrameSize:(NSSize)newSize {

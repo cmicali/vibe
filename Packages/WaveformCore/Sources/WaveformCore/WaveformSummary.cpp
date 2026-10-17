@@ -38,14 +38,6 @@ Summary::Summary(uint32_t binFrames, uint32_t channels, bool bands, double sampl
     base_.binFrames = binFrames_;
 }
 
-double Summary::decodedFraction() const {
-    int64_t total = totalFrames();
-    if (complete_ || total <= 0) {
-        return 1;
-    }
-    return std::min(1.0, double(frames_) / double(total));
-}
-
 void Summary::appendBin(const float *lo, const float *hi, double sumSquares, const double *bandSumSquares,
                         uint32_t frames) {
     for (uint32_t c = 0; c < channels_; c++) {
@@ -97,7 +89,7 @@ void Summary::derive(bool final) const {
     // Bin i's window is [i - half, i - half + window), clamped at 0, and whole
     // once it ends within the bins held. A snapshot's bins arrive with their
     // loudest windows.
-    size_t first = std::max(derived_, base_.loudest.size());
+    size_t first = base_.loudest.size();
     size_t whole = final ? n : n >= window ? n - window + half + 1 : 0;
     if (whole > first) {
         base_.loudest.resize(whole);
@@ -133,10 +125,9 @@ void Summary::derive(bool final) const {
             bandLoudest[i * kBandCount + b] = rms(sums.bandSquares[b]);
         }
     }
-    derived_ = std::max(first, whole);
     window_ = sums;
     for (size_t index = 1;; index++) {
-        size_t below = index == 1 ? derived_ : pyramid_[index - 2].count;
+        size_t below = index == 1 ? base_.loudest.size() : level(index - 1).count;
         if (final ? below <= kFanout : below < kFanout) {
             if (final) {
                 pyramid_.resize(index - 1);
@@ -148,7 +139,7 @@ void Summary::derive(bool final) const {
             pyramid_.back().binFrames = uint64_t(binFrames_) << (2 * index);
             reserve(pyramid_.back(), (base_.sumSquares.capacity() >> (2 * index)) + 1);
         }
-        const Level &from = index == 1 ? base_ : pyramid_[index - 2];
+        const Level &from = level(index - 1);
         Level &up = pyramid_[index - 1];
         reduceGroups(up, from, final ? (below + kFanout - 1) / kFanout : below / kFanout, below);
     }
@@ -589,13 +580,12 @@ void Summary::tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, si
 // appended by less than one of its bins and half a loudest window: a second
 // at most of a stream hours long.
 std::unique_ptr<Summary> Summary::snapshot() const {
-    auto countAt = [&](size_t index) { return index == 0 ? base_.count : pyramid_[index - 1].count; };
     size_t index = 0;
-    while (index < pyramid_.size() && countAt(index) > kSnapshotBins) {
+    while (index < pyramid_.size() && level(index).count > kSnapshotBins) {
         index++;
     }
-    const Level &from = index == 0 ? base_ : pyramid_[index - 1];
-    size_t bins = countAt(index);
+    const Level &from = level(index);
+    size_t bins = from.count;
     auto copy = std::make_unique<Summary>(uint32_t(from.binFrames), channels_, bands_, sampleRate_);
     Level &to = copy->base_;
     auto head = [](const auto &plane, size_t values) {
@@ -787,6 +777,7 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
         }
     }
     auto summary = std::make_unique<Summary>(bf, header.channels, bands, header.sampleRate);
+    summary->reserve(summary->base_, n);
     const _Float16 *in = raw.data();
     std::vector<float> lo(header.channels), hi(header.channels);
     std::vector<double> bandSums(kBandCount);

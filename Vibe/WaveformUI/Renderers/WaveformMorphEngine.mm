@@ -181,8 +181,11 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
         }
         geometryChanged = YES;
     }
-    // A bare hasWaveform flip: no morph, but the hairline floor changed.
+    // A bare hasWaveform flip: no morph, but the hairline floor changed. A
+    // flip to empty settles there, so it releases the samples as every settle
+    // does.
     if (geometryChanged || (hasWaveformChanged && !targetChanged)) {
+        [self releaseSamplesIfEmpty];
         [self runRebuild];
     }
     if (targetChanged) {

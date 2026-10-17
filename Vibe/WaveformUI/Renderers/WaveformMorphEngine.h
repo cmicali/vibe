@@ -78,8 +78,10 @@ NS_ASSUME_NONNULL_BEGIN
 // it would quantize the motion into visible steps.
 - (const std::vector<float> &)displayedSamples;
 @property (nonatomic, readonly) CGSize size;
-// 1 with a waveform (silent and unloaded chunks draw a hairline), 0 without
-// (collapsed bars vanish). Here so both families agree.
+// 1 with a waveform (silent and unloaded bins draw a hairline), 0 without
+// (collapsed bars vanish). The Detailed family reads it. 3-Band and Spectrum
+// keep the hairline always, since an empty view that has settled keeps no
+// samples.
 @property (nonatomic, readonly) CGFloat barMinHeight;
 @property (nonatomic, readonly, getter=isSettled) BOOL settled;
 

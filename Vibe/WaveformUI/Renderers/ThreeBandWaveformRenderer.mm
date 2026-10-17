@@ -87,8 +87,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     // Spectrum's mixes inside the tallest band.
     CALayer *_picture;
     BOOL _spectrum;
-    NSUInteger _samplesPerBar;
-    // The fills in sRGB, kept until the theme changes them.
+    // The fills in the picture's space, kept until the theme or the space
+    // changes them.
     NSArray<VibeColor *> *_fillColors;
     float _fills[kLayerCount][3];
     CALayer *_sides;
@@ -113,12 +113,11 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     self = [super initWithLayer:parentLayer bounds:bounds isDark:isDark];
     if (self) {
         _spectrum = [self.class paletteKind] == VibeWaveformPaletteKindSpectrum;
-        _samplesPerBar = _spectrum ? kSpectrumSamplesPerBar : wavecore::kBandCount;
         __weak __typeof__(self) weakSelf = self;
         _morph = [[WaveformMorphEngine alloc]
                 initWithVScale:^CGFloat(CGFloat height) { return VibeBarVScale(height); }
                        rebuild:^{ [weakSelf rebuildPicture]; }];
-        _morph.samplesPerBar = _samplesPerBar;
+        _morph.samplesPerBar = _spectrum ? kSpectrumSamplesPerBar : wavecore::kBandCount;
         [self setupLayers];
         [self updateColors:isDark];
         [self updateWaveform:bounds progress:0 waveform:nil];
@@ -270,7 +269,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 // their own (kVibeWaveformSpectrumColorSeconds), never narrower than a
 // column each side, and unclamped.
 - (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform {
-    NSUInteger count = part.count, stride = _samplesPerBar;
+    NSUInteger count = part.count, stride = _morph.samplesPerBar;
     double frames = part.framesPerColumn();
     // Under Normalize each band is measured against its own loudest window,
     // so a hot master's bands fill their ceilings rather than pegging.
@@ -314,7 +313,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     VibeRenderPixels pixels = _pixels;
     _drawnPixels = pixels;
     wavecore::StepWindow window = _window;
-    NSUInteger stride = _samplesPerBar;
+    NSUInteger stride = _morph.samplesPerBar;
     CGImageRef image = NULL;
     VibeSignpostBegin(waveform_raster);
     if (!displayed.empty() && displayed.size() == window.columnCount() * stride && pixels.width() > 0 &&
@@ -324,10 +323,11 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         const double framesPerColumn[2] = {window.parts[0].framesPerColumn(), window.parts[1].framesPerColumn()};
         CGFloat height = pixels.height;
         CGFloat midY = height / 2, baseline = VibeBarBaseline(height), vscale = VibeBarVScale(height);
-        // A picture still easing keeps the hairline, so a cleared one collapses
+        // The hairline holds even after a clear, so a cleared picture collapses
         // onto it. Below it 3-Band's stacked bands blended into stray colors,
-        // column by column. Settled empty, the engine's floor draws nothing.
-        CGFloat minimum = (_morph.isSettled ? _morph.barMinHeight : 1) * pixels.scale;
+        // column by column. An empty view that has settled keeps no samples,
+        // so it draws nothing.
+        CGFloat minimum = pixels.scale;
         BOOL centered = self.centered, spectrum = _spectrum;
         float fills[kLayerCount][3];
         memcpy(fills, _fills, sizeof(fills));
