@@ -71,15 +71,14 @@ static void VibeBenchComponentsRegisterWaveform(void) {
                 VibeBenchComponentsPCM *pcm = VibeBenchComponentsDecoded(name);
                 std::vector<float> scratch(65536);
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
-                wavecore::SummaryBuilder builder((uint32_t)pcm->channels, kAudioWaveformStoredChannels, bands,
-                                                 (int64_t)pcm->frames, pcm->rate);
+                auto builder = VibeBenchComponentsMixBuilder(bands, (int64_t)pcm->frames, pcm->rate);
                 for (NSUInteger at = 0; at < pcm->frames; at += 65536) {
                     NSUInteger numFrames = MIN((NSUInteger)65536, pcm->frames - at);
                     const float *interleaved = pcm->interleaved.data() + at * pcm->channels;
                     const float *mono = AudioWaveformMonoMix(interleaved, scratch.data(), numFrames, pcm->channels);
-                    builder.append(interleaved, mono, numFrames);
+                    VibeBenchComponentsAppendMix(*builder, mono, numFrames);
                 }
-                builder.finish(true);
+                builder->finish(true);
 #else
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
                 AudioWaveform waveform(bands);

@@ -97,6 +97,7 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': summary is not None or (waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text()),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY': summary is not None,
         'VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER': raster is not None,
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY': summary is not None and 'kMaxChannels' not in summary.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM': three_band is not None and 'SpectrumWaveformRenderer' in three_band.read_text(),
         'VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER': resampler is not None and 'VibeResamplerCreate' in resampler.read_text(),
     }

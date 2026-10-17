@@ -31,12 +31,15 @@
 
 #include <cmath>
 #include <memory>
+#include <vector>
 
 // A complete waveform with a loud middle, so normalize has something to
 // raise: the loader's 8,192 chunks, or a summary of 8,192 bins of 512 frames.
 static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t seed) {
     const NSUInteger chunks = 8192;
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY
+    auto waveform = std::make_shared<AudioWaveform>(512, true, 44100);
+#elif VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
     auto waveform = std::make_shared<AudioWaveform>(512, 1, true, 44100);
 #elif VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     auto waveform = std::make_shared<AudioWaveform>(true);
@@ -55,7 +58,11 @@ static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t see
         float lo = -peak * 0.9f;
         double bands[wavecore::kBandCount] = {sumSquares * (0.3f + 0.7f * jitter), sumSquares * 0.06f,
                                               sumSquares * 0.02f * (1.5f - jitter)};
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY
+        waveform->appendBin(lo, peak, sumSquares, bands, 512);
+#else
         waveform->appendBin(&lo, &peak, sumSquares, bands, 512);
+#endif
 #else
         AudioWaveformCacheChunk chunk;
         chunk.set(-peak * 0.9f, peak, sumSquares, 512);
@@ -182,6 +189,42 @@ static void VibeBenchComponentsUILiveResize(VibeBenchComponentsUIRenderer *state
     [state->renderer settleMorphImmediately];
     [CATransaction flush];
 }
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+// A streaming load's deliveries: thirty snapshots of a three-minute decode, a
+// kick every half second over a slow swell. Each lands settled, and each
+// differs from the one before only where the decode has reached since.
+struct VibeBenchComponentsUILoad {
+    VibeBenchComponentsUIRenderer view;
+    std::vector<std::shared_ptr<AudioWaveform>> snapshots;
+};
+
+static void VibeBenchComponentsUILoadSnapshots(VibeBenchComponentsUILoad *load, bool bands) {
+    const int64_t frames = 180 * 44100;
+    std::vector<float> samples((size_t)frames);
+    VibeBenchComponentsNoise(samples.data(), samples.size(), 37);
+    for (int64_t i = 0; i < frames; i++) {
+        double beat = std::fmod((double)i / 22050.0, 1.0);
+        double swell = 0.4 + 0.6 * std::sin(M_PI * (double)i / (double)frames);
+        samples[(size_t)i] *= (float)(swell * (0.15 + 0.7 * std::exp(-beat * 12)));
+    }
+    auto builder = VibeBenchComponentsMixBuilder(bands, frames, 44100);
+    for (int64_t s = 0; s < 30; s++) {
+        int64_t from = frames * s / 30, to = frames * (s + 1) / 30;
+        VibeBenchComponentsAppendMix(*builder, samples.data() + from, (size_t)(to - from));
+        load->snapshots.emplace_back(builder->snapshot());
+    }
+}
+
+static void VibeBenchComponentsUIDeliver(VibeBenchComponentsUILoad *load) {
+    CGRect bounds = load->view.parent.bounds;
+    for (const auto &snapshot : load->snapshots) {
+        [load->view.renderer updateWaveform:bounds progress:0.4 waveform:snapshot.get()];
+        [load->view.renderer settleMorphImmediately];
+    }
+    [CATransaction flush];
+}
+#endif
 
 static void VibeBenchComponentsRegisterRenderers(void) {
     // Sonic Cirrus at its 1,024-bar cap: a convert dip, its settle and a
@@ -344,6 +387,38 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         CGContextRelease(ctx);
         [CATransaction flush];
     });
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER
+    // A streaming load as it lands: Detailed, then 3-Band, at a wide window's
+    // width.
+    for (int band = 0; band <= VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS; band++) {
+        auto load = std::make_shared<VibeBenchComponentsUILoad>();
+        VibeBenchComponentsAdd("ui-waveform", band ? "three-band-load-frames" : "detailed-load-frames", "frame",
+                               [load, band]() -> double {
+            if (load->snapshots.empty()) {
+                VibeBenchComponentsUILoadSnapshots(load.get(), band);
+            }
+            load->view.parent = [CALayer layer];
+            load->view.parent.contentsScale = 2;
+            load->view.parent.bounds = CGRectMake(0, 0, 1200, 60);
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
+            Class style = band ? ThreeBandWaveformRenderer.class : DetailedWaveformRenderer.class;
+#else
+            Class style = DetailedWaveformRenderer.class;
+#endif
+            load->view.renderer = [[style alloc] initWithLayer:load->view.parent bounds:load->view.parent.bounds
+                                                        isDark:YES];
+            load->view.renderer.normalizesLevels = YES;
+            VibeBenchComponentsUIDeliver(load.get());
+            VibeBenchComponentsUIDump(band ? @"ui-waveform-three-band-load.raw" : @"ui-waveform-detailed-load.raw",
+                                      band ? VibeBenchComponentsUIBandPicture(load->view.renderer)
+                                           : VibeBenchComponentsUIMaskCoverage(load->view.renderer));
+            return (double)load->snapshots.size();
+        }, [load]() {
+            VibeBenchComponentsUIDeliver(load.get());
+        });
+    }
+#endif
 
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS
     // 3-Band through the same live resize as Detailed's: seven painter's

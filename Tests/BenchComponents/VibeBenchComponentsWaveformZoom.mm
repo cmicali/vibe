@@ -36,9 +36,9 @@ static std::shared_ptr<AudioWaveform> VibeBenchComponentsZoomWaveform(bool bands
         double beat = std::fmod((double)i / 22050.0, 1.0);
         samples[(size_t)i] *= (float)(0.15 + 0.7 * std::exp(-beat * 12));
     }
-    wavecore::SummaryBuilder builder(1, 1, bands, frames, 44100);
-    builder.append(samples.data(), samples.data(), samples.size());
-    std::shared_ptr<AudioWaveform> waveform(builder.finish(true));
+    auto builder = VibeBenchComponentsMixBuilder(bands, frames, 44100);
+    VibeBenchComponentsAppendMix(*builder, samples.data(), samples.size());
+    std::shared_ptr<AudioWaveform> waveform(builder->finish(true));
     for (int64_t block = 0; block * blockFrames < frames; block++) {
         auto begin = samples.begin() + (ptrdiff_t)(block * blockFrames);
         waveform->detail().insertBlock(block, std::vector<float>(begin, begin + blockFrames));

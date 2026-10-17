@@ -29,6 +29,7 @@
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS 1            // a waveform can hold the three bands' energies
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY 1          // the waveform is WaveformCore's summary, not 8,192 chunks
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER 1           // renderers draw pictures into layer contents; no paths or bakes
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY 0         // a summary keeps the mix alone, so it takes no channels
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM 1         // SpectrumWaveformRenderer exists
 #define VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER 1            // the resampler is VibeResampler*; VibeConverter* before
 #endif
@@ -114,6 +115,28 @@ void VibeBenchComponentsUIDump(NSString *name, NSData *bytes);
 // A layer's picture as its pixels, empty without one.
 @class CALayer;
 NSData *VibeBenchComponentsUIContents(CALayer *layer);
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
+#include "WaveformSummary.hpp"
+#include <memory>
+// A summary of the mix alone, as Vibe keeps it, in whichever shape the
+// version's builder takes, and a block of the mix into it.
+static inline std::unique_ptr<wavecore::SummaryBuilder> VibeBenchComponentsMixBuilder(bool bands, int64_t frames,
+                                                                                       double rate) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY
+    return std::make_unique<wavecore::SummaryBuilder>(bands, frames, rate);
+#else
+    return std::make_unique<wavecore::SummaryBuilder>(1, 1, bands, frames, rate);
+#endif
+}
+static inline void VibeBenchComponentsAppendMix(wavecore::SummaryBuilder &builder, const float *mono, size_t frames) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY
+    builder.append(mono, frames);
+#else
+    builder.append(mono, mono, frames);
+#endif
+}
+#endif
 
 // --analyze: every audio file under `root` through the waveform loader with
 // both analyzers, one "path<TAB>bpm<TAB>key" line each, in path order, so two
