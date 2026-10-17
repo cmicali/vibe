@@ -272,7 +272,7 @@ jobs:
           if [ '${{ steps.fixtures.outputs.cache-hit }}' = true ]; then
             touch build/verify-bit-perfect
           else
-            brew install ffmpeg
+            brew install ffmpeg vorbis-tools
           fi
 
       # -j2: the bundle compiles while the fixtures generate.
