@@ -492,7 +492,7 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
         uint64_t size = [NSData dataWithContentsOfURL:source].length;
         uint64_t window = VibeAudioFileTailWindowBytes(extension, size);
         XCTAssertGreaterThan(window, (uint64_t)tag + 24, @"%@", name);
-        BOOL walksToTheEnd = [@[@"plain.aiff", @"fast.wav", @"plain.caf"] containsObject:name];
+        BOOL walksToTheEnd = [extension isEqualToString:@"aiff"] || [decoders[name] isEqualToString:@"apple"];
 
         VibeGrowingFile *cramped = [self stream:source prefix:head window:small];
         NSUInteger waits = [self drive:cramped step:0 reader:^{

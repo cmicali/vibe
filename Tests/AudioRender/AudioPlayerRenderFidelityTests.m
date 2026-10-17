@@ -1073,7 +1073,9 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertFalse(VibePhysicalFormatSatisfies(offered[0].mFormat, source, *sowt.processingFormat.streamDescription), @"%@ as sowt: 16 bits do not carry it", name);
     }
 
-    NSMutableData *wav = [[NSData dataWithContentsOfURL:[self fixture:@"noise-48000-24-2.wav"]] mutableCopy];
+    NSURL *wavURL = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *wav24 = [NSData dataWithContentsOfURL:wavURL];
+    NSMutableData *wav = [wav24 mutableCopy];
     ((uint8_t *)wav.mutableBytes)[[self chunk:"fmt " of:wav bigEndian:NO].location + 14] = 20; // wBitsPerSample
     NSMutableData *aiff = [[NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]] mutableCopy];
     NSMutableData *aifc = [[NSData dataWithContentsOfURL:[self fixture:@"aifc-BEI24.aif"]] mutableCopy];
@@ -1091,18 +1093,12 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     }
 
     // The 24-bit WAV's samples, each high-aligned in 4 bytes with its low byte zero.
-    NSData *wav24 = [NSData dataWithContentsOfURL:[self fixture:@"noise-48000-24-2.wav"]];
     NSRange data24 = [self chunk:"data" of:wav24 bigEndian:NO];
     NSUInteger samples24 = data24.length / 3;
     NSMutableData *extensible = [NSMutableData data];
-    void (^put)(uint32_t, int) = ^(uint32_t value, int bytes) {
-        for (int i = 0; i < bytes; i++) {
-            uint8_t byte = (uint8_t)(value >> (8 * i));
-            [extensible appendBytes:&byte length:1];
-        }
-    };
+    void (^put)(uint32_t, int) = ^(uint32_t value, int bytes) { [extensible appendBytes:&value length:bytes]; }; // little-endian, as the host
     [extensible appendBytes:"RIFF" length:4];
-    put((uint32_t)(4 + 8 + 40 + 8 + samples24 * 4), 4);
+    put(0, 4); // the container's size, set once the samples are in
     [extensible appendBytes:"WAVEfmt " length:8];
     put(40, 4);
     put(0xFFFE, 2); put(2, 2); put(48000, 4); put(48000 * 8, 4); put(8, 2); put(32, 2); // tag, channels, rate, bytes a second, frame, container
@@ -1115,8 +1111,9 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         uint8_t sample[4] = {0, in[3 * i], in[3 * i + 1], in[3 * i + 2]};
         [extensible appendBytes:sample length:4];
     }
+    [self setContainerSizeOf:extensible bigEndian:NO];
     AudioFileHandle *valid = [self open:[self writeBytes:extensible name:@"extensible-24-in-32.wav"] decoder:@"dr_wav"];
-    XCTAssertEqualObjects([self readToEnd:valid], [self readToEnd:[self open:[self fixture:@"noise-48000-24-2.wav"] decoder:@"dr_wav"]],
+    XCTAssertEqualObjects([self readToEnd:valid], [self readToEnd:[self open:wavURL decoder:@"dr_wav"]],
                           @"24 in 32: the same samples");
     AudioStreamBasicDescription source = *valid.fileFormat.streamDescription;
     XCTAssertEqual(source.mBitsPerChannel, 24u, @"24 in 32: the valid bits");

@@ -353,9 +353,9 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
 
 // CoreAudio's facts for a file TagLib cannot read (Audio/Metadata/AGENTS.md).
 - (void)loadCoreAudioFactsFromURL:(NSURL *)url {
-    // Playback's open, so both reach one verdict on the file. TRAP: the
-    // handle closes the parser when released, which ARC may do right after
-    // its last message unless its lifetime is pinned to the scope.
+    // The parser open playback makes for a file its own decoders refuse.
+    // TRAP: the handle closes the parser when released, which ARC may do
+    // right after its last message unless its lifetime is pinned to the scope.
     NS_VALID_UNTIL_END_OF_SCOPE AudioFileHandle *handle = [[AudioFileHandle alloc] initParserForReading:url
                                                                                             interrupted:VibeNeverWaitsForAStream error:NULL];
     AudioFileID file = handle.parser;

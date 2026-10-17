@@ -189,25 +189,22 @@ static drwav_uint64 VibeReadAIFFChunk(void *user, drwav_read_proc onRead, drwav_
             || header->sizeInBytes < kFixedFields || header->sizeInBytes > kFixedFields + 64 * kDescriptionBytes) {
         return 0;
     }
-    uint8_t chunk[kFixedFields + 64 * kDescriptionBytes];
-    size_t got = onRead(readUser, chunk, (size_t)header->sizeInBytes);
-    uint32_t count = got >= kFixedFields ? OSReadBigInt32(chunk, 8) : 0;
-    if (got < header->sizeInBytes || kFixedFields + (uint64_t)count * kDescriptionBytes > got) {
-        return got;
+    // The chunk is an AudioChannelLayout word for word, big-endian.
+    _Static_assert(offsetof(AudioChannelLayout, mChannelDescriptions) == kFixedFields
+                   && sizeof(AudioChannelDescription) == kDescriptionBytes, "a CHAN chunk's words are an AudioChannelLayout's");
+    size_t size = (size_t)header->sizeInBytes;
+    uint32_t *words = calloc(1, MAX(size, sizeof(AudioChannelLayout)));
+    if (!words) {
+        return 0;
     }
-    AudioChannelLayout *layout = calloc(1, offsetof(AudioChannelLayout, mChannelDescriptions) + MAX(count, 1u) * sizeof(AudioChannelDescription));
-    layout->mChannelLayoutTag = OSReadBigInt32(chunk, 0);
-    layout->mChannelBitmap = OSReadBigInt32(chunk, 4);
-    layout->mNumberChannelDescriptions = count;
-    for (uint32_t i = 0; i < count; i++) {
-        const uint8_t *field = chunk + kFixedFields + i * kDescriptionBytes;
-        AudioChannelDescription *description = &layout->mChannelDescriptions[i];
-        description->mChannelLabel = OSReadBigInt32(field, 0);
-        description->mChannelFlags = OSReadBigInt32(field, 4);
-        for (int axis = 0; axis < 3; axis++) {
-            uint32_t bits = OSReadBigInt32(field, 8 + 4 * axis);
-            memcpy(&description->mCoordinates[axis], &bits, sizeof bits);
-        }
+    size_t got = onRead(readUser, words, size);
+    for (size_t i = 0; i < got / 4; i++) {
+        words[i] = OSSwapBigToHostInt32(words[i]);
+    }
+    AudioChannelLayout *layout = (AudioChannelLayout *)words;
+    if (got < size || kFixedFields + (uint64_t)layout->mNumberChannelDescriptions * kDescriptionBytes > got) {
+        free(words);
+        return got;
     }
     free(stated->layout);
     stated->layout = layout;
