@@ -933,6 +933,38 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
     return VibeVisibleLayerHeights([self threeBandPictureForBands:bands normalize:NO centered:YES waveform:YES]);
 }
 
+// A cleared picture collapses onto the all-bands hairline, and once settled
+// draws nothing. Without the hairline, shrinking bands blended into stray
+// colors.
+- (void)testAClearedThreeBandCollapsesOntoTheHairline {
+    auto waveform = VibeThreeBandTestWaveform({1e-10f, 1e-10f, 1e-10f});
+    WaveformRenderer *renderer = [self rendererForStyle:@"three_band"];
+    renderer.theme = VibeNumberedBandTheme();
+    [renderer updateColors:YES];
+    renderer.normalizesLevels = NO;
+    CALayer *host = renderer.parentLayer;
+    // The center column's most covered pixel is the all-bands layer's green.
+    // The hairline can straddle two rows, so its color is unpremultiplied.
+    auto hairline = [&](const VibeTestPicture &picture) {
+        if (picture.width == 0) return false;
+        size_t x = picture.width / 2;
+        uint32_t pixel = 0;
+        for (size_t row = 0; row < picture.height; row++) {
+            if (picture.alpha(x, row) > (pixel >> 24)) pixel = picture.at(x, row);
+        }
+        uint32_t alpha = pixel >> 24, green = (pixel >> 8) & 0xff;
+        return alpha >= 64 && (pixel & 0xff00ff) == 0 && fabs(green * 255.0 / alpha - kThreeBandLayers * 30) <= 3;
+    };
+    [renderer updateWaveform:host.bounds progress:0 waveform:waveform.get()];
+    [renderer settleMorphImmediately];
+    XCTAssertTrue(hairline(VibeThreeBandPicture(renderer)), @"quiet audio draws the hairline");
+    [renderer updateWaveform:host.bounds progress:0 waveform:nullptr];
+    [renderer backingScaleDidChange]; // redraw the displayed samples without advancing a timer
+    XCTAssertTrue(hairline(VibeThreeBandPicture(renderer)), @"the collapse keeps it");
+    [renderer settleMorphImmediately];
+    XCTAssertEqual(VibeThreeBandPicture(renderer).width, 0u, @"an empty view draws nothing");
+}
+
 // Grounded, every band set stands on the baseline at its centered height, so
 // the rings still nest.
 - (void)testGroundedThreeBandStandsOnTheBaseline {

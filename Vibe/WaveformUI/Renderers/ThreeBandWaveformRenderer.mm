@@ -324,7 +324,10 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         const double framesPerColumn[2] = {window.parts[0].framesPerColumn(), window.parts[1].framesPerColumn()};
         CGFloat height = pixels.height;
         CGFloat midY = height / 2, baseline = VibeBarBaseline(height), vscale = VibeBarVScale(height);
-        CGFloat minimum = _morph.barMinHeight * pixels.scale;
+        // A picture still easing keeps the hairline, so a cleared one collapses
+        // onto it. Below it 3-Band's stacked bands blended into stray colors,
+        // column by column. Settled empty, the engine's floor draws nothing.
+        CGFloat minimum = (_morph.isSettled ? _morph.barMinHeight : 1) * pixels.scale;
         BOOL centered = self.centered, spectrum = _spectrum;
         float fills[kLayerCount][3];
         memcpy(fills, _fills, sizeof(fills));
