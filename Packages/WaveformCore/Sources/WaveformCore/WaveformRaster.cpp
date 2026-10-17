@@ -234,15 +234,22 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
     // over that stretch. Full rows take its color at once. A row that holds
     // an edge sums the stretches crossing it.
     double edges[2 * kMaxSpans] = {};
+    uint32_t toggles[2 * kMaxSpans] = {};
     size_t sorted = 0;
     for (size_t s = 0; s < count_; s++) {
         for (double edge : {spans_[s].bottom, spans_[s].top}) {
             // Insertion: a column holds a handful of spans.
             size_t i = 0;
             while (i < sorted && edges[i] < edge) i++;
-            if (i < sorted && edges[i] == edge) continue;
-            for (size_t j = sorted++; j > i; j--) edges[j] = edges[j - 1];
-            edges[i] = edge;
+            if (i == sorted || edges[i] != edge) {
+                for (size_t j = sorted++; j > i; j--) {
+                    edges[j] = edges[j - 1];
+                    toggles[j] = toggles[j - 1];
+                }
+                edges[i] = edge;
+                toggles[i] = 0;
+            }
+            toggles[i] ^= uint32_t(1) << s;
         }
     }
     PartialRow partial;
@@ -255,22 +262,15 @@ void ColumnPaint::write(uint32_t *out, ptrdiff_t rowStride) {
         partial.add(float(cover), shown->red, shown->green, shown->blue);
     };
     // From the top down, so rows arrive in order.
+    uint32_t active = 0;
     for (size_t e = sorted; e-- > 1;) {
+        active ^= toggles[e];
         double bottom = edges[e - 1], top = edges[e];
         if (!(top > bottom)) {
             continue;
         }
-        double middle = 0.5 * (bottom + top);
-        shown = nullptr;
-        for (size_t i = count_; i-- > 0;) {
-            if (spans_[i].bottom <= middle && middle < spans_[i].top) {
-                shown = &spans_[i];
-                break;
-            }
-        }
-        if (!shown) {
-            continue;
-        }
+        if (!active) continue;
+        shown = &spans_[31 - __builtin_clz(active)];
         // Rows from the top: the stretch is [y0, y1).
         double y0 = double(height_) - top, y1 = double(height_) - bottom;
         int first = int(std::floor(y0)), full0 = int(std::ceil(y0)), full1 = int(std::floor(y1));
