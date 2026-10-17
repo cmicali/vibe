@@ -16,7 +16,6 @@
 #import "VibeBenchComponents.h"
 
 #import <AVFAudio/AVFAudio.h>
-#import <QuartzCore/QuartzCore.h>
 
 #import "AppSettings.h"
 #import "AudioWaveformLoader.h"
@@ -35,6 +34,15 @@
 
 // MARK: - Measurement
 
+static const char *sBenchmark = "setup";
+
+void VibeBenchComponentsRequire(BOOL condition, const char *message) {
+    if (!condition) {
+        fprintf(stderr, "%s FAILED: %s\n", sBenchmark, message);
+        exit(1);
+    }
+}
+
 struct VibeBenchComponentsSample {
     double wallMs;
     double cpuMs;
@@ -49,7 +57,9 @@ static uint64_t VibeBenchComponentsNow(void) {
 
 static struct rusage_info_v4 VibeBenchComponentsUsage(void) {
     struct rusage_info_v4 info = {};
-    proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&info);
+    VibeBenchComponentsRequire(proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&info) == 0,
+                               "process counters unavailable");
+    VibeBenchComponentsRequire(info.ri_instructions > 0, "instruction counter unavailable");
     return info;
 }
 
@@ -64,7 +74,8 @@ static double VibeBenchComponentsMachToMs(uint64_t mach) {
 static double VibeBenchComponentsSyscalls(void) {
     task_events_info_data_t events = {};
     mach_msg_type_number_t count = TASK_EVENTS_INFO_COUNT;
-    task_info(mach_task_self(), TASK_EVENTS_INFO, (task_info_t)&events, &count);
+    VibeBenchComponentsRequire(task_info(mach_task_self(), TASK_EVENTS_INFO, (task_info_t)&events, &count) == KERN_SUCCESS,
+                               "system call counter unavailable");
     return (double)events.syscalls_unix;
 }
 
@@ -193,16 +204,22 @@ NSString *VibeBenchComponentsFile(NSString *name) {
 }
 
 - (BOOL)read:(AVAudioPCMBuffer *)buffer {
+    return [self read:buffer frames:buffer.frameCapacity];
+}
+
+- (BOOL)read:(AVAudioPCMBuffer *)buffer frames:(AVAudioFrameCount)frames {
 #if VIBE_BENCH_COMPONENTS_FILE_HANDLE
-    return [_handle readIntoBuffer:buffer error:nil] && buffer.frameLength > 0;
+    BOOL ok = [_handle readIntoBuffer:buffer frameCount:frames error:nil];
 #else
-    return [_file readIntoBuffer:buffer error:nil] && buffer.frameLength > 0;
+    BOOL ok = [_file readIntoBuffer:buffer frameCount:frames error:nil];
 #endif
+    VibeBenchComponentsRequire(ok, "audio read failed");
+    return buffer.frameLength > 0;
 }
 
 - (void)seekTo:(long long)frame {
 #if VIBE_BENCH_COMPONENTS_FILE_HANDLE
-    [_handle seekToFrame:frame error:nil];
+    VibeBenchComponentsRequire([_handle seekToFrame:frame error:nil], "audio seek failed");
 #else
     _file.framePosition = frame;
 #endif
@@ -211,8 +228,10 @@ NSString *VibeBenchComponentsFile(NSString *name) {
 @end
 
 double VibeBenchComponentsAudioSeconds(NSString *path) {
+    if (!path) return -1;
     VibeBenchComponentsReader *reader = [[VibeBenchComponentsReader alloc] initWithPath:path interleaved:NO];
-    return reader ? (double)reader.length / reader.processingFormat.sampleRate : -1;
+    VibeBenchComponentsRequire(reader != nil && reader.length > 0, "audio fixture could not be opened");
+    return (double)reader.length / reader.processingFormat.sampleRate;
 }
 
 id VibeBenchComponentsWaveformLoader(BOOL analyzers) {
@@ -269,10 +288,10 @@ VibeBenchComponentsPCM *VibeBenchComponentsDecoded(NSString *name) {
     if (hit) {
         return (VibeBenchComponentsPCM *)hit.pointerValue;
     }
-    VibeBenchComponentsReader *file = [[VibeBenchComponentsReader alloc] initWithPath:VibeBenchComponentsFile(name) interleaved:YES];
-    if (!file) {
-        return nullptr;
-    }
+    NSString *path = VibeBenchComponentsFile(name);
+    if (!path) return nullptr;
+    VibeBenchComponentsReader *file = [[VibeBenchComponentsReader alloc] initWithPath:path interleaved:YES];
+    VibeBenchComponentsRequire(file != nil, "PCM fixture could not be opened");
     VibeBenchComponentsPCM *pcm = new VibeBenchComponentsPCM();
     pcm->rate = file.processingFormat.sampleRate;
     pcm->channels = file.processingFormat.channelCount;
@@ -282,6 +301,7 @@ VibeBenchComponentsPCM *VibeBenchComponentsDecoded(NSString *name) {
         pcm->interleaved.insert(pcm->interleaved.end(), data, data + (size_t)buffer.frameLength * pcm->channels);
     }
     pcm->frames = pcm->interleaved.size() / pcm->channels;
+    VibeBenchComponentsRequire(pcm->frames > 0, "PCM fixture decoded no frames");
     // A fixture, so a plain average: the loader's own downmix is what the
     // chunker benchmark measures.
     pcm->mono.resize(pcm->frames);
@@ -343,14 +363,6 @@ void VibeBenchComponentsUIDump(NSString *name, NSData *bytes) {
     [bytes writeToFile:path atomically:YES];
 }
 
-NSData *VibeBenchComponentsUIContents(CALayer *layer) {
-    CGImageRef image = (__bridge CGImageRef)layer.contents;
-    return image ? CFBridgingRelease(CGDataProviderCopyData(CGImageGetDataProvider(image))) : [NSData data];
-}
-
-// Set by a wait that ran out, so the driver fails the benchmark it ran in.
-static BOOL sWaitTimedOut;
-
 // Runs the main queue, where metadata deliveries land, until done or a
 // generous bound; running out fails the benchmark.
 void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void)) {
@@ -358,9 +370,7 @@ void VibeBenchComponentsSpinMainUntil(BOOL (^done)(void)) {
     while (!done() && deadline.timeIntervalSinceNow > 0) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.002, true);
     }
-    if (!done()) {
-        sWaitTimedOut = YES;
-    }
+    VibeBenchComponentsRequire(done(), "main queue wait timed out");
 }
 
 // `count` one-byte files in folders of 100, the relative paths returned.
@@ -448,9 +458,10 @@ int main(int argc, const char *argv[]) {
                 printf("%s\n", bench.name.c_str());
                 continue;
             }
+            sBenchmark = bench.name.c_str();
             double units = bench.prepare();
             if (units < 0) {
-                printf("%-34s skipped (missing corpus file)\n", bench.name.c_str());
+                printf("%-34s skipped (fixture or feature unavailable)\n", bench.name.c_str());
                 continue;
             }
             if (loopSeconds > 0) {
@@ -465,22 +476,15 @@ int main(int argc, const char *argv[]) {
                 printf("%-34s looped %d times\n", bench.name.c_str(), runs);
                 continue;
             }
-            sWaitTimedOut = NO;
             VibeBenchComponentsMeasure(bench.body);
             std::vector<double> wall, cpu, instructions, cycles, syscalls;
-            for (int r = 0; r < reps && !sWaitTimedOut; r++) {
+            for (int r = 0; r < reps; r++) {
                 VibeBenchComponentsSample sample = VibeBenchComponentsMeasure(bench.body);
                 wall.push_back(sample.wallMs);
                 cpu.push_back(sample.cpuMs);
                 instructions.push_back(sample.instructions);
                 cycles.push_back(sample.cycles);
                 syscalls.push_back(sample.syscalls);
-            }
-            // Absent from the JSON, as perf.py reads a benchmark a version
-            // cannot build, rather than a stopped clock in the median.
-            if (sWaitTimedOut) {
-                fprintf(stderr, "%-34s FAILED: a wait timed out; left out of the results\n", bench.name.c_str());
-                continue;
             }
             double medianInstructions = VibeBenchComponentsMedian(instructions);
             std::string perUnit = "";

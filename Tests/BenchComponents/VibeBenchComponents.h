@@ -27,11 +27,13 @@
 #define VIBE_BENCH_COMPONENTS_METADATA_DISPLAY_ART 1      // metadataWithURL:displayArtData:
 #define VIBE_BENCH_COMPONENTS_LEVELS_SUMMARIZE 1          // the meter summarizes apart from consuming (1.14 on)
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS 1            // a waveform can hold the three bands' energies
-#define VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY 1          // the waveform is WaveformCore's summary, not 8,192 chunks
-#define VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER 1           // renderers draw pictures into layer contents; no paths or bakes
-#define VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY 1         // a summary keeps the mix alone, so it takes no channels
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM 1         // SpectrumWaveformRenderer exists
 #define VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER 1            // the resampler is VibeResampler*; VibeConverter* before
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW 1             // registry construction
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE 1             // the separate envelope bake
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY 0          // fixed-bin WaveformCore summary instead of chunks
+#define VIBE_BENCH_COMPONENTS_APPLE_MPEG 1                // the selectable MPEG decoder
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW 1           // loader CUE windows
 #endif
 
 #include <functional>
@@ -44,6 +46,9 @@
 // file); body is the measured repetition.
 void VibeBenchComponentsAdd(std::string group, std::string variant, const char *unit,
                  std::function<double(void)> prepare, std::function<void(void)> body);
+
+// A failed operation must not become a faster benchmark result.
+void VibeBenchComponentsRequire(BOOL condition, const char *message);
 
 typedef void (*VibeBenchComponentsRegistrar)(void);
 void VibeBenchComponentsAddRegistrar(VibeBenchComponentsRegistrar registrar);
@@ -66,8 +71,9 @@ double VibeBenchComponentsAudioSeconds(NSString *path);
 - (instancetype)initWithPath:(NSString *)path interleaved:(BOOL)interleaved;
 @property (nonatomic, readonly) AVAudioFormat *processingFormat;
 @property (nonatomic, readonly) long long length;
-// Fills the buffer to its capacity; NO at the end or on a failure.
+// Fills the buffer to its capacity; NO at EOF. A read failure fails the run.
 - (BOOL)read:(AVAudioPCMBuffer *)buffer;
+- (BOOL)read:(AVAudioPCMBuffer *)buffer frames:(AVAudioFrameCount)frames;
 - (void)seekTo:(long long)frame;
 @end
 
@@ -111,32 +117,6 @@ NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger cou
 // benchmark's subject draws there, so two builds' pictures can be compared
 // byte for byte.
 void VibeBenchComponentsUIDump(NSString *name, NSData *bytes);
-
-// A layer's picture as its pixels, empty without one.
-@class CALayer;
-NSData *VibeBenchComponentsUIContents(CALayer *layer);
-
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
-#include "WaveformSummary.hpp"
-#include <memory>
-// A summary of the mix alone, as Vibe keeps it, in whichever shape the
-// version's builder takes, and a block of the mix into it.
-static inline std::unique_ptr<wavecore::SummaryBuilder> VibeBenchComponentsMixBuilder(bool bands, int64_t frames,
-                                                                                       double rate) {
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY
-    return std::make_unique<wavecore::SummaryBuilder>(bands, frames, rate);
-#else
-    return std::make_unique<wavecore::SummaryBuilder>(1, 1, bands, frames, rate);
-#endif
-}
-static inline void VibeBenchComponentsAppendMix(wavecore::SummaryBuilder &builder, const float *mono, size_t frames) {
-#if VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY
-    builder.append(mono, frames);
-#else
-    builder.append(mono, mono, frames);
-#endif
-}
-#endif
 
 // --analyze: every audio file under `root` through the waveform loader with
 // both analyzers, one "path<TAB>bpm<TAB>key" line each, in path order, so two
