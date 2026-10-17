@@ -82,6 +82,8 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) is soak runs, leak a
 
 The **`vibe-perf` skill** is performance. VibeBenchComponents (`Tests/BenchComponents/`) drives the production code in-process and counts retired instructions, so two refs compare fairly on a busy machine (`perf.py compare main`). Measure a change that could move cost before and after (`make bench-components`). `docs/performance.md` charts every release, and `make bench-releases` regenerates it.
 
+The **`vibe-waveform` skill** draws a real track's waveform as the iOS scrubber draws it, without the app, at any time, zoom and ref. It also prints what each pixel is drawn from. Use it to reproduce a waveform screenshot and to compare main with a change.
+
 The **`vibe-audio-quality` skill** is audio quality and conformance. It runs public conformance and torture corpora through the decoders. They are downloaded on demand and never committed. It also keeps `docs/audio-quality.md`'s charts and corpus results current. Run it after changing a decoder, a parser or the file-open path.
 
 Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate it with `scripts/test/generate-test-audio.sh`. Never synthesize your own.

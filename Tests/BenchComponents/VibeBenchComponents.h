@@ -36,6 +36,7 @@
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE 0             // the separate envelope bake
 #define VIBE_BENCH_COMPONENTS_APPLE_MPEG 1                // the selectable MPEG decoder
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW 1           // loader CUE windows
+#define VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS 1         // VibeSpectrumSections answers By section's sections
 #endif
 
 #include <functional>
@@ -152,3 +153,9 @@ static inline void VibeBenchComponentsAppendMix(wavecore::SummaryBuilder &builde
 // implements it, so a version without that file still builds.
 typedef int (*VibeBenchComponentsAnalyzeTreeFunction)(NSString *root);
 void VibeBenchComponentsSetAnalyzeTree(VibeBenchComponentsAnalyzeTreeFunction function);
+
+// --waveform: one file through the waveform loader and a renderer, drawn as
+// the iOS scrubber lays it out (the vibe-waveform skill). Takes the
+// arguments after the file. Registered as --analyze is.
+typedef int (*VibeBenchComponentsWaveformProbeFunction)(NSString *path, int argc, const char *argv[]);
+void VibeBenchComponentsSetWaveformProbe(VibeBenchComponentsWaveformProbeFunction function);
