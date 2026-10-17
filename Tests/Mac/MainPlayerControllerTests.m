@@ -479,4 +479,14 @@
     XCTAssertTrue(_player.levelsEnabled, @"the refused release did not go negative");
 }
 
+// The device runs every integer file at its widest depth, so the Active
+// caption names the file's depth, which is what reaches the device unchanged.
+- (void)testTheActiveCaptionShowsTheFilesDepthNotTheDevices {
+    _player.bitPerfectReport = (VibeBitPerfectReport){.status = VibeBitPerfectStatusActive, .sampleRate = 96000,
+                                                      .bitsPerChannel = 32, .sourceBits = 16};
+    NSString *caption = [_controller bitPerfectStatusText];
+    XCTAssertTrue([caption containsString:@"16-bit"], @"%@", caption);
+    XCTAssertFalse([caption containsString:@"32"], @"%@", caption);
+}
+
 @end

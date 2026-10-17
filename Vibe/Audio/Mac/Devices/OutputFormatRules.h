@@ -84,6 +84,7 @@ typedef struct {
     VibeBitPerfectStatus status;
     double sampleRate;      // the device's, after the switch
     UInt32 bitsPerChannel;  // the physical format's width
+    UInt32 sourceBits;      // the file's depth (VibeSourceBitDepth), which the Active caption shows
     BOOL isFloat;
     float softwareVolume;
     float balance;         // 0 = left, 0.5 = center, 1 = right
@@ -107,7 +108,7 @@ static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
 // Every field, so a publication that changed nothing is not announced.
 static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPerfectReport b) {
     return a.status == b.status && a.sampleRate == b.sampleRate
-            && a.bitsPerChannel == b.bitsPerChannel && a.isFloat == b.isFloat
+            && a.bitsPerChannel == b.bitsPerChannel && a.sourceBits == b.sourceBits && a.isFloat == b.isFloat
             && a.softwareVolume == b.softwareVolume && a.balance == b.balance
             && a.playerVolume == b.playerVolume && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack

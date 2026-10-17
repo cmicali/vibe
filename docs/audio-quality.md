@@ -52,7 +52,7 @@ Turn it on in Settings > Audio Output > Bit-perfect output. It's remembered per 
 - **DJ effects and pitch are off.** Crossfades shrink to the declick. Declick and volume can still change samples. Turn declick off and keep volume at full for exact playback through transitions.
 - **Exclusive output** is a separate switch. It locks the device so no other app can play through it.
 
-The caption shows the confirmed device format and anything that stops exact output. That covers rate conversion, channel mapping, too little precision, mute, volume, an unconfirmed device and a refused exclusive lock. Lossy files get their own status, because the decoded samples aren't the compressed file.
+When output is exact, the caption shows the device's sample rate and the file's bit depth. Otherwise it names what stops exact output. That covers rate conversion, channel mapping, too little precision, mute, volume, an unconfirmed device and a refused exclusive lock. Lossy files get their own status, because the decoded samples aren't the compressed file.
 
 By default the mode is allowed on built-in, USB, FireWire, Thunderbolt, PCI, HDMI, DisplayPort, AVB and virtual devices. Bluetooth, AirPlay and aggregate devices are left out. Settings > Advanced can override that. Being allowed doesn't prove a device keeps the samples.
 

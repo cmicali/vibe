@@ -11,6 +11,7 @@
 #import <AppKit/AppKit.h>
 
 #import "MainPlayerControllerInternal.h"
+#import "OutputFormatRules.h"
 
 @class AudioTrack;
 
@@ -28,6 +29,7 @@ typedef NS_ENUM(NSInteger, VibeShellTestPlayerState) {
 @property (nonatomic) VibeShellTestPlayerState state;
 @property (nonatomic) BOOL outputAudioActive;
 @property (nonatomic) BOOL levelsEnabled;
+@property (nonatomic) VibeBitPerfectReport bitPerfectReport;
 @property (nonatomic, strong, readonly) NSMutableArray<NSString *> *calls;
 // The last prefetchTrack: argument, kept as the exact object.
 @property (nonatomic, strong, nullable, readonly) AudioTrack *parkedTrack;

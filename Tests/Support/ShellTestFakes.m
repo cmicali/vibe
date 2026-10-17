@@ -118,10 +118,6 @@ static NSString *NameOf(AudioTrack *_Nullable track) {
     return nil;
 }
 
-- (VibeBitPerfectReport)bitPerfectReport {
-    return (VibeBitPerfectReport){0};
-}
-
 - (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(AudioTrack *)track {
 }
 

@@ -195,7 +195,7 @@
                     : STR_SETTINGS_BIT_PERFECT_FORMAT;
             NSString *format = [NSString stringWithFormat:formatString,
                     [formatters sampleRateString:report.sampleRate],
-                    [formatters decimalString:report.bitsPerChannel fractionDigits:0]];
+                    [formatters decimalString:report.sourceBits fractionDigits:0]];
             return [NSString stringWithFormat:STR_SETTINGS_BIT_PERFECT_ACTIVE, format];
         }
         case VibeBitPerfectStatusRateUnsupported:
