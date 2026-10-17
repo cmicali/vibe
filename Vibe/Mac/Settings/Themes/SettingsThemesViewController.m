@@ -357,8 +357,8 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
     // No artwork, so album_art resolves to Mono's answer.
     WaveformTheme *palette = [WaveformTheme themeForAppTheme:theme isDark:dark artworkColor:nil];
-    NSArray *key = @[style, @(dark), palette.playedColor, palette.unplayedColor,
-            palette.bandColors, @(palette.flatFill), palette.playheadColor ?: NSNull.null,
+    NSArray *key = @[style, @(dark), palette.paletteSignature, @(palette.flatFill),
+            palette.playheadColor ?: NSNull.null,
             @(theme.waveformBarDensity), @(theme.waveformBarWidth), @(theme.waveformCentered),
             @(settings.waveformNormalize), @(settings.waveformGainDB)];
     if ([_waveformPreviewKey isEqualToArray:key]) return;
