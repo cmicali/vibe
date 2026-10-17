@@ -203,6 +203,8 @@
                     [formatters sampleRateString:report.sampleRate]];
         case VibeBitPerfectStatusSwitchFailed:
             return STR_SETTINGS_BIT_PERFECT_SWITCH_FAILED;
+        case VibeBitPerfectStatusOutputResampled:
+            return STR_SETTINGS_BIT_PERFECT_OUTPUT_RESAMPLED;
         case VibeBitPerfectStatusChannelConversion:
             return STR_SETTINGS_BIT_PERFECT_CHANNELS;
         case VibeBitPerfectStatusDepthInsufficient:
